@@ -45,6 +45,9 @@ public final class EntityFamilyFlattener {
      * @param families the cross-entity grouping table (derivative id -&gt; family root)
      * @param stateTextures per-row alternate base textures keyed by behavioural state (wolf
      *     {@code wild}/{@code tame}/{@code angry}); only multi-state variant rows appear
+     * @param sizeAlternatives base entity id -&gt; ({@code size} option -&gt; alternate mesh geometry ref)
+     *     from the {@code size} axis (pufferfish small / medium); the renderer swaps to these when the
+     *     {@code size} axis selects a non-default mesh
      */
     public record Flat(
         @NotNull JsonObject entities,
@@ -53,7 +56,8 @@ public final class EntityFamilyFlattener {
         @NotNull Map<String, String> collarTextures,
         @NotNull Map<String, String> babyGeometry,
         @NotNull Map<String, List<EquipmentSpec>> equipment,
-        @NotNull Map<String, ShapeSpec> shapeAlternatives
+        @NotNull Map<String, ShapeSpec> shapeAlternatives,
+        @NotNull Map<String, Map<String, String>> sizeAlternatives
     ) {
 
         /**
@@ -64,7 +68,7 @@ public final class EntityFamilyFlattener {
          * @return an empty flat form
          */
         public static @NotNull Flat empty() {
-            return new Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+            return new Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         }
     }
 
@@ -118,6 +122,7 @@ public final class EntityFamilyFlattener {
         Map<String, String> babyGeometry = new LinkedHashMap<>();
         Map<String, List<EquipmentSpec>> equipment = new LinkedHashMap<>();
         Map<String, ShapeSpec> shapeAlternatives = new LinkedHashMap<>();
+        Map<String, Map<String, String>> sizeAlternatives = new LinkedHashMap<>();
 
         for (Map.Entry<String, JsonElement> entry : familyForm.entrySet()) {
             String familyId = entry.getKey();
@@ -127,6 +132,7 @@ public final class EntityFamilyFlattener {
             String baby = babyGeometryOf(family);
             List<EquipmentSpec> equip = equipmentOf(family);
             ShapeSpec shape = shapeLargeOf(family);
+            Map<String, String> size = sizeAlternativesOf(family);
 
             JsonObject variantAxis = variantAxis(family);
             if (variantAxis != null) {
@@ -137,6 +143,7 @@ public final class EntityFamilyFlattener {
                 if (baby != null) babyGeometry.put(familyId, baby);
                 if (!equip.isEmpty()) equipment.put(familyId, equip);
                 if (shape != null) shapeAlternatives.put(familyId, shape);
+                if (!size.isEmpty()) sizeAlternatives.put(familyId, size);
                 // Plain families carry their single baby texture on age.baby.texture_ref; expose it
                 // under the "baby" state key so the renderer binds it the same way as variant families.
                 String babyTex = babyTextureOf(family);
@@ -145,7 +152,26 @@ public final class EntityFamilyFlattener {
 
             if (family.has("family_of")) crossFamilies.addProperty(familyId, family.get("family_of").getAsString());
         }
-        return new Flat(entities, crossFamilies, stateTextures, collarTextures, babyGeometry, equipment, shapeAlternatives);
+        return new Flat(entities, crossFamilies, stateTextures, collarTextures, babyGeometry, equipment, shapeAlternatives, sizeAlternatives);
+    }
+
+    /**
+     * Returns the family's {@code size} axis options as a {@code size option -> alternate mesh
+     * geometry ref} map (pufferfish {@code small} / {@code medium}), or an empty map when the family
+     * has no {@code size} axis. The default size ({@code large} for pufferfish) is the family's base
+     * {@code geometry_ref} and carries no option override, so it is absent from the map.
+     */
+    private static @NotNull Map<String, String> sizeAlternativesOf(@NotNull JsonObject family) {
+        if (!family.has("axes")) return Map.of();
+        JsonObject axes = family.getAsJsonObject("axes");
+        if (!axes.has("size")) return Map.of();
+        JsonObject options = axes.getAsJsonObject("size").getAsJsonObject("options");
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> option : options.entrySet()) {
+            JsonObject value = option.getValue().getAsJsonObject();
+            if (value.has("geometry_ref")) out.put(option.getKey(), value.get("geometry_ref").getAsString());
+        }
+        return out;
     }
 
     /**

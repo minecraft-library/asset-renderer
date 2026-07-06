@@ -1202,7 +1202,25 @@
     "minecraft:pufferfish": {
       "geometry_ref": "geometry.pufferfishbig",
       "armor_type": "none",
-      "texture_ref": "fish/pufferfish"
+      "texture_ref": "fish/pufferfish",
+      "axes": {
+        "size": {
+          "default": "large",
+          "values": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "options": {
+            "small": {
+              "geometry_ref": "geometry.pufferfishsmall"
+            },
+            "medium": {
+              "geometry_ref": "geometry.pufferfishmid"
+            }
+          }
+        }
+      }
     },
     "minecraft:rabbit": {
       "geometry_ref": "geometry.adultrabbit",

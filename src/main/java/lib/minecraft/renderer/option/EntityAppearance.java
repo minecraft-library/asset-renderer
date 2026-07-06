@@ -59,6 +59,16 @@ public class EntityAppearance {
     private final @NotNull Optional<String> carried = Optional.empty();
 
     /**
+     * Body-size selector for entities with a {@code size} axis (pufferfish deflated / medium /
+     * fully-puffed meshes). Selects one of the entity's distinct baked size meshes; empty (default)
+     * keeps the entity's canonical mesh (pufferfish {@link Size#LARGE}, the fully-puffed silhouette
+     * vanilla's renderer shows for the settled reference), so the default appearance is byte-identical.
+     * Ignored by entities without a size axis.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<Size> size = Optional.empty();
+
+    /**
      * The selected dye per {@link TintAxis tint axis} - the body base tint ({@link TintAxis#BASE},
      * tropical fish) and each named overlay tint ({@link TintAxis#WOOL} sheep wool,
      * {@link TintAxis#PATTERN} tropical fish pattern, {@link TintAxis#COLLAR} wolf / cat collar).

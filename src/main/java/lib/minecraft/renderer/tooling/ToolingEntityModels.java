@@ -394,6 +394,27 @@ public final class ToolingEntityModels {
                 sources.add(EntitySourceFactory.shapeSource(shapeRes, shapeId));
             }
 
+            // Size-axis body geometry (pufferfish small|medium|big). Big is the primary
+            // (geometry.pufferfishbig, the fully-puffed silhouette the harness renders); small + medium
+            // are baked here as extra sources so the size axis can point its small/medium options at
+            // their meshes. Mirrors the shape-axis bake above. Pufferfish is the only vanilla entity with
+            // distinct per-size meshes (salmon/slime sizes are uniform scales, deferred).
+            Map<String, Map<String, EntityLayerDefinitionResolver.Result>> sizeResolutionByEntity = new LinkedHashMap<>();
+            String sizeEntity = "minecraft:pufferfish";
+            if (records.containsKey(sizeEntity)) {
+                Map<String, EntityLayerDefinitionResolver.Result> sizeOptions = new LinkedHashMap<>();
+                for (String[] option : new String[][]{{"small", "PUFFERFISH_SMALL"}, {"medium", "PUFFERFISH_MEDIUM"}}) {
+                    EntityLayerDefinitionResolver.Result sizeRes = layerDefs.get(option[1]);
+                    if (sizeRes == null) continue;
+                    sizeRes = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), sizeRes);
+                    String sizeId = sizeEntity + "#" + option[0];
+                    entityToResolution.put(sizeId, sizeRes);
+                    sizeOptions.put(option[0], sizeRes);
+                    sources.add(EntitySourceFactory.shapeSource(sizeRes, sizeId));
+                }
+                if (!sizeOptions.isEmpty()) sizeResolutionByEntity.put(sizeEntity, sizeOptions);
+            }
+
             ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics);
             System.out.println("Parsed geometry for " + geometries.size() + " entities + overlays");
 
@@ -443,10 +464,18 @@ public final class ToolingEntityModels {
             Map<String, String> shapeGeometryByEntity =
                 geometryIdsByKey(shapeResolutionByEntity, writeResult.factoryKeyToGeometryId());
 
+            // Map each size-axis entity to its per-size geometry ids, so the family writer can point the
+            // size axis's small/medium options at geometry.pufferfishsmall / geometry.pufferfishmedium.
+            Map<String, Map<String, String>> sizeGeometryByEntity = new LinkedHashMap<>();
+            for (Map.Entry<String, Map<String, EntityLayerDefinitionResolver.Result>> sizeEntry : sizeResolutionByEntity.entrySet()) {
+                Map<String, String> geomIds = geometryIdsByKey(sizeEntry.getValue(), writeResult.factoryKeyToGeometryId());
+                if (!geomIds.isEmpty()) sizeGeometryByEntity.put(sizeEntry.getKey(), geomIds);
+            }
+
             // Group the in-memory flat tables into the canonical family-form entity_models.json.
             EntityFamilyJsonWriter.writeAll(options.getVersion(), diagnostics, writeResult.flatEntities(), writeResult.flatFamilies(),
                 variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity, equipmentByEntity, equipmentGeometryByField,
-                shapeGeometryByEntity);
+                shapeGeometryByEntity, sizeGeometryByEntity);
 
             System.out.printf(
                 "Coverage: %d / %d mapped; texture %d hard / %d variant / %d unresolved; geometry %d%n",

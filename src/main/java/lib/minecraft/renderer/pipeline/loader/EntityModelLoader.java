@@ -13,6 +13,7 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
 import lombok.Builder;
@@ -26,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -126,6 +128,11 @@ public class EntityModelLoader {
      * @param largeShape the {@code shape} axis's large alternative (tropical fish): the large body
      *     mesh + {@code tropical_b} texture + pattern overlays cloned onto it, swapped in by
      *     {@link #resolveFor} when the selected pattern's {@code Shape} is large; empty otherwise
+     * @param sizeModels the {@code size} axis's non-default alternate meshes keyed by {@link Size}
+     *     (pufferfish {@link Size#SMALL} / {@link Size#MEDIUM}), swapped in by {@link #resolveFor} when
+     *     {@code EntityAppearance.size} selects one. The entity's default size is the base {@link #model}
+     *     and is absent from the map, so an unset / default size leaves the render byte-identical; empty
+     *     for entities with no size axis
      */
     @Builder(toBuilder = true)
     public record EntityDefinition(
@@ -141,7 +148,8 @@ public class EntityModelLoader {
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull Map<String, BoneToggle> boneToggles,
         @NotNull List<EquipmentOverlay> equipment,
-        @NotNull Optional<LargeShape> largeShape
+        @NotNull Optional<LargeShape> largeShape,
+        @NotNull Map<Size, EntityModelData> sizeModels
     ) {
         /**
          * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried}
@@ -208,6 +216,10 @@ public class EntityModelLoader {
                     LargeShape large = this.largeShape.get();
                     builder.model(large.model()).textureRef(large.textureRef()).overlays(large.overlays());
                 }
+                // The size axis (pufferfish) swaps to the selected size's distinct baked mesh. An unset
+                // size, or the entity's default size (pufferfish large = the base mesh, absent from the
+                // map), leaves the base model untouched, so the default render is byte-identical.
+                appearance.getSize().map(this.sizeModels::get).ifPresent(builder::model);
             }
             // The base_color axis (tropical fish) overrides the family base_tint with the selected
             // dye; absent (default) keeps the baked base_tint, so the default render is byte-identical.
@@ -568,6 +580,28 @@ public class EntityModelLoader {
     }
 
     /**
+     * Resolves a family's flattened {@code size} axis alternatives ({@code size option -> geometry ref})
+     * into {@code Size -> mesh}, looking each geometry up in the table. Absent / unresolvable meshes are
+     * skipped; the entity's default size is the base mesh and never appears here.
+     *
+     * @param alternatives the flattened {@code size option -> geometry ref} map (may be {@code null})
+     * @param geometries the geometry table
+     * @return the resolved per-size meshes, empty when the entity has no size axis
+     */
+    private static @NotNull Map<Size, EntityModelData> buildSizeModels(
+        @Nullable Map<String, String> alternatives,
+        @NotNull Map<String, EntityModelData> geometries
+    ) {
+        if (alternatives == null || alternatives.isEmpty()) return Map.of();
+        Map<Size, EntityModelData> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : alternatives.entrySet()) {
+            EntityModelData mesh = geometries.get(entry.getValue());
+            if (mesh != null) out.put(Size.valueOf(entry.getKey().toUpperCase(Locale.ROOT)), mesh);
+        }
+        return out;
+    }
+
+    /**
      * Returns a deep-cloned copy of {@code model} with every cube's {@link
      * EntityModelData.Cube#getInflate() inflate} field bumped by {@code delta}. Used by the
      * overlay loader to surround the base mesh with an inflated overlay (creeper armor mesh
@@ -694,6 +728,7 @@ public class EntityModelLoader {
         Map<String, String> babyGeometryRefs = flat.babyGeometry();
         Map<String, List<EntityFamilyFlattener.EquipmentSpec>> equipmentSpecs = flat.equipment();
         Map<String, EntityFamilyFlattener.ShapeSpec> shapeAlternatives = flat.shapeAlternatives();
+        Map<String, Map<String, String>> sizeAlternatives = flat.sizeAlternatives();
         HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
@@ -771,8 +806,11 @@ public class EntityModelLoader {
             // texture + the pattern overlays cloned onto the large geometry, resolved eagerly so
             // resolveFor can swap them in when the selected pattern's Shape is large.
             Optional<LargeShape> largeShape = buildLargeShape(shapeAlternatives.get(entityId), geometries, entityId);
+            // The size axis's non-default meshes (pufferfish small / medium), resolved so resolveFor can
+            // swap the base mesh for the selected size.
+            Map<Size, EntityModelData> sizeModels = buildSizeModels(sizeAlternatives.get(entityId), geometries);
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale,
-                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles, equipment, largeShape));
+                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles, equipment, largeShape, sizeModels));
         }
         return Concurrent.adoptMap(definitions);
     }

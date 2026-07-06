@@ -8,6 +8,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.EntityOptions;
+import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -112,6 +113,9 @@ public final class TestEntityRender3D {
         Optional<String> patternName = Optional.ofNullable(System.getProperty("asset.entity.pattern")).filter(s -> !s.isBlank());
         Optional<TropicalFishPattern> pattern = patternName.map(TropicalFishPattern::ofName);
         Optional<String> age = Optional.ofNullable(System.getProperty("asset.entity.age")).filter(s -> !s.isBlank());
+        // -Dasset.entity.size=small|medium|large names a Size (pufferfish puff mesh).
+        Optional<Size> sizeOpt = Optional.ofNullable(System.getProperty("asset.entity.size")).filter(s -> !s.isBlank())
+            .map(s -> Size.valueOf(s.toUpperCase(java.util.Locale.ROOT)));
         boolean sheared = Boolean.getBoolean("asset.entity.sheared");
         boolean charged = Boolean.getBoolean("asset.entity.charged");
         java.util.Set<String> toggles = Optional.ofNullable(System.getProperty("asset.entity.toggles")).filter(s -> !s.isBlank())
@@ -146,6 +150,7 @@ public final class TestEntityRender3D {
                 + patternName.map(c -> "_pattern-" + c).orElse("")
                 + (sheared ? "_sheared" : "")
                 + (charged ? "_charged" : "")
+                + sizeOpt.map(s -> "_size-" + s.name().toLowerCase(java.util.Locale.ROOT)).orElse("")
                 + (toggles.isEmpty() ? "" : "_toggle-" + String.join("-", toggles))
                 + (equipment.isEmpty() ? "" : "_equip-" + equipment.entrySet().stream()
                     .map(en -> en.getValue().isEmpty() ? en.getKey() : en.getKey() + "-" + en.getValue())
@@ -159,6 +164,7 @@ public final class TestEntityRender3D {
                 .pattern(pattern)
                 .sheared(sheared)
                 .charged(charged)
+                .size(sizeOpt)
                 .toggles(toggles)
                 .equipment(equipment)
                 .build();
