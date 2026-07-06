@@ -68,11 +68,10 @@
  * <p><b>Text and composition kits.</b>
  * <ul>
  *   <li>{@link lib.minecraft.renderer.engine.kit.TextKit TextKit} - styled Minecraft text rendering: font
- *       style resolution, vanilla colour mapping, drop shadow, strikethrough, underline. Wraps
- *       a {@code MinecraftGraphics} that owns the supersampling factor.</li>
- *   <li>{@link lib.minecraft.renderer.engine.kit.ObfuscationKit ObfuscationKit} - per-frame deterministic glyph
- *       substitution for {@code &sect;k} obfuscated runs. Seeds the random stream on frame
- *       index so animated output is reproducible across runs.</li>
+ *       style resolution, vanilla colour mapping, drop shadow, strikethrough, underline, and
+ *       per-frame deterministic glyph substitution for {@code &sect;k} obfuscated runs (seeded on
+ *       frame index so animated output is reproducible across runs). Wraps a
+ *       {@code MinecraftGraphics} that owns the supersampling factor.</li>
  *   <li>{@link lib.minecraft.renderer.engine.compose.FrameCompositor FrameCompositor} - composes static and animated layers
  *       into a single output, computing a merged loop period (LCM of animated layers, capped
  *       at 10 seconds) and sampling each layer at the correct time offset for every output

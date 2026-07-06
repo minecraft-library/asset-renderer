@@ -9,14 +9,16 @@ import lib.minecraft.text.font.MinecraftGraphics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Random;
+
 /**
  * Static text rendering utilities for styled Minecraft text. Operates through a
  * {@link MinecraftGraphics} that owns the supersampling factor - callers specify glyph origins
  * and decoration anchors in mcPixel space; the graphics applies all coordinate conversions.
  * <p>
  * Handles font style resolution, color mapping, text shadow, strikethrough, underline, and
- * obfuscation substitution. Shadow, strikethrough, and underline offsets match vanilla's
- * pixel-level rendering.
+ * obfuscation substitution ({@code §k} - see {@link #substitute}). Shadow, strikethrough, and
+ * underline offsets match vanilla's pixel-level rendering.
  *
  * @see MinecraftFont
  * @see MinecraftGraphics
@@ -113,7 +115,7 @@ public class TextKit {
         if (text.isEmpty()) return 0;
 
         if (segment.isObfuscated())
-            text = ObfuscationKit.substitute(text, frameSeed);
+            text = substitute(text, frameSeed);
 
         int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
         MinecraftFont font = MinecraftFont.of(segment.fontStyle());
@@ -295,6 +297,55 @@ public class TextKit {
             ColorMath.green(argb) / SHADOW_DARKEN_DIVISOR,
             ColorMath.blue(argb) / SHADOW_DARKEN_DIVISOR
         );
+    }
+
+    // --- obfuscation ---
+
+    /**
+     * Glyph pool for the {@code §k} scramble - 66 printable ASCII characters (A-Z, a-z, 0-9, and
+     * {@code !@#$}) approximating vanilla's sampled glyph pool.
+     */
+    private static final @NotNull String OBFUSCATION_POOL =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$";
+
+    /**
+     * Substitutes every non-whitespace character in {@code text} with a deterministic pick from the
+     * {@link #OBFUSCATION_POOL glyph pool}, seeded on {@code frameSeed}. Reproduces vanilla's
+     * obfuscated ({@code §k}) effect - which reshuffles every glyph in a run each client tick - as a
+     * per-frame deterministic scramble: seeding the random stream on the frame index makes a given
+     * frame reproducible across runs. Length and whitespace are preserved (whitespace passes through
+     * untouched), so word boundaries and run character-count survive the scramble.
+     *
+     * @param text the source text
+     * @param frameSeed the frame-index seed
+     * @return the scrambled text
+     */
+    static @NotNull String substitute(@NotNull String text, long frameSeed) {
+        return substitute(text, frameSeed, OBFUSCATION_POOL);
+    }
+
+    /**
+     * Substitutes every non-whitespace character in {@code text} with a deterministic pick from a
+     * glyph pool. Whitespace passes through unchanged, and {@code text} is returned as-is when either
+     * it or {@code pool} is empty.
+     *
+     * @param text the source text
+     * @param frameSeed the frame-index seed
+     * @param pool the glyph pool to sample from
+     * @return the scrambled text
+     */
+    private static @NotNull String substitute(@NotNull String text, long frameSeed, @NotNull String pool) {
+        if (text.isEmpty() || pool.isEmpty()) return text;
+
+        Random random = new Random(frameSeed);
+        char[] buffer = new char[text.length()];
+        for (int i = 0; i < text.length(); i++) {
+            char original = text.charAt(i);
+            buffer[i] = Character.isWhitespace(original)
+                ? original
+                : pool.charAt(random.nextInt(pool.length()));
+        }
+        return new String(buffer);
     }
 
 }

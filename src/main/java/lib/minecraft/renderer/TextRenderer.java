@@ -9,7 +9,6 @@ import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
-import lib.minecraft.renderer.engine.kit.ObfuscationKit;
 import lib.minecraft.renderer.engine.kit.TextKit;
 import lib.minecraft.renderer.option.TextOptions;
 import lib.minecraft.renderer.option.slot.TextSlot;
@@ -32,7 +31,7 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
- * fresh {@link ObfuscationKit ObfuscationKit} substitution.
+ * fresh {@link TextKit} obfuscation substitution.
  */
 public final class TextRenderer implements Renderer<TextOptions> {
 
