@@ -4,7 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.option.ItemOptions;
+import lib.minecraft.renderer.option.spec.ItemDecoration;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -26,7 +26,7 @@ import java.util.Optional;
  * @param enchantments the item enchantments keyed by namespaced id (e.g. {@code "minecraft:sharpness" -> 5})
  * @param potionEffects the potion effects on this item (for potions and tipped arrows), in
  *     application order; the first entry drives the liquid/head tint when no explicit
- *     {@link ItemOptions#getPotionColor()} override is present
+ *     {@link ItemDecoration#getPotionColor()} override is present
  */
 public record ItemContext(
     @NotNull String itemId,
