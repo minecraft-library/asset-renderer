@@ -16,18 +16,18 @@ Headless rendering library for Minecraft blocks, items, entities, fluids, and po
 - [Gradle Tasks](#gradle-tasks)
   - [Build and Test](#build-and-test)
   - [Visual Inspection](#visual-inspection)
+  - [Parity Testing](#parity-testing)
   - [Asset Regeneration](#asset-regeneration)
   - [JMH Benchmarks](#jmh-benchmarks)
 - [Package Structure](#package-structure)
 - [Bundled Resources](#bundled-resources)
-- [Parity Testing](#parity-testing)
 - [Contributing](#contributing)
 - [License](#license)
 
 ## Features
 
 - **Pluggable renderers** - `BlockRenderer`, `ItemRenderer`, `EntityRenderer`, `PlayerRenderer`, `FluidRenderer`, `PortalRenderer`, `TextRenderer`, plus composite `AtlasRenderer`, `GridRenderer`, `LayoutRenderer`, and `MenuRenderer`
-- **Any Minecraft version** - Pulls client JARs via the Piston API and loads overlay resource packs (CIT, CTM, banner patterns, custom item definitions) on top of vanilla
+- **Minecraft 26.1 and later** - Pulls client JARs via the Piston API and loads overlay resource packs (CIT, CTM, banner patterns, custom item definitions) on top of vanilla (the asset / pack-format parsing targets the 26.1+ client-jar layout)
 - **Isometric or 2D output** - `ModelEngine` with a `Camera` pose for 30/45° block previews, `RasterEngine` for flat tile icons, both composing the same texture/light subsystems
 - **Static PNG or animated frames** - Returns `StaticImageData` or `AnimatedImageData` from [simplified-dev/image](https://github.com/simplified-dev/image) - animated textures, portals, and fluids drive multi-frame output transparently
 - **Vector API SIMD** - JDK 21 incubator `FloatVector` backs `ModelEngine` matrix math and `PortalRenderer` layer transforms
@@ -80,58 +80,67 @@ cd asset-renderer
 
 ### Usage
 
-Run the pipeline once to produce an `AssetPipeline.Result`, wrap it in a `PipelineRendererContext`, then instantiate any `Renderer<O>` against that context:
+Run the pipeline once to produce a `Pipeline.Result`, wrap it in a `PipelineRendererContext`, then instantiate any `Renderer<O>` against that context:
 
 ```java
-// 1. Configure and run the pipeline. Downloads the client JAR on first call and
-//    caches it under AssetPipelineOptions.cacheRoot for subsequent runs. All
-//    Mojang network access flows through a shared MojangContract proxy on
-//    AssetPipeline (see api.simplified.mojang for the upstream contract).
-AssetPipeline pipeline = new AssetPipeline();
-
-AssetPipelineOptions pipelineOptions = AssetPipelineOptions.builder()
+// 1. Configure and run the pipeline. Pipeline.run is static; it downloads the client JAR on
+//    first call and caches it under PipelineOptions.cacheRoot for subsequent runs. All Mojang
+//    network access flows through a shared MojangContract proxy on Pipeline (see
+//    api.simplified.mojang for the upstream contract).
+PipelineOptions pipelineOptions = PipelineOptions.builder()
     .version("26.1")
     .texturePacks(Concurrent.newList(myResourcePackZip))
     .build();
 
-AssetPipeline.Result result = pipeline.run(pipelineOptions);
+Pipeline.Result result = Pipeline.run(pipelineOptions);
 
 // 2. Wrap the result in a context. Eagerly materialises every block/item entity;
 //    textures stream from disk on first lookup and are then cached.
 PipelineRendererContext context = PipelineRendererContext.of(result);
 
-// 3. Render. Renderers are stateless - cache them for the lifetime of the context.
-BlockRenderer renderer = new BlockRenderer(context);
+// 3. Render. Renderers are stateless - cache them for the lifetime of the context. Output size,
+//    projection, and SSAA / FXAA live on the shared OutputOptions.
+BlockRenderer blockRenderer = new BlockRenderer(context);
 BlockOptions blockOptions = BlockOptions.builder()
     .blockId("minecraft:diamond_ore")
-    .outputSize(512)
+    .output(OutputOptions.builder().canvasSize(512).build())
     .build();
+ImageData block = blockRenderer.render(blockOptions);
+ImageIO.write(block.toBufferedImage(), "PNG", new File("diamond_ore.png"));
 
-ImageData image = renderer.render(blockOptions);
-ImageIO.write(image.toBufferedImage(), "PNG", new File("diamond_ore.png"));
+// Entities render from vanilla-client-jar-derived models. EntityAppearance selects the per-entity
+// axes (age, behavioural state, dye tints, tropical-fish pattern / shape, equipment, ...); the
+// default appearance renders the plain mob.
+EntityRenderer entityRenderer = new EntityRenderer(context);
+EntityOptions entityOptions = EntityOptions.builder()
+    .entityId(Optional.of("minecraft:zombie"))
+    .output(OutputOptions.builder().canvasSize(512).supersample(2).build())
+    .build();
+ImageData entity = entityRenderer.render(entityOptions);
+ImageIO.write(entity.toBufferedImage(), "PNG", new File("zombie.png"));
 ```
 
 > [!NOTE]
-> `ImageData` is either `StaticImageData` (single frame) or `AnimatedImageData` (multiple frames with per-frame delay). Animated textures, fluids, and portals return the animated variant - branch on the concrete type or call `image.frames()` to iterate.
+> `ImageData` is either `StaticImageData` (single frame) or `AnimatedImageData` (multiple frames with per-frame delay). Items (enchant glint / animated sprites), fluids, and portals return the animated variant; see the [Renderers](#renderers) table for which produce animation. Branch on the concrete type or call `image.frames()` to iterate.
 
-> [!TIP]
-> `AssetPipelineOptions` defaults to Minecraft `26.1` and `./cache/asset-renderer` for the JAR cache. Set `forceDownload(true)` on the builder to bypass the cache after a version bump.
+> [!IMPORTANT]
+> `PipelineOptions` supports Minecraft **`26.1` (the default) and later only** - the asset extraction and pack-format parsing target the 26.1+ client-jar layout, so earlier versions are not supported. The JAR is cached under `cacheRoot` (default `./cache/asset-renderer`); pass `forceDownload(true)` on the builder to re-fetch after a version bump.
 
 ## Renderers
 
-| Renderer | Options | Output | Notes |
-|----------|---------|--------|-------|
-| `BlockRenderer` | `BlockOptions` | Static or animated | Isometric cube preview |
-| `ItemRenderer` | `ItemOptions` | Static or animated | Handles held-item transforms, durability bars, glint |
-| `EntityRenderer` | `EntityOptions` | Static or animated | Vanilla-client-jar-derived entity models |
-| `PlayerRenderer` | `PlayerOptions` | Static | Player skins with armor and held items |
-| `FluidRenderer` | `FluidOptions` | Static or animated | Water, lava, biome variants, still + flowing |
-| `PortalRenderer` | `PortalOptions` | Static or animated | End portal / end gateway, layered shader effect |
-| `TextRenderer` | `TextOptions` | Static | SkyBlock-style tooltips, lore, stack counts |
-| `AtlasRenderer` | `AtlasOptions` | Static + sidecar JSON | Full pack dump into a tile grid |
-| `GridRenderer` | `GridOptions` | Static | Arbitrary child layout into a grid |
-| `LayoutRenderer` | `LayoutOptions` | Static | Freeform placement of child renders |
-| `MenuRenderer` | `MenuOptions` | Static | Container UIs (chest, furnace, etc.) |
+| Renderer | Options | Static | Animated | Notes |
+|----------|---------|:------:|:--------:|-------|
+| `BlockRenderer` | `BlockOptions` | ✅ | ❌ | Isometric cube or 2D face; animated textures pinned to frame 0 |
+| `ItemRenderer` | `ItemOptions` | ✅ | ✅ | GUI + held transforms, durability bars, animated enchant glint |
+| `EntityRenderer` | `EntityOptions` | ✅ | ❌ | Vanilla-client-jar-derived models; per-entity `EntityAppearance` axes |
+| `PlayerRenderer` | `PlayerOptions` | ✅ | ❌ | Skins with armor, trims, and held items |
+| `FluidRenderer` | `FluidOptions` | ✅ | ✅ | Water / lava, biome variants, still + flowing |
+| `PortalRenderer` | `PortalOptions` | ✅ | ✅ | End portal / gateway, layered shader effect |
+| `TextRenderer` | `TextOptions` | ✅ | ❌ | SkyBlock-style tooltips, lore, stack counts |
+| `AtlasRenderer` | `AtlasOptions` | ✅ | ❌ | Full pack dump into a tile grid (+ sidecar JSON) |
+| `GridRenderer` | `GridOptions` | ✅ | ❌ | Arbitrary child layout into a grid |
+| `LayoutRenderer` | `LayoutOptions` | ✅ | ❌ | Freeform placement of child renders |
+| `MenuRenderer` | `MenuOptions` | ✅ | ❌ | Container UIs (chest, furnace, etc.) |
 
 ## Gradle Tasks
 
@@ -151,16 +160,43 @@ ImageIO.write(image.toBufferedImage(), "PNG", new File("diamond_ore.png"));
 Each task writes into `cache/visual/<task-name>/` for side-by-side comparison. Flags use Gradle's `-P` property syntax. Run `./gradlew tasks --group visual` to list. The underlying `main()` entry points live in `src/test/java/lib/minecraft/renderer/visual/`.
 
 ```bash
-./gradlew blockRender3D    -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2
-./gradlew itemRender2D     -PitemId=minecraft:diamond_sword -PrenderSize=256
-./gradlew bedParity        -PrenderSize=1024
+./gradlew blockRender3D     -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2
+./gradlew projectionSmoke   -PblockId=minecraft:tnt -PrenderSize=512
+./gradlew itemRender2D      -PitemId=minecraft:diamond_sword -PrenderSize=256 -Ptype=gui   # or -Ptype=held
+./gradlew playerRender      -PrenderSize=256
+./gradlew entityRender3D    -PentityId=minecraft:zombie -PrenderSize=512 -Pprojection=ISOMETRIC
+./gradlew entityProjections -PentityId=minecraft:zombie -PrenderSize=256   # one entity under every projection
+./gradlew bedParity         -PrenderSize=1024
 ./gradlew loreTooltip
-./gradlew stackCountBadge  -Plabel=experiment1
-./gradlew stackCountBadge  -Pdiff=experiment1,experiment2
-./gradlew entityRender3D   -PentityId=minecraft:zombie -PrenderSize=512
+./gradlew stackCountBadge   -Plabel=experiment1
+./gradlew stackCountBadge   -Pdiff=experiment1,experiment2
 ./gradlew fluidRenderer
 ./gradlew portalRenderer
+./gradlew packOverlay       -PrenderSize=256   # vanilla vs overlay pack, side-by-side
+./gradlew redstoneTints     -PrenderSize=64
 ```
+
+> [!TIP]
+> `entityRender3D` selects per-entity `EntityAppearance` axes through `-Dasset.entity.*` system properties, e.g. `-Dasset.entity.state=tame`, `-Dasset.entity.age=baby`, `-Dasset.entity.collar=magenta`, `-Dasset.entity.wool=lime`, `-Dasset.entity.base_color=orange`, `-Dasset.entity.pattern=clayfish`, `-Dasset.entity.pattern_color=white`, `-Dasset.entity.sheared=true`, `-Dasset.entity.toggles=horn`, `-Dasset.entity.equipment=body:diamond`. All `-Dasset.*` flags auto-forward to the fork.
+
+### Parity Testing
+
+The Java pipeline is validated against pixel-perfect ground truth driven by the sibling [vanilla-reference-harness] - a headless Fabric mod that drives the actual MC client to render every block, item, and living entity (with variants) at a locked iso pose. Ground-truth PNGs land under `cache/asset-renderer/vanilla/<mc-version>/references/{blocks,items,entities,glint}/`; each `*ParityVanilla` task diffs the pipeline output against them and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel). Output lands under `cache/visual/<subject>-parity-vanilla/`. These are `visual`-group tasks (`./gradlew tasks --group visual`).
+
+```bash
+./gradlew entityParityVanilla -PentityId=minecraft:zombie          # omit -P for the full sweep
+./gradlew blockParityVanilla  -PblockId=minecraft:tnt
+./gradlew itemParityVanilla   -PitemId=minecraft:diamond_sword
+./gradlew glintParityVanilla  -PitemId=minecraft:nether_star       # animated enchant-glint parity
+```
+
+Re-render ground truth (only needed on MC version bumps or harness fixes - `tooling`-group tasks):
+```bash
+./gradlew renderVanillaReferences        # blocks + items + entities
+./gradlew renderVanillaGlintReferences   # animated glint strips (then run glintParityVanilla)
+```
+
+See `CLAUDE.md` for the parity / harness session-refresh checklist and per-renderer override gotchas.
 
 ### Asset Regeneration
 
@@ -169,15 +205,17 @@ These tasks rewrite the bundled JSON snapshots in `src/main/resources/lib/minecr
 | Task | Output | Source |
 |------|--------|--------|
 | `atlas` | `build/atlas/atlas.png` + `atlas.json` | All blocks + items |
-| `diagnoseAtlas` | `build/atlas/missing.json` | Blank-tile scan over the generated atlas |
+| `diagnoseAtlas` | `build/atlas/` diagnostics | Blank-tile scan over the generated atlas |
 | `blockTints` | `block_tints.json` | ASM scan of `net.minecraft.client.color.block.BlockColors` |
 | `potionColors` | `potion_colors.json` | ASM scan of `net.minecraft.world.effect.MobEffects` |
-| `blockEntities` | `block_entities.json` | ASM scan of block-entity model classes |
-| `entityModels` | `entity_models.json` + `entity_geometry.json` | ASM scan of vanilla client jar Model factories |
+| `glintItems` | `glint_items.json` | ASM scan of `Items` for the always-foil items (`ENCHANTMENT_GLINT_OVERRIDE`) |
+| `blockModels` | `block_models.json` | ASM scan of block-entity model classes (chest, sign, bed, banner, ...) |
+| `blockDefaults` | `block_defaults.json` | ASM bytewalk of each block's `registerDefaultState` (read by `BlockStateLoader`) |
+| `entityModels` | `entity_models.json` + `entity_geometry.json` | ASM scan of vanilla client-jar entity `Model` factories (normalized family form + geometry) |
 | `colorMaps` | `color_maps.json` | Vanilla biome colormap PNGs |
 
 > [!NOTE]
-> `blockTints` and `potionColors` depend on a cached client JAR. They fetch it automatically on first run through `AssetPipeline.downloadJarToCache(options)`, then reuse `<cacheRoot>/vanilla/<version>/client.jar`.
+> These tasks depend on a cached client JAR. They fetch it automatically on first run through `Pipeline`, then reuse `<cacheRoot>/vanilla/<version>/client.jar`. `entityModels` output is guarded by the `JsonResourceShaTest` fixtures - re-run it, paste the printed SHA into the matching `*.sha256`, and commit both.
 
 ### JMH Benchmarks
 
@@ -203,52 +241,53 @@ Benchmarks live in `src/jmh/java/lib/minecraft/renderer/bench/`. Forks inherit `
 asset-renderer/
 ├── src/
 │   ├── main/java/lib/minecraft/renderer/
-│   │   ├── Renderer.java                # Root contract: Renderer<O> -> ImageData
-│   │   ├── AtlasRenderer.java
-│   │   ├── BlockRenderer.java
-│   │   ├── EntityRenderer.java
-│   │   ├── FluidRenderer.java
-│   │   ├── GridRenderer.java
-│   │   ├── ItemRenderer.java
-│   │   ├── LayoutRenderer.java
-│   │   ├── MenuRenderer.java
-│   │   ├── PlayerRenderer.java
-│   │   ├── PortalRenderer.java
-│   │   ├── TextRenderer.java
-│   │   ├── asset/          # Immutable domain: Block, Item, Entity, BlockTag
-│   │   │   ├── binding/    # ArmorMaterial, BannerLayer, DyeColor, ...
-│   │   │   ├── model/      # BlockModelData, EntityModelData, ModelElement, ...
-│   │   │   └── pack/       # Texture, TexturePack, AnimationData, ColorMap
-│   │   ├── engine/         # ModelEngine, RasterEngine + camera/ light/ texture/ subsystems
-│   │   ├── exception/      # RendererException, AssetPipelineException
-│   │   ├── geometry/       # Biome, BlockFace, Box, ProjectionMath, ...
-│   │   ├── kit/            # AnimationKit, BannerKit, GeometryKit, GlintKit, ItemStackKit, ...
-│   │   ├── options/        # BlockOptions, ItemOptions, EntityOptions, ... (records)
-│   │   ├── pipeline/       # AssetPipeline (owns client-jar download/extract via simplified-api/mojang), resource-pack loaders
-│   │   │   ├── loader/     # BlockStateLoader, CitLoader, CtmLoader, ModelResolver, ...
-│   │   │   └── pack/       # CitMatcher, CtmMatcher, ColorProperties, NbtCondition, ...
-│   │   ├── tensor/         # FloatVector-backed Matrix4fOps, Vector3fOps
-│   │   └── tooling/        # Tooling* Gradle entry points + ASM scanners + parity tests
+│   │   ├── Renderer.java             # Root contract: Renderer<O> -> ImageData
+│   │   ├── BlockRenderer.java  ItemRenderer.java  EntityRenderer.java  PlayerRenderer.java
+│   │   ├── FluidRenderer.java  PortalRenderer.java  TextRenderer.java
+│   │   ├── AtlasRenderer.java  GridRenderer.java  LayoutRenderer.java  MenuRenderer.java
+│   │   ├── asset/           # Immutable domain: Block, Item, Entity, Texture, TexturePack, ...
+│   │   │   ├── model/       # ModelData, EntityModelData, ModelElement, ModelFace, ...
+│   │   │   └── rule/        # CitMatcher, CitRule (custom-item-texture rules)
+│   │   ├── engine/          # ModelEngine + RasterEngine
+│   │   │   ├── camera/      # Camera, Projection, Placement, FitRequest, ...
+│   │   │   ├── compose/     # Finalize, FrameCompositor, Layer/LayerStack, GlintStage
+│   │   │   ├── kit/         # EntityGeometryKit, BannerKit, GlintKit, ItemStackKit, ...
+│   │   │   ├── light/       # Shading
+│   │   │   ├── raster/      # rasterizer (top-left fill rule, snap, depth)
+│   │   │   └── texture/     # texture / atlas resolution
+│   │   ├── exception/       # PipelineException, RendererException, ...
+│   │   ├── face/            # BlockFace, EntityFace, SixFaces, SkinFace
+│   │   ├── option/          # BlockOptions, EntityOptions, ..., EntityAppearance, Age
+│   │   │   ├── slot/        # equipment / armor slot enums
+│   │   │   └── spec/        # OutputOptions, ArmorOptions, SkinOptions, ...
+│   │   ├── pipeline/        # Pipeline (client-jar download/extract via simplified-api/mojang), pack loaders
+│   │   │   ├── loader/      # BlockStateLoader, EntityModelLoader, EntityFamilyFlattener, ...
+│   │   │   ├── resolver/    # model / texture resolvers
+│   │   │   └── util/        # SPI + shared pipeline utils
+│   │   ├── request/         # Biome, DyeColor, TintAxis, TropicalFishPattern, EulerRotation, ArmorMaterial, ...
+│   │   ├── tensor/          # FloatVector-backed Matrix4fOps, Vector3fOps
+│   │   └── tooling/         # Tooling* Gradle entry points + ASM scanners
+│   │       ├── blockentity/ # block-entity / block-model ASM emitters
+│   │       ├── entity/      # entity model / geometry / family ASM emitters
+│   │       ├── parser/      # GeometryParser
+│   │       └── util/        # AsmKit, ClassNodeCache, VanillaSourceClasses, ...
 │   ├── main/resources/lib/minecraft/renderer/    # Bundled JSON snapshots
-│   ├── test/java/          # JUnit 5 tests (fast + @Tag("slow"))
+│   ├── test/java/           # JUnit 5 tests (fast + @Tag("slow")) + visual/ main() entry points
 │   └── jmh/java/lib/minecraft/renderer/bench/    # JMH benchmarks
-├── build.gradle.kts
-├── settings.gradle.kts
-├── gradle/libs.versions.toml
-├── LICENSE.md
-├── COPYRIGHT.md
-├── CONTRIBUTING.md
-└── CLAUDE.md
+├── build.gradle.kts  settings.gradle.kts  gradle/libs.versions.toml
+└── LICENSE.md  COPYRIGHT.md  CONTRIBUTING.md  CLAUDE.md
 ```
 
 ## Bundled Resources
 
 | File | Purpose |
 |------|---------|
-| `block_entities.json` | Block-entity model metadata (chest, sign, bed, etc.) |
+| `block_defaults.json` | Per-block default blockstate (ASM bytewalk of `registerDefaultState`) |
+| `block_models.json` | Block-entity / block-model metadata (chest, sign, bed, banner, ...) |
 | `block_tints.json` | Block-colour tint hooks extracted from `BlockColors` |
-| `color_maps.json` | Grass/foliage/water biome tint maps |
-| `entity_models.json` + `entity_geometry.json` | Vanilla-client-derived entity geometry |
+| `color_maps.json` | Grass / foliage / water biome tint maps |
+| `entity_models.json` + `entity_geometry.json` | Vanilla-client-derived entity family form + geometry |
+| `glint_items.json` | Always-foil items (`ENCHANTMENT_GLINT_OVERRIDE`) |
 | `potion_colors.json` | Vanilla `MobEffects` colour values |
 
 > [!NOTE]
@@ -263,22 +302,6 @@ Created during execution and excluded from version control:
 | `cache/` | Client JARs, extracted assets, test-render output |
 | `texturepacks/` | User-supplied overlay packs discovered by `TexturePackLoader` |
 | `build/` | Gradle outputs and `atlas` task products |
-
-## Parity Testing
-
-The Java entity-rendering pipeline is validated against pixel-perfect ground-truth renders driven by the sibling [vanilla-reference-harness] - a headless Fabric mod that drives the actual MC client to render every block and every living entity (with variants) at a locked iso pose. The output PNGs land under `cache/asset-renderer/vanilla/<mc-version>/references/{blocks,entities}/`; `TestEntityParityVanilla` diffs the asset-renderer pipeline output against them and groups results into delta buckets (`<0.25 / <0.5 / <0.75 / <1` per-pixel mean ARGB).
-
-Run a single-entity parity check:
-```bash
-./gradlew entityParityVanilla -PentityId=minecraft:zombie
-```
-
-Re-render ground truth (only needed on MC version bumps or harness fixes):
-```bash
-./gradlew renderVanillaReferences
-```
-
-See `CLAUDE.md` for the parity / harness session-refresh checklist and per-renderer override gotchas.
 
 [vanilla-reference-harness]: https://github.com/minecraft-library/vanilla-reference-harness
 
