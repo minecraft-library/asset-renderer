@@ -72,6 +72,16 @@ public final class EntityEquipmentResolver {
     private static final @NotNull String LLAMA_BODY_SUBDIR = "llama_body";
 
     /**
+     * Default material for the happy-ghast body slot - the harness has no leather baseline; its
+     * materials are the 16 dyed {@code <colour>_harness} assets, so the static icon defaults to
+     * {@code white_harness}.
+     */
+    private static final @NotNull String DEFAULT_HAPPY_GHAST_BODY_ASSET = "white_harness";
+
+    /** The happy-ghast body (dyed harness) equipment subdir; materials are the 16 {@code <colour>_harness} assets. */
+    private static final @NotNull String HAPPY_GHAST_BODY_SUBDIR = "happy_ghast_body";
+
+    /**
      * Resolves the equipment overlays a renderer attaches via {@code SimpleEquipmentLayer}. Returns
      * an empty list when the renderer attaches none (the common case).
      *
@@ -123,28 +133,13 @@ public final class EntityEquipmentResolver {
                 continue;
             }
             if (isEquipmentConstruction(node)) {
-                if (layerTypeField != null && modelLayerField != null && !isDeferredEquipment(layerTypeField))
+                if (layerTypeField != null && modelLayerField != null)
                     out.add(build(layerTypeField, modelLayerField));
                 layerTypeField = null;
                 modelLayerField = null;
             }
         }
         return out;
-    }
-
-    /**
-     * Whether a {@code SimpleEquipmentLayer} is deferred from equipment emission. The happy-ghast
-     * harness ({@code HAPPY_GHAST_BODY}) is: its {@code createHarnessLayer} mesh is authored in the
-     * body model's own (internally 4x-scaled) coordinate frame and dyed by per-colour
-     * {@code <colour>_harness} textures, so it renders correctly only through the body model's pose -
-     * the standalone-mesh equipment path renders it 4x too small and mispositioned. It needs the
-     * body-pose render path (a follow-up), so it is excluded rather than emitted as a hidden layer.
-     *
-     * @param layerTypeField the {@code EquipmentClientInfo$LayerType} constant name
-     * @return whether the equipment layer is deferred
-     */
-    private static boolean isDeferredEquipment(@NotNull String layerTypeField) {
-        return layerTypeField.startsWith("HAPPY_GHAST");
     }
 
     /**
@@ -220,6 +215,7 @@ public final class EntityEquipmentResolver {
         String defaultAsset = saddle ? DEFAULT_SADDLE_ASSET
             : WOLF_BODY_SUBDIR.equals(subdir) ? DEFAULT_WOLF_BODY_ASSET
             : LLAMA_BODY_SUBDIR.equals(subdir) ? DEFAULT_LLAMA_BODY_ASSET
+            : HAPPY_GHAST_BODY_SUBDIR.equals(subdir) ? DEFAULT_HAPPY_GHAST_BODY_ASSET
             : DEFAULT_BODY_ASSET;
         return new Result(slot, subdir, modelLayerField, defaultAsset);
     }

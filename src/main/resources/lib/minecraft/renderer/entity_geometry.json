@@ -37463,6 +37463,81 @@
       },
       "y_axis": "DOWN"
     },
+    "geometry.happyghastharness": {
+      "textureWidth": 64,
+      "textureHeight": 64,
+      "bones": {
+        "harness": {
+          "pivot": [
+            0.0,
+            23.951996,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -8.0,
+                -16.0,
+                -8.0
+              ],
+              "size": [
+                16.0,
+                16.0,
+                16.0
+              ],
+              "uv": [
+                0,
+                0
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ],
+          "scale": 4.0
+        },
+        "goggles": {
+          "pivot": [
+            0.0,
+            -16.048004,
+            -22.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -8.0,
+                -2.5,
+                -2.5
+              ],
+              "size": [
+                16.0,
+                5.0,
+                5.0
+              ],
+              "uv": [
+                0,
+                32
+              ],
+              "inflate": 0.15,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ],
+          "scale": 4.0
+        }
+      },
+      "y_axis": "DOWN"
+    },
     "geometry.abstractequine_2": {
       "textureWidth": 64,
       "textureHeight": 64,

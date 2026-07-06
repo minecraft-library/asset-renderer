@@ -417,6 +417,18 @@ public final class ToolingEntityModels {
                 // at the raw, too-low pivot instead of aligning with the scaled body.
                 float[] equipmentParams = new float[8];
                 if (res.defaultFloatParam() != null) equipmentParams[0] = res.defaultFloatParam();
+                // Enable boolean/int parameter branch-following for factories whose first arg is a
+                // primitive int/boolean. The happy-ghast harness (createHarnessLayer(boolean isBaby),
+                // registered adult=false) applies MeshTransformer.scaling(4.0) then
+                // `.apply(isBaby ? BABY_TRANSFORMER : IDENTITY)`; without a bound isBaby the linear
+                // walk folds the untaken BABY_TRANSFORMER (0.2375), collapsing the 4.0 body-frame
+                // scale to 0.95 and rendering the harness ~4x too small inside the body. The adult
+                // layer is always registered with a zero-valued flag, so a zeroed param table binds
+                // isBaby=false and the walk follows the IDENTITY arm, keeping the 4.0 scale. Gated to
+                // int/boolean-first-arg factories so float-param (horse 1.1) and no-arg (pig saddle)
+                // equipment stay byte-identical (their sources keep a null int-param table).
+                int[] equipmentIntParams =
+                    res.targetDesc().startsWith("(Z") || res.targetDesc().startsWith("(I") ? new int[8] : null;
                 sources.add(new Source(
                     res.targetClass() + ".class",
                     res.targetMethod(),
@@ -425,7 +437,7 @@ public final class ToolingEntityModels {
                     0f,
                     res.texWidthOverride(),
                     res.texHeightOverride(),
-                    null,
+                    equipmentIntParams,
                     equipmentParams,
                     res.defaultInflate(),
                     res.appliedMeshTransformerScale(),
