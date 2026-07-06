@@ -238,15 +238,15 @@ public final class ToolingBlockTints {
 
                             if (methodInsn.name.equals("constant") && methodInsn.desc.startsWith("(I")) {
                                 if (methodInsn.desc.equals("(I)Lnet/minecraft/client/color/block/BlockTintSource;")) {
-                                    pendingConstant = popIntOrZero(intLiteralStack);
+                                    pendingConstant = intLiteralStack.popIntOrZero();
                                 } else if (methodInsn.desc.equals("(II)Lnet/minecraft/client/color/block/BlockTintSource;")) {
                                     // constant(colorInHand, colorInWorld) - the second arg is the
                                     // in-world biome-independent colour (lily_pad's dark pond green);
                                     // the FIRST is the no-context "in hand" colour BlockTintSource
                                     // .color(state) returns, which is what the GUI block icon uses.
                                     // Drain the in-world arg, keep colorInHand.
-                                    popIntOrZero(intLiteralStack);
-                                    pendingConstant = popIntOrZero(intLiteralStack);
+                                    intLiteralStack.popIntOrZero();
+                                    pendingConstant = intLiteralStack.popIntOrZero();
                                 }
                             }
                         } else if (methodInsn.owner.equals(LIST_INTERNAL_NAME) && methodInsn.name.equals("of")
@@ -273,17 +273,6 @@ public final class ToolingBlockTints {
             }
 
             return tints;
-        }
-
-        /**
-         * Pops the most recent int off the running literal stack, returning {@code 0} when the
-         * stack is empty or the top is not an int. Used to grab the {@code ldc}/{@code bipush}
-         * constants that preceded a {@code BlockTintSources.constant(int)} or
-         * {@code constant(int, int)} call.
-         */
-        private static int popIntOrZero(@NotNull AsmKit.LiteralStack stack) {
-            Integer value = stack.popInt();
-            return value != null ? value : 0;
         }
 
         /**

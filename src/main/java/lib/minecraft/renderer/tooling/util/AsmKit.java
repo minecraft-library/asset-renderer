@@ -2435,6 +2435,20 @@ public final class AsmKit {
         }
 
         /**
+         * Silent counterpart of {@link #popIntOrZero(Diagnostics, String, String)}: pops the top
+         * as an {@code int} via {@link #popInt()} and returns {@code 0} when the stack is empty or
+         * the top is not an {@link Integer} (the wrong-type top is left in place, matching
+         * {@code popInt}). No diagnostic is emitted - for callers that treat an absent or wrong-type
+         * operand as a benign zero (the {@code BlockTintSources.constant} literal grab).
+         *
+         * @return the popped int, or {@code 0} on an empty stack or non-int top
+         */
+        public int popIntOrZero() {
+            Integer value = popInt();
+            return value != null ? value : 0;
+        }
+
+        /**
          * Pops an int from the stack, returning {@code 0} on three cases with different
          * diagnostic behaviour:
          * <ul>
