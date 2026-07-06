@@ -252,6 +252,40 @@ public final class EntityBoneResolver {
     public record BoneToggle(@NotNull List<String> bones, boolean defaultVisible) {}
 
     /**
+     * A decoded {@code ModelPart.visible = <boolean>} write: the store-target instruction (the node
+     * below the boolean value on the operand stack) plus the {@link AsmKit.BooleanStore} r-value.
+     * Produced by {@link #matchVisibleWrite}; the visibility collectors each filter this by store
+     * kind / {@link AsmKit.Polarity} and apply their own target guards.
+     *
+     * @param targetInsn the instruction pushing the {@code ModelPart} being written
+     *     ({@code previousReal(value.valueStart())}) - a {@code GETFIELD}, a {@code getChild(LDC)}
+     *     call, or a {@code get<Bone>()} accessor, interpreted per collector
+     * @param value the decoded boolean r-value written to {@code visible}
+     */
+    private record VisibleWrite(@NotNull AbstractInsnNode targetInsn, @NotNull AsmKit.BooleanStore value) {}
+
+    /**
+     * Matches a {@code PUTFIELD ModelPart.visible:Z} write at {@code in} and decodes both its
+     * boolean r-value (via {@link AsmKit#decodeBooleanStore}) and its store-target instruction.
+     * Returns {@code null} when {@code in} is not the canonical {@code visible} write or the value
+     * isn't a shape {@code decodeBooleanStore} recognises. The vanilla semantic guards (which owner
+     * is the model, which flag name gates, {@code getChild} vs field vs accessor target) stay in the
+     * six callers - this only owns the {@code ModelPart.visible:Z} anchor + backward decode common
+     * to all of them.
+     */
+    private static @Nullable VisibleWrite matchVisibleWrite(@NotNull AbstractInsnNode in) {
+        if (!AsmKit.isPutField(in, VanillaSourceClasses.MODEL_PART, "visible")) return null;
+        if (!(in instanceof FieldInsnNode put) || !MODEL_PART_VISIBLE_DESC.equals(put.desc)) return null;
+        AbstractInsnNode valueInsn = AsmKit.previousReal(in);
+        if (valueInsn == null) return null;
+        AsmKit.BooleanStore value = AsmKit.decodeBooleanStore(valueInsn);
+        if (value == null) return null;
+        AbstractInsnNode target = AsmKit.previousReal(value.valueStart());
+        if (target == null) return null;
+        return new VisibleWrite(target, value);
+    }
+
+    /**
      * State-equipment visibility pattern {@code bone.visible = state.hasChest}, recording each gating
      * {@code flag -> model-field} instead of merging into one set. The parallel of
      * {@link #collectStateGatedHidden} (same matched instruction shape and guards); kept separate so
@@ -260,25 +294,15 @@ public final class EntityBoneResolver {
      */
     private static void collectStateGatedToggles(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull Map<String, LinkedHashSet<String>> out) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
-            if (!(in instanceof FieldInsnNode put)) continue;
-            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
-            if (!"visible".equals(put.name)) continue;
-            if (!MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
-            AbstractInsnNode valueInsn = AsmKit.previousReal(in);
-            if (valueInsn == null || valueInsn.getOpcode() != Opcodes.GETFIELD) continue;
-            if (!(valueInsn instanceof FieldInsnNode flagGet)) continue;
-            if (!"Z".equals(flagGet.desc)) continue;
-            if (!"hasChest".equals(flagGet.name)) continue;
-            if (owner.name.equals(flagGet.owner)) continue;
-            AbstractInsnNode stateLoad = AsmKit.previousReal(valueInsn);
-            if (stateLoad == null || stateLoad.getOpcode() != Opcodes.ALOAD) continue;
-            if (!(stateLoad instanceof VarInsnNode varLoad)) continue;
-            if (varLoad.var == 0) continue;
-            AbstractInsnNode targetInsn = AsmKit.previousReal(stateLoad);
-            if (targetInsn == null || targetInsn.getOpcode() != Opcodes.GETFIELD) continue;
-            if (!(targetInsn instanceof FieldInsnNode get)) continue;
-            if (!owner.name.equals(get.owner)) continue;
+            VisibleWrite write = matchVisibleWrite(in);
+            // Direct positive gate: visible = state.hasChest (the FieldStore's :Z guard is enforced
+            // by the decoder). Narrow to hasChest, a state-class flag (not owner-owned) reached via
+            // a non-this ALOAD, writing a this.<bone> field.
+            if (write == null || !(write.value() instanceof AsmKit.FieldStore flag) || flag.polarity() != AsmKit.Polarity.POSITIVE) continue;
+            FieldInsnNode flagGet = flag.field();
+            if (!"hasChest".equals(flagGet.name) || owner.name.equals(flagGet.owner)) continue;
+            if (!(flag.receiver() instanceof VarInsnNode varLoad) || varLoad.getOpcode() != Opcodes.ALOAD || varLoad.var == 0) continue;
+            if (!(write.targetInsn() instanceof FieldInsnNode get) || get.getOpcode() != Opcodes.GETFIELD || !owner.name.equals(get.owner)) continue;
             out.computeIfAbsent(flagGet.name, key -> new LinkedHashSet<>()).add(get.name);
         }
     }
@@ -300,21 +324,16 @@ public final class EntityBoneResolver {
      */
     private static void collectInlineGatedToggles(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull Set<String> out) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
-            if (!(in instanceof FieldInsnNode put)) continue;
-            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
-            if (!"visible".equals(put.name) || !MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
-            AbstractInsnNode valueInsn = AsmKit.previousReal(in);
-            if (valueInsn == null || valueInsn.getOpcode() != Opcodes.GETFIELD) continue;
-            if (!(valueInsn instanceof FieldInsnNode flagGet)) continue;
-            if (!"Z".equals(flagGet.desc) || owner.name.equals(flagGet.owner)) continue;
+            VisibleWrite write = matchVisibleWrite(in);
+            // Positive gate on a has*/is* state flag whose write target is a getChild(LDC) result
+            // rather than a cached this.<field> - so it doesn't double-match the field-gated form.
+            if (write == null || !(write.value() instanceof AsmKit.FieldStore flag) || flag.polarity() != AsmKit.Polarity.POSITIVE) continue;
+            FieldInsnNode flagGet = flag.field();
+            if (owner.name.equals(flagGet.owner)) continue;
             if (!flagGet.name.startsWith("has") && !flagGet.name.startsWith("is")) continue;
-            AbstractInsnNode stateLoad = AsmKit.previousReal(valueInsn);
-            if (stateLoad == null || stateLoad.getOpcode() != Opcodes.ALOAD) continue;
-            if (!(stateLoad instanceof VarInsnNode varLoad) || varLoad.var == 0) continue;
-            AbstractInsnNode childCall = AsmKit.previousReal(stateLoad);
-            if (childCall == null || childCall.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
-            if (!(childCall instanceof MethodInsnNode mi) || !"getChild".equals(mi.name)) continue;
+            if (!(flag.receiver() instanceof VarInsnNode varLoad) || varLoad.getOpcode() != Opcodes.ALOAD || varLoad.var == 0) continue;
+            AbstractInsnNode childCall = write.targetInsn();
+            if (childCall.getOpcode() != Opcodes.INVOKEVIRTUAL || !(childCall instanceof MethodInsnNode mi) || !"getChild".equals(mi.name)) continue;
             if (mi.desc == null || !mi.desc.endsWith(")L" + VanillaSourceClasses.MODEL_PART + ";")) continue;
             String boneName = AsmKit.readStringLiteral(AsmKit.previousReal(childCall));
             if (boneName != null) out.add(boneName);
@@ -361,49 +380,19 @@ public final class EntityBoneResolver {
      */
     private static void collectNegatedGatedToggles(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull Map<String, NegatedGate> out) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
-            if (!(in instanceof FieldInsnNode put)) continue;
-            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
-            if (!"visible".equals(put.name) || !MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
-            AbstractInsnNode branchVal = AsmKit.previousReal(in);
-            if (branchVal == null || !isBooleanConst(branchVal)) continue;
-            AbstractInsnNode gotoInsn = AsmKit.previousReal(branchVal);
-            if (gotoInsn == null || gotoInsn.getOpcode() != Opcodes.GOTO) continue;
-            AbstractInsnNode fallVal = AsmKit.previousReal(gotoInsn);
-            if (fallVal == null || !isBooleanConst(fallVal)) continue;
-            if (constValue(branchVal) == constValue(fallVal)) continue;
-            AbstractInsnNode condInsn = AsmKit.previousReal(fallVal);
-            if (condInsn == null) continue;
-            int cond = condInsn.getOpcode();
-            if (cond != Opcodes.IFEQ && cond != Opcodes.IFNE) continue;
-            AbstractInsnNode flagInsn = AsmKit.previousReal(condInsn);
-            if (flagInsn == null || flagInsn.getOpcode() != Opcodes.GETFIELD) continue;
-            if (!(flagInsn instanceof FieldInsnNode flagGet)) continue;
-            if (!"Z".equals(flagGet.desc) || owner.name.equals(flagGet.owner)) continue;
+            VisibleWrite write = matchVisibleWrite(in);
+            // Negated-branch gate: visible = !state.<flag>, compiled as an ICONST/GOTO/ICONST select.
+            // The decoder validates the distinct-0/1 branch shape and the flag's :Z type, and folds
+            // the branch polarity into valueAtFieldFalse (the value written at the flag's zero-state).
+            if (write == null || !(write.value() instanceof AsmKit.FieldStore flag) || flag.polarity() != AsmKit.Polarity.NEGATIVE) continue;
+            FieldInsnNode flagGet = flag.field();
+            if (owner.name.equals(flagGet.owner)) continue;
             if (!flagGet.name.startsWith("has") && !flagGet.name.startsWith("is")) continue;
-            AbstractInsnNode stateLoad = AsmKit.previousReal(flagInsn);
-            if (stateLoad == null || stateLoad.getOpcode() != Opcodes.ALOAD) continue;
-            if (!(stateLoad instanceof VarInsnNode varLoad) || varLoad.var == 0) continue;
-            AbstractInsnNode targetInsn = AsmKit.previousReal(stateLoad);
-            if (targetInsn == null || targetInsn.getOpcode() != Opcodes.GETFIELD) continue;
-            if (!(targetInsn instanceof FieldInsnNode get) || !owner.name.equals(get.owner)) continue;
-            boolean defaultVisible = cond == Opcodes.IFNE ? constValue(fallVal) == 1 : constValue(branchVal) == 1;
+            if (!(flag.receiver() instanceof VarInsnNode varLoad) || varLoad.getOpcode() != Opcodes.ALOAD || varLoad.var == 0) continue;
+            if (!(write.targetInsn() instanceof FieldInsnNode get) || get.getOpcode() != Opcodes.GETFIELD || !owner.name.equals(get.owner)) continue;
+            boolean defaultVisible = flag.valueAtFieldFalse();
             out.computeIfAbsent(flagGet.name, key -> new NegatedGate(new LinkedHashSet<>(), defaultVisible)).fields().add(get.name);
         }
-    }
-
-    /**
-     * Whether {@code node} pushes a boolean literal ({@code ICONST_0} or {@code ICONST_1}).
-     */
-    private static boolean isBooleanConst(@NotNull AbstractInsnNode node) {
-        return node.getOpcode() == Opcodes.ICONST_0 || node.getOpcode() == Opcodes.ICONST_1;
-    }
-
-    /**
-     * The {@code 0}/{@code 1} value an {@code ICONST_0}/{@code ICONST_1} node pushes.
-     */
-    private static int constValue(@NotNull AbstractInsnNode node) {
-        return node.getOpcode() == Opcodes.ICONST_1 ? 1 : 0;
     }
 
     /**
@@ -523,17 +512,11 @@ public final class EntityBoneResolver {
      */
     private static void collectUnconditionalHidden(@NotNull ClassNode owner, @NotNull MethodNode ctor, @NotNull LinkedHashSet<String> out) {
         for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
-            if (!(in instanceof FieldInsnNode put)) continue;
-            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
-            if (!"visible".equals(put.name)) continue;
-            if (!MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
-            AbstractInsnNode valueInsn = AsmKit.previousReal(in);
-            if (valueInsn == null || valueInsn.getOpcode() != Opcodes.ICONST_0) continue;
-            AbstractInsnNode targetInsn = AsmKit.previousReal(valueInsn);
-            if (targetInsn == null || targetInsn.getOpcode() != Opcodes.GETFIELD) continue;
-            if (!(targetInsn instanceof FieldInsnNode get)) continue;
-            if (!owner.name.equals(get.owner)) continue;
+            VisibleWrite write = matchVisibleWrite(in);
+            // Literal false written to a this.<bone> field (no desc guard on the target GETFIELD,
+            // matching the original walk).
+            if (write == null || !(write.value() instanceof AsmKit.ConstantStore constant) || constant.value()) continue;
+            if (!(write.targetInsn() instanceof FieldInsnNode get) || get.getOpcode() != Opcodes.GETFIELD || !owner.name.equals(get.owner)) continue;
             out.add(get.name);
         }
     }
@@ -596,26 +579,14 @@ public final class EntityBoneResolver {
      */
     private static void collectStateGatedHidden(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull LinkedHashSet<String> out) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
-            if (!(in instanceof FieldInsnNode put)) continue;
-            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
-            if (!"visible".equals(put.name)) continue;
-            if (!MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
-            AbstractInsnNode valueInsn = AsmKit.previousReal(in);
-            if (valueInsn == null || valueInsn.getOpcode() != Opcodes.GETFIELD) continue;
-            if (!(valueInsn instanceof FieldInsnNode flagGet)) continue;
-            if (!"Z".equals(flagGet.desc)) continue;
-            if (!"hasChest".equals(flagGet.name)) continue;
-            if (owner.name.equals(flagGet.owner)) continue;
-            AbstractInsnNode stateLoad = AsmKit.previousReal(valueInsn);
-            if (stateLoad == null) continue;
-            if (stateLoad.getOpcode() != Opcodes.ALOAD) continue;
-            if (!(stateLoad instanceof VarInsnNode varLoad)) continue;
-            if (varLoad.var == 0) continue;
-            AbstractInsnNode targetInsn = AsmKit.previousReal(stateLoad);
-            if (targetInsn == null || targetInsn.getOpcode() != Opcodes.GETFIELD) continue;
-            if (!(targetInsn instanceof FieldInsnNode get)) continue;
-            if (!owner.name.equals(get.owner)) continue;
+            VisibleWrite write = matchVisibleWrite(in);
+            // Same matched shape as collectStateGatedToggles (positive hasChest gate on a this.<bone>
+            // field); merged into one set here rather than grouped by flag.
+            if (write == null || !(write.value() instanceof AsmKit.FieldStore flag) || flag.polarity() != AsmKit.Polarity.POSITIVE) continue;
+            FieldInsnNode flagGet = flag.field();
+            if (!"hasChest".equals(flagGet.name) || owner.name.equals(flagGet.owner)) continue;
+            if (!(flag.receiver() instanceof VarInsnNode varLoad) || varLoad.getOpcode() != Opcodes.ALOAD || varLoad.var == 0) continue;
+            if (!(write.targetInsn() instanceof FieldInsnNode get) || get.getOpcode() != Opcodes.GETFIELD || !owner.name.equals(get.owner)) continue;
             out.add(get.name);
         }
     }
@@ -634,16 +605,12 @@ public final class EntityBoneResolver {
         MethodNode ctor = AsmKit.findMethod(cn, AsmKit.INIT);
         if (ctor == null) return out;
         for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
-            if (!(in instanceof FieldInsnNode put)) continue;
-            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
-            if (!"visible".equals(put.name)) continue;
-            if (!MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
-            AbstractInsnNode valueInsn = AsmKit.previousReal(in);
-            if (valueInsn == null || valueInsn.getOpcode() != Opcodes.ICONST_1) continue;
-            AbstractInsnNode pathInsn = AsmKit.previousReal(valueInsn);
-            if (pathInsn == null) continue;
-            String bone = extractBoneName(pathInsn);
+            VisibleWrite write = matchVisibleWrite(in);
+            // Literal true re-enable; the target may be a GETFIELD bone or a get<Bone>() accessor
+            // (extractBoneName handles both). Single-class walk of the renderer ctor - NOT a
+            // hierarchy walk, so an inherited re-enable is deliberately not picked up.
+            if (write == null || !(write.value() instanceof AsmKit.ConstantStore constant) || !constant.value()) continue;
+            String bone = extractBoneName(write.targetInsn());
             if (bone != null) out.add(bone);
         }
         return out;
