@@ -19,6 +19,7 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.option.FluidOptions;
 import lib.minecraft.renderer.option.slot.FluidSlot;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -137,7 +138,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
     /**
      * Full 3D isometric fluid cube renderer. Builds triangles via {@link FluidGeometryKit}, then
      * rasterizes through {@link Projection#VANILLA_ISO}'s {@code [30, 225, 0]} pose by default.
-     * Animation is driven by {@link FluidOptions#getFrameCount()} - single-frame renders return
+     * Animation is driven by {@link AnimationOptions#getFrameCount()} - single-frame renders return
      * a static image, multi-frame renders return an animated image with per-frame delay of
      * {@code ticksPerFrame * 50ms}.
      */

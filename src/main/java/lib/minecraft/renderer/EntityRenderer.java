@@ -34,6 +34,7 @@ import lib.minecraft.renderer.option.slot.EntitySlot;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.option.spec.DyeColor;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
@@ -56,7 +57,7 @@ import java.util.Optional;
  * than being papered over with cache fallbacks.
  *
  * <p>The entity is a plain projection subject: the camera is the caller's
- * {@link EntityOptions#getProjection() projection} display pose directly (default
+ * {@link OutputOptions#getProjection() projection} display pose directly (default
  * {@link Projection#VANILLA_ISO}, the facing-neutral {@code rotationXYZ(30, 225, 0)}), and the entity's
  * model-to-world facing - the humanoid yaw flip plus the Y-down-to-Y-up flip and chirality - is the
  * single {@link #ENTITY_PLACEMENT} {@link Placement}. That split lets any projection be swapped in and

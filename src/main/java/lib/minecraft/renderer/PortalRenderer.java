@@ -15,6 +15,7 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.option.PortalOptions;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -40,8 +41,8 @@ import java.util.stream.IntStream;
  * The parallax loop is transcribed verbatim from the {@code .fsh} (including the {@code COLORS}
  * table, {@code SCALE_TRANSLATE} / per-layer {@code translate} / {@code scale*rotate} matrices,
  * and the {@code textureProj}-style divide-by-w). Animation is driven by the shader's
- * {@code GameTime} uniform, fed in from {@link PortalOptions#getStartTick()} and advancing by
- * {@link PortalOptions#getTicksPerFrame()} per output frame; static renders use {@code time = 0}.
+ * {@code GameTime} uniform, fed in from {@link AnimationOptions#getStartTick()} and advancing by
+ * {@link AnimationOptions#getTicksPerFrame()} per output frame; static renders use {@code time = 0}.
  * <p>
  * Scene-aware concerns (fog, additive translucent blending against the underlying block, view-
  * dependent parallax from the observer's camera) are deliberately out of scope - the bake treats
@@ -62,7 +63,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
     /**
      * Fixed real-time playback delay per output frame, in milliseconds. {@code 50ms = 20 FPS}.
-     * Decoupled from {@link PortalOptions#getTicksPerFrame()} so the animation speed knob
+     * Decoupled from {@link AnimationOptions#getTicksPerFrame()} so the animation speed knob
      * doesn't stretch the GIF's wall-clock playback length; the shader's {@code GameTime} is a
      * continuous day-cycle fraction so coupling sim rate to playback rate has no natural
      * semantics (unlike {@link FluidRenderer}'s tick-aligned animation strip).
@@ -397,7 +398,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
-     * Computes the number of bridge frames to bake on top of {@link PortalOptions#getFrameCount}
+     * Computes the number of bridge frames to bake on top of {@link AnimationOptions#getFrameCount}
      * for the seamless-loop crossfade. Returns {@code 0} when the feature is disabled or the
      * animation is too short to blend meaningfully.
      */
@@ -483,7 +484,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
     /**
      * Assembles a portal render through the shared {@link Finalize} pipeline. A single static frame at
-     * {@link PortalOptions#getStartTick()} when {@code frameCount <= 1}, otherwise a seamless-loop
+     * {@link AnimationOptions#getStartTick()} when {@code frameCount <= 1}, otherwise a seamless-loop
      * strip: it bakes {@code frameCount + bridge} frames via {@link Finalize#renderStrip} and hands that
      * pipeline a post-processor that applies the {@link #applyBridgeCrossfade crossfade} and trims the
      * bridge frames. Frame baking + wrapping live in {@link Finalize}; only the portal-specific
