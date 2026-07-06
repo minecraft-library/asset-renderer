@@ -9,6 +9,7 @@ import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.ToolingJson;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -384,7 +385,7 @@ public final class EntityBlockOverlayResolver {
     ) {
         List<Result> out = new ArrayList<>();
         boolean insideBlock = false;
-        List<TransformOpRecord> currentOps = new ArrayList<>();
+        List<TransformOp> currentOps = new ArrayList<>();
         String currentAttachedBone = null;
         // Track recent literal floats so a pose-stack op consumes the most-recent N floats.
         List<Float> floatStack = new ArrayList<>();
@@ -423,7 +424,7 @@ public final class EntityBlockOverlayResolver {
                         float z = floatStack.removeLast();
                         float y = floatStack.removeLast();
                         float x = floatStack.removeLast();
-                        currentOps.add(new TransformOpRecord(OpKind.TRANSLATE, x, y, z));
+                        currentOps.add(new Translate(x, y, z));
                     }
                 }
                 case POSE_STACK + ".scale" -> {
@@ -431,7 +432,7 @@ public final class EntityBlockOverlayResolver {
                         float z = floatStack.removeLast();
                         float y = floatStack.removeLast();
                         float x = floatStack.removeLast();
-                        currentOps.add(new TransformOpRecord(OpKind.SCALE, x, y, z));
+                        currentOps.add(new Scale(x, y, z));
                     }
                 }
                 case AXIS + ".rotationDegrees" -> {
@@ -446,8 +447,8 @@ public final class EntityBlockOverlayResolver {
                     if (axis == null) continue;
                     if (axis.charAt(1) == 'N') degrees = -degrees;
                     switch (axis.charAt(0)) {
-                        case 'Y' -> currentOps.add(new TransformOpRecord(OpKind.ROTATE_Y, degrees, 0f, 0f));
-                        case 'X' -> currentOps.add(new TransformOpRecord(OpKind.ROTATE_X, degrees, 0f, 0f));
+                        case 'Y' -> currentOps.add(new RotateY(degrees));
+                        case 'X' -> currentOps.add(new RotateX(degrees));
                         default -> { }
                     }
                 }
@@ -723,28 +724,71 @@ public final class EntityBlockOverlayResolver {
     private record LiteralBlock(@NotNull String blockId, boolean guarded) {}
 
     /**
-     * One pose-stack op recognised by the walker. The {@code a}/{@code b}/{@code c} components
-     * hold per-{@link OpKind} data.
-     *
-     * @param kind the op kind, selecting how {@code a}/{@code b}/{@code c} are interpreted
-     * @param a first component - {@code x} for {@code TRANSLATE}/{@code SCALE}, degrees for {@code ROTATE_Y}/{@code ROTATE_X}
-     * @param b second component - {@code y} for {@code TRANSLATE}/{@code SCALE}, unused ({@code 0}) for rotations
-     * @param c third component - {@code z} for {@code TRANSLATE}/{@code SCALE}, unused ({@code 0}) for rotations
+     * One pose-stack op recognised by the walker, mirroring the runtime
+     * {@link lib.minecraft.renderer.pipeline.loader.EntityModelLoader.TransformOp} vocabulary: a
+     * translate / scale carries three components, a rotation carries a single degree angle about one
+     * named axis (X or Y - a Z rotation is never emitted). Each op serialises itself into its
+     * {@code {"op": ...}} wire object.
      */
-    public record TransformOpRecord(@NotNull OpKind kind, float a, float b, float c) {}
+    public sealed interface TransformOp permits Translate, RotateY, RotateX, Scale {
+        /**
+         * The {@code {"op": ...}} wire object for this op.
+         *
+         * @return the serialised op
+         */
+        @NotNull JsonObject toJson();
+    }
 
     /**
-     * Recognised pose-stack op kinds. {@code ROTATE_Y} / {@code ROTATE_X} store degrees in {@code a}; the others use all three components.
+     * A {@code PoseStack.translate(x, y, z)} op.
+     *
+     * @param x translation along X
+     * @param y translation along Y
+     * @param z translation along Z
      */
-    public enum OpKind {
-        /** {@code PoseStack.translate(x, y, z)} - components are {@code (x, y, z)}. */
-        TRANSLATE,
-        /** {@code PoseStack.mulPose(Axis.YP.rotationDegrees(a))} - degrees in {@code a} ({@code YN} sign folded in). */
-        ROTATE_Y,
-        /** {@code PoseStack.mulPose(Axis.XP.rotationDegrees(a))} - degrees in {@code a} ({@code XN} sign folded in). */
-        ROTATE_X,
-        /** {@code PoseStack.scale(x, y, z)} - components are {@code (x, y, z)}. */
-        SCALE
+    public record Translate(float x, float y, float z) implements TransformOp {
+        @Override
+        public @NotNull JsonObject toJson() {
+            return ToolingJson.object().put("op", "translate").put("x", x).put("y", y).put("z", z).build();
+        }
+    }
+
+    /**
+     * A {@code PoseStack.mulPose(Axis.YP.rotationDegrees(degrees))} op ({@code YN} sign folded in).
+     *
+     * @param degrees the Y rotation in degrees
+     */
+    public record RotateY(float degrees) implements TransformOp {
+        @Override
+        public @NotNull JsonObject toJson() {
+            return ToolingJson.object().put("op", "rotate_y").put("degrees", degrees).build();
+        }
+    }
+
+    /**
+     * A {@code PoseStack.mulPose(Axis.XP.rotationDegrees(degrees))} op ({@code XN} sign folded in).
+     *
+     * @param degrees the X rotation in degrees
+     */
+    public record RotateX(float degrees) implements TransformOp {
+        @Override
+        public @NotNull JsonObject toJson() {
+            return ToolingJson.object().put("op", "rotate_x").put("degrees", degrees).build();
+        }
+    }
+
+    /**
+     * A {@code PoseStack.scale(x, y, z)} op.
+     *
+     * @param x scale along X
+     * @param y scale along Y
+     * @param z scale along Z
+     */
+    public record Scale(float x, float y, float z) implements TransformOp {
+        @Override
+        public @NotNull JsonObject toJson() {
+            return ToolingJson.object().put("op", "scale").put("x", x).put("y", y).put("z", z).build();
+        }
     }
 
     /**
@@ -767,7 +811,7 @@ public final class EntityBlockOverlayResolver {
     public record Result(
         @Nullable String blockId,
         @Nullable String attachedBone,
-        @NotNull List<TransformOpRecord> ops,
+        @NotNull List<TransformOp> ops,
         boolean selectable
     ) {}
 
@@ -788,79 +832,11 @@ public final class EntityBlockOverlayResolver {
             if (desc.attachedBone() != null) row.addProperty("attached_bone", desc.attachedBone());
             if (desc.selectable()) row.addProperty("selectable", true);
             JsonArray opsJson = new JsonArray();
-            for (TransformOpRecord op : desc.ops()) {
-                JsonObject opJson = switch (op.kind()) {
-                    case TRANSLATE -> translateJson(op.a(), op.b(), op.c());
-                    case ROTATE_Y -> rotateYJson(op.a());
-                    case ROTATE_X -> rotateXJson(op.a());
-                    case SCALE -> scaleJson(op.a(), op.b(), op.c());
-                };
-                opsJson.add(opJson);
-            }
+            for (TransformOp op : desc.ops()) opsJson.add(op.toJson());
             row.add("transforms", opsJson);
             rows.add(row);
         }
         return rows;
-    }
-
-    /**
-     * Builds the {@code {"op":"translate", ...}} JSON for a translate op.
-     *
-     * @param x translation along X
-     * @param y translation along Y
-     * @param z translation along Z
-     * @return the translate op object
-     */
-    private static @NotNull JsonObject translateJson(float x, float y, float z) {
-        JsonObject op = new JsonObject();
-        op.addProperty("op", "translate");
-        op.addProperty("x", x);
-        op.addProperty("y", y);
-        op.addProperty("z", z);
-        return op;
-    }
-
-    /**
-     * Builds the {@code {"op":"rotate_y","degrees":...}} JSON for a Y-rotation op.
-     *
-     * @param degrees the Y rotation in degrees ({@code YN} sign already folded in)
-     * @return the rotate_y op object
-     */
-    private static @NotNull JsonObject rotateYJson(float degrees) {
-        JsonObject op = new JsonObject();
-        op.addProperty("op", "rotate_y");
-        op.addProperty("degrees", degrees);
-        return op;
-    }
-
-    /**
-     * Builds the {@code {"op":"rotate_x","degrees":...}} JSON for an X-rotation op.
-     *
-     * @param degrees the X rotation in degrees ({@code XN} sign already folded in)
-     * @return the rotate_x op object
-     */
-    private static @NotNull JsonObject rotateXJson(float degrees) {
-        JsonObject op = new JsonObject();
-        op.addProperty("op", "rotate_x");
-        op.addProperty("degrees", degrees);
-        return op;
-    }
-
-    /**
-     * Builds the {@code {"op":"scale", ...}} JSON for a scale op.
-     *
-     * @param x scale along X
-     * @param y scale along Y
-     * @param z scale along Z
-     * @return the scale op object
-     */
-    private static @NotNull JsonObject scaleJson(float x, float y, float z) {
-        JsonObject op = new JsonObject();
-        op.addProperty("op", "scale");
-        op.addProperty("x", x);
-        op.addProperty("y", y);
-        op.addProperty("z", z);
-        return op;
     }
 
 }

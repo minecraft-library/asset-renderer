@@ -449,4 +449,41 @@ public final class Matrix4f {
         });
     }
 
+    /**
+     * Post-multiplies a rotation about the X axis - the fluent single-axis form of
+     * {@link #rotate(Quaternionf)}, equivalent to {@code rotate(Quaternionf.rotationXYZ(radians, 0, 0))}
+     * (and to the in-chain equivalent of {@link #createRotationX}). Positive angles rotate {@code +Y}
+     * toward {@code +Z}.
+     *
+     * @param radians the rotation angle in radians
+     * @return a new matrix representing the post-rotated transform
+     */
+    public @NotNull Matrix4f rotateX(float radians) {
+        return rotate(Quaternionf.rotationXYZ(radians, 0f, 0f));
+    }
+
+    /**
+     * Post-multiplies a rotation about the Y axis - the fluent single-axis form of
+     * {@link #rotate(Quaternionf)}, equivalent to {@code rotate(Quaternionf.rotationXYZ(0, radians, 0))}.
+     * Positive angles rotate {@code +Z} toward {@code +X}.
+     *
+     * @param radians the rotation angle in radians
+     * @return a new matrix representing the post-rotated transform
+     */
+    public @NotNull Matrix4f rotateY(float radians) {
+        return rotate(Quaternionf.rotationXYZ(0f, radians, 0f));
+    }
+
+    /**
+     * Post-multiplies a rotation about the Z axis - the fluent single-axis form of
+     * {@link #rotate(Quaternionf)}, equivalent to {@code rotate(Quaternionf.rotationXYZ(0, 0, radians))}.
+     * Positive angles rotate {@code +X} toward {@code +Y}.
+     *
+     * @param radians the rotation angle in radians
+     * @return a new matrix representing the post-rotated transform
+     */
+    public @NotNull Matrix4f rotateZ(float radians) {
+        return rotate(Quaternionf.rotationXYZ(0f, 0f, radians));
+    }
+
 }

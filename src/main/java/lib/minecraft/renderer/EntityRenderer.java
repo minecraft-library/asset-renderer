@@ -39,7 +39,6 @@ import lib.minecraft.renderer.request.TintAxis;
 import lib.minecraft.renderer.request.TropicalFishPattern;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -602,10 +601,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         for (EntityModelLoader.TransformOp op : overlay.transforms()) {
             blockUnitChain = switch (op) {
                 case EntityModelLoader.Translate t -> blockUnitChain.translate(t.x(), t.y(), t.z());
-                case EntityModelLoader.RotateY r -> blockUnitChain.rotate(
-                    Quaternionf.rotationXYZ(0f, (float) Math.toRadians(r.degrees()), 0f));
-                case EntityModelLoader.RotateX r -> blockUnitChain.rotate(
-                    Quaternionf.rotationXYZ((float) Math.toRadians(r.degrees()), 0f, 0f));
+                case EntityModelLoader.RotateY r -> blockUnitChain.rotateY((float) Math.toRadians(r.degrees()));
+                case EntityModelLoader.RotateX r -> blockUnitChain.rotateX((float) Math.toRadians(r.degrees()));
                 case EntityModelLoader.Scale s -> blockUnitChain.scale(s.x(), s.y(), s.z());
             };
         }

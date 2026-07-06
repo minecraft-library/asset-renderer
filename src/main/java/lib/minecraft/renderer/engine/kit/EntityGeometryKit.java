@@ -15,7 +15,6 @@ import lib.minecraft.renderer.face.EntityFace;
 import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
@@ -130,9 +129,9 @@ public class EntityGeometryKit {
         // to the vector first.
         Matrix4f viewToKit = Matrix4f.IDENTITY
             .scale(1f, -1f, 1f)
-            .rotate(Quaternionf.rotationXYZ((float) -Math.PI, 0f, 0f))
-            .rotate(Quaternionf.rotationXYZ(0f, -iso.yawRadians(), 0f))
-            .rotate(Quaternionf.rotationXYZ(-iso.pitchRadians(), 0f, 0f))
+            .rotateX((float) -Math.PI)
+            .rotateY(-iso.yawRadians())
+            .rotateX(-iso.pitchRadians())
             .scale(1f, 1f, -1f);
         return new Vector3f(0f, 0f, -1f).transformNormal(viewToKit);
     }

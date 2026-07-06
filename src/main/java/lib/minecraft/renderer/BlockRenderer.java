@@ -33,7 +33,6 @@ import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -611,10 +610,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             Matrix4f result = Matrix4f.IDENTITY;
 
             if (variant.x() != 0)
-                result = result.rotate(Quaternionf.rotationXYZ((float) Math.toRadians(-variant.x()), 0f, 0f));
+                result = result.rotateX((float) Math.toRadians(-variant.x()));
 
             if (variant.y() != 0)
-                result = result.rotate(Quaternionf.rotationXYZ(0f, (float) Math.toRadians(-variant.y()), 0f));
+                result = result.rotateY((float) Math.toRadians(-variant.y()));
 
             return result;
         }

@@ -190,9 +190,9 @@ public class Lighting {
         // Built via fluent ops to match vanilla's PoseStack composition exactly.
         Matrix4f viewToKit = Matrix4f.IDENTITY
             .scale(1f, -1f, 1f)
-            .rotate(Quaternionf.rotationXYZ((float) -Math.PI, 0f, 0f))
-            .rotate(Quaternionf.rotationXYZ(0f, (float) Math.toRadians(-45.0), 0f))
-            .rotate(Quaternionf.rotationXYZ((float) Math.toRadians(-210.0), 0f, 0f))
+            .rotateX((float) -Math.PI)
+            .rotateY((float) Math.toRadians(-45.0))
+            .rotateX((float) Math.toRadians(-210.0))
             .scale(1f, 1f, -1f);
         Vector3f kitDir = lCamera.transformNormal(viewToKit);
         return kitDir.normalize();
@@ -278,8 +278,8 @@ public class Lighting {
     private static @NotNull Vector3f deriveFlatItemLight(float x, float y, float z) {
         Vector3f raw = new Vector3f(x, y, z).normalize();
         Matrix4f pose = Matrix4f.IDENTITY
-            .rotate(Quaternionf.rotationXYZ(0f, -0.3926991f, 0f))
-            .rotate(Quaternionf.rotationXYZ(2.3561945f, 0f, 0f));
+            .rotateY(-0.3926991f)
+            .rotateX(2.3561945f);
         return raw.transformNormal(pose).normalize();
     }
 
