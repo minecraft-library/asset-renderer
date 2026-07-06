@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -50,10 +51,9 @@ public final class EntityRenderTypeResolver {
         if (modelClass == null) return false;
         for (MethodNode method : modelClass.methods)
             for (AbstractInsnNode insn : method.instructions) {
-                if (insn instanceof InvokeDynamicInsnNode indy)
-                    for (Object bsmArg : indy.bsmArgs)
-                        if (bsmArg instanceof Handle handle && ENTITY_CUTOUT_CULL.equals(handle.getName()))
-                            return true;
+                if (insn instanceof InvokeDynamicInsnNode indy
+                    && AsmKit.findBsmHandleByName(indy, ENTITY_CUTOUT_CULL) != null)
+                    return true;
                 if (insn instanceof MethodInsnNode call && ENTITY_CUTOUT_CULL.equals(call.name))
                     return true;
             }
