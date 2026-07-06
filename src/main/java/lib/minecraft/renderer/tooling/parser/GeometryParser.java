@@ -279,52 +279,10 @@ public final class GeometryParser {
     private static @Nullable Float resolveStaticMeshTransformer(
         @NotNull String owner, @NotNull String name, @NotNull ParseState state, @NotNull ZipFile zip
     ) {
-        String key = owner + "." + name;
-        if (state.resolvedMeshTransformers.containsKey(key))
-            return state.resolvedMeshTransformers.get(key);
-
-        ClassNode cls = AsmKit.loadClass(zip, owner);
-        MethodNode clinit = cls != null ? AsmKit.findMethod(cls, AsmKit.CLINIT) : null;
-        if (clinit == null) {
-            state.resolvedMeshTransformers.put(key, null);
-            return null;
-        }
-
-        Float pendingFloat = null;
-        Float pendingScaled = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
-            int op = in.getOpcode();
-            if (op < 0) continue; // labels / line numbers / frame
-            if (in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f) {
-                pendingFloat = f;
-                pendingScaled = null;
-            } else if (in instanceof MethodInsnNode mi
-                && op == Opcodes.INVOKESTATIC
-                && VanillaSourceClasses.MESH_TRANSFORMER.equals(mi.owner)
-                && "scaling".equals(mi.name)
-                && ("(F)" + MESH_TRANSFORMER_DESC).equals(mi.desc)
-                && pendingFloat != null) {
-                pendingScaled = pendingFloat;
-                pendingFloat = null;
-            } else if (in instanceof FieldInsnNode fi
-                && op == Opcodes.PUTSTATIC
-                && MESH_TRANSFORMER_DESC.equals(fi.desc)
-                && fi.owner.equals(owner)) {
-                state.resolvedMeshTransformers.put(owner + "." + fi.name, pendingScaled);
-                pendingScaled = null;
-                pendingFloat = null;
-            } else {
-                // Any unrelated instruction clears the synthetic stack so we don't accidentally
-                // bind a stale F to a putstatic that's preceded by other initialisation work.
-                pendingFloat = null;
-                // Keep pendingScaled across no-op-ish instructions so the canonical
-                // ldc/invokestatic/putstatic triplet still binds.
-            }
-        }
-
-        // After the walk, the key is set if its putstatic was canonical; otherwise mark null.
-        state.resolvedMeshTransformers.putIfAbsent(key, null);
-        return state.resolvedMeshTransformers.get(key);
+        return AsmKit.resolveStaticScalingFactor(owner, name,
+            () -> AsmKit.loadClass(zip, owner),
+            VanillaSourceClasses.MESH_TRANSFORMER, "scaling", MESH_TRANSFORMER_DESC,
+            state.resolvedMeshTransformers);
     }
 
     /**

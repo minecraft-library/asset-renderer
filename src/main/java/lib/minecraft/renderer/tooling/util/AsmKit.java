@@ -79,8 +79,7 @@ import java.util.zip.ZipFile;
  *       {@link IntForLoop} record, with {@link #evaluateIntComparison evaluateIntComparison} for
  *       static branch resolution.</li>
  *   <li><b>Branch classification</b> - {@link #isBranchInsn isBranchInsn} flags the opcodes that
- *       terminate a straight-line region, and {@link #isForwardJump isForwardJump} distinguishes
- *       a forward skip from a backward loop edge for linear branch-following walkers.</li>
+ *       terminate a straight-line region (used by linear scans that stay inside one basic block).</li>
  *   <li><b>Static scaling-factor reader</b> - {@link #resolveStaticScalingFactor
  *       resolveStaticScalingFactor} recovers a {@code static final} field's literal single-float
  *       factory factor ({@code LDC F; INVOKESTATIC factory(F); PUTSTATIC}) from its
@@ -1735,11 +1734,10 @@ public final class AsmKit {
      * {@link ClassNodeCache}). The factory is matched as {@code "(F)" + fieldDesc} - a single
      * {@code float} argument returning the field type.
      *
-     * <p>{@code resetPendingOnLiteral} selects the one behavioural difference between the two
-     * historical copies of this walk: when {@code true} an intervening {@code LDC F} clears a
-     * pending post-{@code scaling} value, when {@code false} it leaves it intact. It only matters
-     * when a {@code scaling(F)} result is separated from its {@code PUTSTATIC} by an unrelated
-     * float {@code LDC}; supply the value matching the call site being replaced.
+     * <p>An intervening {@code LDC F} between a {@code scaling(F)} call and its {@code PUTSTATIC}
+     * clears the pending scaled value, so a stale factor never binds to a later field. (This is a
+     * defensive stance the two historical walkers disagreed on; both agree on every vanilla 26.1
+     * {@code <clinit>} - see {@code AsmKitTest} - so the stricter reset is adopted unconditionally.)
      *
      * @param owner the field's owning class internal name (cache key + {@code PUTSTATIC} owner match)
      * @param fieldName the static field name being resolved
@@ -1748,7 +1746,6 @@ public final class AsmKit {
      * @param factoryMethod the scaling factory's method name
      * @param fieldDesc the field's JVM descriptor (also the factory's return type)
      * @param cache the shared per-field resolution cache (must permit {@code null} values)
-     * @param resetPendingOnLiteral whether an intervening {@code LDC F} clears a pending scaled value
      * @return the resolved factor, or {@code null} for a non-canonical / missing initialiser
      */
     public static @Nullable Float resolveStaticScalingFactor(
@@ -1758,8 +1755,7 @@ public final class AsmKit {
         @NotNull String factoryOwner,
         @NotNull String factoryMethod,
         @NotNull String fieldDesc,
-        @NotNull Map<String, Float> cache,
-        boolean resetPendingOnLiteral
+        @NotNull Map<String, Float> cache
     ) {
         String key = owner + "." + fieldName;
         if (cache.containsKey(key)) return cache.get(key);
@@ -1779,7 +1775,7 @@ public final class AsmKit {
             if (op < 0) continue; // labels / line numbers / frames
             if (in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f) {
                 pendingFloat = f;
-                if (resetPendingOnLiteral) pendingScaled = null;
+                pendingScaled = null;
             } else if (in instanceof MethodInsnNode mi
                 && op == Opcodes.INVOKESTATIC
                 && factoryOwner.equals(mi.owner)
@@ -1872,26 +1868,6 @@ public final class AsmKit {
             || opcode == Opcodes.DRETURN
             || opcode == Opcodes.ARETURN
             || opcode == Opcodes.ATHROW;
-    }
-
-    /**
-     * Returns {@code true} when {@code target} is non-null and lies after {@code source} in
-     * {@code instructions} - a forward branch / skip rather than a backward loop edge. Compares
-     * {@link InsnList#indexOf(AbstractInsnNode) indexOf} positions, so both nodes must belong to
-     * {@code instructions}. Used by linear branch-following walkers that take forward skips but
-     * fall through backward loop tails (so a loop body is walked once instead of forever).
-     *
-     * @param instructions the instruction list both nodes belong to
-     * @param source the branch instruction
-     * @param target the candidate branch-target label, or {@code null}
-     * @return {@code true} when {@code target} is non-null and positioned after {@code source}
-     */
-    public static boolean isForwardJump(
-        @NotNull InsnList instructions,
-        @NotNull AbstractInsnNode source,
-        @Nullable LabelNode target
-    ) {
-        return target != null && instructions.indexOf(target) > instructions.indexOf(source);
     }
 
     /**

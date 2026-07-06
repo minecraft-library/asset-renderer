@@ -14,7 +14,6 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
@@ -618,45 +617,10 @@ public final class EntityLayerDefinitionResolver {
         @NotNull String owner, @NotNull String name,
         @NotNull Map<String, Float> cache, @NotNull ClassNodeCache classNodes
     ) {
-        String key = owner + "." + name;
-        if (cache.containsKey(key)) return cache.get(key);
-
-        ClassNode cls = classNodes.load(owner);
-        MethodNode clinit = cls != null ? AsmKit.findMethod(cls, AsmKit.CLINIT) : null;
-        if (clinit == null) {
-            cache.put(key, null);
-            return null;
-        }
-
-        Float pendingFloat = null;
-        Float pendingScaled = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
-            int op = in.getOpcode();
-            if (op < 0) continue;
-            if (in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f) {
-                pendingFloat = f;
-            } else if (in instanceof MethodInsnNode mi
-                && op == Opcodes.INVOKESTATIC
-                && VanillaSourceClasses.MESH_TRANSFORMER.equals(mi.owner)
-                && "scaling".equals(mi.name)
-                && ("(F)" + MESH_TRANSFORMER_DESC).equals(mi.desc)
-                && pendingFloat != null) {
-                pendingScaled = pendingFloat;
-                pendingFloat = null;
-            } else if (in instanceof FieldInsnNode fi
-                && op == Opcodes.PUTSTATIC
-                && MESH_TRANSFORMER_DESC.equals(fi.desc)
-                && fi.owner.equals(owner)) {
-                cache.put(owner + "." + fi.name, pendingScaled);
-                pendingScaled = null;
-                pendingFloat = null;
-            } else {
-                pendingFloat = null;
-            }
-        }
-
-        cache.putIfAbsent(key, null);
-        return cache.get(key);
+        return AsmKit.resolveStaticScalingFactor(owner, name,
+            () -> classNodes.load(owner),
+            VanillaSourceClasses.MESH_TRANSFORMER, "scaling", MESH_TRANSFORMER_DESC,
+            cache);
     }
 
 }

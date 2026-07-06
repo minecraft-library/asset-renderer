@@ -1906,7 +1906,7 @@ class AsmKitTest {
     }
 
     @Nested
-    @DisplayName("isBranchInsn / isForwardJump")
+    @DisplayName("isBranchInsn")
     class BranchClassifiers {
 
         @Test
@@ -1927,22 +1927,6 @@ class AsmKitTest {
         void straightLineOpcodes() {
             for (int op : new int[]{Opcodes.NOP, Opcodes.ICONST_0, Opcodes.IADD, Opcodes.INVOKESTATIC, Opcodes.GETFIELD, Opcodes.POP})
                 assertThat("opcode " + op, AsmKit.isBranchInsn(op), is(false));
-        }
-
-        @Test
-        @DisplayName("isForwardJump distinguishes forward skips from backward edges")
-        void forwardVsBackward() {
-            InsnList list = new InsnList();
-            LabelNode back = new LabelNode();
-            InsnNode src = new InsnNode(Opcodes.NOP);
-            LabelNode fwd = new LabelNode();
-            list.add(back);
-            list.add(src);
-            list.add(fwd);
-
-            assertThat(AsmKit.isForwardJump(list, src, fwd), is(true));
-            assertThat(AsmKit.isForwardJump(list, src, back), is(false));
-            assertThat(AsmKit.isForwardJump(list, src, null), is(false));
         }
 
     }
@@ -1975,9 +1959,10 @@ class AsmKitTest {
 
     /**
      * {@link AsmKit#resolveStaticScalingFactor} recovers a {@code static final} field's literal
-     * single-float factory factor and caches sibling resolutions. The {@code resetPendingOnLiteral}
-     * flag reproduces the one-line divergence between the two historical mesh-transformer walkers -
-     * pinned here so a later simplification (dropping the flag) is a deliberate, tested change.
+     * single-float factory factor and caches sibling resolutions. An intervening {@code LDC F}
+     * between the {@code scaling(F)} call and the {@code PUTSTATIC} clears the pending scaled value
+     * (the stricter of the two historical walkers, adopted unconditionally after the A/B check
+     * showed no vanilla 26.1 {@code <clinit>} reaches the divergent shape).
      */
     @Nested
     @DisplayName("resolveStaticScalingFactor")
@@ -1994,13 +1979,13 @@ class AsmKitTest {
             try (ZipFile zip = makeJar(tmp, Map.of("Owner", bytes))) {
                 Map<String, Float> cache = new HashMap<>();
                 Float r = AsmKit.resolveStaticScalingFactor("Owner", "SCALE",
-                    () -> AsmKit.loadClass(zip, "Owner"), FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC, cache, true);
+                    () -> AsmKit.loadClass(zip, "Owner"), FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC, cache);
                 assertThat(r, equalTo(4.5f));
 
                 // Second call is a cache hit: the loader must not be consulted again.
                 Float cached = AsmKit.resolveStaticScalingFactor("Owner", "SCALE",
                     () -> { throw new AssertionError("cache miss - loader should not run"); },
-                    FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC, cache, true);
+                    FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC, cache);
                 assertThat(cached, equalTo(4.5f));
             }
         }
@@ -2012,30 +1997,25 @@ class AsmKitTest {
             try (ZipFile zip = makeJar(tmp, Map.of("Owner", bytes))) {
                 Map<String, Float> cache = new HashMap<>();
                 assertThat(AsmKit.resolveStaticScalingFactor("Nope", "X", () -> null,
-                    FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC, cache, true), is(nullValue()));
+                    FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC, cache), is(nullValue()));
                 assertThat("absence is cached", cache.containsKey("Nope.X"), is(true));
 
                 // A factory-method-name mismatch never sets pendingScaled -> null.
                 assertThat(AsmKit.resolveStaticScalingFactor("Owner", "SCALE",
                     () -> AsmKit.loadClass(zip, "Owner"), FACTORY_OWNER, "differentMethod", FIELD_DESC,
-                    new HashMap<>(), true), is(nullValue()));
+                    new HashMap<>()), is(nullValue()));
             }
         }
 
         @Test
-        @DisplayName("resetPendingOnLiteral flips the result when an unrelated LDC separates scaling from PUTSTATIC")
-        void resetFlagDivergence(@TempDir Path tmp) throws IOException {
+        @DisplayName("an unrelated LDC between scaling and PUTSTATIC clears the pending value -> null")
+        void interveningLdcResolvesNull(@TempDir Path tmp) throws IOException {
             byte[] bytes = writeScalingWithInterveningLdc("Owner2", "SCALE", 4.5f, 2.0f,
                 FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC);
             try (ZipFile zip = makeJar(tmp, Map.of("Owner2", bytes))) {
-                // reset=true clears pendingScaled on the intervening LDC -> null.
                 assertThat(AsmKit.resolveStaticScalingFactor("Owner2", "SCALE",
                     () -> AsmKit.loadClass(zip, "Owner2"), FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC,
-                    new HashMap<>(), true), is(nullValue()));
-                // reset=false keeps it -> 4.5.
-                assertThat(AsmKit.resolveStaticScalingFactor("Owner2", "SCALE",
-                    () -> AsmKit.loadClass(zip, "Owner2"), FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC,
-                    new HashMap<>(), false), equalTo(4.5f));
+                    new HashMap<>()), is(nullValue()));
             }
         }
 
