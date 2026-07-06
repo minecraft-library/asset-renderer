@@ -11,7 +11,7 @@ import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.request.BannerLayer;
+import lib.minecraft.renderer.option.spec.BannerLayer;
 import lib.minecraft.renderer.request.DyeColor;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;

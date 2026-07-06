@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.request;
+package lib.minecraft.renderer.engine.texture;
 
 import lombok.AccessLevel;
 import lombok.Getter;

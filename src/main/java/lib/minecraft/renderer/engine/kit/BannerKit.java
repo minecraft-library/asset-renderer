@@ -5,7 +5,7 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.request.BannerLayer;
+import lib.minecraft.renderer.option.spec.BannerLayer;
 import lib.minecraft.renderer.request.DyeColor;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

@@ -2,8 +2,6 @@ package lib.minecraft.renderer.option.spec;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.request.ArmorTrim;
-import lib.minecraft.renderer.request.BannerLayer;
 import lib.minecraft.renderer.request.DyeColor;
 import lombok.AccessLevel;
 import lombok.Builder;

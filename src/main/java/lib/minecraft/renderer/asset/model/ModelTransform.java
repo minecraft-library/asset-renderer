@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.asset.model;
 
 import com.google.gson.annotations.JsonAdapter;
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 

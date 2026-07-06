@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.request;
+package lib.minecraft.renderer.tensor;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.request;
+package lib.minecraft.renderer.option;
 
 import lombok.AccessLevel;
 import lombok.Getter;

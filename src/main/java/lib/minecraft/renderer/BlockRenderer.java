@@ -30,8 +30,8 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.slot.BlockSlot;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
-import lib.minecraft.renderer.request.Biome;
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.engine.texture.Biome;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
@@ -134,19 +134,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return block.getTint().constant().orElse(ColorMath.WHITE);
 
         return new Textures(context).sampleBiomeTint(target, biome);
-    }
-
-    /**
-     * Walks a block's texture map for a given direction key, falling back through
-     * {@code all} → {@code side} → {@code particle} when the direction is not bound. Shared
-     * between the isometric and face sub-renderers so both have a single definition of the
-     * fallback chain.
-     */
-    static @NotNull String resolveTextureRef(@NotNull Block block, @NotNull String directionKey) {
-        return block.getTextures().getOrDefault(directionKey,
-            block.getTextures().getOrDefault("all",
-                block.getTextures().getOrDefault("side",
-                    block.getTextures().getOrDefault("particle", ""))));
     }
 
     /**
@@ -736,7 +723,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             RasterEngine engine = new RasterEngine(this.context);
             PixelBuffer buffer = engine.createBuffer(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
-            String textureId = resolveTextureRef(block, options.getFace().direction());
+            String textureId = block.textureRef(options.getFace().direction(), "all", "side", "particle");
             PixelBuffer face = engine.textures().resolveTexture(textureId);
             int tint = resolveBlockTint(this.context, block, options);
             PixelBuffer tinted = ColorMath.tint(face, tint);

@@ -6,7 +6,7 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.FluidSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.request.Biome;
+import lib.minecraft.renderer.engine.texture.Biome;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;

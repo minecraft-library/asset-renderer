@@ -3,7 +3,7 @@ package lib.minecraft.renderer.option.spec;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;

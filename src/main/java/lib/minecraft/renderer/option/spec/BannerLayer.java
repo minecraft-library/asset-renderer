@@ -1,6 +1,7 @@
-package lib.minecraft.renderer.request;
+package lib.minecraft.renderer.option.spec;
 
 import lib.minecraft.renderer.asset.BannerPattern;
+import lib.minecraft.renderer.request.DyeColor;
 import org.jetbrains.annotations.NotNull;
 
 /**

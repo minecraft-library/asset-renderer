@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.request;
+package lib.minecraft.renderer.tensor;
 
 import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;

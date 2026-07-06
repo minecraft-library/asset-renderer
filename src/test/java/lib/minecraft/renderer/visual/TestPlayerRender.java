@@ -21,10 +21,10 @@ import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.util.PackDownloader;
-import lib.minecraft.renderer.request.ArmorMaterial;
-import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.request.ArmorTrim;
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.option.spec.ArmorMaterial;
+import lib.minecraft.renderer.option.spec.ArmorPiece;
+import lib.minecraft.renderer.option.spec.ArmorTrim;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

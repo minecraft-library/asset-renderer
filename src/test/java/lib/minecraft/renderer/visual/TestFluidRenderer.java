@@ -14,7 +14,7 @@ import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.request.Biome;
+import lib.minecraft.renderer.engine.texture.Biome;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

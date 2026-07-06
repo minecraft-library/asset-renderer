@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.engine.camera;
 
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import org.jetbrains.annotations.NotNull;
 
 /**

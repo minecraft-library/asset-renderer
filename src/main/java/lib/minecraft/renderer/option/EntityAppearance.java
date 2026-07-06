@@ -1,8 +1,6 @@
 package lib.minecraft.renderer.option;
 
 import lib.minecraft.renderer.request.DyeColor;
-import lib.minecraft.renderer.request.TintAxis;
-import lib.minecraft.renderer.request.TropicalFishPattern;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;

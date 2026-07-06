@@ -1,9 +1,9 @@
 """Generates the Euler rotation reference diagram embedded in the
-{@link lib.minecraft.renderer.request.EulerRotation} javadoc.
+{@link lib.minecraft.renderer.tensor.EulerRotation} javadoc.
 
 Run this script (no arguments) to regenerate the SVG; output is written next
 to the EulerRotation source under
-{@code src/main/java/lib/minecraft/renderer/request/doc-files/euler_reference.svg},
+{@code src/main/java/lib/minecraft/renderer/tensor/doc-files/euler_reference.svg},
 which is the conventional javadoc location for embedded image assets - the
 {@code javadoc} tool copies any {@code doc-files/} subdirectory through to the
 generated HTML unchanged.
@@ -344,8 +344,9 @@ emit("</svg>")
 script_dir = Path(__file__).resolve().parent
 out_path = (script_dir
             / ".."
-            / "src" / "main" / "java" / "lib" / "minecraft" / "renderer" / "request"
-            / "doc-files" / "euler_reference.svg").resolve()
+            / "src" / "main" / "java"
+            / "lib" / "minecraft" / "renderer"
+            / "tensor" / "doc-files" / "euler_reference.svg").resolve()
 
 out_path.parent.mkdir(parents=True, exist_ok=True)
 out_path.write_text("\n".join(svg_parts), encoding="utf-8")

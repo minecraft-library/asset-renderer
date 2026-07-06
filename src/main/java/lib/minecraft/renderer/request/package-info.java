@@ -1,30 +1,16 @@
 /**
- * Caller-composed render-input value types - the typed vocabulary a caller binds into a render
- * {@link lib.minecraft.renderer.option options} object to drive a render. These are not
- * parsed-from-pack assets (those live in {@link lib.minecraft.renderer.asset asset}); they are fixed
- * parameter shapes and small composition records the caller supplies per render, consumed downstream
- * by the {@link lib.minecraft.renderer.engine.kit kit} layer. The package stays free of engine state
- * so it sits below {@code engine} in the dependency order.
- * <ul>
- *   <li>{@link lib.minecraft.renderer.request.EulerRotation EulerRotation} - immutable
- *       pitch / yaw / roll triple, the rotation shape every renderer accepts for caller-side
- *       rotation. Internal use converts to a
- *       {@link lib.minecraft.renderer.tensor.Quaternionf Quaternionf} or chained rotation
- *       matrices.</li>
- *   <li>{@link lib.minecraft.renderer.request.ArmorMaterial ArmorMaterial},
- *       {@link lib.minecraft.renderer.request.ArmorTrim ArmorTrim},
- *       {@link lib.minecraft.renderer.request.ArmorPiece ArmorPiece} - the equipped-armor vocabulary:
- *       material atlas, trim slot / colour / pattern, and the composed per-slot piece.</li>
- *   <li>{@link lib.minecraft.renderer.request.BannerLayer BannerLayer} - one banner / shield layer
- *       pairing a {@link lib.minecraft.renderer.asset.BannerPattern BannerPattern} with a
- *       {@link lib.minecraft.renderer.request.DyeColor DyeColor}.</li>
- *   <li>{@link lib.minecraft.renderer.request.DyeColor DyeColor} - the sixteen vanilla dyes plus
- *       arbitrary custom ARGB; drives banner / shield tinting, wool / leather dye, and block tint
- *       constants.</li>
- *   <li>{@link lib.minecraft.renderer.request.Biome Biome} - biome identity (temperature, downfall,
- *       colour overrides, grass modifier) the caller supplies to resolve grass / foliage / water
- *       tints. The parsed colormap-selection metadata lives separately as
- *       {@link lib.minecraft.renderer.asset.Block.TintTarget Block.TintTarget}.</li>
- * </ul>
+ * The shared dye-colour vocabulary. Holds {@link lib.minecraft.renderer.request.DyeColor DyeColor} -
+ * the sixteen vanilla dyes plus arbitrary custom ARGB - a caller-supplied colour palette used
+ * broadly across the renderer (banner / shield tinting, wool / leather dye, entity collar / pattern
+ * tints, block tint constants). Kept free of engine state so it sits below {@code engine} in the
+ * dependency order.
+ *
+ * <p>The other caller-input value types that once lived here moved to the subsystem that owns them:
+ * {@link lib.minecraft.renderer.tensor.EulerRotation EulerRotation} to {@code tensor} (a rotation
+ * value type beside {@code Quaternionf}); {@link lib.minecraft.renderer.engine.texture.Biome Biome}
+ * to {@code engine.texture} (its sole consumer is the tint sampler); and the entity-appearance /
+ * equipment vocabularies ({@code TintAxis}, {@code TropicalFishPattern}, {@code BannerLayer},
+ * {@code ArmorMaterial}, {@code ArmorPiece}, {@code ArmorTrim}) to {@code option} /
+ * {@code option.spec}, beside the {@code Options} they compose into.
  */
 package lib.minecraft.renderer.request;

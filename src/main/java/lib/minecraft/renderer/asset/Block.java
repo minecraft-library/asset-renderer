@@ -97,6 +97,23 @@ public final class Block {
     private final @NotNull String defaultStateKey;
 
     /**
+     * Returns this block's texture reference for the first of {@code directionKeys} that is bound in
+     * {@link #getTextures()}, or {@code ""} when none is. Callers pass the fallback chain in priority
+     * order - e.g. {@code textureRef(direction, "all", "side", "particle")} - so the block owns its
+     * own first-bound resolution instead of each call site cascading {@code getOrDefault}.
+     *
+     * @param directionKeys the texture-map keys to try, in priority order
+     * @return the first bound texture ref, or {@code ""} when none of the keys is bound
+     */
+    public @NotNull String textureRef(@NotNull String @NotNull ... directionKeys) {
+        for (String key : directionKeys) {
+            String ref = this.textures.get(key);
+            if (ref != null) return ref;
+        }
+        return "";
+    }
+
+    /**
      * The provenance of a {@link Block}'s registration. Drives atlas tile classification and any
      * future caller that needs to know how the block reached the renderer context.
      */

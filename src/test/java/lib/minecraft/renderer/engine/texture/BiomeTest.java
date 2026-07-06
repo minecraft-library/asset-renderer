@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.request;
+package lib.minecraft.renderer.engine.texture;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
