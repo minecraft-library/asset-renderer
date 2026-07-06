@@ -448,6 +448,28 @@ public final class ToolingEntityModels {
             System.out.println("Equipment overlay layers: " + equipmentFieldToResolution.size()
                 + " (" + equipmentFieldToResolution.keySet() + ")");
 
+            // Shape-axis body geometry (tropical fish small|large). The small body is the primary; the
+            // large body (TropicalFishLargeModel via TROPICAL_FISH_LARGE) is baked here as an extra
+            // source so the shape axis can point its {@code large} option at geometry.tropicalfishlarge.
+            // Added after equipment so the appended mesh only takes collision suffixes, never shifting an
+            // existing id. Hardcoded to tropical_fish, the only vanilla entity with distinct body shapes.
+            Map<String, EntityLayerDefinitionResolver.Result> shapeResolutionByEntity = new LinkedHashMap<>();
+            String shapeEntity = "minecraft:tropical_fish";
+            String shapeField = "TROPICAL_FISH_LARGE";
+            EntityLayerDefinitionResolver.Result shapeRes = layerDefs.get(shapeField);
+            if (shapeRes != null && records.containsKey(shapeEntity)) {
+                shapeRes = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), shapeRes);
+                String shapeId = shapeEntity + "#large";
+                entityToResolution.put(shapeId, shapeRes);
+                shapeResolutionByEntity.put(shapeEntity, shapeRes);
+                float[] shapeParams = new float[8];
+                if (shapeRes.defaultFloatParam() != null) shapeParams[0] = shapeRes.defaultFloatParam();
+                sources.add(new Source(
+                    shapeRes.targetClass() + ".class", shapeRes.targetMethod(), shapeId, YAxis.DOWN, 0f,
+                    shapeRes.texWidthOverride(), shapeRes.texHeightOverride(), null, shapeParams,
+                    shapeRes.defaultInflate(), shapeRes.appliedMeshTransformerScale(), null));
+            }
+
             ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics);
             System.out.println("Parsed geometry for " + geometries.size() + " entities + overlays");
 
@@ -503,9 +525,18 @@ public final class ToolingEntityModels {
                 if (geomId != null) equipmentGeometryByField.put(equip.getKey(), geomId);
             }
 
+            // Map each shape-axis entity to its large-body geometry id, so the family writer can point
+            // the shape axis's {@code large} option at geometry.tropicalfishlarge.
+            Map<String, String> shapeGeometryByEntity = new LinkedHashMap<>();
+            for (Map.Entry<String, EntityLayerDefinitionResolver.Result> shape : shapeResolutionByEntity.entrySet()) {
+                String geomId = writeResult.factoryKeyToGeometryId().get(EntityRuntimeJsonWriter.factoryKey(shape.getValue()));
+                if (geomId != null) shapeGeometryByEntity.put(shape.getKey(), geomId);
+            }
+
             // Group the in-memory flat tables into the canonical family-form entity_models.json.
             EntityFamilyJsonWriter.writeAll(options.getVersion(), diagnostics, writeResult.flatEntities(), writeResult.flatFamilies(),
-                variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity, equipmentByEntity, equipmentGeometryByField);
+                variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity, equipmentByEntity, equipmentGeometryByField,
+                shapeGeometryByEntity);
 
             System.out.printf(
                 "Coverage: %d / %d mapped; texture %d hard / %d variant / %d unresolved; geometry %d%n",

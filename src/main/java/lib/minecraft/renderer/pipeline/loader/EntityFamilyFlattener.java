@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.loader;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.jetbrains.annotations.NotNull;
@@ -51,7 +52,8 @@ public final class EntityFamilyFlattener {
         @NotNull Map<String, Map<String, String>> stateTextures,
         @NotNull Map<String, String> collarTextures,
         @NotNull Map<String, String> babyGeometry,
-        @NotNull Map<String, List<EquipmentSpec>> equipment
+        @NotNull Map<String, List<EquipmentSpec>> equipment,
+        @NotNull Map<String, ShapeSpec> shapeAlternatives
     ) {
 
         /**
@@ -62,9 +64,25 @@ public final class EntityFamilyFlattener {
          * @return an empty flat form
          */
         public static @NotNull Flat empty() {
-            return new Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of(), Map.of());
+            return new Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         }
     }
+
+    /**
+     * The non-default {@code large} option of a family's {@code shape} axis (tropical fish): the large
+     * body geometry, its base texture, and the pattern overlays cloned onto the large mesh. The
+     * renderer swaps to these when the selected pattern's {@code Shape} is large.
+     *
+     * @param geometryRef the large body geometry id ({@code geometry.tropicalfishlarge})
+     * @param textureRef the large body base texture ({@code fish/tropical_b})
+     * @param overlays the pattern overlays on the large mesh, in the same JSON shape as a family's
+     *     {@code overlays} array (materialised by {@code EntityModelLoader.loadOverlays})
+     */
+    public record ShapeSpec(
+        @NotNull String geometryRef,
+        @NotNull String textureRef,
+        @NotNull JsonArray overlays
+    ) {}
 
     /**
      * One equipment overlay layer read from a family's {@code layers} (a {@code when.equipment}-gated
@@ -99,6 +117,7 @@ public final class EntityFamilyFlattener {
         Map<String, String> collarTextures = new LinkedHashMap<>();
         Map<String, String> babyGeometry = new LinkedHashMap<>();
         Map<String, List<EquipmentSpec>> equipment = new LinkedHashMap<>();
+        Map<String, ShapeSpec> shapeAlternatives = new LinkedHashMap<>();
 
         for (Map.Entry<String, JsonElement> entry : familyForm.entrySet()) {
             String familyId = entry.getKey();
@@ -107,6 +126,7 @@ public final class EntityFamilyFlattener {
             String collar = collarTextureOf(family);
             String baby = babyGeometryOf(family);
             List<EquipmentSpec> equip = equipmentOf(family);
+            ShapeSpec shape = shapeLargeOf(family);
 
             JsonObject variantAxis = variantAxis(family);
             if (variantAxis != null) {
@@ -116,6 +136,7 @@ public final class EntityFamilyFlattener {
                 if (collar != null) collarTextures.put(familyId, collar);
                 if (baby != null) babyGeometry.put(familyId, baby);
                 if (!equip.isEmpty()) equipment.put(familyId, equip);
+                if (shape != null) shapeAlternatives.put(familyId, shape);
                 // Plain families carry their single baby texture on age.baby.texture_ref; expose it
                 // under the "baby" state key so the renderer binds it the same way as variant families.
                 String babyTex = babyTextureOf(family);
@@ -124,7 +145,25 @@ public final class EntityFamilyFlattener {
 
             if (family.has("family_of")) crossFamilies.addProperty(familyId, family.get("family_of").getAsString());
         }
-        return new Flat(entities, crossFamilies, stateTextures, collarTextures, babyGeometry, equipment);
+        return new Flat(entities, crossFamilies, stateTextures, collarTextures, babyGeometry, equipment, shapeAlternatives);
+    }
+
+    /**
+     * Returns the family's {@code shape.large} option as a {@link ShapeSpec}, or {@code null} when
+     * the family has no {@code shape} axis (only tropical fish carries one).
+     */
+    private static ShapeSpec shapeLargeOf(@NotNull JsonObject family) {
+        if (!family.has("axes")) return null;
+        JsonObject axes = family.getAsJsonObject("axes");
+        if (!axes.has("shape")) return null;
+        JsonObject options = axes.getAsJsonObject("shape").getAsJsonObject("options");
+        if (!options.has("large")) return null;
+        JsonObject large = options.getAsJsonObject("large");
+        if (!large.has("geometry_ref")) return null;
+        return new ShapeSpec(
+            large.get("geometry_ref").getAsString(),
+            large.has("texture_ref") ? large.get("texture_ref").getAsString() : "",
+            large.has("overlays") ? large.getAsJsonArray("overlays") : new JsonArray());
     }
 
     /**

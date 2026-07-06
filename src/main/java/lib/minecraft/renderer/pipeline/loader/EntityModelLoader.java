@@ -14,6 +14,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.request.TintAxis;
+import lib.minecraft.renderer.request.TropicalFishPattern;
 import lombok.Builder;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -122,6 +123,9 @@ public class EntityModelLoader {
      *     (donkey/mule/llama {@code chest}) re-adds its bones, a default-visible toggle (goat
      *     {@code horn}) removes them. The default render is unchanged (chest stripped, horns present);
      *     empty for entities with no toggleable bones
+     * @param largeShape the {@code shape} axis's large alternative (tropical fish): the large body
+     *     mesh + {@code tropical_b} texture + pattern overlays cloned onto it, swapped in by
+     *     {@link #resolveFor} when the selected pattern's {@code Shape} is large; empty otherwise
      */
     @Builder(toBuilder = true)
     public record EntityDefinition(
@@ -136,7 +140,8 @@ public class EntityModelLoader {
         @NotNull Optional<String> collarTexture,
         @NotNull Optional<EntityModelData> babyModel,
         @NotNull Map<String, BoneToggle> boneToggles,
-        @NotNull List<EquipmentOverlay> equipment
+        @NotNull List<EquipmentOverlay> equipment,
+        @NotNull Optional<LargeShape> largeShape
     ) {
         /**
          * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried}
@@ -185,6 +190,16 @@ public class EntityModelLoader {
                 EntityModelData toggled = applyBoneToggles(selectedToggles);
                 if (toggled != null) builder.model(toggled);
                 builder.blockOverlays(resolveBlockOverlays(appearance));
+                // The shape axis (tropical fish) swaps to the large body when the selected pattern's
+                // Shape is large: the large mesh, tropical_b base texture, and the pattern overlays
+                // cloned onto the large geometry (the pattern axis still picks the concrete overlay
+                // texture via texture_by). A small/default pattern leaves the small body untouched, so
+                // the default render is byte-identical.
+                if (this.largeShape.isPresent()
+                    && appearance.getPattern().map(p -> p.shape() == TropicalFishPattern.Shape.LARGE).orElse(false)) {
+                    LargeShape large = this.largeShape.get();
+                    builder.model(large.model()).textureRef(large.textureRef()).overlays(large.overlays());
+                }
             }
             // The base_color axis (tropical fish) overrides the family base_tint with the selected
             // dye; absent (default) keeps the baked base_tint, so the default render is byte-identical.
@@ -501,6 +516,44 @@ public class EntityModelLoader {
     }
 
     /**
+     * The {@code shape} axis's large-body alternative (tropical fish), resolved eagerly at load: the
+     * large body mesh, its base texture, and the pattern overlays materialised onto the large
+     * geometry. {@link EntityDefinition#resolveFor} swaps these in wholesale when the selected
+     * pattern's {@code Shape} is large.
+     *
+     * @param model the large body mesh
+     * @param textureRef the large body base texture ({@code fish/tropical_b})
+     * @param overlays the pattern overlays materialised on the large mesh
+     */
+    public record LargeShape(
+        @NotNull EntityModelData model,
+        @NotNull Optional<String> textureRef,
+        @NotNull List<OverlayLayer> overlays
+    ) {}
+
+    /**
+     * Builds the {@link LargeShape} from a flattened {@link EntityFamilyFlattener.ShapeSpec}, resolving
+     * the large geometry and materialising the large overlays through {@link #loadOverlays}. Returns
+     * empty when the spec is absent or its geometry is missing.
+     *
+     * @param spec the flattened shape spec (may be {@code null})
+     * @param geometries the geometry table
+     * @param entityId the owning entity id, for overlay warnings
+     * @return the resolved large shape, or empty
+     */
+    private static @NotNull Optional<LargeShape> buildLargeShape(
+        @Nullable EntityFamilyFlattener.ShapeSpec spec,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull String entityId
+    ) {
+        if (spec == null) return Optional.empty();
+        EntityModelData largeModel = geometries.get(spec.geometryRef());
+        if (largeModel == null) return Optional.empty();
+        List<OverlayLayer> largeOverlays = loadOverlays(spec.overlays(), geometries, spec.geometryRef(), largeModel, entityId);
+        return Optional.of(new LargeShape(largeModel, Optional.of(spec.textureRef()), largeOverlays));
+    }
+
+    /**
      * Returns a deep-cloned copy of {@code model} with every cube's {@link
      * EntityModelData.Cube#getInflate() inflate} field bumped by {@code delta}. Used by the
      * overlay loader to surround the base mesh with an inflated overlay (creeper armor mesh
@@ -626,6 +679,7 @@ public class EntityModelLoader {
         Map<String, String> collarTextures = flat.collarTextures();
         Map<String, String> babyGeometryRefs = flat.babyGeometry();
         Map<String, List<EntityFamilyFlattener.EquipmentSpec>> equipmentSpecs = flat.equipment();
+        Map<String, EntityFamilyFlattener.ShapeSpec> shapeAlternatives = flat.shapeAlternatives();
         HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
@@ -699,8 +753,12 @@ public class EntityModelLoader {
             String babyRef = babyGeometryRefs.get(entityId);
             Optional<EntityModelData> babyModel = babyRef == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyRef));
             List<EquipmentOverlay> equipment = loadEquipment(equipmentSpecs.get(entityId), geometries, entityId);
+            // The shape axis's large alternative (tropical fish): the large body mesh + tropical_b
+            // texture + the pattern overlays cloned onto the large geometry, resolved eagerly so
+            // resolveFor can swap them in when the selected pattern's Shape is large.
+            Optional<LargeShape> largeShape = buildLargeShape(shapeAlternatives.get(entityId), geometries, entityId);
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale,
-                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles, equipment));
+                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles, equipment, largeShape));
         }
         return Concurrent.adoptMap(definitions);
     }

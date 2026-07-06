@@ -1484,7 +1484,32 @@
           "texture_by": "pattern",
           "inflate": 0.008
         }
-      ]
+      ],
+      "axes": {
+        "shape": {
+          "default": "small",
+          "values": [
+            "small",
+            "large"
+          ],
+          "options": {
+            "large": {
+              "geometry_ref": "geometry.tropicalfishlarge",
+              "texture_ref": "fish/tropical_b",
+              "overlays": [
+                {
+                  "geometry_ref": "geometry.tropicalfishlarge",
+                  "texture_ref": "fish/tropical_b_pattern_1",
+                  "tint_color": "0xFFF9FFFE",
+                  "tint_by": "pattern_color",
+                  "texture_by": "pattern",
+                  "inflate": 0.008
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     "minecraft:turtle": {
       "geometry_ref": "geometry.adultturtle",

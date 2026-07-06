@@ -40397,6 +40397,211 @@
         }
       },
       "y_axis": "DOWN"
+    },
+    "geometry.tropicalfishlarge": {
+      "textureWidth": 32,
+      "textureHeight": 32,
+      "bones": {
+        "body": {
+          "pivot": [
+            0.0,
+            19.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                -3.0,
+                -3.0
+              ],
+              "size": [
+                2.0,
+                6.0,
+                6.0
+              ],
+              "uv": [
+                0,
+                20
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "tail": {
+          "pivot": [
+            0.0,
+            19.0,
+            3.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                0.0,
+                -3.0,
+                0.0
+              ],
+              "size": [
+                0.0,
+                6.0,
+                5.0
+              ],
+              "uv": [
+                21,
+                16
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "right_fin": {
+          "pivot": [
+            -1.0,
+            20.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            45.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                0.0,
+                0.0
+              ],
+              "size": [
+                2.0,
+                2.0,
+                0.0
+              ],
+              "uv": [
+                2,
+                16
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "left_fin": {
+          "pivot": [
+            1.0,
+            20.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            -45.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "size": [
+                2.0,
+                2.0,
+                0.0
+              ],
+              "uv": [
+                2,
+                12
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "top_fin": {
+          "pivot": [
+            0.0,
+            16.0,
+            -3.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                0.0,
+                -4.0,
+                0.0
+              ],
+              "size": [
+                0.0,
+                4.0,
+                6.0
+              ],
+              "uv": [
+                20,
+                11
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "bottom_fin": {
+          "pivot": [
+            0.0,
+            22.0,
+            -3.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "size": [
+                0.0,
+                4.0,
+                6.0
+              ],
+              "uv": [
+                20,
+                21
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        }
+      },
+      "y_axis": "DOWN"
     }
   }
 }
