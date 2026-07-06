@@ -149,6 +149,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 Math.max(baseBounds.maxZ(), overlayBounds.maxZ())
             );
         }
+        // Fold a selected equipment overlay's mesh into the bounds union so an inflated / protruding
+        // equipment mesh (horse/nautilus/wolf armor, the llama carpet's CubeDeformation) can't crop at
+        // the canvas edge. Gated on the equipment axis, so the default (unequipped) render is
+        // byte-identical (mirrors the EQUIPMENT feature's render gate).
+        for (EntityModelLoader.EquipmentOverlay equipment : resolved.equipment()) {
+            if (!equipmentSelected(equipment, options.getAppearance())) continue;
+            baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(equipment.model()));
+        }
 
         EulerRotation user = options.getOutput().getRotation();
         EulerRotation effective = new EulerRotation(
@@ -198,8 +206,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         final FitRequest fitRequest;
         if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
             BoundsScope scope = boundsScopeFor(options.getFitMode());
+            Matrix4f renderOrient = engine.orient(effective);
             Box screenBounds = computeScreenBoundsFor(scope, options.getEntityId().get(), resolved,
-                engine.orient(effective), modelScale, texture.get());
+                renderOrient, modelScale, texture.get());
+            // Fold a selected equipment overlay's mesh into the pre-measured silhouette so an inflated /
+            // protruding equipment mesh can't crop at the canvas edge under the NATIVE_SCALE fit (which
+            // sizes from these bounds, not the rendered triangles). A null texture measures the mesh's
+            // geometric AABB - conservative, no equipment-texture resolution. Gated on the equipment
+            // axis, so the default (unequipped) canvas stays byte-identical.
+            for (EntityModelLoader.EquipmentOverlay equipment : resolved.equipment()) {
+                if (!equipmentSelected(equipment, options.getAppearance())) continue;
+                screenBounds = unionBoxes(screenBounds,
+                    EntityGeometryKit.computeScreenBounds(equipment.model(), renderOrient, modelScale, null));
+            }
             RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
             canvasW = fit.canvasW();
@@ -865,6 +884,24 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private @NotNull Optional<PixelBuffer> resolveFamilyMemberTexture(@NotNull EntityModelLoader.EntityDefinition definition) {
         if (definition.textureRef().isEmpty()) return Optional.empty();
         return resolveEntityRef(definition.textureRef().get());
+    }
+
+    /**
+     * Whether the appearance selects this equipment overlay's slot - mirrors the {@code EQUIPMENT}
+     * feature's render gate ({@link EntityAppearance#equipmentMaterial(String)}) so the bounds union
+     * folds in exactly the equipment meshes that render. A slot with no selected material (the default
+     * appearance) or an empty mesh contributes nothing, keeping the unequipped canvas byte-identical.
+     *
+     * @param equipment the equipment overlay to test
+     * @param appearance the render appearance carrying the equipment axis selection
+     * @return {@code true} when the overlay's slot is selected and its mesh is non-empty
+     */
+    private static boolean equipmentSelected(
+        @NotNull EntityModelLoader.EquipmentOverlay equipment,
+        @NotNull EntityAppearance appearance
+    ) {
+        return appearance.equipmentMaterial(equipment.slot()).isPresent()
+            && !equipment.model().getBones().isEmpty();
     }
 
     /**
