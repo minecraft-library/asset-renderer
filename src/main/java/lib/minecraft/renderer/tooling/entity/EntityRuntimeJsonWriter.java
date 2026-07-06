@@ -301,10 +301,12 @@ public final class EntityRuntimeJsonWriter {
             // stay stripped by hidden_bones above, so the default render is unchanged.
             Map<String, EntityBoneResolver.BoneToggle> boneToggles = EntityBoneResolver.resolveBoneToggles(context.classNodes(), res.targetClass(), diagnostics);
             if (!boneToggles.isEmpty()) {
+                JsonObject geometryEntry = geometriesOut.getAsJsonObject(geometryId);
+                JsonObject geometryBones = geometryEntry == null ? null : geometryEntry.getAsJsonObject("bones");
                 JsonObject togglesJson = new JsonObject();
                 for (Map.Entry<String, EntityBoneResolver.BoneToggle> toggle : boneToggles.entrySet()) {
                     JsonArray bones = new JsonArray();
-                    for (String bone : toggle.getValue().bones()) bones.add(bone);
+                    for (String bone : expandToggleSubtree(geometryBones, toggle.getValue().bones())) bones.add(bone);
                     JsonObject toggleObj = new JsonObject();
                     toggleObj.add("bones", bones);
                     toggleObj.addProperty("default", toggle.getValue().defaultVisible());
@@ -365,6 +367,40 @@ public final class EntityRuntimeJsonWriter {
      */
     private static @NotNull String stripModelSuffix(@NotNull String simpleName) {
         return simpleName.endsWith("Model") ? simpleName.substring(0, simpleName.length() - "Model".length()) : simpleName;
+    }
+
+    /**
+     * Expands a bone-toggle's directly-named bones to the full subtree they root, so flipping a
+     * group bone (bogged's {@code mushrooms}) takes its children with it: the geometry parents the
+     * six mushroom cubes to the group, and stripping only the group would orphan them to the model
+     * root. Every geometry bone whose parent-chain reaches a named bone joins the list, in geometry
+     * (insertion) order after the seeds. Leaf toggle bones (goat horns, donkey/mule/llama chest)
+     * root no subtree, so the expansion returns them unchanged - the existing toggles stay
+     * byte-identical.
+     *
+     * @param geometryBones the entity geometry's {@code name -> bone} object (each bone's optional
+     *     {@code parent} names its parent), or {@code null} when the geometry is unavailable
+     * @param seeds the toggle's directly-named bones
+     * @return the seeds plus every descendant bone, deduplicated, seeds first
+     */
+    private static @NotNull List<String> expandToggleSubtree(@Nullable JsonObject geometryBones, @NotNull List<String> seeds) {
+        LinkedHashSet<String> members = new LinkedHashSet<>(seeds);
+        if (geometryBones == null) return new ArrayList<>(members);
+        // Fixpoint over the bone map so a subtree of any depth fully closes regardless of the
+        // parent-before-child ordering in the geometry JSON.
+        boolean grew = true;
+        while (grew) {
+            grew = false;
+            for (Map.Entry<String, JsonElement> entry : geometryBones.entrySet()) {
+                if (members.contains(entry.getKey()) || !entry.getValue().isJsonObject()) continue;
+                JsonElement parent = entry.getValue().getAsJsonObject().get("parent");
+                if (parent != null && parent.isJsonPrimitive() && members.contains(parent.getAsString())) {
+                    members.add(entry.getKey());
+                    grew = true;
+                }
+            }
+        }
+        return new ArrayList<>(members);
     }
 
     // ----------------------------------------------------------------------------------------

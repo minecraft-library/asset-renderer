@@ -89,6 +89,20 @@
       "geometry_ref": "geometry.bogged",
       "armor_type": "humanoid",
       "texture_ref": "skeleton/bogged",
+      "bone_toggles": {
+        "sheared": {
+          "bones": [
+            "mushrooms",
+            "red_mushroom_1",
+            "red_mushroom_2",
+            "brown_mushroom_1",
+            "brown_mushroom_2",
+            "brown_mushroom_3",
+            "brown_mushroom_4"
+          ],
+          "default": true
+        }
+      },
       "overlays": [
         {
           "geometry_ref": "geometry.humanoid_3",

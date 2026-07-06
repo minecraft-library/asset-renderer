@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -172,7 +173,15 @@ public class EntityModelLoader {
                     builder.overlays(this.overlays.stream().filter(overlay -> !overlay.shearable()).toList());
                 // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal,
                 // goat horns hide). Guarded to the non-baby path - the baby mesh has its own bones.
-                EntityModelData toggled = applyBoneToggles(appearance.getToggles());
+                // The sheared axis additionally activates the "sheared" toggle for entities that
+                // declare one (bogged drops its mushrooms); entities whose sheared handling is
+                // overlay-only (sheep wool) declare no such toggle and are left byte-identical.
+                Set<String> selectedToggles = appearance.getToggles();
+                if (appearance.isSheared() && this.boneToggles.containsKey("sheared")) {
+                    selectedToggles = new LinkedHashSet<>(selectedToggles);
+                    selectedToggles.add("sheared");
+                }
+                EntityModelData toggled = applyBoneToggles(selectedToggles);
                 if (toggled != null) builder.model(toggled);
                 builder.blockOverlays(resolveBlockOverlays(appearance));
             }

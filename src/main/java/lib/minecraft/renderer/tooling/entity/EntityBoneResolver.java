@@ -197,6 +197,7 @@ public final class EntityBoneResolver {
     ) {
         LinkedHashMap<String, LinkedHashSet<String>> fieldGated = new LinkedHashMap<>();
         LinkedHashSet<String> inlineBones = new LinkedHashSet<>();
+        LinkedHashMap<String, NegatedGate> negatedGated = new LinkedHashMap<>();
         LinkedHashMap<String, String> fieldToBoneName = new LinkedHashMap<>();
         String current = modelClassInternal;
         while (current != null && !current.equals(VanillaSourceClasses.ENTITY_MODEL) && !current.equals(AsmKit.OBJECT_INTERNAL)) {
@@ -208,6 +209,7 @@ public final class EntityBoneResolver {
                 if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
                 collectStateGatedToggles(cn, method, fieldGated);
                 collectInlineGatedToggles(cn, method, inlineBones);
+                collectNegatedGatedToggles(cn, method, negatedGated);
             }
             current = cn.superName;
         }
@@ -225,6 +227,15 @@ public final class EntityBoneResolver {
             inlineGroups.computeIfAbsent(stripLeftRight(bone), key -> new ArrayList<>()).add(bone);
         for (Map.Entry<String, List<String>> entry : inlineGroups.entrySet())
             toggles.putIfAbsent(entry.getKey(), new BoneToggle(entry.getValue(), true));
+        // Negated-branch-gated (bogged mushrooms): {@code this.<field>.visible = !state.<flag>},
+        // compiled as a branch. Default visibility follows the branch polarity (bogged's mushrooms
+        // are visible by default and the {@code sheared} toggle hides them). Only the group bone is
+        // named here; its subtree is expanded downstream (the JSON writer) from the geometry.
+        for (Map.Entry<String, NegatedGate> entry : negatedGated.entrySet()) {
+            List<String> bones = new ArrayList<>();
+            for (String field : entry.getValue().fields()) bones.add(fieldToBoneName.getOrDefault(field, field));
+            toggles.putIfAbsent(flagToToggleName(entry.getKey()), new BoneToggle(bones, entry.getValue().defaultVisible()));
+        }
 
         if (!toggles.isEmpty()) diag.info("bone-toggles: '%s' -> %s", modelClassInternal, toggles);
         return toggles;
@@ -308,6 +319,91 @@ public final class EntityBoneResolver {
             String boneName = AsmKit.readStringLiteral(AsmKit.previousReal(childCall));
             if (boneName != null) out.add(boneName);
         }
+    }
+
+    /**
+     * A negated-branch visibility gate ({@code this.<field>.visible = !state.<flag>}): the model
+     * fields it targets plus the bones' default visibility, derived from the branch polarity. A
+     * mutable set (parallel to {@link #collectStateGatedToggles}'s per-flag sets) so one flag
+     * gating several fields accumulates them under a single toggle.
+     *
+     * @param fields the model-class bone fields the gate writes {@code visible} on
+     * @param defaultVisible whether the bones render at the flag's zero-state (true = toggle hides)
+     */
+    private record NegatedGate(@NotNull LinkedHashSet<String> fields, boolean defaultVisible) {}
+
+    /**
+     * Negated-branch visibility pattern {@code this.<field>.visible = !state.<flag>} (bogged
+     * mushrooms), where the boolean is produced by a compiled branch rather than a direct store.
+     * Records each gating {@code flag -> model-field(s)} plus the default visibility read off the
+     * branch polarity. The parallel of {@link #collectStateGatedToggles} for the branch shape:
+     * javac emits {@code visible = !flag} as
+     *
+     * <pre>{@code
+     *   GETFIELD  <owner>.<field> : LModelPart;   // this.<field> (the cached bone), the store target
+     *   ALOAD     <n>                             // the state arg (var != 0)
+     *   GETFIELD  <StateClass>.<flag> : Z         // the state flag ({@code is}/{@code has}, not the model)
+     *   IFNE      L1                              // branch on the flag
+     *   ICONST_1                                  // fallthrough value (flag == 0)
+     *   GOTO      L2
+     * L1:
+     *   ICONST_0                                  // branch-target value (flag != 0)
+     * L2:
+     *   PUTFIELD  ModelPart.visible : Z
+     * }</pre>
+     *
+     * <p>The default visibility is the value written when the flag is at its zero-state (false):
+     * for {@code IFNE} the fallthrough constant, for {@code IFEQ} the branch-target constant.
+     * Bogged's {@code IFNE} + fallthrough {@code ICONST_1} yields {@code defaultVisible = true}
+     * (mushrooms shown by default; the {@code sheared} toggle hides them). The two branch values
+     * must be a {@code 0}/{@code 1} pair, so a genuine boolean-branch store is matched rather than
+     * an arithmetic one.
+     */
+    private static void collectNegatedGatedToggles(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull Map<String, NegatedGate> out) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
+            if (!(in instanceof FieldInsnNode put)) continue;
+            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
+            if (!"visible".equals(put.name) || !MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
+            AbstractInsnNode branchVal = AsmKit.previousReal(in);
+            if (branchVal == null || !isBooleanConst(branchVal)) continue;
+            AbstractInsnNode gotoInsn = AsmKit.previousReal(branchVal);
+            if (gotoInsn == null || gotoInsn.getOpcode() != Opcodes.GOTO) continue;
+            AbstractInsnNode fallVal = AsmKit.previousReal(gotoInsn);
+            if (fallVal == null || !isBooleanConst(fallVal)) continue;
+            if (constValue(branchVal) == constValue(fallVal)) continue;
+            AbstractInsnNode condInsn = AsmKit.previousReal(fallVal);
+            if (condInsn == null) continue;
+            int cond = condInsn.getOpcode();
+            if (cond != Opcodes.IFEQ && cond != Opcodes.IFNE) continue;
+            AbstractInsnNode flagInsn = AsmKit.previousReal(condInsn);
+            if (flagInsn == null || flagInsn.getOpcode() != Opcodes.GETFIELD) continue;
+            if (!(flagInsn instanceof FieldInsnNode flagGet)) continue;
+            if (!"Z".equals(flagGet.desc) || owner.name.equals(flagGet.owner)) continue;
+            if (!flagGet.name.startsWith("has") && !flagGet.name.startsWith("is")) continue;
+            AbstractInsnNode stateLoad = AsmKit.previousReal(flagInsn);
+            if (stateLoad == null || stateLoad.getOpcode() != Opcodes.ALOAD) continue;
+            if (!(stateLoad instanceof VarInsnNode varLoad) || varLoad.var == 0) continue;
+            AbstractInsnNode targetInsn = AsmKit.previousReal(stateLoad);
+            if (targetInsn == null || targetInsn.getOpcode() != Opcodes.GETFIELD) continue;
+            if (!(targetInsn instanceof FieldInsnNode get) || !owner.name.equals(get.owner)) continue;
+            boolean defaultVisible = cond == Opcodes.IFNE ? constValue(fallVal) == 1 : constValue(branchVal) == 1;
+            out.computeIfAbsent(flagGet.name, key -> new NegatedGate(new LinkedHashSet<>(), defaultVisible)).fields().add(get.name);
+        }
+    }
+
+    /**
+     * Whether {@code node} pushes a boolean literal ({@code ICONST_0} or {@code ICONST_1}).
+     */
+    private static boolean isBooleanConst(@NotNull AbstractInsnNode node) {
+        return node.getOpcode() == Opcodes.ICONST_0 || node.getOpcode() == Opcodes.ICONST_1;
+    }
+
+    /**
+     * The {@code 0}/{@code 1} value an {@code ICONST_0}/{@code ICONST_1} node pushes.
+     */
+    private static int constValue(@NotNull AbstractInsnNode node) {
+        return node.getOpcode() == Opcodes.ICONST_1 ? 1 : 0;
     }
 
     /**
