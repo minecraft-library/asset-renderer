@@ -108,19 +108,16 @@
  *       {@link lib.minecraft.renderer.tooling.parser.GeometryParser GeometryParser} - the
  *       shared bytecode walker for the
  *       {@code LayerDefinition.create / CubeListBuilder / PartPose / addOrReplaceChild}
- *       pattern, called by both the block-entity and entity tooling.</li>
+ *       pattern, called by both the block-entity and entity tooling; it hides a package-private
+ *       {@code FastTrig} port of vanilla's {@code net.minecraft.util.Mth} {@code cos / sin}
+ *       65536-entry lookup, used when unrolling {@code Mth.cos / sin} call sites so the emitted
+ *       geometry matches the bytecode bit-for-bit.</li>
  *   <li>{@link lib.minecraft.renderer.tooling.util util} - ASM scaffolding
  *       ({@link lib.minecraft.renderer.tooling.util.AsmKit AsmKit} plus its
  *       {@link lib.minecraft.renderer.tooling.util.ClassNodeCache ClassNodeCache}),
- *       {@link lib.minecraft.renderer.tooling.util.Diagnostics Diagnostics} dump scaffolding,
+ *       {@link lib.minecraft.renderer.tooling.util.Diagnostics Diagnostics} dump scaffolding, and
  *       {@link lib.minecraft.renderer.tooling.util.JsonOptional JsonOptional} helpers for
- *       the optional-with-default JSON access pattern,
- *       and {@link lib.minecraft.renderer.tooling.util.FastTrig FastTrig} - a port of
- *       vanilla's {@code net.minecraft.util.Mth} {@code cos / sin} 65536-entry lookup that
- *       matches the bytecode bit-for-bit; the tooling layer uses it when unrolling
- *       {@code Mth.cos / sin} call sites so the emitted geometry agrees with what
- *       {@link lib.minecraft.renderer.engine.kit.EntityGeometryKit EntityGeometryKit} would produce
- *       at runtime.</li>
+ *       the optional-with-default JSON access pattern.</li>
  * </ul>
  *
  * <p><b>Diagnostics.</b> The two model scanners -
