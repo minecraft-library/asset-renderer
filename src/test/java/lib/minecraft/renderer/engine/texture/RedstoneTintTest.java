@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.engine.kit;
+package lib.minecraft.renderer.engine.texture;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ColorMap;
@@ -17,22 +17,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link RedstoneKit#resolve} per-power tint resolution under both a vanilla-only context
- * (no override map, so every power returns the bundled {@link RedstoneKit#VANILLA} entry) and an
- * override-bearing context (every {@code redstone.0..15} key remapped to a synthetic gradient). The
- * two paths together pin the wiring: if {@link RendererContext#findColorOverride(String)} is broken,
- * the override row would equal the vanilla row and the second batch of asserts fails. Also pins the
- * out-of-range guard ({@code power} &lt; 0 or &ge; 16 throws) and the 16-entry table length.
+ * Verifies {@link Textures#sampleRedstoneTint} per-power tint resolution under both a vanilla-only
+ * context (no override map, so every power returns the bundled {@link Textures#REDSTONE_TINTS} entry)
+ * and an override-bearing context (every {@code redstone.0..15} key remapped to a synthetic
+ * gradient). The two paths together pin the wiring: if {@link RendererContext#findColorOverride(String)}
+ * is broken, the override row would equal the vanilla row and the second batch of asserts fails. Also
+ * pins the out-of-range guard ({@code power} &lt; 0 or &ge; 16 throws) and the 16-entry table length.
  */
-class RedstoneKitTest {
+class RedstoneTintTest {
 
     @Test
     @DisplayName("Vanilla context returns the bundled COLORS table for every power level")
     void vanillaContextMatchesBundledTable() {
-        RendererContext vanilla = stubContext(Map.of());
-
-        for (int power = 0; power < RedstoneKit.VANILLA.length; power++)
-            assertThat("power " + power, RedstoneKit.resolve(vanilla, power), equalTo(RedstoneKit.VANILLA[power]));
+        Textures textures = new Textures(stubContext(Map.of()));
+        for (int power = 0; power < Textures.REDSTONE_TINTS.length; power++)
+            assertThat("power " + power, textures.sampleRedstoneTint(power), equalTo(Textures.REDSTONE_TINTS[power]));
     }
 
     @Test
@@ -43,24 +42,24 @@ class RedstoneKitTest {
         Map<String, Integer> overrides = new HashMap<>();
         for (int power = 0; power < 16; power++)
             overrides.put("redstone." + power, syntheticOverrideForPower(power));
-        RendererContext withOverrides = stubContext(overrides);
+        Textures textures = new Textures(stubContext(overrides));
 
-        for (int power = 0; power < RedstoneKit.VANILLA.length; power++)
-            assertThat("power " + power, RedstoneKit.resolve(withOverrides, power), equalTo(syntheticOverrideForPower(power)));
+        for (int power = 0; power < Textures.REDSTONE_TINTS.length; power++)
+            assertThat("power " + power, textures.sampleRedstoneTint(power), equalTo(syntheticOverrideForPower(power)));
     }
 
     @Test
-    @DisplayName("Resolve rejects out-of-range power levels")
+    @DisplayName("sampleRedstoneTint rejects out-of-range power levels")
     void rejectsOutOfRange() {
-        RendererContext vanilla = stubContext(Map.of());
+        Textures textures = new Textures(stubContext(Map.of()));
         try {
-            RedstoneKit.resolve(vanilla, -1);
+            textures.sampleRedstoneTint(-1);
             throw new AssertionError("expected IllegalArgumentException for power=-1");
         } catch (IllegalArgumentException expected) {
             // ok
         }
         try {
-            RedstoneKit.resolve(vanilla, 16);
+            textures.sampleRedstoneTint(16);
             throw new AssertionError("expected IllegalArgumentException for power=16");
         } catch (IllegalArgumentException expected) {
             // ok
@@ -78,9 +77,9 @@ class RedstoneKitTest {
     }
 
     /**
-     * Minimal {@link RendererContext} stub whose every asset lookup (packs, textures, colormaps,
-     * blocks, items, entities) returns empty, but whose {@code findColorOverride} honours the
-     * supplied override map - the one method {@link RedstoneKit#resolve} consults.
+     * Minimal {@link RendererContext} stub whose every asset lookup returns empty, but whose
+     * {@code findColorOverride} honours the supplied override map - the one method
+     * {@link Textures#sampleRedstoneTint} consults.
      */
     static @NotNull RendererContext stubContext(@NotNull Map<String, Integer> overrides) {
         return new RendererContext() {
@@ -115,9 +114,9 @@ class RedstoneKitTest {
     }
 
     @Test
-    @DisplayName("VANILLA table has 16 entries")
-    void vanillaTableHasSixteenEntries() {
-        assertThat(RedstoneKit.VANILLA.length, is(16));
+    @DisplayName("REDSTONE_TINTS table has 16 entries")
+    void tableHasSixteenEntries() {
+        assertThat(Textures.REDSTONE_TINTS.length, is(16));
     }
 
 }

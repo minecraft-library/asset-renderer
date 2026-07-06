@@ -10,7 +10,6 @@ import lib.minecraft.renderer.request.Biome;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
-import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
@@ -30,15 +29,16 @@ import java.util.function.Function;
 /**
  * Pack-aware texture resolution service - the texture subsystem every renderer and engine composes
  * ({@code ModelEngine} and {@code RasterEngine} each hold one; the 2D / 3D scene contexts carry it
- * to their layers) for its three families of helpers:
+ * to their layers) for its two families of helpers:
  * <ul>
- *   <li><b>Pack resolution</b> - {@code resolveTexture}, animation strip extraction via
- *       {@link AnimationKit AnimationKit}, and the CIT override lookup.</li>
- *   <li><b>Biome tint sampling</b> - the vanilla
- *       {@code BiomeSpecialEffects$GrassColorModifier} dark-forest / swamp variants and the
- *       default water tint table.</li>
- *   <li><b>Colour overlay</b> - leather-armor dye, dyed-item layers, and arbitrary ARGB tint
- *       compositing.</li>
+ *   <li><b>Pack resolution</b> - {@code resolveTexture} / {@code resolveTextureAtTick} (animation
+ *       strip extraction via {@link AnimationKit AnimationKit}), the {@code minecraft:entity/}
+ *       entity-texture prefix ({@code resolveEntityTexture}), and the CIT {@code layer0}
+ *       override lookup.</li>
+ *   <li><b>Tint sampling</b> - biome grass / foliage / water tint (the vanilla
+ *       {@code BiomeSpecialEffects$GrassColorModifier} dark-forest / swamp variants and the default
+ *       water table) and the redstone-wire-by-power tint, each honouring pack
+ *       {@code color.properties} overrides.</li>
  * </ul>
  *
  * <p>Stateless beyond its {@link RendererContext}. All methods are idempotent and thread-safe
@@ -92,6 +92,19 @@ public class Textures {
      */
     private static final int DEFAULT_WATER_ARGB = 0xFF3F76E4;
 
+    /**
+     * Vanilla redstone-wire ARGB tints indexed by power level {@code 0..15}, transcribed byte-for-byte
+     * from {@code net.minecraft.world.level.block.RedstoneWireBlock.COLORS} - the 16-step gradient the
+     * wire renderer applies to {@code redstone_dust_dot} / {@code redstone_dust_line0/1}.
+     * Package-private so {@code RedstoneTintTest} can pin the table content.
+     */
+    static final int @NotNull [] REDSTONE_TINTS = {
+        0xFF4B0000, 0xFF6F0000, 0xFF790000, 0xFF820000,
+        0xFF8A0000, 0xFF940000, 0xFF9D0000, 0xFFA50000,
+        0xFFAE0000, 0xFFB70000, 0xFFBF0000, 0xFFC90000,
+        0xFFD20000, 0xFFDA0000, 0xFFE30000, 0xFFEC0000
+    };
+
     private final @NotNull RendererContext context;
 
     /**
@@ -114,6 +127,20 @@ public class Textures {
      */
     public @NotNull Optional<PixelBuffer> tryResolveTexture(@NotNull String textureId) {
         return this.context.resolveTexture(textureId);
+    }
+
+    /**
+     * Resolves an entity texture ref against the vanilla pack at {@code minecraft:entity/<ref>},
+     * returning empty when the pack has no such texture. Centralises the {@code minecraft:entity/}
+     * prefix idiom the entity renderer's base / overlay / collar / equipment / family-member paths
+     * all share.
+     *
+     * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
+     *     {@code .png} suffix)
+     * @return the resolved texture, or empty when the pack has no match
+     */
+    public @NotNull Optional<PixelBuffer> resolveEntityTexture(@NotNull String ref) {
+        return tryResolveTexture("minecraft:entity/" + ref);
     }
 
     /**
@@ -140,9 +167,26 @@ public class Textures {
      * @throws RenderException when no pack provides the texture
      */
     public @NotNull PixelBuffer resolveTextureAtTick(@NotNull String textureId, int tick) {
-        PixelBuffer strip = resolveTexture(textureId);
+        return tryResolveTextureAtTick(textureId, tick)
+            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
+    }
+
+    /**
+     * Like {@link #resolveTextureAtTick} but returns empty instead of throwing when the pack stack
+     * has no match - the frame-flattening counterpart of {@link #tryResolveTexture}. For textures
+     * without an {@code .mcmeta} sidecar the source buffer is returned unchanged; for animated
+     * textures {@link AnimationKit#sampleFrame} extracts the correct strip frame (blending adjacent
+     * frames when {@link AnimationData#isInterpolate()} is set).
+     *
+     * @param textureId the namespaced texture identifier
+     * @param tick the current animation tick (free-running, signed)
+     * @return the frame to render at this tick, or empty when the texture is unknown
+     */
+    public @NotNull Optional<PixelBuffer> tryResolveTextureAtTick(@NotNull String textureId, int tick) {
+        Optional<PixelBuffer> strip = tryResolveTexture(textureId);
+        if (strip.isEmpty()) return strip;
         Optional<AnimationData> animation = findAnimation(textureId);
-        return animation.map(animationData -> AnimationKit.sampleFrame(strip, animationData, tick)).orElse(strip);
+        return animation.map(animationData -> AnimationKit.sampleFrame(strip.get(), animationData, tick)).or(() -> strip);
     }
 
     /**
@@ -213,35 +257,19 @@ public class Textures {
     }
 
     /**
-     * Composites an overlay texture on top of a base texture after tinting the overlay with the
-     * given ARGB colour. Used by the item renderer for leather armour, potions, spawn eggs, and
-     * firework stars.
+     * Resolves the redstone-wire ARGB tint for a power level, consulting the active pack's
+     * {@code redstone.<power>} {@code color.properties} override before falling back to the bundled
+     * vanilla {@link #REDSTONE_TINTS} table - the same pack-override-then-vanilla shape as
+     * {@link #sampleBiomeTint}.
      *
-     * @param base the base texture
-     * @param overlay the overlay texture
-     * @param argbTint the tint applied to the overlay before compositing
-     * @param mode the blend mode for the composite step
-     * @return the composited pixel buffer
+     * @param power the redstone wire power level, {@code 0..15}
+     * @return the resolved ARGB tint
+     * @throws IllegalArgumentException if {@code power} is outside {@code [0, 15]}
      */
-    public @NotNull PixelBuffer applyColorOverlay(
-        @NotNull PixelBuffer base,
-        @NotNull PixelBuffer overlay,
-        int argbTint,
-        @NotNull BlendMode mode
-    ) {
-        PixelBuffer tinted = ColorMath.tint(overlay, argbTint);
-        int w = Math.min(base.width(), tinted.width());
-        int h = Math.min(base.height(), tinted.height());
-
-        int[] result = new int[w * h];
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int dst = base.getPixel(x, y);
-                int src = tinted.getPixel(x, y);
-                result[y * w + x] = ColorMath.blend(src, dst, mode);
-            }
-        }
-        return PixelBuffer.of(result, w, h);
+    public int sampleRedstoneTint(int power) {
+        if (power < 0 || power >= REDSTONE_TINTS.length)
+            throw new IllegalArgumentException("Redstone power '%d' is outside [0, 15]".formatted(power));
+        return this.context.findColorOverride("redstone." + power).orElse(REDSTONE_TINTS[power]);
     }
 
     /**

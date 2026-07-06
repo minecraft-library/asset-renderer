@@ -294,7 +294,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @return the resolved texture, or empty when the pack has no such texture
      */
     private @NotNull Optional<PixelBuffer> resolveEntityRef(@NotNull String ref) {
-        return this.context.resolveTexture("minecraft:entity/" + ref);
+        return new Textures(this.context).resolveEntityTexture(ref);
     }
 
     /**
@@ -358,7 +358,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     stack.append(this.slot, sink -> {
                         if (overlay.model().getBones().isEmpty()) return;
                         Optional<PixelBuffer> overlayTex = overlayRef.isPresent()
-                            ? ctx.context().resolveTexture("minecraft:entity/" + overlayRef.get())
+                            ? ctx.textures().resolveEntityTexture(overlayRef.get())
                             : Optional.of(ctx.baseTexture());
                         if (overlayTex.isEmpty()) return;
                         sink.addAll(EntityGeometryKit.buildTriangles(
@@ -385,7 +385,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 int collarTint = collar.get().argb();
                 String ref = collarRef.get();
                 stack.append(this.slot, sink -> {
-                    Optional<PixelBuffer> collarTex = ctx.context().resolveTexture("minecraft:entity/" + ref);
+                    Optional<PixelBuffer> collarTex = ctx.textures().resolveEntityTexture(ref);
                     if (collarTex.isEmpty()) return;
                     sink.addAll(EntityGeometryKit.buildTriangles(
                         model, collarTex.get(), ctx.modelAnchor(), false,
@@ -412,7 +412,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     String textureRef = equipment.textureFor(material.get());
                     stack.append(this.slot, sink -> {
                         if (equipment.model().getBones().isEmpty()) return;
-                        Optional<PixelBuffer> equipmentTex = ctx.context().resolveTexture("minecraft:entity/" + textureRef);
+                        Optional<PixelBuffer> equipmentTex = ctx.textures().resolveEntityTexture(textureRef);
                         if (equipmentTex.isEmpty()) return;
                         sink.addAll(EntityGeometryKit.buildTriangles(
                             equipment.model(), equipmentTex.get(), ctx.modelAnchor(), false,
@@ -863,7 +863,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull Optional<PixelBuffer> resolveFamilyMemberTexture(@NotNull EntityModelLoader.EntityDefinition definition) {
         if (definition.textureRef().isEmpty()) return Optional.empty();
-        return this.context.resolveTexture("minecraft:entity/" + definition.textureRef().get());
+        return resolveEntityRef(definition.textureRef().get());
     }
 
     /**

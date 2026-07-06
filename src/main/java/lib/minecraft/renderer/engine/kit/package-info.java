@@ -56,10 +56,6 @@
  *   <li>{@link lib.minecraft.renderer.engine.kit.AnimationKit AnimationKit} - {@code .mcmeta} frame strip
  *       playback (vertically stacked frames, per-entry duration override, optional linear
  *       interpolation between adjacent frames).</li>
- *   <li>{@link lib.minecraft.renderer.engine.kit.RedstoneKit RedstoneKit} - the 16-entry redstone-wire-by-power
- *       ARGB table from {@code RedstoneWireBlock.COLORS}, plus a context-aware resolver that
- *       honours {@code optifine/color.properties}'s {@code redstone.0..redstone.15}
- *       overrides.</li>
  *   <li>{@link lib.minecraft.renderer.engine.kit.ItemStackKit ItemStackKit} - durability bar and stack count
  *       overlay drawn on top of a GUI item icon. Operates in 16-pixel logical space and scales
  *       to the buffer size automatically.</li>

@@ -8,14 +8,13 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.kit.AnimationKit;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.AtlasOptions;
@@ -553,11 +552,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         }
 
         /**
-         * Resolves a texture, flattening animation strips to frame 0.
-         * <p>
-         * When the delegate reports an {@link AnimationData} for the id, the strip is sampled at
-         * frame 0 via {@link AnimationKit#sampleFrame}; otherwise the raw (already-static) strip is
-         * returned unchanged.
+         * Resolves a texture, flattening animation strips to frame 0 via
+         * {@link Textures#tryResolveTextureAtTick} - animated ids sample frame 0, static ids return
+         * the raw strip unchanged.
          *
          * @param textureId the namespaced texture id to resolve
          * @return the frame-0 buffer for animated textures, or the raw buffer for static ones,
@@ -565,15 +562,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
          */
         @Override
         public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-            Optional<PixelBuffer> strip = this.delegate.resolveTexture(textureId);
-            if (strip.isEmpty()) return strip;
-
-            Optional<AnimationData> animation = this.delegate.findAnimation(textureId);
-            return animation.map(animationData -> AnimationKit.sampleFrame(
-                strip.get(),
-                animationData,
-                0)
-            ).or(() -> strip);
+            return new Textures(this.delegate).tryResolveTextureAtTick(textureId, 0);
         }
 
         /** {@inheritDoc} */
