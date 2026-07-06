@@ -560,9 +560,8 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             // renders pass EulerRotation.NONE, leaving the byte-identical base block-icon pose.
             var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
             ModelEngine engine = new ModelEngine(this.context, resolved);
-            Textures textures = new Textures(this.context);
-            PixelBuffer endSky = textures.resolveTexture(END_SKY_TEXTURE_ID);
-            PixelBuffer endPortalNoise = textures.resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
+            PixelBuffer endSky = engine.textures().resolveTexture(END_SKY_TEXTURE_ID);
+            PixelBuffer endPortalNoise = engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
 
             // Pass 1: bake the parallax shader once at the target (raster) resolution. This is the
             // "screen-space canvas" - every output pixel that lands on the cube samples this single
