@@ -266,8 +266,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         private @NotNull ConcurrentList<VisibleTriangle> buildPrimaryGeometry(@NotNull Block block, @Nullable Block.Entity be, @NotNull String effectiveVariant, int tint, int untintedTint) {
             if (be != null && !be.additive()) {
                 Block.Variant boneVariant = resolveVariant(block, effectiveVariant);
-                Block.Entity.BoneModel boneToUse = boneVariant != null && boneVariant.geometry() instanceof Block.BoneGeometry bg
-                    ? bg.bone()
+                Block.Entity.BoneModel boneToUse = boneVariant != null && boneVariant.geometry() instanceof Block.BoneGeometry(Block.Entity.BoneModel boneModel)
+                    ? boneModel
                     : be.boneModel();
                 ConcurrentList<VisibleTriangle> boneTriangles = buildFromBoneModel(boneToUse, be.textureId(), tint);
                 if (boneVariant != null && boneVariant.hasRotation())
@@ -284,8 +284,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // inject a geometry variant for a mesh-varying state (hanging sign).
             Block.Variant variant = resolveVariant(block, effectiveVariant);
             ModelData modelToUse = block.getModel();
-            if (variant != null && variant.geometry() instanceof Block.ElementGeometry eg && !eg.model().getElements().isEmpty())
-                modelToUse = eg.model();
+            if (variant != null && variant.geometry() instanceof Block.ElementGeometry(ModelData model) && !model.getElements().isEmpty())
+                modelToUse = model;
             ConcurrentList<VisibleTriangle> primary = buildFromBlockElements(modelToUse, variant, tint, untintedTint);
             if (variant != null && variant.hasRotation())
                 primary = applyRotation(primary, buildVariantRotation(variant));
@@ -331,8 +331,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 Block.Variant apply = part.apply();
                 // A multipart apply is always an element model (resolved from the full model set at
                 // context construction); skip it when element-less (the apply's model id didn't resolve).
-                if (!(apply.geometry() instanceof Block.ElementGeometry eg) || eg.model().getElements().isEmpty()) continue;
-                ModelData partModel = eg.model();
+                if (!(apply.geometry() instanceof Block.ElementGeometry(ModelData partModel)) || partModel.getElements().isEmpty()) continue;
 
                 // Build triangles for this part's model
                 ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
@@ -467,18 +466,18 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * (the ceiling hanging sign's straight-chain mesh), the bone parts, and the additive bone
          * body.
          *
-         * @param bone the bone geometry + presentation metadata to build
+         * @param boneModel the bone geometry + presentation metadata to build
          * @param textureId the entity texture id the cube UVs sample
          * @param tint the ARGB tint to apply when the model is {@link Block.Entity.BoneModel#tinted()}
          * @return the composed block-frame triangle list
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromBoneModel(@NotNull Block.Entity.BoneModel bone, @NotNull String textureId, int tint) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromBoneModel(@NotNull Block.Entity.BoneModel boneModel, @NotNull String textureId, int tint) {
             RasterEngine raster = new RasterEngine(this.context);
             PixelBuffer texture = raster.textures().resolveTextureAtTick(textureId, 0);
             // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
             // an untinted model (the banner post's wood) samples its texture raw.
-            int faceTint = bone.tinted() ? tint : ColorMath.WHITE;
-            return BlockGeometryKit.buildFromBones(bone.model(), texture, faceTint, bone.presentation());
+            int faceTint = boneModel.tinted() ? tint : ColorMath.WHITE;
+            return BlockGeometryKit.buildFromBones(boneModel.model(), texture, faceTint, boneModel.presentation());
         }
 
         /**
@@ -505,11 +504,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // Build the part hierarchically with its own presentation, sampling the part's entity
                 // texture (which may differ from the primary - decorated_pot sides use
                 // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
-                Block.Entity.BoneModel bone = part.boneModel();
+                Block.Entity.BoneModel boneModel = part.boneModel();
                 PixelBuffer texture = raster.textures().resolveTextureAtTick(part.texture(), 0);
-                int partTint = bone.tinted() ? tint : ColorMath.WHITE;
+                int partTint = boneModel.tinted() ? tint : ColorMath.WHITE;
                 ConcurrentList<VisibleTriangle> partTriangles =
-                    BlockGeometryKit.buildFromBones(bone.model(), texture, partTint, bone.presentation());
+                    BlockGeometryKit.buildFromBones(boneModel.model(), texture, partTint, boneModel.presentation());
 
                 // Apply the part's offset to every vertex. Offset is in model units (0..16);
                 // triangle vertex positions are in block units (0..1) post-GeometryKit, so
@@ -561,9 +560,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (first == null)
                 return Concurrent.newList();
 
-            if (!(first.geometry() instanceof Block.ElementGeometry eg) || eg.model().getElements().isEmpty())
+            if (!(first.geometry() instanceof Block.ElementGeometry(ModelData partModel)) || partModel.getElements().isEmpty())
                 return Concurrent.newList();
-            ModelData partModel = eg.model();
 
             RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(

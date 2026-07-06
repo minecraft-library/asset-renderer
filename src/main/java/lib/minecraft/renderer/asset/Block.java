@@ -214,9 +214,9 @@ public final class Block {
      * mesh (the ceiling hanging sign's straight-chain mesh under {@code attached=true}), composed at
      * render time via {@link BlockGeometryKit#buildFromBones}.
      *
-     * @param bone the variant's relative bone geometry plus its render-time presentation
+     * @param boneModel the variant's relative bone geometry plus its render-time presentation
      */
-    public record BoneGeometry(@NotNull Entity.BoneModel bone) implements VariantGeometry {}
+    public record BoneGeometry(@NotNull Entity.BoneModel boneModel) implements VariantGeometry {}
 
     /**
      * A single blockstate variant entry, specifying which model to use and what whole-block
