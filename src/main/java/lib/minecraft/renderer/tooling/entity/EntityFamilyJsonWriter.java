@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.pipeline.loader.EntityFamilyFlattener;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.ToolingJson;
 import lombok.experimental.UtilityClass;

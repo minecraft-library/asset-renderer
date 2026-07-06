@@ -54,10 +54,10 @@ import java.util.Map;
  *
  * <p>Op extraction recognises:
  * <ul>
- *   <li>{@code pose.translate(F, F, F)} - emitted as {@link OpKind#TRANSLATE}.</li>
- *   <li>{@code pose.scale(F, F, F)} - emitted as {@link OpKind#SCALE}.</li>
- *   <li>{@code pose.mulPose(Axis.YP.rotationDegrees(F))} - emitted as {@link OpKind#ROTATE_Y}, and
- *       {@code Axis.XP.rotationDegrees(F)} as {@link OpKind#ROTATE_X} ({@code ?N} sign folded in). A
+ *   <li>{@code pose.translate(F, F, F)} - emitted as {@link Translate}.</li>
+ *   <li>{@code pose.scale(F, F, F)} - emitted as {@link Scale}.</li>
+ *   <li>{@code pose.mulPose(Axis.YP.rotationDegrees(F))} - emitted as {@link RotateY}, and
+ *       {@code Axis.XP.rotationDegrees(F)} as {@link RotateX} ({@code ?N} sign folded in). A
  *       Z rotation / quaternion path is skipped (no vanilla block-overlay layer uses one).</li>
  *   <li>{@code parent.getHead().translateAndRotate(pose)} - flagged on the descriptor as
  *       {@code attachedBone}, resolved through the model class to the {@code getChild} bone name
