@@ -33,7 +33,7 @@ import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.slot.EntitySlot;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.engine.texture.Biome;
-import lib.minecraft.renderer.request.DyeColor;
+import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;

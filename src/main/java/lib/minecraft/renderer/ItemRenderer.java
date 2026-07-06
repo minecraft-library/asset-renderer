@@ -32,7 +32,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.slot.ItemSlot;
-import lib.minecraft.renderer.request.DyeColor;
+import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -237,7 +237,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ? BannerKit.Variant.SHIELD_ITEM
             : BannerKit.Variant.BANNER_ITEM;
 
-        PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getDecoration().getBannerLayers(), variant);
+        PixelBuffer composite = BannerKit.composite2D(engine, baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
         buffer.blitScaled(composite, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
         return buffer;
     }
@@ -266,7 +266,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ? BannerKit.Variant.SHIELD_BLOCK_3D
             : BannerKit.Variant.BANNER_BLOCK_3D;
 
-        PixelBuffer composite = BannerKit.composite2D(engine.textures(), baseDye, options.getDecoration().getBannerLayers(), variant);
+        PixelBuffer composite = BannerKit.composite2D(engine.textures(), baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
 
         return BlockGeometryKit.buildBoxTriangles(
             new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),

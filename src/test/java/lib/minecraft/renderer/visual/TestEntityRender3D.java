@@ -11,7 +11,7 @@ import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
-import lib.minecraft.renderer.request.DyeColor;
+import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
