@@ -818,7 +818,20 @@
           ],
           "default": false
         }
-      }
+      },
+      "layers": [
+        {
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry_ref": "geometry.llama_1",
+            "texture_template": "equipment/llama_body/<material>",
+            "default_material": "white"
+          }
+        }
+      ]
     },
     "minecraft:magma_cube": {
       "geometry_ref": "geometry.magmacube",
@@ -1415,7 +1428,20 @@
           "skip_bounds": true
         }
       ],
-      "family_of": "minecraft:llama"
+      "family_of": "minecraft:llama",
+      "layers": [
+        {
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry_ref": "geometry.llama_1",
+            "texture_template": "equipment/llama_body/<material>",
+            "default_material": "white"
+          }
+        }
+      ]
     },
     "minecraft:tropical_fish": {
       "geometry_ref": "geometry.tropicalfishsmall",

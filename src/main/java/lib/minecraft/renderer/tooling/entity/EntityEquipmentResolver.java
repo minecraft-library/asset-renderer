@@ -65,6 +65,12 @@ public final class EntityEquipmentResolver {
     /** The wolf body equipment subdir, whose only material is {@link #DEFAULT_WOLF_BODY_ASSET}. */
     private static final @NotNull String WOLF_BODY_SUBDIR = "wolf_body";
 
+    /** Default material for the llama body slot - a dyed carpet has no single default; use white. */
+    private static final @NotNull String DEFAULT_LLAMA_BODY_ASSET = "white";
+
+    /** The llama body (dyed carpet) equipment subdir; materials are the 16 dye colours. */
+    private static final @NotNull String LLAMA_BODY_SUBDIR = "llama_body";
+
     /**
      * Resolves the equipment overlays a renderer attaches via {@code SimpleEquipmentLayer}. Returns
      * an empty list when the renderer attaches none (the common case).
@@ -94,12 +100,12 @@ public final class EntityEquipmentResolver {
         String layerTypeField = null;
         String modelLayerField = null;
         for (AbstractInsnNode node = init.instructions.getFirst(); node != null; node = node.getNext()) {
-            // Bespoke equipment layer: WolfArmorLayer isn't a SimpleEquipmentLayer - it bakes its own
-            // ModelLayers.WOLF_ARMOR + uses LayerType.WOLF_BODY inside its own class, so resolve it from
-            // there rather than from statics in this renderer's <init>.
+            // Bespoke equipment layer (WolfArmorLayer wolf armor, LlamaDecorLayer dyed carpet): not a
+            // SimpleEquipmentLayer - it bakes its own ModelLayers.X + references its LayerType inside
+            // its own class, so resolve it from there rather than from statics in this renderer's <init>.
             if (node instanceof TypeInsnNode typeInsn
                 && typeInsn.getOpcode() == Opcodes.NEW
-                && VanillaSourceClasses.WOLF_ARMOR_LAYER.equals(typeInsn.desc)) {
+                && isBespokeEquipmentLayer(typeInsn.desc)) {
                 Result bespoke = resolveBespokeLayer(classNodes, typeInsn.desc);
                 if (bespoke != null) out.add(bespoke);
                 continue;
@@ -142,8 +148,22 @@ public final class EntityEquipmentResolver {
     }
 
     /**
-     * Resolves a bespoke equipment layer (WolfArmorLayer) that bakes its own geometry and references
-     * its {@code LayerType} internally rather than via statics in the parent renderer's {@code <init>}.
+     * Whether {@code layerInternalName} is a bespoke equipment layer (one that bakes its own geometry
+     * and references its {@code LayerType} internally rather than as a {@code SimpleEquipmentLayer}
+     * ctor argument): {@code WolfArmorLayer} (wolf armor) or {@code LlamaDecorLayer} (dyed carpet).
+     *
+     * @param layerInternalName the layer class JVM internal name
+     * @return whether it is a recognised bespoke equipment layer
+     */
+    private static boolean isBespokeEquipmentLayer(@NotNull String layerInternalName) {
+        return VanillaSourceClasses.WOLF_ARMOR_LAYER.equals(layerInternalName)
+            || VanillaSourceClasses.LLAMA_DECOR_LAYER.equals(layerInternalName);
+    }
+
+    /**
+     * Resolves a bespoke equipment layer (WolfArmorLayer, LlamaDecorLayer) that bakes its own geometry
+     * and references its {@code LayerType} internally rather than via statics in the parent renderer's
+     * {@code <init>}.
      * Walks the layer class for the first {@code LayerType.<X>} (in its {@code submit}) + the first
      * {@code ModelLayers.<X>} (baked in its {@code <init>}).
      *
@@ -199,6 +219,7 @@ public final class EntityEquipmentResolver {
         String subdir = layerTypeField.toLowerCase(Locale.ROOT);
         String defaultAsset = saddle ? DEFAULT_SADDLE_ASSET
             : WOLF_BODY_SUBDIR.equals(subdir) ? DEFAULT_WOLF_BODY_ASSET
+            : LLAMA_BODY_SUBDIR.equals(subdir) ? DEFAULT_LLAMA_BODY_ASSET
             : DEFAULT_BODY_ASSET;
         return new Result(slot, subdir, modelLayerField, defaultAsset);
     }
