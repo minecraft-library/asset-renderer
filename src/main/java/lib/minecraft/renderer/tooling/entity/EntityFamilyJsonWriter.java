@@ -158,8 +158,6 @@ public final class EntityFamilyJsonWriter {
         String babyGeometry = babyGeometryByEntity.get(familyId);
         if (babyGeometry == null) return;
 
-        JsonObject baby = new JsonObject();
-        baby.addProperty("geometry_ref", babyGeometry);
         // Non-variant entities (sheep/fox) carry a single baby texture here; variant families
         // (cow/pig) instead hold per-variant baby textures under each option's textures.baby.
         // Fallback to vanilla's <adult>_baby naming when the renderer's isBaby branch surfaced none
@@ -168,23 +166,16 @@ public final class EntityFamilyJsonWriter {
         String babyTexture = babyTextureByEntity == null ? null : babyTextureByEntity.get(familyId);
         if (babyTexture == null && family.has("texture_ref"))
             babyTexture = family.get("texture_ref").getAsString() + "_baby";
-        if (babyTexture != null) baby.addProperty("texture_ref", babyTexture);
+        JsonObject baby = ToolingJson.object()
+            .put("geometry_ref", babyGeometry)
+            .putIfNotNull("texture_ref", babyTexture)
+            .build();
         // Only the "baby" option carries a body (the baked baby mesh + texture); the default "adult"
         // inherits the family top-level geometry_ref/texture_ref, so it needs no option entry - but
         // the uniform axis contract still lists it in "values" (the full ordered domain).
         JsonObject options = new JsonObject();
         options.add("baby", baby);
-        JsonArray ageValues = new JsonArray();
-        ageValues.add("adult");
-        ageValues.add("baby");
-        JsonObject ageAxis = new JsonObject();
-        ageAxis.addProperty("default", "adult");
-        ageAxis.add("values", ageValues);
-        ageAxis.add("options", options);
-
-        JsonObject axes = family.has("axes") ? family.getAsJsonObject("axes") : new JsonObject();
-        axes.add("age", ageAxis);
-        if (!family.has("axes")) family.add("axes", axes);
+        attachAxis(family, "age", axis("adult", values("adult", "baby"), options));
     }
 
     /**
@@ -224,17 +215,7 @@ public final class EntityFamilyJsonWriter {
 
         JsonObject options = new JsonObject();
         options.add("large", large);
-        JsonArray shapeValues = new JsonArray();
-        shapeValues.add("small");
-        shapeValues.add("large");
-        JsonObject shapeAxis = new JsonObject();
-        shapeAxis.addProperty("default", "small");
-        shapeAxis.add("values", shapeValues);
-        shapeAxis.add("options", options);
-
-        JsonObject axes = family.has("axes") ? family.getAsJsonObject("axes") : new JsonObject();
-        axes.add("shape", shapeAxis);
-        if (!family.has("axes")) family.add("axes", axes);
+        attachAxis(family, "shape", axis("small", values("small", "large"), options));
     }
 
     /**
@@ -249,22 +230,12 @@ public final class EntityFamilyJsonWriter {
         String collarTexture = collarByEntity.get(familyId);
         if (collarTexture == null) return;
 
-        JsonObject overlay = new JsonObject();
-        overlay.addProperty("geometry_ref", family.get("geometry_ref").getAsString());
-        overlay.addProperty("texture_ref", collarTexture);
-        overlay.addProperty("tint_by", "collar_color");
-
-        JsonObject when = new JsonObject();
-        when.addProperty("state", "tame");
-
-        JsonObject layer = new JsonObject();
-        layer.addProperty("id", "collar");
-        layer.add("when", when);
-        layer.add("overlay", overlay);
-
-        JsonArray layers = new JsonArray();
-        layers.add(layer);
-        family.add("layers", layers);
+        JsonObject overlay = ToolingJson.object()
+            .put("geometry_ref", family.get("geometry_ref").getAsString())
+            .put("texture_ref", collarTexture)
+            .put("tint_by", "collar_color")
+            .build();
+        appendLayer(family, layer("collar", when("state", "tame"), overlay));
     }
 
     /**
@@ -294,28 +265,19 @@ public final class EntityFamilyJsonWriter {
         ConcurrentList<EntityEquipmentResolver.Result> equipment = equipmentByEntity.get(familyId);
         if (equipment == null || equipment.isEmpty()) return;
 
-        JsonArray layers = family.has("layers") ? family.getAsJsonArray("layers") : new JsonArray();
         for (EntityEquipmentResolver.Result desc : equipment) {
             String geometryId = equipmentGeometryByField.get(desc.modelLayerField());
             if (geometryId == null) {
                 diagnostics.info("equipment layer '%s' geometry ModelLayers.%s unresolved - skipped", familyId, desc.modelLayerField());
                 continue;
             }
-            JsonObject overlay = new JsonObject();
-            overlay.addProperty("geometry_ref", geometryId);
-            overlay.addProperty("texture_template", "equipment/" + desc.layerSubdir() + "/<material>");
-            overlay.addProperty("default_material", desc.defaultAsset());
-
-            JsonObject when = new JsonObject();
-            when.addProperty("equipment", desc.slot());
-
-            JsonObject layer = new JsonObject();
-            layer.addProperty("id", desc.slot());
-            layer.add("when", when);
-            layer.add("overlay", overlay);
-            layers.add(layer);
+            JsonObject overlay = ToolingJson.object()
+                .put("geometry_ref", geometryId)
+                .put("texture_template", "equipment/" + desc.layerSubdir() + "/<material>")
+                .put("default_material", desc.defaultAsset())
+                .build();
+            appendLayer(family, layer(desc.slot(), when("equipment", desc.slot()), overlay));
         }
-        if (!family.has("layers") && !layers.isEmpty()) family.add("layers", layers);
     }
 
     /**
@@ -355,13 +317,9 @@ public final class EntityFamilyJsonWriter {
             options.add(optionOf(member, familyId, diagnostics), option);
         }
 
-        JsonObject axis = new JsonObject();
-        axis.addProperty("id_encoded", true);
-        axis.addProperty("default", optionOf(baseId, familyId, diagnostics));
-        axis.add("values", keysOf(options));
-        axis.add("options", options);
+        JsonObject variantAxis = idEncodedAxis(optionOf(baseId, familyId, diagnostics), keysOf(options), options);
         JsonObject axes = new JsonObject();
-        axes.add("variant", axis);
+        axes.add("variant", variantAxis);
         enrichStateAxis(familyId, options, axes, variants, diagnostics);
         enrichBabyTextures(familyId, options, variants);
 
@@ -413,11 +371,7 @@ public final class EntityFamilyJsonWriter {
         JsonArray stateValues = new JsonArray();
         stateValues.add("wild");
         for (String key : stateKeys) if (!key.equals("wild")) stateValues.add(key);
-        JsonObject stateAxis = new JsonObject();
-        stateAxis.addProperty("default", "wild");
-        stateAxis.add("values", stateValues);
-        stateAxis.add("options", new JsonObject());
-        axes.add("state", stateAxis);
+        axes.add("state", axis("wild", stateValues, new JsonObject()));
         diagnostics.info("state axis: '%s' -> %s", familyId, stateKeys);
     }
 
@@ -527,5 +481,112 @@ public final class EntityFamilyJsonWriter {
         int i = 0;
         while (i < limit && a.charAt(i) == b.charAt(i)) i++;
         return a.substring(0, i);
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // Shared family-shape factories - the axis / layer / gate vocabulary of entity_models.json.
+    // Kept local (not in tooling.util) because the shapes are this schema's, not generic JSON.
+    // ----------------------------------------------------------------------------------------
+
+    /**
+     * Builds an axis in the shared {@code {default, values, options}} shape (age / shape / state).
+     *
+     * @param defaultValue the axis default option
+     * @param values the full ordered option domain
+     * @param options the per-option bodies
+     * @return the axis object
+     */
+    private static @NotNull JsonObject axis(@NotNull String defaultValue, @NotNull JsonArray values, @NotNull JsonObject options) {
+        JsonObject result = new JsonObject();
+        result.addProperty("default", defaultValue);
+        result.add("values", values);
+        result.add("options", options);
+        return result;
+    }
+
+    /**
+     * Builds the id-encoded variant axis - an {@code id_encoded} flag before the shared
+     * {@code {default, values, options}} members.
+     *
+     * @param defaultValue the axis default option
+     * @param values the full ordered option domain
+     * @param options the per-option bodies
+     * @return the id-encoded axis object
+     */
+    private static @NotNull JsonObject idEncodedAxis(@NotNull String defaultValue, @NotNull JsonArray values, @NotNull JsonObject options) {
+        JsonObject result = new JsonObject();
+        result.addProperty("id_encoded", true);
+        result.addProperty("default", defaultValue);
+        result.add("values", values);
+        result.add("options", options);
+        return result;
+    }
+
+    /**
+     * Builds a JSON string array from the given values in order.
+     *
+     * @param vs the string values
+     * @return the array
+     */
+    private static @NotNull JsonArray values(@NotNull String... vs) {
+        JsonArray array = new JsonArray();
+        for (String v : vs) array.add(v);
+        return array;
+    }
+
+    /**
+     * Builds a single-member {@code when} gate ({@code {<key>: <value>}}).
+     *
+     * @param key the gate key ({@code state} / {@code equipment})
+     * @param value the gate value
+     * @return the gate object
+     */
+    private static @NotNull JsonObject when(@NotNull String key, @NotNull String value) {
+        JsonObject result = new JsonObject();
+        result.addProperty(key, value);
+        return result;
+    }
+
+    /**
+     * Builds a conditional overlay {@code layer} in the shared {@code {id, when, overlay}} shape.
+     *
+     * @param id the layer id
+     * @param when the option gate
+     * @param overlay the overlay body
+     * @return the layer object
+     */
+    private static @NotNull JsonObject layer(@NotNull String id, @NotNull JsonObject when, @NotNull JsonObject overlay) {
+        JsonObject result = new JsonObject();
+        result.addProperty("id", id);
+        result.add("when", when);
+        result.add("overlay", overlay);
+        return result;
+    }
+
+    /**
+     * Attaches an axis to a family under {@code name}, creating the family's {@code axes} object on
+     * first use and reusing it thereafter (the age / shape merge dance).
+     *
+     * @param family the family entry
+     * @param name the axis name
+     * @param axis the axis object
+     */
+    private static void attachAxis(@NotNull JsonObject family, @NotNull String name, @NotNull JsonObject axis) {
+        JsonObject axes = family.has("axes") ? family.getAsJsonObject("axes") : new JsonObject();
+        axes.add(name, axis);
+        if (!family.has("axes")) family.add("axes", axes);
+    }
+
+    /**
+     * Appends a layer to a family's {@code layers} array, creating it on first use and reusing it
+     * thereafter (collar attaches first, equipment appends after).
+     *
+     * @param family the family entry
+     * @param layer the layer to append
+     */
+    private static void appendLayer(@NotNull JsonObject family, @NotNull JsonObject layer) {
+        JsonArray layers = family.has("layers") ? family.getAsJsonArray("layers") : new JsonArray();
+        layers.add(layer);
+        if (!family.has("layers")) family.add("layers", layers);
     }
 }

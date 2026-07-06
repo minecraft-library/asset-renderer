@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -99,6 +100,216 @@ public class ToolingJson {
     public static void writeJson(@NotNull Path outputPath, @NotNull JsonObject root, @NotNull Gson gson) throws IOException {
         Files.createDirectories(outputPath.getParent());
         Files.writeString(outputPath, gson.toJson(root) + System.lineSeparator());
+    }
+
+    /**
+     * Formats a packed ARGB int as the {@code 0xAARRGGBB} uppercase-hex string the generated
+     * resources carry for packed colours ({@code tint_color}, {@code base_tint}). One place for the
+     * format so every writer's colour serialisation stays byte-identical.
+     *
+     * @param argb the packed ARGB colour
+     * @return the {@code 0x}-prefixed 8-digit uppercase hex string
+     */
+    public static @NotNull String hex8(int argb) {
+        return String.format("0x%08X", argb);
+    }
+
+    /**
+     * Starts a fluent {@link Node} over a fresh {@link JsonObject}. The shared JSON-assembly
+     * vocabulary for the tooling writers - collapses the {@code new JsonObject(); if (cond)
+     * obj.addProperty(...)} shape that recurs through the generators into one legible chain.
+     *
+     * @return a {@code Node} wrapping a new empty object
+     */
+    public static @NotNull Node object() {
+        return new Node(new JsonObject());
+    }
+
+    /**
+     * Starts a fluent {@link Node} over an existing {@link JsonObject}, appending to it in place.
+     *
+     * @param obj the object to append to
+     * @return a {@code Node} wrapping {@code obj}
+     */
+    public static @NotNull Node wrap(@NotNull JsonObject obj) {
+        return new Node(obj);
+    }
+
+    /**
+     * A fluent builder over a {@link JsonObject}, one-to-one with Gson's {@code addProperty}
+     * overloads plus conditional (@code putIf}/{@code putIfNotNull}) and packed-colour ({@code
+     * putHex}) variants. Every method routes through the identical {@code addProperty} overload the
+     * hand-written writers use and appends in call order, so a chain is byte-identical to the
+     * equivalent sequence of {@code obj.addProperty(...)} statements ({@link JsonObject} preserves
+     * insertion order). Deliberately carries no {@code double}/{@code Number} overload - a {@code
+     * Float} and a {@code Double} serialise differently, so numeric values stay {@code float}.
+     */
+    public static final class Node {
+
+        private final @NotNull JsonObject obj;
+
+        private Node(@NotNull JsonObject obj) {
+            this.obj = obj;
+        }
+
+        /**
+         * Adds a string member.
+         *
+         * @param key the member name
+         * @param value the string value
+         * @return this node
+         */
+        public @NotNull Node put(@NotNull String key, @NotNull String value) {
+            obj.addProperty(key, value);
+            return this;
+        }
+
+        /**
+         * Adds an int member.
+         *
+         * @param key the member name
+         * @param value the int value
+         * @return this node
+         */
+        public @NotNull Node put(@NotNull String key, int value) {
+            obj.addProperty(key, value);
+            return this;
+        }
+
+        /**
+         * Adds a float member.
+         *
+         * @param key the member name
+         * @param value the float value
+         * @return this node
+         */
+        public @NotNull Node put(@NotNull String key, float value) {
+            obj.addProperty(key, value);
+            return this;
+        }
+
+        /**
+         * Adds a boolean member.
+         *
+         * @param key the member name
+         * @param value the boolean value
+         * @return this node
+         */
+        public @NotNull Node put(@NotNull String key, boolean value) {
+            obj.addProperty(key, value);
+            return this;
+        }
+
+        /**
+         * Adds an arbitrary element member (nested object / array).
+         *
+         * @param key the member name
+         * @param value the element to add
+         * @return this node
+         */
+        public @NotNull Node add(@NotNull String key, @NotNull JsonElement value) {
+            obj.add(key, value);
+            return this;
+        }
+
+        /**
+         * Adds a string member only when {@code condition} holds.
+         *
+         * @param condition whether to add the member
+         * @param key the member name
+         * @param value the string value
+         * @return this node
+         */
+        public @NotNull Node putIf(boolean condition, @NotNull String key, @NotNull String value) {
+            if (condition) obj.addProperty(key, value);
+            return this;
+        }
+
+        /**
+         * Adds a float member only when {@code condition} holds.
+         *
+         * @param condition whether to add the member
+         * @param key the member name
+         * @param value the float value
+         * @return this node
+         */
+        public @NotNull Node putIf(boolean condition, @NotNull String key, float value) {
+            if (condition) obj.addProperty(key, value);
+            return this;
+        }
+
+        /**
+         * Adds a boolean member only when {@code condition} holds.
+         *
+         * @param condition whether to add the member
+         * @param key the member name
+         * @param value the boolean value
+         * @return this node
+         */
+        public @NotNull Node putIf(boolean condition, @NotNull String key, boolean value) {
+            if (condition) obj.addProperty(key, value);
+            return this;
+        }
+
+        /**
+         * Adds a string member only when {@code value} is non-null.
+         *
+         * @param key the member name
+         * @param value the string value, or {@code null} to skip
+         * @return this node
+         */
+        public @NotNull Node putIfNotNull(@NotNull String key, @Nullable String value) {
+            if (value != null) obj.addProperty(key, value);
+            return this;
+        }
+
+        /**
+         * Adds a float member only when {@code value} is non-null, preserving the boxed {@code Float}
+         * so serialisation matches a plain {@code addProperty(float)}.
+         *
+         * @param key the member name
+         * @param value the float value, or {@code null} to skip
+         * @return this node
+         */
+        public @NotNull Node putIfNotNull(@NotNull String key, @Nullable Float value) {
+            if (value != null) obj.addProperty(key, value);
+            return this;
+        }
+
+        /**
+         * Adds a packed ARGB colour member as the {@code 0xAARRGGBB} string (see {@link #hex8}).
+         *
+         * @param key the member name
+         * @param argb the packed ARGB colour
+         * @return this node
+         */
+        public @NotNull Node putHex(@NotNull String key, int argb) {
+            obj.addProperty(key, hex8(argb));
+            return this;
+        }
+
+        /**
+         * Adds a packed ARGB colour member as the {@code 0xAARRGGBB} string only when {@code
+         * condition} holds.
+         *
+         * @param condition whether to add the member
+         * @param key the member name
+         * @param argb the packed ARGB colour
+         * @return this node
+         */
+        public @NotNull Node putHexIf(boolean condition, @NotNull String key, int argb) {
+            if (condition) obj.addProperty(key, hex8(argb));
+            return this;
+        }
+
+        /**
+         * The built object (the same instance appended to throughout the chain).
+         *
+         * @return the underlying object
+         */
+        public @NotNull JsonObject build() {
+            return obj;
+        }
     }
 
 }

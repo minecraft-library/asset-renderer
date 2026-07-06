@@ -10,7 +10,6 @@ import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.tooling.blockentity.Source;
-import lib.minecraft.renderer.tooling.blockentity.YAxis;
 import lib.minecraft.renderer.tooling.entity.*;
 import lib.minecraft.renderer.tooling.parser.GeometryParser;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
@@ -202,24 +201,9 @@ public final class ToolingEntityModels {
                 // Slot 0 is overridden from the resolution's captured factory-arg literal when
                 // present - DonkeyModel.createBodyLayer(F) reads its base body scale from
                 // fload_0, and LayerDefinitions.createRoots passes the call-site constant
-                // (DONKEY: 0.87f, MULE: 0.92f) which the resolver picks up.
-                float[] paramFloats = new float[8];
-                if (resolution.defaultFloatParam() != null)
-                    paramFloats[0] = resolution.defaultFloatParam();
-                sources.add(new Source(
-                    resolution.targetClass() + ".class",
-                    resolution.targetMethod(),
-                    entry.getKey(),
-                    YAxis.DOWN,
-                    0f,
-                    resolution.texWidthOverride(),
-                    resolution.texHeightOverride(),
-                    null,
-                    paramFloats,
-                    0f,
-                    resolution.appliedMeshTransformerScale(),
-                    null
-                ));
+                // (DONKEY: 0.87f, MULE: 0.92f) which the resolver picks up. Seeding lives in
+                // EntitySourceFactory.seededParams.
+                sources.add(EntitySourceFactory.bodySource(resolution, entry.getKey()));
             }
             System.out.println("Resolved " + sources.size() + " primary LayerDefinition factories for geometry parsing");
 
@@ -260,23 +244,7 @@ public final class ToolingEntityModels {
                     String variantEntityId = baseEntityId + "_" + variant.variantId();
                     if (entityToResolution.containsKey(variantEntityId)) continue;
                     entityToResolution.put(variantEntityId, variantRes);
-                    float[] variantParamFloats = new float[8];
-                    if (variantRes.defaultFloatParam() != null)
-                        variantParamFloats[0] = variantRes.defaultFloatParam();
-                    sources.add(new Source(
-                        variantRes.targetClass() + ".class",
-                        variantRes.targetMethod(),
-                        variantEntityId,
-                        YAxis.DOWN,
-                        0f,
-                        variantRes.texWidthOverride(),
-                        variantRes.texHeightOverride(),
-                        null,
-                        variantParamFloats,
-                        0f,
-                        variantRes.appliedMeshTransformerScale(),
-                        null
-                    ));
+                    sources.add(EntitySourceFactory.bodySource(variantRes, variantEntityId));
                 }
             }
             System.out.println("Total sources after variant LayerDefinition enumeration: " + sources.size());
@@ -336,20 +304,7 @@ public final class ToolingEntityModels {
                     continue;
                 }
                 overlayFieldToResolution.put(field, res);
-                sources.add(new Source(
-                    res.targetClass() + ".class",
-                    res.targetMethod(),
-                    EntityOverlayResolver.Result.entityKey(field),
-                    YAxis.DOWN,
-                    0f,
-                    res.texWidthOverride(),
-                    res.texHeightOverride(),
-                    null,
-                    new float[8],
-                    res.defaultInflate(),
-                    1f,
-                    null
-                ));
+                sources.add(EntitySourceFactory.overlaySource(res, EntityOverlayResolver.Result.entityKey(field)));
                 entityToResolution.put(EntityOverlayResolver.Result.entityKey(field), res);
             }
             System.out.println("Composite overlay layers: " + overlayFieldToResolution.size()
@@ -388,12 +343,7 @@ public final class ToolingEntityModels {
                 if (entityToResolution.containsKey(babyId)) continue;
                 entityToResolution.put(babyId, babyRes);
                 babyResolutionByEntity.put(entityId, babyRes);
-                float[] babyParams = new float[8];
-                if (babyRes.defaultFloatParam() != null) babyParams[0] = babyRes.defaultFloatParam();
-                sources.add(new Source(
-                    babyRes.targetClass() + ".class", babyRes.targetMethod(), babyId, YAxis.DOWN, 0f,
-                    babyRes.texWidthOverride(), babyRes.texHeightOverride(), null, babyParams, 0f,
-                    babyRes.appliedMeshTransformerScale(), null));
+                sources.add(EntitySourceFactory.bodySource(babyRes, babyId));
             }
             System.out.println("Resolved baby geometry for " + babyResolutionByEntity.size() + " entities");
 
@@ -410,39 +360,18 @@ public final class ToolingEntityModels {
                 }
                 res = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), res);
                 equipmentFieldToResolution.put(field, res);
-                // Apply the layer's MeshTransformer scale + float param, exactly like the primary /
-                // variant body sources: the horse body is baked from HorseModel wrapped in
-                // MeshTransformer.scaling(1.1) (body pivot 11.0 -> 9.6984), and its saddle / armor
-                // layers carry the same scale - so the equipment mesh must bake it too or it lands
-                // at the raw, too-low pivot instead of aligning with the scaled body.
-                float[] equipmentParams = new float[8];
-                if (res.defaultFloatParam() != null) equipmentParams[0] = res.defaultFloatParam();
-                // Enable boolean/int parameter branch-following for factories whose first arg is a
-                // primitive int/boolean. The happy-ghast harness (createHarnessLayer(boolean isBaby),
-                // registered adult=false) applies MeshTransformer.scaling(4.0) then
-                // `.apply(isBaby ? BABY_TRANSFORMER : IDENTITY)`; without a bound isBaby the linear
-                // walk folds the untaken BABY_TRANSFORMER (0.2375), collapsing the 4.0 body-frame
-                // scale to 0.95 and rendering the harness ~4x too small inside the body. The adult
-                // layer is always registered with a zero-valued flag, so a zeroed param table binds
-                // isBaby=false and the walk follows the IDENTITY arm, keeping the 4.0 scale. Gated to
-                // int/boolean-first-arg factories so float-param (horse 1.1) and no-arg (pig saddle)
-                // equipment stay byte-identical (their sources keep a null int-param table).
-                int[] equipmentIntParams =
-                    res.targetDesc().startsWith("(Z") || res.targetDesc().startsWith("(I") ? new int[8] : null;
-                sources.add(new Source(
-                    res.targetClass() + ".class",
-                    res.targetMethod(),
-                    EntityOverlayResolver.Result.entityKey(field),
-                    YAxis.DOWN,
-                    0f,
-                    res.texWidthOverride(),
-                    res.texHeightOverride(),
-                    equipmentIntParams,
-                    equipmentParams,
-                    res.defaultInflate(),
-                    res.appliedMeshTransformerScale(),
-                    null
-                ));
+                // EntitySourceFactory.equipmentSource bakes the layer's MeshTransformer scale + float
+                // param exactly like the primary / variant body sources (the horse body is baked from
+                // HorseModel wrapped in MeshTransformer.scaling(1.1), body pivot 11.0 -> 9.6984, and its
+                // saddle / armor layers carry the same scale), and adds a zeroed int-param table for
+                // factories whose first arg is a primitive int/boolean. The happy-ghast harness
+                // (createHarnessLayer(boolean isBaby), registered adult=false) applies
+                // MeshTransformer.scaling(4.0) then `.apply(isBaby ? BABY_TRANSFORMER : IDENTITY)`;
+                // without a bound isBaby the linear walk folds the untaken BABY_TRANSFORMER (0.2375),
+                // collapsing the 4.0 body-frame scale to 0.95 and rendering the harness ~4x too small.
+                // The zeroed table binds isBaby=false so the walk follows IDENTITY, keeping the 4.0
+                // scale; float-param (horse 1.1) and no-arg (pig saddle) equipment keep a null int-table.
+                sources.add(EntitySourceFactory.equipmentSource(res, EntityOverlayResolver.Result.entityKey(field)));
                 entityToResolution.put(EntityOverlayResolver.Result.entityKey(field), res);
             }
             System.out.println("Equipment overlay layers: " + equipmentFieldToResolution.size()
@@ -462,12 +391,7 @@ public final class ToolingEntityModels {
                 String shapeId = shapeEntity + "#large";
                 entityToResolution.put(shapeId, shapeRes);
                 shapeResolutionByEntity.put(shapeEntity, shapeRes);
-                float[] shapeParams = new float[8];
-                if (shapeRes.defaultFloatParam() != null) shapeParams[0] = shapeRes.defaultFloatParam();
-                sources.add(new Source(
-                    shapeRes.targetClass() + ".class", shapeRes.targetMethod(), shapeId, YAxis.DOWN, 0f,
-                    shapeRes.texWidthOverride(), shapeRes.texHeightOverride(), null, shapeParams,
-                    shapeRes.defaultInflate(), shapeRes.appliedMeshTransformerScale(), null));
+                sources.add(EntitySourceFactory.shapeSource(shapeRes, shapeId));
             }
 
             ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics);
@@ -478,15 +402,7 @@ public final class ToolingEntityModels {
             // runtime kit reads this to cull zero-thickness plane cubes - a culled plane shows only
             // its camera-facing side (the bat ear's pink inner face) rather than drawing both
             // coincident sides and letting the LEQUAL depth tie-break pick the away (brown) side.
-            int cullGeometries = 0;
-            for (Source source : sources) {
-                JsonObject geometry = geometries.get(source.entityId());
-                if (geometry == null || geometry.has("cull")) continue;
-                if (EntityRenderTypeResolver.usesCullRenderType(context.classNodes(), source.classEntry())) {
-                    geometry.addProperty("cull", true);
-                    cullGeometries++;
-                }
-            }
+            int cullGeometries = markCullGeometries(context, sources, geometries);
             System.out.println("Marked " + cullGeometries + " entityCutoutCull geometries (back-face culling)");
 
             Path geometryDiagOut = EntityDiagnosticsWriter.writeGeometryDiagnostic(
@@ -519,19 +435,13 @@ public final class ToolingEntityModels {
 
             // Resolve each equipment overlay's baked mesh to its deduped geometry id, keyed by the
             // ModelLayers field, so the family writer can point each equipment layer at its geometry.
-            Map<String, String> equipmentGeometryByField = new LinkedHashMap<>();
-            for (Map.Entry<String, EntityLayerDefinitionResolver.Result> equip : equipmentFieldToResolution.entrySet()) {
-                String geomId = writeResult.factoryKeyToGeometryId().get(EntityRuntimeJsonWriter.factoryKey(equip.getValue()));
-                if (geomId != null) equipmentGeometryByField.put(equip.getKey(), geomId);
-            }
+            Map<String, String> equipmentGeometryByField =
+                geometryIdsByKey(equipmentFieldToResolution, writeResult.factoryKeyToGeometryId());
 
             // Map each shape-axis entity to its large-body geometry id, so the family writer can point
             // the shape axis's {@code large} option at geometry.tropicalfishlarge.
-            Map<String, String> shapeGeometryByEntity = new LinkedHashMap<>();
-            for (Map.Entry<String, EntityLayerDefinitionResolver.Result> shape : shapeResolutionByEntity.entrySet()) {
-                String geomId = writeResult.factoryKeyToGeometryId().get(EntityRuntimeJsonWriter.factoryKey(shape.getValue()));
-                if (geomId != null) shapeGeometryByEntity.put(shape.getKey(), geomId);
-            }
+            Map<String, String> shapeGeometryByEntity =
+                geometryIdsByKey(shapeResolutionByEntity, writeResult.factoryKeyToGeometryId());
 
             // Group the in-memory flat tables into the canonical family-form entity_models.json.
             EntityFamilyJsonWriter.writeAll(options.getVersion(), diagnostics, writeResult.flatEntities(), writeResult.flatFamilies(),
@@ -557,6 +467,56 @@ public final class ToolingEntityModels {
                 diagnostics.entries().forEach(line -> System.out.println("  " + line));
             }
         }
+    }
+
+    /**
+     * Maps each resolved layer factory to its deduped geometry id, keyed by the source map's key,
+     * dropping entries whose factory never made it into the geometry table. Iteration order follows
+     * {@code resolutions} (insertion-ordered), so the downstream family emission stays deterministic.
+     *
+     * @param resolutions key -&gt; resolved layer factory (equipment {@code ModelLayers} field, or the
+     *     shape-axis entity id)
+     * @param factoryKeyToGeometryId the factory-key -&gt; deduped geometry id map from {@code WriteResult}
+     * @return key -&gt; geometry id, dropping keys whose factory resolved to no geometry entry
+     */
+    private static @NotNull Map<String, String> geometryIdsByKey(
+        @NotNull Map<String, EntityLayerDefinitionResolver.Result> resolutions,
+        @NotNull Map<String, String> factoryKeyToGeometryId
+    ) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, EntityLayerDefinitionResolver.Result> entry : resolutions.entrySet()) {
+            String geometryId = factoryKeyToGeometryId.get(EntityRuntimeJsonWriter.factoryKey(entry.getValue()));
+            if (geometryId != null) out.put(entry.getKey(), geometryId);
+        }
+        return out;
+    }
+
+    /**
+     * Flags each geometry whose model class wires vanilla's {@code RenderTypes.entityCutoutCull}
+     * render type with a {@code cull} property (the runtime kit culls zero-thickness plane cubes for
+     * these - e.g. the bat ear shows only its camera-facing pink inner face). Skips geometries
+     * already flagged and any source with no parsed geometry.
+     *
+     * @param context the tooling context (ClassNode cache for the render-type walk)
+     * @param sources the parsed geometry sources
+     * @param geometries source id -&gt; parsed geometry
+     * @return the number of geometries newly flagged
+     */
+    private static int markCullGeometries(
+        @NotNull EntityToolingContext context,
+        @NotNull List<Source> sources,
+        @NotNull ConcurrentMap<String, JsonObject> geometries
+    ) {
+        int cullGeometries = 0;
+        for (Source source : sources) {
+            JsonObject geometry = geometries.get(source.entityId());
+            if (geometry == null || geometry.has("cull")) continue;
+            if (EntityRenderTypeResolver.usesCullRenderType(context.classNodes(), source.classEntry())) {
+                geometry.addProperty("cull", true);
+                cullGeometries++;
+            }
+        }
+        return cullGeometries;
     }
 
 }
