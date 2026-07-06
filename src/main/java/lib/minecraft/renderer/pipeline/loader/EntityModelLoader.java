@@ -173,10 +173,18 @@ public class EntityModelLoader {
             if (appearance.isBaby() && this.babyModel.isPresent()) {
                 builder.model(this.babyModel.get()).overlays(List.of()).blockOverlays(List.of()).collarTexture(Optional.empty()).equipment(List.of());
             } else {
-                // A sheared entity drops its shearable overlays (the sheep wool) - both the rendered
-                // geometry and its canvas-bounds contribution.
-                if (appearance.isSheared())
-                    builder.overlays(this.overlays.stream().filter(overlay -> !overlay.shearable()).toList());
+                // Drop overlays the appearance doesn't activate: shearable overlays (the sheep wool)
+                // when sheared - both the rendered geometry and its canvas-bounds contribution - and
+                // charged-only overlays (the creeper energy swirl) unless the charged axis is set. A
+                // charged overlay renders only for a lightning-struck entity, so the default (uncharged)
+                // render is byte-identical. Only rebuilds the list when there is something to drop, so an
+                // entity with no shearable / charged overlay keeps its exact overlay list.
+                boolean hasCharged = this.overlays.stream().anyMatch(OverlayLayer::requiresCharged);
+                if (appearance.isSheared() || hasCharged)
+                    builder.overlays(this.overlays.stream()
+                        .filter(overlay -> !(overlay.shearable() && appearance.isSheared()))
+                        .filter(overlay -> !(overlay.requiresCharged() && !appearance.isCharged()))
+                        .toList());
                 // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal,
                 // goat horns hide). Guarded to the non-baby path - the baby mesh has its own bones.
                 // The sheared axis additionally activates the "sheared" toggle for entities that
@@ -374,6 +382,10 @@ public class EntityModelLoader {
      *     (e.g. {@code "pattern"} for the tropical-fish pattern, sourced from
      *     {@code EntityAppearance.pattern}), or empty when the overlay texture is fixed at
      *     {@link #textureRef}
+     * @param requiresCharged when {@code true} this overlay renders only for a charged
+     *     (lightning-struck) entity - the creeper energy swirl, gated on {@code EntityAppearance.charged};
+     *     {@link EntityDefinition#resolveFor} drops it for the default (uncharged) entity so that render
+     *     stays byte-identical
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,
@@ -384,7 +396,8 @@ public class EntityModelLoader {
         @NotNull Optional<String> tintBy,
         boolean shearable,
         boolean requiresTint,
-        @NotNull Optional<String> textureBy
+        @NotNull Optional<String> textureBy,
+        boolean requiresCharged
     ) {}
 
     /**
@@ -510,7 +523,8 @@ public class EntityModelLoader {
             Optional<String> textureBy = entry.has("texture_by")
                 ? Optional.of(entry.get("texture_by").getAsString())
                 : Optional.empty();
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, shearable, requiresTint, textureBy));
+            boolean requiresCharged = entry.has("requires_charged") && entry.get("requires_charged").getAsBoolean();
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, shearable, requiresTint, textureBy, requiresCharged));
         }
         return out;
     }

@@ -188,6 +188,10 @@ public final class EntityOverlayResolver {
      *     {@code texturePath} at render (e.g. {@code "pattern"} for the tropical-fish pattern, whose
      *     texture is a user-selectable {@code TropicalFishPattern}). {@code null} when the texture is
      *     fixed. Emitted as the {@code texture_by} JSON property by {@link EntityRuntimeJsonWriter}
+     * @param requiresCharged {@code true} when the layer only renders for a charged (lightning-struck)
+     *     entity (the creeper energy swirl), so the {@code charged} render axis gates it in and the
+     *     default (uncharged) entity drops it. Emitted as the {@code requires_charged} JSON property by
+     *     {@link EntityRuntimeJsonWriter}
      */
     public record Result(
         @NotNull String layerClass,
@@ -200,7 +204,8 @@ public final class EntityOverlayResolver {
         @Nullable String tintBy,
         boolean shearable,
         boolean requiresTint,
-        @Nullable String textureBy
+        @Nullable String textureBy,
+        boolean requiresCharged
     ) {
         /**
          * Constructs a {@code Result} with no extra deformation and no bounds skip - the common
@@ -221,7 +226,7 @@ public final class EntityOverlayResolver {
             @Nullable String modelLayerField,
             int tintArgb
         ) {
-            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false, null, false, false, null);
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false, null, false, false, null, false);
         }
 
         /**
@@ -246,7 +251,7 @@ public final class EntityOverlayResolver {
             float inflate,
             boolean skipBounds
         ) {
-            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, inflate, skipBounds, null, false, false, null);
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, inflate, skipBounds, null, false, false, null, false);
         }
 
         /**
@@ -330,6 +335,25 @@ public final class EntityOverlayResolver {
                 continue;
             }
 
+            // CreeperPowerLayer: the charged (lightning-struck) creeper's blue energy swirl, an
+            // EnergySwirlLayer whose model is CreeperModel(bakeLayer(ModelLayers.CREEPER_ARMOR)) - the
+            // base creeper createBodyLayer inflated CubeDeformation(2.0). Reuse the base geometry
+            // (modelLayerField=null) + inflate 2.0 rather than walking the CREEPER_ARMOR LayerDefinition;
+            // the swirl texture is the layer's getTextureLocation() LDC (creeper/creeper_armor). It is a
+            // full-bright translucent glow (emissive=true; the indexed texture's tRNS drops the
+            // background so only the electric grid shows), gated on the charged render axis via
+            // requires_charged so the default (uncharged) creeper stays byte-identical. The swirl's
+            // animated UV scroll reduces to frame 0 for a static icon. The generic composite gate rejects
+            // EnergySwirlLayer (its render type lives in inherited code), so this dedicated handler is
+            // the emit path.
+            if (VanillaSourceClasses.CREEPER_POWER_LAYER.equals(layerClass)) {
+                String swirlTexture = findEnergySwirlTexture(cn);
+                if (swirlTexture != null)
+                    out.add(new Result(layerClass, swirlTexture, true, null, 0xFFFFFFFF,
+                        2.0f, false, null, false, false, null, true));
+                continue;
+            }
+
             // Specific class-name + ctor-shape handlers run BEFORE the generic
             // composite-overlay gate. The generic gate's bytecode derivation
             // ({@link #derivationAcceptsCompositeOverlay}) would also accept these layers
@@ -393,7 +417,7 @@ public final class EntityOverlayResolver {
                     // default to the baked value (pattern_1 / white tint), so the unselected render
                     // is byte-identical.
                     out.add(new Result(layerClass, patternTexture, false, null, tint,
-                        inflate != 0f ? inflate : 0.008f, false, "pattern_color", false, false, "pattern"));
+                        inflate != 0f ? inflate : 0.008f, false, "pattern_color", false, false, "pattern", false));
                 }
                 continue;
             }
@@ -463,7 +487,7 @@ public final class EntityOverlayResolver {
                 String tintBy = extractTintBy(cn);
                 boolean shearable = detectShearableGate(cn);
                 boolean requiresTint = detectRequiresTint(cn);
-                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb, 0f, false, tintBy, shearable, requiresTint, null));
+                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb, 0f, false, tintBy, shearable, requiresTint, null, false));
                 continue;
             }
         }
@@ -592,6 +616,27 @@ public final class EntityOverlayResolver {
      * {@code withDefaultNamespace} call into a {@code PUTSTATIC} of a non-{@code BABY} field.
      * Returns the LDC's literal value, or {@code null} when no such pattern is present.
      */
+    /**
+     * Scans an {@code EnergySwirlLayer} subclass (e.g. {@code CreeperPowerLayer}) for its swirl
+     * texture literal - the {@code textures/entity/X.png} LDC returned by the layer's
+     * {@code getTextureLocation()} override. Unlike {@link #findFirstNonBabyTextureLiteral} (which
+     * walks the {@code <clinit>} for a static {@code Identifier} field), the swirl texture is built
+     * inline in an instance method, so this walks every method for the first entity-texture LDC.
+     *
+     * @param cn the layer subclass ClassNode
+     * @return the raw {@code textures/entity/...png} path, or {@code null} when none is present
+     */
+    private static @Nullable String findEnergySwirlTexture(@NotNull ClassNode cn) {
+        for (MethodNode method : cn.methods) {
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                String literal = AsmKit.readStringLiteral(in);
+                if (literal != null && literal.startsWith(TEXTURE_PATH_PREFIX) && literal.endsWith(".png"))
+                    return literal;
+            }
+        }
+        return null;
+    }
+
     private static @Nullable String findFirstNonBabyTextureLiteral(@NotNull ClassNode cn) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;

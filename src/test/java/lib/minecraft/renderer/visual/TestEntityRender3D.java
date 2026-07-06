@@ -113,6 +113,7 @@ public final class TestEntityRender3D {
         Optional<TropicalFishPattern> pattern = patternName.map(TropicalFishPattern::ofName);
         Optional<String> age = Optional.ofNullable(System.getProperty("asset.entity.age")).filter(s -> !s.isBlank());
         boolean sheared = Boolean.getBoolean("asset.entity.sheared");
+        boolean charged = Boolean.getBoolean("asset.entity.charged");
         java.util.Set<String> toggles = Optional.ofNullable(System.getProperty("asset.entity.toggles")).filter(s -> !s.isBlank())
             .map(s -> java.util.Arrays.stream(s.split(",")).map(String::trim).filter(t -> !t.isEmpty())
                 .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new)))
@@ -144,6 +145,7 @@ public final class TestEntityRender3D {
                 + patternColorName.map(c -> "_patterncolor-" + c).orElse("")
                 + patternName.map(c -> "_pattern-" + c).orElse("")
                 + (sheared ? "_sheared" : "")
+                + (charged ? "_charged" : "")
                 + (toggles.isEmpty() ? "" : "_toggle-" + String.join("-", toggles))
                 + (equipment.isEmpty() ? "" : "_equip-" + equipment.entrySet().stream()
                     .map(en -> en.getValue().isEmpty() ? en.getKey() : en.getKey() + "-" + en.getValue())
@@ -156,6 +158,7 @@ public final class TestEntityRender3D {
                 .tints(tints)
                 .pattern(pattern)
                 .sheared(sheared)
+                .charged(charged)
                 .toggles(toggles)
                 .equipment(equipment)
                 .build();

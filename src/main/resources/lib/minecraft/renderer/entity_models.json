@@ -431,7 +431,16 @@
     "minecraft:creeper": {
       "geometry_ref": "geometry.creeper",
       "armor_type": "none",
-      "texture_ref": "creeper/creeper"
+      "texture_ref": "creeper/creeper",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.creeper",
+          "texture_ref": "creeper/creeper_armor",
+          "emissive": true,
+          "requires_charged": true,
+          "inflate": 2.0
+        }
+      ]
     },
     "minecraft:dolphin": {
       "geometry_ref": "geometry.dolphin",

@@ -611,6 +611,9 @@ public final class EntityRuntimeJsonWriter {
                         // requires_tint overlays (sheep wool undercoat) only render once a tint_by
                         // colour is selected - skipped for the default entity so it stays byte-identical.
                         .putIf(desc.requiresTint(), "requires_tint", true)
+                        // requires_charged overlays (creeper energy swirl) only render for a charged
+                        // (lightning-struck) entity - dropped for the default so it stays byte-identical.
+                        .putIf(desc.requiresCharged(), "requires_charged", true)
                         // Inflate: the two conditions are mutually exclusive, so at most one fires and
                         // the key lands in the same position either way.
                         .putIf(desc.inflate() != 0f, "inflate", desc.inflate())

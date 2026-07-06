@@ -201,6 +201,10 @@ public final class VanillaSourceClasses {
     public static final @NotNull String LLAMA_DECOR_LAYER =
         ENTITY_RENDERER_ROOT + "layers/LlamaDecorLayer";
 
+    /** Creeper power (charged) layer - an {@code EnergySwirlLayer} drawing the blue energy swirl on the {@code CREEPER_ARMOR} (base creeper inflated {@code CubeDeformation(2.0)}) mesh. */
+    public static final @NotNull String CREEPER_POWER_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/CreeperPowerLayer";
+
     /**
      * Generic equipment overlay layer (saddle / body armor) added by pig / horse / camel / strider /
      * happy_ghast / nautilus renderers - carries the {@code EquipmentClientInfo$LayerType} subdir and

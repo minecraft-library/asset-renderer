@@ -88,6 +88,14 @@ public class EntityAppearance {
     private final boolean sheared = false;
 
     /**
+     * Whether the entity renders charged (lightning-struck). When {@code true} the resolved definition
+     * keeps its charged-only overlay (the creeper energy swirl); {@code false} (default) drops it, so
+     * the default render is byte-identical. Only affects entities with a charged overlay (the creeper).
+     */
+    @lombok.Builder.Default
+    private final boolean charged = false;
+
+    /**
      * The set of bone-toggle names to un-hide for entities with toggleable bones (donkey / mule /
      * llama {@code chest}). Each name matches a family-form {@code bone_toggles} key; a toggle a
      * given entity does not declare is ignored. Empty (default) leaves every toggleable bone hidden.
