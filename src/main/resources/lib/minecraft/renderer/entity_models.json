@@ -1644,6 +1644,17 @@
             "texture_ref": "wolf/wolf_collar",
             "tint_by": "collar_color"
           }
+        },
+        {
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry_ref": "geometry.adultwolf_1",
+            "texture_template": "equipment/wolf_body/<material>",
+            "default_material": "armadillo_scute"
+          }
         }
       ]
     },

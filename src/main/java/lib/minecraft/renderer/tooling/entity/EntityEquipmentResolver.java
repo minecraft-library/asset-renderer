@@ -14,6 +14,7 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.Locale;
 
@@ -58,6 +59,12 @@ public final class EntityEquipmentResolver {
     /** Default armor material for the body slot - the baseline dyeable-leather armor. */
     private static final @NotNull String DEFAULT_BODY_ASSET = "leather";
 
+    /** Default material for the wolf body slot - wolf armor is a single dyeable armadillo-scute item. */
+    private static final @NotNull String DEFAULT_WOLF_BODY_ASSET = "armadillo_scute";
+
+    /** The wolf body equipment subdir, whose only material is {@link #DEFAULT_WOLF_BODY_ASSET}. */
+    private static final @NotNull String WOLF_BODY_SUBDIR = "wolf_body";
+
     /**
      * Resolves the equipment overlays a renderer attaches via {@code SimpleEquipmentLayer}. Returns
      * an empty list when the renderer attaches none (the common case).
@@ -87,6 +94,16 @@ public final class EntityEquipmentResolver {
         String layerTypeField = null;
         String modelLayerField = null;
         for (AbstractInsnNode node = init.instructions.getFirst(); node != null; node = node.getNext()) {
+            // Bespoke equipment layer: WolfArmorLayer isn't a SimpleEquipmentLayer - it bakes its own
+            // ModelLayers.WOLF_ARMOR + uses LayerType.WOLF_BODY inside its own class, so resolve it from
+            // there rather than from statics in this renderer's <init>.
+            if (node instanceof TypeInsnNode typeInsn
+                && typeInsn.getOpcode() == Opcodes.NEW
+                && VanillaSourceClasses.WOLF_ARMOR_LAYER.equals(typeInsn.desc)) {
+                Result bespoke = resolveBespokeLayer(classNodes, typeInsn.desc);
+                if (bespoke != null) out.add(bespoke);
+                continue;
+            }
             if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode field) {
                 if (VanillaSourceClasses.EQUIPMENT_LAYER_TYPE.equals(field.owner)) {
                     // A LayerType static starts a fresh candidate: reset the geometry so a primary /
@@ -125,6 +142,33 @@ public final class EntityEquipmentResolver {
     }
 
     /**
+     * Resolves a bespoke equipment layer (WolfArmorLayer) that bakes its own geometry and references
+     * its {@code LayerType} internally rather than via statics in the parent renderer's {@code <init>}.
+     * Walks the layer class for the first {@code LayerType.<X>} (in its {@code submit}) + the first
+     * {@code ModelLayers.<X>} (baked in its {@code <init>}).
+     *
+     * @param classNodes the ClassNode cache
+     * @param layerInternalName the bespoke layer class JVM internal name
+     * @return the resolved equipment result, or {@code null} when the class isn't loadable or the
+     *     LayerType / ModelLayers pair can't be found
+     */
+    private static @Nullable Result resolveBespokeLayer(@NotNull ClassNodeCache classNodes, @NotNull String layerInternalName) {
+        ClassNode layer = classNodes.load(layerInternalName);
+        if (layer == null) return null;
+        String layerTypeField = null;
+        String modelLayerField = null;
+        for (MethodNode method : layer.methods)
+            for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext()) {
+                if (node.getOpcode() != Opcodes.GETSTATIC || !(node instanceof FieldInsnNode field)) continue;
+                if (layerTypeField == null && VanillaSourceClasses.EQUIPMENT_LAYER_TYPE.equals(field.owner))
+                    layerTypeField = field.name;
+                else if (modelLayerField == null && VanillaSourceClasses.MODEL_LAYERS.equals(field.owner))
+                    modelLayerField = field.name;
+            }
+        return layerTypeField != null && modelLayerField != null ? build(layerTypeField, modelLayerField) : null;
+    }
+
+    /**
      * Whether {@code node} constructs a {@code SimpleEquipmentLayer} - directly (its {@code <init>})
      * or through a factory helper method that returns one (camel's {@code createCamelSaddleLayer}).
      *
@@ -152,8 +196,10 @@ public final class EntityEquipmentResolver {
     private static @NotNull Result build(@NotNull String layerTypeField, @NotNull String modelLayerField) {
         boolean saddle = layerTypeField.contains("SADDLE");
         String slot = saddle ? SLOT_SADDLE : SLOT_BODY;
-        String defaultAsset = saddle ? DEFAULT_SADDLE_ASSET : DEFAULT_BODY_ASSET;
         String subdir = layerTypeField.toLowerCase(Locale.ROOT);
+        String defaultAsset = saddle ? DEFAULT_SADDLE_ASSET
+            : WOLF_BODY_SUBDIR.equals(subdir) ? DEFAULT_WOLF_BODY_ASSET
+            : DEFAULT_BODY_ASSET;
         return new Result(slot, subdir, modelLayerField, defaultAsset);
     }
 
