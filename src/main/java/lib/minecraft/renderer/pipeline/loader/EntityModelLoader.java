@@ -13,6 +13,7 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.request.TintAxis;
 import lombok.Builder;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -185,6 +186,9 @@ public class EntityModelLoader {
                 if (toggled != null) builder.model(toggled);
                 builder.blockOverlays(resolveBlockOverlays(appearance));
             }
+            // The base_color axis (tropical fish) overrides the family base_tint with the selected
+            // dye; absent (default) keeps the baked base_tint, so the default render is byte-identical.
+            appearance.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
             return builder.build();
         }
 

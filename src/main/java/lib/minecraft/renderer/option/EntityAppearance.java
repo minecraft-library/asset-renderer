@@ -1,10 +1,12 @@
 package lib.minecraft.renderer.option;
 
 import lib.minecraft.renderer.request.DyeColor;
+import lib.minecraft.renderer.request.TintAxis;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -58,21 +60,16 @@ public class EntityAppearance {
     private final @NotNull Optional<String> carried = Optional.empty();
 
     /**
-     * Dyed-collar colour for collar-bearing entities (wolf, cat). When present and the resolved
-     * entity carries a collar texture, a collar overlay is drawn on the body geometry tinted by this
-     * colour's {@link DyeColor#argb() ARGB}; empty (default) draws no collar.
+     * The selected dye per {@link TintAxis tint axis} - the body base tint ({@link TintAxis#BASE},
+     * tropical fish) and each named overlay tint ({@link TintAxis#WOOL} sheep wool,
+     * {@link TintAxis#PATTERN} tropical fish pattern, {@link TintAxis#COLLAR} wolf / cat collar).
+     * An axis absent from the map uses its target's baked default (the family {@code base_tint} or
+     * the overlay's {@code tint_color}), so the default appearance renders byte-identically; a
+     * present axis multiplies its target by the dye's {@link DyeColor#argb() ARGB}. One map rather
+     * than a loose {@link Optional} field per dye axis - see {@link TintAxis}.
      */
     @lombok.Builder.Default
-    private final @NotNull Optional<DyeColor> collar = Optional.empty();
-
-    /**
-     * Wool colour for dyeable-wool entities (sheep). When present and the resolved entity carries a
-     * {@code tint_by: wool_color} overlay, that overlay is multiplied by this colour's
-     * {@link DyeColor#argb() ARGB} instead of its baked default white-wool tint; empty (default)
-     * renders the entity's default wool colour.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<DyeColor> woolColor = Optional.empty();
+    private final @NotNull Map<TintAxis, DyeColor> tints = Map.of();
 
     /**
      * Whether the entity renders sheared. When {@code true} the resolved definition drops its
@@ -100,6 +97,17 @@ public class EntityAppearance {
      */
     @lombok.Builder.Default
     private final @NotNull java.util.Map<String, String> equipment = java.util.Map.of();
+
+    /**
+     * The dye selected for a {@link TintAxis tint axis}, or empty when the axis uses its baked
+     * default.
+     *
+     * @param axis the tint axis to look up
+     * @return the selected dye for {@code axis}, or empty
+     */
+    public @NotNull Optional<DyeColor> tint(@NotNull TintAxis axis) {
+        return Optional.ofNullable(this.tints.get(axis));
+    }
 
     /**
      * Whether this appearance selects the baby mesh.

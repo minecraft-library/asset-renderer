@@ -35,6 +35,7 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.DyeColor;
 import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.request.TintAxis;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -217,7 +218,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         }
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
-            model, texture.get(), kitAnchor, false, kitNdcScale, modelScale, definition.baseTintArgb());
+            model, texture.get(), kitAnchor, false, kitNdcScale, modelScale, resolved.baseTintArgb());
         if (buildResult.triangles().isEmpty())
             return FrameCompositor.staticFrame(PixelBuffer.create(canvasW, canvasH));
 
@@ -376,7 +377,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         COLLAR(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                Optional<DyeColor> collar = ctx.options().getAppearance().getCollar();
+                Optional<DyeColor> collar = ctx.options().getAppearance().tint(TintAxis.COLLAR);
                 Optional<String> collarRef = ctx.definition().collarTexture();
                 if (collar.isEmpty() || collarRef.isEmpty()) return;
                 EntityModelData model = ctx.model();
@@ -502,23 +503,31 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) { }
 
     /**
-     * The effective multiplicative tint for a model overlay: the {@code tint_by} axis colour when
-     * the overlay is dye-driven ({@code "wool_color"}) and the appearance supplies that colour, else
-     * the overlay's baked {@link EntityModelLoader.OverlayLayer#tintArgb() default tint}. The default
-     * keeps a white sheep byte-identical; a dyed sheep multiplies the wool by the dye's ARGB
+     * The effective multiplicative tint for a model overlay: the {@code tint_by} axis colour when the
+     * overlay is dye-driven ({@code wool_color} sheep wool, {@code pattern_color} tropical fish) and
+     * the appearance supplies that {@link TintAxis axis}' dye, else the overlay's baked
+     * {@link EntityModelLoader.OverlayLayer#tintArgb() default tint}. The default keeps an
+     * unselected overlay byte-identical; a selected dye multiplies the overlay by the dye's ARGB
      * (mirroring vanilla's {@code coloredCutoutModelRender} colour arg), exactly like the collar tint.
      */
     private static int resolveOverlayTint(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
-        return hasSelectedTint(overlay, appearance) ? appearance.getWoolColor().orElseThrow().argb() : overlay.tintArgb();
+        return selectedOverlayTint(overlay, appearance).map(DyeColor::argb).orElse(overlay.tintArgb());
     }
 
     /**
-     * Whether the appearance supplies the overlay's {@code tint_by} axis colour ({@code wool_color}
-     * -&gt; {@link EntityAppearance#getWoolColor()}). Drives both the tint override and the
-     * {@code requires_tint} render gate.
+     * The dye selected for the overlay's {@code tint_by} axis, or empty when the overlay is untinted
+     * or the appearance leaves that axis at its default.
+     */
+    private static @NotNull Optional<DyeColor> selectedOverlayTint(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
+        return overlay.tintBy().flatMap(TintAxis::ofToken).flatMap(appearance::tint);
+    }
+
+    /**
+     * Whether the appearance supplies the overlay's {@code tint_by} axis colour. Drives both the tint
+     * override and the {@code requires_tint} render gate (the sheep wool undercoat).
      */
     private static boolean hasSelectedTint(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
-        return overlay.tintBy().filter("wool_color"::equals).isPresent() && appearance.getWoolColor().isPresent();
+        return selectedOverlayTint(overlay, appearance).isPresent();
     }
 
     /**

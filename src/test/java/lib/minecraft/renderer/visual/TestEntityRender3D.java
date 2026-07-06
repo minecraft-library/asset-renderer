@@ -11,6 +11,8 @@ import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.request.DyeColor;
+import lib.minecraft.renderer.request.TintAxis;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lombok.experimental.UtilityClass;
@@ -94,12 +96,17 @@ public final class TestEntityRender3D {
 
         Optional<String> state = Optional.ofNullable(System.getProperty("asset.entity.state")).filter(s -> !s.isBlank());
         Optional<String> carried = Optional.ofNullable(System.getProperty("asset.entity.carried")).filter(s -> !s.isBlank());
+        // Dye tint axes (-Dasset.entity.collar / .wool / .base_color / .pattern_color name a vanilla
+        // dye); each populates its TintAxis slot, empty = the target's baked default.
         Optional<String> collarName = Optional.ofNullable(System.getProperty("asset.entity.collar")).filter(s -> !s.isBlank());
-        Optional<lib.minecraft.renderer.request.DyeColor> collarColor =
-            collarName.map(s -> lib.minecraft.renderer.request.DyeColor.ofName(s.toUpperCase(java.util.Locale.ROOT)));
         Optional<String> woolName = Optional.ofNullable(System.getProperty("asset.entity.wool")).filter(s -> !s.isBlank());
-        Optional<lib.minecraft.renderer.request.DyeColor> woolColor =
-            woolName.map(s -> lib.minecraft.renderer.request.DyeColor.ofName(s.toUpperCase(java.util.Locale.ROOT)));
+        Optional<String> baseColorName = Optional.ofNullable(System.getProperty("asset.entity.base_color")).filter(s -> !s.isBlank());
+        Optional<String> patternColorName = Optional.ofNullable(System.getProperty("asset.entity.pattern_color")).filter(s -> !s.isBlank());
+        java.util.EnumMap<TintAxis, DyeColor> tints = new java.util.EnumMap<>(TintAxis.class);
+        collarName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.COLLAR, d));
+        woolName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.WOOL, d));
+        baseColorName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.BASE, d));
+        patternColorName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.PATTERN, d));
         Optional<String> age = Optional.ofNullable(System.getProperty("asset.entity.age")).filter(s -> !s.isBlank());
         boolean sheared = Boolean.getBoolean("asset.entity.sheared");
         java.util.Set<String> toggles = Optional.ofNullable(System.getProperty("asset.entity.toggles")).filter(s -> !s.isBlank())
@@ -129,6 +136,8 @@ public final class TestEntityRender3D {
                 + carried.map(c -> "_carried-" + c.replace(':', '_')).orElse("")
                 + collarName.map(c -> "_collar-" + c).orElse("")
                 + woolName.map(c -> "_wool-" + c).orElse("")
+                + baseColorName.map(c -> "_base-" + c).orElse("")
+                + patternColorName.map(c -> "_pattern-" + c).orElse("")
                 + (sheared ? "_sheared" : "")
                 + (toggles.isEmpty() ? "" : "_toggle-" + String.join("-", toggles))
                 + (equipment.isEmpty() ? "" : "_equip-" + equipment.entrySet().stream()
@@ -139,8 +148,7 @@ public final class TestEntityRender3D {
                 .age(age.map(a -> a.equalsIgnoreCase("baby") ? Age.BABY : Age.ADULT).orElse(Age.ADULT))
                 .state(state)
                 .carried(carried)
-                .collar(collarColor)
-                .woolColor(woolColor)
+                .tints(tints)
                 .sheared(sheared)
                 .toggles(toggles)
                 .equipment(equipment)
@@ -173,6 +181,17 @@ public final class TestEntityRender3D {
 
         long totalMs = (System.nanoTime() - t0) / 1_000_000L;
         System.out.printf("Done. %d rendered, %d failed, %d ms total.%n", rendered, failed, totalMs);
+    }
+
+    /**
+     * Resolves a vanilla dye name (case-insensitive) to its {@link DyeColor}, or empty when the name
+     * is not a known vanilla dye.
+     *
+     * @param name the dye name (e.g. {@code "red"})
+     * @return the matching dye, or empty
+     */
+    private static Optional<DyeColor> dye(@NotNull String name) {
+        return Optional.ofNullable(DyeColor.ofName(name.toUpperCase(java.util.Locale.ROOT)));
     }
 
 }

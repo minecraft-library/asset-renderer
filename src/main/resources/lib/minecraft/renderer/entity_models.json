@@ -1480,6 +1480,7 @@
           "geometry_ref": "geometry.tropicalfishsmall",
           "texture_ref": "fish/tropical_a_pattern_1",
           "tint_color": "0xFFF9FFFE",
+          "tint_by": "pattern_color",
           "inflate": 0.008
         }
       ]

@@ -381,8 +381,12 @@ public final class EntityOverlayResolver {
                     float inflate = walkCubeDeformationFloat(classNodes,
                         VanillaSourceClasses.LAYER_DEFINITIONS, "FISH_PATTERN_DEFORMATION");
                     int tint = walkDyeColorWhiteTextureDiffuseColor(classNodes);
+                    // tint_by: pattern_color lets the pattern_color render axis override the baked
+                    // white-diffuse default tint at render (EntityAppearance's TintAxis.PATTERN),
+                    // mirroring vanilla's state.patternColor; the default keeps the baked tint so the
+                    // unselected render is byte-identical.
                     out.add(new Result(layerClass, patternTexture, false, null, tint,
-                        inflate != 0f ? inflate : 0.008f, false));
+                        inflate != 0f ? inflate : 0.008f, false, "pattern_color", false, false));
                 }
                 continue;
             }
