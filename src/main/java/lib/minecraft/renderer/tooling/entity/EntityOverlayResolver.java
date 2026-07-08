@@ -67,10 +67,6 @@ import java.util.Locale;
  *       it resolves via {@link #findParameterizedOverlayBinding} because its clothes texture is
  *       a hardcoded ctor arg rather than runtime equipment.)</li>
  * </ul>
- *
- * <p>{@code SheepWoolUndercoatLayer} IS walked via the generic composite-overlay path but is
- * then suppressed at zero render state by {@link #POLICY_SUPPRESS} (a default white sheep draws
- * no undercoat).
  */
 @UtilityClass
 public final class EntityOverlayResolver {
@@ -85,29 +81,6 @@ public final class EntityOverlayResolver {
      */
     private static final @NotNull String RENDER_TYPE_RETURN =
         ")L" + lib.minecraft.renderer.tooling.util.VanillaSourceClasses.RENDER_TYPE + ";";
-
-    /**
-     * Composite-overlay layers that pass bytecode derivation (helper-based cutout) but
-     * whose vanilla {@code submit()} has a state-gated early-return that bytecode walking can't
-     * statically resolve, so at the zero/default render state vanilla draws nothing. Without a
-     * state-default-aware detector, listing the no-emit cases here is more maintainable than
-     * encoding the discriminator in bytecode walking.
-     * <p>Entries:
-     * <ul>
-     *   <li>{@code CAT_COLLAR} - the {@code coloredCutoutModelCopyLayerRender}-based
-     *       collar layer skips render when {@code state.collarColor == null} (the
-     *       zero-state default). Visual impact at zero state would be a colored collar around
-     *       every cat where vanilla shows none.</li>
-     * </ul>
-     *
-     * <p>{@code SHEEP_WOOL_UNDERCOAT} used to live here (a default white sheep draws no undercoat),
-     * but is now emitted with {@code requires_tint} (see {@link #detectRequiresTint}): the overlay
-     * skips render at load unless a wool colour is selected, so a white sheep stays byte-identical
-     * while a dyed sheep gets the tinted undercoat vanilla draws.
-     */
-    private static final @NotNull java.util.Set<String> POLICY_SUPPRESS = java.util.Set.of(
-        "CAT_COLLAR"
-    );
 
     /** JVM internal name of the {@code BlendFunction} enum carrying {@code TRANSLUCENT} etc. */
     private static final @NotNull String BLEND_FUNCTION = "com/mojang/blaze3d/pipeline/BlendFunction";
@@ -380,6 +353,11 @@ public final class EntityOverlayResolver {
         for (String layerClass : layerClasses) {
             ClassNode cn = classNodes.load(layerClass);
             if (cn == null) continue;
+            // Collar layers (CatCollarLayer, WolfCollarLayer) are emitted by the resolveCollarTexture
+            // side-channel as an option-gated `collar` layer, never as a composite overlay - CatCollarLayer
+            // bakes ModelLayers.CAT_COLLAR, which the generic gate below would otherwise emit as a coloured
+            // collar around every cat at zero render state (state.collarColor == null draws none in vanilla).
+            if (layerClass.endsWith("CollarLayer")) continue;
             // Eye overlay first - shares the base entity's geometry, so no extra parse. The
             // factory-name discriminator marks fully-emissive variants (`RenderTypes.eyes` →
             // EMISSIVE + NO_CARDINAL_LIGHTING) as `emissive=true` so the rasterizer skips
@@ -577,11 +555,8 @@ public final class EntityOverlayResolver {
             // shell (slime outer, {@code entityTranslucent}) is now accepted and carries {@code blend:
             // translucent} via {@link #classifyCompositeBlend} - previously it was rejected by the gate
             // and re-allowed by a hardcoded force-emit policy; classifying the blend retires that policy.
-            // Skip when {@link #POLICY_SUPPRESS} excludes it (state-gated runtime skips that bytecode
-            // walking can't statically resolve).
             String modelLayerField = findOverlayModelLayerField(cn);
             if (modelLayerField != null
-                && !POLICY_SUPPRESS.contains(modelLayerField)
                 && derivationAcceptsCompositeOverlay(classNodes, cn)) {
                 String compositeTexture = findCompositeOverlayTexture(classNodes, cn);
                 if (compositeTexture == null) {
