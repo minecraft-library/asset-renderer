@@ -30,6 +30,7 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.EntityOptions;
+import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.slot.EntitySlot;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.engine.texture.Biome;
@@ -410,6 +411,33 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     sink.addAll(EntityGeometryKit.buildTriangles(
                         model, collarTex.get(), ctx.modelAnchor(), false,
                         ctx.ndcScale(), ctx.modelScale(), collarTint).triangles());
+                });
+            }
+        },
+
+        /**
+         * The horse marking (white socks / blaze / patches): a same-geometry translucent overlay of the
+         * base body, textured by the selected {@link HorseMarking} and drawn over the coat. Gated on the
+         * resolved definition supporting markings (the horse) and a non-{@link HorseMarking#NONE}
+         * selection, so the default (unmarked) render draws nothing and stays byte-identical. Reuses the
+         * base body model - the baby mesh is baby-aware here, binding the marking's {@code _baby} texture
+         * - and, like the collar, wins the coplanar depth tie over the body beneath it (last-drawn LEQUAL).
+         */
+        MARKINGS(EntitySlot.MODEL_OVERLAY) {
+            @Override
+            void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
+                if (!ctx.definition().markings()) return;
+                EntityAppearance appearance = ctx.options().getAppearance();
+                Optional<String> markingRef = appearance.getMarkings().overlayTexture();
+                if (markingRef.isEmpty()) return;
+                String ref = appearance.isBaby() ? markingRef.get() + "_baby" : markingRef.get();
+                EntityModelData model = ctx.model();
+                stack.append(this.slot, sink -> {
+                    Optional<PixelBuffer> markingTex = ctx.textures().resolveEntityTexture(ref);
+                    if (markingTex.isEmpty()) return;
+                    sink.addAll(EntityGeometryKit.buildTriangles(
+                        model, markingTex.get(), ctx.modelAnchor(), false,
+                        ctx.ndcScale(), ctx.modelScale(), ColorMath.WHITE).triangles());
                 });
             }
         },

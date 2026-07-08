@@ -90,6 +90,16 @@ public class EntityAppearance {
     private final @NotNull Optional<TropicalFishPattern> pattern = Optional.empty();
 
     /**
+     * Horse-marking selector - the white socks / blaze / patches drawn over the coat colour. When set
+     * to a non-{@link HorseMarking#NONE} value and the resolved entity supports markings (the horse),
+     * a same-geometry translucent overlay draws that marking's texture over the coat;
+     * {@link HorseMarking#NONE} (default) draws no marking, so the default appearance is
+     * byte-identical. Ignored by entities without a marking layer.
+     */
+    @lombok.Builder.Default
+    private final @NotNull HorseMarking markings = HorseMarking.NONE;
+
+    /**
      * Whether the entity renders sheared. When {@code true} the resolved definition drops its
      * shearable overlays (the sheep wool) - both the rendered geometry and its canvas-bounds
      * contribution; {@code false} (default) renders the entity's wool.

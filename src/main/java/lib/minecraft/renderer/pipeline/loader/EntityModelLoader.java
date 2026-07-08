@@ -139,6 +139,11 @@ public class EntityModelLoader {
      *     {@code EntityAppearance.size} selects one. The default size is scale {@code 1.0} (absent), so an
      *     unset / default size leaves the render byte-identical; empty for mesh-select and no-size-axis
      *     entities. (A uniform scale is a visual no-op under the auto-fit renderer - see the size axis note)
+     * @param markings whether the entity supports the horse {@code markings} axis - a same-geometry
+     *     translucent overlay (white socks / blaze / patches) whose texture the renderer picks from
+     *     {@code EntityAppearance.markings} and composites over the coat. {@code true} only for the
+     *     horse; the default marking ({@code NONE}) draws nothing, so the default render is
+     *     byte-identical
      */
     @Builder(toBuilder = true)
     public record EntityDefinition(
@@ -156,7 +161,8 @@ public class EntityModelLoader {
         @NotNull List<EquipmentOverlay> equipment,
         @NotNull Optional<LargeShape> largeShape,
         @NotNull Map<Size, EntityModelData> sizeModels,
-        @NotNull Map<Size, Float> sizeScales
+        @NotNull Map<Size, Float> sizeScales,
+        boolean markings
     ) {
         /**
          * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried}
@@ -760,6 +766,7 @@ public class EntityModelLoader {
         Map<String, EntityFamilyFlattener.ShapeSpec> shapeAlternatives = flat.shapeAlternatives();
         Map<String, Map<String, String>> sizeAlternatives = flat.sizeAlternatives();
         Map<String, Map<String, Float>> sizeScaleRefs = flat.sizeScales();
+        Set<String> markingsRows = flat.markingsRows();
         HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
@@ -844,7 +851,8 @@ public class EntityModelLoader {
             // multiply rendererScale by the selected size.
             Map<Size, Float> sizeScales = buildSizeScales(sizeScaleRefs.get(entityId));
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale,
-                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles, equipment, largeShape, sizeModels, sizeScales));
+                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles, equipment, largeShape, sizeModels, sizeScales,
+                markingsRows.contains(entityId)));
         }
         return Concurrent.adoptMap(definitions);
     }

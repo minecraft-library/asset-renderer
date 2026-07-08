@@ -13,6 +13,7 @@ import lib.minecraft.renderer.tooling.blockentity.Source;
 import lib.minecraft.renderer.tooling.entity.*;
 import lib.minecraft.renderer.tooling.parser.GeometryParser;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -138,6 +139,31 @@ public final class ToolingEntityModels {
                 else unresolvedTexture++;
             }
 
+            // Horse coat colour: an id-encoded variant axis the data-driven variant machinery doesn't
+            // reach. HorseRenderer keys its texture off an enum-map (LOCATION_BY_VARIANT:
+            // Map<equine.Variant, HorseTextures{adult, baby}>), not a data/minecraft/<X>_variant/
+            // table, so EntityVariantResolver.loadAll never surfaces it (the walk leaves horse's
+            // variant stem null). Walk that <clinit> map here - the same fixed-entity wiring the
+            // tropical_fish / pufferfish axes use below - and inject horse into the variant tables +
+            // canonical-default map + its record's variant stem, so the writer emits the per-coat rows
+            // (horse_white ... horse_dark_brown) the family writer groups into the coat variant axis.
+            // WHITE is vanilla's default (Variant id 0, the enum-map's first key).
+            String horseId = "minecraft:horse";
+            EntitySessionWalk.Result horseRec = records.get(horseId);
+            if (horseRec != null && horseRec.variantStem() == null) {
+                ConcurrentList<EntityVariantResolver.Result> horseCoats = EntityVariantResolver.loadEnumMapVariants(
+                    context.classNodes(), VanillaSourceClasses.HORSE_RENDERER, VanillaSourceClasses.EQUINE_VARIANT);
+                if (!horseCoats.isEmpty()) {
+                    variants.put("horse", horseCoats);
+                    dataVariantDefaults.put("horse", "white");
+                    records.put(horseId, new EntitySessionWalk.Result(
+                        horseRec.entityId(), horseRec.entityFieldName(), horseRec.rendererInternalName(),
+                        horseRec.binding(), horseRec.layers(), "horse",
+                        horseRec.setupYawAddend(), horseRec.rendererScale()));
+                    System.out.println("Injected horse coat variant axis (" + horseCoats.size() + " coats)");
+                }
+            }
+
             Path discoveryDiagOut = EntityDiagnosticsWriter.writeDiscoveryDiagnostic(
                 options, registry, records, variants,
                 withPrimaryTexture, variantDriven, unresolvedTexture, diagnostics
@@ -260,6 +286,7 @@ public final class ToolingEntityModels {
             Map<String, ConcurrentList<EntityBlockOverlayResolver.Result>> blockOverlaysByEntity =
                 new LinkedHashMap<>();
             Map<String, String> collarByEntity = new LinkedHashMap<>();
+            Set<String> markingsByEntity = new LinkedHashSet<>();
             Map<String, ConcurrentList<EntityEquipmentResolver.Result>> equipmentByEntity = new LinkedHashMap<>();
             Set<String> equipmentFields = new LinkedHashSet<>();
             Set<String> compositeOverlayFields = new LinkedHashSet<>();
@@ -271,6 +298,7 @@ public final class ToolingEntityModels {
                 overlaysByEntity.put(entityId, overlays);
                 String collar = EntityOverlayResolver.resolveCollarTexture(context.classNodes(), rec.layers());
                 if (collar != null) collarByEntity.put(entityId, collar);
+                if (EntityOverlayResolver.hasMarkingLayer(rec.layers())) markingsByEntity.add(entityId);
                 for (EntityOverlayResolver.Result desc : overlays)
                     if (desc.modelLayerField() != null) compositeOverlayFields.add(desc.modelLayerField());
 
@@ -332,7 +360,13 @@ public final class ToolingEntityModels {
                 if (babyRes == null) continue;
                 babyRes = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), babyRes);
                 String bindingBaby = entry.getValue().binding().babyTexturePath();
-                if (bindingBaby != null) babyTextureByEntity.put(entityId, EntityTextureResolver.stripPrefix(bindingBaby));
+                // Variant families source per-variant baby textures from the variant table
+                // (baby_asset_id -> EntityFamilyJsonWriter.enrichBabyTextures, one per coat option), so
+                // skip the single isBaby-branch texture for them - it would add a spurious top-level
+                // age.baby.texture_ref (horse, whose coat variant is injected above; data-driven
+                // variants already surface no baby binding here).
+                if (bindingBaby != null && entry.getValue().variantStem() == null)
+                    babyTextureByEntity.put(entityId, EntityTextureResolver.stripPrefix(bindingBaby));
                 // Skip babies baked from the SAME model class as the adult (nautilus:
                 // NautilusModel#createBabyBodyLayer vs #createBodyLayer). Their geometry ids derive
                 // the same class-based stem and the collision suffix would shift the adult's id,
@@ -498,7 +532,7 @@ public final class ToolingEntityModels {
             // Group the in-memory flat tables into the canonical family-form entity_models.json.
             EntityFamilyJsonWriter.writeAll(options.getVersion(), diagnostics, writeResult.flatEntities(), writeResult.flatFamilies(),
                 variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity, equipmentByEntity, equipmentGeometryByField,
-                shapeGeometryByEntity, sizeGeometryByEntity, sizeScaleByEntity);
+                shapeGeometryByEntity, sizeGeometryByEntity, sizeScaleByEntity, markingsByEntity);
 
             System.out.printf(
                 "Coverage: %d / %d mapped; texture %d hard / %d variant / %d unresolved; geometry %d%n",

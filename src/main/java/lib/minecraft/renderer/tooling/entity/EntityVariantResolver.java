@@ -262,6 +262,76 @@ public final class EntityVariantResolver {
     }
 
     /**
+     * Walks a renderer's {@code <clinit>} for an enum-map texture table -
+     * {@code Map<XVariant, Textures{adult, baby}>} built inline (HorseRenderer's
+     * {@code LOCATION_BY_VARIANT}) - and returns one {@link Result} per enum key, in
+     * {@code <clinit>} (enum-declaration) order. Each map entry pushes its enum key
+     * ({@code GETSTATIC <variantEnum>.<NAME>}) then constructs the {@code Textures} wrapper from two
+     * {@code textures/entity/...} string literals (adult first, then baby); this walker pairs each
+     * key with the following adult + baby literal. Unlike the data-driven tables ({@link #loadAll}),
+     * the texture paths are baked into the renderer bytecode, so no
+     * {@code data/minecraft/<X>_variant/} directory exists.
+     *
+     * <p>Vanilla 26.1: {@code HorseRenderer.LOCATION_BY_VARIANT} keys {@code equine.Variant}
+     * (WHITE / CREAMY / CHESTNUT / BROWN / BLACK / GRAY / DARK_BROWN) to {@code horse/horse_<coat>}
+     * (+ {@code _baby}). The variant id is the lowercased enum-constant name, matching the coat's
+     * serialized name (e.g. {@code dark_brown}).
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param rendererInternalName the renderer whose {@code <clinit>} builds the enum-map
+     * @param variantEnumInternalName the enum whose constants key the map (the map's key type)
+     * @return one variant per enum key in declaration order; empty when the renderer or its
+     *     {@code <clinit>} is absent, or no {@code <variantEnum>.<NAME>} key pairs with a texture literal
+     */
+    public static @NotNull ConcurrentList<Result> loadEnumMapVariants(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String rendererInternalName,
+        @NotNull String variantEnumInternalName
+    ) {
+        ConcurrentList<Result> out = Concurrent.newList();
+        ClassNode cn = classNodes.load(rendererInternalName);
+        if (cn == null) return out;
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        if (clinit == null) return out;
+
+        String pendingCoat = null;
+        java.util.List<String> pendingTextures = new java.util.ArrayList<>();
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() == Opcodes.GETSTATIC
+                && in instanceof FieldInsnNode fi
+                && variantEnumInternalName.equals(fi.owner)) {
+                emitEnumMapVariant(out, pendingCoat, pendingTextures);
+                pendingCoat = fi.name;
+                pendingTextures.clear();
+                continue;
+            }
+            String literal = AsmKit.readStringLiteral(in);
+            if (literal != null && literal.startsWith("textures/entity/"))
+                pendingTextures.add(literal);
+        }
+        emitEnumMapVariant(out, pendingCoat, pendingTextures);
+        return out;
+    }
+
+    /**
+     * Emits one enum-map {@link Result} (adult {@code primary} + optional baby {@code primary}) for
+     * the pending enum key and its collected texture literals, or nothing when no key or no texture
+     * is pending. The first literal is the adult texture, the second (when present) the baby.
+     */
+    private static void emitEnumMapVariant(
+        @NotNull ConcurrentList<Result> out,
+        @Nullable String coat,
+        @NotNull java.util.List<String> textures
+    ) {
+        if (coat == null || textures.isEmpty()) return;
+        LinkedHashMap<String, String> tex = new LinkedHashMap<>();
+        tex.put("primary", textures.get(0));
+        LinkedHashMap<String, String> babyTex = new LinkedHashMap<>();
+        if (textures.size() > 1) babyTex.put("primary", textures.get(1));
+        out.add(new Result(coat.toLowerCase(Locale.ROOT), tex, babyTex, null));
+    }
+
+    /**
      * Walks a renderer's model-map construction bytecode (the {@code bakeModels} static factory
      * on variant renderers that keep a {@code Map<XVariant$ModelType, Model>}) and returns a
      * {@code (ModelType-constant-name -> ModelLayers field name)} map for the <b>adult</b> model

@@ -300,6 +300,24 @@ public final class EntityOverlayResolver {
     }
 
     /**
+     * Reports whether the entity carries a {@link VanillaSourceClasses#HORSE_MARKING_LAYER} (the
+     * horse). The layer reuses the parent body model (no {@code ModelLayers} of its own, so the
+     * generic overlay gate never sees it) and selects its {@code horse/horse_markings_*} texture from
+     * an enum-map on the render-state {@code markings} field. The per-marking textures are not
+     * extracted - the renderer supplies them from {@code EntityAppearance.markings} - so only the
+     * layer's presence matters, which the family writer turns into the {@code markings} layer.
+     *
+     * @param layerClasses ordered list of layer-class internal names from
+     *     {@link EntityBoneResolver#scanOverlayLayers}
+     * @return {@code true} when a marking layer is present
+     */
+    public static boolean hasMarkingLayer(@NotNull ConcurrentList<String> layerClasses) {
+        for (String layerClass : layerClasses)
+            if (VanillaSourceClasses.HORSE_MARKING_LAYER.equals(layerClass)) return true;
+        return false;
+    }
+
+    /**
      * Resolves overlay descriptors from the layer class names produced by
      * {@link EntityBoneResolver#scanOverlayLayers}. Layer classes that don't match any known
      * overlay shape are silently dropped - they're either runtime-driven (armor / equipment /

@@ -8,6 +8,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.EntityOptions;
+import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -116,6 +117,9 @@ public final class TestEntityRender3D {
         // -Dasset.entity.size=small|medium|large names a Size (pufferfish puff mesh).
         Optional<Size> sizeOpt = Optional.ofNullable(System.getProperty("asset.entity.size")).filter(s -> !s.isBlank())
             .map(s -> Size.valueOf(s.toUpperCase(java.util.Locale.ROOT)));
+        // -Dasset.entity.markings=white_dots names a horse marking (HorseMarking); default NONE.
+        Optional<String> markingsName = Optional.ofNullable(System.getProperty("asset.entity.markings")).filter(s -> !s.isBlank());
+        HorseMarking markings = markingsName.map(HorseMarking::ofName).orElse(HorseMarking.NONE);
         boolean sheared = Boolean.getBoolean("asset.entity.sheared");
         boolean charged = Boolean.getBoolean("asset.entity.charged");
         java.util.Set<String> toggles = Optional.ofNullable(System.getProperty("asset.entity.toggles")).filter(s -> !s.isBlank())
@@ -151,6 +155,7 @@ public final class TestEntityRender3D {
                 + (sheared ? "_sheared" : "")
                 + (charged ? "_charged" : "")
                 + sizeOpt.map(s -> "_size-" + s.name().toLowerCase(java.util.Locale.ROOT)).orElse("")
+                + (markings == HorseMarking.NONE ? "" : "_markings-" + markings.name().toLowerCase(java.util.Locale.ROOT))
                 + (toggles.isEmpty() ? "" : "_toggle-" + String.join("-", toggles))
                 + (equipment.isEmpty() ? "" : "_equip-" + equipment.entrySet().stream()
                     .map(en -> en.getValue().isEmpty() ? en.getKey() : en.getKey() + "-" + en.getValue())
@@ -162,6 +167,7 @@ public final class TestEntityRender3D {
                 .carried(carried)
                 .tints(tints)
                 .pattern(pattern)
+                .markings(markings)
                 .sheared(sheared)
                 .charged(charged)
                 .size(sizeOpt)

@@ -730,8 +730,88 @@
     "minecraft:horse": {
       "geometry_ref": "geometry.abstractequine",
       "armor_type": "none",
-      "texture_ref": "horse/horse_white",
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "white",
+          "values": [
+            "white",
+            "creamy",
+            "chestnut",
+            "brown",
+            "black",
+            "gray",
+            "dark_brown"
+          ],
+          "options": {
+            "white": {
+              "textures": {
+                "wild": "horse/horse_white",
+                "baby": "horse/horse_white_baby"
+              }
+            },
+            "creamy": {
+              "textures": {
+                "wild": "horse/horse_creamy",
+                "baby": "horse/horse_creamy_baby"
+              }
+            },
+            "chestnut": {
+              "textures": {
+                "wild": "horse/horse_chestnut",
+                "baby": "horse/horse_chestnut_baby"
+              }
+            },
+            "brown": {
+              "textures": {
+                "wild": "horse/horse_brown",
+                "baby": "horse/horse_brown_baby"
+              }
+            },
+            "black": {
+              "textures": {
+                "wild": "horse/horse_black",
+                "baby": "horse/horse_black_baby"
+              }
+            },
+            "gray": {
+              "textures": {
+                "wild": "horse/horse_gray",
+                "baby": "horse/horse_gray_baby"
+              }
+            },
+            "dark_brown": {
+              "textures": {
+                "wild": "horse/horse_darkbrown",
+                "baby": "horse/horse_darkbrown_baby"
+              }
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry_ref": "geometry.babyhorse"
+            }
+          }
+        }
+      },
       "layers": [
+        {
+          "id": "markings",
+          "when": {
+            "markings": "selected"
+          },
+          "overlay": {
+            "geometry_ref": "geometry.abstractequine",
+            "texture_by": "markings"
+          }
+        },
         {
           "id": "body",
           "when": {
@@ -754,22 +834,7 @@
             "default_material": "saddle"
           }
         }
-      ],
-      "axes": {
-        "age": {
-          "default": "adult",
-          "values": [
-            "adult",
-            "baby"
-          ],
-          "options": {
-            "baby": {
-              "geometry_ref": "geometry.babyhorse",
-              "texture_ref": "horse/horse_white_baby"
-            }
-          }
-        }
-      }
+      ]
     },
     "minecraft:husk": {
       "geometry_ref": "geometry.humanoid_1",

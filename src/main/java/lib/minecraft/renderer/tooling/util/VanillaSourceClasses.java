@@ -205,6 +205,16 @@ public final class VanillaSourceClasses {
     public static final @NotNull String CREEPER_POWER_LAYER =
         ENTITY_RENDERER_ROOT + "layers/CreeperPowerLayer";
 
+    /** Horse marking (overlay) layer - a same-geometry translucent overlay drawing the {@code horse/horse_markings_*} texture (white socks / blaze / patches) over the coat, selected by the {@code markings} axis. */
+    public static final @NotNull String HORSE_MARKING_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/HorseMarkingLayer";
+
+    /** Horse renderer - its {@code <clinit>} builds {@code LOCATION_BY_VARIANT}, an enum-map of the coat {@link #EQUINE_VARIANT} to {@code HorseTextures{adult, baby}}, walked for the id-encoded coat {@code variant} axis. */
+    public static final @NotNull String HORSE_RENDERER = ENTITY_RENDERER_ROOT + "HorseRenderer";
+
+    /** Horse coat-colour enum ({@code WHITE}, {@code CREAMY}, {@code CHESTNUT}, ...); the key type of {@code HorseRenderer.LOCATION_BY_VARIANT}. */
+    public static final @NotNull String EQUINE_VARIANT = ENTITY_ROOT + "animal/equine/Variant";
+
     /**
      * Generic equipment overlay layer (saddle / body armor) added by pig / horse / camel / strider /
      * happy_ghast / nautilus renderers - carries the {@code EquipmentClientInfo$LayerType} subdir and

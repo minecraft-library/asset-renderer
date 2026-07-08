@@ -7,8 +7,10 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Flattens the normalized {@code entity_models.json} family form back into the flat
@@ -52,6 +54,10 @@ public final class EntityFamilyFlattener {
      *     the {@code size} axis (salmon small / large; slime + magma_cube medium / large); the renderer
      *     multiplies {@code rendererScale} by this when the {@code size} axis selects a non-default size.
      *     A size-scale entity has no {@link #sizeAlternatives} entry and vice versa
+     * @param markingsRows the flat row ids (every coat-variant row of a marking family, or the plain
+     *     row) that support the {@code markings} axis - the horse marking overlay, drawn over the coat
+     *     when {@code EntityAppearance.markings} selects one. From the family form's {@code layers}
+     *     {@code markings} entry; empty for entities with no marking layer
      */
     public record Flat(
         @NotNull JsonObject entities,
@@ -62,7 +68,8 @@ public final class EntityFamilyFlattener {
         @NotNull Map<String, List<EquipmentSpec>> equipment,
         @NotNull Map<String, ShapeSpec> shapeAlternatives,
         @NotNull Map<String, Map<String, String>> sizeAlternatives,
-        @NotNull Map<String, Map<String, Float>> sizeScales
+        @NotNull Map<String, Map<String, Float>> sizeScales,
+        @NotNull Set<String> markingsRows
     ) {
 
         /**
@@ -73,7 +80,7 @@ public final class EntityFamilyFlattener {
          * @return an empty flat form
          */
         public static @NotNull Flat empty() {
-            return new Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+            return new Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Set.of());
         }
     }
 
@@ -129,6 +136,7 @@ public final class EntityFamilyFlattener {
         Map<String, ShapeSpec> shapeAlternatives = new LinkedHashMap<>();
         Map<String, Map<String, String>> sizeAlternatives = new LinkedHashMap<>();
         Map<String, Map<String, Float>> sizeScales = new LinkedHashMap<>();
+        Set<String> markingsRows = new LinkedHashSet<>();
 
         for (Map.Entry<String, JsonElement> entry : familyForm.entrySet()) {
             String familyId = entry.getKey();
@@ -140,10 +148,11 @@ public final class EntityFamilyFlattener {
             ShapeSpec shape = shapeLargeOf(family);
             Map<String, String> size = sizeAlternativesOf(family);
             Map<String, Float> sizeScale = sizeScalesOf(family);
+            boolean markings = markingsOf(family);
 
             JsonObject variantAxis = variantAxis(family);
             if (variantAxis != null) {
-                expandVariantFamily(familyId, family, variantAxis, entities, stateTextures, collar, collarTextures, baby, babyGeometry, equip, equipment);
+                expandVariantFamily(familyId, family, variantAxis, entities, stateTextures, collar, collarTextures, baby, babyGeometry, equip, equipment, markings, markingsRows);
             } else {
                 entities.add(familyId, plainRow(family));
                 if (collar != null) collarTextures.put(familyId, collar);
@@ -152,6 +161,7 @@ public final class EntityFamilyFlattener {
                 if (shape != null) shapeAlternatives.put(familyId, shape);
                 if (!size.isEmpty()) sizeAlternatives.put(familyId, size);
                 if (!sizeScale.isEmpty()) sizeScales.put(familyId, sizeScale);
+                if (markings) markingsRows.add(familyId);
                 // Plain families carry their single baby texture on age.baby.texture_ref; expose it
                 // under the "baby" state key so the renderer binds it the same way as variant families.
                 String babyTex = babyTextureOf(family);
@@ -160,7 +170,22 @@ public final class EntityFamilyFlattener {
 
             if (family.has("family_of")) crossFamilies.addProperty(familyId, family.get("family_of").getAsString());
         }
-        return new Flat(entities, crossFamilies, stateTextures, collarTextures, babyGeometry, equipment, shapeAlternatives, sizeAlternatives, sizeScales);
+        return new Flat(entities, crossFamilies, stateTextures, collarTextures, babyGeometry, equipment, shapeAlternatives, sizeAlternatives, sizeScales, markingsRows);
+    }
+
+    /**
+     * Returns whether the family carries a {@code markings} layer (the horse marking overlay), so the
+     * flattener flags each of its rows as markings-capable. Marking textures are not carried in the
+     * JSON - the renderer picks them from {@code EntityAppearance.markings} - so only the presence of
+     * the layer matters here.
+     */
+    private static boolean markingsOf(@NotNull JsonObject family) {
+        if (!family.has("layers")) return false;
+        for (JsonElement element : family.getAsJsonArray("layers")) {
+            JsonObject layer = element.getAsJsonObject();
+            if (layer.has("id") && "markings".equals(layer.get("id").getAsString())) return true;
+        }
+        return false;
     }
 
     /**
@@ -308,7 +333,7 @@ public final class EntityFamilyFlattener {
      * row (carries the family's optional fields, no {@code variant_of}); every other option rolls
      * up to it via {@code variant_of}.
      */
-    private static void expandVariantFamily(@NotNull String familyId, @NotNull JsonObject family, @NotNull JsonObject variantAxis, @NotNull JsonObject entities, @NotNull Map<String, Map<String, String>> stateTextures, String collar, @NotNull Map<String, String> collarTextures, String baby, @NotNull Map<String, String> babyGeometry, @NotNull List<EquipmentSpec> equipment, @NotNull Map<String, List<EquipmentSpec>> equipmentByRow) {
+    private static void expandVariantFamily(@NotNull String familyId, @NotNull JsonObject family, @NotNull JsonObject variantAxis, @NotNull JsonObject entities, @NotNull Map<String, Map<String, String>> stateTextures, String collar, @NotNull Map<String, String> collarTextures, String baby, @NotNull Map<String, String> babyGeometry, @NotNull List<EquipmentSpec> equipment, @NotNull Map<String, List<EquipmentSpec>> equipmentByRow, boolean markings, @NotNull Set<String> markingsRows) {
         String defaultOption = variantAxis.get("default").getAsString();
         String baseId = familyId + "_" + defaultOption;
         String familyGeometry = family.get("geometry_ref").getAsString();
@@ -333,6 +358,7 @@ public final class EntityFamilyFlattener {
             if (collar != null) collarTextures.put(rowId, collar);
             if (baby != null) babyGeometry.put(rowId, baby);
             if (!equipment.isEmpty()) equipmentByRow.put(rowId, equipment);
+            if (markings) markingsRows.add(rowId);
         }
     }
 
