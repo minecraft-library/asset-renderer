@@ -16,6 +16,7 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.animal.equine.Variant;
 import org.joml.Quaternionf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -221,7 +222,18 @@ public final class EntitySweeper implements AutoCloseable {
 
         try {
             ResourceKey<? extends Registry<?>> variantRegistryKey = VARIANT_REGISTRIES.get(type);
-            if (variantRegistryKey != null && !HarnessConfig.PITCH_ROLL_SWEEP) {
+            if (type == EntityType.HORSE && !HarnessConfig.PITCH_ROLL_SWEEP) {
+                // Horse coat colour is an enum (equine.Variant) packed into the int NBT "Variant",
+                // not a data-driven <X>_variant registry, so it needs its own enum loop (see
+                // renderAllHorseCoats) rather than the registry-driven renderAllVariants below.
+                int coatsRendered = renderAllHorseCoats(client, type, safeName);
+                if (coatsRendered == 0) {
+                    LOG.warn("EntitySweeper: no horse coats rendered for {} (family fit missed?)", id);
+                    skipped++;
+                } else {
+                    rendered += coatsRendered;
+                }
+            } else if (variantRegistryKey != null && !HarnessConfig.PITCH_ROLL_SWEEP) {
                 int variantsRendered = renderAllVariants(client, type, variantRegistryKey, safeName);
                 if (variantsRendered == 0) {
                     LOG.warn("EntitySweeper: no variants rendered for {} (registry empty?)", id);
@@ -401,6 +413,48 @@ public final class EntitySweeper implements AutoCloseable {
             }
             zeroRotations(entity);
             String safeName = baseName + "_" + variantId.getPath();
+            Path out = HarnessConfig.OUTPUT_DIR.resolve("entities").resolve(safeName + ".png");
+            frameRenderer.renderAndWrite(client, entity, fit, out);
+            success++;
+        }
+        return success;
+    }
+
+    /**
+     * Renders one PNG per horse coat colour. Unlike the registry-driven variants
+     * ({@link #renderAllVariants}), horse coat is the {@link Variant} enum
+     * ({@code WHITE}..{@code DARK_BROWN}) packed into the <em>integer</em> NBT key {@code "Variant"}
+     * ({@code coat.getId() | markings << 8}, markings held at {@code NONE}=0 here), so it has no
+     * {@code <X>_variant} registry to walk. Each coat is still reconstructed through
+     * {@link EntityType#loadEntityRecursive(EntityType, CompoundTag, net.minecraft.world.level.Level,
+     * EntitySpawnReason, EntityProcessor) loadEntityRecursive} so vanilla's deserialiser applies it
+     * before render-state extraction (the {@code setVariant} setters are private; the NBT round-trip
+     * is the public path). All coats share the {@code AbstractEquineModel} geometry, so they reuse
+     * the horse family fit measured by the pre-pass's default-horse arm.
+     * <p>
+     * Filenames use the coat's {@link Variant#getSerializedName() serialized name}
+     * ({@code white}..{@code dark_brown}), producing {@code minecraft__horse_<coat>.png} to match
+     * the asset-renderer's id-encoded coat variant axis (which keys on the same lowercased enum name).
+     *
+     * @return the number of coats successfully rendered
+     */
+    private int renderAllHorseCoats(Minecraft client, EntityType<?> type, String baseName) throws IOException {
+        EntityFrameRenderer.FamilyFit fit = familyFits.get(familyRoot(type));
+        if (fit == null) {
+            LOG.warn("EntitySweeper: no family fit for horse (pre-pass missed it?)");
+            return 0;
+        }
+        int success = 0;
+        for (Variant coat : Variant.values()) {
+            CompoundTag nbt = new CompoundTag();
+            nbt.putInt("Variant", coat.getId());
+            Entity entity = EntityType.loadEntityRecursive(type, nbt, client.level, EntitySpawnReason.LOAD, EntityProcessor.NOP);
+            if (entity == null) {
+                LOG.warn("EntitySweeper: loadEntityRecursive returned null for {} coat={}", baseName, coat);
+                continue;
+            }
+            zeroRotations(entity);
+            String safeName = baseName + "_" + coat.getSerializedName();
             Path out = HarnessConfig.OUTPUT_DIR.resolve("entities").resolve(safeName + ".png");
             frameRenderer.renderAndWrite(client, entity, fit, out);
             success++;
