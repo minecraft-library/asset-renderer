@@ -599,7 +599,10 @@ public final class EntityRuntimeJsonWriter {
                     boolean sharesBaseGeometry = desc.modelLayerField() == null;
                     overlaysJson.add(ToolingJson.object()
                         .put("geometry_ref", overlayGeometryId)
-                        .put("texture_ref", EntityTextureResolver.stripPrefix(desc.texturePath()))
+                        // A texture_by overlay whose axis has a "none" default (iron golem crackiness)
+                        // bakes no default texture - the render axis supplies it. Skip texture_ref so
+                        // the overlay reuses no baked path and the render loop drops it when unselected.
+                        .putIfNotNull("texture_ref", desc.texturePath().isEmpty() ? null : EntityTextureResolver.stripPrefix(desc.texturePath()))
                         .putIf(desc.emissive(), "emissive", true)
                         .putHexIf(desc.tintArgb() != 0xFFFFFFFF, "tint_color", desc.tintArgb())
                         // tint_by names the render axis whose selected colour overrides tint_color at

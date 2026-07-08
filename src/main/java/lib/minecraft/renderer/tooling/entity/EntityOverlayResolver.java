@@ -356,6 +356,21 @@ public final class EntityOverlayResolver {
                 continue;
             }
 
+            // IronGolemCrackinessLayer: a same-geometry crack-texture overlay (iron_golem_crackiness_
+            // low/medium/high) drawn over the body, selected by the crackiness render axis. The layer's
+            // map omits Crackiness.NONE, so the default (undamaged) golem draws no crack overlay - emit
+            // with NO baked texture_ref and texture_by: crackiness, so resolveOverlayTextureRef supplies
+            // the level's texture (IronGolemCrackiness) and the render loop skips the overlay when the
+            // axis resolves to no texture (NONE), keeping the default byte-identical. Same-geometry
+            // (reuses the base body model; the crack PNGs share the body UV) + skip_bounds (within the
+            // body silhouette). The layer reuses the parent model, so the generic composite gate never
+            // sees it - this dedicated handler is the emit path.
+            if (VanillaSourceClasses.IRON_GOLEM_CRACKINESS_LAYER.equals(layerClass)) {
+                out.add(new Result(layerClass, "", false, null, 0xFFFFFFFF,
+                    0f, true, null, false, false, "crackiness", false));
+                continue;
+            }
+
             // CreeperPowerLayer: the charged (lightning-struck) creeper's blue energy swirl, an
             // EnergySwirlLayer whose model is CreeperModel(bakeLayer(ModelLayers.CREEPER_ARMOR)) - the
             // base creeper createBodyLayer inflated CubeDeformation(2.0). Reuse the base geometry
@@ -543,8 +558,17 @@ public final class EntityOverlayResolver {
                     out.add(new Result(rendererInternalName, direct.texturePath(), true, null, 0xFFFFFFFF));
                 } else {
                     String emissiveTexture = findLivingEntityEmissiveTexture(classNodes, rendererCn);
-                    if (emissiveTexture != null)
-                        out.add(new Result(rendererInternalName, emissiveTexture, true, null, 0xFFFFFFFF));
+                    if (emissiveTexture != null) {
+                        // Copper golem's inline emissive eyes swap by weathering (CopperGolemRenderer's
+                        // eye-texture provider reads state.weathering); tag texture_by: weathering so the
+                        // weathering axis picks the oxidation state's eye texture. The baked texture is
+                        // the UNAFFECTED default, so the default (unweathered) render is byte-identical.
+                        // Entity-id gated - only the copper golem's inline emissive eyes are weathering-
+                        // driven (entity_id is itself bytecode-derived from the EntityType registry walk).
+                        String eyeTextureBy = "minecraft:copper_golem".equals(entityId) ? "weathering" : null;
+                        out.add(new Result(rendererInternalName, emissiveTexture, true, null, 0xFFFFFFFF,
+                            0f, false, null, false, false, eyeTextureBy, false));
+                    }
                 }
             }
         }

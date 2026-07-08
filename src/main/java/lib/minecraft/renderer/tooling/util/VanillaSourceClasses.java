@@ -209,6 +209,10 @@ public final class VanillaSourceClasses {
     public static final @NotNull String HORSE_MARKING_LAYER =
         ENTITY_RENDERER_ROOT + "layers/HorseMarkingLayer";
 
+    /** Iron-golem crackiness (overlay) layer - a same-geometry overlay drawing the {@code iron_golem/iron_golem_crackiness_*} crack texture over the body, selected by the {@code crackiness} axis (its map omits {@code Crackiness.NONE}). */
+    public static final @NotNull String IRON_GOLEM_CRACKINESS_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/IronGolemCrackinessLayer";
+
     /** Horse renderer - its {@code <clinit>} builds {@code LOCATION_BY_VARIANT}, an enum-map of the coat {@link #EQUINE_VARIANT} to {@code HorseTextures{adult, baby}}, walked for the id-encoded coat {@code variant} axis. */
     public static final @NotNull String HORSE_RENDERER = ENTITY_RENDERER_ROOT + "HorseRenderer";
 

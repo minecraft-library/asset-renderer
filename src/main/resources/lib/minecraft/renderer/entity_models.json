@@ -370,6 +370,7 @@
           "geometry_ref": "geometry.coppergolem",
           "texture_ref": "copper_golem/copper_golem_eyes",
           "emissive": true,
+          "texture_by": "weathering",
           "inflate": 0.001
         }
       ]
@@ -865,6 +866,14 @@
       "geometry_ref": "geometry.irongolem",
       "armor_type": "none",
       "texture_ref": "iron_golem/iron_golem",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.irongolem",
+          "texture_by": "crackiness",
+          "inflate": 0.001,
+          "skip_bounds": true
+        }
+      ],
       "block_overlays": [
         {
           "block_id": "minecraft:poppy",

@@ -6,9 +6,11 @@ import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Age;
+import lib.minecraft.renderer.option.CopperWeathering;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.HorseMarking;
+import lib.minecraft.renderer.option.IronGolemCrackiness;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -120,6 +122,12 @@ public final class TestEntityRender3D {
         // -Dasset.entity.markings=white_dots names a horse marking (HorseMarking); default NONE.
         Optional<String> markingsName = Optional.ofNullable(System.getProperty("asset.entity.markings")).filter(s -> !s.isBlank());
         HorseMarking markings = markingsName.map(HorseMarking::ofName).orElse(HorseMarking.NONE);
+        // -Dasset.entity.crackiness=low|medium|high names an iron-golem damage level; default NONE.
+        Optional<String> crackinessName = Optional.ofNullable(System.getProperty("asset.entity.crackiness")).filter(s -> !s.isBlank());
+        IronGolemCrackiness crackiness = crackinessName.map(IronGolemCrackiness::ofName).orElse(IronGolemCrackiness.NONE);
+        // -Dasset.entity.weathering=exposed|weathered|oxidized names a copper-golem oxidation state; default UNAFFECTED.
+        Optional<String> weatheringName = Optional.ofNullable(System.getProperty("asset.entity.weathering")).filter(s -> !s.isBlank());
+        CopperWeathering weathering = weatheringName.map(CopperWeathering::ofName).orElse(CopperWeathering.UNAFFECTED);
         boolean sheared = Boolean.getBoolean("asset.entity.sheared");
         boolean charged = Boolean.getBoolean("asset.entity.charged");
         java.util.Set<String> toggles = Optional.ofNullable(System.getProperty("asset.entity.toggles")).filter(s -> !s.isBlank())
@@ -156,6 +164,8 @@ public final class TestEntityRender3D {
                 + (charged ? "_charged" : "")
                 + sizeOpt.map(s -> "_size-" + s.name().toLowerCase(java.util.Locale.ROOT)).orElse("")
                 + (markings == HorseMarking.NONE ? "" : "_markings-" + markings.name().toLowerCase(java.util.Locale.ROOT))
+                + (crackiness == IronGolemCrackiness.NONE ? "" : "_crackiness-" + crackiness.name().toLowerCase(java.util.Locale.ROOT))
+                + (weathering == CopperWeathering.UNAFFECTED ? "" : "_weathering-" + weathering.name().toLowerCase(java.util.Locale.ROOT))
                 + (toggles.isEmpty() ? "" : "_toggle-" + String.join("-", toggles))
                 + (equipment.isEmpty() ? "" : "_equip-" + equipment.entrySet().stream()
                     .map(en -> en.getValue().isEmpty() ? en.getKey() : en.getKey() + "-" + en.getValue())
@@ -168,6 +178,8 @@ public final class TestEntityRender3D {
                 .tints(tints)
                 .pattern(pattern)
                 .markings(markings)
+                .crackiness(crackiness)
+                .weathering(weathering)
                 .sheared(sheared)
                 .charged(charged)
                 .size(sizeOpt)

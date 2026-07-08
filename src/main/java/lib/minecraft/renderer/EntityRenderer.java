@@ -28,6 +28,7 @@ import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.option.CopperWeathering;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.HorseMarking;
@@ -303,8 +304,26 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         EntityAppearance appearance = options.getAppearance();
         return babyTexture(definition, appearance)
+            .or(() -> selectWeatheringTexture(definition, appearance).flatMap(this::resolveEntityRef))
             .or(() -> selectStateTexture(definition, appearance).flatMap(this::resolveEntityRef))
             .or(() -> definition.textureRef().flatMap(this::resolveEntityRef));
+    }
+
+    /**
+     * Selects the copper golem's weathered body base texture when the resolved definition supports
+     * weathering (it carries a {@code texture_by: weathering} eye overlay) and a non-{@link
+     * CopperWeathering#UNAFFECTED} state is chosen; empty otherwise (so the caller falls back to the
+     * default {@code texture_ref}, which is the {@code UNAFFECTED} texture). Keeps the default
+     * (unweathered) render byte-identical.
+     */
+    private @NotNull Optional<String> selectWeatheringTexture(
+        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull EntityAppearance appearance
+    ) {
+        if (appearance.getWeathering() == CopperWeathering.UNAFFECTED) return Optional.empty();
+        boolean supportsWeathering = definition.overlays().stream()
+            .anyMatch(o -> o.textureBy().filter("weathering"::equals).isPresent());
+        return supportsWeathering ? Optional.of(appearance.getWeathering().baseTexture()) : Optional.empty();
     }
 
     /**
@@ -376,6 +395,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     if (overlay.requiresTint() && !hasSelectedTint(overlay, appearance)) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
                     Optional<String> overlayRef = resolveOverlayTextureRef(overlay, appearance);
+                    // A texture_by overlay whose axis resolves to no texture draws nothing - the base /
+                    // "none" state (iron golem Crackiness.NONE) - so skip it, keeping the default
+                    // (unselected) render byte-identical. Overlays with a baked default (tropical fish
+                    // pattern's KOB) always resolve, so they are never skipped here.
+                    if (overlay.textureBy().isPresent() && overlayRef.isEmpty()) continue;
                     stack.append(this.slot, sink -> {
                         if (overlay.model().getBones().isEmpty()) return;
                         Optional<PixelBuffer> overlayTex = overlayRef.isPresent()
@@ -553,14 +577,20 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
      * The effective texture ref for a model overlay: the {@code texture_by} axis selection when the
-     * overlay is axis-driven ({@code pattern} tropical fish) and the appearance supplies it, else the
-     * overlay's baked {@link EntityModelLoader.OverlayLayer#textureRef() default texture} (empty =
-     * reuse the base entity texture). The default keeps an unselected overlay byte-identical; a
-     * selected pattern swaps in that pattern's overlay texture.
+     * overlay is axis-driven and the appearance supplies it, else the overlay's baked
+     * {@link EntityModelLoader.OverlayLayer#textureRef() default texture} (empty = reuse the base
+     * entity texture). Axes: {@code pattern} (tropical fish, baked default {@code KOB}),
+     * {@code crackiness} (iron golem, empty at {@code NONE} so the overlay is skipped), and
+     * {@code weathering} (copper-golem eyes, always resolves to the state's eye texture). The default
+     * keeps an unselected overlay byte-identical; a selection swaps in that axis' texture.
      */
     private static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
         if (overlay.textureBy().filter("pattern"::equals).isPresent())
             return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(overlay::textureRef);
+        if (overlay.textureBy().filter("crackiness"::equals).isPresent())
+            return appearance.getCrackiness().overlayTexture().or(overlay::textureRef);
+        if (overlay.textureBy().filter("weathering"::equals).isPresent())
+            return Optional.of(appearance.getWeathering().eyeTexture());
         return overlay.textureRef();
     }
 

@@ -100,6 +100,26 @@ public class EntityAppearance {
     private final @NotNull HorseMarking markings = HorseMarking.NONE;
 
     /**
+     * Iron-golem crackiness (damage) selector. When set to a non-{@link IronGolemCrackiness#NONE}
+     * level and the resolved entity carries a {@code texture_by: crackiness} overlay (the iron
+     * golem), that overlay draws the level's crack texture over the body; {@link
+     * IronGolemCrackiness#NONE} (default) draws no cracks, so the default appearance is
+     * byte-identical. Ignored by entities without a crackiness overlay.
+     */
+    @lombok.Builder.Default
+    private final @NotNull IronGolemCrackiness crackiness = IronGolemCrackiness.NONE;
+
+    /**
+     * Copper-golem weathering selector. When the resolved entity supports weathering (the copper
+     * golem), this swaps both the body base texture and its emissive eye overlay to the selected
+     * oxidation state's textures; {@link CopperWeathering#UNAFFECTED} (default) renders the
+     * freshly-placed copper textures, so the default appearance is byte-identical. Ignored by
+     * entities without weathering.
+     */
+    @lombok.Builder.Default
+    private final @NotNull CopperWeathering weathering = CopperWeathering.UNAFFECTED;
+
+    /**
      * Whether the entity renders sheared. When {@code true} the resolved definition drops its
      * shearable overlays (the sheep wool) - both the rendered geometry and its canvas-bounds
      * contribution; {@code false} (default) renders the entity's wool.
