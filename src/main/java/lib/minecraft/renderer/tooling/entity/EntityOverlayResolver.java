@@ -10,17 +10,23 @@ import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -387,6 +393,21 @@ public final class EntityOverlayResolver {
                 if (swirlTexture != null)
                     out.add(new Result(layerClass, swirlTexture, true, null, 0xFFFFFFFF,
                         2.0f, false, null, false, false, null, true));
+                continue;
+            }
+
+            // WardenRenderer: five LivingEntityEmissiveLayer passes (bioluminescent body glow,
+            // two anti-phase pulsating-spot layers, tendrils, heart), each baking a DISTINCT
+            // ModelLayers subset (WARDEN_BIOLUMINESCENT etc. = createBodyLayer().apply(retainExactParts))
+            // and driven by a per-layer alpha function. scanOverlayLayers dedups the five same-class
+            // layers to one entry, and the copper-golem inline emissive path rejects them (distinct
+            // ModelLayers), so walk the renderer's <init> directly for each `new
+            // LivingEntityEmissiveLayer(...)` allocation. Entity-id gated because the reuse-base-mesh
+            // approximation is warden-specific (creaking's CREAKING_EYES is a genuinely different mesh).
+            if (VanillaSourceClasses.LIVING_ENTITY_EMISSIVE_LAYER.equals(layerClass)
+                && "minecraft:warden".equals(entityId)) {
+                for (Result r : resolveWardenEmissiveLayers(classNodes, rendererInternalName, layerClass))
+                    out.add(r);
                 continue;
             }
 
@@ -1691,6 +1712,237 @@ public final class EntityOverlayResolver {
         }
 
         return null;
+    }
+
+    /**
+     * Resolves the warden's five {@code LivingEntityEmissiveLayer} passes into emissive overlays by
+     * walking {@code WardenRenderer.<init>} for each {@code new LivingEntityEmissiveLayer(parent,
+     * textureFn, alphaFn, model, renderTypeFn, alwaysVisible)} allocation. The five layers are the
+     * same class (so {@link EntityBoneResolver#scanOverlayLayers} dedups them to one entry) added
+     * with different texture / alpha function lambdas and distinct {@code ModelLayers} subset meshes
+     * ({@code WARDEN_BIOLUMINESCENT} etc.).
+     *
+     * <p>For each allocation the first two lambda {@code invokedynamic}s are the texture provider and
+     * the alpha function (the third is the shared render-type provider). The texture is resolved from
+     * the texture lambda's {@code getstatic <Identifier field>} back through the renderer's
+     * {@code <clinit>} ({@link #chaseTextureFieldOwner}); the alpha is the alpha lambda evaluated at
+     * the harness's frozen frame ({@code ageInTicks == 0}, render-state animation fields {@code 0} -
+     * see the vanilla-reference-harness {@code FreezeAnimationStateMixin}) via
+     * {@link #evaluateFrozenAlpha}. Only layers whose frozen-frame alpha is positive are emitted -
+     * at rest that is the bioluminescent body glow ({@code alpha 1.0}) and the phase-0 pulsating
+     * spots ({@code cos(0) * 0.25 = 0.25}); the anti-phase spots ({@code cos(pi) * 0.25 -> max 0}),
+     * tendrils and heart ({@code tendrilAnimation} / {@code heartAnimation}, {@code 0} at rest) drop
+     * out, matching the reference the harness renders.
+     *
+     * <p>Each emitted overlay reuses the base warden mesh ({@code modelLayerField == null}) rather
+     * than baking the {@code retainExactParts} subset: the glow textures are 96-99% transparent, so
+     * the full mesh masked by the transparent texture is equivalent to the retained-parts subset.
+     * The layer is {@code emissive} (full-bright) with the per-layer alpha baked as the tint colour's
+     * alpha byte ({@code ARGB.white(alpha)} = {@code (floor(alpha*255) << 24) | 0xFFFFFF}, exactly
+     * the vertex colour vanilla passes), so the runtime's MULTIPLY-tint then source-over blend
+     * reproduces the layer's translucency. {@code skip_bounds}: the glow sits within the body
+     * silhouette.
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param rendererInternalName the warden renderer's JVM internal name
+     * @param layerClass the {@code LivingEntityEmissiveLayer} internal name (overlay provenance)
+     * @return one emissive overlay descriptor per visible warden glow layer, in source order
+     */
+    private static @NotNull List<Result> resolveWardenEmissiveLayers(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String rendererInternalName,
+        @NotNull String layerClass
+    ) {
+        List<Result> out = new ArrayList<>();
+        ClassNode renderer = classNodes.load(rendererInternalName);
+        if (renderer == null) return out;
+        MethodNode init = AsmKit.findMethod(renderer, AsmKit.INIT);
+        if (init == null) return out;
+
+        boolean inAlloc = false;
+        List<Handle> lambdas = new ArrayList<>();
+        for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() == Opcodes.NEW
+                && in instanceof TypeInsnNode ti
+                && VanillaSourceClasses.LIVING_ENTITY_EMISSIVE_LAYER.equals(ti.desc)) {
+                inAlloc = true;
+                lambdas.clear();
+                continue;
+            }
+            if (!inAlloc) continue;
+            if (AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy) {
+                Handle handle = AsmKit.extractLambdaHandle(indy);
+                if (handle != null) lambdas.add(handle);
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.INVOKESPECIAL
+                && in instanceof MethodInsnNode mi
+                && VanillaSourceClasses.LIVING_ENTITY_EMISSIVE_LAYER.equals(mi.owner)
+                && AsmKit.INIT.equals(mi.name)) {
+                inAlloc = false;
+                if (lambdas.size() < 3) continue;
+                String texture = resolveEmissiveLambdaTexture(classNodes, renderer, lambdas.get(0));
+                float alpha = evaluateFrozenAlpha(renderer, lambdas.get(1));
+                // Only full-opacity layers are emitted. At the frozen frame that is the bioluminescent
+                // body glow (alpha 1.0); the pulsating spots (0.25), tendrils and heart (0 at rest)
+                // drop out. A fractional frozen-frame alpha can't be reproduced with the current overlay
+                // schema anyway - the tint colour's alpha byte is discarded by the MULTIPLY blend
+                // (blendMultiply keeps the texel's alpha), so there's no per-overlay opacity multiplier
+                // (that is backlog #14) - and the spots additionally bake a body-excluding subset mesh
+                // (retainExactParts) that base-mesh reuse would over-draw. Both are deferred. The
+                // bioluminescent layer needs neither: its glow lives in the texture's own partial alpha
+                // and it retains everything but the tendrils (transparent there), so base-mesh reuse is
+                // exact.
+                if (texture == null || alpha < 0.999f) continue;
+                // The warden layers use RenderTypes.entityTranslucentEmissive, which (like breeze eyes)
+                // keeps PER_FACE_LIGHTING - NOT the NO_CARDINAL_LIGHTING that RenderType.eyes carries -
+                // so the glow is Lambertian-shaded, not full-bright. Derive emissive from the render-type
+                // factory (the third lambda) exactly like the eye-overlay handler, so the shade matches
+                // vanilla instead of over-brightening.
+                boolean emissive = renderTypeIsFullyEmissive(classNodes, renderer, lambdas.get(2));
+                out.add(new Result(layerClass, texture, emissive, null, 0xFFFFFFFF,
+                    0f, true, null, false, false, null, false));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Resolves the texture path a {@code LivingEntityEmissiveLayer} texture-provider lambda returns.
+     * The lambda body is a single {@code getstatic <Identifier field>; areturn}; the field is bound
+     * in the renderer's {@code <clinit>} by the standard {@code LDC + withDefaultNamespace + PUTSTATIC}
+     * chain, so {@link #chaseTextureFieldOwner} recovers the raw {@code textures/entity/...png} path.
+     *
+     * @param classNodes the ClassNode cache
+     * @param renderer the renderer class holding the lambda + the texture field's {@code <clinit>}
+     * @param textureLambda the texture-provider lambda handle
+     * @return the raw texture path, or {@code null} when the lambda doesn't match the field-return shape
+     */
+    private static @Nullable String resolveEmissiveLambdaTexture(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull ClassNode renderer,
+        @NotNull Handle textureLambda
+    ) {
+        MethodNode lambda = AsmKit.findMethod(renderer, textureLambda.getName(), textureLambda.getDesc());
+        if (lambda == null) return null;
+        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
+            if (in.getOpcode() == Opcodes.GETSTATIC
+                && in instanceof FieldInsnNode fi
+                && IDENTIFIER_DESC.equals(fi.desc))
+                return chaseTextureFieldOwner(classNodes, fi.owner, fi.name);
+        return null;
+    }
+
+    /**
+     * Reports whether a {@code LivingEntityEmissiveLayer}'s render-type provider resolves to a
+     * fully-emissive (full-bright, {@code NO_CARDINAL_LIGHTING}) render type. The provider is a
+     * {@code Function<Identifier, RenderType>} passed as the layer's fifth ctor arg - either a direct
+     * {@code RenderTypes::factory} method reference (handle owner {@code RenderTypes}) or a lambda that
+     * calls one {@code RenderTypes.factory(...)}. The factory name feeds
+     * {@link #factoryHasNoCardinalLighting}, the same classifier the eye-overlay handler uses:
+     * {@code eyes} -&gt; full-bright, {@code entityTranslucentEmissive} (the warden's) -&gt; Lambertian
+     * per-face shaded.
+     *
+     * @param classNodes the ClassNode cache
+     * @param renderer the renderer class holding any lambda body
+     * @param renderTypeLambda the render-type provider lambda / method-reference handle
+     * @return {@code true} when the render type is full-bright, {@code false} when shaded (or unresolved)
+     */
+    private static boolean renderTypeIsFullyEmissive(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull ClassNode renderer,
+        @NotNull Handle renderTypeLambda
+    ) {
+        String factory = null;
+        if (VanillaSourceClasses.RENDER_TYPES.equals(renderTypeLambda.getOwner())) {
+            factory = renderTypeLambda.getName();
+        } else {
+            MethodNode lambda = AsmKit.findMethod(renderer, renderTypeLambda.getName(), renderTypeLambda.getDesc());
+            if (lambda != null)
+                for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
+                    if (in.getOpcode() == Opcodes.INVOKESTATIC
+                        && in instanceof MethodInsnNode mi
+                        && VanillaSourceClasses.RENDER_TYPES.equals(mi.owner)) {
+                        factory = mi.name;
+                        break;
+                    }
+        }
+        return factory != null && factoryHasNoCardinalLighting(classNodes, factory);
+    }
+
+    /**
+     * Evaluates a {@code LivingEntityEmissiveLayer} alpha-function lambda at the harness's frozen
+     * frame - {@code ageInTicks == 0} and every render-state animation field {@code 0} (the
+     * vanilla-reference-harness {@code FreezeAnimationStateMixin} state). A small operand-stack
+     * interpreter walks the lambda body handling the shapes the warden layers use: float constants,
+     * the {@code ageInTicks} parameter (always {@code 0}), render-state {@code GETFIELD}s (always
+     * {@code 0} at rest), {@code fmul}/{@code fadd}/{@code fsub}, and the {@code Mth.cos} /
+     * {@code Mth.sin} / {@code Math.max} / {@code Math.min} / {@code Mth.clamp} intrinsics. Returns
+     * the {@code (D|F)RETURN}ed value, or {@code 0} when the body uses an unsupported op (so an
+     * un-evaluable layer drops rather than emits a wrong alpha).
+     *
+     * @param renderer the renderer class holding the lambda
+     * @param alphaLambda the alpha-function lambda handle
+     * @return the frozen-frame alpha in {@code [0, 1]}, or {@code 0} when unresolved
+     */
+    private static float evaluateFrozenAlpha(@NotNull ClassNode renderer, @NotNull Handle alphaLambda) {
+        MethodNode lambda = AsmKit.findMethod(renderer, alphaLambda.getName(), alphaLambda.getDesc());
+        if (lambda == null) return 0f;
+        Deque<Double> stack = new ArrayDeque<>();
+        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
+            int op = in.getOpcode();
+            Float constant = AsmKit.readFloatLiteral(in);
+            if (constant != null) {
+                stack.push((double) constant);
+                continue;
+            }
+            switch (op) {
+                // ageInTicks parameter and render-state field reads are both 0 at the frozen frame.
+                // ALOAD pushes the (unused) state receiver so the following GETFIELD has an operand.
+                case Opcodes.FLOAD -> stack.push(0.0);
+                case Opcodes.ALOAD -> stack.push(0.0);
+                case Opcodes.GETFIELD -> { pop(stack); stack.push(0.0); }
+                case Opcodes.FMUL -> { double b = pop(stack), a = pop(stack); stack.push(a * b); }
+                case Opcodes.FADD -> { double b = pop(stack), a = pop(stack); stack.push(a + b); }
+                case Opcodes.FSUB -> { double b = pop(stack), a = pop(stack); stack.push(a - b); }
+                case Opcodes.F2D, Opcodes.D2F, Opcodes.I2F, Opcodes.F2I -> { /* numeric widening/narrowing no-op */ }
+                case Opcodes.INVOKESTATIC -> {
+                    if (!(in instanceof MethodInsnNode mi) || !applyFloatIntrinsic(mi.name, stack)) return 0f;
+                }
+                case Opcodes.FRETURN, Opcodes.DRETURN -> { return stack.isEmpty() ? 0f : (float) (double) stack.peek(); }
+                default -> {
+                    // An unrecognised opcode means the alpha shape isn't one we can statically fold;
+                    // drop the layer (return 0) rather than emit a guessed alpha.
+                    if (op >= 0) return 0f;
+                }
+            }
+        }
+        return 0f;
+    }
+
+    /**
+     * Applies a recognised float intrinsic ({@code Mth.cos} / {@code Mth.sin} / {@code Math.max} /
+     * {@code Math.min} / {@code Mth.clamp}) to the operand stack. Returns {@code false} for an
+     * unrecognised static call so {@link #evaluateFrozenAlpha} can bail. {@code Mth.cos} at the
+     * frozen frame is exact for the values the warden uses ({@code cos(0) = 1}); the {@code max(0, ..)}
+     * clamp then drops the anti-phase layer.
+     */
+    private static boolean applyFloatIntrinsic(@NotNull String name, @NotNull Deque<Double> stack) {
+        switch (name) {
+            case "cos" -> stack.push(Math.cos(pop(stack)));
+            case "sin" -> stack.push(Math.sin(pop(stack)));
+            case "max" -> { double b = pop(stack), a = pop(stack); stack.push(Math.max(a, b)); }
+            case "min" -> { double b = pop(stack), a = pop(stack); stack.push(Math.min(a, b)); }
+            case "clamp" -> { double hi = pop(stack), lo = pop(stack), v = pop(stack); stack.push(Math.max(lo, Math.min(hi, v))); }
+            default -> { return false; }
+        }
+        return true;
+    }
+
+    /** Pops a value from the interpreter stack, treating an underflow as {@code 0}. */
+    private static double pop(@NotNull Deque<Double> stack) {
+        Double v = stack.poll();
+        return v == null ? 0.0 : v;
     }
 
     /**

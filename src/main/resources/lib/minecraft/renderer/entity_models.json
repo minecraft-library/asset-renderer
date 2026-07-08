@@ -1748,7 +1748,15 @@
     "minecraft:warden": {
       "geometry_ref": "geometry.warden",
       "armor_type": "none",
-      "texture_ref": "warden/warden"
+      "texture_ref": "warden/warden",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.warden",
+          "texture_ref": "warden/warden_bioluminescent_layer",
+          "inflate": 0.001,
+          "skip_bounds": true
+        }
+      ]
     },
     "minecraft:witch": {
       "geometry_ref": "geometry.witch",
