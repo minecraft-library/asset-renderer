@@ -120,6 +120,39 @@ public class EntityAppearance {
     private final @NotNull CopperWeathering weathering = CopperWeathering.UNAFFECTED;
 
     /**
+     * Villager / zombie-villager biome type - the robe texture forming the base clothing pass. When
+     * the resolved entity carries a {@code texture_by: type} overlay (the villager profession layer),
+     * that overlay draws the selected type's {@code <prefix>/type/<biome>} robe;
+     * {@link VillagerType#PLAINS} (default) resolves to the baked {@code type/plains} robe, so the
+     * default appearance is byte-identical. Ignored by entities without a villager profession layer.
+     */
+    @lombok.Builder.Default
+    private final @NotNull VillagerType villagerType = VillagerType.PLAINS;
+
+    /**
+     * Villager / zombie-villager profession - the clothes + hat pass over the biome robe. When set to
+     * a non-{@link VillagerProfession#NONE} value and the resolved entity carries a
+     * {@code texture_by: profession} overlay, that overlay draws the profession's
+     * {@code <prefix>/profession/<name>} texture; {@link VillagerProfession#NONE} (default) draws no
+     * profession pass, so the default appearance is byte-identical. Ignored by entities without a
+     * villager profession layer.
+     */
+    @lombok.Builder.Default
+    private final @NotNull VillagerProfession villagerProfession = VillagerProfession.NONE;
+
+    /**
+     * Villager / zombie-villager trade level badge - the small emblem over the profession clothes.
+     * When set to a non-{@link VillagerLevel#NONE} tier and the selected
+     * {@link #villagerProfession profession} {@link VillagerProfession#drawsBadge() draws a badge}
+     * (a real job), the resolved entity's {@code texture_by: profession_level} overlay draws that
+     * tier's {@code <prefix>/profession_level/<badge>} texture; {@link VillagerLevel#NONE} (default)
+     * or a {@code NONE} / {@code NITWIT} profession draws no badge, so the default appearance is
+     * byte-identical. Ignored by entities without a villager profession layer.
+     */
+    @lombok.Builder.Default
+    private final @NotNull VillagerLevel villagerLevel = VillagerLevel.NONE;
+
+    /**
      * Whether the entity renders sheared. When {@code true} the resolved definition drops its
      * shearable overlays (the sheep wool) - both the rendered geometry and its canvas-bounds
      * contribution; {@code false} (default) renders the entity's wool.

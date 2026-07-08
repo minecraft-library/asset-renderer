@@ -12,6 +12,9 @@ import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.IronGolemCrackiness;
 import lib.minecraft.renderer.option.Size;
+import lib.minecraft.renderer.option.VillagerLevel;
+import lib.minecraft.renderer.option.VillagerProfession;
+import lib.minecraft.renderer.option.VillagerType;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -128,6 +131,15 @@ public final class TestEntityRender3D {
         // -Dasset.entity.weathering=exposed|weathered|oxidized names a copper-golem oxidation state; default UNAFFECTED.
         Optional<String> weatheringName = Optional.ofNullable(System.getProperty("asset.entity.weathering")).filter(s -> !s.isBlank());
         CopperWeathering weathering = weatheringName.map(CopperWeathering::ofName).orElse(CopperWeathering.UNAFFECTED);
+        // -Dasset.entity.type=desert names a villager/zombie_villager biome type (VillagerType); default PLAINS.
+        Optional<String> villagerTypeName = Optional.ofNullable(System.getProperty("asset.entity.type")).filter(s -> !s.isBlank());
+        VillagerType villagerType = villagerTypeName.map(VillagerType::ofName).orElse(VillagerType.PLAINS);
+        // -Dasset.entity.profession=farmer names a villager profession (VillagerProfession); default NONE.
+        Optional<String> professionName = Optional.ofNullable(System.getProperty("asset.entity.profession")).filter(s -> !s.isBlank());
+        VillagerProfession villagerProfession = professionName.map(VillagerProfession::ofName).orElse(VillagerProfession.NONE);
+        // -Dasset.entity.level=gold names a villager trade badge tier (VillagerLevel); default NONE (no badge).
+        Optional<String> villagerLevelName = Optional.ofNullable(System.getProperty("asset.entity.level")).filter(s -> !s.isBlank());
+        VillagerLevel villagerLevel = villagerLevelName.map(VillagerLevel::ofName).orElse(VillagerLevel.NONE);
         boolean sheared = Boolean.getBoolean("asset.entity.sheared");
         boolean charged = Boolean.getBoolean("asset.entity.charged");
         java.util.Set<String> toggles = Optional.ofNullable(System.getProperty("asset.entity.toggles")).filter(s -> !s.isBlank())
@@ -166,6 +178,9 @@ public final class TestEntityRender3D {
                 + (markings == HorseMarking.NONE ? "" : "_markings-" + markings.name().toLowerCase(java.util.Locale.ROOT))
                 + (crackiness == IronGolemCrackiness.NONE ? "" : "_crackiness-" + crackiness.name().toLowerCase(java.util.Locale.ROOT))
                 + (weathering == CopperWeathering.UNAFFECTED ? "" : "_weathering-" + weathering.name().toLowerCase(java.util.Locale.ROOT))
+                + (villagerType == VillagerType.PLAINS ? "" : "_type-" + villagerType.name().toLowerCase(java.util.Locale.ROOT))
+                + (villagerProfession == VillagerProfession.NONE ? "" : "_prof-" + villagerProfession.name().toLowerCase(java.util.Locale.ROOT))
+                + (villagerLevel == VillagerLevel.NONE ? "" : "_level-" + villagerLevel.name().toLowerCase(java.util.Locale.ROOT))
                 + (toggles.isEmpty() ? "" : "_toggle-" + String.join("-", toggles))
                 + (equipment.isEmpty() ? "" : "_equip-" + equipment.entrySet().stream()
                     .map(en -> en.getValue().isEmpty() ? en.getKey() : en.getKey() + "-" + en.getValue())
@@ -180,6 +195,9 @@ public final class TestEntityRender3D {
                 .markings(markings)
                 .crackiness(crackiness)
                 .weathering(weathering)
+                .villagerType(villagerType)
+                .villagerProfession(villagerProfession)
+                .villagerLevel(villagerLevel)
                 .sheared(sheared)
                 .charged(charged)
                 .size(sizeOpt)

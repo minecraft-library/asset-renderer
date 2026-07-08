@@ -389,12 +389,18 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 EntityAppearance appearance = ctx.options().getAppearance();
+                // The entity texture prefix (villager -> "villager", zombie_villager ->
+                // "zombie_villager") derived from the definition's own texture ref, prepended to the
+                // villager profession-layer overlays' prefix-relative sub-paths (type / profession /
+                // profession_level) so one shared VillagerType / VillagerProfession / VillagerLevel enum
+                // serves both entities.
+                String texturePrefix = texturePrefix(ctx.definition());
                 for (EntityModelLoader.OverlayLayer overlay : ctx.definition().overlays()) {
                     // A requires_tint overlay (sheep wool undercoat) only renders once its tint_by colour
                     // is selected; skip it for the default (untinted) entity so the default is unchanged.
                     if (overlay.requiresTint() && !hasSelectedTint(overlay, appearance)) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
-                    Optional<String> overlayRef = resolveOverlayTextureRef(overlay, appearance);
+                    Optional<String> overlayRef = resolveOverlayTextureRef(overlay, appearance, texturePrefix);
                     // A texture_by overlay whose axis resolves to no texture draws nothing - the base /
                     // "none" state (iron golem Crackiness.NONE) - so skip it, keeping the default
                     // (unselected) render byte-identical. Overlays with a baked default (tropical fish
@@ -580,18 +586,50 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * overlay is axis-driven and the appearance supplies it, else the overlay's baked
      * {@link EntityModelLoader.OverlayLayer#textureRef() default texture} (empty = reuse the base
      * entity texture). Axes: {@code pattern} (tropical fish, baked default {@code KOB}),
-     * {@code crackiness} (iron golem, empty at {@code NONE} so the overlay is skipped), and
-     * {@code weathering} (copper-golem eyes, always resolves to the state's eye texture). The default
-     * keeps an unselected overlay byte-identical; a selection swaps in that axis' texture.
+     * {@code crackiness} (iron golem, empty at {@code NONE} so the overlay is skipped),
+     * {@code weathering} (copper-golem eyes, always resolves to the state's eye texture), and the
+     * villager profession-layer trio {@code type} / {@code profession} / {@code profession_level}
+     * (prefix-relative sub-paths the {@code texturePrefix} qualifies; {@code profession} and
+     * {@code profession_level} resolve empty at their {@code NONE} default so the overlay is skipped).
+     * The default keeps an unselected overlay byte-identical; a selection swaps in that axis' texture.
+     *
+     * @param overlay the overlay layer to resolve a texture ref for
+     * @param appearance the axis selections to resolve against
+     * @param texturePrefix the entity texture prefix ({@code villager} / {@code zombie_villager})
+     *     prepended to the villager profession-layer axes' prefix-relative sub-paths
+     * @return the effective texture ref, or empty when the overlay's axis resolves to nothing
      */
-    private static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
+    private static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance, @NotNull String texturePrefix) {
         if (overlay.textureBy().filter("pattern"::equals).isPresent())
             return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(overlay::textureRef);
         if (overlay.textureBy().filter("crackiness"::equals).isPresent())
             return appearance.getCrackiness().overlayTexture().or(overlay::textureRef);
         if (overlay.textureBy().filter("weathering"::equals).isPresent())
             return Optional.of(appearance.getWeathering().eyeTexture());
+        if (overlay.textureBy().filter("type"::equals).isPresent())
+            return Optional.of(texturePrefix + "/" + appearance.getVillagerType().overlaySubPath());
+        if (overlay.textureBy().filter("profession"::equals).isPresent())
+            return appearance.getVillagerProfession().overlaySubPath().map(sub -> texturePrefix + "/" + sub);
+        if (overlay.textureBy().filter("profession_level"::equals).isPresent())
+            return appearance.getVillagerProfession().drawsBadge()
+                ? appearance.getVillagerLevel().overlaySubPath().map(sub -> texturePrefix + "/" + sub)
+                : Optional.empty();
         return overlay.textureRef();
+    }
+
+    /**
+     * The entity texture prefix (the first path segment of the definition's {@code texture_ref}, e.g.
+     * {@code villager/villager} -&gt; {@code villager}) prepended to the villager profession-layer
+     * overlays' prefix-relative sub-paths. Empty when the definition carries no texture ref.
+     *
+     * @param definition the resolved entity definition
+     * @return the texture prefix, or the empty string when no texture ref is present
+     */
+    private static @NotNull String texturePrefix(@NotNull EntityModelLoader.EntityDefinition definition) {
+        return definition.textureRef().map(ref -> {
+            int slash = ref.indexOf('/');
+            return slash < 0 ? ref : ref.substring(0, slash);
+        }).orElse("");
     }
 
     /**

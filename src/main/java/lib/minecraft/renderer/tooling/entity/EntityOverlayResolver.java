@@ -459,19 +459,35 @@ public final class EntityOverlayResolver {
             }
 
             // VillagerProfessionLayer (used by VillagerRenderer + ZombieVillagerRenderer): the
-            // layer renders an additional textured pass on top of the base villager geometry,
-            // dispatched per-state to type/&lt;biome&gt;.png + optional profession + profession_level
-            // PNGs. At zero state (PLAINS biome, NONE profession, level 1) only the
-            // type/plains.png pass actually fires. The texture prefix ("villager" /
+            // layer renders up to three same-geometry textured passes over the base villager body -
+            // type/&lt;biome&gt; (the biome robe, base clothing), profession/&lt;name&gt; (clothes +
+            // hat), and profession_level/&lt;badge&gt; (the trade badge). At zero state (PLAINS biome,
+            // NONE profession) only the type/plains pass fires. The texture prefix ("villager" /
             // "zombie_villager") is the third constructor arg at the renderer's
-            // `addLayer(new VillagerProfessionLayer(this, resourceManager, "<prefix>", ...))`
-            // call site. Emit as a same-geometry overlay so the runtime gets the auto-applied
-            // inflate=0.001 (equal-Z depth-fail clearance).
+            // `addLayer(new VillagerProfessionLayer(this, resourceManager, "<prefix>", ...))` call
+            // site. Emit each as a same-geometry overlay (modelLayerField=null -> reuses the body
+            // mesh + auto inflate=0.001 depth clearance; the type/profession/level PNGs share the
+            // body UV) driven by an axis:
+            //   - type: baked type/plains default + texture_by:type. VillagerType default PLAINS
+            //     resolves to the same texture, so the unselected render is byte-identical.
+            //   - profession: NO baked texture_ref + texture_by:profession. The profession axis
+            //     supplies <prefix>/profession/<name>; VillagerProfession.NONE (default) resolves to
+            //     nothing so the render loop drops the overlay (byte-identical default). skip_bounds:
+            //     the clothes sit within the body silhouette.
+            //   - profession_level: NO baked texture_ref + texture_by:profession_level, gated (at
+            //     render) on the profession drawing a badge. Default draws nothing. skip_bounds.
+            // Emission order (type, profession, level) is render order: same-inflate coplanar ties
+            // break by insertion, so the badge draws over the clothes over the robe.
             if (VanillaSourceClasses.VILLAGER_PROFESSION_LAYER.equals(layerClass)) {
                 String prefix = extractVillagerProfessionPrefix(classNodes, rendererInternalName);
                 if (prefix != null) {
-                    String texture = TEXTURE_PATH_PREFIX + prefix + "/type/plains.png";
-                    out.add(new Result(layerClass, texture, false, null, 0xFFFFFFFF));
+                    String typeTexture = TEXTURE_PATH_PREFIX + prefix + "/type/plains.png";
+                    out.add(new Result(layerClass, typeTexture, false, null, 0xFFFFFFFF,
+                        0f, false, null, false, false, "type", false));
+                    out.add(new Result(layerClass, "", false, null, 0xFFFFFFFF,
+                        0f, true, null, false, false, "profession", false));
+                    out.add(new Result(layerClass, "", false, null, 0xFFFFFFFF,
+                        0f, true, null, false, false, "profession_level", false));
                 }
                 continue;
             }

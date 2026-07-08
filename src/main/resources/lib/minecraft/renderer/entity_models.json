@@ -1699,7 +1699,20 @@
         {
           "geometry_ref": "geometry.villager",
           "texture_ref": "villager/type/plains",
+          "texture_by": "type",
           "inflate": 0.001
+        },
+        {
+          "geometry_ref": "geometry.villager",
+          "texture_by": "profession",
+          "inflate": 0.001,
+          "skip_bounds": true
+        },
+        {
+          "geometry_ref": "geometry.villager",
+          "texture_by": "profession_level",
+          "inflate": 0.001,
+          "skip_bounds": true
         }
       ],
       "axes": {
@@ -2011,7 +2024,20 @@
         {
           "geometry_ref": "geometry.zombievillager",
           "texture_ref": "zombie_villager/type/plains",
+          "texture_by": "type",
           "inflate": 0.001
+        },
+        {
+          "geometry_ref": "geometry.zombievillager",
+          "texture_by": "profession",
+          "inflate": 0.001,
+          "skip_bounds": true
+        },
+        {
+          "geometry_ref": "geometry.zombievillager",
+          "texture_by": "profession_level",
+          "inflate": 0.001,
+          "skip_bounds": true
         }
       ],
       "axes": {
