@@ -4,9 +4,12 @@ import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.options.BlockOptions;
+import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
+import lib.minecraft.renderer.tensor.Matrix4f;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -68,7 +71,7 @@ public final class Block {
     /**
      * Rendering override for blocks whose visual geometry comes from a vanilla
      * {@code BlockEntityRenderer} (beds, chests, banners, shulkers, signs, skulls, conduit,
-     * decorated_pot, etc.). When present, renderers prefer {@link Entity#model()} over
+     * decorated_pot, etc.). When present, renderers prefer {@link Entity#boneModel()} over
      * {@link #getModel()}, multiply {@link Entity#tintArgb()} against sampled texels, honour
      * {@link Entity#iconRotation()} for the atlas icon, and optionally compose
      * {@link Entity#parts()} for multi-part atlas views (bed head + foot, decorated_pot body +
@@ -92,6 +95,23 @@ public final class Block {
      * per-state models render their default rather than whichever state registered first.
      */
     private final @NotNull String defaultStateKey;
+
+    /**
+     * Returns this block's texture reference for the first of {@code directionKeys} that is bound in
+     * {@link #getTextures()}, or {@code ""} when none is. Callers pass the fallback chain in priority
+     * order - e.g. {@code textureRef(direction, "all", "side", "particle")} - so the block owns its
+     * own first-bound resolution instead of each call site cascading {@code getOrDefault}.
+     *
+     * @param directionKeys the texture-map keys to try, in priority order
+     * @return the first bound texture ref, or {@code ""} when none of the keys is bound
+     */
+    public @NotNull String textureRef(@NotNull String @NotNull ... directionKeys) {
+        for (String key : directionKeys) {
+            String ref = this.textures.get(key);
+            if (ref != null) return ref;
+        }
+        return "";
+    }
 
     /**
      * The provenance of a {@link Block}'s registration. Drives atlas tile classification and any
@@ -173,6 +193,32 @@ public final class Block {
     public record Tint(@NotNull TintTarget target, @NotNull Optional<Integer> constant) {}
 
     /**
+     * The geometry a {@link Variant} carries - either a resolved element model (plain blockstate
+     * variants) or a relative bone tree + presentation (a block entity's state-conditional bone
+     * mesh). A variant holds exactly one, so the renderer pattern-matches on the geometry kind
+     * instead of disambiguating an empty-{@link ModelData} sentinel against an {@link Optional}.
+     */
+    public sealed interface VariantGeometry permits ElementGeometry, BoneGeometry {}
+
+    /**
+     * A {@link Variant} backed by a resolved element {@link ModelData} - the plain blockstate case.
+     * The {@link #model()} is element-less when the variant's {@code modelId} did not resolve against
+     * the loaded model set, in which case the renderer falls back to the block's primary model.
+     *
+     * @param model the resolved element model, or element-less when unresolved
+     */
+    public record ElementGeometry(@NotNull ModelData model) implements VariantGeometry {}
+
+    /**
+     * A {@link Variant} backed by a relative bone tree - a block entity's state-conditional bone
+     * mesh (the ceiling hanging sign's straight-chain mesh under {@code attached=true}), composed at
+     * render time via {@link BlockGeometryKit#buildFromBones}.
+     *
+     * @param boneModel the variant's relative bone geometry plus its render-time presentation
+     */
+    public record BoneGeometry(@NotNull Entity.BoneModel boneModel) implements VariantGeometry {}
+
+    /**
      * A single blockstate variant entry, specifying which model to use and what whole-block
      * rotation to apply. Parsed from blockstate JSON files like
      * {@code assets/minecraft/blockstates/furnace.json}.
@@ -180,18 +226,18 @@ public final class Block {
      * The {@code x} and {@code y} rotations are multiples of 90 degrees applied to the entire
      * model before rendering. These are distinct from element-level rotations in the model JSON.
      * <p>
-     * The {@code model} is the resolved {@link ModelData} this variant references, baked in
-     * at pipeline-context construction time so a variant reaches its geometry through its owning
-     * {@link Block} rather than a context-level model registry. Variants whose {@code modelId}
-     * cannot be resolved against the loaded model set carry an element-less {@code ModelData}.
+     * The {@code geometry} - baked in at pipeline-context construction time so a variant reaches its
+     * geometry through its owning {@link Block} rather than a context-level registry - is either an
+     * {@link ElementGeometry} (plain blockstate variants) or a {@link BoneGeometry} (a block entity's
+     * state-conditional bone mesh, e.g. the ceiling hanging sign under {@code attached=true}).
      *
      * @param modelId the namespaced model reference (e.g. {@code "minecraft:block/furnace"})
-     * @param model the resolved model this variant references, or element-less when unresolved
      * @param x the whole-model X rotation in degrees (0, 90, 180, or 270)
      * @param y the whole-model Y rotation in degrees (0, 90, 180, or 270)
      * @param uvlock whether UVs should be locked to the block grid during rotation
+     * @param geometry the variant's geometry - an {@link ElementGeometry} or a {@link BoneGeometry}
      */
-    public record Variant(@NotNull String modelId, @NotNull ModelData model, int x, int y, boolean uvlock) {
+    public record Variant(@NotNull String modelId, int x, int y, boolean uvlock, @NotNull VariantGeometry geometry) {
 
         /**
          * Reports whether this variant applies a whole-model rotation.
@@ -224,26 +270,24 @@ public final class Block {
     }
 
     /**
-     * Rendering metadata for a block entity - carries the custom geometry extracted from a vanilla
-     * {@code BlockEntityRenderer} plus per-block presentation knobs (entity texture, dye tint, icon
-     * rotation, multi-block flag, atlas-time composition parts). Populated by
-     * {@link BlockModelLoader} for the ~180 block ids whose
-     * visual appearance comes from a tile-entity renderer rather than their {@code block.json}.
+     * Rendering metadata for a block entity - carries the relative bone geometry extracted from a
+     * vanilla {@code BlockEntityRenderer} plus per-block presentation knobs (entity texture, dye
+     * tint, icon rotation, atlas-time composition parts). Populated by {@link BlockModelLoader} for
+     * the ~180 block ids whose visual appearance comes from a tile-entity renderer rather than their
+     * {@code block.json}.
      *
-     * @param beType vanilla {@code BlockEntityType} reference for diagnostics ({@code "minecraft:bed"})
-     * @param model extracted geometry (elements + face UVs)
+     * @param boneModel the relative bone/cube geometry plus its render-time presentation; the renderer
+     *     composes it via {@link BlockGeometryKit#buildFromBones}
      * @param textureId entity texture id bound to the {@code "#entity"} texture variable, e.g
      *     {@code "minecraft:entity/bed/red"}
      * @param tintArgb ARGB tint multiplied against every sampled texel - used for per-dye banner
      *     colouring; {@link ColorMath#WHITE} for no tint
      * @param iconRotation Y-axis rotation in degrees applied only to the atlas icon (beds use 90°
      *     to angle the headboard toward the camera)
-     * @param multiBlock {@code true} when the geometry extends outside the {@code 0..16} block
-     *     bbox and the atlas icon needs runtime {@code recenterAndFit}
      * @param parts atlas-time composition instructions - additional entity models merged at an
      *     offset (bed foot merged onto bed head, decorated_pot sides onto the base, banner flag
      *     onto the post). Empty for single-piece entities.
-     * @param additive when {@code true}, the entity {@link #model()} is merged ON TOP of the
+     * @param additive when {@code true}, the entity {@link #boneModel()} is merged ON TOP of the
      *     block's blockstate-resolved primary model rather than replacing it. Used for blocks
      *     whose vanilla render is "blockstate fixture + entity overlay" - the bell hangs from
      *     posts in {@code block/bell_floor.json} but its bell-cup body comes from
@@ -251,15 +295,125 @@ public final class Block {
      *     replace-the-model semantics used by chests / beds / banners / shulkers / signs / skulls.
      */
     public record Entity(
-        @NotNull String beType,
-        @NotNull ModelData model,
+        @NotNull BoneModel boneModel,
         @NotNull String textureId,
         int tintArgb,
         int iconRotation,
-        boolean multiBlock,
         @NotNull ConcurrentList<Part> parts,
         boolean additive
     ) {
+
+        /**
+         * The bone-format geometry for a block entity migrated onto the shared entity bone tree,
+         * plus the render-time presentation transform that reproduces vanilla's
+         * {@code BlockEntityRenderer} pose (formerly baked at tooling time, now applied at render).
+         * The renderer composes the relative {@link #model()} through
+         * {@link BlockGeometryKit#buildFromBones}, applying a {@code [0, 16]}-space presentation
+         * built from {@link #inventoryYRotation()} / {@link #entityFlip()} /
+         * {@link #inventoryTransform()}.
+         *
+         * @param model the relative bone/cube geometry in its native source frame (same schema as
+         *     {@code entity_geometry.json}); {@link #sourceYUp()} says which Y convention it uses
+         * @param sourceYUp whether the bones are authored Y-up (block space already, no Y-flip) or
+         *     Y-down (entity space, needing the presentation's {@code cy = -cy} to reach block space)
+         * @param inventoryYRotation the GUI-facing yaw in degrees applied about block centre
+         *     {@code (8, 8, 8)} to face the model at the standard {@code [30, 225, 0]} iso pose
+         *     (the chest's {@code +180}); the block presentation-yaw home, distinct from the entity
+         *     camera-yaw {@link EntityModelData#getInventoryYRotation()} (same name, two renderers,
+         *     two frames - block render reads only this one)
+         * @param entityFlip whether the entity-render {@code scale(-1, -1, 1)} X negation applies on
+         *     the no-inventory-transform path
+         * @param inventoryTransform the decomposed {@code [tx, ty, tz, pitch, yaw, roll, scale?]}
+         *     inventory transform, or {@code null} when the model takes the entity-flip path
+         * @param tinted whether this model's faces carry the block's tint (vanilla {@code tintindex}
+         *     0 - the banner flag's dyed cloth); when {@code false} the geometry samples its texture
+         *     untinted (the banner post's wood), so {@link BlockGeometryKit#buildFromBones} receives
+         *     the dye tint only for a tinted model
+         */
+        public record BoneModel(
+            @NotNull EntityModelData model,
+            boolean sourceYUp,
+            float inventoryYRotation,
+            boolean entityFlip,
+            float @Nullable [] inventoryTransform,
+            boolean tinted
+        ) {
+
+            /**
+             * Builds this bone model's {@code [0, 16]}-space presentation transform - the render-time
+             * pose vanilla's {@code BlockEntityRenderer} applies around the bone geometry (the bone
+             * chain itself is composed by {@link BlockGeometryKit#buildFromBones}). Column-vector
+             * order matches vanilla: the entity-render {@code scale(-1, -1, 1)} flip (or a decomposed
+             * {@link #inventoryTransform()} of {@code scale -> Rx(pitch) -> translate}) applies first,
+             * then the {@link #inventoryYRotation()} yaw about block centre {@code (8, 8, 8)}.
+             *
+             * @return the presentation matrix in the {@code [0, 16]} block-authoring frame
+             */
+            public @NotNull Matrix4f presentation() {
+                float[] inv = this.inventoryTransform();
+                Matrix4f pre;
+                if (inv != null) {
+                    // scale(invScale) -> Rx(pitch) -> translate(tx, ty, tz), matching vanilla's
+                    // translate * rotate * scale composition.
+                    float invScale = inv.length > 6 && inv[6] != 0f ? inv[6] : 1f;
+                    float pitch = (float) Math.toRadians(inv[3]);
+                    pre = Matrix4f.createTranslation(inv[0], inv[1], inv[2])
+                        .multiply(Matrix4f.createRotationX(pitch))
+                        .multiply(Matrix4f.createScale(invScale, invScale, invScale));
+                } else {
+                    // No inventory transform: vanilla's entity-render flip scale(-1, -1, 1). The X
+                    // negation is gated on entityFlip (read from the item icon's display.gui roll). The
+                    // Y negation maps the bones' source frame to block Y-up - needed only for Y-DOWN
+                    // (entity-space) sources; a Y-UP source (chest) is already block-Y-up, so its Y stays
+                    // positive (matching the former element bake's net orientation).
+                    float sx = this.entityFlip() ? -1f : 1f;
+                    float sy = this.sourceYUp() ? 1f : -1f;
+                    pre = Matrix4f.createScale(sx, sy, 1f);
+                }
+
+                // Inventory yaw about block centre (8, 8, 8) - the chest's +180 that faces the model
+                // under the standard [30, 225, 0] iso pose. All current block-entity yaws are 180
+                // (symmetric, so the createRotationY sign is immaterial).
+                float yaw = this.inventoryYRotation();
+                if (yaw != 0f) {
+                    Matrix4f yawAboutCentre = Matrix4f.createTranslation(8f, 8f, 8f)
+                        .multiply(Matrix4f.createRotationY((float) Math.toRadians(yaw)))
+                        .multiply(Matrix4f.createTranslation(-8f, -8f, -8f));
+                    pre = yawAboutCentre.multiply(pre);
+                }
+                return pre;
+            }
+
+            /**
+             * {@inheritDoc}
+             *
+             * <p>Overrides the record's generated {@code equals} so {@code inventoryTransform}
+             * compares by element ({@link Arrays#equals}) rather than by reference identity.
+             */
+            @Override
+            public boolean equals(Object o) {
+                if (o == null || getClass() != o.getClass()) return false;
+                BoneModel that = (BoneModel) o;
+                return Float.compare(this.inventoryYRotation, that.inventoryYRotation) == 0
+                    && this.sourceYUp == that.sourceYUp
+                    && this.entityFlip == that.entityFlip
+                    && this.tinted == that.tinted
+                    && Objects.equals(this.model, that.model)
+                    && Arrays.equals(this.inventoryTransform, that.inventoryTransform);
+            }
+
+            /**
+             * {@inheritDoc}
+             *
+             * <p>Overrides the record's generated {@code hashCode} so {@code inventoryTransform}
+             * hashes by content ({@link Arrays#hashCode}), staying consistent with {@link #equals}.
+             */
+            @Override
+            public int hashCode() {
+                return Objects.hash(this.model, this.sourceYUp, this.inventoryYRotation, this.entityFlip, Arrays.hashCode(this.inventoryTransform), this.tinted);
+            }
+
+        }
 
         /**
          * An atlas-time composition instruction - additional geometry merged into the parent
@@ -272,15 +426,14 @@ public final class Block {
          * {@code mergeParts=true} (default) to produce the composed icon; future scene callers
          * pass {@code false} to render one variant's geometry at a time.
          *
-         * @param modelId source entity model id for diagnostics ({@code "minecraft:bed_foot"})
-         * @param model part geometry (elements + face UVs) ready to append to the parent
+         * @param boneModel the part's relative bone geometry + presentation; the renderer composes it
+         *     via {@link BlockGeometryKit#buildFromBones}
          * @param texture absolute texture id that rebinds the part's {@code "#entity"} face refs
-         * @param offset model-unit shift applied to every from/to + rotation.origin on the merged
-         *     elements ({@code [0, 0, 16]} to place the bed foot one block past the head)
+         * @param offset model-unit shift applied to every composed vertex ({@code [0, 0, 16]} to place
+         *     the bed foot one block past the head)
          */
         public record Part(
-            @NotNull String modelId,
-            @NotNull ModelData model,
+            @NotNull BoneModel boneModel,
             @NotNull String texture,
             float @NotNull [] offset
         ) {
@@ -295,8 +448,7 @@ public final class Block {
             public boolean equals(Object o) {
                 if (o == null || getClass() != o.getClass()) return false;
                 Part part = (Part) o;
-                return Objects.equals(this.modelId, part.modelId)
-                    && Objects.equals(this.model, part.model)
+                return Objects.equals(this.boneModel, part.boneModel)
                     && Objects.equals(this.texture, part.texture)
                     && Arrays.equals(this.offset, part.offset);
             }
@@ -309,7 +461,7 @@ public final class Block {
              */
             @Override
             public int hashCode() {
-                return Objects.hash(this.modelId, this.model, this.texture, Arrays.hashCode(this.offset));
+                return Objects.hash(this.boneModel, this.texture, Arrays.hashCode(this.offset));
             }
 
         }

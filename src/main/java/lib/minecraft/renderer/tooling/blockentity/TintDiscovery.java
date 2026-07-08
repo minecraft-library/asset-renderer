@@ -19,8 +19,8 @@ import java.util.Set;
 import java.util.zip.ZipFile;
 
 /**
- * Bytecode-driven discovery of which entity-model ids should receive a {@code tintindex=0}
- * marker in the generated block-entity elements. A renderer is deemed <i>tint-bearing</i>
+ * Bytecode-driven discovery of which entity-model ids should carry the {@code tinted} flag
+ * in the generated block-entity catalog. A renderer is deemed <i>tint-bearing</i>
  * when its bytecode invokes one of the known tint-accessor APIs:
  * <ul>
  *   <li>{@code DyeColor.getTextureDiffuseColor} (INVOKEVIRTUAL)</li>

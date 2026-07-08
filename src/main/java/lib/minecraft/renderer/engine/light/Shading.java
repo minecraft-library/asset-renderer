@@ -4,7 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.BlockFace;
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;

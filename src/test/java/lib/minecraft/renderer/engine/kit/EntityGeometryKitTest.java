@@ -8,7 +8,10 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.EntityFace;
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.tensor.Box;
+import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.junit.jupiter.api.DisplayName;
@@ -204,6 +207,51 @@ class EntityGeometryKitTest {
             }
     }
 
+    /**
+     * Pins the parent {@literal ->} child compose order of the bone hierarchy: a child bone under a
+     * parent that is both offset and rotated must land where {@code T(parent.pivot) *
+     * R(parent.rot) * T(child.pivot)} places it (vanilla {@code ModelPart.translateAndRotate}
+     * order). Verified by asserting the hierarchical model's bounds equal an equivalent
+     * <b>pre-flattened</b> single-bone model whose world pivot is the hand-composed
+     * {@code parent.pivot + R(parent.rot) * child.pivot} (computed here via the tensor primitives,
+     * independent of the kit's chain) - the exact absolute {@literal <->} relative equivalence the
+     * coordinate migration relies on.
+     *
+     * <p>A regression that drops the {@code parent} link, swaps the compose order, or fails to
+     * propagate the parent rotation into the child's pivot + cubes shifts the bounds and fails
+     * here - the multi-bone guard the single-cube fixtures cannot provide.
+     */
+    @Test
+    @DisplayName("child bone composes parent pivot + rotation (translateAndRotate order)")
+    void hierarchy_composesParentPivotAndRotation() {
+        Vector3f parentPivot = new Vector3f(5f, 6f, 7f);
+        EulerRotation parentRot = new EulerRotation(0f, 90f, 0f); // yaw 90 about Y - non-trivial
+        Vector3f childPivot = new Vector3f(2f, 3f, 0f);
+
+        // Hierarchical: cube-bearing child "head" parented to the rotated + offset "body".
+        Box hier = EntityGeometryKit.computeBounds(twoBoneModel(parentPivot, parentRot, childPivot));
+
+        // Pre-flattened equivalent: single "head" bone at the hand-composed world pivot with the
+        // parent's rotation, derived via the tensor primitives (NOT the kit's chain composition).
+        Matrix4f r = Quaternionf.rotationZYX(
+            parentRot.rollRadians(), parentRot.yawRadians(), parentRot.pitchRadians()).toMatrix4f();
+        Vector3f rotatedChild = childPivot.transformNormal(r);
+        Vector3f worldPivot = new Vector3f(
+            parentPivot.x() + rotatedChild.x(),
+            parentPivot.y() + rotatedChild.y(),
+            parentPivot.z() + rotatedChild.z());
+        Box flat = EntityGeometryKit.computeBounds(singleChildAtWorld(worldPivot, parentRot));
+
+        assertBoxEquals("hierarchical vs pre-flattened bounds", hier, flat, 1e-3f);
+
+        // Sanity guard: the parent link must actually do something - a flat child that ignores its
+        // parent (pivot = local childPivot, no rotation) lands elsewhere.
+        Box ignored = EntityGeometryKit.computeBounds(singleChildAtWorld(childPivot, EulerRotation.NONE));
+        assertThat("parent composition must move the child off its bare local pivot",
+            Math.abs(hier.minX() - ignored.minX()) + Math.abs(hier.minZ() - ignored.minZ()),
+            greaterThan(1f));
+    }
+
     // --- fixtures ---
 
     /**
@@ -242,6 +290,50 @@ class EntityGeometryKitTest {
 
         EntityModelData model = new EntityModelData(64, 64, 0f, bones, false);
         return EntityGeometryKit.buildTriangles(model, solidTexture(64, 64));
+    }
+
+    /** A single 1×1×1 bone-local cube centred at the origin (no UV overrides). */
+    private static ConcurrentList<EntityModelData.Cube> unitChildCube() {
+        EntityModelData.Cube cube = new EntityModelData.Cube(
+            new Vector3f(-0.5f, -0.5f, -0.5f), new Vector3f(1f, 1f, 1f), Vector2f.ZERO,
+            0f, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
+        ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
+        cubes.add(cube);
+        return cubes;
+    }
+
+    /**
+     * Two-bone hierarchy fixture: a cube-less pose-only {@code body} (offset + rotated) parenting a
+     * cube-bearing {@code head}, exercising the kit's parent-chain composition.
+     */
+    private static EntityModelData twoBoneModel(Vector3f parentPivot, EulerRotation parentRot, Vector3f childPivot) {
+        EntityModelData.Bone body = new EntityModelData.Bone(
+            parentPivot, parentRot, EulerRotation.NONE, 1f, Concurrent.newList(), null);
+        EntityModelData.Bone head = new EntityModelData.Bone(
+            childPivot, EulerRotation.NONE, EulerRotation.NONE, 1f, unitChildCube(), "body");
+        ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", body);
+        bones.put("head", head);
+        return new EntityModelData(64, 64, 0f, bones, false);
+    }
+
+    /** Single root {@code head} bone at a pre-flattened world pivot + rotation (no parent). */
+    private static EntityModelData singleChildAtWorld(Vector3f worldPivot, EulerRotation rot) {
+        EntityModelData.Bone head = new EntityModelData.Bone(
+            worldPivot, rot, EulerRotation.NONE, 1f, unitChildCube(), null);
+        ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("head", head);
+        return new EntityModelData(64, 64, 0f, bones, false);
+    }
+
+    /** Asserts two boxes match on all six extents within {@code eps}. */
+    private static void assertBoxEquals(String label, Box actual, Box expected, float eps) {
+        assertThat(label + " minX", Math.abs(actual.minX() - expected.minX()), lessThan(eps));
+        assertThat(label + " minY", Math.abs(actual.minY() - expected.minY()), lessThan(eps));
+        assertThat(label + " minZ", Math.abs(actual.minZ() - expected.minZ()), lessThan(eps));
+        assertThat(label + " maxX", Math.abs(actual.maxX() - expected.maxX()), lessThan(eps));
+        assertThat(label + " maxY", Math.abs(actual.maxY() - expected.maxY()), lessThan(eps));
+        assertThat(label + " maxZ", Math.abs(actual.maxZ() - expected.maxZ()), lessThan(eps));
     }
 
     /** Opaque-white {@code w×h} texture ({@code 0xFFFFFFFF} everywhere) so UV sampling never drops texels. */

@@ -10,14 +10,17 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
-import lib.minecraft.renderer.engine.compose.FrameLayer;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
-import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
+import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.TextKit;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.options.BlockOptions;
-import lib.minecraft.renderer.options.ItemOptions;
-import lib.minecraft.renderer.options.MenuOptions;
+import lib.minecraft.renderer.option.BlockOptions;
+import lib.minecraft.renderer.option.ItemOptions;
+import lib.minecraft.renderer.option.MenuOptions;
+import lib.minecraft.renderer.option.slot.MenuSlot;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
@@ -177,6 +180,15 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     // ---------------------------------------------------------------------------------------
 
     /**
+     * Appends a single {@link FramePlacement} to {@code stack} under {@code slot}, wrapped as a
+     * {@link FrameLayer}. Shared by every menu sub-renderer so a placement lands in its slot without
+     * repeating the {@code sink -> sink.add(...)} wrapper at each call site.
+     */
+    private static void place(@NotNull LayerStack<FrameLayer> stack, @NotNull MenuSlot slot, @NotNull FramePlacement placement) {
+        stack.append(slot, sink -> sink.add(placement));
+    }
+
+    /**
      * Appends filler layers to every non-claimed chest slot according to
      * {@link MenuOptions#getFill() options.fill}. Returns whether any of the filler layers
      * resolved to animated content so the caller can keep its {@code anyAnimated} flag
@@ -184,7 +196,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      */
     static boolean appendFillerLayers(
         @NotNull MenuOptions options,
-        @NotNull ConcurrentList<FrameLayer> layers,
+        @NotNull LayerStack<FrameLayer> stack,
         @NotNull ItemRenderer itemRenderer,
         @NotNull ConcurrentSet<Integer> claimed
     ) {
@@ -194,7 +206,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             case BLACK_STAINED_GLASS_PANE -> ItemOptions.builder()
                 .itemId("minecraft:black_stained_glass_pane")
                 .type(ItemOptions.Type.GUI_2D)
-                .outputSize(SLOT_SIZE - 4)
+                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SLOT_SIZE - 4).build())
                 .build();
             case EMPTY -> throw new RenderException("EMPTY handled above");
         };
@@ -203,7 +215,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
         for (int chestSlot = 0; chestSlot < SKYBLOCK_CHEST_SLOTS; chestSlot++) {
             if (claimed.contains(chestSlot)) continue;
-            layers.add(new FramePlacement(
+            place(stack, MenuSlot.CONTENT, new FramePlacement(
                 chestSlotX(chestSlot) + 2,
                 chestSlotY(chestSlot) + 2,
                 fillerImage
@@ -220,11 +232,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      */
     static @NotNull ImageData composite(
         int canvasW, int canvasH,
-        @NotNull ConcurrentList<FrameLayer> layers,
+        @NotNull LayerStack<FrameLayer> stack,
         boolean anyAnimated,
         @NotNull MenuOptions options
     ) {
-        ConcurrentList<FramePlacement> placements = FrameCompositor.flatten(options.getLayerDecorator().apply(layers));
+        ConcurrentList<FramePlacement> placements = Concurrent.newList();
+        Layers.foldInto(stack, options.getLayerDecorator(), placements);
 
         if (!anyAnimated) {
             PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
@@ -232,7 +245,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             for (FramePlacement placement : placements)
                 buffer.blit(placement.source().toPixelBuffer(), placement.x(), placement.y());
 
-            return Frames.staticFrame(buffer);
+            return FrameCompositor.staticFrame(buffer);
         }
 
         return FrameCompositor.merge(placements, canvasW, canvasH, options.getFramesPerSecond(), Background.TRANSPARENT);
@@ -562,7 +575,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         }
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return Frames.wrapFrames(frames, delayMs);
+        return FrameCompositor.wrapFrames(frames, delayMs);
     }
 
     /**
@@ -662,8 +675,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, defaultTitleArgb);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FrameLayer> layers = Concurrent.newList();
-            layers.add(new FramePlacement(0, 0, chromeData));
+            LayerStack<FrameLayer> stack = new LayerStack<>();
+            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
             for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
@@ -676,10 +689,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 int row = slotIndex / cols;
                 int x = INSET + col * SLOT_SIZE;
                 int y = INSET + TITLE_HEIGHT + row * SLOT_SIZE;
-                layers.add(new FramePlacement(x, y, rendered));
+                place(stack, MenuSlot.SLOT, new FramePlacement(x, y, rendered));
             }
 
-            return composite(canvasW, canvasH, layers, anyAnimated, options);
+            return composite(canvasW, canvasH, stack, anyAnimated, options);
         }
 
         /**
@@ -774,8 +787,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FrameLayer> layers = Concurrent.newList();
-            layers.add(new FramePlacement(0, 0, chromeData));
+            LayerStack<FrameLayer> stack = new LayerStack<>();
+            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
             for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
@@ -787,10 +800,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
                 int x = INSET + coord[0] * SLOT_SIZE;
                 int y = INSET + TITLE_HEIGHT + coord[1] * SLOT_SIZE;
-                layers.add(new FramePlacement(x, y, rendered));
+                place(stack, MenuSlot.SLOT, new FramePlacement(x, y, rendered));
             }
 
-            return composite(canvasW, canvasH, layers, anyAnimated, options);
+            return composite(canvasW, canvasH, stack, anyAnimated, options);
         }
 
     }
@@ -861,8 +874,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 24, 0xFF404040);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FrameLayer> layers = Concurrent.newList();
-            layers.add(new FramePlacement(0, 0, chromeData));
+            LayerStack<FrameLayer> stack = new LayerStack<>();
+            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
             for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
@@ -872,10 +885,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 ImageData rendered = itemRenderer.render(content.options());
                 if (rendered.isAnimated()) anyAnimated = true;
                 int x = INSET + col * SLOT_SIZE;
-                layers.add(new FramePlacement(x, slotRowY, rendered));
+                place(stack, MenuSlot.SLOT, new FramePlacement(x, slotRowY, rendered));
             }
 
-            return composite(canvasW, canvasH, layers, anyAnimated, options);
+            return composite(canvasW, canvasH, stack, anyAnimated, options);
         }
 
     }
@@ -927,8 +940,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FrameLayer> layers = Concurrent.newList();
-            layers.add(new FramePlacement(0, 0, chromeData));
+            LayerStack<FrameLayer> stack = new LayerStack<>();
+            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
 
             ConcurrentSet<Integer> claimed = Concurrent.newSet();
             for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
@@ -941,12 +954,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 MenuOptions.MenuSlotContent content = entry.getValue();
                 ImageData rendered = itemRenderer.render(content.options());
                 if (rendered.isAnimated()) anyAnimated = true;
-                layers.add(new FramePlacement(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
+                place(stack, MenuSlot.SLOT, new FramePlacement(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
             }
 
-            anyAnimated |= appendFillerLayers(options, layers, itemRenderer, claimed);
+            anyAnimated |= appendFillerLayers(options, stack, itemRenderer, claimed);
 
-            return composite(canvasW, canvasH, layers, anyAnimated, options);
+            return composite(canvasW, canvasH, stack, anyAnimated, options);
         }
 
     }
@@ -1002,8 +1015,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
             BlockRenderer blockRenderer = new BlockRenderer(this.context);
-            ConcurrentList<FrameLayer> layers = Concurrent.newList();
-            layers.add(new FramePlacement(0, 0, chromeData));
+            LayerStack<FrameLayer> stack = new LayerStack<>();
+            place(stack, MenuSlot.CHROME, new FramePlacement(0, 0, chromeData));
 
             ConcurrentSet<Integer> claimed = Concurrent.newSet();
             for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
@@ -1018,18 +1031,17 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 MenuOptions.MenuSlotContent content = entry.getValue();
                 ImageData rendered = itemRenderer.render(content.options());
                 if (rendered.isAnimated()) anyAnimated = true;
-                layers.add(new FramePlacement(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
+                place(stack, MenuSlot.SLOT, new FramePlacement(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
             }
 
             BlockOptions decorationOptions = BlockOptions.builder()
                 .blockId("minecraft:anvil")
                 .type(BlockOptions.Type.ISOMETRIC_3D)
-                .outputSize(SLOT_SIZE - 4)
-                .antiAlias(false)
+                .output(OutputOptions.builder().canvasSize(SLOT_SIZE - 4).antiAlias(false).build())
                 .build();
             ImageData decoration = blockRenderer.render(decorationOptions);
             if (decoration.isAnimated()) anyAnimated = true;
-            layers.add(new FramePlacement(
+            place(stack, MenuSlot.CONTENT, new FramePlacement(
                 chestSlotX(DECORATION_SLOT) + 2,
                 chestSlotY(DECORATION_SLOT) + 2,
                 decoration
@@ -1038,20 +1050,20 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ItemOptions redPaneOptions = ItemOptions.builder()
                 .itemId("minecraft:red_stained_glass_pane")
                 .type(ItemOptions.Type.GUI_2D)
-                .outputSize(SLOT_SIZE - 4)
+                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SLOT_SIZE - 4).build())
                 .build();
             ImageData redPane = itemRenderer.render(redPaneOptions);
             if (redPane.isAnimated()) anyAnimated = true;
             for (int chestSlot : RED_PANE_SLOTS) {
-                layers.add(new FramePlacement(
+                place(stack, MenuSlot.CONTENT, new FramePlacement(
                     chestSlotX(chestSlot) + 2,
                     chestSlotY(chestSlot) + 2,
                     redPane
                 ));
             }
 
-            anyAnimated |= appendFillerLayers(options, layers, itemRenderer, claimed);
-            return composite(canvasW, canvasH, layers, anyAnimated, options);
+            anyAnimated |= appendFillerLayers(options, stack, itemRenderer, claimed);
+            return composite(canvasW, canvasH, stack, anyAnimated, options);
         }
 
     }

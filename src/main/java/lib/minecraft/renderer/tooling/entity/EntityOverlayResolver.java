@@ -10,17 +10,23 @@ import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -61,10 +67,6 @@ import java.util.Locale;
  *       it resolves via {@link #findParameterizedOverlayBinding} because its clothes texture is
  *       a hardcoded ctor arg rather than runtime equipment.)</li>
  * </ul>
- *
- * <p>{@code SheepWoolUndercoatLayer} IS walked via the generic composite-overlay path but is
- * then suppressed at zero render state by {@link #POLICY_SUPPRESS} (a default white sheep draws
- * no undercoat).
  */
 @UtilityClass
 public final class EntityOverlayResolver {
@@ -79,54 +81,6 @@ public final class EntityOverlayResolver {
      */
     private static final @NotNull String RENDER_TYPE_RETURN =
         ")L" + lib.minecraft.renderer.tooling.util.VanillaSourceClasses.RENDER_TYPE + ";";
-
-    /**
-     * Composite-overlay layers whose pipeline isn't statically cutout-safe (e.g., uses
-     * {@code BlendFunction.TRANSLUCENT} without {@code NO_CARDINAL_LIGHTING}) but which
-     * we emit anyway as a known divergence. Bytecode derivation in
-     * {@link #derivationAcceptsCompositeOverlay} rejects them; this set re-allows them.
-     * <p>Entries:
-     * <ul>
-     *   <li>{@code SLIME_OUTER} - the 8x8x8 translucent outer shell over the inner 6x6x6
-     *       body. Vanilla renders it via {@code RenderTypes.entityTranslucent} (constant
-     *       180/255 alpha multiplier); the static renderer treats it as opaque so the
-     *       visible result is a solid green cube larger than the vanilla reference.
-     *       Geometry is correct relative to the Java client; the delta is a
-     *       known-divergence on rendering semantics rather than geometry. Maintainer can
-     *       move {@code minecraft:slime} into {@code TestEntityParity.ACHIEVED_PARITY}
-     *       once the geometry difference is reviewed.</li>
-     * </ul>
-     */
-    private static final @NotNull java.util.Set<String> POLICY_FORCE_EMIT = java.util.Set.of(
-        "SLIME_OUTER"
-    );
-
-    /**
-     * Composite-overlay layers that pass bytecode derivation (helper-based cutout) but
-     * whose vanilla {@code submit()} has a state-gated early-return that bytecode walking can't
-     * statically resolve, so at the zero/default render state vanilla draws nothing. Without a
-     * state-default-aware detector, listing the no-emit cases here is more maintainable than
-     * encoding the discriminator in bytecode walking.
-     * <p>Entries:
-     * <ul>
-     *   <li>{@code CAT_COLLAR} - the {@code coloredCutoutModelCopyLayerRender}-based
-     *       collar layer skips render when {@code state.collarColor == null} (the
-     *       zero-state default). Visual impact at zero state would be a colored collar around
-     *       every cat where vanilla shows none.</li>
-     *   <li>{@code SHEEP_WOOL_UNDERCOAT} - {@code SheepWoolUndercoatLayer} early-returns unless
-     *       {@code isJebSheep || woolColor != WHITE} (and bails on baby), so a default white
-     *       sheep draws no undercoat. The overlay shares the base {@code geometry.sheep} mesh
-     *       coplanar with the body and tints {@code 0xFFE6E6E6}; emitting it darkened the
-     *       woolless face by {@code 0.902x}. Harmless under the historical first-drawn-wins depth
-     *       tie-break (the coplanar overlay lost the equal-Z fight and stayed hidden); once the
-     *       engine adopted vanilla's GL_LEQUAL last-drawn-wins it began overwriting the base
-     *       face. Suppressed here so the default state matches vanilla.</li>
-     * </ul>
-     */
-    private static final @NotNull java.util.Set<String> POLICY_SUPPRESS = java.util.Set.of(
-        "CAT_COLLAR",
-        "SHEEP_WOOL_UNDERCOAT"
-    );
 
     /** JVM internal name of the {@code BlendFunction} enum carrying {@code TRANSLUCENT} etc. */
     private static final @NotNull String BLEND_FUNCTION = "com/mojang/blaze3d/pipeline/BlendFunction";
@@ -177,6 +131,42 @@ public final class EntityOverlayResolver {
      *     (e.g. {@code LlamaDecorLayer}); {@code false} for overlays that contribute to the
      *     silhouette. Emitted as the {@code skip_bounds} JSON property by
      *     {@link EntityRuntimeJsonWriter}
+     * @param tintBy the render-axis token whose selected colour overrides this overlay's baked
+     *     {@code tintArgb} at render (e.g. {@code "wool_color"} for the sheep wool, whose colour
+     *     is a user-selectable dye). {@code null} when the tint is fixed. Emitted as the
+     *     {@code tint_by} JSON property by {@link EntityRuntimeJsonWriter}
+     * @param shearable {@code true} when the layer's render is gated off by the entity's
+     *     {@code isSheared} state (the sheep wool), so the {@code sheared} render axis drops this
+     *     overlay. Emitted as the {@code shearable} JSON property by {@link EntityRuntimeJsonWriter}
+     * @param requiresTint {@code true} when the layer only renders once a {@link #tintBy} colour is
+     *     selected (the sheep wool undercoat, gated on {@code isJebSheep || woolColor != WHITE}), so
+     *     the overlay is skipped at render for the default (untinted) entity. Emitted as the
+     *     {@code requires_tint} JSON property by {@link EntityRuntimeJsonWriter}
+     * @param textureBy the render-axis token whose selection overrides this overlay's baked
+     *     {@code texturePath} at render (e.g. {@code "pattern"} for the tropical-fish pattern, whose
+     *     texture is a user-selectable {@code TropicalFishPattern}). {@code null} when the texture is
+     *     fixed. Emitted as the {@code texture_by} JSON property by {@link EntityRuntimeJsonWriter}
+     * @param requiresCharged {@code true} when the layer only renders for a charged (lightning-struck)
+     *     entity (the creeper energy swirl), so the {@code charged} render axis gates it in and the
+     *     default (uncharged) entity drops it. Emitted as the {@code requires_charged} JSON property by
+     *     {@link EntityRuntimeJsonWriter}
+     * @param blend the colour-composition mode this overlay declares - {@code "additive"} for the
+     *     energy-swirl glow ({@code RenderPipelines.ENERGY_SWIRL}, {@code BlendFunction.ADDITIVE}),
+     *     {@code "translucent"} for a source-over shell whose translucency lives in its texture alpha
+     *     ({@code entityTranslucent}, {@code BlendFunction.TRANSLUCENT}), or {@code null} for the
+     *     default source-over {@code normal}. Emitted as the {@code blend} JSON property, skipped when
+     *     {@code null}; classified from the walked RenderType transparency shard so nothing un-annotated
+     *     moves
+     * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} this overlay declares -
+     *     {@code 1.0} (the default, JSON-skipped) except for a layer whose frozen-frame vertex alpha is
+     *     fractional (the warden pulsating spots at {@code 0.25}). Emitted as the {@code alpha} JSON
+     *     property; it cannot ride the tint's alpha byte (the {@code MULTIPLY} tint blend keeps the
+     *     texel alpha), hence a dedicated node
+     * @param retainBones the vanilla {@code PartDefinition.retainExactParts} set this overlay's subset
+     *     {@code LayerDefinition} bakes (the warden pulsating spots' {@code body} / {@code head} /
+     *     arms / legs), or {@code null} when the overlay reuses the full mesh. Emitted as the
+     *     {@code retain_bones} JSON array so the loader restricts the shared mesh to the subset the
+     *     glow texture is authored for, instead of over-drawing the whole silhouette
      */
     public record Result(
         @NotNull String layerClass,
@@ -185,12 +175,56 @@ public final class EntityOverlayResolver {
         @Nullable String modelLayerField,
         int tintArgb,
         float inflate,
-        boolean skipBounds
+        boolean skipBounds,
+        @Nullable String tintBy,
+        boolean shearable,
+        boolean requiresTint,
+        @Nullable String textureBy,
+        boolean requiresCharged,
+        @Nullable String blend,
+        float alpha,
+        @Nullable List<String> retainBones
     ) {
+        /**
+         * Constructs a {@code Result} with the default source-over blend, full opacity, and full-mesh
+         * geometry (no {@code retain_bones} subset) - the common case for every overlay that doesn't
+         * declare an explicit {@code blend} / {@code alpha} node. Defaults {@code blend} to {@code null}
+         * ({@code normal}), {@code alpha} to {@code 1f}, and {@code retainBones} to {@code null}.
+         *
+         * @param layerClass JVM internal name of the source layer subclass
+         * @param texturePath the raw texture path
+         * @param emissive whether the render type is an emissive full-bright variant
+         * @param modelLayerField the {@code ModelLayers.X} field name, or {@code null}
+         * @param tintArgb the multiplicative ARGB tint, or {@code 0xFFFFFFFF} for no tint
+         * @param inflate the per-cube outward inflate baked into the overlay geometry
+         * @param skipBounds whether to exclude this overlay from the projected bounds walk
+         * @param tintBy the tint render-axis token, or {@code null}
+         * @param shearable whether the {@code sheared} axis drops this overlay
+         * @param requiresTint whether the overlay renders only once its {@code tint_by} colour is selected
+         * @param textureBy the texture render-axis token, or {@code null}
+         * @param requiresCharged whether the overlay renders only for a charged entity
+         */
+        public Result(
+            @NotNull String layerClass,
+            @NotNull String texturePath,
+            boolean emissive,
+            @Nullable String modelLayerField,
+            int tintArgb,
+            float inflate,
+            boolean skipBounds,
+            @Nullable String tintBy,
+            boolean shearable,
+            boolean requiresTint,
+            @Nullable String textureBy,
+            boolean requiresCharged
+        ) {
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, inflate, skipBounds,
+                tintBy, shearable, requiresTint, textureBy, requiresCharged, null, 1f, null);
+        }
         /**
          * Constructs a {@code Result} with no extra deformation and no bounds skip - the common
          * case for eye and same-geometry composite overlays (defaults {@code inflate} to
-         * {@code 0} and {@code skipBounds} to {@code false}).
+         * {@code 0}, {@code skipBounds} to {@code false}, and {@code tintBy} to {@code null}).
          *
          * @param layerClass JVM internal name of the source layer subclass
          * @param texturePath the raw texture path
@@ -206,7 +240,32 @@ public final class EntityOverlayResolver {
             @Nullable String modelLayerField,
             int tintArgb
         ) {
-            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false);
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false, null, false, false, null, false);
+        }
+
+        /**
+         * Constructs a {@code Result} carrying explicit deformation / bounds-skip but a fixed tint
+         * (defaults {@code tintBy} to {@code null}) - the {@code LlamaDecorLayer} /
+         * {@code TropicalFishPatternLayer} shape.
+         *
+         * @param layerClass JVM internal name of the source layer subclass
+         * @param texturePath the raw texture path
+         * @param emissive whether the render type is an emissive additive-blend variant
+         * @param modelLayerField the {@code ModelLayers.X} field name, or {@code null}
+         * @param tintArgb the multiplicative ARGB tint, or {@code 0xFFFFFFFF} for no tint
+         * @param inflate the per-cube outward inflate baked into the overlay geometry
+         * @param skipBounds whether to exclude this overlay from the projected bounds walk
+         */
+        public Result(
+            @NotNull String layerClass,
+            @NotNull String texturePath,
+            boolean emissive,
+            @Nullable String modelLayerField,
+            int tintArgb,
+            float inflate,
+            boolean skipBounds
+        ) {
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, inflate, skipBounds, null, false, false, null, false);
         }
 
         /**
@@ -222,6 +281,51 @@ public final class EntityOverlayResolver {
         public static @NotNull String entityKey(@NotNull String modelLayerField) {
             return "__overlay_" + modelLayerField;
         }
+    }
+
+    /**
+     * Resolves the dyed-collar texture for an entity whose layer set includes a
+     * {@code *CollarLayer} ({@code WolfCollarLayer}, {@code CatCollarLayer}). The collar is a
+     * base-body cutout copy tinted at runtime by the wearer's dye colour, so only the texture is
+     * needed here - the geometry is the entity's own body model and the tint is a render option.
+     * Returned prefix-stripped ({@code "wolf/wolf_collar"}); {@code null} when the entity has no
+     * collar layer or its texture cannot be extracted.
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param layerClasses ordered list of layer-class internal names from
+     *     {@link EntityBoneResolver#scanOverlayLayers}
+     * @return the prefix-stripped collar texture path, or {@code null} when absent
+     */
+    public static @Nullable String resolveCollarTexture(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull ConcurrentList<String> layerClasses
+    ) {
+        for (String layerClass : layerClasses) {
+            if (!layerClass.endsWith("CollarLayer")) continue;
+            ClassNode cn = classNodes.load(layerClass);
+            if (cn == null) continue;
+            String texture = findCompositeOverlayTexture(classNodes, cn);
+            if (texture != null) return EntityTextureResolver.stripPrefix(texture);
+        }
+        return null;
+    }
+
+    /**
+     * Reports whether the entity carries a {@link VanillaSourceClasses#HORSE_MARKING_LAYER} (the
+     * horse). The layer reuses the parent body model (no {@code ModelLayers} of its own, so the
+     * generic overlay gate never sees it) and selects its {@code horse/horse_markings_*} texture from
+     * an enum-map on the render-state {@code markings} field. The per-marking textures are not
+     * extracted - the renderer supplies them from {@code EntityAppearance.markings} - so only the
+     * layer's presence matters, which the family writer turns into the {@code markings} layer.
+     *
+     * @param layerClasses ordered list of layer-class internal names from
+     *     {@link EntityBoneResolver#scanOverlayLayers}
+     * @return {@code true} when a marking layer is present
+     */
+    public static boolean hasMarkingLayer(@NotNull ConcurrentList<String> layerClasses) {
+        for (String layerClass : layerClasses)
+            if (VanillaSourceClasses.HORSE_MARKING_LAYER.equals(layerClass)) return true;
+        return false;
     }
 
     /**
@@ -249,6 +353,11 @@ public final class EntityOverlayResolver {
         for (String layerClass : layerClasses) {
             ClassNode cn = classNodes.load(layerClass);
             if (cn == null) continue;
+            // Collar layers (CatCollarLayer, WolfCollarLayer) are emitted by the resolveCollarTexture
+            // side-channel as an option-gated `collar` layer, never as a composite overlay - CatCollarLayer
+            // bakes ModelLayers.CAT_COLLAR, which the generic gate below would otherwise emit as a coloured
+            // collar around every cat at zero render state (state.collarColor == null draws none in vanilla).
+            if (layerClass.endsWith("CollarLayer")) continue;
             // Eye overlay first - shares the base entity's geometry, so no extra parse. The
             // factory-name discriminator marks fully-emissive variants (`RenderTypes.eyes` →
             // EMISSIVE + NO_CARDINAL_LIGHTING) as `emissive=true` so the rasterizer skips
@@ -260,6 +369,58 @@ public final class EntityOverlayResolver {
             if (eyes != null) {
                 boolean fullyEmissive = factoryHasNoCardinalLighting(classNodes, eyes.factoryName());
                 out.add(new Result(layerClass, eyes.texturePath(), fullyEmissive, null, 0xFFFFFFFF));
+                continue;
+            }
+
+            // IronGolemCrackinessLayer: a same-geometry crack-texture overlay (iron_golem_crackiness_
+            // low/medium/high) drawn over the body, selected by the crackiness render axis. The layer's
+            // map omits Crackiness.NONE, so the default (undamaged) golem draws no crack overlay - emit
+            // with NO baked texture_ref and texture_by: crackiness, so resolveOverlayTextureRef supplies
+            // the level's texture (IronGolemCrackiness) and the render loop skips the overlay when the
+            // axis resolves to no texture (NONE), keeping the default byte-identical. Same-geometry
+            // (reuses the base body model; the crack PNGs share the body UV) + skip_bounds (within the
+            // body silhouette). The layer reuses the parent model, so the generic composite gate never
+            // sees it - this dedicated handler is the emit path.
+            if (VanillaSourceClasses.IRON_GOLEM_CRACKINESS_LAYER.equals(layerClass)) {
+                out.add(new Result(layerClass, "", false, null, 0xFFFFFFFF,
+                    0f, true, null, false, false, "crackiness", false));
+                continue;
+            }
+
+            // CreeperPowerLayer: the charged (lightning-struck) creeper's blue energy swirl, an
+            // EnergySwirlLayer whose model is CreeperModel(bakeLayer(ModelLayers.CREEPER_ARMOR)) - the
+            // base creeper createBodyLayer inflated CubeDeformation(2.0). Reuse the base geometry
+            // (modelLayerField=null) + inflate 2.0 rather than walking the CREEPER_ARMOR LayerDefinition;
+            // the swirl texture is the layer's getTextureLocation() LDC (creeper/creeper_armor). It is a
+            // full-bright translucent glow (emissive=true; the indexed texture's tRNS drops the
+            // background so only the electric grid shows), gated on the charged render axis via
+            // requires_charged so the default (uncharged) creeper stays byte-identical. The swirl's
+            // animated UV scroll reduces to frame 0 for a static icon. The generic composite gate rejects
+            // EnergySwirlLayer (its render type lives in inherited code), so this dedicated handler is
+            // the emit path.
+            if (VanillaSourceClasses.CREEPER_POWER_LAYER.equals(layerClass)) {
+                String swirlTexture = findEnergySwirlTexture(cn);
+                if (swirlTexture != null)
+                    // blend: additive - vanilla's RenderPipelines.ENERGY_SWIRL is BlendFunction.ADDITIVE,
+                    // so the swirl adds its glow to the body rather than compositing source-over. Only
+                    // affects the charged (requires_charged) render; the default creeper drops the overlay.
+                    out.add(new Result(layerClass, swirlTexture, true, null, 0xFFFFFFFF,
+                        2.0f, false, null, false, false, null, true, "additive", 1f, null));
+                continue;
+            }
+
+            // WardenRenderer: five LivingEntityEmissiveLayer passes (bioluminescent body glow,
+            // two anti-phase pulsating-spot layers, tendrils, heart), each baking a DISTINCT
+            // ModelLayers subset (WARDEN_BIOLUMINESCENT etc. = createBodyLayer().apply(retainExactParts))
+            // and driven by a per-layer alpha function. scanOverlayLayers dedups the five same-class
+            // layers to one entry, and the copper-golem inline emissive path rejects them (distinct
+            // ModelLayers), so walk the renderer's <init> directly for each `new
+            // LivingEntityEmissiveLayer(...)` allocation. Entity-id gated because the reuse-base-mesh
+            // approximation is warden-specific (creaking's CREAKING_EYES is a genuinely different mesh).
+            if (VanillaSourceClasses.LIVING_ENTITY_EMISSIVE_LAYER.equals(layerClass)
+                && "minecraft:warden".equals(entityId)) {
+                for (Result r : resolveWardenEmissiveLayers(classNodes, rendererInternalName, layerClass))
+                    out.add(r);
                 continue;
             }
 
@@ -319,26 +480,48 @@ public final class EntityOverlayResolver {
                     float inflate = walkCubeDeformationFloat(classNodes,
                         VanillaSourceClasses.LAYER_DEFINITIONS, "FISH_PATTERN_DEFORMATION");
                     int tint = walkDyeColorWhiteTextureDiffuseColor(classNodes);
+                    // tint_by: pattern_color lets the pattern_color render axis override the baked
+                    // white-diffuse default tint at render (EntityAppearance's TintAxis.PATTERN),
+                    // mirroring vanilla's state.patternColor. texture_by: pattern lets the pattern
+                    // render axis swap the pattern overlay texture (TropicalFishPattern). Both
+                    // default to the baked value (pattern_1 / white tint), so the unselected render
+                    // is byte-identical.
                     out.add(new Result(layerClass, patternTexture, false, null, tint,
-                        inflate != 0f ? inflate : 0.008f, false));
+                        inflate != 0f ? inflate : 0.008f, false, "pattern_color", false, false, "pattern", false));
                 }
                 continue;
             }
 
             // VillagerProfessionLayer (used by VillagerRenderer + ZombieVillagerRenderer): the
-            // layer renders an additional textured pass on top of the base villager geometry,
-            // dispatched per-state to type/&lt;biome&gt;.png + optional profession + profession_level
-            // PNGs. At zero state (PLAINS biome, NONE profession, level 1) only the
-            // type/plains.png pass actually fires. The texture prefix ("villager" /
+            // layer renders up to three same-geometry textured passes over the base villager body -
+            // type/&lt;biome&gt; (the biome robe, base clothing), profession/&lt;name&gt; (clothes +
+            // hat), and profession_level/&lt;badge&gt; (the trade badge). At zero state (PLAINS biome,
+            // NONE profession) only the type/plains pass fires. The texture prefix ("villager" /
             // "zombie_villager") is the third constructor arg at the renderer's
-            // `addLayer(new VillagerProfessionLayer(this, resourceManager, "<prefix>", ...))`
-            // call site. Emit as a same-geometry overlay so the runtime gets the auto-applied
-            // inflate=0.001 (equal-Z depth-fail clearance).
+            // `addLayer(new VillagerProfessionLayer(this, resourceManager, "<prefix>", ...))` call
+            // site. Emit each as a same-geometry overlay (modelLayerField=null -> reuses the body
+            // mesh + auto inflate=0.001 depth clearance; the type/profession/level PNGs share the
+            // body UV) driven by an axis:
+            //   - type: baked type/plains default + texture_by:type. VillagerType default PLAINS
+            //     resolves to the same texture, so the unselected render is byte-identical.
+            //   - profession: NO baked texture_ref + texture_by:profession. The profession axis
+            //     supplies <prefix>/profession/<name>; VillagerProfession.NONE (default) resolves to
+            //     nothing so the render loop drops the overlay (byte-identical default). skip_bounds:
+            //     the clothes sit within the body silhouette.
+            //   - profession_level: NO baked texture_ref + texture_by:profession_level, gated (at
+            //     render) on the profession drawing a badge. Default draws nothing. skip_bounds.
+            // Emission order (type, profession, level) is render order: same-inflate coplanar ties
+            // break by insertion, so the badge draws over the clothes over the robe.
             if (VanillaSourceClasses.VILLAGER_PROFESSION_LAYER.equals(layerClass)) {
                 String prefix = extractVillagerProfessionPrefix(classNodes, rendererInternalName);
                 if (prefix != null) {
-                    String texture = TEXTURE_PATH_PREFIX + prefix + "/type/plains.png";
-                    out.add(new Result(layerClass, texture, false, null, 0xFFFFFFFF));
+                    String typeTexture = TEXTURE_PATH_PREFIX + prefix + "/type/plains.png";
+                    out.add(new Result(layerClass, typeTexture, false, null, 0xFFFFFFFF,
+                        0f, false, null, false, false, "type", false));
+                    out.add(new Result(layerClass, "", false, null, 0xFFFFFFFF,
+                        0f, true, null, false, false, "profession", false));
+                    out.add(new Result(layerClass, "", false, null, 0xFFFFFFFF,
+                        0f, true, null, false, false, "profession_level", false));
                 }
                 continue;
             }
@@ -366,20 +549,15 @@ public final class EntityOverlayResolver {
             // Composite-model overlay (sheep wool, sheep wool undercoat, drowned outer,
             // breeze wind, slime outer) - generic catch-all for any layer whose {@code <init>}
             // calls {@code modelSet.bakeLayer(ModelLayers.X)} and that wasn't claimed by a
-            // more specific handler above. Emit when:
-            //   - {@link #POLICY_FORCE_EMIT} explicitly allows it (translucent overlays
-            //     accepted as known-divergence), OR
-            //   - {@link #derivationAcceptsCompositeOverlay} accepts it (layer establishes
-            //     its own render type via direct {@code RenderTypes.X} INVOKESTATIC or the
-            //     {@code coloredCutoutModelCopyLayerRender} helper, AND every direct
-            //     render-type call resolves to a cutout-safe pipeline).
-            // Skip when {@link #POLICY_SUPPRESS} excludes it (state-gated runtime skips
-            // that bytecode walking can't statically resolve).
+            // more specific handler above. Emit when {@link #derivationAcceptsCompositeOverlay}
+            // accepts it (layer establishes its own render type via direct {@code RenderTypes.X}
+            // INVOKESTATIC or the {@code coloredCutoutModelCopyLayerRender} helper). A translucent
+            // shell (slime outer, {@code entityTranslucent}) is now accepted and carries {@code blend:
+            // translucent} via {@link #classifyCompositeBlend} - previously it was rejected by the gate
+            // and re-allowed by a hardcoded force-emit policy; classifying the blend retires that policy.
             String modelLayerField = findOverlayModelLayerField(cn);
             if (modelLayerField != null
-                && !POLICY_SUPPRESS.contains(modelLayerField)
-                && (POLICY_FORCE_EMIT.contains(modelLayerField)
-                    || derivationAcceptsCompositeOverlay(classNodes, cn))) {
+                && derivationAcceptsCompositeOverlay(classNodes, cn)) {
                 String compositeTexture = findCompositeOverlayTexture(classNodes, cn);
                 if (compositeTexture == null) {
                     diagnostics.info("entity '%s' overlay '%s' bakes ModelLayers.%s but no texture path resolved", entityId, layerClass, modelLayerField);
@@ -387,7 +565,14 @@ public final class EntityOverlayResolver {
                 }
                 int tintArgb = extractColoredCutoutTint(classNodes, cn);
                 boolean unlit = layerInvokesNoCardinalLightingRenderType(classNodes, cn);
-                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb));
+                String tintBy = extractTintBy(cn);
+                boolean shearable = detectShearableGate(cn);
+                boolean requiresTint = detectRequiresTint(cn);
+                // Colour composition from the layer's walked render type: a translucent-blend shell
+                // (slime outer's entityTranslucent) declares blend: translucent so the loader composites
+                // it source-over with its own texture alpha; cutout / no-cardinal layers stay normal.
+                String blend = classifyCompositeBlend(classNodes, cn);
+                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb, 0f, false, tintBy, shearable, requiresTint, null, false, blend, 1f, null));
                 continue;
             }
         }
@@ -422,8 +607,17 @@ public final class EntityOverlayResolver {
                     out.add(new Result(rendererInternalName, direct.texturePath(), true, null, 0xFFFFFFFF));
                 } else {
                     String emissiveTexture = findLivingEntityEmissiveTexture(classNodes, rendererCn);
-                    if (emissiveTexture != null)
-                        out.add(new Result(rendererInternalName, emissiveTexture, true, null, 0xFFFFFFFF));
+                    if (emissiveTexture != null) {
+                        // Copper golem's inline emissive eyes swap by weathering (CopperGolemRenderer's
+                        // eye-texture provider reads state.weathering); tag texture_by: weathering so the
+                        // weathering axis picks the oxidation state's eye texture. The baked texture is
+                        // the UNAFFECTED default, so the default (unweathered) render is byte-identical.
+                        // Entity-id gated - only the copper golem's inline emissive eyes are weathering-
+                        // driven (entity_id is itself bytecode-derived from the EntityType registry walk).
+                        String eyeTextureBy = "minecraft:copper_golem".equals(entityId) ? "weathering" : null;
+                        out.add(new Result(rendererInternalName, emissiveTexture, true, null, 0xFFFFFFFF,
+                            0f, false, null, false, false, eyeTextureBy, false));
+                    }
                 }
             }
         }
@@ -516,6 +710,27 @@ public final class EntityOverlayResolver {
      * {@code withDefaultNamespace} call into a {@code PUTSTATIC} of a non-{@code BABY} field.
      * Returns the LDC's literal value, or {@code null} when no such pattern is present.
      */
+    /**
+     * Scans an {@code EnergySwirlLayer} subclass (e.g. {@code CreeperPowerLayer}) for its swirl
+     * texture literal - the {@code textures/entity/X.png} LDC returned by the layer's
+     * {@code getTextureLocation()} override. Unlike {@link #findFirstNonBabyTextureLiteral} (which
+     * walks the {@code <clinit>} for a static {@code Identifier} field), the swirl texture is built
+     * inline in an instance method, so this walks every method for the first entity-texture LDC.
+     *
+     * @param cn the layer subclass ClassNode
+     * @return the raw {@code textures/entity/...png} path, or {@code null} when none is present
+     */
+    private static @Nullable String findEnergySwirlTexture(@NotNull ClassNode cn) {
+        for (MethodNode method : cn.methods) {
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                String literal = AsmKit.readStringLiteral(in);
+                if (literal != null && literal.startsWith(TEXTURE_PATH_PREFIX) && literal.endsWith(".png"))
+                    return literal;
+            }
+        }
+        return null;
+    }
+
     private static @Nullable String findFirstNonBabyTextureLiteral(@NotNull ClassNode cn) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
@@ -649,6 +864,84 @@ public final class EntityOverlayResolver {
             }
         }
         return 0xFFFFFFFF;
+    }
+
+    /**
+     * The recognised {@code state.get<X>Color()} tint sources that map to a user-selectable render
+     * axis, keyed by the state method name. An overlay whose {@code coloredCutoutModelCopyLayerRender}
+     * colour comes from one of these emits the mapped {@code tint_by} token, so a render option can
+     * override the baked default tint (the sheep wool's default {@code 0xFFE6E6E6} white). Sources
+     * absent from this map keep only their fixed {@code tint_color}.
+     */
+    private static final @NotNull java.util.Map<String, String> TINT_SOURCE_TO_AXIS =
+        java.util.Map.of("getWoolColor", "wool_color");
+
+    /**
+     * Extracts the {@code tint_by} render-axis token for a dyed composite overlay: the
+     * {@code state.get<X>Color()} method feeding the layer's {@code coloredCutoutModelCopyLayerRender}
+     * colour argument, mapped through {@link #TINT_SOURCE_TO_AXIS}. Mirrors
+     * {@link #extractColoredCutoutTint}'s walk but returns the axis token instead of the baked
+     * literal. Returns {@code null} when the layer does not use the cutout helper or its colour
+     * source is not a recognised user-selectable dye axis.
+     */
+    private static @Nullable String extractTintBy(@NotNull ClassNode layerCn) {
+        for (MethodNode method : layerCn.methods) {
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.INVOKESTATIC) continue;
+                if (!(in instanceof MethodInsnNode mi)) continue;
+                if (!"coloredCutoutModelCopyLayerRender".equals(mi.name)) continue;
+                if (findPrecedingStateColorCall(in) instanceof MethodInsnNode colorCall) {
+                    String axis = TINT_SOURCE_TO_AXIS.get(colorCall.name);
+                    if (axis != null) return axis;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Detects the {@code if (state.isSheared) return;} early-return gate at the top of a wool
+     * layer's {@code submit} - the sheep wool renders nothing once the entity is sheared. Matched
+     * shape, reading forwards: {@code GETFIELD <StateClass>.isSheared:Z; IFEQ <past>; RETURN}. When
+     * present the overlay is {@code shearable}, so the {@code sheared} render axis drops it. Keys on
+     * the {@code isSheared} field name + the branch-then-void-return shape so an unrelated boolean
+     * read cannot match.
+     */
+    private static boolean detectShearableGate(@NotNull ClassNode layerCn) {
+        for (MethodNode method : layerCn.methods) {
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.GETFIELD) continue;
+                if (!(in instanceof FieldInsnNode get)) continue;
+                if (!"isSheared".equals(get.name) || !"Z".equals(get.desc)) continue;
+                AbstractInsnNode branch = AsmKit.nextReal(in);
+                if (branch == null || branch.getOpcode() != Opcodes.IFEQ) continue;
+                AbstractInsnNode body = AsmKit.nextReal(branch);
+                if (body != null && body.getOpcode() == Opcodes.RETURN) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Detects the sheep wool undercoat's dye-conditional gate - the layer draws nothing unless a
+     * non-default wool colour (or jeb) is selected ({@code if (!(isJebSheep || woolColor != WHITE))
+     * return;}). Keyed on a {@code GETFIELD <state>.isJebSheep:Z} read, which is unique to the
+     * undercoat among sheep layers (the main wool tints on {@code getWoolColor()} but always renders).
+     * When present the overlay carries {@code requires_tint} and is skipped at render for the default
+     * (untinted) entity, so a white sheep stays byte-identical.
+     */
+    private static boolean detectRequiresTint(@NotNull ClassNode layerCn) {
+        for (MethodNode method : layerCn.methods) {
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.GETFIELD) continue;
+                if (!(in instanceof FieldInsnNode get)) continue;
+                if ("isJebSheep".equals(get.name) && "Z".equals(get.desc)) return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1031,9 +1324,11 @@ public final class EntityOverlayResolver {
      *       body starts with {@code LDC "eyes"; GETSTATIC RenderPipelines.EYES}.</li>
      * </ul>
      *
-     * <p>Direct lookup succeeds first; if no {@code RenderPipelines.X} GETSTATIC appears in the
-     * factory body, the fallback scans every {@code lambda$static$N} method whose first
-     * {@code LDC} string equals {@code factoryName} and picks the GETSTATIC right after it.
+     * <p>Direct lookup succeeds first; a field-backed factory ({@code entityTranslucent} reads a
+     * {@code BiFunction} / {@code Function} field and {@code .apply}s it) is chased through
+     * {@link #chaseFunctionFieldPipeline} to the {@code <clinit>} lambda that binds the field; failing
+     * both, the fallback scans every {@code lambda$static$N} method whose first {@code LDC} string
+     * equals {@code factoryName} and picks the GETSTATIC right after it.
      */
     private static @Nullable String resolveRenderTypesFactoryPipeline(@NotNull ClassNode renderTypes, @NotNull String factoryName) {
         for (MethodNode method : renderTypes.methods) {
@@ -1045,6 +1340,17 @@ public final class EntityOverlayResolver {
                     && in instanceof FieldInsnNode fi
                     && VanillaSourceClasses.RENDER_PIPELINES.equals(fi.owner))
                     return fi.name;
+                // Field-backed factory: `entityTranslucent(id, cull)` reads `GETSTATIC ENTITY_TRANSLUCENT:
+                // BiFunction` and `.apply(...)`s it (rather than referencing a pipeline directly). The
+                // BiFunction / Function field is bound in <clinit> by an `invokedynamic apply` whose lambda
+                // GETSTATICs the pipeline; chase it so translucent shells (slime outer) classify.
+                if (in.getOpcode() == Opcodes.GETSTATIC
+                    && in instanceof FieldInsnNode ff
+                    && renderTypes.name.equals(ff.owner)
+                    && isFunctionFieldDesc(ff.desc)) {
+                    String pipeline = chaseFunctionFieldPipeline(renderTypes, ff.name);
+                    if (pipeline != null) return pipeline;
+                }
             }
         }
 
@@ -1070,6 +1376,62 @@ public final class EntityOverlayResolver {
             }
         }
 
+        return null;
+    }
+
+    /** Field descriptor of a {@code java.util.function.Function} - a lambda-backed factory field. */
+    private static final @NotNull String FUNCTION_DESC = "Ljava/util/function/Function;";
+
+    /** Field descriptor of a {@code java.util.function.BiFunction} - a lambda-backed factory field. */
+    private static final @NotNull String BIFUNCTION_DESC = "Ljava/util/function/BiFunction;";
+
+    /**
+     * Reports whether {@code desc} is a {@code Function} / {@code BiFunction} field descriptor - the
+     * shape of a {@code RenderTypes} factory-backing field (e.g. {@code ENTITY_TRANSLUCENT}) whose
+     * {@code apply} the public factory method delegates to.
+     *
+     * @param desc the field descriptor
+     * @return {@code true} for a {@code Function} / {@code BiFunction} field
+     */
+    private static boolean isFunctionFieldDesc(@NotNull String desc) {
+        return FUNCTION_DESC.equals(desc) || BIFUNCTION_DESC.equals(desc);
+    }
+
+    /**
+     * Resolves the {@code RenderPipelines.X} field a lambda-backed {@code RenderTypes} factory field
+     * builds against. Walks {@code RenderTypes.<clinit>} for the {@code invokedynamic apply; PUTSTATIC
+     * <fieldName>} chain that binds the field, then walks the bound lambda's body for its first
+     * {@code GETSTATIC RenderPipelines.X}. Returns the pipeline field name, or {@code null} when the
+     * field binding or the lambda's pipeline reference can't be resolved.
+     *
+     * @param renderTypes the {@code RenderTypes} class node (holds both the {@code <clinit>} and the lambda)
+     * @param fieldName the backing {@code Function} / {@code BiFunction} field name
+     * @return the pipeline field name, or {@code null}
+     */
+    private static @Nullable String chaseFunctionFieldPipeline(@NotNull ClassNode renderTypes, @NotNull String fieldName) {
+        MethodNode clinit = AsmKit.findMethod(renderTypes, AsmKit.CLINIT);
+        if (clinit == null) return null;
+        Handle pendingLambda = null;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy) {
+                Handle handle = AsmKit.extractLambdaHandle(indy);
+                if (handle != null) pendingLambda = handle;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.PUTSTATIC
+                && in instanceof FieldInsnNode fi
+                && fieldName.equals(fi.name)
+                && pendingLambda != null) {
+                MethodNode lambda = AsmKit.findMethod(renderTypes, pendingLambda.getName(), pendingLambda.getDesc());
+                if (lambda == null) return null;
+                for (AbstractInsnNode li = lambda.instructions.getFirst(); li != null; li = li.getNext())
+                    if (li.getOpcode() == Opcodes.GETSTATIC
+                        && li instanceof FieldInsnNode pf
+                        && VanillaSourceClasses.RENDER_PIPELINES.equals(pf.owner))
+                        return pf.name;
+                return null;
+            }
+        }
         return null;
     }
 
@@ -1186,24 +1548,20 @@ public final class EntityOverlayResolver {
     }
 
     /**
-     * Decides whether a composite-overlay layer's bytecode is safe to emit via the
-     * generic gate. Two conditions:
-     * <ol>
-     *   <li>The layer's non-init non-clinit body invokes either an
-     *       {@code INVOKESTATIC RenderTypes.X} factory OR the
-     *       {@code coloredCutoutModelCopyLayerRender} helper. Excludes EnergySwirlLayer
-     *       subclasses (CreeperPowerLayer, WitherArmorLayer) and equipment-only layers
-     *       (WingsLayer, RopesLayer) whose render type lives in inherited /
-     *       runtime-dispatched code we can't walk statically.</li>
-     *   <li>If any direct {@code RenderTypes.X} call resolves to a cutout-unsafe pipeline
-     *       (translucent blend without {@code NO_CARDINAL_LIGHTING}), reject. Excludes
-     *       SlimeOuterLayer's {@code entityTranslucent}; the policy override in
-     *       {@link #POLICY_FORCE_EMIT} re-allows it. The helper is always cutout by
-     *       construction so helper-only layers pass.</li>
-     * </ol>
-     * Callers run dedicated class-specific handlers (LlamaDecorLayer,
-     * TropicalFishPatternLayer, VillagerProfessionLayer) BEFORE this generic gate so they
-     * claim their classes via {@code continue} - no class-name short-circuit needed here.
+     * Decides whether a composite-overlay layer establishes its own render type and is therefore
+     * safe to emit via the generic gate: its non-init non-clinit body invokes either an
+     * {@code INVOKESTATIC RenderTypes.X} factory OR the {@code coloredCutoutModelCopyLayerRender}
+     * helper. Excludes EnergySwirlLayer subclasses (CreeperPowerLayer, WitherArmorLayer) and
+     * equipment-only layers (WingsLayer, RopesLayer) whose render type lives in inherited /
+     * runtime-dispatched code we can't walk statically.
+     * <p>A translucent-blend render type (slime outer's {@code entityTranslucent}) is now accepted
+     * rather than rejected: {@link #classifyCompositeBlend} classifies it and the emitted overlay
+     * carries {@code blend: translucent}, so the loader composites it source-over with its own
+     * texture alpha. This retired the hardcoded force-emit policy that previously re-allowed the
+     * slime shell past the reject.
+     * <p>Callers run dedicated class-specific handlers (LlamaDecorLayer, TropicalFishPatternLayer,
+     * VillagerProfessionLayer) BEFORE this generic gate so they claim their classes via
+     * {@code continue} - no class-name short-circuit needed here.
      */
     private static boolean derivationAcceptsCompositeOverlay(@NotNull ClassNodeCache classNodes, @NotNull ClassNode layerCn) {
         boolean hasDirectRenderType = false;
@@ -1217,17 +1575,44 @@ public final class EntityOverlayResolver {
                 if (in.getOpcode() != Opcodes.INVOKESTATIC) continue;
                 if (!(in instanceof MethodInsnNode mi)) continue;
 
-                if (VanillaSourceClasses.RENDER_TYPES.equals(mi.owner)) {
+                if (VanillaSourceClasses.RENDER_TYPES.equals(mi.owner))
                     hasDirectRenderType = true;
-                    if (factoryHasTranslucentBlend(classNodes, mi.name)
-                        && !factoryHasNoCardinalLighting(classNodes, mi.name))
-                        return false;
-                } else if (COLORED_CUTOUT_HELPER.equals(mi.name))
+                else if (COLORED_CUTOUT_HELPER.equals(mi.name))
                     usesHelper = true;
             }
         }
 
         return hasDirectRenderType || usesHelper;
+    }
+
+    /**
+     * Classifies the colour-composition {@code blend} node for a composite overlay from its walked
+     * render type: {@code "translucent"} when any direct {@code RenderTypes.X} factory resolves to a
+     * {@code BlendFunction.TRANSLUCENT} pipeline that is not {@code NO_CARDINAL_LIGHTING} (the slime
+     * outer shell's {@code entityTranslucent}), else {@code null} for the default source-over
+     * {@code normal} (cutout, or a full-bright emissive layer whose translucency is irrelevant). The
+     * translucency itself lives in the shell texture's own alpha, so {@code translucent} maps to the
+     * same source-over composite as {@code normal} at the fragment level - the node exists so the
+     * shell declares its exact vanilla blend and no longer needs a force-emit override to be emitted.
+     * Additive glows (energy swirl) are classified by their dedicated handlers, not here.
+     *
+     * @param classNodes the ClassNode cache
+     * @param layerCn the composite overlay layer class
+     * @return {@code "translucent"} for a translucent-blend shell, or {@code null} for source-over
+     */
+    private static @Nullable String classifyCompositeBlend(@NotNull ClassNodeCache classNodes, @NotNull ClassNode layerCn) {
+        for (MethodNode method : layerCn.methods) {
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.INVOKESTATIC) continue;
+                if (!(in instanceof MethodInsnNode mi)) continue;
+                if (!VanillaSourceClasses.RENDER_TYPES.equals(mi.owner)) continue;
+                if (factoryHasTranslucentBlend(classNodes, mi.name)
+                    && !factoryHasNoCardinalLighting(classNodes, mi.name))
+                    return "translucent";
+            }
+        }
+        return null;
     }
 
     /**
@@ -1431,6 +1816,329 @@ public final class EntityOverlayResolver {
         }
 
         return null;
+    }
+
+    /**
+     * Resolves the warden's five {@code LivingEntityEmissiveLayer} passes into emissive overlays by
+     * walking {@code WardenRenderer.<init>} for each {@code new LivingEntityEmissiveLayer(parent,
+     * textureFn, alphaFn, model, renderTypeFn, alwaysVisible)} allocation. The five layers are the
+     * same class (so {@link EntityBoneResolver#scanOverlayLayers} dedups them to one entry) added
+     * with different texture / alpha function lambdas and distinct {@code ModelLayers} subset meshes
+     * ({@code WARDEN_BIOLUMINESCENT} etc.).
+     *
+     * <p>For each allocation the first two lambda {@code invokedynamic}s are the texture provider and
+     * the alpha function (the third is the shared render-type provider). The texture is resolved from
+     * the texture lambda's {@code getstatic <Identifier field>} back through the renderer's
+     * {@code <clinit>} ({@link #chaseTextureFieldOwner}); the alpha is the alpha lambda evaluated at
+     * the harness's frozen frame ({@code ageInTicks == 0}, render-state animation fields {@code 0} -
+     * see the vanilla-reference-harness {@code FreezeAnimationStateMixin}) via
+     * {@link #evaluateFrozenAlpha}. Every layer with a positive frozen-frame alpha is emitted -
+     * at rest that is the bioluminescent body glow ({@code alpha 1.0}) and the phase-0 pulsating
+     * spots ({@code cos(0) * 0.25 = 0.25}); the anti-phase spots ({@code cos(pi) * 0.25 -> max 0}),
+     * tendrils and heart ({@code tendrilAnimation} / {@code heartAnimation}, {@code 0} at rest) drop
+     * out, matching the reference the harness renders.
+     *
+     * <p>The two visible layers reproduce vanilla by different means:
+     * <ul>
+     *   <li><b>Bioluminescent</b> ({@code alpha 1.0}) reuses the base warden mesh
+     *       ({@code modelLayerField == null}) with no alpha node: its glow texture is transparent
+     *       outside the {@code createBioluminescentLayer} retained parts, so the full mesh masked by the
+     *       transparent texture is equivalent to the subset.</li>
+     *   <li><b>Pulsating spots</b> ({@code alpha 0.25}) needs both - the fractional opacity rides the
+     *       dedicated {@code alpha} node ({@link Result#alpha}), because the tint colour's alpha byte is
+     *       discarded by the runtime {@code MULTIPLY} tint blend; and the {@code createPulsatingSpotsLayer}
+     *       {@code retainExactParts} set is carried as {@link Result#retainBones} (recovered by
+     *       {@link #extractWardenPulsatingSpotsRetain}) so the spots draw only where vanilla's subset
+     *       {@code LayerDefinition} does (body + legs, after the {@code retainExactParts} ancestor clear)
+     *       rather than over-drawing the tendrils / ribcages / arms the subset omits.</li>
+     * </ul>
+     * Both are Lambertian-shaded ({@code entityTranslucentEmissive} keeps {@code PER_FACE_LIGHTING}) and
+     * {@code skip_bounds} (the glow sits within the body silhouette).
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param rendererInternalName the warden renderer's JVM internal name
+     * @param layerClass the {@code LivingEntityEmissiveLayer} internal name (overlay provenance)
+     * @return one emissive overlay descriptor per visible warden glow layer, in source order
+     */
+    private static @NotNull List<Result> resolveWardenEmissiveLayers(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String rendererInternalName,
+        @NotNull String layerClass
+    ) {
+        List<Result> out = new ArrayList<>();
+        ClassNode renderer = classNodes.load(rendererInternalName);
+        if (renderer == null) return out;
+        MethodNode init = AsmKit.findMethod(renderer, AsmKit.INIT);
+        if (init == null) return out;
+
+        boolean inAlloc = false;
+        List<Handle> lambdas = new ArrayList<>();
+        for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() == Opcodes.NEW
+                && in instanceof TypeInsnNode ti
+                && VanillaSourceClasses.LIVING_ENTITY_EMISSIVE_LAYER.equals(ti.desc)) {
+                inAlloc = true;
+                lambdas.clear();
+                continue;
+            }
+            if (!inAlloc) continue;
+            if (AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy) {
+                Handle handle = AsmKit.extractLambdaHandle(indy);
+                if (handle != null) lambdas.add(handle);
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.INVOKESPECIAL
+                && in instanceof MethodInsnNode mi
+                && VanillaSourceClasses.LIVING_ENTITY_EMISSIVE_LAYER.equals(mi.owner)
+                && AsmKit.INIT.equals(mi.name)) {
+                inAlloc = false;
+                if (lambdas.size() < 3) continue;
+                String texture = resolveEmissiveLambdaTexture(classNodes, renderer, lambdas.get(0));
+                float alpha = evaluateFrozenAlpha(renderer, lambdas.get(1));
+                // Emit every layer with a positive frozen-frame alpha. At rest that is the
+                // bioluminescent body glow (alpha 1.0) and the phase-0 pulsating spots (0.25); the
+                // anti-phase spots (cos(pi)*0.25 -> max 0), tendrils and heart (0 at rest) drop out.
+                if (texture == null || alpha <= 0f) continue;
+                // The warden layers use RenderTypes.entityTranslucentEmissive, which (like breeze eyes)
+                // keeps PER_FACE_LIGHTING - NOT the NO_CARDINAL_LIGHTING that RenderType.eyes carries -
+                // so the glow is Lambertian-shaded, not full-bright. Derive emissive from the render-type
+                // factory (the third lambda) exactly like the eye-overlay handler, so the shade matches
+                // vanilla instead of over-brightening.
+                boolean emissive = renderTypeIsFullyEmissive(classNodes, renderer, lambdas.get(2));
+                if (alpha >= 0.999f) {
+                    // Bioluminescent body glow (alpha 1.0): full-mesh reuse is exact because the glow
+                    // texture is transparent outside its retained parts, so no alpha node / no subset.
+                    out.add(new Result(layerClass, texture, emissive, null, 0xFFFFFFFF,
+                        0f, true, null, false, false, null, false));
+                    continue;
+                }
+                // Pulsating spots (frozen alpha 0.25): the fractional opacity rides the dedicated alpha
+                // node (a value the MULTIPLY tint blend would discard), and the vanilla WARDEN_PULSATING_
+                // SPOTS subset LayerDefinition is reproduced with a retain_bones list so the spots draw
+                // only where vanilla's subset does (body + legs) instead of over-drawing the tendrils /
+                // ribcages / arms the subset omits. Skip the layer if the retain set can't be recovered
+                // (better no spots than an over-drawing full-mesh reuse).
+                List<String> retainBones = extractWardenPulsatingSpotsRetain(classNodes, renderer);
+                if (retainBones == null) continue;
+                out.add(new Result(layerClass, texture, emissive, null, 0xFFFFFFFF,
+                    0f, true, null, false, false, null, false, null, alpha, retainBones));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The vanilla model-class factory that bakes the {@code WARDEN_PULSATING_SPOTS} subset -
+     * {@code createPulsatingSpotsLayer}, whose {@code MeshTransformer} lambda applies the
+     * {@code retainExactParts} set the pulsating-spots overlay is restricted to.
+     */
+    private static final @NotNull String PULSATING_SPOTS_FACTORY = "createPulsatingSpotsLayer";
+
+    /**
+     * Recovers the {@code retainExactParts} set the warden's {@code WARDEN_PULSATING_SPOTS} subset
+     * {@code LayerDefinition} bakes, so the pulsating-spots overlay can be restricted to the same
+     * parts vanilla's subset draws. Finds the renderer's base model class (its first
+     * {@code new *Model} allocation), then walks that model's {@code createPulsatingSpotsLayer} for
+     * its {@code MeshTransformer} lambda ({@code createBodyLayer().apply(<lambda>)}) and reads the
+     * {@code String} literals the lambda pushes into {@code Set.of(...)} before the
+     * {@code retainExactParts} call ({@code body} / {@code head} / arms / legs). Returns the raw set;
+     * the loader applies the {@code retainExactParts} ancestor-clear (a nested named part under a
+     * retained ancestor is emptied). {@code null} when the model class, the factory, its lambda, or
+     * the set can't be resolved.
+     *
+     * @param classNodes the ClassNode cache
+     * @param renderer the warden renderer class node
+     * @return the raw retain set, or {@code null} when unresolved
+     */
+    private static @Nullable List<String> extractWardenPulsatingSpotsRetain(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull ClassNode renderer
+    ) {
+        String modelClass = findFirstEntityModelClass(renderer);
+        if (modelClass == null) return null;
+        ClassNode model = classNodes.load(modelClass);
+        if (model == null) return null;
+        MethodNode factory = AsmKit.findMethod(model, PULSATING_SPOTS_FACTORY);
+        if (factory == null) return null;
+
+        Handle transformer = null;
+        for (AbstractInsnNode in = factory.instructions.getFirst(); in != null; in = in.getNext())
+            if (AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy) {
+                transformer = AsmKit.extractLambdaHandle(indy);
+                if (transformer != null) break;
+            }
+        if (transformer == null) return null;
+        MethodNode lambda = AsmKit.findMethod(model, transformer.getName(), transformer.getDesc());
+        if (lambda == null) return null;
+
+        List<String> retain = new ArrayList<>();
+        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && in instanceof MethodInsnNode mi
+                && "retainExactParts".equals(mi.name)) break;
+            String literal = AsmKit.readStringLiteral(in);
+            if (literal != null) retain.add(literal);
+        }
+        return retain.isEmpty() ? null : retain;
+    }
+
+    /**
+     * Returns the JVM internal name of the first {@code net/minecraft/client/model/*Model} a
+     * renderer's constructor allocates - the renderer's base {@code EntityModel} (warden -&gt;
+     * {@code WardenModel}), passed to the {@code LivingEntityRenderer} super call. Returns
+     * {@code null} when the constructor allocates no such model.
+     *
+     * @param renderer the renderer class node
+     * @return the base model's internal name, or {@code null} when none is allocated
+     */
+    private static @Nullable String findFirstEntityModelClass(@NotNull ClassNode renderer) {
+        MethodNode init = AsmKit.findMethod(renderer, AsmKit.INIT);
+        if (init == null) return null;
+        for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext())
+            if (in.getOpcode() == Opcodes.NEW
+                && in instanceof TypeInsnNode ti
+                && ti.desc.startsWith("net/minecraft/client/model/")
+                && ti.desc.endsWith("Model"))
+                return ti.desc;
+        return null;
+    }
+
+    /**
+     * Resolves the texture path a {@code LivingEntityEmissiveLayer} texture-provider lambda returns.
+     * The lambda body is a single {@code getstatic <Identifier field>; areturn}; the field is bound
+     * in the renderer's {@code <clinit>} by the standard {@code LDC + withDefaultNamespace + PUTSTATIC}
+     * chain, so {@link #chaseTextureFieldOwner} recovers the raw {@code textures/entity/...png} path.
+     *
+     * @param classNodes the ClassNode cache
+     * @param renderer the renderer class holding the lambda + the texture field's {@code <clinit>}
+     * @param textureLambda the texture-provider lambda handle
+     * @return the raw texture path, or {@code null} when the lambda doesn't match the field-return shape
+     */
+    private static @Nullable String resolveEmissiveLambdaTexture(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull ClassNode renderer,
+        @NotNull Handle textureLambda
+    ) {
+        MethodNode lambda = AsmKit.findMethod(renderer, textureLambda.getName(), textureLambda.getDesc());
+        if (lambda == null) return null;
+        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
+            if (in.getOpcode() == Opcodes.GETSTATIC
+                && in instanceof FieldInsnNode fi
+                && IDENTIFIER_DESC.equals(fi.desc))
+                return chaseTextureFieldOwner(classNodes, fi.owner, fi.name);
+        return null;
+    }
+
+    /**
+     * Reports whether a {@code LivingEntityEmissiveLayer}'s render-type provider resolves to a
+     * fully-emissive (full-bright, {@code NO_CARDINAL_LIGHTING}) render type. The provider is a
+     * {@code Function<Identifier, RenderType>} passed as the layer's fifth ctor arg - either a direct
+     * {@code RenderTypes::factory} method reference (handle owner {@code RenderTypes}) or a lambda that
+     * calls one {@code RenderTypes.factory(...)}. The factory name feeds
+     * {@link #factoryHasNoCardinalLighting}, the same classifier the eye-overlay handler uses:
+     * {@code eyes} -&gt; full-bright, {@code entityTranslucentEmissive} (the warden's) -&gt; Lambertian
+     * per-face shaded.
+     *
+     * @param classNodes the ClassNode cache
+     * @param renderer the renderer class holding any lambda body
+     * @param renderTypeLambda the render-type provider lambda / method-reference handle
+     * @return {@code true} when the render type is full-bright, {@code false} when shaded (or unresolved)
+     */
+    private static boolean renderTypeIsFullyEmissive(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull ClassNode renderer,
+        @NotNull Handle renderTypeLambda
+    ) {
+        String factory = null;
+        if (VanillaSourceClasses.RENDER_TYPES.equals(renderTypeLambda.getOwner())) {
+            factory = renderTypeLambda.getName();
+        } else {
+            MethodNode lambda = AsmKit.findMethod(renderer, renderTypeLambda.getName(), renderTypeLambda.getDesc());
+            if (lambda != null)
+                for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
+                    if (in.getOpcode() == Opcodes.INVOKESTATIC
+                        && in instanceof MethodInsnNode mi
+                        && VanillaSourceClasses.RENDER_TYPES.equals(mi.owner)) {
+                        factory = mi.name;
+                        break;
+                    }
+        }
+        return factory != null && factoryHasNoCardinalLighting(classNodes, factory);
+    }
+
+    /**
+     * Evaluates a {@code LivingEntityEmissiveLayer} alpha-function lambda at the harness's frozen
+     * frame - {@code ageInTicks == 0} and every render-state animation field {@code 0} (the
+     * vanilla-reference-harness {@code FreezeAnimationStateMixin} state). A small operand-stack
+     * interpreter walks the lambda body handling the shapes the warden layers use: float constants,
+     * the {@code ageInTicks} parameter (always {@code 0}), render-state {@code GETFIELD}s (always
+     * {@code 0} at rest), {@code fmul}/{@code fadd}/{@code fsub}, and the {@code Mth.cos} /
+     * {@code Mth.sin} / {@code Math.max} / {@code Math.min} / {@code Mth.clamp} intrinsics. Returns
+     * the {@code (D|F)RETURN}ed value, or {@code 0} when the body uses an unsupported op (so an
+     * un-evaluable layer drops rather than emits a wrong alpha).
+     *
+     * @param renderer the renderer class holding the lambda
+     * @param alphaLambda the alpha-function lambda handle
+     * @return the frozen-frame alpha in {@code [0, 1]}, or {@code 0} when unresolved
+     */
+    private static float evaluateFrozenAlpha(@NotNull ClassNode renderer, @NotNull Handle alphaLambda) {
+        MethodNode lambda = AsmKit.findMethod(renderer, alphaLambda.getName(), alphaLambda.getDesc());
+        if (lambda == null) return 0f;
+        Deque<Double> stack = new ArrayDeque<>();
+        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
+            int op = in.getOpcode();
+            Float constant = AsmKit.readFloatLiteral(in);
+            if (constant != null) {
+                stack.push((double) constant);
+                continue;
+            }
+            switch (op) {
+                // ageInTicks parameter and render-state field reads are both 0 at the frozen frame.
+                // ALOAD pushes the (unused) state receiver so the following GETFIELD has an operand.
+                case Opcodes.FLOAD -> stack.push(0.0);
+                case Opcodes.ALOAD -> stack.push(0.0);
+                case Opcodes.GETFIELD -> { pop(stack); stack.push(0.0); }
+                case Opcodes.FMUL -> { double b = pop(stack), a = pop(stack); stack.push(a * b); }
+                case Opcodes.FADD -> { double b = pop(stack), a = pop(stack); stack.push(a + b); }
+                case Opcodes.FSUB -> { double b = pop(stack), a = pop(stack); stack.push(a - b); }
+                case Opcodes.F2D, Opcodes.D2F, Opcodes.I2F, Opcodes.F2I -> { /* numeric widening/narrowing no-op */ }
+                case Opcodes.INVOKESTATIC -> {
+                    if (!(in instanceof MethodInsnNode mi) || !applyFloatIntrinsic(mi.name, stack)) return 0f;
+                }
+                case Opcodes.FRETURN, Opcodes.DRETURN -> { return stack.isEmpty() ? 0f : (float) (double) stack.peek(); }
+                default -> {
+                    // An unrecognised opcode means the alpha shape isn't one we can statically fold;
+                    // drop the layer (return 0) rather than emit a guessed alpha.
+                    if (op >= 0) return 0f;
+                }
+            }
+        }
+        return 0f;
+    }
+
+    /**
+     * Applies a recognised float intrinsic ({@code Mth.cos} / {@code Mth.sin} / {@code Math.max} /
+     * {@code Math.min} / {@code Mth.clamp}) to the operand stack. Returns {@code false} for an
+     * unrecognised static call so {@link #evaluateFrozenAlpha} can bail. {@code Mth.cos} at the
+     * frozen frame is exact for the values the warden uses ({@code cos(0) = 1}); the {@code max(0, ..)}
+     * clamp then drops the anti-phase layer.
+     */
+    private static boolean applyFloatIntrinsic(@NotNull String name, @NotNull Deque<Double> stack) {
+        switch (name) {
+            case "cos" -> stack.push(Math.cos(pop(stack)));
+            case "sin" -> stack.push(Math.sin(pop(stack)));
+            case "max" -> { double b = pop(stack), a = pop(stack); stack.push(Math.max(a, b)); }
+            case "min" -> { double b = pop(stack), a = pop(stack); stack.push(Math.min(a, b)); }
+            case "clamp" -> { double hi = pop(stack), lo = pop(stack), v = pop(stack); stack.push(Math.max(lo, Math.min(hi, v))); }
+            default -> { return false; }
+        }
+        return true;
+    }
+
+    /** Pops a value from the interpreter stack, treating an underflow as {@code 0}. */
+    private static double pop(@NotNull Deque<Double> stack) {
+        Double v = stack.poll();
+        return v == null ? 0.0 : v;
     }
 
     /**

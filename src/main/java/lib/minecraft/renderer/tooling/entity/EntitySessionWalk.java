@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -28,13 +29,6 @@ import java.util.zip.ZipFile;
  */
 @RequiredArgsConstructor
 public final class EntitySessionWalk {
-
-    /**
-     * Namespace prefix applied to every emitted entity id. Mirrors
-     * {@code ToolingEntityModels.MINECRAFT_NAMESPACE}; kept in sync because both files
-     * synthesize the same {@code "minecraft:<id>"} for downstream JSON.
-     */
-    private static final @NotNull String MINECRAFT_NAMESPACE = "minecraft:";
 
     /** Shared tooling context (open jar / class-node cache / diagnostics) every resolver pass reads from. */
     private final @NotNull EntityToolingContext context;
@@ -90,7 +84,7 @@ public final class EntitySessionWalk {
         ZipFile zip = this.context.zip();
         Diagnostics diagnostics = this.context.diagnostics();
         String renderer = this.registryEntry.rendererInternalName();
-        String entityId = MINECRAFT_NAMESPACE + this.registryEntry.entityId();
+        String entityId = VanillaSourcePaths.MINECRAFT_NAMESPACE + this.registryEntry.entityId();
 
         EntityTextureResolver.Result binding = EntityTextureResolver.resolve(
             this.context.classNodes(), renderer, this.registryEntry.entityId(), this.registryEntry.lambdaTypeArgs(), diagnostics

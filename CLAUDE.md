@@ -18,7 +18,7 @@ Rewrites JSON in `src/main/resources/lib/minecraft/renderer/`:
 - `glintItems` -> `glint_items.json` (ASM scan of `Items` for `ENCHANTMENT_GLINT_OVERRIDE=true` - the always-foil items)
 - `blockModels` -> `block_models.json` (ASM scan of block-entity model classes)
 - `blockDefaults` -> `block_defaults.json` (ASM bytewalk of `registerDefaultState` + `createBlockStateDefinition` for each block's default state). Read at runtime by `BlockStateLoader` -> `Block.defaultStateKey`. Variants come from the vanilla blockstate JSON, not this file.
-- `entityModels` -> `entity_models.json` + `entity_geometry.json` (ASM scan of vanilla client jar). Entry: `ToolingEntityModels.main` -> `EntityToolingContext.of(jar)` -> per-entity resolver fan-out (see `tooling/entity/`).
+- `entityModels` -> `entity_models.json` + `entity_geometry.json` (ASM scan of vanilla client jar). Entry: `ToolingEntityModels.main` -> `EntityToolingContext.of(jar)` -> per-entity resolver fan-out (see `tooling/entity/`). `entity_models.json` is the **normalized family form** (see below); `EntityRuntimeJsonWriter` builds the flat per-entity tables in-memory and `EntityFamilyJsonWriter` groups them into it.
 - `colorMaps` -> `color_maps.json` (vanilla biome colormap PNGs)
 - `atlas` / `diagnoseAtlas` / `diagnoseAtlasTask10` -> `build/atlas/`
 
@@ -47,6 +47,14 @@ The sibling [vanilla-reference-harness] drives the actual MC client to render ev
 ### Two pipelines
 1. **Java** (vanilla model classes via ASM bytecode walk) - `entity_models.json` + `entity_geometry.json` from the `entityModels` task, consumed at runtime by `EntityRenderer` via `pipeline/loader/EntityModelLoader`.
 2. **Vanilla reference** - drives real MC client via the harness; output at `cache/asset-renderer/vanilla/26.1/references/{blocks,entities}/`. **Ground truth.**
+
+### Entity model family form (`entity_models.json`)
+`entity_models.json` is the **normalized family form**: one entry per base entity (`minecraft:wolf`, not a row per colour), keyed under a top-level `families` map. Each family carries `geometry_ref`/`armor_type`/overlays once, plus:
+- **`axes`** - orthogonal dimensions. `variant` (id-encoded: colour coat, tropical-fish shape; flattens to `minecraft:<id>_<opt>` pseudo-ids with `variant_of`). Option-encoded: `state` (wolf wild/tame/angry), `age` (adult/baby - `age.baby.geometry_ref` points at the dedicated `Baby<X>Model` mesh). Option axes are **NOT** id-encoded - they resolve at render from `EntityOptions`.
+- **`layers`** - conditional overlays (collar: `tint_by: collar_color`, an option-sourced tint).
+- Per-variant option `textures` hold `{wild, tame, angry, baby}` texture refs; `family_of` carries cross-entity groupings (mooshroom -> cow).
+
+`pipeline/loader/EntityFamilyFlattener.flatten` expands the family form at load into the flat `Map<String, EntityDefinition>` + option side-channels (`stateTextures`, `collarTextures`, `babyGeometry`). `EntityDefinition` gained `stateTextures` / `collarTexture` / `babyModel` + `withoutBlockOverlays`/`withoutOverlays`/`withModel`/`modelForAge`. `EntityOptions` gained `state` / `carried` / `collarColor` / `age`. **Baby renders skip overlays + block-overlays** (adult geometry would render adult-sized around the smaller baby body). Baby texture source chain: variant-table `baby_asset_id` -> renderer `isBaby` binding -> `<adult>_baby` naming convention. Schema contract + wolf example in gitignored `notes/entity-family-schema.md` + `notes/sample_model.json`.
 
 ### Iso pose (VANILLA_ISO + renderer-owned facing)
 - All iso subjects (block, fluid, portal, player, entity) share `Projection.VANILLA_ISO` = `(30°, 225°, 0°)` + `Lens.ISOMETRIC_BLOCK` (vanilla's `display.gui` pose/scale, technically a dimetric). It is **facing-neutral** - presents the model's `-Z` side. (`Projection` is the sole owner of these poses; `EulerRotation.STANDARD_*` is gone.)
@@ -85,10 +93,9 @@ Run before/after any kit refactor:
 | Entry | Path |
 |---|---|
 | Entity parity sweep | `src/test/java/lib/minecraft/renderer/visual/TestEntityParityVanilla.java` (run via `entityParityVanilla` task) |
-| Allowlist (`ACHIEVED_PARITY`) | top of that file, `Set<String>` |
 | Block parity | `src/test/java/lib/minecraft/renderer/visual/TestBlockRender3D.java` |
 
-**Allowlist policy**: only add when the static render looks natural - the bytecode-derived geometry alone isn't grounds; verify visually first.
+The parity sweeps are diagnostic reports (mean ARGB delta + per-subject vanilla/java/diff PNGs, ranked ascending), not pass/fail gates. When landing a new entity/axis, verify it renders naturally by LOOKing at the PNG - bytecode-derived geometry alone is not grounds.
 
 ### Re-render vanilla references
 ```bash

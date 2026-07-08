@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling;
 
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.options.AtlasOptions;
+import lib.minecraft.renderer.option.AtlasOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;

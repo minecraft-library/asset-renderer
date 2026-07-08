@@ -1,6 +1,6 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.options.AtlasOptions;
+import lib.minecraft.renderer.option.AtlasOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;

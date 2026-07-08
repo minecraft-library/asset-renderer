@@ -14,11 +14,11 @@ import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.FinalizeStage;
-import lib.minecraft.renderer.engine.compose.GeometryLayer;
-import lib.minecraft.renderer.engine.compose.GlintStage;
-import lib.minecraft.renderer.engine.compose.ImageLayer;
-import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.compose.Finalize;
+import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
+import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
+import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.raster.GlintMask;
@@ -27,11 +27,13 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.face.SkinFace;
-import lib.minecraft.renderer.options.PlayerOptions;
+import lib.minecraft.renderer.option.PlayerOptions;
+import lib.minecraft.renderer.option.slot.PlayerSlot2D;
+import lib.minecraft.renderer.option.slot.PlayerSlot3D;
 import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.request.ArmorTrim;
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.option.spec.ArmorPiece;
+import lib.minecraft.renderer.option.spec.ArmorTrim;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
@@ -176,11 +178,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Resolves the player skin by priority: explicit
-     * {@link PlayerOptions#getSkinBytes() skin bytes} &gt; {@link PlayerOptions#getSkinUrl() skin URL}
-     * (fetched via {@link #fetchTexture} and cached for the renderer's lifetime) &gt;
-     * {@link PlayerOptions#getSkinTextureId() skin texture id} (resolved against the pack stack) &gt;
-     * the default {@code minecraft:entity/steve} skin.
+     * Resolves the player skin by priority from the {@link PlayerOptions#getSkin() skin} sources:
+     * explicit skin bytes &gt; skin URL (fetched via {@link #fetchTexture} and cached for the
+     * renderer's lifetime) &gt; skin texture id (resolved against the pack stack) &gt; the default
+     * {@code minecraft:entity/steve} skin.
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
@@ -188,20 +189,20 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * @throws RenderException if the default Steve skin is requested but not registered
      */
     static @NotNull PixelBuffer resolveSkin(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
-        if (options.getSkinBytes().isPresent())
-            return parent.imageFactory.fromByteArray(options.getSkinBytes().get()).toPixelBuffer();
+        if (options.getSkin().getSkin().getBytes().isPresent())
+            return parent.imageFactory.fromByteArray(options.getSkin().getSkin().getBytes().get()).toPixelBuffer();
 
-        if (options.getSkinUrl().isPresent()) {
-            String url = options.getSkinUrl().get();
+        if (options.getSkin().getSkin().getUrl().isPresent()) {
+            String url = options.getSkin().getSkin().getUrl().get();
             return parent.skinCache.computeIfAbsent(url, u -> {
                 byte[] bytes = fetchTexture(u);
                 return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
             });
         }
 
-        if (options.getSkinTextureId().isPresent()) {
+        if (options.getSkin().getSkin().getId().isPresent()) {
             RasterEngine engine = new RasterEngine(parent.context);
-            return engine.textures().resolveTexture(options.getSkinTextureId().get());
+            return engine.textures().resolveTexture(options.getSkin().getSkin().getId().get());
         }
 
         return parent.context.resolveTexture("minecraft:entity/steve")
@@ -231,8 +232,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static boolean hasEnchantedArmor(@NotNull PlayerOptions options) {
         return ArmorKit.hasEnchantedArmor(
-            options.getHelmet(), options.getChestplate(),
-            options.getLeggings(), options.getBoots()
+            options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+            options.getArmor().getLeggings(), options.getArmor().getBoots()
         );
     }
 
@@ -255,22 +256,22 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * {@code renderCape} is false or no texture source is available.
      */
     static @NotNull Optional<PixelBuffer> resolveCape(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
-        if (!options.isRenderCape()) return Optional.empty();
+        if (!options.getSkin().isRenderCape()) return Optional.empty();
 
-        if (options.getCapeBytes().isPresent())
-            return Optional.of(parent.imageFactory.fromByteArray(options.getCapeBytes().get()).toPixelBuffer());
+        if (options.getSkin().getCape().getBytes().isPresent())
+            return Optional.of(parent.imageFactory.fromByteArray(options.getSkin().getCape().getBytes().get()).toPixelBuffer());
 
-        if (options.getCapeUrl().isPresent()) {
-            String url = options.getCapeUrl().get();
+        if (options.getSkin().getCape().getUrl().isPresent()) {
+            String url = options.getSkin().getCape().getUrl().get();
             return Optional.of(parent.skinCache.computeIfAbsent("cape:" + url, ignored -> {
                 byte[] bytes = fetchTexture(url);
                 return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
             }));
         }
 
-        if (options.getCapeTextureId().isPresent()) {
+        if (options.getSkin().getCape().getId().isPresent()) {
             RasterEngine engine = new RasterEngine(parent.context);
-            return engine.textures().tryResolveTexture(options.getCapeTextureId().get());
+            return engine.textures().tryResolveTexture(options.getSkin().getCape().getId().get());
         }
 
         return Optional.empty();
@@ -401,9 +402,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * Computes the pixel scale and horizontal offset for 2D rendering so the body fills the
      * output canvas height with horizontal centering.
      */
-    private static int @NotNull [] scaleAndOffset2D(@NotNull PlayerOptions.Type type, int outputSize) {
-        int scale = outputSize / type.getBodyHeight();
-        int offsetX = (outputSize - type.getBodyWidth() * scale) / 2;
+    private static int @NotNull [] scaleAndOffset2D(@NotNull PlayerOptions.Type type, int canvasSize) {
+        int scale = canvasSize / type.getBodyHeight();
+        int offsetX = (canvasSize - type.getBodyWidth() * scale) / 2;
         return new int[]{ scale, offsetX };
     }
 
@@ -416,47 +417,43 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     ) {
         PixelBuffer skin = resolveSkin(parent, options);
         RasterEngine engine = new RasterEngine(parent.context);
-        PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
+        int size = options.getOutput().getCanvasSize();
 
-        int[] so = scaleAndOffset2D(options.getType(), options.getOutputSize());
+        int[] so = scaleAndOffset2D(options.getType(), size);
         BodyPart2D[] parts = layout2D(options.getType(), so[0], so[1]);
 
-        boolean overlay = options.isRenderOverlay();
-        // Glint only the armor, not the bare skin: when enchanted, the armor / trim composites stamp
-        // their coverage into this mask and the foil is confined to it. Null when nothing glints.
+        boolean overlay = options.getSkin().isRenderOverlay();
         boolean enchanted = hasEnchantedArmor(options);
-        GlintMask glintMask = enchanted ? new GlintMask(options.getOutputSize(), options.getOutputSize()) : null;
 
-        // Compose the front-facing body as an ordered ImageLayer stack so the skin / overlay / armor
-        // passes are governed by slot order (and extensible via PlayerOptions.layerDecorator) rather
-        // than interleaved per body part. Body-part rectangles tile the canvas without overlap, so the
-        // per-pass order is equivalent to the historic per-part order.
-        LayerStack<ImageLayer> stack = new LayerStack<>();
-        stack.append(PlayerOptions.Slot2D.SKIN, frame -> {
-            for (BodyPart2D bp : parts)
-                frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, false), bp.x, bp.y, bp.w, bp.h);
-        });
-        if (overlay)
-            stack.append(PlayerOptions.Slot2D.OVERLAY, frame -> {
-                for (BodyPart2D bp : parts) {
-                    if (hasOverlay(skin))
-                        frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
-                    else if (bp.part == SkinFace.HEAD && hasHatOverlay(skin))
-                        frame.blitScaled(SkinFace.HEAD.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
-                }
+        // Compose the front-facing body as an ordered ImageLayer stack folded into Finalize's target;
+        // Finalize owns the single glint mask (recordMask = enchanted), which the ARMOR / trim
+        // composites stamp their coverage into so the foil is confined to the armor (not the bare
+        // skin). Body-part rectangles tile the canvas without overlap, so the per-pass order is
+        // equivalent to the historic per-part order.
+        return Finalize.render(
+            Finalize.FinalizeSpec.staticFrame(size, size, 1, options.getOutput().isAntiAlias())
+                .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
+            (target, mask, tick) -> {
+                LayerStack<ImageLayer> stack = new LayerStack<>();
+                stack.append(PlayerSlot2D.SKIN, frame -> {
+                    for (BodyPart2D bp : parts)
+                        frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, false), bp.x, bp.y, bp.w, bp.h);
+                });
+                if (overlay)
+                    stack.append(PlayerSlot2D.OVERLAY, frame -> {
+                        for (BodyPart2D bp : parts) {
+                            if (hasOverlay(skin))
+                                frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
+                            else if (bp.part == SkinFace.HEAD && hasHatOverlay(skin))
+                                frame.blitScaled(SkinFace.HEAD.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
+                        }
+                    });
+                stack.append(PlayerSlot2D.ARMOR, frame -> {
+                    for (BodyPart2D bp : parts)
+                        compositeArmor2D(frame, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, mask);
+                });
+                Layers.foldInto(stack, options.getLayerDecorator(), target);
             });
-        stack.append(PlayerOptions.Slot2D.ARMOR, frame -> {
-            for (BodyPart2D bp : parts)
-                compositeArmor2D(frame, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, glintMask);
-        });
-
-        for (ImageLayer layer : options.getLayerDecorator().apply(stack).ordered())
-            layer.apply(buffer);
-
-        if (options.isAntiAlias())
-            buffer.applyFxaa();
-
-        return GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, glintMask);
     }
 
     /**
@@ -473,10 +470,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     ) {
         for (ArmorTrim.Slot slot : ArmorTrim.Slot.values()) {
             Optional<ArmorPiece> piece = switch (slot) {
-                case HELMET -> options.getHelmet();
-                case CHESTPLATE -> options.getChestplate();
-                case LEGGINGS -> options.getLeggings();
-                case BOOTS -> options.getBoots();
+                case HELMET -> options.getArmor().getHelmet();
+                case CHESTPLATE -> options.getArmor().getChestplate();
+                case LEGGINGS -> options.getArmor().getLeggings();
+                case BOOTS -> options.getArmor().getBoots();
             };
             if (piece.isEmpty()) continue;
 
@@ -511,28 +508,27 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation(), options.getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(PlayerOptions.Slot3D.BODY, sink -> {
+            stack.append(PlayerSlot3D.BODY, sink -> {
                 sink.addAll(BlockGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
-                if (options.isRenderOverlay() && hasHatOverlay(skin))
+                if (options.getSkin().isRenderOverlay() && hasHatOverlay(skin))
                     sink.addAll(BlockGeometryKit.buildBoxTriangles(
                         new Vector3f(-0.52f, -0.52f, -0.52f),
                         new Vector3f(0.52f, 0.52f, 0.52f),
                         SkinFace.HEAD.cropAll(skin, true), ColorMath.WHITE));
             });
-            stack.append(PlayerOptions.Slot3D.ARMOR, sink -> {
+            stack.append(PlayerSlot3D.ARMOR, sink -> {
                 Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
                 bp.put(SkinFace.HEAD, new Vector3f[]{ SKULL_HEAD_MIN, SKULL_HEAD_MAX });
                 sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                    options.getHelmet(), options.getChestplate(),
-                    options.getLeggings(), options.getBoots(), engine.textures()));
+                    options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+                    options.getArmor().getLeggings(), options.getArmor().getBoots(), engine.textures()));
             });
 
-            for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
-                layer.contribute(triangles);
+            Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
             return rasterize3D(engine, triangles, options);
         }
@@ -557,32 +553,31 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation(), options.getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(PlayerOptions.Slot3D.BODY, sink -> {
+            stack.append(PlayerSlot3D.BODY, sink -> {
                 addBodyPart(sink, skin, SkinFace.HEAD, BUST_HEAD_MIN, BUST_HEAD_MAX, options);
                 addBodyPart(sink, skin, SkinFace.TORSO, BUST_TORSO_MIN, BUST_TORSO_MAX, options);
                 addBodyPart(sink, skin, SkinFace.RIGHT_ARM, BUST_R_ARM_MIN, BUST_R_ARM_MAX, options);
                 addBodyPart(sink, skin, SkinFace.LEFT_ARM, BUST_L_ARM_MIN, BUST_L_ARM_MAX, options);
             });
-            stack.append(PlayerOptions.Slot3D.ARMOR, sink -> {
+            stack.append(PlayerSlot3D.ARMOR, sink -> {
                 Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
                 bp.put(SkinFace.HEAD, new Vector3f[]{ BUST_HEAD_MIN, BUST_HEAD_MAX });
                 bp.put(SkinFace.TORSO, new Vector3f[]{ BUST_TORSO_MIN, BUST_TORSO_MAX });
                 bp.put(SkinFace.RIGHT_ARM, new Vector3f[]{ BUST_R_ARM_MIN, BUST_R_ARM_MAX });
                 bp.put(SkinFace.LEFT_ARM, new Vector3f[]{ BUST_L_ARM_MIN, BUST_L_ARM_MAX });
                 sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                    options.getHelmet(), options.getChestplate(),
-                    options.getLeggings(), options.getBoots(), engine.textures()));
+                    options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+                    options.getArmor().getLeggings(), options.getArmor().getBoots(), engine.textures()));
             });
             resolveCape(this.parent, options)
-                .ifPresent(cape -> stack.append(PlayerOptions.Slot3D.CAPE,
+                .ifPresent(cape -> stack.append(PlayerSlot3D.CAPE,
                     sink -> addCape(sink, cape, BUST_TORSO_MIN, BUST_TORSO_MAX)));
 
-            for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
-                layer.contribute(triangles);
+            Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
             return rasterize3D(engine, triangles, options);
         }
@@ -607,11 +602,11 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation(), options.getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(PlayerOptions.Slot3D.BODY, sink -> {
+            stack.append(PlayerSlot3D.BODY, sink -> {
                 addBodyPart(sink, skin, SkinFace.HEAD, FULL_HEAD_MIN, FULL_HEAD_MAX, options);
                 addBodyPart(sink, skin, SkinFace.TORSO, FULL_TORSO_MIN, FULL_TORSO_MAX, options);
                 addBodyPart(sink, skin, SkinFace.RIGHT_ARM, FULL_R_ARM_MIN, FULL_R_ARM_MAX, options);
@@ -619,7 +614,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 addBodyPart(sink, skin, SkinFace.RIGHT_LEG, FULL_R_LEG_MIN, FULL_R_LEG_MAX, options);
                 addBodyPart(sink, skin, SkinFace.LEFT_LEG, FULL_L_LEG_MIN, FULL_L_LEG_MAX, options);
             });
-            stack.append(PlayerOptions.Slot3D.ARMOR, sink -> {
+            stack.append(PlayerSlot3D.ARMOR, sink -> {
                 Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
                 bp.put(SkinFace.HEAD, new Vector3f[]{ FULL_HEAD_MIN, FULL_HEAD_MAX });
                 bp.put(SkinFace.TORSO, new Vector3f[]{ FULL_TORSO_MIN, FULL_TORSO_MAX });
@@ -628,15 +623,14 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 bp.put(SkinFace.RIGHT_LEG, new Vector3f[]{ FULL_R_LEG_MIN, FULL_R_LEG_MAX });
                 bp.put(SkinFace.LEFT_LEG, new Vector3f[]{ FULL_L_LEG_MIN, FULL_L_LEG_MAX });
                 sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                    options.getHelmet(), options.getChestplate(),
-                    options.getLeggings(), options.getBoots(), engine.textures()));
+                    options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+                    options.getArmor().getLeggings(), options.getArmor().getBoots(), engine.textures()));
             });
             resolveCape(this.parent, options)
-                .ifPresent(cape -> stack.append(PlayerOptions.Slot3D.CAPE,
+                .ifPresent(cape -> stack.append(PlayerSlot3D.CAPE,
                     sink -> addCape(sink, cape, FULL_TORSO_MIN, FULL_TORSO_MAX)));
 
-            for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
-                layer.contribute(triangles);
+            Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
             return rasterize3D(engine, triangles, options);
         }
@@ -653,17 +647,18 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PlayerOptions options
     ) {
-        int size = options.getOutputSize();
+        int size = options.getOutput().getCanvasSize();
         boolean enchanted = hasEnchantedArmor(options);
-        int ssaa = Math.max(1, options.getSupersample());
+        int ssaa = Math.max(1, options.getOutput().getSupersample());
         // The glint mask is recorded at the raster size, then box-downsampled to the output so the
         // foil is confined to the armor (not the bare body) after the SSAA blit.
-        return FinalizeStage.run(size, size, ssaa, options.isAntiAlias(), enchanted,
+        return Finalize.render(
+            Finalize.FinalizeSpec.staticFrame(size, size, ssaa, options.getOutput().isAntiAlias())
+                .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
             // The caller's rotation is composed into the engine's camera pose at construction (above),
             // so the fitted rasterize applies no separate model-spin - EulerRotation.NONE. Default
             // renders leave the byte-identical base player pose.
-            (target, mask) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL, mask),
-            (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
+            (target, mask, tick) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL, mask));
     }
 
     /**
@@ -678,7 +673,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull PlayerOptions options
     ) {
         triangles.addAll(BlockGeometryKit.buildBoxTriangles(min, max, part.cropAll(skin, false), ColorMath.WHITE));
-        if (options.isRenderOverlay() && hasOverlay(skin))
+        if (options.getSkin().isRenderOverlay() && hasOverlay(skin))
             triangles.addAll(BlockGeometryKit.buildBoxTriangles(
                 new Vector3f(min.x() - OVERLAY_INFLATE, min.y() - OVERLAY_INFLATE, min.z() - OVERLAY_INFLATE),
                 new Vector3f(max.x() + OVERLAY_INFLATE, max.y() + OVERLAY_INFLATE, max.z() + OVERLAY_INFLATE),

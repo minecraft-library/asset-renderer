@@ -56,6 +56,13 @@
  *       {@code (x, y, z, w)} record. Self-contained JOML algorithm port (no JOML dep) used for
  *       the iso rotation matrix in the entity pipeline and the cube-pivot rotation in
  *       {@link lib.minecraft.renderer.engine.kit.EntityGeometryKit EntityGeometryKit}.</li>
+ *   <li>{@link lib.minecraft.renderer.tensor.EulerRotation EulerRotation} - immutable
+ *       {@code (pitch, yaw, roll)} degree triple, the caller-facing rotation shape every renderer
+ *       accepts. Deliberately data-only: it converts to a {@code Quaternionf} / chained matrices at
+ *       each call site, where the composition order ({@code rotationXYZ} vs {@code rotationZYX}) is
+ *       intentional. Carries a Gson {@code TypeAdapter} serializing {@code [pitch, yaw, roll]},
+ *       applied per-field via {@code @JsonAdapter} at the model-JSON sites (entity bone / cube
+ *       rotation, {@code display.*} transforms).</li>
  *   <li>{@link lib.minecraft.renderer.tensor.Box Box} - immutable axis-aligned bounding box
  *       storing a min/max corner pair as six floats, with {@code of(...)} factories that fit a
  *       tight AABB around a point list and a {@code maxExtent()} helper. Drives screen-bounds

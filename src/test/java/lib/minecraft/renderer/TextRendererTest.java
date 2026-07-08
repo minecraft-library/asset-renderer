@@ -1,6 +1,6 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.options.TextOptions;
+import lib.minecraft.renderer.option.TextOptions;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;

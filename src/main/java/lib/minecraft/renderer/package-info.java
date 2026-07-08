@@ -34,7 +34,7 @@
  *       glint, dyed leather tint, banner-pattern composite, armor-trim palette permutation.</li>
  *   <li>{@link lib.minecraft.renderer.LayoutRenderer LayoutRenderer} - free-form composition of child
  *       renderers (or pre-rendered images) into a single canvas via a
- *       {@link lib.minecraft.renderer.options.LayoutOptions.Layout LayoutOptions.Layout} strategy.</li>
+ *       {@link lib.minecraft.renderer.option.LayoutOptions.Layout LayoutOptions.Layout} strategy.</li>
  *   <li>{@link lib.minecraft.renderer.MenuRenderer MenuRenderer} - inventory-style screens (player, chest,
  *       crafting table, anvil) with the vanilla theme chrome and per-slot item icons.</li>
  *   <li>{@link lib.minecraft.renderer.PlayerRenderer PlayerRenderer} - player skin renders at three body
@@ -64,14 +64,14 @@
  *       regenerators rerun on every Minecraft version bump).</li>
  * </ul>
  *
- * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.Renderer#DEFAULT_OUTPUT_SIZE Renderer#DEFAULT_OUTPUT_SIZE} is the
+ * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.Renderer#DEFAULT_CANVAS_SIZE Renderer#DEFAULT_CANVAS_SIZE} is the
  * shared square-pixel default for single-subject renders. Every subject-scoped options record
  * ({@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions},
  * {@code FluidOptions}, {@code PortalOptions}) picks it up so a caller building with all defaults
  * gets a consistent tile dimension across renderers.
  *
  * @see lib.minecraft.renderer.Renderer
- * @see lib.minecraft.renderer.options
+ * @see lib.minecraft.renderer.option
  * @see lib.minecraft.renderer.engine
  * @see lib.minecraft.renderer.pipeline
  */

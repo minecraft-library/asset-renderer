@@ -10,11 +10,10 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.asset.model.ModelElement;
+import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.request.DyeColor;
+import lib.minecraft.renderer.option.spec.DyeColor;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -35,10 +34,12 @@ import java.util.Map;
  * ({@code iconRotation} on beds, {@code additive} on bells, {@code tint} on banners) are
  * emitted directly into the block entries by the tooling's id-pattern walker.
  *
- * <p>The output is a flat map of block id to {@link Block.Entity} carrying a populated
- * {@link ModelData} (with real {@link ModelElement elements}) and the entity texture
- * reference. These blocks render through the standard block model path
- * ({@link BlockGeometryKit#buildFromElements}) with no entity model pipeline.
+ * <p>The output is a flat map of block id to {@link Block.Entity} carrying its geometry as a
+ * parent-relative bone tree ({@link Block.Entity.BoneModel}, the same schema as
+ * {@code entity_geometry.json}) plus the render presentation metadata and the entity texture
+ * reference. These blocks render hierarchically through
+ * {@link BlockGeometryKit#buildFromBones} with a presentation transform, rather than the
+ * plain-block {@link BlockGeometryKit#buildFromElements} path.
  */
 @UtilityClass
 public class BlockModelLoader {
@@ -107,16 +108,22 @@ public class BlockModelLoader {
                 String blockId = block.get("blockId").getAsString();
                 String textureId = block.get("textureId").getAsString();
 
-                ModelData modelData = parseBlockModelData(modelJson, textureId);
+                // Every block entity carries a relative bone/cube tree under model.bones, composed
+                // hierarchically at render time via BlockGeometryKit#buildFromBones with a
+                // presentation transform. A geometry-less entry would be a tooling error - skip it.
+                if (!modelJson.has("bones")) {
+                    System.err.printf("  Warning: model '%s' has no bones - skipping block '%s'%n", modelId, blockId);
+                    continue;
+                }
+                Block.Entity.BoneModel boneModel = parseBoneModel(modelJson, modelObj);
 
-                // A block listed under a blockstate "variant" contributes a state-conditional
-                // model, not the block's primary geometry: register it as a geometry-bearing
-                // Block.Variant for the runtime variant path (rotation/uvlock unused here, so
-                // 0/0/false). The ceiling hanging sign's straight-chain mesh is bound here under
-                // the "attached=true" variant key.
+                // A block listed under a blockstate "variant" contributes a state-conditional model,
+                // not the block's primary geometry: register it as a bone-geometry Block.Variant for
+                // the runtime variant path (rotation/uvlock unused here, so 0/0/false). The ceiling
+                // hanging sign's straight-chain mesh is bound here under "attached=true".
                 if (block.has("variant")) {
                     variantModels.computeIfAbsent(blockId, k -> new HashMap<>())
-                        .put(block.get("variant").getAsString(), new Block.Variant(modelId, modelData, 0, 0, false));
+                        .put(block.get("variant").getAsString(), new Block.Variant(modelId, 0, 0, false, new Block.BoneGeometry(boneModel)));
                     continue;
                 }
 
@@ -141,16 +148,9 @@ public class BlockModelLoader {
                         JsonObject partModel = models.has(partModelId) ? models.getAsJsonObject(partModelId) : null;
                         if (partModel == null) continue;
                         JsonObject partModelJson = partModel.has("model") ? partModel.getAsJsonObject("model") : null;
-                        if (partModelJson == null) continue;
-                        ModelData partData = parseBlockModelData(partModelJson, partTexture);
-                        parts.add(new Block.Entity.Part(partModelId, partData, partTexture, offset));
-                    }
-                }
-
-                boolean multiBlock = extentsExceedBlock(modelData);
-                if (!multiBlock) {
-                    for (Block.Entity.Part part : parts) {
-                        if (partExceedsBlock(part)) { multiBlock = true; break; }
+                        if (partModelJson == null || !partModelJson.has("bones")) continue;
+                        Block.Entity.BoneModel partBone = parseBoneModel(partModelJson, partModel);
+                        parts.add(new Block.Entity.Part(partBone, partTexture, offset));
                     }
                 }
 
@@ -161,7 +161,7 @@ public class BlockModelLoader {
                 int tintArgb = block.has("tint") ? resolveTint(block.get("tint").getAsString()) : ColorMath.WHITE;
                 boolean additive = block.has("additive") && block.get("additive").getAsBoolean();
 
-                result.put(blockId, new Block.Entity(modelId, modelData, textureId, tintArgb, iconRotation, multiBlock, Concurrent.adoptList(parts), additive));
+                result.put(blockId, new Block.Entity(boneModel, textureId, tintArgb, iconRotation, Concurrent.adoptList(parts), additive));
             }
         }
 
@@ -197,62 +197,33 @@ public class BlockModelLoader {
     }
 
     /**
-     * Returns {@code true} when any element of {@code model} escapes the {@code 0..16} block bbox
-     * (with a {@code 0.1} tolerance each side), marking it a multi-block model.
+     * Parses a bone-format block-entity model (a {@code model.bones} relative bone/cube tree, same
+     * schema as {@code entity_geometry.json}) into a {@link Block.Entity.BoneModel} carrying the
+     * geometry plus the render-time presentation metadata read off the entry object
+     * ({@code inventory_y_rotation}, {@code entity_flip}, {@code inventory_transform}, {@code tinted}).
+     * The caller has already confirmed the {@code model} sub-object carries {@code bones}.
      *
-     * @param model the block-entity model to bounds-check
-     * @return whether any element extends beyond a single block
+     * @param modelJson the {@code model} sub-object carrying {@code bones} + texture dimensions
+     * @param entry the block-entity catalog entry, carrying the presentation metadata alongside {@code model}
+     * @return the parsed bone model + presentation
      */
-    private static boolean extentsExceedBlock(@NotNull ModelData model) {
-        for (ModelElement me : model.getElements()) {
-            if (me.getFrom()[0] < -0.1f || me.getFrom()[1] < -0.1f || me.getFrom()[2] < -0.1f ||
-                me.getTo()[0] > 16.1f || me.getTo()[1] > 16.1f || me.getTo()[2] > 16.1f) {
-                return true;
-            }
+    private static @NotNull Block.Entity.BoneModel parseBoneModel(@NotNull JsonObject modelJson, @NotNull JsonObject entry) {
+        EntityModelData model = GSON.fromJson(modelJson, EntityModelData.class);
+
+        boolean sourceYUp = entry.has("y_axis") && "UP".equals(entry.get("y_axis").getAsString());
+        float inventoryYRotation = entry.has("inventory_y_rotation") ? entry.get("inventory_y_rotation").getAsFloat() : 0f;
+        boolean entityFlip = entry.has("entity_flip") && entry.get("entity_flip").getAsBoolean();
+        boolean tinted = entry.has("tinted") && entry.get("tinted").getAsBoolean();
+
+        float[] inventoryTransform = null;
+        if (entry.has("inventory_transform") && entry.get("inventory_transform").isJsonArray()) {
+            JsonArray arr = entry.getAsJsonArray("inventory_transform");
+            inventoryTransform = new float[arr.size()];
+            for (int i = 0; i < arr.size(); i++)
+                inventoryTransform[i] = arr.get(i).getAsFloat();
         }
-        return false;
-    }
 
-    /**
-     * Returns {@code true} when a part, after its offset is applied, escapes the {@code 0..16}
-     * block bbox (with a {@code 0.1} tolerance each side). Checked separately from the primary
-     * model so multi-block detection stays accurate after the loader stopped eagerly merging parts.
-     *
-     * @param part the sub-model part to bounds-check, offset included
-     * @return whether the offset part extends beyond a single block
-     */
-    private static boolean partExceedsBlock(@NotNull Block.Entity.Part part) {
-        float[] offset = part.offset();
-        for (ModelElement me : part.model().getElements()) {
-            if (me.getFrom()[0] + offset[0] < -0.1f || me.getFrom()[1] + offset[1] < -0.1f || me.getFrom()[2] + offset[2] < -0.1f ||
-                me.getTo()[0] + offset[0] > 16.1f || me.getTo()[1] + offset[1] > 16.1f || me.getTo()[2] + offset[2] > 16.1f) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Parses a block model JSON object (with an {@code "elements"} array) into a {@link ModelData},
-     * binding the single {@code entity} texture variable to {@code textureId} so face references of
-     * {@code #entity} resolve at render time. Only the {@code "elements"} array is carried over; the
-     * texture map is rebuilt to hold just the {@code entity} binding.
-     *
-     * @param json the block model JSON object, optionally carrying an {@code "elements"} array
-     * @param textureId the entity texture id to bind under the {@code entity} variable
-     * @return the parsed model data with its {@code entity} texture bound
-     */
-    private static @NotNull ModelData parseBlockModelData(@NotNull JsonObject json, @NotNull String textureId) {
-        JsonObject modelJson = new JsonObject();
-
-        if (json.has("elements"))
-            modelJson.add("elements", json.getAsJsonArray("elements"));
-
-        JsonObject textures = new JsonObject();
-        textures.addProperty("entity", textureId);
-        modelJson.add("textures", textures);
-
-        return GSON.fromJson(modelJson, ModelData.class);
+        return new Block.Entity.BoneModel(model, sourceYUp, inventoryYRotation, entityFlip, inventoryTransform, tinted);
     }
 
     /**

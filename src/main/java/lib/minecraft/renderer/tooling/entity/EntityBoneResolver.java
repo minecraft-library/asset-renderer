@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
@@ -19,15 +20,17 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Per-entity bone-related resolution. One resolver folds two adjacent bone-related signals
- * that both walk the renderer's constructor chain and the same model-class hierarchy:
+ * Per-entity bone-related resolution. One resolver folds four adjacent bone-related signals
+ * that all walk the renderer's constructor chain and the same model-class hierarchy:
  *
  * <ul>
  *   <li><b>{@link #scanOverlayLayers Overlay-layer scan.}</b> Walks the renderer's
@@ -43,6 +46,14 @@ import java.util.Set;
  *       false. Then walks the renderer's own constructor for {@code visible = true}
  *       re-enables (the {@code IllusionerRenderer} pattern that overrides
  *       {@code IllagerModel}'s hat hide) and subtracts those from the hidden set.</li>
+ *   <li><b>{@link #resolveBoneToggles Bone-toggle resolution.}</b> Walks the model class for
+ *       state-gated {@code visible} writes a render option flips - field-gated reveals
+ *       (donkey/mule/llama chest) and inline-gated hides (goat horns) - naming which bones a
+ *       toggle flips and from what default. Additive to the hidden-bone set, so the default
+ *       render stays byte-identical.</li>
+ *   <li><b>{@link #inferArmorType Armor-type classification.}</b> Classifies the overlay-layer
+ *       list from {@link #scanOverlayLayers} into an armor mesh selector ({@code "humanoid"}
+ *       when a {@code HumanoidArmorLayer} is present, else {@code "none"}).</li>
  * </ul>
  *
  * <p>The layer-scan output drives {@code addLayer}-style overlay enumeration during the
@@ -158,6 +169,257 @@ public final class EntityBoneResolver {
     }
 
     /**
+     * Returns the entity's {@code bone_toggles} - toggle name -&gt; {@link BoneToggle} (the bones a
+     * render option flips plus their default visibility). Two gate shapes feed it:
+     *
+     * <ul>
+     *   <li><b>Field-gated</b> {@code this.<field>.visible = state.hasChest} (donkey/mule/llama chest).
+     *       These bones are hidden by default (they also appear in {@code hidden_bones}), so the toggle
+     *       REVEALS them - {@code defaultVisible = false}.</li>
+     *   <li><b>Inline-gated</b> {@code root.getChild("<bone>").visible = state.has<X>} (goat horns).
+     *       These are NOT added to {@code hidden_bones} - vanilla renders them by default (the goat
+     *       reference shows horns), so the toggle HIDES them - {@code defaultVisible = true}. Left/right
+     *       pairs group under a shared stem ({@code left_horn}+{@code right_horn} -&gt; {@code "horn"}).</li>
+     * </ul>
+     *
+     * <p>Additive to {@link #resolveHiddenBones}: field-gated bones stay in {@code hidden_bones} and
+     * inline-gated bones stay visible, so the default render is byte-identical; this map only names
+     * which bones a toggle flips and from what default. The loader flips them at render.
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param modelClassInternal the model class's JVM internal name
+     * @param diag the diagnostic sink for bone-toggle INFO traces
+     * @return toggle name -&gt; {@link BoneToggle}, insertion order; empty when no gated bones exist
+     */
+    public static @NotNull Map<String, BoneToggle> resolveBoneToggles(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String modelClassInternal,
+        @NotNull Diagnostics diag
+    ) {
+        LinkedHashMap<String, LinkedHashSet<String>> fieldGated = new LinkedHashMap<>();
+        LinkedHashSet<String> inlineBones = new LinkedHashSet<>();
+        LinkedHashMap<String, NegatedGate> negatedGated = new LinkedHashMap<>();
+        LinkedHashMap<String, String> fieldToBoneName = new LinkedHashMap<>();
+        String current = modelClassInternal;
+        while (current != null && !current.equals(VanillaSourceClasses.ENTITY_MODEL) && !current.equals(AsmKit.OBJECT_INTERNAL)) {
+            ClassNode cn = classNodes.load(current);
+            if (cn == null) break;
+            MethodNode ctor = AsmKit.findMethod(cn, AsmKit.INIT);
+            if (ctor != null) collectFieldToBoneNameMap(cn, ctor, fieldToBoneName);
+            for (MethodNode method : cn.methods) {
+                if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+                collectStateGatedToggles(cn, method, fieldGated);
+                collectInlineGatedToggles(cn, method, inlineBones);
+                collectNegatedGatedToggles(cn, method, negatedGated);
+            }
+            current = cn.superName;
+        }
+
+        LinkedHashMap<String, BoneToggle> toggles = new LinkedHashMap<>();
+        // Field-gated (chest): hidden by default - the toggle reveals.
+        for (Map.Entry<String, LinkedHashSet<String>> entry : fieldGated.entrySet()) {
+            List<String> bones = new ArrayList<>();
+            for (String field : entry.getValue()) bones.add(fieldToBoneName.getOrDefault(field, field));
+            toggles.put(flagToToggleName(entry.getKey()), new BoneToggle(bones, false));
+        }
+        // Inline-gated (goat horns): visible by default - the toggle hides. Group left/right pairs.
+        LinkedHashMap<String, List<String>> inlineGroups = new LinkedHashMap<>();
+        for (String bone : inlineBones)
+            inlineGroups.computeIfAbsent(stripLeftRight(bone), key -> new ArrayList<>()).add(bone);
+        for (Map.Entry<String, List<String>> entry : inlineGroups.entrySet())
+            toggles.putIfAbsent(entry.getKey(), new BoneToggle(entry.getValue(), true));
+        // Negated-branch-gated (bogged mushrooms): {@code this.<field>.visible = !state.<flag>},
+        // compiled as a branch. Default visibility follows the branch polarity (bogged's mushrooms
+        // are visible by default and the {@code sheared} toggle hides them). Only the group bone is
+        // named here; its subtree is expanded downstream (the JSON writer) from the geometry.
+        for (Map.Entry<String, NegatedGate> entry : negatedGated.entrySet()) {
+            List<String> bones = new ArrayList<>();
+            for (String field : entry.getValue().fields()) bones.add(fieldToBoneName.getOrDefault(field, field));
+            toggles.putIfAbsent(flagToToggleName(entry.getKey()), new BoneToggle(bones, entry.getValue().defaultVisible()));
+        }
+
+        if (!toggles.isEmpty()) diag.info("bone-toggles: '%s' -> %s", modelClassInternal, toggles);
+        return toggles;
+    }
+
+    /**
+     * A named bone-visibility toggle: the geometry bones it flips and their default visibility. A
+     * {@code defaultVisible = false} toggle (donkey chest) reveals its bones when active; a
+     * {@code defaultVisible = true} toggle (goat horns) hides them.
+     *
+     * @param bones the geometry bone names the toggle flips
+     * @param defaultVisible whether the bones render by default (true = toggle hides; false = toggle reveals)
+     */
+    public record BoneToggle(@NotNull List<String> bones, boolean defaultVisible) {}
+
+    /**
+     * A decoded {@code ModelPart.visible = <boolean>} write: the store-target instruction (the node
+     * below the boolean value on the operand stack) plus the {@link AsmKit.BooleanStore} r-value.
+     * Produced by {@link #matchVisibleWrite}; the visibility collectors each filter this by store
+     * kind / {@link AsmKit.Polarity} and apply their own target guards.
+     *
+     * @param targetInsn the instruction pushing the {@code ModelPart} being written
+     *     ({@code previousReal(value.valueStart())}) - a {@code GETFIELD}, a {@code getChild(LDC)}
+     *     call, or a {@code get<Bone>()} accessor, interpreted per collector
+     * @param value the decoded boolean r-value written to {@code visible}
+     */
+    private record VisibleWrite(@NotNull AbstractInsnNode targetInsn, @NotNull AsmKit.BooleanStore value) {}
+
+    /**
+     * Matches a {@code PUTFIELD ModelPart.visible:Z} write at {@code in} and decodes both its
+     * boolean r-value (via {@link AsmKit#decodeBooleanStore}) and its store-target instruction.
+     * Returns {@code null} when {@code in} is not the canonical {@code visible} write or the value
+     * isn't a shape {@code decodeBooleanStore} recognises. The vanilla semantic guards (which owner
+     * is the model, which flag name gates, {@code getChild} vs field vs accessor target) stay in the
+     * six callers - this only owns the {@code ModelPart.visible:Z} anchor + backward decode common
+     * to all of them.
+     */
+    private static @Nullable VisibleWrite matchVisibleWrite(@NotNull AbstractInsnNode in) {
+        if (!AsmKit.isPutField(in, VanillaSourceClasses.MODEL_PART, "visible")) return null;
+        if (!(in instanceof FieldInsnNode put) || !MODEL_PART_VISIBLE_DESC.equals(put.desc)) return null;
+        AbstractInsnNode valueInsn = AsmKit.previousReal(in);
+        if (valueInsn == null) return null;
+        AsmKit.BooleanStore value = AsmKit.decodeBooleanStore(valueInsn);
+        if (value == null) return null;
+        AbstractInsnNode target = AsmKit.previousReal(value.valueStart());
+        if (target == null) return null;
+        return new VisibleWrite(target, value);
+    }
+
+    /**
+     * State-equipment visibility pattern {@code bone.visible = state.hasChest}, recording each gating
+     * {@code flag -> model-field} instead of merging into one set. The parallel of
+     * {@link #collectStateGatedHidden} (same matched instruction shape and guards); kept separate so
+     * {@code resolveHiddenBones} stays byte-identical while {@code resolveBoneToggles} can group the
+     * gated bones by their flag.
+     */
+    private static void collectStateGatedToggles(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull Map<String, LinkedHashSet<String>> out) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            VisibleWrite write = matchVisibleWrite(in);
+            // Direct positive gate: visible = state.hasChest (the FieldStore's :Z guard is enforced
+            // by the decoder). Narrow to hasChest, a state-class flag (not owner-owned) reached via
+            // a non-this ALOAD, writing a this.<bone> field.
+            if (write == null || !(write.value() instanceof AsmKit.FieldStore flag) || flag.polarity() != AsmKit.Polarity.POSITIVE) continue;
+            FieldInsnNode flagGet = flag.field();
+            if (!"hasChest".equals(flagGet.name) || owner.name.equals(flagGet.owner)) continue;
+            if (!(flag.receiver() instanceof VarInsnNode varLoad) || varLoad.getOpcode() != Opcodes.ALOAD || varLoad.var == 0) continue;
+            if (!(write.targetInsn() instanceof FieldInsnNode get) || get.getOpcode() != Opcodes.GETFIELD || !owner.name.equals(get.owner)) continue;
+            out.computeIfAbsent(flagGet.name, key -> new LinkedHashSet<>()).add(get.name);
+        }
+    }
+
+    /**
+     * Inline-{@code getChild} visibility pattern {@code root.getChild("<bone>").visible = state.has<X>}
+     * (goat horns), recording each gated bone name. The visibility target is a
+     * {@code getChild(LDC)} result rather than a cached {@code this.<field>}, so this does not
+     * double-match the field-gated {@link #collectStateGatedToggles} (whose target is a
+     * {@code GETFIELD} on the model). Matched sequence, reading backwards from the write:
+     *
+     * <pre>{@code
+     *   LDC       "<bone>"                        // the getChild argument = geometry bone name
+     *   INVOKEVIRTUAL ModelPart.getChild          // the bone ModelPart being gated
+     *   ALOAD     <n>                             // the state arg (var != 0)
+     *   GETFIELD  <StateClass>.has<X> : Z         // the state flag (not owned by the model)
+     *   PUTFIELD  ModelPart.visible : Z
+     * }</pre>
+     */
+    private static void collectInlineGatedToggles(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull Set<String> out) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            VisibleWrite write = matchVisibleWrite(in);
+            // Positive gate on a has*/is* state flag whose write target is a getChild(LDC) result
+            // rather than a cached this.<field> - so it doesn't double-match the field-gated form.
+            if (write == null || !(write.value() instanceof AsmKit.FieldStore flag) || flag.polarity() != AsmKit.Polarity.POSITIVE) continue;
+            FieldInsnNode flagGet = flag.field();
+            if (owner.name.equals(flagGet.owner)) continue;
+            if (!flagGet.name.startsWith("has") && !flagGet.name.startsWith("is")) continue;
+            if (!(flag.receiver() instanceof VarInsnNode varLoad) || varLoad.getOpcode() != Opcodes.ALOAD || varLoad.var == 0) continue;
+            AbstractInsnNode childCall = write.targetInsn();
+            if (childCall.getOpcode() != Opcodes.INVOKEVIRTUAL || !(childCall instanceof MethodInsnNode mi) || !"getChild".equals(mi.name)) continue;
+            if (mi.desc == null || !mi.desc.endsWith(")L" + VanillaSourceClasses.MODEL_PART + ";")) continue;
+            String boneName = AsmKit.readStringLiteral(AsmKit.previousReal(childCall));
+            if (boneName != null) out.add(boneName);
+        }
+    }
+
+    /**
+     * A negated-branch visibility gate ({@code this.<field>.visible = !state.<flag>}): the model
+     * fields it targets plus the bones' default visibility, derived from the branch polarity. A
+     * mutable set (parallel to {@link #collectStateGatedToggles}'s per-flag sets) so one flag
+     * gating several fields accumulates them under a single toggle.
+     *
+     * @param fields the model-class bone fields the gate writes {@code visible} on
+     * @param defaultVisible whether the bones render at the flag's zero-state (true = toggle hides)
+     */
+    private record NegatedGate(@NotNull LinkedHashSet<String> fields, boolean defaultVisible) {}
+
+    /**
+     * Negated-branch visibility pattern {@code this.<field>.visible = !state.<flag>} (bogged
+     * mushrooms), where the boolean is produced by a compiled branch rather than a direct store.
+     * Records each gating {@code flag -> model-field(s)} plus the default visibility read off the
+     * branch polarity. The parallel of {@link #collectStateGatedToggles} for the branch shape:
+     * javac emits {@code visible = !flag} as
+     *
+     * <pre>{@code
+     *   GETFIELD  <owner>.<field> : LModelPart;   // this.<field> (the cached bone), the store target
+     *   ALOAD     <n>                             // the state arg (var != 0)
+     *   GETFIELD  <StateClass>.<flag> : Z         // the state flag ({@code is}/{@code has}, not the model)
+     *   IFNE      L1                              // branch on the flag
+     *   ICONST_1                                  // fallthrough value (flag == 0)
+     *   GOTO      L2
+     * L1:
+     *   ICONST_0                                  // branch-target value (flag != 0)
+     * L2:
+     *   PUTFIELD  ModelPart.visible : Z
+     * }</pre>
+     *
+     * <p>The default visibility is the value written when the flag is at its zero-state (false):
+     * for {@code IFNE} the fallthrough constant, for {@code IFEQ} the branch-target constant.
+     * Bogged's {@code IFNE} + fallthrough {@code ICONST_1} yields {@code defaultVisible = true}
+     * (mushrooms shown by default; the {@code sheared} toggle hides them). The two branch values
+     * must be a {@code 0}/{@code 1} pair, so a genuine boolean-branch store is matched rather than
+     * an arithmetic one.
+     */
+    private static void collectNegatedGatedToggles(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull Map<String, NegatedGate> out) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            VisibleWrite write = matchVisibleWrite(in);
+            // Negated-branch gate: visible = !state.<flag>, compiled as an ICONST/GOTO/ICONST select.
+            // The decoder validates the distinct-0/1 branch shape and the flag's :Z type, and folds
+            // the branch polarity into valueAtFieldFalse (the value written at the flag's zero-state).
+            if (write == null || !(write.value() instanceof AsmKit.FieldStore flag) || flag.polarity() != AsmKit.Polarity.NEGATIVE) continue;
+            FieldInsnNode flagGet = flag.field();
+            if (owner.name.equals(flagGet.owner)) continue;
+            if (!flagGet.name.startsWith("has") && !flagGet.name.startsWith("is")) continue;
+            if (!(flag.receiver() instanceof VarInsnNode varLoad) || varLoad.getOpcode() != Opcodes.ALOAD || varLoad.var == 0) continue;
+            if (!(write.targetInsn() instanceof FieldInsnNode get) || get.getOpcode() != Opcodes.GETFIELD || !owner.name.equals(get.owner)) continue;
+            boolean defaultVisible = flag.valueAtFieldFalse();
+            out.computeIfAbsent(flagGet.name, key -> new NegatedGate(new LinkedHashSet<>(), defaultVisible)).fields().add(get.name);
+        }
+    }
+
+    /**
+     * Strips a leading {@code left_}/{@code right_} from a bone name to get the shared toggle stem
+     * ({@code left_horn} -&gt; {@code "horn"}), so a symmetric pair flips under one toggle. Names with
+     * no such prefix pass through unchanged.
+     */
+    private static @NotNull String stripLeftRight(@NotNull String bone) {
+        if (bone.startsWith("left_")) return bone.substring("left_".length());
+        if (bone.startsWith("right_")) return bone.substring("right_".length());
+        return bone;
+    }
+
+    /**
+     * Derives a toggle name from a state boolean flag: strips the {@code has}/{@code is} prefix and
+     * converts the remaining CamelCase to snake_case ({@code hasChest} -&gt; {@code "chest"},
+     * {@code hasLeftHorn} -&gt; {@code "left_horn"}).
+     */
+    private static @NotNull String flagToToggleName(@NotNull String flag) {
+        String stem = flag.startsWith("has") ? flag.substring(3)
+            : flag.startsWith("is") ? flag.substring(2)
+            : flag;
+        return StringUtil.toSnakeCase(stem);
+    }
+
+    /**
      * Heuristic armor-type classification - the runtime renderer uses this to pick which
      * armor mesh to layer over the entity. Returns {@code "humanoid"} when the renderer's
      * overlay layer list contains {@code HumanoidArmorLayer}; otherwise {@code "none"}.
@@ -241,17 +503,11 @@ public final class EntityBoneResolver {
      */
     private static void collectUnconditionalHidden(@NotNull ClassNode owner, @NotNull MethodNode ctor, @NotNull LinkedHashSet<String> out) {
         for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
-            if (!(in instanceof FieldInsnNode put)) continue;
-            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
-            if (!"visible".equals(put.name)) continue;
-            if (!MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
-            AbstractInsnNode valueInsn = AsmKit.previousReal(in);
-            if (valueInsn == null || valueInsn.getOpcode() != Opcodes.ICONST_0) continue;
-            AbstractInsnNode targetInsn = AsmKit.previousReal(valueInsn);
-            if (targetInsn == null || targetInsn.getOpcode() != Opcodes.GETFIELD) continue;
-            if (!(targetInsn instanceof FieldInsnNode get)) continue;
-            if (!owner.name.equals(get.owner)) continue;
+            VisibleWrite write = matchVisibleWrite(in);
+            // Literal false written to a this.<bone> field (no desc guard on the target GETFIELD,
+            // matching the original walk).
+            if (write == null || !(write.value() instanceof AsmKit.ConstantStore constant) || constant.value()) continue;
+            if (!(write.targetInsn() instanceof FieldInsnNode get) || get.getOpcode() != Opcodes.GETFIELD || !owner.name.equals(get.owner)) continue;
             out.add(get.name);
         }
     }
@@ -314,26 +570,14 @@ public final class EntityBoneResolver {
      */
     private static void collectStateGatedHidden(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull LinkedHashSet<String> out) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
-            if (!(in instanceof FieldInsnNode put)) continue;
-            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
-            if (!"visible".equals(put.name)) continue;
-            if (!MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
-            AbstractInsnNode valueInsn = AsmKit.previousReal(in);
-            if (valueInsn == null || valueInsn.getOpcode() != Opcodes.GETFIELD) continue;
-            if (!(valueInsn instanceof FieldInsnNode flagGet)) continue;
-            if (!"Z".equals(flagGet.desc)) continue;
-            if (!"hasChest".equals(flagGet.name)) continue;
-            if (owner.name.equals(flagGet.owner)) continue;
-            AbstractInsnNode stateLoad = AsmKit.previousReal(valueInsn);
-            if (stateLoad == null) continue;
-            if (stateLoad.getOpcode() != Opcodes.ALOAD) continue;
-            if (!(stateLoad instanceof VarInsnNode varLoad)) continue;
-            if (varLoad.var == 0) continue;
-            AbstractInsnNode targetInsn = AsmKit.previousReal(stateLoad);
-            if (targetInsn == null || targetInsn.getOpcode() != Opcodes.GETFIELD) continue;
-            if (!(targetInsn instanceof FieldInsnNode get)) continue;
-            if (!owner.name.equals(get.owner)) continue;
+            VisibleWrite write = matchVisibleWrite(in);
+            // Same matched shape as collectStateGatedToggles (positive hasChest gate on a this.<bone>
+            // field); merged into one set here rather than grouped by flag.
+            if (write == null || !(write.value() instanceof AsmKit.FieldStore flag) || flag.polarity() != AsmKit.Polarity.POSITIVE) continue;
+            FieldInsnNode flagGet = flag.field();
+            if (!"hasChest".equals(flagGet.name) || owner.name.equals(flagGet.owner)) continue;
+            if (!(flag.receiver() instanceof VarInsnNode varLoad) || varLoad.getOpcode() != Opcodes.ALOAD || varLoad.var == 0) continue;
+            if (!(write.targetInsn() instanceof FieldInsnNode get) || get.getOpcode() != Opcodes.GETFIELD || !owner.name.equals(get.owner)) continue;
             out.add(get.name);
         }
     }
@@ -352,16 +596,12 @@ public final class EntityBoneResolver {
         MethodNode ctor = AsmKit.findMethod(cn, AsmKit.INIT);
         if (ctor == null) return out;
         for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
-            if (!(in instanceof FieldInsnNode put)) continue;
-            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
-            if (!"visible".equals(put.name)) continue;
-            if (!MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
-            AbstractInsnNode valueInsn = AsmKit.previousReal(in);
-            if (valueInsn == null || valueInsn.getOpcode() != Opcodes.ICONST_1) continue;
-            AbstractInsnNode pathInsn = AsmKit.previousReal(valueInsn);
-            if (pathInsn == null) continue;
-            String bone = extractBoneName(pathInsn);
+            VisibleWrite write = matchVisibleWrite(in);
+            // Literal true re-enable; the target may be a GETFIELD bone or a get<Bone>() accessor
+            // (extractBoneName handles both). Single-class walk of the renderer ctor - NOT a
+            // hierarchy walk, so an inherited re-enable is deliberately not picked up.
+            if (write == null || !(write.value() instanceof AsmKit.ConstantStore constant) || !constant.value()) continue;
+            String bone = extractBoneName(write.targetInsn());
             if (bone != null) out.add(bone);
         }
         return out;

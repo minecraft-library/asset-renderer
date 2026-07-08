@@ -16,10 +16,10 @@ import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
-import lib.minecraft.renderer.engine.compose.GlintStage;
-import lib.minecraft.renderer.engine.compose.ImageLayer;
-import lib.minecraft.renderer.engine.compose.ImageLayerContext;
-import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.compose.Finalize;
+import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
+import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.BannerKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.ItemStackKit;
@@ -30,9 +30,11 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.SixFaces;
-import lib.minecraft.renderer.options.ItemOptions;
-import lib.minecraft.renderer.request.DyeColor;
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.option.ItemOptions;
+import lib.minecraft.renderer.option.slot.ItemSlot;
+import lib.minecraft.renderer.option.spec.DyeColor;
+import lib.minecraft.renderer.option.spec.ItemDecoration;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -115,14 +117,15 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Resolves the item glint flag and composites the animated foil onto the finished 2D buffer.
-     * Shared terminal step of the GUI and held-item paths, which derive the glint identically.
+     * Builds the item enchantment-glint tail for {@link Finalize}, deriving the glint flag
+     * ({@code glintOverride}, else the item's always-glinted flag or {@code enchanted}) the GUI and
+     * held-item paths share.
      */
-    static @NotNull ImageData finalize2DItem(
-        @NotNull Textures engine, @NotNull PixelBuffer buffer,
-        @NotNull Item item, @NotNull ItemOptions options
+    static @NotNull Finalize.Glint itemGlint(
+        @NotNull Textures textures, @NotNull Item item, @NotNull ItemOptions options
     ) {
-        return GlintStage.forItem(engine::tryResolveTexture, buffer, item, options);
+        boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
+        return Finalize.Glint.item(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond());
     }
 
     /**
@@ -214,8 +217,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Composites a banner or shield item onto {@code buffer}: dye-coloured field, then each
-     * {@link ItemOptions#getBannerLayers()} layer blitted as a tinted grayscale mask.
-     * {@link ItemOptions#getBaseDye()} drives the field colour - white when absent. Shields
+     * {@link ItemDecoration#getBannerLayers()} layer blitted as a tinted grayscale mask.
+     * {@link ItemDecoration#getBaseDye()} drives the field colour - white when absent. Shields
      * route through the {@code entity/shield/} atlas; banners through {@code entity/banner/}.
      *
      * @param engine the texture engine for pattern resolution
@@ -230,13 +233,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull String itemId,
         @NotNull ItemOptions options
     ) {
-        DyeColor baseDye = options.getBaseDye().orElse(DyeColor.Vanilla.WHITE);
+        DyeColor baseDye = options.getDecoration().getBaseDye().orElse(DyeColor.Vanilla.WHITE);
         BannerKit.Variant variant = itemId.equals(SHIELD_ITEM_ID)
             ? BannerKit.Variant.SHIELD_ITEM
             : BannerKit.Variant.BANNER_ITEM;
 
-        PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getBannerLayers(), variant);
-        buffer.blitScaled(composite, 0, 0, options.getOutputSize(), options.getOutputSize());
+        PixelBuffer composite = BannerKit.composite2D(engine, baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
+        buffer.blitScaled(composite, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
         return buffer;
     }
 
@@ -258,13 +261,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull String itemId,
         @NotNull ItemOptions options
     ) {
-        DyeColor baseDye = options.getBaseDye().orElse(DyeColor.Vanilla.WHITE);
+        DyeColor baseDye = options.getDecoration().getBaseDye().orElse(DyeColor.Vanilla.WHITE);
         boolean isShield = itemId.equals(SHIELD_ITEM_ID);
         BannerKit.Variant variant = isShield
             ? BannerKit.Variant.SHIELD_BLOCK_3D
             : BannerKit.Variant.BANNER_BLOCK_3D;
 
-        PixelBuffer composite = BannerKit.composite2D(engine.textures(), baseDye, options.getBannerLayers(), variant);
+        PixelBuffer composite = BannerKit.composite2D(engine.textures(), baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
 
         return BlockGeometryKit.buildBoxTriangles(
             new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
@@ -308,15 +311,15 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link LayerTint} for that layer (from its definition's {@code model.tints[]}), the colour
      * resolves from the matching render-option override, else the JSON default:
      * <ul>
-     * <li>{@link LayerTint.Dye} - {@link ItemOptions#getLeatherColor()} → {@link ItemOptions#getTintColor()} → default.</li>
-     * <li>{@link LayerTint.Potion} - {@link ItemOptions#getPotionColor()} → the first
+     * <li>{@link LayerTint.Dye} - {@link ItemDecoration#getLeatherColor()} → {@link ItemDecoration#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Potion} - {@link ItemDecoration#getPotionColor()} → the first
      * {@link ItemContext#potionEffects() potion effect}'s colour via
-     * {@link RendererContext#findPotionEffectColor(String)} → {@link ItemOptions#getTintColor()} → default.</li>
-     * <li>{@link LayerTint.Firework} - {@link ItemOptions#getFireworkColor()} → {@link ItemOptions#getTintColor()} → default.</li>
+     * {@link RendererContext#findPotionEffectColor(String)} → {@link ItemDecoration#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Firework} - {@link ItemDecoration#getFireworkColor()} → {@link ItemDecoration#getTintColor()} → default.</li>
      * <li>{@link LayerTint.Constant} - the fixed value.</li>
      * </ul>
      * When the item has no tint for the layer, falls back to the vanilla {@code item/generated}
-     * convention: the caller's {@link ItemOptions#getTintColor()} applies to the tintindex-0 slot
+     * convention: the caller's {@link ItemDecoration#getTintColor()} applies to the tintindex-0 slot
      * ({@link #tintIndexForLayer(Item, int)}), every other layer renders untinted. Returns
      * {@link ColorMath#WHITE} for an untinted layer.
      */
@@ -330,17 +333,17 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         if (layerIndex < tints.size()) {
             return switch (tints.get(layerIndex)) {
                 case LayerTint.Dye dye ->
-                    options.getLeatherColor().or(options::getTintColor).orElse(dye.defaultColor());
+                    options.getDecoration().getLeatherColor().or(options.getDecoration()::getTintColor).orElse(dye.defaultColor());
                 case LayerTint.Potion potion ->
-                    options.getPotionColor()
+                    options.getDecoration().getPotionColor()
                         .or(() -> options.getContext().potionEffects().stream().findFirst().flatMap(context::findPotionEffectColor))
-                        .or(options::getTintColor).orElse(potion.defaultColor());
+                        .or(options.getDecoration()::getTintColor).orElse(potion.defaultColor());
                 case LayerTint.Firework firework ->
-                    options.getFireworkColor().or(options::getTintColor).orElse(firework.defaultColor());
+                    options.getDecoration().getFireworkColor().or(options.getDecoration()::getTintColor).orElse(firework.defaultColor());
                 case LayerTint.Constant constant -> constant.argb();
             };
         }
-        int tint = options.getTintColor().orElse(ColorMath.WHITE);
+        int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
         return tint != ColorMath.WHITE && tintIndexForLayer(item, layerIndex) == 0 ? tint : ColorMath.WHITE;
     }
 
@@ -416,7 +419,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * Renders the standard layered-sprite path for an item. Each {@code layerN} texture is
      * composited in order, multiplying in the layer's {@link #resolveLayerTint resolved tint} -
      * the item-definition {@link LayerTint} (leather dye, potion colour, firework colour) when
-     * present, otherwise the caller's {@link ItemOptions#getTintColor()} on the tintindex-0 slot.
+     * present, otherwise the caller's {@link ItemDecoration#getTintColor()} on the tintindex-0 slot.
      * A tinted layer is multiplied at its native resolution then scaled up, so the tint covers the
      * full icon rather than a corner. Trim overlay textures are resolved via
      * {@link TrimKit#resolveFromTextureRef} so the renderer doesn't depend on material-specific
@@ -429,7 +432,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull Item item,
         @NotNull ItemOptions options
     ) {
-        int size = options.getOutputSize();
+        int size = options.getOutput().getCanvasSize();
         int layerIndex = 0;
         while (true) {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
@@ -476,17 +479,17 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Item item = requireItem(this.context, options.getItemId());
             RasterEngine engine = new RasterEngine(this.context);
-            PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
 
             // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
-            // trim, damage-bar, and stack-count decorations) so callers can splice their own passes
-            // in via ItemOptions.layerDecorator. The terminal glint is the finalisation step, not a
-            // layer, because it expands the single buffer into one or many animation frames.
-            ImageLayerContext ctx = new ImageLayerContext(this.context, engine.textures(), item, options);
-            LayerStack<ImageLayer> stack = options.getLayerDecorator().apply(buildGuiLayers(ctx));
-            for (ImageLayer layer : stack.ordered()) layer.apply(buffer);
-
-            return finalize2DItem(engine.textures(), buffer, item, options);
+            // trim, damage-bar, and stack-count decorations) so callers can splice their own passes in
+            // via ItemOptions.layerDecorator, folded into Finalize's target. The terminal glint is the
+            // finalisation step, not a layer, because it expands the buffer into one or many frames.
+            // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in.
+            LayerContext ctx = new LayerContext(this.context, engine.textures(), item, options);
+            return Finalize.render(
+                Finalize.FinalizeSpec.staticFrame(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, options.getOutput().isAntiAlias())
+                    .withGlint(itemGlint(engine.textures(), item, options), false),
+                (target, mask, tick) -> Layers.foldInto(buildGuiLayers(ctx), options.getLayerDecorator(), target));
         }
 
         /**
@@ -494,34 +497,50 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * layer, then the conditional trim, damage-bar, and stack-count decorations. Each layer is the
          * verbatim pass that previously ran inline in {@link #render}, capturing the render {@code ctx}.
          */
-        private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull ImageLayerContext ctx) {
+        private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull LayerContext ctx) {
             ItemOptions options = ctx.options();
             LayerStack<ImageLayer> stack = new LayerStack<>();
 
             if (options.getItemId().equals(SHIELD_ITEM_ID))
-                stack.append(ItemOptions.Slot.BASE, frame -> renderShield3D(ctx.context(), frame, options));
+                stack.append(ItemSlot.BASE, frame -> renderShield3D(ctx.context(), frame, options));
             else if (isBannerOrShield(options.getItemId()))
-                stack.append(ItemOptions.Slot.BASE, frame ->
+                stack.append(ItemSlot.BASE, frame ->
                     renderBannerOrShield(ctx.textures(), frame, options.getItemId(), options));
             else
-                stack.append(ItemOptions.Slot.BASE, frame ->
+                stack.append(ItemSlot.BASE, frame ->
                     renderStandardLayers(ctx.context(), ctx.textures(), frame, ctx.item(), options));
 
-            if (options.getTrimSlot().isPresent() && options.getTrimColor().isPresent())
-                stack.append(ItemOptions.Slot.TRIM, frame ->
-                    TrimKit.resolve(ctx.textures(), options.getTrimSlot().get().getKey(), options.getTrimColor().get().getKey())
-                        .ifPresent(trim -> frame.blitScaled(trim, 0, 0, options.getOutputSize(), options.getOutputSize())));
+            if (options.getDecoration().getTrimSlot().isPresent() && options.getDecoration().getTrimColor().isPresent())
+                stack.append(ItemSlot.TRIM, frame ->
+                    TrimKit.resolve(ctx.textures(), options.getDecoration().getTrimSlot().get().getKey(), options.getDecoration().getTrimColor().get().getKey())
+                        .ifPresent(trim -> frame.blitScaled(trim, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize())));
 
             if (options.isShowDamageBar())
-                stack.append(ItemOptions.Slot.DAMAGE_BAR, frame ->
+                stack.append(ItemSlot.DAMAGE_BAR, frame ->
                     ItemStackKit.drawDamageBar(frame, options.getContext().damage(), ctx.item().getMaxDurability()));
 
             if (options.getContext().stackCount() > 1)
-                stack.append(ItemOptions.Slot.STACK_COUNT, frame ->
+                stack.append(ItemSlot.STACK_COUNT, frame ->
                     ItemStackKit.drawStackCount(frame, options.getContext().stackCount(), MinecraftFont.REGULAR));
 
             return stack;
         }
+
+        /**
+         * Per-render state passed to every {@link ImageLayer} in the 2D item composite stack. Captured
+         * once by {@link #render} and read by {@link #buildGuiLayers}.
+         *
+         * @param context renderer context for texture and override resolution
+         * @param textures texture-resolution service for layer texture lookups
+         * @param item resolved item definition being rendered
+         * @param options caller-supplied item render options
+         */
+        private record LayerContext(
+            @NotNull RendererContext context,
+            @NotNull Textures textures,
+            @NotNull Item item,
+            @NotNull ItemOptions options
+        ) { }
 
     }
 
@@ -558,9 +577,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // entirely in the model's display transform (applied as the modelTransform below), so the
             // camera pose stays identity and only the rotation-independent lens comes from resolve().
             ModelEngine engine = new ModelEngine(this.context,
-                Camera.identity(options.getProjection().resolve(EulerRotation.NONE, options.getFacing()).lens()));
-            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
-            int tint = options.getTintColor().orElse(ColorMath.WHITE);
+                Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).lens()));
+            int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
 
             ConcurrentList<VisibleTriangle> triangles;
             if (isBannerOrShield(options.getItemId())) {
@@ -587,9 +605,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             }
 
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
-            engine.rasterize(triangles, buffer, displayTransform);
-
-            return finalize2DItem(engine.textures(), buffer, item, options);
+            int ssaa = Math.max(1, options.getOutput().getSupersample());
+            return Finalize.render(
+                Finalize.FinalizeSpec.staticFrame(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias())
+                    .withGlint(itemGlint(engine.textures(), item, options), false),
+                (target, mask, tick) -> engine.rasterize(triangles, target, displayTransform));
         }
 
         /**

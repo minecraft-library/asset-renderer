@@ -204,7 +204,7 @@ public final class EntityRendererOverrides {
         Map<Integer, Float> slots = new HashMap<>();
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
             int op = in.getOpcode();
-            if (isBranchOp(op)) break;
+            if (AsmKit.isBranchInsn(op)) break;
             if (op != Opcodes.FSTORE) continue;
             if (!(in instanceof VarInsnNode v)) continue;
             AbstractInsnNode prev = AsmKit.previousReal(in);
@@ -212,27 +212,6 @@ public final class EntityRendererOverrides {
             if (lit != null) slots.put(v.var, lit);
         }
         return slots;
-    }
-
-    /**
-     * {@code true} when the opcode would split the linear walk (conditional / unconditional
-     * branch or method exit).
-     */
-    private static boolean isBranchOp(int op) {
-        if (op >= Opcodes.IFEQ && op <= Opcodes.IF_ACMPNE) return true;
-        return op == Opcodes.GOTO
-            || op == Opcodes.JSR
-            || op == Opcodes.IFNULL
-            || op == Opcodes.IFNONNULL
-            || op == Opcodes.TABLESWITCH
-            || op == Opcodes.LOOKUPSWITCH
-            || op == Opcodes.RETURN
-            || op == Opcodes.IRETURN
-            || op == Opcodes.LRETURN
-            || op == Opcodes.FRETURN
-            || op == Opcodes.DRETURN
-            || op == Opcodes.ARETURN
-            || op == Opcodes.ATHROW;
     }
 
     /**

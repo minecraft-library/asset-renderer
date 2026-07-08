@@ -11,8 +11,8 @@ import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.request.BannerLayer;
-import lib.minecraft.renderer.request.DyeColor;
+import lib.minecraft.renderer.option.spec.BannerLayer;
+import lib.minecraft.renderer.option.spec.DyeColor;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,7 +43,7 @@ class BannerKitTest {
             "minecraft:entity/banner_base", bannerBase
         )));
 
-        PixelBuffer canvas = BannerKit.composite2D(engine, DyeColor.Vanilla.RED, Concurrent.newList(),
+        PixelBuffer canvas = BannerKit.composite2D(engine, DyeColor.Vanilla.RED.argb(), Concurrent.newList(),
             BannerKit.Variant.BANNER_ITEM);
 
         assertThat(canvas.width(), is(4));
@@ -75,7 +75,7 @@ class BannerKitTest {
         ConcurrentList<BannerLayer> layers = Concurrent.newList();
         layers.add(new BannerLayer(pattern, DyeColor.Vanilla.BLUE));
 
-        PixelBuffer canvas = BannerKit.composite2D(engine, DyeColor.Vanilla.WHITE, layers,
+        PixelBuffer canvas = BannerKit.composite2D(engine, DyeColor.Vanilla.WHITE.argb(), layers,
             BannerKit.Variant.BANNER_ITEM);
 
         // Pixel (0, 0) is the one opaque mask texel, so the blue layer blitted over it; assert it
@@ -104,7 +104,7 @@ class BannerKitTest {
         ConcurrentList<BannerLayer> layers = Concurrent.newList();
         layers.add(new BannerLayer(pattern, DyeColor.Vanilla.BLACK));
 
-        PixelBuffer canvas = BannerKit.composite2D(engine, DyeColor.Vanilla.WHITE, layers,
+        PixelBuffer canvas = BannerKit.composite2D(engine, DyeColor.Vanilla.WHITE.argb(), layers,
             BannerKit.Variant.SHIELD_ITEM);
 
         // The shield mask is fully opaque white and the layer colour is black, so every

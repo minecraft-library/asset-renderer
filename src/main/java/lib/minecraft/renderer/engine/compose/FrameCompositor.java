@@ -8,13 +8,14 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.exception.RenderException;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Composites {@link FramePlacement} layers into a single output, transparently handling mixed static
- * and animated inputs - the "frame tier" of the layer model, where {@link ImageLayer} mutates one
- * buffer and {@link GeometryLayer} feeds a shared depth pass.
+ * and animated inputs - the "frame tier" of the layer model, where {@code ImageLayer} mutates one
+ * buffer and {@code GeometryLayer} feeds a shared depth pass.
  * <p>
  * Used by the compositor renderers ({@code GridRenderer}, {@code LayoutRenderer},
  * {@code MenuRenderer}) whenever children may be either static PNGs or animated WebPs. When every
@@ -29,34 +30,6 @@ public class FrameCompositor {
      * Upper bound on the merged loop duration to prevent runaway LCM math.
      */
     private static final long MAX_LOOP_MS = 10_000L;
-
-    /**
-     * Runs each frame layer's contribution into a fresh sink, then merges the collected placements.
-     *
-     * @param layers the frame layers to contribute and composite, in back-to-front order
-     * @param canvasW the canvas width in pixels
-     * @param canvasH the canvas height in pixels
-     * @param framesPerSecond the output frame rate, used only when producing animated output
-     * @param background the canvas background fill applied before blitting any layer
-     * @return the composited image data
-     */
-    public static @NotNull ImageData composite(@NotNull ConcurrentList<? extends FrameLayer> layers, int canvasW, int canvasH, int framesPerSecond, @NotNull Background background) {
-        return merge(flatten(layers), canvasW, canvasH, framesPerSecond, background);
-    }
-
-    /**
-     * Runs each frame layer's contribution into a fresh placement list, in order. Useful for callers
-     * that need the flattened placements directly (e.g. a renderer with its own static fast-path)
-     * rather than the merged image.
-     *
-     * @param layers the frame layers to contribute, in back-to-front order
-     * @return the collected placements
-     */
-    public static @NotNull ConcurrentList<FramePlacement> flatten(@NotNull ConcurrentList<? extends FrameLayer> layers) {
-        ConcurrentList<FramePlacement> placements = Concurrent.newList();
-        for (FrameLayer layer : layers) layer.contribute(placements);
-        return placements;
-    }
 
     /**
      * Composites the given placements onto a canvas of the specified size.
@@ -91,6 +64,53 @@ public class FrameCompositor {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Wraps a list of rendered frames as an {@link ImageData} instance. A single-frame list becomes a
+     * {@link StaticImageData}; multi-frame lists become an {@link AnimatedImageData} where every frame
+     * shares the same delay. The terminal output step shared by every renderer and compose stage.
+     *
+     * @param frames the ordered frame list
+     * @param frameDelayMs the per-frame display duration in milliseconds
+     * @return the wrapped image data
+     * @throws RenderException if {@code frames} is empty
+     */
+    public static @NotNull ImageData wrapFrames(@NotNull ConcurrentList<PixelBuffer> frames, int frameDelayMs) {
+        if (frames.isEmpty())
+            throw new RenderException("Frame list must contain at least one frame");
+
+        if (frames.size() == 1)
+            return StaticImageData.of(frames.getFirst().toBufferedImage());
+
+        AnimatedImageData.Builder builder = AnimatedImageData.builder();
+        for (PixelBuffer frame : frames)
+            builder.withFrame(ImageFrame.of(frame, frameDelayMs));
+
+        return builder.build();
+    }
+
+    /**
+     * Wraps a pixel buffer as a single-frame static {@link ImageData}. Shared convenience for every
+     * renderer that needs to emit exactly one frame without glint or animation.
+     *
+     * @param buffer the pixel buffer that becomes the static frame
+     * @return the wrapped image data
+     */
+    public static @NotNull ImageData staticFrame(@NotNull PixelBuffer buffer) {
+        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
+        frames.add(buffer);
+        return wrapFrames(frames, 0);
+    }
+
+    /**
+     * Returns a minimal 1x1 transparent static frame - the canonical "nothing to render" result for
+     * renderers short-circuiting on missing or empty input.
+     *
+     * @return a 1x1 transparent static image
+     */
+    public static @NotNull ImageData emptyFrame() {
+        return staticFrame(PixelBuffer.create(1, 1));
     }
 
     /**

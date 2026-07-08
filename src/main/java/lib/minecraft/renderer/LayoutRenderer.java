@@ -4,9 +4,12 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
-import lib.minecraft.renderer.engine.compose.FrameLayer;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
-import lib.minecraft.renderer.options.LayoutOptions;
+import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
+import lib.minecraft.renderer.engine.compose.layer.LayerStack;
+import lib.minecraft.renderer.option.LayoutOptions;
+import lib.minecraft.renderer.option.slot.LayoutSlot;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 
@@ -24,7 +27,7 @@ import java.util.function.Supplier;
  *       ({@link LayoutOptions.Layout.Row}, {@link LayoutOptions.Layout.Column}, {@link LayoutOptions.Layout.Grid}, {@link LayoutOptions.Layout.Stack},
  *       {@link LayoutOptions.Layout.Custom}). Measurement uses each child's first frame to decide canvas
  *       dimensions and per-child {@code (x, y)} positions.</li>
- *   <li><b>Composite</b> via {@link FrameCompositor#composite FrameCompositor.composite}. If every
+ *   <li><b>Composite</b> via {@link FrameCompositor#merge FrameCompositor.merge}. If every
  *       child is static, the compositor short-circuits to a single-frame composite; if any child is
  *       animated, it picks a merged loop period and samples each child per output frame.</li>
  * </ol>
@@ -43,11 +46,17 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
         int[][] positions = layoutChildren(options.getLayout(), resolved, sizes);
         int[] canvas = computeCanvas(positions, sizes, options.getLayout().padding());
 
-        ConcurrentList<FrameLayer> layers = Concurrent.newList();
-        for (int i = 0; i < resolved.size(); i++)
-            layers.add(new FramePlacement(positions[i][0], positions[i][1], resolved.get(i)));
+        LayerStack<FrameLayer> stack = new LayerStack<>();
+        for (int i = 0; i < resolved.size(); i++) {
+            int x = positions[i][0];
+            int y = positions[i][1];
+            ImageData child = resolved.get(i);
+            stack.append(LayoutSlot.CHILD, sink -> sink.add(new FramePlacement(x, y, child)));
+        }
 
-        return FrameCompositor.composite(options.getLayerDecorator().apply(layers),
+        ConcurrentList<FramePlacement> placements = Concurrent.newList();
+        Layers.foldInto(stack, options.getLayerDecorator(), placements);
+        return FrameCompositor.merge(placements,
             canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackground());
     }
 

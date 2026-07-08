@@ -10,16 +10,12 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.model.EntityModelData.Cube;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.ToolingException;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
-import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.blockentity.Source;
 import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.YAxis;
 import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
-import lib.minecraft.renderer.tooling.util.FastTrig;
 import lib.minecraft.renderer.tooling.util.JsonOptional;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
@@ -100,12 +96,13 @@ public final class GeometryParser {
      * {@link Source} is assembled.
      *
      * <p>Per-source post-processing after the bytecode walk: applies
-     * {@link Source#texWidthOverride()} / {@link Source#texHeightOverride()} when set,
-     * flips a {@link YAxis#UP} source into the canonical Y-down frame via
-     * {@link #flipToYDown}, and records the {@code y_axis} / {@code inventory_y_rotation}
-     * metadata onto the emitted model. Missing classes / methods (typically a MC version
-     * bump rename) and per-source parse failures are logged to {@code diagnostics} and
-     * skipped rather than aborting the whole sweep.
+     * {@link Source#texWidthOverride()} / {@link Source#texHeightOverride()} when set and records
+     * the {@code y_axis} / {@code inventory_y_rotation} metadata onto the emitted model. Bones are
+     * emitted in the parent-local relative frame with {@code parent} links (the shared entity + block
+     * schema); the {@code y_axis} marker travels with them so the render presentation applies the
+     * source-to-block Y orientation. Missing classes / methods (typically a MC version bump rename)
+     * and per-source parse failures are logged to {@code diagnostics} and skipped rather than
+     * aborting the whole sweep.
      *
      * @param jarPath the deobfuscated client jar (MC 26.1+)
      * @param sources the sources to parse (one per entity id)
@@ -114,7 +111,12 @@ public final class GeometryParser {
      * @throws ToolingException when the client jar can't be read
      */
     public static @NotNull ConcurrentMap<String, JsonObject> parse(@NotNull Path jarPath, @NotNull List<Source> sources, @NotNull Diagnostics diagnostics) {
-        ConcurrentMap<String, JsonObject> results = Concurrent.newMap();
+        // Insertion-ordered (parse follows the sources list sequentially) so the emitted geometry
+        // table is deterministic and stable across additions: a new source appends its entry at the
+        // end rather than perturbing a hash order and reshuffling every existing entry. Downstream
+        // geometry-id assignment iterates this in sources order, so unchanged entities keep both their
+        // id and their file position when new geometry is added.
+        ConcurrentMap<String, JsonObject> results = Concurrent.newLinkedMap();
 
         try (ZipFile zip = new ZipFile(jarPath.toFile())) {
             for (Source source : sources) {
@@ -142,8 +144,10 @@ public final class GeometryParser {
                             model.addProperty("textureWidth", source.texWidthOverride());
                         if (source.texHeightOverride() != null)
                             model.addProperty("textureHeight", source.texHeightOverride());
-                        if (source.yAxis() == YAxis.UP)
-                            flipToYDown(model);
+                        // Bones stay in their NATIVE source frame (no Y-flip): the y_axis marker
+                        // travels with them and the render presentation applies the source-to-block
+                        // Y orientation. This keeps the entity UV unwrap (resolvePolygonUv) consistent
+                        // with the geometry for a Y-UP block entity like the chest.
                         model.addProperty("y_axis", source.yAxis().name());
                         if (source.inventoryYRotation() != 0f)
                             model.addProperty("inventory_y_rotation", source.inventoryYRotation());
@@ -159,44 +163,6 @@ public final class GeometryParser {
         }
 
         return results;
-    }
-
-    /**
-     * Post-processes a Y-up block entity model into the canonical Y-down form. For each
-     * bone, negates the pivot's Y so the {@code PartPose} offset flips into the Y-down
-     * frame; for each cube, mirrors the {@code origin.y} about the pivot's XZ plane. Because
-     * {@code origin} is the <b>min</b> corner and {@code size} is an unsigned extent, the
-     * new min Y is the negated former max: {@code origin.y = -origin.y - size.y}. X, Z, and
-     * size are unaffected.
-     *
-     * @param model the parsed model JSON, mutated in place
-     */
-    private static void flipToYDown(@NotNull JsonObject model) {
-        JsonObject bones = model.getAsJsonObject("bones");
-        if (bones == null) return;
-
-        for (Map.Entry<String, JsonElement> entry : bones.entrySet()) {
-            JsonObject bone = entry.getValue().getAsJsonObject();
-
-            JsonArray pivot = bone.getAsJsonArray("pivot");
-            if (pivot != null && pivot.size() == 3)
-                pivot.set(1, new JsonPrimitive(-pivot.get(1).getAsFloat()));
-
-            JsonArray cubes = bone.getAsJsonArray("cubes");
-            if (cubes == null) continue;
-
-            for (JsonElement cubeElement : cubes) {
-                JsonObject cube = cubeElement.getAsJsonObject();
-                JsonArray origin = cube.getAsJsonArray("origin");
-                JsonArray size = cube.getAsJsonArray("size");
-                if (origin == null || size == null || origin.size() != 3 || size.size() != 3)
-                    continue;
-
-                float oy = origin.get(1).getAsFloat();
-                float sy = size.get(1).getAsFloat();
-                origin.set(1, new JsonPrimitive(-oy - sy));
-            }
-        }
     }
 
     /**
@@ -313,52 +279,10 @@ public final class GeometryParser {
     private static @Nullable Float resolveStaticMeshTransformer(
         @NotNull String owner, @NotNull String name, @NotNull ParseState state, @NotNull ZipFile zip
     ) {
-        String key = owner + "." + name;
-        if (state.resolvedMeshTransformers.containsKey(key))
-            return state.resolvedMeshTransformers.get(key);
-
-        ClassNode cls = AsmKit.loadClass(zip, owner);
-        MethodNode clinit = cls != null ? AsmKit.findMethod(cls, AsmKit.CLINIT) : null;
-        if (clinit == null) {
-            state.resolvedMeshTransformers.put(key, null);
-            return null;
-        }
-
-        Float pendingFloat = null;
-        Float pendingScaled = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
-            int op = in.getOpcode();
-            if (op < 0) continue; // labels / line numbers / frame
-            if (in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f) {
-                pendingFloat = f;
-                pendingScaled = null;
-            } else if (in instanceof MethodInsnNode mi
-                && op == Opcodes.INVOKESTATIC
-                && VanillaSourceClasses.MESH_TRANSFORMER.equals(mi.owner)
-                && "scaling".equals(mi.name)
-                && ("(F)" + MESH_TRANSFORMER_DESC).equals(mi.desc)
-                && pendingFloat != null) {
-                pendingScaled = pendingFloat;
-                pendingFloat = null;
-            } else if (in instanceof FieldInsnNode fi
-                && op == Opcodes.PUTSTATIC
-                && MESH_TRANSFORMER_DESC.equals(fi.desc)
-                && fi.owner.equals(owner)) {
-                state.resolvedMeshTransformers.put(owner + "." + fi.name, pendingScaled);
-                pendingScaled = null;
-                pendingFloat = null;
-            } else {
-                // Any unrelated instruction clears the synthetic stack so we don't accidentally
-                // bind a stale F to a putstatic that's preceded by other initialisation work.
-                pendingFloat = null;
-                // Keep pendingScaled across no-op-ish instructions so the canonical
-                // ldc/invokestatic/putstatic triplet still binds.
-            }
-        }
-
-        // After the walk, the key is set if its putstatic was canonical; otherwise mark null.
-        state.resolvedMeshTransformers.putIfAbsent(key, null);
-        return state.resolvedMeshTransformers.get(key);
+        return AsmKit.resolveStaticScalingFactor(owner, name,
+            () -> AsmKit.loadClass(zip, owner),
+            VanillaSourceClasses.MESH_TRANSFORMER, "scaling", MESH_TRANSFORMER_DESC,
+            state.resolvedMeshTransformers);
     }
 
     /**
@@ -456,6 +380,12 @@ public final class GeometryParser {
      * the kit applies the scale to cube vertices at render time without affecting UV
      * resolution. No-op when {@code meshTransformerScale == 1f} (the common case) so
      * byte-stable legacy + non-scaling entity parses stay byte-stable.
+     * <p>
+     * The feet-anchor {@code +dy} translate is a single root-level translate. Descendants
+     * inherit the translate through the parent chain, so {@code +dy} is applied to top-level
+     * bones only ({@code parent == null}); applying it to every bone would double-count it
+     * down the chain. The {@code f *} spacing scale applies to every bone (chain translations
+     * sum, so a uniform per-bone {@code f} yields a uniform model scale).
      *
      * @param state the parse state whose emitted bones are re-walked and scaled in place
      */
@@ -465,6 +395,9 @@ public final class GeometryParser {
         float dy = 24.016f * (1f - f);
         for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
             JsonObject bone = entry.getValue().getAsJsonObject();
+            // Only top-level bones (no parent) get the feet-anchor +dy translate; descendants
+            // inherit it via the parent chain at render time.
+            boolean applyDy = state.boneParents.get(entry.getKey()) == null;
             JsonArray pivot = bone.getAsJsonArray("pivot");
             if (pivot != null && pivot.size() == 3) {
                 float px = pivot.get(0).getAsFloat();
@@ -472,7 +405,7 @@ public final class GeometryParser {
                 float pz = pivot.get(2).getAsFloat();
                 JsonArray scaled = new JsonArray();
                 scaled.add(f * px);
-                scaled.add(f * py + dy);
+                scaled.add(f * py + (applyDy ? dy : 0f));
                 scaled.add(f * pz);
                 bone.add("pivot", scaled);
             }
@@ -2238,13 +2171,15 @@ public final class GeometryParser {
     }
 
     /**
-     * Closes the current pending bone: composes parent pivot + rotation + scale with the
-     * child's local values (vanilla renders children with {@code T(parent.pivot) *
-     * R(parent.rot) * S(parent.scale) * T(child.pivot) * R(child.rot) * S(child.scale) *
-     * cube}), builds the bone JSON, records {@link BoneMeta} for future children, then resets
-     * all pending state for the next {@code addOrReplaceChild}. Cube-less pose-only parents
-     * (e.g. wolf {@code head} holding the pivot for {@code real_head}) get a {@code BoneMeta}
-     * entry but no JSON emission, since a cube-less bone contributes no triangles.
+     * Closes the current pending bone, records its cumulative {@link BoneMeta} scale for future
+     * children, builds the parent-local bone JSON, then resets all pending state for the next
+     * {@code addOrReplaceChild}.
+     * <p>
+     * Bones are emitted in the parent-local relative frame - {@code parentScale * local_pivot},
+     * local rotation, plus the {@code parent} link - preserving cube-less pose-only parents /
+     * container groups (wolf {@code head}/{@code tail}, bogged {@code mushrooms}) so the kit can
+     * resolve the chain and hide groups as a unit. The kit composes each ancestor's rotation +
+     * translation at render, so no world fold is baked here.
      *
      * @param state the parse state whose pending bone fields are flushed and reset
      */
@@ -2254,69 +2189,40 @@ public final class GeometryParser {
         // chain - rare, but cheap to support).
         String name = state.boneName != null ? state.boneName : state.pendingPartName;
         if (name != null) {
-            // Flatten parent-child hierarchy at parse time. Vanilla renders children with
-            // pose T(parent.pivot) * R(parent.rot) * S(parent.scale) * T(child.local_pivot)
-            // * R(child.local_rot) * S(child.scale), then draws child cubes from the bone's
-            // local frame. To present the entity_geometry JSON consumer with a flat
-            // (world_pivot, world_rotation, world_scale) per bone, fold the parent's
-            // already-flattened transform into the child's:
-            //   world_pivot = parent.world_pivot + parent.world_rot * (parent.world_scale * child.local_pivot)
-            //   world_rot   = parent.world_rot * R_zyx(child.local_rot)
-            //   world_scale = parent.world_scale * child.local_scale
-            // For parents with no rotation (every legacy literal-stack walker) this collapses
-            // back to the legacy additive-translation behaviour, so unrotated parents are a
-            // no-op. Java entity factories like FoxModel.createBodyLayer DO have rotated
-            // parents (body 90deg pitch with tail / legs as children) - flattening with
-            // rotation propagation is what places the tail behind the body instead of
-            // pointing straight down at the unrotated body.pivot + tail.local_pivot location.
-            // Fall back to nextParent when parentBone wasn't captured at a
-            // CubeListBuilder.create() call. Vanilla's pre-built-builder pattern
+            // Resolve the parent. Fall back to nextParent when parentBone wasn't captured at a
+            // CubeListBuilder.create() call: vanilla's pre-built-builder pattern
             // ({@code AdultAxolotlModel.createBodyLayer} pre-builds gill / leg cube lists into
-            // local slots 5-9 before reusing them across multiple {@code addOrReplaceChild}
-            // calls) doesn't fire {@code create()} between the parent's {@code aload} and the
-            // child's flush, so parentBone stays null. nextParent is still set from the most
-            // recent {@code aload} of the parent's PartDefinition slot, so it's the right
-            // fallback. For the standard chain (where create() captures parentBone) nextParent
-            // is null at flush time so this fallback is a no-op.
+            // local slots and reuses them across multiple {@code addOrReplaceChild} calls)
+            // doesn't fire {@code create()} between the parent's {@code aload} and the child's
+            // flush, so parentBone stays null; nextParent still holds the most recent
+            // {@code aload} of the parent's PartDefinition slot. For the standard chain (where
+            // create() captures parentBone) nextParent is null at flush so this is a no-op.
             String resolvedParent = state.parentBone != null ? state.parentBone : state.nextParent;
-            float[] worldPivot = state.pendingPivot;
-            float[] worldRotation = state.pendingRotation;
-            Matrix4f worldRotMatrix = eulerZyxToMatrix(state.pendingRotation);
-            float worldScale = state.pendingScale;
-            if (resolvedParent != null) {
-                BoneMeta parent = state.boneMeta.get(resolvedParent);
-                if (parent != null) {
-                    float[] scaledLocal = {
-                        parent.scale * state.pendingPivot[0],
-                        parent.scale * state.pendingPivot[1],
-                        parent.scale * state.pendingPivot[2]
-                    };
-                    float[] rotatedLocal = rotateVec(parent.rotMatrix, scaledLocal);
-                    worldPivot = new float[]{
-                        parent.pivot[0] + rotatedLocal[0],
-                        parent.pivot[1] + rotatedLocal[1],
-                        parent.pivot[2] + rotatedLocal[2]
-                    };
-                    worldScale = parent.scale * state.pendingScale;
-                    // Column-vector composition: parent rotation applies AFTER child's local
-                    // rotation, so it's leftmost in the multiply chain. v_world = parent *
-                    // (worldRotMatrix * v_local).
-                    worldRotMatrix = parent.rotMatrix.multiply(worldRotMatrix);
-                    worldRotation = matrixToEulerZyx(worldRotMatrix);
-                }
-            }
-            // Pose-only parent bones (e.g. wolf "head" / "tail" - holds the pivot for cube-
-            // bearing children "real_head" / "real_tail") are flushed with empty cubes. They
-            // still need a {@link BoneMeta} entry so the next child's flatten can find them
-            // through the parent chain; just skip the JSON emission since a cube-less bone
-            // contributes no triangles. Without this, child bones that name a pose-only parent
-            // miss the boneMeta lookup and inherit a world pivot of (0, 0, 0).
-            if (!state.pendingCubes.isEmpty())
-                state.bones.add(name, buildBone(worldPivot, worldRotation, worldScale, state.pendingCubes));
-            state.boneMeta.put(name, new BoneMeta(worldPivot, worldScale, worldRotMatrix));
-            // Record the resolved parent so the post-walk retainedNames filter
-            // ({@link #parseLayerMethod}) can chase the ancestor chain. Root-level bones
-            // (children of the mesh root, no PartDefinition parent) map to a null parent.
+            BoneMeta parentMeta = resolvedParent != null ? state.boneMeta.get(resolvedParent) : null;
+            float parentScale = parentMeta != null ? parentMeta.scale : 1f;
+
+            // Cumulative model scale (ancestor scale times this bone's local scale). Only the scale
+            // is folded here - the kit's ModelPart-style chain
+            // ({@link lib.minecraft.renderer.engine.kit.EntityGeometryKit} resolveChainFrom / the
+            // shared {@link lib.minecraft.renderer.engine.kit.BoneKit}) supplies each ancestor's
+            // rotation + translation at render. Children read the cumulative scale back via
+            // {@link BoneMeta}.
+            float worldScale = parentScale * state.pendingScale;
+            state.boneMeta.put(name, new BoneMeta(worldScale));
+
+            // Emit the bone in its PARENT-LOCAL frame: local pivot scaled by the ancestor cumulative
+            // scale, local rotation, plus the {@code parent} link. Cube-less pose-only parents /
+            // container groups (wolf head/tail, bogged mushrooms) are emitted too - the kit needs the
+            // parent present to resolve the chain (a missing parent silently degrades to root,
+            // dropping the group transform), and keeping groups lets their children hide as a unit.
+            float[] localPivot = {
+                parentScale * state.pendingPivot[0],
+                parentScale * state.pendingPivot[1],
+                parentScale * state.pendingPivot[2]
+            };
+            state.bones.add(name, buildBone(localPivot, state.pendingRotation, worldScale, state.pendingCubes, resolvedParent));
+            // Record the resolved parent so the post-walk retainedNames / clearedBones filters
+            // can chase the ancestor chain. Root-level bones map to a null parent.
             state.boneParents.put(name, resolvedParent);
             state.lastFlushedBone = name;
         }
@@ -2688,40 +2594,42 @@ public final class GeometryParser {
     }
 
     /**
-     * Parent lookup data: the bone's pivot, scale, and accumulated rotation in
-     * world-flattened form. The rotation matrix carries the entire parent-chain composition
-     * (Z * Y * X applied right-to-left, matching {@code net.minecraft.client.model.geom.PartPose}'s convention) so child bones can rotate
-     * their local pivots into the parent's frame before adding the parent's translation.
-     * Legacy literal-stack walkers never set a non-identity rotation on a bone with
-     * children, so {@code rotMatrix} stays identity and the math collapses to the legacy
-     * additive-translation behaviour for them.
+     * Parent lookup data: the bone's cumulative (ancestor-folded) uniform scale. A child reads its
+     * parent's cumulative scale to scale its own local pivot and to accumulate its own scale; the
+     * kit composes each ancestor's rotation + translation at render, so no world pivot/rotation is
+     * folded here.
      *
-     * @param pivot the bone's world-flattened pivot {@code [x, y, z]}
-     * @param scale the bone's world-flattened uniform scale
-     * @param rotMatrix the bone's world-flattened rotation as a column-vector matrix
+     * @param scale the bone's cumulative uniform scale
      */
-    private record BoneMeta(float @NotNull [] pivot, float scale, @NotNull Matrix4f rotMatrix) {}
+    private record BoneMeta(float scale) {}
 
     /**
-     * Builds the JSON object for one bone from its flattened pivot, rotation, scale, and
-     * cube list. The output shape matches what {@link EntityModelData}'s Gson binding expects.
-     * A {@code scale} of exactly {@code 1f} is omitted from the JSON. Each cube's inflate
-     * (index 8) and mirror (index 9) are read defensively: legacy length-8 cube arrays (from
-     * block-entity sources that never opt into {@code paramFloatValues}) emit
-     * {@code inflate: 0} / {@code mirror: false} to keep the wire format identical.
+     * Builds the JSON object for one bone from its pivot, rotation, scale, cube list, and
+     * optional parent link. The output shape matches what {@link EntityModelData}'s Gson binding
+     * expects. A {@code scale} of exactly {@code 1f} and a {@code null} {@code parent} are omitted
+     * from the JSON. Each cube's inflate (index 8) and mirror (index 9) are read defensively:
+     * legacy length-8 cube arrays (from block-entity sources that never opt into
+     * {@code paramFloatValues}) emit {@code inflate: 0} / {@code mirror: false} to keep the wire
+     * format identical.
+     * <p>
+     * {@code pivot} / {@code rotation} are parent-local and {@code parent} names the owning bone
+     * (or {@code null} for a root bone); the kit composes the ancestor chain at render.
      *
-     * @param pivot the bone's world-flattened pivot {@code [x, y, z]}
-     * @param rotation the bone's world-flattened rotation in degrees {@code [pitch, yaw, roll]}
-     * @param scale the bone's world-flattened uniform scale
+     * @param pivot the bone's parent-local pivot {@code [x, y, z]}
+     * @param rotation the bone's parent-local rotation in degrees {@code [pitch, yaw, roll]}
+     * @param scale the bone's cumulative uniform scale
      * @param cubes the accumulated cubes, each {@code [x, y, z, w, h, d, u, v, inflate, mirror]}
+     * @param parent the parent bone name, or {@code null} for a root bone
      * @return the bone JSON object
      */
-    private static @NotNull JsonObject buildBone(float @NotNull [] pivot, float @NotNull [] rotation, float scale, @NotNull ConcurrentList<float[]> cubes) {
+    private static @NotNull JsonObject buildBone(float @NotNull [] pivot, float @NotNull [] rotation, float scale, @NotNull ConcurrentList<float[]> cubes, @Nullable String parent) {
         JsonObject bone = new JsonObject();
         bone.add("pivot", floatArray(pivot));
         bone.add("rotation", floatArray(rotation));
         if (scale != 1f)
             bone.addProperty("scale", scale);
+        if (parent != null)
+            bone.addProperty("parent", parent);
 
         JsonArray cubeArray = new JsonArray();
         for (float[] c : cubes) {
@@ -2758,75 +2666,6 @@ public final class GeometryParser {
         JsonArray arr = new JsonArray();
         for (float v : values) arr.add(v);
         return arr;
-    }
-
-    /**
-     * Builds a column-vector rotation matrix from Euler angles in degrees, applied as
-     * {@code R = Rz(roll) * Ry(yaw) * Rx(pitch)} - the same Z * Y * X order vanilla Java's
-     * {@code Matrix4f.rotateZYX} uses for {@code PartPose.offsetAndRotation}.
-     * Input array is {@code [pitch_deg, yaw_deg, roll_deg]}. Routes through
-     * {@link Quaternionf#rotationZYX} so the result is bit-identical to vanilla's
-     * quaternion-derived rotation matrix.
-     *
-     * @param eulerDegrees Euler angles {@code [pitch_deg, yaw_deg, roll_deg]}
-     * @return the {@code Rz * Ry * Rx} column-vector rotation matrix
-     */
-    private static @NotNull Matrix4f eulerZyxToMatrix(float @NotNull [] eulerDegrees) {
-        return Quaternionf.rotationZYX(
-            (float) Math.toRadians(eulerDegrees[2]),
-            (float) Math.toRadians(eulerDegrees[1]),
-            (float) Math.toRadians(eulerDegrees[0])
-        ).toMatrix4f();
-    }
-
-    /**
-     * Rotates a 3-vector by a {@link Matrix4f} rotation as {@code m * v_col}.
-     *
-     * @param m the column-vector rotation matrix
-     * @param v the vector {@code [x, y, z]} to rotate
-     * @return the rotated vector {@code [x, y, z]}
-     */
-    private static float @NotNull [] rotateVec(@NotNull Matrix4f m, float @NotNull [] v) {
-        Vector3f r = Vector3f.transformNormal(new Vector3f(v[0], v[1], v[2]), m);
-        return new float[]{ r.x(), r.y(), r.z() };
-    }
-
-    /**
-     * Decomposes a column-vector rotation matrix back into {@code [pitch_deg, yaw_deg,
-     * roll_deg]} for the Z * Y * X convention. The closed-form recovery reads the matrix's
-     * third row: {@code -sin(yaw) = m.get(1, 3)},
-     * {@code pitch = atan2(m.get(2, 3), m.get(3, 3))},
-     * {@code roll  = atan2(m.get(1, 2), m.get(1, 1))}. Agrees with the inverse of
-     * {@link #eulerZyxToMatrix} on every input that doesn't sit at the
-     * {@code yaw = +/- 90deg} gimbal-lock pole. None of the entity factories observed compose
-     * rotations near that pole (vanilla animations stay in single-axis pitches like body
-     * 90deg X), so the canonical decomposition is used; if a future model lands at the pole
-     * the recovered Euler triple still represents the same rotation, just split differently
-     * between yaw and roll.
-     *
-     * @param m the column-vector rotation matrix to decompose
-     * @return the Euler angles {@code [pitch_deg, yaw_deg, roll_deg]}
-     */
-    private static float @NotNull [] matrixToEulerZyx(@NotNull Matrix4f m) {
-        float syNeg = m.get(1, 3);
-        float clamped = Math.clamp(syNeg, -1f, 1f);
-        double yaw = -Math.asin(clamped);
-        double pitch;
-        double roll;
-        if (Math.abs(clamped) > 0.9999f) {
-            // Gimbal-lock fallback: pitch and roll merge; pin roll to 0 and put the
-            // combined rotation on pitch via atan2 of the now-decoupled (3, 2) / (2, 2) cell.
-            pitch = Math.atan2(-m.get(3, 2), m.get(2, 2));
-            roll = 0f;
-        } else {
-            pitch = Math.atan2(m.get(2, 3), m.get(3, 3));
-            roll = Math.atan2(m.get(1, 2), m.get(1, 1));
-        }
-        return new float[]{
-            (float) Math.toDegrees(pitch),
-            (float) Math.toDegrees(yaw),
-            (float) Math.toDegrees(roll)
-        };
     }
 
     /**
@@ -3129,6 +2968,85 @@ public final class GeometryParser {
             return top == null ? 0f : top.floatValue();
         }
         return state.numStack.popFloatOrZero(state.diagnostics, state.currentSource.entityId(), where);
+    }
+
+    /**
+     * Bit-identical port of vanilla Minecraft's {@code net.minecraft.util.Mth.sin / Mth.cos} table
+     * lookup. Used only by the {@code Mth.cos/sin} arm of the method-call handler above, when
+     * unrolling a vanilla bytecode {@code INVOKESTATIC Mth.sin (D)F} / {@code Mth.cos (D)F} call so
+     * the pre-baked float lands at the same bit pattern vanilla's runtime would produce.
+     * Package-private (not shared) - it is a parse-time implementation detail of this walker, kept
+     * out of the general util surface; its bit-parity is pinned by {@code FastTrigTest}.
+     *
+     * <p>Vanilla's implementation:
+     * <pre>{@code
+     *   private static final float[] SIN = new float[65536];
+     *   static {
+     *       for (int i = 0; i < 65536; i++)
+     *           SIN[i] = (float) Math.sin((double) i / 10430.378350470453);  // i / (65536 / 2pi)
+     *   }
+     *   public static float sin(double d) {
+     *       return SIN[(int) (long) (d * 10430.378350470453) & 65535];
+     *   }
+     *   public static float cos(double d) {
+     *       return SIN[(int) (long) (d * 10430.378350470453 + 16384.0) & 65535];
+     *   }
+     * }</pre>
+     * Every operation matches the bytecode: index math in {@code double}, conversion to
+     * {@code long} via Java's narrowing convention, mask with {@code 0xFFFF} (65535), narrow to
+     * {@code int}, array load. The {@code cos} offset {@code 16384.0} is a quarter rotation
+     * ({@code 65536 / 4}), the table's phase shift from sine to cosine.
+     *
+     * <p>Why this matters: {@code Math.cos / Math.sin} are libm calls accurate to roughly machine
+     * epsilon. The 65536-entry table samples sin at multiples of {@code 2pi/65536 ~= 9.587e-5 rad}
+     * and rounds intermediate values to single-precision float when populating the array. The
+     * table-vs-libm gap is up to ~1.8e-5 in absolute value - tiny, but multiplied by the
+     * {@code * 10.0F} in WitherBossModel's tail-pivot computation it surfaces as a 0.0002-unit
+     * float drift on the tail pivot Y, which is enough to shift the entity's projected screen
+     * bounds across the canvas-pixel rounding boundary.
+     */
+    static final class FastTrig {
+
+        /**
+         * Vanilla's {@code 65536 / (2 * PI)} constant - the index-per-radian scale factor. Held as
+         * the exact {@code double} literal vanilla hardcodes (not recomputed) so the multiply that
+         * feeds the table index is bit-identical.
+         */
+        private static final double MTH_PI_RATIO = 10430.378350470453;
+
+        /**
+         * The 65536-entry sin lookup table. Element {@code i} holds
+         * {@code (float) Math.sin(i / 10430.378350470453)}. Initialised eagerly so the first
+         * call site does not pay table-population cost.
+         */
+        private static final float[] SIN = new float[65536];
+
+        static {
+            for (int i = 0; i < 65536; i++)
+                SIN[i] = (float) Math.sin((double) i / MTH_PI_RATIO);
+        }
+
+        private FastTrig() {}
+
+        /**
+         * Bit-identical reproduction of vanilla {@code Mth.sin(double)}.
+         *
+         * @param d the angle in radians
+         * @return {@code sin(d)} sampled from the 65536-entry table
+         */
+        static float sin(double d) {
+            return SIN[(int) (long) (d * MTH_PI_RATIO) & 65535];
+        }
+
+        /**
+         * Bit-identical reproduction of vanilla {@code Mth.cos(double)}.
+         *
+         * @param d the angle in radians
+         * @return {@code cos(d)} sampled from the 65536-entry table (offset by a quarter rotation)
+         */
+        static float cos(double d) {
+            return SIN[(int) (long) (d * MTH_PI_RATIO + 16384.0) & 65535];
+        }
     }
 
 }

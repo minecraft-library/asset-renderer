@@ -5,10 +5,12 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
-import lib.minecraft.renderer.engine.compose.FrameLayer;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
-import lib.minecraft.renderer.engine.compose.Frames;
-import lib.minecraft.renderer.options.GridOptions;
+import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
+import lib.minecraft.renderer.engine.compose.layer.LayerStack;
+import lib.minecraft.renderer.option.GridOptions;
+import lib.minecraft.renderer.option.slot.GridSlot;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -49,14 +51,15 @@ public final class GridRenderer implements Renderer<GridOptions> {
         int canvasH = options.getRows() * (cellSize + separation) + separation;
 
         // Build tile placements as a FrameLayer stack so callers can splice layers via
-        // GridOptions.layerDecorator, then flatten for dispatch.
-        ConcurrentList<FrameLayer> layers = Concurrent.newList();
+        // GridOptions.layerDecorator, then fold for dispatch.
+        LayerStack<FrameLayer> stack = new LayerStack<>();
         for (GridOptions.GridTile tile : options.getTiles()) {
             int x = tile.col() * (cellSize + separation) + separation;
             int y = tile.row() * (cellSize + separation) + separation;
-            layers.add(new FramePlacement(x, y, tile.image()));
+            stack.append(GridSlot.CELL, sink -> sink.add(new FramePlacement(x, y, tile.image())));
         }
-        ConcurrentList<FramePlacement> placements = FrameCompositor.flatten(options.getLayerDecorator().apply(layers));
+        ConcurrentList<FramePlacement> placements = Concurrent.newList();
+        Layers.foldInto(stack, options.getLayerDecorator(), placements);
 
         boolean anyAnimated = placements.stream().anyMatch(placement -> placement.source().isAnimated());
 
@@ -72,7 +75,7 @@ public final class GridRenderer implements Renderer<GridOptions> {
             placements.parallelStream().forEach(placement ->
                 buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize));
 
-            return Frames.staticFrame(buffer);
+            return FrameCompositor.staticFrame(buffer);
         }
 
         return FrameCompositor.merge(placements, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackground());

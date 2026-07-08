@@ -62,7 +62,7 @@ python -m pip install Pillow
 | `lighting_tb_axis` | `tb > 6`                                  | lights misaligned vertically (pitch / floor)                        |
 | `lighting_global_bias` | `\| mean_signed_luma\| > 8`               | uniform too-bright or too-dim (ambient floor wrong, etc.) |
 | `high_delta_uncategorized` | `mean_abs > 40` and nothing above flagged | likely texture mismatch (variant default, biome tint)               |
-| `matches_or_minor` | everything else                           | candidate for ACHIEVED_PARITY allowlist (after visual check)        |
+| `matches_or_minor` | everything else                           | at / near parity (confirm with a visual check)                      |
 
 Thresholds are intentionally loose so a single entity can have multiple signals;
 the `secondary` column shows the rest after `primary` is locked in.

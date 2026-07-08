@@ -2,7 +2,9 @@ package lib.minecraft.renderer;
 
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.options.FluidOptions;
+import lib.minecraft.renderer.option.FluidOptions;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -54,9 +56,13 @@ class FluidRendererParallelismTest {
         FluidOptions options = FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .type(FluidOptions.Type.FLUID_FACE_2D)
-            .outputSize(64)
-            .frameCount(8)
-            .ticksPerFrame(2)
+            .output(OutputOptions.builder()
+                .canvasSize(64)
+                .build())
+            .animation(AnimationOptions.builder()
+                .frameCount(8)
+                .ticksPerFrame(2)
+                .build())
             .build();
 
         List<Long> firstCrc = frameCrcs(renderer.render(options));
@@ -74,9 +80,13 @@ class FluidRendererParallelismTest {
         FluidOptions options = FluidOptions.builder()
             .fluid(FluidOptions.Fluid.LAVA)
             .type(FluidOptions.Type.FLUID_FACE_2D)
-            .outputSize(64)
-            .frameCount(5)
-            .ticksPerFrame(3)
+            .output(OutputOptions.builder()
+                .canvasSize(64)
+                .build())
+            .animation(AnimationOptions.builder()
+                .frameCount(5)
+                .ticksPerFrame(3)
+                .build())
             .build();
 
         List<Long> firstCrc = frameCrcs(renderer.render(options));

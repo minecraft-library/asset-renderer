@@ -2,7 +2,8 @@ package lib.minecraft.renderer;
 
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.options.PortalOptions;
+import lib.minecraft.renderer.option.PortalOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -53,7 +54,9 @@ class PortalRendererParallelismTest {
         PortalOptions options = PortalOptions.builder()
             .portal(PortalOptions.Portal.END_PORTAL)
             .type(PortalOptions.Type.PORTAL_FACE_2D)
-            .outputSize(128)
+            .output(OutputOptions.builder()
+                .canvasSize(128)
+                .build())
             .build();
         assertIdenticalAndMatchesHash(options, 0x102F6A01L);
     }
@@ -64,7 +67,9 @@ class PortalRendererParallelismTest {
         PortalOptions options = PortalOptions.builder()
             .portal(PortalOptions.Portal.END_GATEWAY)
             .type(PortalOptions.Type.PORTAL_FACE_2D)
-            .outputSize(128)
+            .output(OutputOptions.builder()
+                .canvasSize(128)
+                .build())
             .build();
         assertIdenticalAndMatchesHash(options, 0x6A1994F8L);
     }

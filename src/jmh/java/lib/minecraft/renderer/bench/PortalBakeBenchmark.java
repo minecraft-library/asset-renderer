@@ -1,7 +1,8 @@
 package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.PortalRenderer;
-import lib.minecraft.renderer.options.PortalOptions;
+import lib.minecraft.renderer.option.PortalOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -49,7 +50,9 @@ public class PortalBakeBenchmark extends AbstractRendererBenchmark {
         this.options = PortalOptions.builder()
             .portal(this.portal)
             .type(this.type)
-            .outputSize(512)
+            .output(OutputOptions.builder()
+                .canvasSize(512)
+                .build())
             .build();
     }
 

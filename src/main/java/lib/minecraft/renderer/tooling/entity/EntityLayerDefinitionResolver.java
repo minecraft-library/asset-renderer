@@ -14,7 +14,6 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
@@ -226,6 +225,33 @@ public final class EntityLayerDefinitionResolver {
             return null;
         }
         return res;
+    }
+
+    /**
+     * Finds the entity's baby {@code ModelLayers} field by scanning every method of the renderer
+     * class for the first {@code GETSTATIC ModelLayers.X_BABY} reference (the baby layer is baked
+     * in {@code bakeModels} / the constructor as {@code context.bakeLayer(ModelLayers.X_BABY)}).
+     * In 26.1 almost every ageable mob has a dedicated {@code Baby<X>Model} whose baby layer is
+     * registered under this field, so resolving it through {@code layerDefs} yields a distinct,
+     * self-contained baby geometry (no runtime young-scale needed).
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param rendererInternalName the renderer's JVM internal name
+     * @return the {@code X_BABY} field name, or {@code null} when the renderer references none
+     */
+    public static @Nullable String findBabyLayerField(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String rendererInternalName
+    ) {
+        ClassNode cn = classNodes.load(rendererInternalName);
+        if (cn == null) return null;
+        for (MethodNode method : cn.methods)
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+                if (AsmKit.isGetStatic(in, VanillaSourceClasses.MODEL_LAYERS)) {
+                    String name = ((FieldInsnNode) in).name;
+                    if (name.endsWith("_BABY")) return name;
+                }
+        return null;
     }
 
     /**
@@ -591,45 +617,10 @@ public final class EntityLayerDefinitionResolver {
         @NotNull String owner, @NotNull String name,
         @NotNull Map<String, Float> cache, @NotNull ClassNodeCache classNodes
     ) {
-        String key = owner + "." + name;
-        if (cache.containsKey(key)) return cache.get(key);
-
-        ClassNode cls = classNodes.load(owner);
-        MethodNode clinit = cls != null ? AsmKit.findMethod(cls, AsmKit.CLINIT) : null;
-        if (clinit == null) {
-            cache.put(key, null);
-            return null;
-        }
-
-        Float pendingFloat = null;
-        Float pendingScaled = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
-            int op = in.getOpcode();
-            if (op < 0) continue;
-            if (in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f) {
-                pendingFloat = f;
-            } else if (in instanceof MethodInsnNode mi
-                && op == Opcodes.INVOKESTATIC
-                && VanillaSourceClasses.MESH_TRANSFORMER.equals(mi.owner)
-                && "scaling".equals(mi.name)
-                && ("(F)" + MESH_TRANSFORMER_DESC).equals(mi.desc)
-                && pendingFloat != null) {
-                pendingScaled = pendingFloat;
-                pendingFloat = null;
-            } else if (in instanceof FieldInsnNode fi
-                && op == Opcodes.PUTSTATIC
-                && MESH_TRANSFORMER_DESC.equals(fi.desc)
-                && fi.owner.equals(owner)) {
-                cache.put(owner + "." + fi.name, pendingScaled);
-                pendingScaled = null;
-                pendingFloat = null;
-            } else {
-                pendingFloat = null;
-            }
-        }
-
-        cache.putIfAbsent(key, null);
-        return cache.get(key);
+        return AsmKit.resolveStaticScalingFactor(owner, name,
+            () -> classNodes.load(owner),
+            VanillaSourceClasses.MESH_TRANSFORMER, "scaling", MESH_TRANSFORMER_DESC,
+            cache);
     }
 
 }

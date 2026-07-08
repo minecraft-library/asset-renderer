@@ -380,19 +380,7 @@ public final class BlockListDiscovery {
     }
 
     /**
-     * Walks {@code SkullBlock$Types.<clinit>} and returns a {@code (fieldName -> serializedName)}
-     * map. The shape is identical to {@link #walkDyeColorNames} -
-     * {@code new ...; dup; ldc "SKELETON"; iconst_0; ldc "skeleton"; ...}.
-     *
-     * @param zip the client jar
-     * @return an insertion-ordered map from {@code "SKELETON"} to {@code "skeleton"}, etc
-     */
-    static @NotNull Map<String, String> walkSkullTypesNames(@NotNull ZipFile zip) {
-        return walkEnumSerializedNames(zip, VanillaSourceClasses.SKULL_TYPES);
-    }
-
-    /**
-     * Shared body of {@link #walkDyeColorNames} / {@link #walkSkullTypesNames} - matches the
+     * Shared body of {@link #walkDyeColorNames} - matches the
      * standard Java enum {@code <clinit>} shape (two {@code LDC}s per constant: NAME then
      * serialized_name). The first {@code LDC} after each {@code NEW} is discarded; the second is
      * bound to the closing {@code PUTSTATIC <enumInternal>.field}.

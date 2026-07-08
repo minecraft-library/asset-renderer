@@ -5,7 +5,10 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.options.PlayerOptions;
+import lib.minecraft.renderer.option.PlayerOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.option.spec.SkinOptions;
+import lib.minecraft.renderer.option.spec.TextureOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -74,11 +77,13 @@ class PlayerRasterizeFittedGoldenTest {
         PlayerOptions options = PlayerOptions.builder()
             .type(PlayerOptions.Type.FULL)
             .dimension(PlayerOptions.Dimension.THREE_D)
-            .projection(Projection.VANILLA_ISO)
-            .skinTextureId(Optional.of(SKIN_ID))
-            .outputSize(256)
-            .supersample(1)
-            .antiAlias(false)
+            .output(OutputOptions.builder()
+                .projection(Projection.VANILLA_ISO)
+                .canvasSize(256)
+                .supersample(1)
+                .antiAlias(false)
+                .build())
+            .skin(SkinOptions.builder().skin(TextureOptions.builder().id(Optional.of(SKIN_ID)).build()).build())
             .build();
         assertDeterministicAndPinned(options, 0xF9665E93L);
     }
@@ -89,11 +94,13 @@ class PlayerRasterizeFittedGoldenTest {
         PlayerOptions options = PlayerOptions.builder()
             .type(PlayerOptions.Type.SKULL)
             .dimension(PlayerOptions.Dimension.THREE_D)
-            .projection(Projection.PORTRAIT)
-            .skinTextureId(Optional.of(SKIN_ID))
-            .outputSize(256)
-            .supersample(1)
-            .antiAlias(false)
+            .output(OutputOptions.builder()
+                .projection(Projection.PORTRAIT)
+                .canvasSize(256)
+                .supersample(1)
+                .antiAlias(false)
+                .build())
+            .skin(SkinOptions.builder().skin(TextureOptions.builder().id(Optional.of(SKIN_ID)).build()).build())
             .build();
         assertDeterministicAndPinned(options, 0x88CDA794L);
     }

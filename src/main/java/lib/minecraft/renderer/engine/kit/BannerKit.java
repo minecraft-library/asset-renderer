@@ -5,8 +5,7 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.request.BannerLayer;
-import lib.minecraft.renderer.request.DyeColor;
+import lib.minecraft.renderer.option.spec.BannerLayer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -18,7 +17,7 @@ import java.util.Optional;
  * The algorithm matches vanilla's {@code net.minecraft.client.renderer.BannerRenderer} from MC
  * 26.1: start with the base dye colour painted onto a blank canvas of the pattern-texture's
  * dimensions, then for each {@link BannerLayer layer} load the grayscale pattern texture and
- * blit it tinted with the layer's {@link DyeColor} using
+ * blit it tinted with the layer's dye colour using
  * {@link BlendMode#NORMAL straight-alpha compositing}. The grayscale's red channel drives the
  * tint intensity and the alpha channel masks which pixels receive colour.
  * <p>
@@ -39,14 +38,14 @@ public class BannerKit {
      * pattern layer blitted as a dye-tinted grayscale mask.
      *
      * @param engine the texture engine for resolving pattern + base textures
-     * @param baseDye the base dye colour (the field of the banner / shield)
+     * @param baseDyeArgb the base dye colour (the field of the banner / shield) as packed ARGB
      * @param layers the ordered list of pattern layers to composite on top
      * @param variant the texture atlas variant to pull pattern textures from
      * @return a newly-created buffer containing the composite; dimensions match the base texture
      */
     public static @NotNull PixelBuffer composite2D(
         @NotNull Textures engine,
-        @NotNull DyeColor baseDye,
+        int baseDyeArgb,
         @NotNull ConcurrentList<BannerLayer> layers,
         @NotNull Variant variant
     ) {
@@ -58,7 +57,7 @@ public class BannerKit {
         int height = baseTexture.map(PixelBuffer::height).orElse(64);
 
         PixelBuffer canvas = PixelBuffer.create(width, height);
-        canvas.fill(baseDye.argb());
+        canvas.fill(baseDyeArgb);
 
         for (BannerLayer layer : layers) {
             String textureId = variant.textureFor(layer.pattern().assetId());

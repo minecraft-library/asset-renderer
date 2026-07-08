@@ -6,7 +6,7 @@ import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.options.EntityOptions;
+import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -22,7 +22,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -64,22 +63,6 @@ public final class TestEntityParityVanilla {
 
     /** Filename prefix the harness writes (entity id with {@code :} replaced by {@code __}). */
     private static final @NotNull String VANILLA_PREFIX = "minecraft__";
-
-    /**
-     * Entities the maintainer has manually verified to be at acceptable parity against the
-     * vanilla harness baseline. Populate only after inspecting the per-entity {@code diff.png} -
-     * bytecode-derived geometry alone is not grounds (see the allowlist policy in the project
-     * CLAUDE.md); entries here split the focus-pool reporting off the achieved set.
-     *
-     * <p>Tier definitions live in {@code notes/JAVA_PIPELINE_RESEARCH.md}; the python helper
-     * {@code scripts/parity_analysis/iterate_entity.py} validates that an entity actually meets
-     * its assigned tier before it lands here. Promote candidates by running
-     * {@code python scripts/parity_analysis/iterate_entity.py <entity>} and adding the entry
-     * only when the script exits 0.
-     */
-    private static final @NotNull Set<String> ACHIEVED_PARITY = Set.of(
-        "minecraft:polar_bear"
-    );
 
     /**
      * Runs the parity sweep.
@@ -147,10 +130,10 @@ public final class TestEntityParityVanilla {
         rows.sort((a, b) -> Double.compare(a.meanDelta(), b.meanDelta()));
 
         StringBuilder report = new StringBuilder();
-        report.append("entity_id\tmean_argb_delta\tdiffering_pixels\tjava_coverage\tvanilla_coverage\tparity_achieved\tjava_w\tjava_h\tvanilla_w\tvanilla_h\n");
+        report.append("entity_id\tmean_argb_delta\tdiffering_pixels\tjava_coverage\tvanilla_coverage\tjava_w\tjava_h\tvanilla_w\tvanilla_h\n");
         for (Row r : rows)
-            report.append(String.format("%s\t%.4f\t%d\t%.4f\t%.4f\t%s\t%d\t%d\t%d\t%d%n",
-                r.entityId(), r.meanDelta(), r.differingPixels(), r.javaCoverage(), r.vanillaCoverage(), r.achieved(),
+            report.append(String.format("%s\t%.4f\t%d\t%.4f\t%.4f\t%d\t%d\t%d\t%d%n",
+                r.entityId(), r.meanDelta(), r.differingPixels(), r.javaCoverage(), r.vanillaCoverage(),
                 r.javaW(), r.javaH(), r.vanillaW(), r.vanillaH()));
         Files.writeString(REPORT_FILE, report.toString());
         System.out.printf("Wrote %s (%d rows, %d ms total)%n", REPORT_FILE, rows.size(), totalMs);
@@ -159,19 +142,13 @@ public final class TestEntityParityVanilla {
         long below05 = rows.stream().filter(r -> r.meanDelta() < 0.5).count();
         long below075 = rows.stream().filter(r -> r.meanDelta() < 0.75).count();
         long below1 = rows.stream().filter(r -> r.meanDelta() < 1.0).count();
-        long achieved = rows.stream().filter(Row::achieved).count();
-        long achievedNotInRun = ACHIEVED_PARITY.size() - achieved;
         System.out.printf("Parity buckets: <0.25: %d / <0.5: %d / <0.75: %d / <1: %d / total: %d%n",
             below025, below05, below075, below1, rows.size());
-        System.out.printf("Achieved-parity allowlist: %d in this run / %d total%s%n",
-            achieved, ACHIEVED_PARITY.size(),
-            achievedNotInRun > 0 ? " (" + achievedNotInRun + " not rendered in this run - subset filter)" : "");
-        List<Row> focus = rows.stream()
-            .filter(r -> !r.achieved())
+        List<Row> worst = rows.stream()
             .sorted((a, b) -> Double.compare(b.meanDelta(), a.meanDelta()))
             .toList();
-        System.out.println("Focus pool (not in achieved-parity list, worst first):");
-        for (Row r : focus.subList(0, Math.min(15, focus.size())))
+        System.out.println("Worst deltas (worst first):");
+        for (Row r : worst.subList(0, Math.min(15, worst.size())))
             System.out.printf("    %-40s mean delta %.2f%n", r.entityId(), r.meanDelta());
     }
 
@@ -196,7 +173,7 @@ public final class TestEntityParityVanilla {
             BufferedImage vanillaImg = ImageIO.read(vanillaPng.toFile());
             if (vanillaImg == null) {
                 System.err.printf("       %-40s vanilla PNG unreadable: %s%n", entityId, vanillaPng);
-                return new Row(entityId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0);
+                return new Row(entityId, Double.POSITIVE_INFINITY, -1, 0, 0, 0, 0, 0, 0);
             }
             int vw = vanillaImg.getWidth();
             int vh = vanillaImg.getHeight();
@@ -231,16 +208,14 @@ public final class TestEntityParityVanilla {
             ImageIO.write(panelImg, "PNG", new File(entityDir.toFile(), "diff_panel.png"));
 
             ParityMetrics.Stats stats = ParityMetrics.compareImages(vanillaPadded, javaPadded);
-            boolean achieved = ACHIEVED_PARITY.contains(entityId);
             String dimMismatch = (vw == jw && vh == jh) ? "" : String.format(" [%dx%d vs %dx%d]", jw, jh, vw, vh);
-            System.out.printf("  %s %-40s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%s%n",
-                achieved ? "[OK]" : "    ",
+            System.out.printf("  %-40s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%s%n",
                 entityId, stats.meanDelta(), stats.differingPixels(),
                 stats.javaCoverage() * 100, stats.vanillaCoverage() * 100, dimMismatch);
-            return new Row(entityId, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(), achieved, jw, jh, vw, vh);
+            return new Row(entityId, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(), jw, jh, vw, vh);
         } catch (Exception ex) {
             System.err.printf("       %-40s FAILED: %s%n", entityId, ex.getMessage());
-            return new Row(entityId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0);
+            return new Row(entityId, Double.POSITIVE_INFINITY, -1, 0, 0, 0, 0, 0, 0);
         }
     }
 
@@ -263,6 +238,6 @@ public final class TestEntityParityVanilla {
     }
 
     /** Per-entity row in the TSV report. */
-    private record Row(@NotNull String entityId, double meanDelta, long differingPixels, double javaCoverage, double vanillaCoverage, boolean achieved, int javaW, int javaH, int vanillaW, int vanillaH) {}
+    private record Row(@NotNull String entityId, double meanDelta, long differingPixels, double javaCoverage, double vanillaCoverage, int javaW, int javaH, int vanillaW, int vanillaH) {}
 
 }

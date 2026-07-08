@@ -10,14 +10,16 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.AnimationStage;
-import lib.minecraft.renderer.engine.compose.FinalizeStage;
-import lib.minecraft.renderer.engine.compose.GeometryLayer;
-import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.compose.Finalize;
+import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
+import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.options.FluidOptions;
+import lib.minecraft.renderer.option.FluidOptions;
+import lib.minecraft.renderer.option.slot.FluidSlot;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -136,7 +138,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
     /**
      * Full 3D isometric fluid cube renderer. Builds triangles via {@link FluidGeometryKit}, then
      * rasterizes through {@link Projection#VANILLA_ISO}'s {@code [30, 225, 0]} pose by default.
-     * Animation is driven by {@link FluidOptions#getFrameCount()} - single-frame renders return
+     * Animation is driven by {@link AnimationOptions#getFrameCount()} - single-frame renders return
      * a static image, multi-frame renders return an animated image with per-frame delay of
      * {@code ticksPerFrame * 50ms}.
      */
@@ -148,24 +150,29 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
-            // renderFrame constructs its own engine, textures, triangle list, and output buffer per
-            // invocation; context is the only shared reference and it is read-only, so the shared
-            // AnimationStage can bake every frame in parallel.
-            return AnimationStage.render(options.getFrameCount(), options.getStartTick(),
-                options.getTicksPerFrame(), options.getTicksPerFrame() * MILLIS_PER_TICK,
-                tick -> renderFrame(options, tick));
+            // rasterizeFrame constructs its own engine, textures, and triangle list per invocation;
+            // context is the only shared reference and it is read-only, so Finalize bakes every frame
+            // in parallel. The per-tick build MUST stay inside the rasterizer callback (capturing it
+            // once would freeze the animation on frame 0's textures).
+            int ssaa = Math.max(1, options.getOutput().getSupersample());
+            return Finalize.render(
+                Finalize.FinalizeSpec.animated(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias(),
+                    options.getAnimation().getFrameCount(), options.getAnimation().getStartTick(), options.getAnimation().getTicksPerFrame(),
+                    options.getAnimation().getTicksPerFrame() * MILLIS_PER_TICK),
+                (target, mask, tick) -> rasterizeFrame(options, tick, target));
         }
 
         /**
-         * Bakes a single animation frame: resolves the projection, samples the still and flow
-         * textures at {@code tick}, builds the tinted fluid cube through {@link FluidGeometryKit},
-         * and rasterizes it into a fresh buffer.
+         * Bakes a single animation frame at {@code tick} into {@code target}: resolves the projection,
+         * samples the still and flow textures, builds the tinted fluid cube through
+         * {@link FluidGeometryKit}, and rasterizes it. The supersample / FXAA / downscale tail is the
+         * shared {@link Finalize}.
          */
-        private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
+        private void rasterizeFrame(@NotNull FluidOptions options, int tick, @NotNull PixelBuffer target) {
             // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
             // poses the camera directly and the rasterize call applies no separate model-spin. Default
             // renders pass EulerRotation.NONE, leaving the byte-identical base block-icon pose.
-            var resolved = options.getProjection().resolve(options.getRotation(), options.getFacing());
+            var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
             ModelEngine engine = new ModelEngine(this.context, resolved);
             Textures textures = new Textures(this.context);
             PixelBuffer still = textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
@@ -176,15 +183,11 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // same stack-driven ordering as every other renderer and callers can splice extra layers.
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(FluidOptions.Slot.CUBE, sink -> sink.addAll(FluidGeometryKit.buildFluidCube(
+            stack.append(FluidSlot.CUBE, sink -> sink.addAll(FluidGeometryKit.buildFluidCube(
                 options.getCornerHeights(), still, flow, options.getFlowAngleRadians(), tint)));
-            for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
-                layer.contribute(triangles);
+            Layers.foldInto(stack, options.getLayerDecorator(), triangles);
 
-            int ssaa = Math.max(1, options.getSupersample());
-            return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(triangles, target),
-                (buffer, mask) -> buffer);
+            engine.rasterize(triangles, target);
         }
 
     }
@@ -202,24 +205,25 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
-            // Each tick constructs its own RasterEngine + output buffer, so frames bake in parallel.
-            return AnimationStage.render(options.getFrameCount(), options.getStartTick(),
-                options.getTicksPerFrame(), options.getTicksPerFrame() * MILLIS_PER_TICK,
-                tick -> renderFrame(options, tick));
+            // Each tick constructs its own RasterEngine, so Finalize bakes frames in parallel. Flat 2D
+            // blit: no supersample / FXAA (ssaa = 1, antiAlias = false).
+            return Finalize.render(
+                Finalize.FinalizeSpec.animated(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,
+                    options.getAnimation().getFrameCount(), options.getAnimation().getStartTick(), options.getAnimation().getTicksPerFrame(),
+                    options.getAnimation().getTicksPerFrame() * MILLIS_PER_TICK),
+                (target, mask, tick) -> rasterizeFrame(options, tick, target));
         }
 
         /**
-         * Bakes a single animation frame: samples the still texture at {@code tick}, multiplies it
-         * by the fluid tint, and blits it scaled to fill the output buffer.
+         * Bakes a single animation frame at {@code tick} into {@code target}: samples the still texture,
+         * multiplies it by the fluid tint, and blits it scaled to fill the buffer.
          */
-        private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
+        private void rasterizeFrame(@NotNull FluidOptions options, int tick, @NotNull PixelBuffer target) {
             RasterEngine engine = new RasterEngine(this.context);
-            PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
             PixelBuffer still = engine.textures().resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
             PixelBuffer tinted = ColorMath.tint(still, tint);
-            buffer.blitScaled(tinted, 0, 0, options.getOutputSize(), options.getOutputSize());
-            return buffer;
+            target.blitScaled(tinted, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
         }
 
     }

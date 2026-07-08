@@ -201,6 +201,40 @@ public final class VanillaSourceClasses {
     public static final @NotNull String LLAMA_DECOR_LAYER =
         ENTITY_RENDERER_ROOT + "layers/LlamaDecorLayer";
 
+    /** Creeper power (charged) layer - an {@code EnergySwirlLayer} drawing the blue energy swirl on the {@code CREEPER_ARMOR} (base creeper inflated {@code CubeDeformation(2.0)}) mesh. */
+    public static final @NotNull String CREEPER_POWER_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/CreeperPowerLayer";
+
+    /** Horse marking (overlay) layer - a same-geometry translucent overlay drawing the {@code horse/horse_markings_*} texture (white socks / blaze / patches) over the coat, selected by the {@code markings} axis. */
+    public static final @NotNull String HORSE_MARKING_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/HorseMarkingLayer";
+
+    /** Iron-golem crackiness (overlay) layer - a same-geometry overlay drawing the {@code iron_golem/iron_golem_crackiness_*} crack texture over the body, selected by the {@code crackiness} axis (its map omits {@code Crackiness.NONE}). */
+    public static final @NotNull String IRON_GOLEM_CRACKINESS_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/IronGolemCrackinessLayer";
+
+    /** Horse renderer - its {@code <clinit>} builds {@code LOCATION_BY_VARIANT}, an enum-map of the coat {@link #EQUINE_VARIANT} to {@code HorseTextures{adult, baby}}, walked for the id-encoded coat {@code variant} axis. */
+    public static final @NotNull String HORSE_RENDERER = ENTITY_RENDERER_ROOT + "HorseRenderer";
+
+    /** Horse coat-colour enum ({@code WHITE}, {@code CREAMY}, {@code CHESTNUT}, ...); the key type of {@code HorseRenderer.LOCATION_BY_VARIANT}. */
+    public static final @NotNull String EQUINE_VARIANT = ENTITY_ROOT + "animal/equine/Variant";
+
+    /**
+     * Generic equipment overlay layer (saddle / body armor) added by pig / horse / camel / strider /
+     * happy_ghast / nautilus renderers - carries the {@code EquipmentClientInfo$LayerType} subdir and
+     * an {@code EntityModel} baked from a {@code ModelLayers.X_SADDLE}/{@code X_ARMOR} field.
+     */
+    public static final @NotNull String SIMPLE_EQUIPMENT_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/SimpleEquipmentLayer";
+
+    /** Bespoke wolf body-armor layer (own baked {@code ModelLayers.WOLF_ARMOR} + crackiness overlay). */
+    public static final @NotNull String WOLF_ARMOR_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/WolfArmorLayer";
+
+    /** Equipment texture-subdir enum ({@code PIG_SADDLE}, {@code HORSE_BODY}, ...); its lowercased name is the subdir. */
+    public static final @NotNull String EQUIPMENT_LAYER_TYPE =
+        CLIENT_RESOURCES_ROOT + "model/EquipmentClientInfo$LayerType";
+
     /** Static field holder for equipment-asset keys ({@code TRADER_LLAMA}, ...). */
     public static final @NotNull String EQUIPMENT_ASSETS = "net/minecraft/world/item/equipment/EquipmentAssets";
 

@@ -5,7 +5,8 @@ import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.options.ItemOptions;
+import lib.minecraft.renderer.option.ItemOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -20,7 +21,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
@@ -62,12 +62,6 @@ public final class TestItemParityVanilla {
 
     /** Square render size (matches harness {@code refharness.size} default). */
     private static final int RENDER_SIZE = 512;
-
-    /**
-     * Items the maintainer has manually verified to be at acceptable parity. Starts empty -
-     * populate after inspecting per-item {@code diff.png}.
-     */
-    private static final @NotNull Set<String> ACHIEVED_PARITY = Set.of();
 
     /**
      * Runs the parity sweep.
@@ -124,7 +118,7 @@ public final class TestItemParityVanilla {
                 BufferedImage vanillaImg = ImageIO.read(vanillaPng.toFile());
                 if (vanillaImg == null) {
                     System.err.printf("       %-40s vanilla PNG unreadable: %s%n", itemId, vanillaPng);
-                    rows.add(new Row(itemId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0));
+                    rows.add(new Row(itemId, Double.POSITIVE_INFINITY, -1, 0, 0, 0, 0, 0, 0));
                     continue;
                 }
                 int vw = vanillaImg.getWidth();
@@ -133,7 +127,7 @@ public final class TestItemParityVanilla {
                 ItemOptions options = ItemOptions.builder()
                     .itemId(itemId)
                     .type(ItemOptions.Type.GUI_2D)
-                    .outputSize(RENDER_SIZE)
+                    .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(RENDER_SIZE).build())
                     .build();
                 ImageData java = javaRenderer.render(options);
                 BufferedImage javaImg = java.toBufferedImage();
@@ -155,16 +149,14 @@ public final class TestItemParityVanilla {
                 ImageIO.write(panelImg, "PNG", new File(itemDir.toFile(), "diff_panel.png"));
 
                 ParityMetrics.Stats stats = ParityMetrics.compareImages(vanillaPadded, javaPadded);
-                boolean achieved = ACHIEVED_PARITY.contains(itemId);
                 String dimMismatch = (vw == jw && vh == jh) ? "" : String.format(" [%dx%d vs %dx%d]", jw, jh, vw, vh);
-                rows.add(new Row(itemId, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(), achieved, jw, jh, vw, vh));
-                System.out.printf("  %s %-40s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%s%n",
-                    achieved ? "[OK]" : "    ",
+                rows.add(new Row(itemId, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(), jw, jh, vw, vh));
+                System.out.printf("  %-40s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%s%n",
                     itemId, stats.meanDelta(), stats.differingPixels(),
                     stats.javaCoverage() * 100, stats.vanillaCoverage() * 100, dimMismatch);
             } catch (Exception ex) {
                 System.err.printf("       %-40s FAILED: %s%n", itemId, ex.getMessage());
-                rows.add(new Row(itemId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0));
+                rows.add(new Row(itemId, Double.POSITIVE_INFINITY, -1, 0, 0, 0, 0, 0, 0));
             }
         }
         long totalMs = (System.nanoTime() - t0) / 1_000_000L;
@@ -172,10 +164,10 @@ public final class TestItemParityVanilla {
         rows.sort((a, b) -> Double.compare(a.meanDelta(), b.meanDelta()));
 
         StringBuilder report = new StringBuilder();
-        report.append("item_id\tmean_argb_delta\tdiffering_pixels\tjava_coverage\tvanilla_coverage\tparity_achieved\tjava_w\tjava_h\tvanilla_w\tvanilla_h\n");
+        report.append("item_id\tmean_argb_delta\tdiffering_pixels\tjava_coverage\tvanilla_coverage\tjava_w\tjava_h\tvanilla_w\tvanilla_h\n");
         for (Row r : rows)
-            report.append(String.format("%s\t%.4f\t%d\t%.4f\t%.4f\t%s\t%d\t%d\t%d\t%d%n",
-                r.itemId(), r.meanDelta(), r.differingPixels(), r.javaCoverage(), r.vanillaCoverage(), r.achieved(),
+            report.append(String.format("%s\t%.4f\t%d\t%.4f\t%.4f\t%d\t%d\t%d\t%d%n",
+                r.itemId(), r.meanDelta(), r.differingPixels(), r.javaCoverage(), r.vanillaCoverage(),
                 r.javaW(), r.javaH(), r.vanillaW(), r.vanillaH()));
         Files.writeString(REPORT_FILE, report.toString());
         System.out.printf("Wrote %s (%d rows, %d ms total)%n", REPORT_FILE, rows.size(), totalMs);
@@ -184,19 +176,13 @@ public final class TestItemParityVanilla {
         long below05 = rows.stream().filter(r -> r.meanDelta() < 0.50).count();
         long below075 = rows.stream().filter(r -> r.meanDelta() < 0.75).count();
         long below1 = rows.stream().filter(r -> r.meanDelta() < 1.00).count();
-        long achieved = rows.stream().filter(Row::achieved).count();
-        long achievedNotInRun = ACHIEVED_PARITY.size() - achieved;
         System.out.printf("Parity buckets: <0.25: %d / <0.50: %d / <0.75: %d / <1.0: %d / total: %d%n",
             below025, below05, below075, below1, rows.size());
-        System.out.printf("Achieved-parity allowlist: %d in this run / %d total%s%n",
-            achieved, ACHIEVED_PARITY.size(),
-            achievedNotInRun > 0 ? " (" + achievedNotInRun + " not rendered in this run - subset filter)" : "");
-        List<Row> focus = rows.stream()
-            .filter(r -> !r.achieved())
+        List<Row> worst = rows.stream()
             .sorted((a, b) -> Double.compare(b.meanDelta(), a.meanDelta()))
             .toList();
-        System.out.println("Focus pool (not in achieved-parity list, worst first):");
-        for (Row r : focus.subList(0, Math.min(15, focus.size())))
+        System.out.println("Worst deltas (worst first):");
+        for (Row r : worst.subList(0, Math.min(15, worst.size())))
             System.out.printf("    %-40s mean delta %.2f%n", r.itemId(), r.meanDelta());
     }
 
@@ -218,6 +204,6 @@ public final class TestItemParityVanilla {
     }
 
     /** Per-item row in the TSV report. */
-    private record Row(@NotNull String itemId, double meanDelta, long differingPixels, double javaCoverage, double vanillaCoverage, boolean achieved, int javaW, int javaH, int vanillaW, int vanillaH) {}
+    private record Row(@NotNull String itemId, double meanDelta, long differingPixels, double javaCoverage, double vanillaCoverage, int javaW, int javaH, int vanillaW, int vanillaH) {}
 
 }

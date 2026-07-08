@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
@@ -12,10 +13,9 @@ import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.EntityFace;
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
@@ -25,9 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Load-bearing bone/cube {@literal ->} triangle assembler. Builds rasterizer-ready triangles
@@ -132,9 +130,9 @@ public class EntityGeometryKit {
         // to the vector first.
         Matrix4f viewToKit = Matrix4f.IDENTITY
             .scale(1f, -1f, 1f)
-            .rotate(Quaternionf.rotationXYZ((float) -Math.PI, 0f, 0f))
-            .rotate(Quaternionf.rotationXYZ(0f, -iso.yawRadians(), 0f))
-            .rotate(Quaternionf.rotationXYZ(-iso.pitchRadians(), 0f, 0f))
+            .rotateX((float) -Math.PI)
+            .rotateY(-iso.yawRadians())
+            .rotateX(-iso.pitchRadians())
             .scale(1f, 1f, -1f);
         return new Vector3f(0f, 0f, -1f).transformNormal(viewToKit);
     }
@@ -152,14 +150,42 @@ public class EntityGeometryKit {
      *     combined renderer-scale + state-scale chain)
      * @param tintArgb ARGB tint multiplied into every sampled texel; {@link ColorMath#WHITE}
      *     ({@code 0xFFFFFFFF}) is a no-op tint
+     * @param blend the colour-composition mode baked onto every emitted triangle -
+     *     {@link BlendMode#NORMAL} source-over (the default for bodies / cutout / texture-alpha
+     *     overlays) or {@link BlendMode#ADD} for an additive-glow overlay (creeper / wither energy
+     *     swirl declaring {@code blend: additive})
+     * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} baked onto every emitted
+     *     triangle - {@code 1.0} (no-op) except for an overlay declaring an explicit {@code alpha}
+     *     node (the warden pulsating-spots glow at {@code 0.25})
      */
     public record EntityBuildParams(
         @NotNull Vector3f centreAnchor,
         boolean emissive,
         float ndcScale,
         float modelScale,
-        int tintArgb
-    ) {}
+        int tintArgb,
+        @NotNull BlendMode blend,
+        float alpha
+    ) {
+        /**
+         * Constructs build params compositing with the standard {@link BlendMode#NORMAL source-over}
+         * blend at full opacity - the default for every base body / cutout / texture-alpha overlay.
+         * Only an overlay declaring an explicit {@code blend} / {@code alpha} node uses the canonical
+         * seven-argument constructor, so every other call site stays byte-identical to the
+         * pre-blend-node pipeline.
+         *
+         * @param centreAnchor model-space point that maps to the canvas centre
+         * @param emissive whether every emitted triangle renders full-bright
+         * @param ndcScale model-units-to-NDC scale applied after centring
+         * @param modelScale per-render vertex pre-scale folded in before the NDC scale
+         * @param tintArgb ARGB tint multiplied into every sampled texel
+         */
+        public EntityBuildParams(
+            @NotNull Vector3f centreAnchor, boolean emissive, float ndcScale, float modelScale, int tintArgb
+        ) {
+            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, BlendMode.NORMAL, 1f);
+        }
+    }
 
     /**
      * Convenience overload that auto-computes bounds and the legacy auto-fit scale
@@ -234,8 +260,10 @@ public class EntityGeometryKit {
         float scale = params.ndcScale();
         float modelScale = params.modelScale();
         int tintArgb = params.tintArgb();
+        BlendMode blend = params.blend();
+        float alpha = params.alpha();
 
-        Map<String, Matrix4f> chainTransforms = buildChainTransforms(model.getBones());
+        Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
 
         float cx = centre.x();
         float cy = centre.y();
@@ -254,7 +282,7 @@ public class EntityGeometryKit {
             .scale(scale, scale, scale)
             .translate(-cx, -cy, -cz)
             .scale(modelScale);
-        Map<String, Matrix4f> kitFitChainTransforms = buildChainTransformsFrom(kitFit, model.getBones());
+        Map<String, Matrix4f> kitFitChainTransforms = BoneKit.buildChainTransformsFrom(kitFit, model.getBones());
 
         float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
@@ -272,42 +300,32 @@ public class EntityGeometryKit {
 
             // Java's PartPose / ModelPart authoring stores cube origins LOCAL to the bone's
             // pivot (the literal addBox(x, y, z, w, h, d) args from createBodyLayer). The bone
-            // chain ({@link #applyBoneRotation}) translates by the bone's pivot as its first
+            // chain ({@link BoneKit}) translates by the bone's pivot as its first
             // fluent op, so cube origins go through the matrix in BONE-LOCAL coords - no
             // pre-translate by bonePivot here. Matches vanilla's PoseStack flow exactly.
-            Vector3f bonePivot = bone.getPivot();
             // Bone-level uniform scale captured from {@code MeshTransformer.scaling(F)} /
             // {@code PartPose.scaled(F)}. Vanilla {@code ModelPart.render} translates by pivot,
             // rotates, then {@code poseStack.scale(s, s, s)} the local cube space - so each cube
             // vertex world-position is {@code pivot + R * (s * v_local)}. Our chain pivot-translates
-            // post-rotation via {@link #composeCubeTransform}; multiplying {@code origin}, {@code
-            // size}, and {@code inflate} by {@code s} here puts the cube in scaled-local space
+            // post-rotation via {@link BoneKit#composeCubeTransform}; multiplying {@code origin}, {@code
+            // size}, and {@code inflate} by {@code s} (in {@link BoneKit#scaledCubeBounds}) puts the
+            // cube in scaled-local space
             // before the bone-pivot translate, which is algebraically equivalent for any rotation
             // R that commutes with uniform scale (every R does). UVs stay tied to the unscaled
             // {@code size} field, matching vanilla's per-vertex scale-after-UV-resolve order.
             float s = bone.getScale();
             for (EntityModelData.Cube cube : bone.getCubes()) {
-                Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
-                float inflate = cube.getInflate();
+                Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
 
-                float scaledInflate = s * inflate;
-                float ox = s * origin.x();
-                float oy = s * origin.y();
-                float oz = s * origin.z();
-                Box cubeBounds = new Box(
-                    ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
-                    ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate
-                );
-
-                Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
+                Matrix4f fullTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
                 // Fluent-composed perCubeChain: kitFit chain + bone hierarchy + bind + cube rot,
                 // all post-multiplied via {@link Matrix4f#translate} / {@link Matrix4f#rotate} so
                 // every multiplication matches vanilla's {@code PoseStack} ops bit-for-bit. The
                 // pre-baked {@code kitFitChainTransforms} maps already incorporate kitFit; here we
                 // apply only the cube-local bind + cube rotation.
                 Matrix4f kitFitBoneChain = kitFitChainTransforms.get(boneName);
-                Matrix4f perCubeChainFluent = composeCubeTransform(cube, bone, kitFitBoneChain);
+                Matrix4f perCubeChainFluent = BoneKit.composeCubeTransform(cube, bone, kitFitBoneChain);
 
                 // entityCutoutCull entities (bat, baby_turtle, ...) cull every face the way vanilla's
                 // GL back-face cull does - including zero-thickness planes, whose two coincident sides
@@ -324,11 +342,10 @@ public class EntityGeometryKit {
                 boolean cubeIsTranslucent = !cubeCullBackFaces
                     && uvPartialAlphaPresent(cube, size, texture, texW, texH);
 
-                Matrix4f perCubeChain = perCubeChainFluent;
                 for (EntityFace face : EntityFace.CACHED_VALUES) {
                     Vector3f[] corners = face.corners(cubeBounds);
                     for (int i = 0; i < 4; i++) {
-                        Vector3f transformed = corners[i].transform(perCubeChain);
+                        Vector3f transformed = corners[i].transform(perCubeChainFluent);
                         float nx = transformed.x();
                         float ny = transformed.y();
                         float nz = transformed.z();
@@ -353,10 +370,10 @@ public class EntityGeometryKit {
                     Vector3f shadingNormal = new Vector3f(normal.x(), -normal.y(), normal.z());
 
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
-                    if (isPlaneCube && isDegeneratePlaneFace(size, face)) continue;
+                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
 
-                    Vector2f[] effUv = resolvePolygonUv(face, cube, size, texW, texH);
-                    float shading = computeFaceShading(shadingNormal, isPlaneCube, cubeCullBackFaces);
+                    Vector2f[] effUv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
+                    float shading = computeFaceShading(shadingNormal, cubeCullBackFaces);
 
                     // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. The kit itself
                     // is det=+1 (emit-order cross AGREES with the stored normal); the chirality
@@ -370,14 +387,14 @@ public class EntityGeometryKit {
                         effUv[0], effUv[1], effUv[2],
                         texture, tintArgb,
                         normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false), debugTag
+                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha), debugTag
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[2], corners[3],
                         effUv[0], effUv[2], effUv[3],
                         texture, tintArgb,
                         normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false), debugTag
+                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha), debugTag
                     ));
                 }
             }
@@ -400,7 +417,7 @@ public class EntityGeometryKit {
      * @return the model AABB in the Java Y-down frame
      */
     public static @NotNull Box computeBounds(@NotNull EntityModelData model) {
-        return computeBounds(model, buildChainTransforms(model.getBones()));
+        return computeBounds(model, BoneKit.buildChainTransforms(model.getBones()));
     }
 
     /**
@@ -443,7 +460,7 @@ public class EntityGeometryKit {
         float modelScale,
         PixelBuffer texture
     ) {
-        Map<String, Matrix4f> chainTransforms = buildChainTransforms(model.getBones());
+        Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
         float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture == null ? 1 : texture.width());
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture == null ? 1 : texture.height());
         BoundsAccumulator acc = new BoundsAccumulator();
@@ -452,23 +469,15 @@ public class EntityGeometryKit {
             EntityModelData.Bone bone = entry.getValue();
             String boneName = entry.getKey();
             Matrix4f boneChain = chainTransforms.get(boneName);
-            Vector3f bonePivot = bone.getPivot();
             float s = bone.getScale();
             int cubeIndex = 0;
             for (EntityModelData.Cube cube : bone.getCubes()) {
                 Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
                 float inflate = cube.getInflate();
-                Matrix4f cubeTransform = composeCubeTransform(cube, bone, boneChain);
+                Matrix4f cubeTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
 
-                float scaledInflate = s * inflate;
-                float ox = s * origin.x();
-                float oy = s * origin.y();
-                float oz = s * origin.z();
-                Box cubeBounds = new Box(
-                    ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
-                    ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate
-                );
+                Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
 
                 if (texture == null) {
                     float[] xs = { cubeBounds.minX(), cubeBounds.maxX() };
@@ -482,9 +491,9 @@ public class EntityGeometryKit {
 
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
                 for (EntityFace face : EntityFace.CACHED_VALUES) {
-                    if (isPlaneCube && isDegeneratePlaneFace(size, face)) continue;
+                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
                     Vector3f[] corners3d = face.corners(cubeBounds);
-                    // Must match the renderer's UV resolver. {@link #resolveFaceUv} alone
+                    // Must match the renderer's UV resolver. {@link BoneKit#resolveFaceUv} alone
                     // pairs uvs[i] with corners3d[i] at DIAGONALLY OPPOSITE vertices of the
                     // face (kit corner order is cyclic-shifted by 1 from vanilla's polygon
                     // vertex array); the BL/BR/TR/TL classifier then maps each 3D corner to
@@ -493,7 +502,7 @@ public class EntityGeometryKit {
                     // than the face UV bbox (warden tendrils, silverfish setae, fish fins).
                     // Fully-opaque faces are unaffected: the 4 contributed positions are then
                     // the 4 cube corners regardless of pairing.
-                    Vector2f[] uvs = resolvePolygonUv(face, cube, size, texW, texH);
+                    Vector2f[] uvs = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
                     String dumpLabel = RendererDebug.boundsFaceLabel(boneName, cubeIndex, face.direction(), origin, size, inflate, cube.isMirror());
                     contributeFaceAlphaTight(corners3d, uvs, cubeTransform, modelScale, screenTransform, texture, acc, dumpLabel);
                 }
@@ -880,24 +889,7 @@ public class EntityGeometryKit {
         @NotNull EntityModelData model,
         @NotNull String boneName
     ) {
-        return buildChainTransforms(model.getBones()).getOrDefault(boneName, Matrix4f.IDENTITY);
-    }
-
-    /**
-     * Resolves the bone's pivot point in the entity's working frame for callers that need to
-     * pre-translate a block overlay relative to the bone's anchor. {@link Vector3f#ZERO} when
-     * the bone is absent.
-     *
-     * @param model the entity model definition
-     * @param boneName the bone whose pivot to resolve
-     * @return the bone's pivot, or {@link Vector3f#ZERO} when the bone is absent
-     */
-    public static @NotNull Vector3f resolveBonePivot(
-        @NotNull EntityModelData model,
-        @NotNull String boneName
-    ) {
-        EntityModelData.Bone bone = model.getBones().get(boneName);
-        return bone != null ? bone.getPivot() : Vector3f.ZERO;
+        return BoneKit.buildChainTransforms(model.getBones()).getOrDefault(boneName, Matrix4f.IDENTITY);
     }
 
     /**
@@ -920,21 +912,14 @@ public class EntityGeometryKit {
             EntityModelData.Bone bone = entry.getValue();
             Matrix4f boneChain = chainTransforms.get(entry.getKey());
             // Same pivot-translation + bone-scale as in {@link #buildTriangles}.
-            Vector3f bonePivot = bone.getPivot();
             float s = bone.getScale();
             for (EntityModelData.Cube cube : bone.getCubes()) {
-                Vector3f origin = cube.getOrigin();
-                Vector3f size = cube.getSize();
-                float inflate = cube.getInflate();
-                Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
+                Matrix4f fullTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
 
-                float scaledInflate = s * inflate;
-                float ox = s * origin.x();
-                float oy = s * origin.y();
-                float oz = s * origin.z();
-                float[] xs = { ox - scaledInflate, ox + s * size.x() + scaledInflate };
-                float[] ys = { oy - scaledInflate, oy + s * size.y() + scaledInflate };
-                float[] zs = { oz - scaledInflate, oz + s * size.z() + scaledInflate };
+                Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
+                float[] xs = { cubeBounds.minX(), cubeBounds.maxX() };
+                float[] ys = { cubeBounds.minY(), cubeBounds.maxY() };
+                float[] zs = { cubeBounds.minZ(), cubeBounds.maxZ() };
 
                 for (float x : xs) for (float y : ys) for (float z : zs) {
                     Vector3f c = new Vector3f(x, y, z).transform(fullTransform);
@@ -952,350 +937,6 @@ public class EntityGeometryKit {
             return new Box(0f, 0f, 0f, 0f, 0f, 0f);
 
         return new Box(minX, minY, minZ, maxX, maxY, maxZ);
-    }
-
-    /**
-     * Builds the ancestor-anchor chain matrix for every bone starting from identity. Thin
-     * wrapper over {@link #buildChainTransformsFrom} with {@link Matrix4f#IDENTITY} as the base.
-     *
-     * @param bones the model's bones keyed by name
-     * @return each bone's ancestor-anchor chain matrix keyed by bone name
-     */
-    private static @NotNull Map<String, Matrix4f> buildChainTransforms(
-        @NotNull Map<String, EntityModelData.Bone> bones
-    ) {
-        return buildChainTransformsFrom(Matrix4f.IDENTITY, bones);
-    }
-
-    /**
-     * Builds the ancestor-anchor chain matrix for every bone starting from a non-identity base
-     * matrix (typically the kit-fit chain). Each bone's chain is built by replaying its ancestor
-     * pivot-centred rotations as fluent {@link Matrix4f#translate} + {@link Matrix4f#rotate}
-     * post-multiplies on top of {@code base}, matching vanilla's {@code PoseStack} chain
-     * bit-for-bit. Eliminates the {@code kitFit.multiply(boneChain)} step at the per-cube
-     * loop that drifts 1-4 ULPs versus the fluent path - see {@link Matrix4f} line 313.
-     *
-     * @param base the base matrix each bone's chain builds on (identity, or the kit-fit matrix)
-     * @param bones the model's bones keyed by name
-     * @return each bone's ancestor-anchor chain matrix keyed by bone name
-     */
-    private static @NotNull Map<String, Matrix4f> buildChainTransformsFrom(
-        @NotNull Matrix4f base,
-        @NotNull Map<String, EntityModelData.Bone> bones
-    ) {
-        Map<String, Matrix4f> cache = new HashMap<>();
-        for (String name : bones.keySet())
-            resolveChainFrom(name, bones, cache, new LinkedHashSet<>(), base);
-        return cache;
-    }
-
-    /**
-     * Resolves one bone's ancestor-anchor chain from an identity base. Thin wrapper over
-     * {@link #resolveChainFrom} with {@link Matrix4f#IDENTITY} as the root.
-     *
-     * @param name the bone whose chain to resolve
-     * @param bones the model's bones keyed by name
-     * @param cache the memoization cache of already-resolved chains
-     * @param visiting the current recursion path, guarding against parent cycles
-     * @return the bone's ancestor-anchor chain matrix
-     */
-    private static @NotNull Matrix4f resolveChain(
-        @NotNull String name,
-        @NotNull Map<String, EntityModelData.Bone> bones,
-        @NotNull Map<String, Matrix4f> cache,
-        @NotNull Set<String> visiting
-    ) {
-        return resolveChainFrom(name, bones, cache, visiting, Matrix4f.IDENTITY);
-    }
-
-    /**
-     * Variant of {@link #resolveChain} that builds each bone's chain matrix starting from
-     * {@code root} via fluent {@link Matrix4f#translate} / {@link Matrix4f#rotate} ops. Bone-only
-     * chains use {@link Matrix4f#IDENTITY} as root; kit-fit-pre-baked chains pass the kit-fit
-     * matrix so the fluent op sequence matches vanilla's PoseStack chain exactly. Recurses into
-     * the parent chain first, then applies this bone's pivot-centred rotation on top; memoizes
-     * into {@code cache}. Self-parenting, missing-parent, and cyclic references degrade to the
-     * bone's own rotation on {@code root}.
-     *
-     * @param name the bone whose chain to resolve
-     * @param bones the model's bones keyed by name
-     * @param cache the memoization cache of already-resolved chains
-     * @param visiting the current recursion path, guarding against parent cycles
-     * @param root the base matrix the chain builds on (identity, or the kit-fit matrix)
-     * @return the bone's ancestor-anchor chain matrix built on {@code root}
-     */
-    private static @NotNull Matrix4f resolveChainFrom(
-        @NotNull String name,
-        @NotNull Map<String, EntityModelData.Bone> bones,
-        @NotNull Map<String, Matrix4f> cache,
-        @NotNull Set<String> visiting,
-        @NotNull Matrix4f root
-    ) {
-        Matrix4f cached = cache.get(name);
-        if (cached != null) return cached;
-        EntityModelData.Bone bone = bones.get(name);
-        if (bone == null) return root;
-        if (visiting.contains(name)) return applyBoneRotation(root, bone.getPivot(), bone.getRotation());
-        visiting.add(name);
-
-        String parent = bone.getParent();
-        Matrix4f base;
-        if (parent == null || parent.equals(name) || !bones.containsKey(parent)) {
-            base = root;
-        } else {
-            base = resolveChainFrom(parent, bones, cache, visiting, root);
-        }
-        Matrix4f composed = applyBoneRotation(base, bone.getPivot(), bone.getRotation());
-
-        visiting.remove(name);
-        cache.put(name, composed);
-        return composed;
-    }
-
-    /**
-     * Composes the full cube-to-working-frame transform: the bone's ancestor chain, then the
-     * bone's bind-pose rotation, then the cube's own rotation, each applied pivot-centred. When
-     * neither the cube nor the bind pose rotates, returns {@code boneChain} unchanged so
-     * rotation-free cubes carry zero extra rounding.
-     *
-     * @param cube the cube whose transform to compose
-     * @param bone the owning bone (source of pivot and bind-pose rotation)
-     * @param boneChain the bone's pre-resolved ancestor-anchor chain
-     * @return the composed cube transform in the working frame
-     */
-    private static @NotNull Matrix4f composeCubeTransform(
-        @NotNull EntityModelData.Cube cube,
-        @NotNull EntityModelData.Bone bone,
-        @NotNull Matrix4f boneChain
-    ) {
-        EulerRotation cubeRot = cube.getRotation();
-        EulerRotation bindPose = bone.getBindPoseRotation();
-        boolean hasCube = !isZero(cubeRot);
-        boolean hasBind = !isZero(bindPose);
-        if (!hasCube && !hasBind) return boneChain;
-
-        // Cube rotation applies first to the vertex, then the bone's bind pose, then the bone
-        // chain. Each fluent post-multiply mirrors vanilla's PoseStack.translate/mulPose/translate
-        // sequence, so the chain composes as `boneChain * bindPose * cubeRot` with cubeRot
-        // innermost (rightmost) on a column vector while staying bit-identical to JOML.
-        // <p>
-        // bindPose uses the BONE pivot in BONE-LOCAL coords (vanilla applies bind around the
-        // bone's local frame, same as the bone's own rotation); cube rotation uses the CUBE's
-        // bone-local pivot anchor. Both go through {@link #applyCubePivotCenteredRotation}
-        // (T(+p)*R*T(-p) shape) because they rotate around an anchor while the surrounding
-        // chain is already in bone-local frame.
-        Matrix4f acc = boneChain;
-        if (hasBind) acc = applyCubePivotCenteredRotation(acc, bone.getPivot(), bindPose);
-        if (hasCube) acc = applyCubePivotCenteredRotation(acc, cube.getPivot(), cubeRot);
-        return acc;
-    }
-
-    /**
-     * Tests whether a rotation is the identity (all three Euler angles exactly zero), letting
-     * callers skip quaternion construction and matrix ops for translation-only bones/cubes.
-     *
-     * @param r the rotation to test
-     * @return {@code true} when pitch, yaw, and roll are all zero
-     */
-    private static boolean isZero(@NotNull EulerRotation r) {
-        return r.pitch() == 0f && r.yaw() == 0f && r.roll() == 0f;
-    }
-
-    /**
-     * Java-frame {@code T(+pivot) * R(rotation) * T(-pivot)} column-vector matrix that rotates
-     * a vertex around {@code pivot}. Rightmost {@code T(-pivot)} applies first, moving the
-     * pivot to the origin; then {@code R}; then {@code T(+pivot)} moves the pivot back.
-     * <p>
-     * <b>Rotation composition:</b> the rotation is built from a {@link Quaternionf#rotationZYX}
-     * quaternion so the resulting matrix is bit-identical to vanilla
-     * {@code ModelPart.translateAndRotate}'s {@code mulPose(new Quaternionf().rotationZYX(zRot,
-     * yRot, xRot))}. Vanilla applies pitch (X) first, then yaw (Y), then roll (Z) to the bone
-     * vertex; the quaternion encodes that same order without going through any
-     * matrix-multiplication chain whose float result depends on associativity.
-     * <p>
-     * <b>Sign convention:</b> Java's {@code +xRot} (pitch) tilts a bone forward, {@code +yRot}
-     * (yaw) turns right, {@code +zRot} (roll) rolls right, applied directly with no negation
-     * since the kit operates in vanilla Java's native Y-down frame.
-     *
-     * @param pivot the rotation anchor in bone-local coordinates
-     * @param rotation the Euler rotation to apply about {@code pivot}
-     * @return the {@code T(+pivot) * R * T(-pivot)} matrix
-     */
-    private static @NotNull Matrix4f pivotCenteredRotation(
-        @NotNull Vector3f pivot,
-        @NotNull EulerRotation rotation
-    ) {
-        // Cube-level pivot-centred rotation: T(+p) * R * T(-p). The un-translate is required
-        // because cube-level rotation operates on bone-local cube vertices, rotating around
-        // a bone-local pivot anchor.
-        return applyCubePivotCenteredRotation(Matrix4f.IDENTITY, pivot, rotation);
-    }
-
-    /**
-     * Returns {@code base * T(pivot) * R} - vanilla's bone-level PoseStack shape (no un-
-     * translate). Matches {@code pose.translate(pivot); pose.mulPose(quat)} bit-for-bit.
-     * <p>
-     * Used for the bone hierarchy chain where cube origins are stored in BONE-LOCAL coordinates
-     * (relative to the bone's own pivot, matching vanilla {@code ModelPart.Cube}'s {@code
-     * posX1..posZ2} bone-local fields). The pre-translate by bone pivot happens once inside
-     * this method (as part of the fluent {@code .translate(p)} call); previous absolute-frame
-     * code paths pre-added the bone pivot to cube origin AND included a {@code T(-p)} un-
-     * translate to cancel, doubling the rounding count for no semantic gain.
-     *
-     * @param base the chain matrix to post-multiply onto
-     * @param pivot the bone pivot in the parent frame (skipped when zero)
-     * @param rotation the bone rotation (skipped when identity)
-     * @return {@code base * T(pivot) * R}, or {@code base} unchanged when both are trivial
-     */
-    private static @NotNull Matrix4f applyBoneRotation(
-        @NotNull Matrix4f base,
-        @NotNull Vector3f pivot,
-        @NotNull EulerRotation rotation
-    ) {
-        boolean hasPivot = pivot.x() != 0f || pivot.y() != 0f || pivot.z() != 0f;
-        boolean hasRot = !isZero(rotation);
-        if (!hasPivot && !hasRot) return base;
-        Matrix4f chain = hasPivot ? base.translate(pivot.x(), pivot.y(), pivot.z()) : base;
-        if (hasRot) {
-            Quaternionf quat = Quaternionf.rotationZYX(
-                rotation.rollRadians(), rotation.yawRadians(), rotation.pitchRadians()
-            );
-            chain = chain.rotate(quat);
-        }
-        return chain;
-    }
-
-    /**
-     * Returns {@code base * T(+pivot) * R * T(-pivot)} - cube-level pivot-centred rotation
-     * shape, where the cube rotates around its own anchor point in the bone's frame. Used by
-     * the cube-level rotation in {@link #composeCubeTransform} (donkey/mule ears, etc.) where
-     * the cube has its own rotation independent of the bone's rotation.
-     * <p>
-     * Cube pivots are in BONE-LOCAL coordinates (relative to the bone's own pivot), matching
-     * the vanilla convention. With bone chain {@code T(p)*R_bone} (vanilla shape) and cube
-     * applied as {@code T(+cp)*R_cube*T(-cp)} on top, the composed transform applied to a
-     * bone-local cube vertex {@code v_local} produces
-     * {@code R_bone * (R_cube * (v_local - cp) + cp) + p} - matching vanilla's bone hierarchy
-     * + cube pivot semantics exactly.
-     *
-     * @param base the chain matrix to post-multiply onto
-     * @param pivot the rotation anchor in bone-local coordinates
-     * @param rotation the rotation to apply about {@code pivot} (skipped when identity)
-     * @return {@code base * T(+pivot) * R * T(-pivot)}, or {@code base} unchanged when
-     *     {@code rotation} is identity
-     */
-    private static @NotNull Matrix4f applyCubePivotCenteredRotation(
-        @NotNull Matrix4f base,
-        @NotNull Vector3f pivot,
-        @NotNull EulerRotation rotation
-    ) {
-        if (isZero(rotation)) return base;
-        Quaternionf quat = Quaternionf.rotationZYX(
-            rotation.rollRadians(), rotation.yawRadians(), rotation.pitchRadians()
-        );
-        return base
-            .translate(pivot.x(), pivot.y(), pivot.z())
-            .rotate(quat)
-            .translate(-pivot.x(), -pivot.y(), -pivot.z());
-    }
-
-    /**
-     * Resolves the raw four-corner UV rectangle for one cube face in atlas-position order
-     * ({@code TL, BL, BR, TR}). Uses the cube's per-face UV override when present, otherwise
-     * derives the rectangle from the atlas layout via {@link EntityFace#defaultUv}. Forwards the
-     * cube's {@code mirror} flag to {@link Vector4f#toUvCorners} for the U-flip.
-     *
-     * @param face the geometric face being resolved
-     * @param cube the cube whose UV is being resolved
-     * @param size the cube's size vector
-     * @param texWidth the texture width
-     * @param texHeight the texture height
-     * @return the four UV corners in atlas-position order (top-left, bottom-left, bottom-right,
-     *     top-right)
-     */
-    private static @NotNull Vector2f @NotNull [] resolveFaceUv(
-        @NotNull EntityFace face,
-        @NotNull EntityModelData.Cube cube,
-        @NotNull Vector3f size,
-        float texWidth,
-        float texHeight
-    ) {
-        EntityModelData.FaceUv override = cube.getFaceUv().get(face.direction());
-        Vector4f rect;
-        if (override == null) {
-            rect = face.defaultUv(cube.getUv(), size);
-        } else {
-            Vector2f uv = override.getUv();
-            Vector2f uvSize = override.getUvSize();
-            rect = new Vector4f(uv.x(), uv.y(), uv.x() + uvSize.x(), uv.y() + uvSize.y());
-        }
-        return rect.toUvCorners(texWidth, texHeight, 0, cube.isMirror());
-    }
-
-    /**
-     * Resolves the per-vertex UV array for one polygon, including mirror handling and the
-     * vanilla-spec slot permutation. The output is indexed in the kit's corner order
-     * ({@link EntityFace#vertexIndices}) so each {@code corners[i]} pairs with the UV vanilla's
-     * cube ctor assigns to the same world-space vertex.
-     * <p>
-     * For {@code cube.isMirror()} cubes, vanilla's {@code ModelPart.Cube} ctor swaps the cube's
-     * {@code x} and {@code maxX} variables before building the 8 vertices, which has the net
-     * effect of swapping which UV strip is applied to the cube's +X vs -X face (vanilla's WEST
-     * polygon UV ends up on the +X face, EAST polygon UV on the -X face). The polygon ctor also
-     * reverses each polygon's vertex array, which U-flips every face's UV mapping. Both effects
-     * are replicated for {@code mirror=true} cubes via {@link EntityFace#mirror} and the
-     * {@link Vector4f#toUvCorners} mirror flag inside {@link #resolveFaceUv}.
-     * <p>
-     * The per-face slot permutation maps {@link #resolveFaceUv}'s {@code (TL, BL, BR, TR)}
-     * output to the (max-u, top-v)-first ordering vanilla's {@code Polygon} ctor produces. For
-     * non-UP faces, vanilla's vertex 0 lands in the TR slot; for UP, it lands in BR because the
-     * polygon ctor's {@code f3 / f5} parameters are V-inverted on the atlas strip. The exact
-     * slot mapping per face lives on {@link EntityFace#polygonVertexSlots} and is applied via
-     * {@link EntityFace#permuteToPolygonOrder} so the tooling-side block-model converter can
-     * share the same source of truth.
-     * <p>
-     * Independent of the kit's permanent Y-flip on positions: that flip changes where vertices project to
-     * screen, but each vertex's vanilla-spec UV is unchanged.
-     *
-     * @param face the geometric face being rendered
-     * @param cube the cube whose UV is being resolved
-     * @param size the cube's size vector
-     * @param texWidth the texture width
-     * @param texHeight the texture height
-     * @return the four per-vertex UVs in the kit's corner order
-     */
-    private static @NotNull Vector2f @NotNull [] resolvePolygonUv(
-        @NotNull EntityFace face,
-        @NotNull EntityModelData.Cube cube,
-        @NotNull Vector3f size,
-        float texWidth,
-        float texHeight
-    ) {
-        Vector2f[] uv = resolveFaceUv(face.mirror(cube.isMirror()), cube, size, texWidth, texHeight);
-        return face.permuteToPolygonOrder(uv);
-    }
-
-    /**
-     * Tests whether a plane cube's face polygon is degenerate - its 4 vertices collapse to 2
-     * distinct points because the face's plane normal lies along the cube's zero-extent axis.
-     * <p>
-     * E.g. for a vertical-plane top_fin ({@code size.x=0}), the UP/DOWN/NORTH/SOUTH faces all
-     * collapse - only WEST/EAST have full area. Vanilla emits these polygons too but the GPU
-     * rasterizer drops them at 0-area; ours rasterizes a thin line worth a few pixels due to FP
-     * error in the barycentric inside-test, then paints wrong-shade artifact pixels (cod top_fin
-     * UP painted x=133-135 strip at shade 1.0 over the body's WEST shade 0.45). Caller uses this
-     * predicate to skip emitting these triangles entirely.
-     *
-     * @param size the cube's size vector
-     * @param face the geometric face being rendered
-     * @return {@code true} if the polygon collapses to a line; {@code false} when the face has
-     *     full plane area
-     */
-    private static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull EntityFace face) {
-        if (size.x() == 0f) return face != EntityFace.WEST && face != EntityFace.EAST;
-        if (size.y() == 0f) return face != EntityFace.UP && face != EntityFace.DOWN;
-        if (size.z() == 0f) return face != EntityFace.NORTH && face != EntityFace.SOUTH;
-        return false;
     }
 
     /**
@@ -1344,13 +985,11 @@ public class EntityGeometryKit {
      * chicken_cold and chicken_warm without regressing skeleton_horse.
      *
      * @param normal the post-flip kit-frame outward face normal
-     * @param isPlaneCube unused as of the chicken-family fix; retained for call-site clarity
      * @param cubeCullBackFaces the cube's effective back-face culling flag
      * @return the shade factor in {@code [0.4, 1.0]}
      */
     private static float computeFaceShading(
         @NotNull Vector3f normal,
-        @SuppressWarnings("unused") boolean isPlaneCube,
         boolean cubeCullBackFaces
     ) {
         if (cubeCullBackFaces)
@@ -1412,19 +1051,19 @@ public class EntityGeometryKit {
         // family). Sampling the three iso-visible faces (UP/NORTH/EAST) is sufficient -
         // non-opaque textures are typically symmetric across face pairs and we'd rather miss a
         // one-sided non-opaque face than over-disable culling.
-        if (uvNonOpaqueExceeds(resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
-            || uvNonOpaqueExceeds(resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
-            || uvNonOpaqueExceeds(resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
+        if (uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
+            || uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
+            || uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
             return false;
         boolean visibleHasContent =
-               uvHasContent(resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture);
+               uvHasContent(BoneKit.resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture);
         if (visibleHasContent) return true;
         boolean hiddenHasContent =
-               uvHasContent(resolveFaceUv(EntityFace.DOWN, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(EntityFace.SOUTH, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(EntityFace.WEST, cube, size, texW, texH), texture);
+               uvHasContent(BoneKit.resolveFaceUv(EntityFace.DOWN, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.SOUTH, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.WEST, cube, size, texW, texH), texture);
         return !hiddenHasContent;
     }
 
@@ -1451,34 +1090,9 @@ public class EntityGeometryKit {
     ) {
         for (EntityFace face : EntityFace.CACHED_VALUES) {
             if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
-                && isDegeneratePlaneFace(size, face)) continue;
-            if (faceHasPartialAlpha(resolveFaceUv(face, cube, size, texW, texH), texture))
+                && BoneKit.isDegeneratePlaneFace(size, face)) continue;
+            if (BoneKit.faceHasPartialAlpha(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
                 return true;
-        }
-        return false;
-    }
-
-    /**
-     * Returns {@code true} when any texel inside the face's UV bounding box has partial alpha
-     * ({@code 0 < alpha < 255}). Per-face helper backing {@link #uvPartialAlphaPresent}.
-     *
-     * @param uv the face's four UV corners
-     * @param texture the entity texture to sample
-     * @return {@code true} if any covered texel is partially transparent
-     */
-    private static boolean faceHasPartialAlpha(@NotNull Vector2f @NotNull [] uv, @NotNull PixelBuffer texture) {
-        int W = texture.width();
-        int H = texture.height();
-        Vector4f bounds = Vector4f.bounds(uv);
-        int x0 = Math.max(0, (int) Math.floor(bounds.x() * W));
-        int y0 = Math.max(0, (int) Math.floor(bounds.y() * H));
-        int x1 = Math.min(W, (int) Math.ceil(bounds.z() * W));
-        int y1 = Math.min(H, (int) Math.ceil(bounds.w() * H));
-        for (int y = y0; y < y1; y++) {
-            for (int x = x0; x < x1; x++) {
-                int a = ColorMath.alpha(texture.getPixel(x, y));
-                if (a > 0 && a < 255) return true;
-            }
         }
         return false;
     }

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.visual;
 
 import lib.minecraft.renderer.TextRenderer;
-import lib.minecraft.renderer.options.TextOptions;
+import lib.minecraft.renderer.option.TextOptions;
 import lib.minecraft.text.LineSegment;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;

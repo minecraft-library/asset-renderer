@@ -21,7 +21,8 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.options.BlockOptions;
+import lib.minecraft.renderer.option.BlockOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -106,7 +107,7 @@ public final class TestBedParity {
         try {
             ImageData img = renderer.render(BlockOptions.builder()
                 .blockId(blockId).type(BlockOptions.Type.ISOMETRIC_3D)
-                .outputSize(size).supersample(4).antiAlias(true).build());
+                .output(OutputOptions.builder().canvasSize(size).supersample(4).antiAlias(true).build()).build());
             ImageIO.write(img.toBufferedImage(), "PNG", out.toFile());
             System.out.println("  Wrote " + out);
         } catch (Exception ex) {

@@ -39,12 +39,14 @@ class BlockEntityParityTest {
     /**
      * Asserts every id discovered from the client jar is present in {@code block_models.json} under
      * {@code models}, and that each carries {@code y_axis}, {@code tinted}, and a {@code model} with
-     * a non-empty {@code elements} array. The block-entity families we parse (the 19 wired into
+     * non-empty geometry. Geometry is either a legacy {@code elements} array or - for families
+     * migrated onto the relative bone format ({@code chest}) - a {@code bones} object; both forms
+     * must be non-empty. The block-entity families we parse (the 19 wired into
      * {@link BlockListDiscovery}'s dispatch) always ship a model, so {@code model} is required
      * unconditionally.
      */
     @Test
-    @DisplayName("every catalog entity id has a block_models.json entry with elements")
+    @DisplayName("every catalog entity id has a block_models.json entry with geometry")
     void allEntitiesPresent() throws IOException {
         JsonObject root = GSON.fromJson(Files.readString(OUTPUT), JsonObject.class);
         JsonObject entities = root.getAsJsonObject("models");
@@ -60,9 +62,11 @@ class BlockEntityParityTest {
                 // might not - but our 19 always do).
                 assertThat("entity '" + entityId + "' has model", entity.has("model"), equalTo(true));
                 JsonObject model = entity.getAsJsonObject("model");
-                assertThat("entity '" + entityId + "' model has elements", model.has("elements"), equalTo(true));
-                assertThat("entity '" + entityId + "' model has non-empty elements",
-                    model.getAsJsonArray("elements").isEmpty(), equalTo(false));
+                // Geometry is bones (relative bone format) or elements (legacy) - both non-empty.
+                boolean hasBones = model.has("bones") && !model.getAsJsonObject("bones").keySet().isEmpty();
+                boolean hasElements = model.has("elements") && !model.getAsJsonArray("elements").isEmpty();
+                assertThat("entity '" + entityId + "' model has non-empty bones or elements",
+                    hasBones || hasElements, equalTo(true));
             }
         } finally {
             zip.close();

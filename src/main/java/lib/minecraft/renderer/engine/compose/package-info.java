@@ -1,35 +1,25 @@
 /**
- * Layer composition and the terminal render stages: how the per-asset geometry and pixel
- * contributions are assembled into the final {@link dev.simplified.image.ImageData ImageData}.
+ * Frame compositing, the terminal render pipeline, and per-render context: how per-asset contributions
+ * become the final {@link dev.simplified.image.ImageData ImageData}. The layer model itself lives in
+ * the {@link lib.minecraft.renderer.engine.compose.layer compose.layer} sub-package.
  *
- * <p><b>Layers.</b> A renderer builds a {@link lib.minecraft.renderer.engine.compose.LayerStack LayerStack}
- * keyed by {@link lib.minecraft.renderer.engine.compose.LayerSlot LayerSlot} (implemented as per-renderer
- * enums in {@code options}) so callers can splice their own passes in relative to named insertion
- * points. Two layer kinds exist:
- * <ul>
- *   <li>{@link lib.minecraft.renderer.engine.compose.GeometryLayer GeometryLayer} - contributes
- *       {@link lib.minecraft.renderer.engine.raster.VisibleTriangle triangles} to one shared sink that
- *       rasterizes in a single depth pass. Emission order is load-bearing (depth tie-break,
- *       translucent sort, emissive depth-skip). Per-render state travels via
- *       {@link lib.minecraft.renderer.engine.compose.SceneContext SceneContext}.</li>
- *   <li>{@link lib.minecraft.renderer.engine.compose.ImageLayer ImageLayer} - mutates a shared 2D
- *       {@link dev.simplified.image.pixel.PixelBuffer PixelBuffer} in stack order, with state via
- *       {@link lib.minecraft.renderer.engine.compose.ImageLayerContext ImageLayerContext}.</li>
- * </ul>
- * {@link lib.minecraft.renderer.engine.compose.FrameLayer FrameLayer} and
- * {@link lib.minecraft.renderer.engine.compose.FramePlacement FramePlacement} position possibly-animated
- * sub-renders, merged by {@link lib.minecraft.renderer.engine.compose.FrameCompositor FrameCompositor}.
+ * <p><b>Frame compositing.</b>
+ * {@link lib.minecraft.renderer.engine.compose.FramePlacement FramePlacement} positions a possibly-
+ * animated sub-render; {@link lib.minecraft.renderer.engine.compose.FrameCompositor FrameCompositor}
+ * both merges a list of them (a static fast-path when every placement is static, else an LCM-merged
+ * animated loop) and owns the shared frame-to-{@code ImageData} wrapping ({@code wrapFrames} /
+ * {@code staticFrame} / {@code emptyFrame}) that every renderer and the terminal pipeline bottom out in.
  *
- * <p><b>Stages.</b> The terminal pipeline is an explicit hardcoded composition of three shared stages.
- * {@link lib.minecraft.renderer.engine.compose.FinalizeStage FinalizeStage} rasterizes and
- * post-processes one buffer (supersample, FXAA, downscale), then hands it to a finalizer callback that
- * typically runs {@link lib.minecraft.renderer.engine.compose.GlintStage GlintStage} (enchantment foil).
- * {@link lib.minecraft.renderer.engine.compose.AnimationStage AnimationStage} sits outermost, invoking
- * that finalise-then-glint tail once per animation frame and baking the strip.
- * {@link lib.minecraft.renderer.engine.compose.Frames Frames} wraps the resulting buffer(s) into the
- * final {@code ImageData}.
+ * <p><b>Terminal pipeline.</b> {@link lib.minecraft.renderer.engine.compose.Finalize Finalize} is the
+ * single spec-driven terminal for the rasterizing renderers: it draws each frame, runs the shared
+ * supersample / FXAA / downscale tail, then either scrolls an enchantment glint or bakes an animation
+ * strip (the two are mutually exclusive), and wraps the result via {@code FrameCompositor}.
  *
- * @see lib.minecraft.renderer.engine.compose.LayerStack
- * @see lib.minecraft.renderer.engine.compose.Frames
+ * <p><b>Per-render context.</b> Renderers that thread bundled per-render inputs into their layers keep
+ * that context private to themselves (entity's {@code FeatureContext}, item's {@code Gui2D.LayerContext}),
+ * because each is consumed by exactly one renderer - the compose package holds no shared context type.
+ *
+ * @see lib.minecraft.renderer.engine.compose.layer
+ * @see lib.minecraft.renderer.engine.compose.Finalize
  */
 package lib.minecraft.renderer.engine.compose;

@@ -10,10 +10,10 @@ import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.tooling.blockentity.Source;
-import lib.minecraft.renderer.tooling.blockentity.YAxis;
 import lib.minecraft.renderer.tooling.entity.*;
 import lib.minecraft.renderer.tooling.parser.GeometryParser;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -139,6 +139,31 @@ public final class ToolingEntityModels {
                 else unresolvedTexture++;
             }
 
+            // Horse coat colour: an id-encoded variant axis the data-driven variant machinery doesn't
+            // reach. HorseRenderer keys its texture off an enum-map (LOCATION_BY_VARIANT:
+            // Map<equine.Variant, HorseTextures{adult, baby}>), not a data/minecraft/<X>_variant/
+            // table, so EntityVariantResolver.loadAll never surfaces it (the walk leaves horse's
+            // variant stem null). Walk that <clinit> map here - the same fixed-entity wiring the
+            // tropical_fish / pufferfish axes use below - and inject horse into the variant tables +
+            // canonical-default map + its record's variant stem, so the writer emits the per-coat rows
+            // (horse_white ... horse_dark_brown) the family writer groups into the coat variant axis.
+            // WHITE is vanilla's default (Variant id 0, the enum-map's first key).
+            String horseId = "minecraft:horse";
+            EntitySessionWalk.Result horseRec = records.get(horseId);
+            if (horseRec != null && horseRec.variantStem() == null) {
+                ConcurrentList<EntityVariantResolver.Result> horseCoats = EntityVariantResolver.loadEnumMapVariants(
+                    context.classNodes(), VanillaSourceClasses.HORSE_RENDERER, VanillaSourceClasses.EQUINE_VARIANT);
+                if (!horseCoats.isEmpty()) {
+                    variants.put("horse", horseCoats);
+                    dataVariantDefaults.put("horse", "white");
+                    records.put(horseId, new EntitySessionWalk.Result(
+                        horseRec.entityId(), horseRec.entityFieldName(), horseRec.rendererInternalName(),
+                        horseRec.binding(), horseRec.layers(), "horse",
+                        horseRec.setupYawAddend(), horseRec.rendererScale()));
+                    System.out.println("Injected horse coat variant axis (" + horseCoats.size() + " coats)");
+                }
+            }
+
             Path discoveryDiagOut = EntityDiagnosticsWriter.writeDiscoveryDiagnostic(
                 options, registry, records, variants,
                 withPrimaryTexture, variantDriven, unresolvedTexture, diagnostics
@@ -202,24 +227,9 @@ public final class ToolingEntityModels {
                 // Slot 0 is overridden from the resolution's captured factory-arg literal when
                 // present - DonkeyModel.createBodyLayer(F) reads its base body scale from
                 // fload_0, and LayerDefinitions.createRoots passes the call-site constant
-                // (DONKEY: 0.87f, MULE: 0.92f) which the resolver picks up.
-                float[] paramFloats = new float[8];
-                if (resolution.defaultFloatParam() != null)
-                    paramFloats[0] = resolution.defaultFloatParam();
-                sources.add(new Source(
-                    resolution.targetClass() + ".class",
-                    resolution.targetMethod(),
-                    entry.getKey(),
-                    YAxis.DOWN,
-                    0f,
-                    resolution.texWidthOverride(),
-                    resolution.texHeightOverride(),
-                    null,
-                    paramFloats,
-                    0f,
-                    resolution.appliedMeshTransformerScale(),
-                    null
-                ));
+                // (DONKEY: 0.87f, MULE: 0.92f) which the resolver picks up. Seeding lives in
+                // EntitySourceFactory.seededParams.
+                sources.add(EntitySourceFactory.bodySource(resolution, entry.getKey()));
             }
             System.out.println("Resolved " + sources.size() + " primary LayerDefinition factories for geometry parsing");
 
@@ -260,23 +270,7 @@ public final class ToolingEntityModels {
                     String variantEntityId = baseEntityId + "_" + variant.variantId();
                     if (entityToResolution.containsKey(variantEntityId)) continue;
                     entityToResolution.put(variantEntityId, variantRes);
-                    float[] variantParamFloats = new float[8];
-                    if (variantRes.defaultFloatParam() != null)
-                        variantParamFloats[0] = variantRes.defaultFloatParam();
-                    sources.add(new Source(
-                        variantRes.targetClass() + ".class",
-                        variantRes.targetMethod(),
-                        variantEntityId,
-                        YAxis.DOWN,
-                        0f,
-                        variantRes.texWidthOverride(),
-                        variantRes.texHeightOverride(),
-                        null,
-                        variantParamFloats,
-                        0f,
-                        variantRes.appliedMeshTransformerScale(),
-                        null
-                    ));
+                    sources.add(EntitySourceFactory.bodySource(variantRes, variantEntityId));
                 }
             }
             System.out.println("Total sources after variant LayerDefinition enumeration: " + sources.size());
@@ -291,6 +285,10 @@ public final class ToolingEntityModels {
                 new LinkedHashMap<>();
             Map<String, ConcurrentList<EntityBlockOverlayResolver.Result>> blockOverlaysByEntity =
                 new LinkedHashMap<>();
+            Map<String, String> collarByEntity = new LinkedHashMap<>();
+            Set<String> markingsByEntity = new LinkedHashSet<>();
+            Map<String, ConcurrentList<EntityEquipmentResolver.Result>> equipmentByEntity = new LinkedHashMap<>();
+            Set<String> equipmentFields = new LinkedHashSet<>();
             Set<String> compositeOverlayFields = new LinkedHashSet<>();
             for (Map.Entry<String, EntitySessionWalk.Result> entry : records.entrySet()) {
                 String entityId = entry.getKey();
@@ -298,8 +296,20 @@ public final class ToolingEntityModels {
                 ConcurrentList<EntityOverlayResolver.Result> overlays =
                     EntityOverlayResolver.resolve(context.classNodes(), rec.rendererInternalName(), rec.layers(), entityId, diagnostics);
                 overlaysByEntity.put(entityId, overlays);
+                String collar = EntityOverlayResolver.resolveCollarTexture(context.classNodes(), rec.layers());
+                if (collar != null) collarByEntity.put(entityId, collar);
+                if (EntityOverlayResolver.hasMarkingLayer(rec.layers())) markingsByEntity.add(entityId);
                 for (EntityOverlayResolver.Result desc : overlays)
                     if (desc.modelLayerField() != null) compositeOverlayFields.add(desc.modelLayerField());
+
+                // Generic equipment overlays (saddle / body armor via SimpleEquipmentLayer). Each
+                // carries its own ModelLayers.X_SADDLE/_ARMOR geometry field, added to the same
+                // composite-overlay source set so its mesh gets a deduped geometry id.
+                ConcurrentList<EntityEquipmentResolver.Result> equipment =
+                    EntityEquipmentResolver.resolve(context.classNodes(), rec.rendererInternalName());
+                if (!equipment.isEmpty()) equipmentByEntity.put(entityId, equipment);
+                for (EntityEquipmentResolver.Result desc : equipment)
+                    equipmentFields.add(desc.modelLayerField());
 
                 // Block-decoration layer overlays (mooshroom mushrooms, iron golem flower, etc.)
                 // Walked by EntityBlockOverlayResolver from the renderer's addLayer calls and
@@ -322,24 +332,122 @@ public final class ToolingEntityModels {
                     continue;
                 }
                 overlayFieldToResolution.put(field, res);
-                sources.add(new Source(
-                    res.targetClass() + ".class",
-                    res.targetMethod(),
-                    EntityOverlayResolver.Result.entityKey(field),
-                    YAxis.DOWN,
-                    0f,
-                    res.texWidthOverride(),
-                    res.texHeightOverride(),
-                    null,
-                    new float[8],
-                    res.defaultInflate(),
-                    1f,
-                    null
-                ));
+                sources.add(EntitySourceFactory.overlaySource(res, EntityOverlayResolver.Result.entityKey(field)));
                 entityToResolution.put(EntityOverlayResolver.Result.entityKey(field), res);
             }
             System.out.println("Composite overlay layers: " + overlayFieldToResolution.size()
                 + " (" + overlayFieldToResolution.keySet() + ")");
+
+            // Baby geometry (added LAST so its geometry ids only ever take collision suffixes and
+            // never shift an existing adult/variant/overlay id - NautilusModel bakes both the adult
+            // createBodyLayer and the baby createBabyBodyLayer, which derive the same geometry stem).
+            // In 26.1 almost every ageable mob has a dedicated Baby<X>Model registered under
+            // ModelLayers.<X>_BABY (COW_BABY -> BabyCowModel); resolving the renderer's _BABY field
+            // through the same layerDefs -> Source path variants use bakes a distinct, self-contained
+            // baby geometry the age axis points at (no runtime young-scale).
+            Map<String, EntityLayerDefinitionResolver.Result> babyResolutionByEntity = new LinkedHashMap<>();
+            // Baby textures for NON-variant entities (sheep, fox, ...) come from the renderer's
+            // isBaby?BABY:ADULT texture branch (EntityTextureResolver.Result.babyTexturePath), not the
+            // variant table. Variant families (cow/pig/chicken) source their per-variant baby texture
+            // from the variant table's baby_asset_id (EntityFamilyJsonWriter.enrichBabyTextures).
+            Map<String, String> babyTextureByEntity = new LinkedHashMap<>();
+            for (Map.Entry<String, EntitySessionWalk.Result> entry : records.entrySet()) {
+                String entityId = entry.getKey();
+                String babyField = EntityLayerDefinitionResolver.findBabyLayerField(
+                    context.classNodes(), entry.getValue().rendererInternalName());
+                if (babyField == null) continue;
+                EntityLayerDefinitionResolver.Result babyRes = layerDefs.get(babyField);
+                if (babyRes == null) continue;
+                babyRes = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), babyRes);
+                String bindingBaby = entry.getValue().binding().babyTexturePath();
+                // Variant families source per-variant baby textures from the variant table
+                // (baby_asset_id -> EntityFamilyJsonWriter.enrichBabyTextures, one per coat option), so
+                // skip the single isBaby-branch texture for them - it would add a spurious top-level
+                // age.baby.texture_ref (horse, whose coat variant is injected above; data-driven
+                // variants already surface no baby binding here).
+                if (bindingBaby != null && entry.getValue().variantStem() == null)
+                    babyTextureByEntity.put(entityId, EntityTextureResolver.stripPrefix(bindingBaby));
+                // Skip babies baked from the SAME model class as the adult (nautilus:
+                // NautilusModel#createBabyBodyLayer vs #createBodyLayer). Their geometry ids derive
+                // the same class-based stem and the collision suffix would shift the adult's id,
+                // perturbing the byte-stable flat file. Dedicated Baby<X>Model classes are unaffected.
+                EntityLayerDefinitionResolver.Result adultRes = entityToResolution.get(entityId);
+                if (adultRes != null && adultRes.targetClass().equals(babyRes.targetClass())) continue;
+                String babyId = entityId + "#baby";
+                if (entityToResolution.containsKey(babyId)) continue;
+                entityToResolution.put(babyId, babyRes);
+                babyResolutionByEntity.put(entityId, babyRes);
+                sources.add(EntitySourceFactory.bodySource(babyRes, babyId));
+            }
+            System.out.println("Resolved baby geometry for " + babyResolutionByEntity.size() + " entities");
+
+            // Equipment overlay geometry (saddle / body armor via SimpleEquipmentLayer). Baked
+            // through the same layerDefs -> Source path as composite overlays, but added LAST (after
+            // baby) so the appended equipment meshes only ever take collision suffixes and never shift
+            // an existing entity / overlay / baby geometry id - keeping unequipped entities byte-stable.
+            Map<String, EntityLayerDefinitionResolver.Result> equipmentFieldToResolution = new LinkedHashMap<>();
+            for (String field : equipmentFields) {
+                EntityLayerDefinitionResolver.Result res = layerDefs.get(field);
+                if (res == null) {
+                    diagnostics.info("equipment ModelLayers.%s missing from LayerDefinitions.createRoots - skipped", field);
+                    continue;
+                }
+                res = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), res);
+                equipmentFieldToResolution.put(field, res);
+                // EntitySourceFactory.equipmentSource bakes the layer's MeshTransformer scale + float
+                // param exactly like the primary / variant body sources (the horse body is baked from
+                // HorseModel wrapped in MeshTransformer.scaling(1.1), body pivot 11.0 -> 9.6984, and its
+                // saddle / armor layers carry the same scale), and adds a zeroed int-param table for
+                // factories whose first arg is a primitive int/boolean. The happy-ghast harness
+                // (createHarnessLayer(boolean isBaby), registered adult=false) applies
+                // MeshTransformer.scaling(4.0) then `.apply(isBaby ? BABY_TRANSFORMER : IDENTITY)`;
+                // without a bound isBaby the linear walk folds the untaken BABY_TRANSFORMER (0.2375),
+                // collapsing the 4.0 body-frame scale to 0.95 and rendering the harness ~4x too small.
+                // The zeroed table binds isBaby=false so the walk follows IDENTITY, keeping the 4.0
+                // scale; float-param (horse 1.1) and no-arg (pig saddle) equipment keep a null int-table.
+                sources.add(EntitySourceFactory.equipmentSource(res, EntityOverlayResolver.Result.entityKey(field)));
+                entityToResolution.put(EntityOverlayResolver.Result.entityKey(field), res);
+            }
+            System.out.println("Equipment overlay layers: " + equipmentFieldToResolution.size()
+                + " (" + equipmentFieldToResolution.keySet() + ")");
+
+            // Shape-axis body geometry (tropical fish small|large). The small body is the primary; the
+            // large body (TropicalFishLargeModel via TROPICAL_FISH_LARGE) is baked here as an extra
+            // source so the shape axis can point its {@code large} option at geometry.tropicalfishlarge.
+            // Added after equipment so the appended mesh only takes collision suffixes, never shifting an
+            // existing id. Hardcoded to tropical_fish, the only vanilla entity with distinct body shapes.
+            Map<String, EntityLayerDefinitionResolver.Result> shapeResolutionByEntity = new LinkedHashMap<>();
+            String shapeEntity = "minecraft:tropical_fish";
+            String shapeField = "TROPICAL_FISH_LARGE";
+            EntityLayerDefinitionResolver.Result shapeRes = layerDefs.get(shapeField);
+            if (shapeRes != null && records.containsKey(shapeEntity)) {
+                shapeRes = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), shapeRes);
+                String shapeId = shapeEntity + "#large";
+                entityToResolution.put(shapeId, shapeRes);
+                shapeResolutionByEntity.put(shapeEntity, shapeRes);
+                sources.add(EntitySourceFactory.shapeSource(shapeRes, shapeId));
+            }
+
+            // Size-axis body geometry (pufferfish small|medium|big). Big is the primary
+            // (geometry.pufferfishbig, the fully-puffed silhouette the harness renders); small + medium
+            // are baked here as extra sources so the size axis can point its small/medium options at
+            // their meshes. Mirrors the shape-axis bake above. Pufferfish is the only vanilla entity with
+            // distinct per-size meshes (salmon/slime sizes are uniform scales, deferred).
+            Map<String, Map<String, EntityLayerDefinitionResolver.Result>> sizeResolutionByEntity = new LinkedHashMap<>();
+            String sizeEntity = "minecraft:pufferfish";
+            if (records.containsKey(sizeEntity)) {
+                Map<String, EntityLayerDefinitionResolver.Result> sizeOptions = new LinkedHashMap<>();
+                for (String[] option : new String[][]{{"small", "PUFFERFISH_SMALL"}, {"medium", "PUFFERFISH_MEDIUM"}}) {
+                    EntityLayerDefinitionResolver.Result sizeRes = layerDefs.get(option[1]);
+                    if (sizeRes == null) continue;
+                    sizeRes = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), sizeRes);
+                    String sizeId = sizeEntity + "#" + option[0];
+                    entityToResolution.put(sizeId, sizeRes);
+                    sizeOptions.put(option[0], sizeRes);
+                    sources.add(EntitySourceFactory.shapeSource(sizeRes, sizeId));
+                }
+                if (!sizeOptions.isEmpty()) sizeResolutionByEntity.put(sizeEntity, sizeOptions);
+            }
 
             ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics);
             System.out.println("Parsed geometry for " + geometries.size() + " entities + overlays");
@@ -349,15 +457,7 @@ public final class ToolingEntityModels {
             // runtime kit reads this to cull zero-thickness plane cubes - a culled plane shows only
             // its camera-facing side (the bat ear's pink inner face) rather than drawing both
             // coincident sides and letting the LEQUAL depth tie-break pick the away (brown) side.
-            int cullGeometries = 0;
-            for (Source source : sources) {
-                JsonObject geometry = geometries.get(source.entityId());
-                if (geometry == null || geometry.has("cull")) continue;
-                if (EntityRenderTypeResolver.usesCullRenderType(context.classNodes(), source.classEntry())) {
-                    geometry.addProperty("cull", true);
-                    cullGeometries++;
-                }
-            }
+            int cullGeometries = markCullGeometries(context, sources, geometries);
             System.out.println("Marked " + cullGeometries + " entityCutoutCull geometries (back-face culling)");
 
             Path geometryDiagOut = EntityDiagnosticsWriter.writeGeometryDiagnostic(
@@ -370,13 +470,69 @@ public final class ToolingEntityModels {
             // when multiple entities share a createBodyLayer); entity_models.json carries
             // per-entity rows pointing into the geometry table plus optional variant rows
             // emitted from the data-driven variant tables loaded during binding.
-            int variantRowsEmitted = EntityRuntimeJsonWriter.writeAll(
+            EntityRuntimeJsonWriter.WriteResult writeResult = EntityRuntimeJsonWriter.writeAll(
                 context, records, entityToResolution, geometries, variants, diagnostics,
                 overlaysByEntity, overlayFieldToResolution, dataVariantDefaults,
                 blockOverlaysByEntity
             );
-            System.out.println("Wrote " + EntityRuntimeJsonWriter.MODELS_OUTPUT.toAbsolutePath() + " (+ " + variantRowsEmitted + " variant rows)");
-            System.out.println("Wrote " + EntityRuntimeJsonWriter.GEOMETRY_OUTPUT.toAbsolutePath());
+            System.out.println("  flat form: " + writeResult.variantRows()
+                + " variant rows, grouped into the family form below");
+
+            // Map each entity to its deduped baby geometry id, dropping any whose baby resolved to
+            // the same geometry as its adult (a transform-only baby the parser can't distinguish yet).
+            Map<String, String> babyGeometryByEntity = new LinkedHashMap<>();
+            for (Map.Entry<String, EntityLayerDefinitionResolver.Result> baby : babyResolutionByEntity.entrySet()) {
+                String babyGeom = writeResult.factoryKeyToGeometryId().get(EntityRuntimeJsonWriter.factoryKey(baby.getValue()));
+                EntityLayerDefinitionResolver.Result adult = entityToResolution.get(baby.getKey());
+                String adultGeom = adult == null ? null : writeResult.factoryKeyToGeometryId().get(EntityRuntimeJsonWriter.factoryKey(adult));
+                if (babyGeom != null && !babyGeom.equals(adultGeom)) babyGeometryByEntity.put(baby.getKey(), babyGeom);
+            }
+
+            // Resolve each equipment overlay's baked mesh to its deduped geometry id, keyed by the
+            // ModelLayers field, so the family writer can point each equipment layer at its geometry.
+            Map<String, String> equipmentGeometryByField =
+                geometryIdsByKey(equipmentFieldToResolution, writeResult.factoryKeyToGeometryId());
+
+            // Map each shape-axis entity to its large-body geometry id, so the family writer can point
+            // the shape axis's {@code large} option at geometry.tropicalfishlarge.
+            Map<String, String> shapeGeometryByEntity =
+                geometryIdsByKey(shapeResolutionByEntity, writeResult.factoryKeyToGeometryId());
+
+            // Map each size-axis entity to its per-size geometry ids, so the family writer can point the
+            // size axis's small/medium options at geometry.pufferfishsmall / geometry.pufferfishmedium.
+            Map<String, Map<String, String>> sizeGeometryByEntity = new LinkedHashMap<>();
+            for (Map.Entry<String, Map<String, EntityLayerDefinitionResolver.Result>> sizeEntry : sizeResolutionByEntity.entrySet()) {
+                Map<String, String> geomIds = geometryIdsByKey(sizeEntry.getValue(), writeResult.factoryKeyToGeometryId());
+                if (!geomIds.isEmpty()) sizeGeometryByEntity.put(sizeEntry.getKey(), geomIds);
+            }
+
+            // Scale-based size axis (salmon / slime / magma_cube) - a uniform per-size render scale, NOT
+            // distinct meshes (a visual no-op under the auto-fit renderer; wired for a future
+            // absolute-scale scene renderer). Hardcoded to the vanilla values, which are uniform scales
+            // whose exact factor the auto-fit normalises away: salmon
+            // SalmonModel.SMALL_TRANSFORMER/LARGE_TRANSFORMER = MeshTransformer.scaling(0.5)/(1.5), medium
+            // (base) = 1.0; slime/magma_cube SlimeRenderer.scale(size) at squish 0 = scale(size) for the
+            // natural sizes 1/2/4 = small/medium/large, small (base, renderer_scale 0.999) = 1.0. The
+            // default (base) size carries no option, so the default render stays byte-identical.
+            Map<String, Map<String, Float>> sizeScaleByEntity = new LinkedHashMap<>();
+            if (records.containsKey("minecraft:salmon")) {
+                Map<String, Float> salmon = new LinkedHashMap<>();
+                salmon.put("small", 0.5f);
+                salmon.put("large", 1.5f);
+                sizeScaleByEntity.put("minecraft:salmon", salmon);
+            }
+            for (String slimeLike : new String[]{"minecraft:slime", "minecraft:magma_cube"}) {
+                if (!records.containsKey(slimeLike)) continue;
+                Map<String, Float> scales = new LinkedHashMap<>();
+                scales.put("medium", 2.0f);
+                scales.put("large", 4.0f);
+                sizeScaleByEntity.put(slimeLike, scales);
+            }
+
+            // Group the in-memory flat tables into the canonical family-form entity_models.json.
+            EntityFamilyJsonWriter.writeAll(options.getVersion(), diagnostics, writeResult.flatEntities(), writeResult.flatFamilies(),
+                variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity, equipmentByEntity, equipmentGeometryByField,
+                shapeGeometryByEntity, sizeGeometryByEntity, sizeScaleByEntity, markingsByEntity);
 
             System.out.printf(
                 "Coverage: %d / %d mapped; texture %d hard / %d variant / %d unresolved; geometry %d%n",
@@ -397,6 +553,56 @@ public final class ToolingEntityModels {
                 diagnostics.entries().forEach(line -> System.out.println("  " + line));
             }
         }
+    }
+
+    /**
+     * Maps each resolved layer factory to its deduped geometry id, keyed by the source map's key,
+     * dropping entries whose factory never made it into the geometry table. Iteration order follows
+     * {@code resolutions} (insertion-ordered), so the downstream family emission stays deterministic.
+     *
+     * @param resolutions key -&gt; resolved layer factory (equipment {@code ModelLayers} field, or the
+     *     shape-axis entity id)
+     * @param factoryKeyToGeometryId the factory-key -&gt; deduped geometry id map from {@code WriteResult}
+     * @return key -&gt; geometry id, dropping keys whose factory resolved to no geometry entry
+     */
+    private static @NotNull Map<String, String> geometryIdsByKey(
+        @NotNull Map<String, EntityLayerDefinitionResolver.Result> resolutions,
+        @NotNull Map<String, String> factoryKeyToGeometryId
+    ) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, EntityLayerDefinitionResolver.Result> entry : resolutions.entrySet()) {
+            String geometryId = factoryKeyToGeometryId.get(EntityRuntimeJsonWriter.factoryKey(entry.getValue()));
+            if (geometryId != null) out.put(entry.getKey(), geometryId);
+        }
+        return out;
+    }
+
+    /**
+     * Flags each geometry whose model class wires vanilla's {@code RenderTypes.entityCutoutCull}
+     * render type with a {@code cull} property (the runtime kit culls zero-thickness plane cubes for
+     * these - e.g. the bat ear shows only its camera-facing pink inner face). Skips geometries
+     * already flagged and any source with no parsed geometry.
+     *
+     * @param context the tooling context (ClassNode cache for the render-type walk)
+     * @param sources the parsed geometry sources
+     * @param geometries source id -&gt; parsed geometry
+     * @return the number of geometries newly flagged
+     */
+    private static int markCullGeometries(
+        @NotNull EntityToolingContext context,
+        @NotNull List<Source> sources,
+        @NotNull ConcurrentMap<String, JsonObject> geometries
+    ) {
+        int cullGeometries = 0;
+        for (Source source : sources) {
+            JsonObject geometry = geometries.get(source.entityId());
+            if (geometry == null || geometry.has("cull")) continue;
+            if (EntityRenderTypeResolver.usesCullRenderType(context.classNodes(), source.classEntry())) {
+                geometry.addProperty("cull", true);
+                cullGeometries++;
+            }
+        }
+        return cullGeometries;
     }
 
 }

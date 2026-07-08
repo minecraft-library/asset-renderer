@@ -2,7 +2,8 @@ package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.options.ItemOptions;
+import lib.minecraft.renderer.option.ItemOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -47,7 +48,9 @@ public class HeldItemBenchmark extends AbstractRendererBenchmark {
         this.options = ItemOptions.builder()
             .itemId(this.itemId)
             .type(ItemOptions.Type.HELD_3D)
-            .outputSize(256)
+            .output(ItemOptions.DEFAULT_OUTPUT.mutate()
+                .canvasSize(256)
+                .build())
             .build();
     }
 

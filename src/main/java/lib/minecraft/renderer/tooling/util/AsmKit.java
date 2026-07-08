@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -46,7 +47,13 @@ import java.util.zip.ZipFile;
  *   <li><b>Literal decoding</b> - turn {@code ICONST_*} / {@code BIPUSH} / {@code SIPUSH} /
  *       {@code LDC} bytecode literal pushes back into boxed {@link Integer} / {@link Long} /
  *       {@link Float} / {@link Double} / {@link String} / {@link Type} values, plus the
+ *       boolean-narrowed {@link #readBooleanLiteral readBooleanLiteral} and the
  *       type-dispatching {@link #readAnyLiteral readAnyLiteral}.</li>
+ *   <li><b>Boolean-store decoding</b> - {@link #decodeBooleanStore decodeBooleanStore} turns the
+ *       value expression before a {@code :Z} store into a {@link BooleanStore}
+ *       ({@link ConstantStore} / {@link FieldStore}) carrying a {@link Polarity}, folding the
+ *       {@code javac} compiled-{@code !flag} branch shape into one {@code POSITIVE} /
+ *       {@code NEGATIVE} discriminator.</li>
  *   <li><b>Descriptor utilities</b> - {@link #descriptorReturns descriptorReturns},
  *       {@link #argSlotCount argSlotCount}, {@link #argTypes argTypes},
  *       {@link #returnType returnType}, and {@link #internalNameOfRef internalNameOfRef}
@@ -71,7 +78,14 @@ import java.util.zip.ZipFile;
  *       the canonical javac {@code for (int i = INIT; i < BOUND; i += STEP)} scaffold into an
  *       {@link IntForLoop} record, with {@link #evaluateIntComparison evaluateIntComparison} for
  *       static branch resolution.</li>
+ *   <li><b>Branch classification</b> - {@link #isBranchInsn isBranchInsn} flags the opcodes that
+ *       terminate a straight-line region (used by linear scans that stay inside one basic block).</li>
+ *   <li><b>Static scaling-factor reader</b> - {@link #resolveStaticScalingFactor
+ *       resolveStaticScalingFactor} recovers a {@code static final} field's literal single-float
+ *       factory factor ({@code LDC F; INVOKESTATIC factory(F); PUTSTATIC}) from its
+ *       {@code <clinit>}.</li>
  *   <li><b>Lambda metafactory helpers</b> - {@link #extractLambdaHandle extractLambdaHandle},
+ *       {@link #findBsmHandleByName findBsmHandleByName},
  *       {@link #resolveLambdaTargetClass resolveLambdaTargetClass}, and
  *       {@link #walkLambdaBody walkLambdaBody} recover the target class of a {@code javac}
  *       lambda call site.</li>
@@ -636,6 +650,23 @@ public final class AsmKit {
     }
 
     /**
+     * Decodes a boolean literal push, returning {@link Boolean#FALSE} for {@code ICONST_0} and
+     * {@link Boolean#TRUE} for {@code ICONST_1}. Returns {@code null} for every other node -
+     * including {@code ICONST_M1} and {@code ICONST_2}..{@code ICONST_5}, which are not JVM
+     * boolean literals. Narrowed counterpart of {@link #readIntLiteral} for the {@code 0}/{@code 1}
+     * domain a {@code :Z} store or a compiled boolean branch draws from.
+     *
+     * @param node the instruction to decode
+     * @return {@code TRUE} / {@code FALSE} for {@code ICONST_1} / {@code ICONST_0}, or {@code null} otherwise
+     */
+    public static @Nullable Boolean readBooleanLiteral(@NotNull AbstractInsnNode node) {
+        int opcode = node.getOpcode();
+        if (opcode == Opcodes.ICONST_0) return Boolean.FALSE;
+        if (opcode == Opcodes.ICONST_1) return Boolean.TRUE;
+        return null;
+    }
+
+    /**
      * Decodes a {@code long} literal from a bytecode instruction, returning {@code null} for
      * nodes that do not push a compile-time long constant. Handles {@code LCONST_0},
      * {@code LCONST_1}, and {@code LDC Long}.
@@ -1144,6 +1175,140 @@ public final class AsmKit {
     }
 
     // ----------------------------------------------------------------------------------------
+    // Boolean-store decoding
+    // ----------------------------------------------------------------------------------------
+
+    /**
+     * Relationship between a decoded boolean r-value and the field it reads. {@link #POSITIVE}:
+     * the value equals the field ({@code x = flag}). {@link #NEGATIVE}: the value is the field's
+     * compiled negation ({@code x = !flag}), which javac emits as an
+     * {@code IF..; ICONST; GOTO; ICONST} two-constant select.
+     */
+    public enum Polarity { POSITIVE, NEGATIVE }
+
+    /**
+     * A boolean r-value decoded from the instructions preceding a boolean store
+     * ({@code PUTFIELD <...>:Z} or similar). Sealed over the shapes {@code javac} emits: a
+     * compile-time literal ({@link ConstantStore}) or a read of an object's {@code :Z} field,
+     * direct or compiled-negated ({@link FieldStore}). {@link #valueStart()} is the earliest
+     * instruction of the value expression, so a caller reaches the store target with a single
+     * {@code previousReal(store.valueStart())} - no re-derivation of the decoded shape. Purely
+     * structural: it names no owner, field, or method as meaningful; the caller applies its own
+     * semantic guards (which owner is the model, which flag name gates, and so on).
+     */
+    public sealed interface BooleanStore permits ConstantStore, FieldStore {
+
+        /**
+         * The lowest-address instruction of the decoded value expression - the node a caller
+         * walks back from ({@code previousReal(valueStart())}) to reach the store target.
+         *
+         * @return the earliest instruction of the value expression
+         */
+        @NotNull AbstractInsnNode valueStart();
+    }
+
+    /**
+     * A boolean r-value that is a compile-time literal ({@code ICONST_0} / {@code ICONST_1}).
+     *
+     * @param value the literal value ({@code false} = {@code ICONST_0}, {@code true} = {@code ICONST_1})
+     * @param valueStart the {@code ICONST} node
+     */
+    public record ConstantStore(boolean value, @NotNull AbstractInsnNode valueStart) implements BooleanStore {}
+
+    /**
+     * A boolean r-value read from an object's {@code :Z} field: {@code <receiver>; GETFIELD f:Z}
+     * for {@link Polarity#POSITIVE}, or that read wrapped in {@code javac}'s compiled-negation
+     * select ({@code GETFIELD f:Z; IF{EQ,NE}; ICONST; GOTO; ICONST}) for {@link Polarity#NEGATIVE}.
+     * A {@code NEGATIVE} result is returned only when the branch is a genuine boolean select whose
+     * two constants form a distinct {@code 0}/{@code 1} pair; a non-{@code 0/1} or equal-constant
+     * branch decodes to {@link ConstantStore} instead.
+     *
+     * @param field the {@code GETFIELD} reading the flag ({@code owner} / {@code name}, {@code desc == "Z"})
+     * @param receiver the instruction pushing the flag's receiver (the node before {@code GETFIELD})
+     * @param polarity {@code POSITIVE} for a direct read, {@code NEGATIVE} for the compiled {@code !flag} select
+     * @param valueAtFieldFalse the boolean produced when the flag is {@code false} - always
+     *     {@code false} for {@code POSITIVE}; the branch-resolved constant for {@code NEGATIVE}
+     *     ({@code cond == IFNE ? fallConst : branchConst})
+     * @param valueStart the receiver load (earliest instruction of the value expression)
+     */
+    public record FieldStore(
+        @NotNull FieldInsnNode field,
+        @NotNull AbstractInsnNode receiver,
+        @NotNull Polarity polarity,
+        boolean valueAtFieldFalse,
+        @NotNull AbstractInsnNode valueStart
+    ) implements BooleanStore {}
+
+    /**
+     * Decodes the boolean r-value produced by {@code valueInsn}, the real instruction
+     * immediately preceding a boolean store ({@code previousReal(putfield)}; the caller has
+     * already validated the {@code :Z} store). Recognises the three {@code javac} boolean-store
+     * shapes:
+     * <ul>
+     *   <li>{@code ICONST_0/1} - {@link ConstantStore}</li>
+     *   <li>{@code <recv>; GETFIELD f:Z} - {@link FieldStore} {@link Polarity#POSITIVE}</li>
+     *   <li>{@code <recv>; GETFIELD f:Z; IF{EQ,NE}; ICONST; GOTO; ICONST} (compiled {@code !f},
+     *       distinct {@code 0}/{@code 1} select) - {@link FieldStore} {@link Polarity#NEGATIVE}</li>
+     * </ul>
+     * Disambiguation of the trailing {@code ICONST}: when its {@code previousReal} is a
+     * {@code GOTO} the {@code NEGATIVE} select is attempted; if that decode fails (constants not a
+     * distinct {@code 0}/{@code 1} pair, missing {@code IF}, non-{@code :Z} field) the node falls
+     * back to {@link ConstantStore}. Returns {@code null} when no shape matches.
+     *
+     * @param valueInsn the value-producing instruction immediately before a boolean store
+     * @return the decoded store, or {@code null} when the shape is unrecognised
+     */
+    public static @Nullable BooleanStore decodeBooleanStore(@NotNull AbstractInsnNode valueInsn) {
+        Boolean literal = readBooleanLiteral(valueInsn);
+        if (literal != null) {
+            AbstractInsnNode prev = previousReal(valueInsn);
+            if (prev != null && prev.getOpcode() == Opcodes.GOTO) {
+                FieldStore negated = decodeNegatedBranch(valueInsn, literal);
+                if (negated != null) return negated;
+            }
+            return new ConstantStore(literal, valueInsn);
+        }
+        if (valueInsn.getOpcode() == Opcodes.GETFIELD
+            && valueInsn instanceof FieldInsnNode field
+            && "Z".equals(field.desc)) {
+            AbstractInsnNode receiver = previousReal(valueInsn);
+            if (receiver == null) return null;
+            return new FieldStore(field, receiver, Polarity.POSITIVE, false, receiver);
+        }
+        return null;
+    }
+
+    /**
+     * Attempts to decode the compiled {@code !flag} select tail whose branch-target constant is
+     * {@code branchConstNode} (the {@code ICONST} whose {@code previousReal} is the closing
+     * {@code GOTO}). Reads backward {@code GOTO; ICONST(fall); IF{EQ,NE}; GETFIELD f:Z; <receiver>}
+     * and returns the {@link FieldStore}, or {@code null} when the shape is not a genuine
+     * {@code GETFIELD f:Z} negation with a distinct {@code 0}/{@code 1} constant pair.
+     * {@code branchValue} is {@code branchConstNode}'s already-decoded boolean.
+     */
+    private static @Nullable FieldStore decodeNegatedBranch(@NotNull AbstractInsnNode branchConstNode, boolean branchValue) {
+        AbstractInsnNode gotoInsn = previousReal(branchConstNode);
+        if (gotoInsn == null || gotoInsn.getOpcode() != Opcodes.GOTO) return null;
+        AbstractInsnNode fallNode = previousReal(gotoInsn);
+        if (fallNode == null) return null;
+        Boolean fallValue = readBooleanLiteral(fallNode);
+        if (fallValue == null || fallValue.booleanValue() == branchValue) return null;
+        AbstractInsnNode condInsn = previousReal(fallNode);
+        if (condInsn == null) return null;
+        int cond = condInsn.getOpcode();
+        if (cond != Opcodes.IFEQ && cond != Opcodes.IFNE) return null;
+        AbstractInsnNode fieldInsn = previousReal(condInsn);
+        if (fieldInsn == null
+            || fieldInsn.getOpcode() != Opcodes.GETFIELD
+            || !(fieldInsn instanceof FieldInsnNode field)
+            || !"Z".equals(field.desc)) return null;
+        AbstractInsnNode receiver = previousReal(fieldInsn);
+        if (receiver == null) return null;
+        boolean valueAtFieldFalse = cond == Opcodes.IFNE ? fallValue : branchValue;
+        return new FieldStore(field, receiver, Polarity.NEGATIVE, valueAtFieldFalse, receiver);
+    }
+
+    // ----------------------------------------------------------------------------------------
     // Method-body traversal helpers
     // ----------------------------------------------------------------------------------------
 
@@ -1548,6 +1713,97 @@ public final class AsmKit {
     }
 
     // ----------------------------------------------------------------------------------------
+    // Static scaling-factor reader
+    // ----------------------------------------------------------------------------------------
+
+    /**
+     * Resolves a {@code static final} field whose {@code <clinit>} initialiser is a literal
+     * single-float factory call - {@code LDC F; INVOKESTATIC <factoryOwner>.<factoryMethod>(F)...;
+     * PUTSTATIC <owner>.<field>:<fieldDesc>} - to that {@code F}. Walks the owning class's
+     * {@code <clinit>} once and binds <b>every</b> canonical field it encounters into
+     * {@code cache} (keyed {@code owner + "." + field}), so sibling fields on the same class
+     * resolve without a re-walk; a non-canonical initialiser (indy-backed, arithmetic on {@code F},
+     * compound) binds {@code null}. {@code cache.containsKey} distinguishes "resolved to null"
+     * from "not yet walked", and short-circuits before {@code classLoader} is consulted so a cache
+     * hit never touches the jar.
+     *
+     * <p>Kept vanilla-agnostic: the caller supplies the factory owner / method and the field
+     * descriptor (for the vanilla mesh-transformer walkers these are {@code MeshTransformer} /
+     * {@code "scaling"} / {@code L...MeshTransformer;}), plus a {@code classLoader} that resolves
+     * {@code owner} through whichever backing it owns (a plain {@link ZipFile} or a
+     * {@link ClassNodeCache}). The factory is matched as {@code "(F)" + fieldDesc} - a single
+     * {@code float} argument returning the field type.
+     *
+     * <p>An intervening {@code LDC F} between a {@code scaling(F)} call and its {@code PUTSTATIC}
+     * clears the pending scaled value, so a stale factor never binds to a later field. (This is a
+     * defensive stance the two historical walkers disagreed on; both agree on every vanilla 26.1
+     * {@code <clinit>} - see {@code AsmKitTest} - so the stricter reset is adopted unconditionally.)
+     *
+     * @param owner the field's owning class internal name (cache key + {@code PUTSTATIC} owner match)
+     * @param fieldName the static field name being resolved
+     * @param classLoader lazy loader for {@code owner}'s {@link ClassNode}; consulted only on a cache miss, may yield {@code null}
+     * @param factoryOwner the scaling factory's owner internal name
+     * @param factoryMethod the scaling factory's method name
+     * @param fieldDesc the field's JVM descriptor (also the factory's return type)
+     * @param cache the shared per-field resolution cache (must permit {@code null} values)
+     * @return the resolved factor, or {@code null} for a non-canonical / missing initialiser
+     */
+    public static @Nullable Float resolveStaticScalingFactor(
+        @NotNull String owner,
+        @NotNull String fieldName,
+        @NotNull Supplier<ClassNode> classLoader,
+        @NotNull String factoryOwner,
+        @NotNull String factoryMethod,
+        @NotNull String fieldDesc,
+        @NotNull Map<String, Float> cache
+    ) {
+        String key = owner + "." + fieldName;
+        if (cache.containsKey(key)) return cache.get(key);
+
+        ClassNode cls = classLoader.get();
+        MethodNode clinit = cls != null ? findMethod(cls, CLINIT) : null;
+        if (clinit == null) {
+            cache.put(key, null);
+            return null;
+        }
+
+        String factoryDesc = "(F)" + fieldDesc;
+        Float pendingFloat = null;
+        Float pendingScaled = null;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            int op = in.getOpcode();
+            if (op < 0) continue; // labels / line numbers / frames
+            if (in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f) {
+                pendingFloat = f;
+                pendingScaled = null;
+            } else if (in instanceof MethodInsnNode mi
+                && op == Opcodes.INVOKESTATIC
+                && factoryOwner.equals(mi.owner)
+                && factoryMethod.equals(mi.name)
+                && factoryDesc.equals(mi.desc)
+                && pendingFloat != null) {
+                pendingScaled = pendingFloat;
+                pendingFloat = null;
+            } else if (in instanceof FieldInsnNode fi
+                && op == Opcodes.PUTSTATIC
+                && fieldDesc.equals(fi.desc)
+                && fi.owner.equals(owner)) {
+                cache.put(owner + "." + fi.name, pendingScaled);
+                pendingScaled = null;
+                pendingFloat = null;
+            } else {
+                // Any unrelated instruction clears the pending literal so a stale F never binds to
+                // a later putstatic; pendingScaled survives no-op-ish instructions so the canonical
+                // ldc / invokestatic / putstatic triplet still binds.
+                pendingFloat = null;
+            }
+        }
+
+        cache.putIfAbsent(key, null);
+        return cache.get(key);
+    }
+
+    // ----------------------------------------------------------------------------------------
     // Integer for-loop detection
     // ----------------------------------------------------------------------------------------
 
@@ -1583,6 +1839,35 @@ public final class AsmKit {
             case Opcodes.IF_ICMPLE -> lhs <= rhs;
             default -> false;
         };
+    }
+
+    /**
+     * Returns {@code true} when {@code opcode} does not fall through to the next instruction
+     * linearly - a conditional or unconditional jump ({@code IFEQ}..{@code IF_ACMPNE},
+     * {@code GOTO}, {@code JSR}, {@code IFNULL}, {@code IFNONNULL}), a switch
+     * ({@code TABLESWITCH}, {@code LOOKUPSWITCH}), or a method exit
+     * ({@code RETURN} / {@code IRETURN} / {@code LRETURN} / {@code FRETURN} / {@code DRETURN} /
+     * {@code ARETURN}, {@code ATHROW}). The exact opcode set a straight-line scan splits on
+     * when it wants to stay inside a single basic block.
+     *
+     * @param opcode the JVM opcode
+     * @return whether the opcode terminates a straight-line region
+     */
+    public static boolean isBranchInsn(int opcode) {
+        if (opcode >= Opcodes.IFEQ && opcode <= Opcodes.IF_ACMPNE) return true;
+        return opcode == Opcodes.GOTO
+            || opcode == Opcodes.JSR
+            || opcode == Opcodes.IFNULL
+            || opcode == Opcodes.IFNONNULL
+            || opcode == Opcodes.TABLESWITCH
+            || opcode == Opcodes.LOOKUPSWITCH
+            || opcode == Opcodes.RETURN
+            || opcode == Opcodes.IRETURN
+            || opcode == Opcodes.LRETURN
+            || opcode == Opcodes.FRETURN
+            || opcode == Opcodes.DRETURN
+            || opcode == Opcodes.ARETURN
+            || opcode == Opcodes.ATHROW;
     }
 
     /**
@@ -1724,6 +2009,26 @@ public final class AsmKit {
         if (indy.bsmArgs == null || indy.bsmArgs.length < 2) return null;
         if (!(indy.bsmArgs[1] instanceof Handle handle)) return null;
         return handle;
+    }
+
+    /**
+     * Returns the first bootstrap-method argument of {@code indy} that is a {@link Handle} whose
+     * {@link Handle#getName()} equals {@code name}, scanning {@code bsmArgs} in order; {@code null}
+     * when none is present. Unlike {@link #extractLambdaHandle} (which reads the positional
+     * {@code bsmArgs[1]} lambda target), this matches by handle name, so it suits call sites
+     * hunting a specific method reference regardless of its argument position - e.g. a
+     * {@code SomeClass::factory} reference carried as a bootstrap argument.
+     *
+     * @param indy the invokedynamic to inspect
+     * @param name the target handle name
+     * @return the first matching handle, or {@code null} when none is present
+     */
+    public static @Nullable Handle findBsmHandleByName(@NotNull InvokeDynamicInsnNode indy, @NotNull String name) {
+        if (indy.bsmArgs == null) return null;
+        for (Object arg : indy.bsmArgs)
+            if (arg instanceof Handle handle && name.equals(handle.getName()))
+                return handle;
+        return null;
     }
 
     /**
@@ -2127,6 +2432,20 @@ public final class AsmKit {
             this.entries.add(NON_LITERAL);
             if (this.entries.size() > this.capacity)
                 this.entries.removeFirst();
+        }
+
+        /**
+         * Silent counterpart of {@link #popIntOrZero(Diagnostics, String, String)}: pops the top
+         * as an {@code int} via {@link #popInt()} and returns {@code 0} when the stack is empty or
+         * the top is not an {@link Integer} (the wrong-type top is left in place, matching
+         * {@code popInt}). No diagnostic is emitted - for callers that treat an absent or wrong-type
+         * operand as a benign zero (the {@code BlockTintSources.constant} literal grab).
+         *
+         * @return the popped int, or {@code 0} on an empty stack or non-int top
+         */
+        public int popIntOrZero() {
+            Integer value = popInt();
+            return value != null ? value : 0;
         }
 
         /**

@@ -5,12 +5,13 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.compose.Frames;
-import lib.minecraft.renderer.engine.compose.ImageLayer;
-import lib.minecraft.renderer.engine.compose.LayerStack;
-import lib.minecraft.renderer.engine.kit.ObfuscationKit;
+import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
+import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.TextKit;
-import lib.minecraft.renderer.options.TextOptions;
+import lib.minecraft.renderer.option.TextOptions;
+import lib.minecraft.renderer.option.slot.TextSlot;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
@@ -30,7 +31,7 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
- * fresh {@link ObfuscationKit ObfuscationKit} substitution.
+ * fresh {@link TextKit} obfuscation substitution.
  */
 public final class TextRenderer implements Renderer<TextOptions> {
 
@@ -74,7 +75,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
     @Override
     public @NotNull ImageData render(@NotNull TextOptions options) {
         if (options.getLines().isEmpty())
-            return Frames.wrapFrames(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
+            return FrameCompositor.wrapFrames(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
 
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
         boolean animated = hasObfuscation(options.getLines());
@@ -91,14 +92,14 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
         if (!animated)
-            return Frames.wrapFrames(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L), 0);
+            return FrameCompositor.wrapFrames(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L), 0);
 
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         for (int frameIndex = 0; frameIndex < options.getFrameCount(); frameIndex++)
             frames.addAll(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, frameIndex));
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return Frames.wrapFrames(frames, delayMs);
+        return FrameCompositor.wrapFrames(frames, delayMs);
     }
 
     /**
@@ -134,10 +135,10 @@ public final class TextRenderer implements Renderer<TextOptions> {
         if (isLore) {
             int bgArgb = (Math.clamp(options.getBackgroundAlpha(), 0, 255) << 24) | VANILLA_TOOLTIP_BG_RGB;
             int borderAlpha = Math.clamp(options.getBorderAlpha(), 0, 255);
-            stack.append(TextOptions.Slot.BACKGROUND, frame -> frame.fill(bgArgb));
-            stack.append(TextOptions.Slot.BORDER, frame -> drawGradientBorder(frame, w, h, borderAlpha));
+            stack.append(TextSlot.BACKGROUND, frame -> frame.fill(bgArgb));
+            stack.append(TextSlot.BORDER, frame -> drawGradientBorder(frame, w, h, borderAlpha));
         }
-        stack.append(TextOptions.Slot.TEXT, frame -> {
+        stack.append(TextSlot.TEXT, frame -> {
             MinecraftGraphics g = new MinecraftGraphics(frame);
             int baselineMcPx = padMcPx + MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
             for (int i = 0; i < options.getLines().size(); i++) {
@@ -148,8 +149,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
             }
         });
 
-        for (ImageLayer layer : options.getLayerDecorator().apply(stack).ordered())
-            layer.apply(buffer);
+        Layers.foldInto(stack, options.getLayerDecorator(), buffer);
 
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         frames.add(buffer);

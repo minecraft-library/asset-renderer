@@ -1,7 +1,8 @@
 package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.BlockRenderer;
-import lib.minecraft.renderer.options.BlockOptions;
+import lib.minecraft.renderer.option.BlockOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -53,9 +54,11 @@ public class BlockIsometricBenchmark extends AbstractRendererBenchmark {
         this.options = BlockOptions.builder()
             .blockId(this.blockId)
             .type(BlockOptions.Type.ISOMETRIC_3D)
-            .outputSize(256)
-            .supersample(2)
-            .antiAlias(true)
+            .output(OutputOptions.builder()
+                .canvasSize(256)
+                .supersample(2)
+                .antiAlias(true)
+                .build())
             .build();
     }
 

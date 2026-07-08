@@ -17,6 +17,7 @@ import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
+import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.LineNumberNode;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -1696,6 +1698,329 @@ class AsmKitTest {
 
     }
 
+    @Nested
+    @DisplayName("readBooleanLiteral")
+    class ReadBooleanLiteral {
+
+        @Test
+        @DisplayName("ICONST_0 decodes to FALSE, ICONST_1 to TRUE")
+        void iconstBooleans() {
+            assertThat(AsmKit.readBooleanLiteral(new InsnNode(Opcodes.ICONST_0)), is(false));
+            assertThat(AsmKit.readBooleanLiteral(new InsnNode(Opcodes.ICONST_1)), is(true));
+        }
+
+        @Test
+        @DisplayName("ICONST_M1 / ICONST_2..5 are not boolean literals")
+        void nonBooleanIconstsAreNull() {
+            assertThat(AsmKit.readBooleanLiteral(new InsnNode(Opcodes.ICONST_M1)), is(nullValue()));
+            for (int op = Opcodes.ICONST_2; op <= Opcodes.ICONST_5; op++)
+                assertThat("ICONST for " + op, AsmKit.readBooleanLiteral(new InsnNode(op)), is(nullValue()));
+        }
+
+        @Test
+        @DisplayName("LDC and non-literal nodes return null")
+        void ldcAndOtherAreNull() {
+            assertThat(AsmKit.readBooleanLiteral(new LdcInsnNode(1)), is(nullValue()));
+            assertThat(AsmKit.readBooleanLiteral(new InsnNode(Opcodes.NOP)), is(nullValue()));
+        }
+
+    }
+
+    /**
+     * {@link AsmKit#decodeBooleanStore} folds the three {@code javac} boolean-store value shapes
+     * (literal, direct {@code :Z} field read, compiled {@code !flag} branch) into a single
+     * {@link AsmKit.BooleanStore} carrying a {@link AsmKit.Polarity}. The fixtures build the value
+     * expression as it sits immediately before a boolean store, then decode from the last real
+     * node (the caller's {@code previousReal(putfield)}).
+     */
+    @Nested
+    @DisplayName("decodeBooleanStore")
+    class DecodeBooleanStore {
+
+        @Test
+        @DisplayName("ICONST_0 / ICONST_1 decode to ConstantStore")
+        void constants() {
+            InsnList list = new InsnList();
+            InsnNode target = new InsnNode(Opcodes.NOP); // stands in for the store target
+            InsnNode iconst = new InsnNode(Opcodes.ICONST_0);
+            list.add(target);
+            list.add(iconst);
+
+            AsmKit.BooleanStore store = AsmKit.decodeBooleanStore(iconst);
+            assertThat(store, instanceOf(AsmKit.ConstantStore.class));
+            assertThat(((AsmKit.ConstantStore) store).value(), is(false));
+            assertThat(store.valueStart(), sameInstance(iconst));
+
+            InsnNode iconst1 = new InsnNode(Opcodes.ICONST_1);
+            InsnList list1 = new InsnList();
+            list1.add(new InsnNode(Opcodes.NOP));
+            list1.add(iconst1);
+            assertThat(((AsmKit.ConstantStore) AsmKit.decodeBooleanStore(iconst1)).value(), is(true));
+        }
+
+        @Test
+        @DisplayName("<recv>; GETFIELD f:Z decodes to a POSITIVE FieldStore")
+        void positiveFieldRead() {
+            InsnList list = new InsnList();
+            VarInsnNode recv = new VarInsnNode(Opcodes.ALOAD, 1);
+            FieldInsnNode flag = new FieldInsnNode(Opcodes.GETFIELD, "State", "hasChest", "Z");
+            list.add(recv);
+            list.add(flag);
+
+            AsmKit.BooleanStore store = AsmKit.decodeBooleanStore(flag);
+            assertThat(store, instanceOf(AsmKit.FieldStore.class));
+            AsmKit.FieldStore fs = (AsmKit.FieldStore) store;
+            assertThat(fs.field(), sameInstance(flag));
+            assertThat(fs.receiver(), sameInstance(recv));
+            assertThat(fs.polarity(), is(AsmKit.Polarity.POSITIVE));
+            assertThat(fs.valueAtFieldFalse(), is(false));
+            assertThat(fs.valueStart(), sameInstance(recv));
+        }
+
+        @Test
+        @DisplayName("compiled !flag via IFNE decodes to NEGATIVE with valueAtFieldFalse = fall const")
+        void negatedBranchIfne() {
+            // ALOAD; GETFIELD isSheared:Z; IFNE L1; ICONST_1(fall); GOTO L2; L1: ICONST_0(branch); L2:
+            InsnList list = new InsnList();
+            VarInsnNode recv = new VarInsnNode(Opcodes.ALOAD, 1);
+            FieldInsnNode flag = new FieldInsnNode(Opcodes.GETFIELD, "State", "isSheared", "Z");
+            LabelNode l1 = new LabelNode();
+            LabelNode l2 = new LabelNode();
+            JumpInsnNode ifne = new JumpInsnNode(Opcodes.IFNE, l1);
+            InsnNode fall = new InsnNode(Opcodes.ICONST_1);
+            JumpInsnNode gotoInsn = new JumpInsnNode(Opcodes.GOTO, l2);
+            InsnNode branch = new InsnNode(Opcodes.ICONST_0);
+            list.add(recv);
+            list.add(flag);
+            list.add(ifne);
+            list.add(fall);
+            list.add(gotoInsn);
+            list.add(l1);
+            list.add(branch);
+            list.add(l2);
+
+            AsmKit.BooleanStore store = AsmKit.decodeBooleanStore(branch);
+            assertThat(store, instanceOf(AsmKit.FieldStore.class));
+            AsmKit.FieldStore fs = (AsmKit.FieldStore) store;
+            assertThat(fs.polarity(), is(AsmKit.Polarity.NEGATIVE));
+            assertThat(fs.field(), sameInstance(flag));
+            assertThat(fs.receiver(), sameInstance(recv));
+            // IFNE => valueAtFieldFalse is the fallthrough constant (ICONST_1) => true.
+            assertThat(fs.valueAtFieldFalse(), is(true));
+            assertThat(fs.valueStart(), sameInstance(recv));
+        }
+
+        @Test
+        @DisplayName("compiled !flag via IFEQ decodes to NEGATIVE with valueAtFieldFalse = branch const")
+        void negatedBranchIfeq() {
+            InsnList list = new InsnList();
+            VarInsnNode recv = new VarInsnNode(Opcodes.ALOAD, 2);
+            FieldInsnNode flag = new FieldInsnNode(Opcodes.GETFIELD, "State", "hasChest", "Z");
+            LabelNode l1 = new LabelNode();
+            LabelNode l2 = new LabelNode();
+            JumpInsnNode ifeq = new JumpInsnNode(Opcodes.IFEQ, l1);
+            InsnNode fall = new InsnNode(Opcodes.ICONST_0);
+            JumpInsnNode gotoInsn = new JumpInsnNode(Opcodes.GOTO, l2);
+            InsnNode branch = new InsnNode(Opcodes.ICONST_1);
+            list.add(recv);
+            list.add(flag);
+            list.add(ifeq);
+            list.add(fall);
+            list.add(gotoInsn);
+            list.add(l1);
+            list.add(branch);
+            list.add(l2);
+
+            AsmKit.FieldStore fs = (AsmKit.FieldStore) AsmKit.decodeBooleanStore(branch);
+            assertThat(fs.polarity(), is(AsmKit.Polarity.NEGATIVE));
+            // IFEQ => valueAtFieldFalse is the branch-target constant (ICONST_1) => true.
+            assertThat(fs.valueAtFieldFalse(), is(true));
+        }
+
+        @Test
+        @DisplayName("equal-constant branch is not a genuine select - falls back to ConstantStore")
+        void equalConstantBranchFallsBack() {
+            InsnList list = new InsnList();
+            VarInsnNode recv = new VarInsnNode(Opcodes.ALOAD, 1);
+            FieldInsnNode flag = new FieldInsnNode(Opcodes.GETFIELD, "State", "isSheared", "Z");
+            LabelNode l1 = new LabelNode();
+            LabelNode l2 = new LabelNode();
+            JumpInsnNode ifne = new JumpInsnNode(Opcodes.IFNE, l1);
+            InsnNode fall = new InsnNode(Opcodes.ICONST_1);
+            JumpInsnNode gotoInsn = new JumpInsnNode(Opcodes.GOTO, l2);
+            InsnNode branch = new InsnNode(Opcodes.ICONST_1); // same as fall - not a 0/1 pair
+            list.add(recv);
+            list.add(flag);
+            list.add(ifne);
+            list.add(fall);
+            list.add(gotoInsn);
+            list.add(l1);
+            list.add(branch);
+            list.add(l2);
+
+            AsmKit.BooleanStore store = AsmKit.decodeBooleanStore(branch);
+            assertThat(store, instanceOf(AsmKit.ConstantStore.class));
+            assertThat(((AsmKit.ConstantStore) store).value(), is(true));
+            assertThat(store.valueStart(), sameInstance(branch));
+        }
+
+        @Test
+        @DisplayName("ICONST after an unrelated GOTO falls back to ConstantStore")
+        void iconstAfterUnrelatedGoto() {
+            InsnList list = new InsnList();
+            InsnNode noise = new InsnNode(Opcodes.NOP); // not a boolean const
+            LabelNode l = new LabelNode();
+            JumpInsnNode gotoInsn = new JumpInsnNode(Opcodes.GOTO, l);
+            InsnNode iconst = new InsnNode(Opcodes.ICONST_0);
+            list.add(noise);
+            list.add(gotoInsn);
+            list.add(l);
+            list.add(iconst);
+
+            AsmKit.BooleanStore store = AsmKit.decodeBooleanStore(iconst);
+            assertThat(store, instanceOf(AsmKit.ConstantStore.class));
+            assertThat(((AsmKit.ConstantStore) store).value(), is(false));
+        }
+
+        @Test
+        @DisplayName("non-Z GETFIELD and unrelated nodes decode to null")
+        void unrecognisedShapes() {
+            InsnList list = new InsnList();
+            VarInsnNode recv = new VarInsnNode(Opcodes.ALOAD, 1);
+            FieldInsnNode intField = new FieldInsnNode(Opcodes.GETFIELD, "State", "count", "I");
+            list.add(recv);
+            list.add(intField);
+            assertThat(AsmKit.decodeBooleanStore(intField), is(nullValue()));
+            assertThat(AsmKit.decodeBooleanStore(new VarInsnNode(Opcodes.ALOAD, 0)), is(nullValue()));
+        }
+
+        @Test
+        @DisplayName("GETFIELD with no receiver decodes to null")
+        void fieldReadWithoutReceiver() {
+            InsnList list = new InsnList();
+            FieldInsnNode flag = new FieldInsnNode(Opcodes.GETFIELD, "State", "hasChest", "Z");
+            list.add(flag); // first real node, no receiver before it
+            assertThat(AsmKit.decodeBooleanStore(flag), is(nullValue()));
+        }
+
+    }
+
+    @Nested
+    @DisplayName("isBranchInsn")
+    class BranchClassifiers {
+
+        @Test
+        @DisplayName("isBranchInsn flags every terminator opcode")
+        void branchOpcodes() {
+            int[] branches = {
+                Opcodes.IFEQ, Opcodes.IFNE, Opcodes.IF_ICMPGE, Opcodes.IF_ACMPEQ, Opcodes.IF_ACMPNE,
+                Opcodes.GOTO, Opcodes.JSR, Opcodes.IFNULL, Opcodes.IFNONNULL,
+                Opcodes.TABLESWITCH, Opcodes.LOOKUPSWITCH,
+                Opcodes.RETURN, Opcodes.IRETURN, Opcodes.LRETURN, Opcodes.FRETURN,
+                Opcodes.DRETURN, Opcodes.ARETURN, Opcodes.ATHROW
+            };
+            for (int op : branches) assertThat("opcode " + op, AsmKit.isBranchInsn(op), is(true));
+        }
+
+        @Test
+        @DisplayName("isBranchInsn is false for straight-line opcodes")
+        void straightLineOpcodes() {
+            for (int op : new int[]{Opcodes.NOP, Opcodes.ICONST_0, Opcodes.IADD, Opcodes.INVOKESTATIC, Opcodes.GETFIELD, Opcodes.POP})
+                assertThat("opcode " + op, AsmKit.isBranchInsn(op), is(false));
+        }
+
+    }
+
+    @Nested
+    @DisplayName("findBsmHandleByName")
+    class FindBsmHandleByName {
+
+        @Test
+        @DisplayName("returns the bootstrap-arg handle matching the given name")
+        void matchesByName() {
+            Handle target = new Handle(Opcodes.H_INVOKESTATIC, "Owner", "entityCutoutCull", "()Lfoo/RenderType;", false);
+            Handle other = new Handle(Opcodes.H_INVOKESTATIC, "Owner", "somethingElse", "()V", false);
+            InvokeDynamicInsnNode indy = new InvokeDynamicInsnNode("apply", "()Lfoo/Function;",
+                metafactoryBsm(), Type.getMethodType("()V"), other, target);
+
+            assertThat(AsmKit.findBsmHandleByName(indy, "entityCutoutCull"), sameInstance(target));
+            assertThat(AsmKit.findBsmHandleByName(indy, "missing"), is(nullValue()));
+        }
+
+        @Test
+        @DisplayName("returns null when no bootstrap argument is a handle")
+        void noHandleArgs() {
+            InvokeDynamicInsnNode indy = new InvokeDynamicInsnNode("apply", "()V",
+                metafactoryBsm(), Type.getMethodType("()V"));
+            assertThat(AsmKit.findBsmHandleByName(indy, "anything"), is(nullValue()));
+        }
+
+    }
+
+    /**
+     * {@link AsmKit#resolveStaticScalingFactor} recovers a {@code static final} field's literal
+     * single-float factory factor and caches sibling resolutions. An intervening {@code LDC F}
+     * between the {@code scaling(F)} call and the {@code PUTSTATIC} clears the pending scaled value
+     * (the stricter of the two historical walkers, adopted unconditionally after the A/B check
+     * showed no vanilla 26.1 {@code <clinit>} reaches the divergent shape).
+     */
+    @Nested
+    @DisplayName("resolveStaticScalingFactor")
+    class ResolveStaticScalingFactor {
+
+        private static final String FACTORY_OWNER = "Factory";
+        private static final String FACTORY_METHOD = "scaling";
+        private static final String FIELD_DESC = "LFactory;";
+
+        @Test
+        @DisplayName("canonical LDC F; scaling(F); PUTSTATIC resolves to F and caches the hit")
+        void canonicalResolves(@TempDir Path tmp) throws IOException {
+            byte[] bytes = writeScalingFieldClass("Owner", "SCALE", 4.5f, FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC);
+            try (ZipFile zip = makeJar(tmp, Map.of("Owner", bytes))) {
+                Map<String, Float> cache = new HashMap<>();
+                Float r = AsmKit.resolveStaticScalingFactor("Owner", "SCALE",
+                    () -> AsmKit.loadClass(zip, "Owner"), FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC, cache);
+                assertThat(r, equalTo(4.5f));
+
+                // Second call is a cache hit: the loader must not be consulted again.
+                Float cached = AsmKit.resolveStaticScalingFactor("Owner", "SCALE",
+                    () -> { throw new AssertionError("cache miss - loader should not run"); },
+                    FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC, cache);
+                assertThat(cached, equalTo(4.5f));
+            }
+        }
+
+        @Test
+        @DisplayName("missing class and non-matching factory both resolve (and cache) null")
+        void nonCanonicalIsNull(@TempDir Path tmp) throws IOException {
+            byte[] bytes = writeScalingFieldClass("Owner", "SCALE", 4.5f, FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC);
+            try (ZipFile zip = makeJar(tmp, Map.of("Owner", bytes))) {
+                Map<String, Float> cache = new HashMap<>();
+                assertThat(AsmKit.resolveStaticScalingFactor("Nope", "X", () -> null,
+                    FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC, cache), is(nullValue()));
+                assertThat("absence is cached", cache.containsKey("Nope.X"), is(true));
+
+                // A factory-method-name mismatch never sets pendingScaled -> null.
+                assertThat(AsmKit.resolveStaticScalingFactor("Owner", "SCALE",
+                    () -> AsmKit.loadClass(zip, "Owner"), FACTORY_OWNER, "differentMethod", FIELD_DESC,
+                    new HashMap<>()), is(nullValue()));
+            }
+        }
+
+        @Test
+        @DisplayName("an unrelated LDC between scaling and PUTSTATIC clears the pending value -> null")
+        void interveningLdcResolvesNull(@TempDir Path tmp) throws IOException {
+            byte[] bytes = writeScalingWithInterveningLdc("Owner2", "SCALE", 4.5f, 2.0f,
+                FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC);
+            try (ZipFile zip = makeJar(tmp, Map.of("Owner2", bytes))) {
+                assertThat(AsmKit.resolveStaticScalingFactor("Owner2", "SCALE",
+                    () -> AsmKit.loadClass(zip, "Owner2"), FACTORY_OWNER, FACTORY_METHOD, FIELD_DESC,
+                    new HashMap<>()), is(nullValue()));
+            }
+        }
+
+    }
+
     // ============================================================================================
     // Fixture helpers — synthetic ClassWriter bytecode + in-memory jars
     // ============================================================================================
@@ -1849,6 +2174,55 @@ class AsmKitTest {
         mv.visitFieldInsn(Opcodes.PUTSTATIC, enumName, "DEFAULT", fieldDesc);
         mv.visitInsn(Opcodes.RETURN);
         mv.visitMaxs(1, 0);
+        mv.visitEnd();
+        cw.visitEnd();
+        return cw.toByteArray();
+    }
+
+    /**
+     * Emits a class whose {@code <clinit>} is the canonical scaling-field initialiser
+     * {@code LDC F; INVOKESTATIC <factoryOwner>.<factoryMethod>(F)<fieldDesc>; PUTSTATIC <owner>.<field>:<fieldDesc>}
+     * that {@link AsmKit#resolveStaticScalingFactor} recovers.
+     */
+    private static byte[] writeScalingFieldClass(
+        String owner, String field, float value, String factoryOwner, String factoryMethod, String fieldDesc
+    ) {
+        ClassWriter cw = new ClassWriter(0);
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, owner, null, "java/lang/Object", null);
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, field, fieldDesc, null, null).visitEnd();
+        org.objectweb.asm.MethodVisitor mv = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        mv.visitCode();
+        mv.visitLdcInsn(value);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, factoryOwner, factoryMethod, "(F)" + fieldDesc, false);
+        mv.visitFieldInsn(Opcodes.PUTSTATIC, owner, field, fieldDesc);
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitMaxs(1, 0);
+        mv.visitEnd();
+        cw.visitEnd();
+        return cw.toByteArray();
+    }
+
+    /**
+     * Emits a scaling-field {@code <clinit>} where an unrelated {@code LDC F} sits between the
+     * {@code scaling(F)} call and the {@code PUTSTATIC} - the one shape where
+     * {@code resetPendingOnLiteral} changes the result (clears the pending scaled value or not).
+     */
+    private static byte[] writeScalingWithInterveningLdc(
+        String owner, String field, float scaleValue, float interveningValue,
+        String factoryOwner, String factoryMethod, String fieldDesc
+    ) {
+        ClassWriter cw = new ClassWriter(0);
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, owner, null, "java/lang/Object", null);
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, field, fieldDesc, null, null).visitEnd();
+        org.objectweb.asm.MethodVisitor mv = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        mv.visitCode();
+        mv.visitLdcInsn(scaleValue);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, factoryOwner, factoryMethod, "(F)" + fieldDesc, false);
+        mv.visitLdcInsn(interveningValue); // unrelated float pushed after the scaling result
+        mv.visitInsn(Opcodes.POP);         // discard it so the operand stack stays balanced
+        mv.visitFieldInsn(Opcodes.PUTSTATIC, owner, field, fieldDesc);
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitMaxs(2, 0);
         mv.visitEnd();
         cw.visitEnd();
         return cw.toByteArray();

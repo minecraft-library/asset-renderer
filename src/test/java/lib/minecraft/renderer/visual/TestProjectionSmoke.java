@@ -3,11 +3,12 @@ package lib.minecraft.renderer.visual;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.options.BlockOptions;
+import lib.minecraft.renderer.option.BlockOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -82,11 +83,13 @@ public final class TestProjectionSmoke {
             ImageData image = renderer.render(BlockOptions.builder()
                 .blockId(blockId)
                 .type(BlockOptions.Type.ISOMETRIC_3D)
-                .outputSize(size)
-                .supersample(2)
-                .antiAlias(true)
-                .projection(projection)
-                .rotation(rotation)
+                .output(OutputOptions.builder()
+                    .canvasSize(size)
+                    .supersample(2)
+                    .antiAlias(true)
+                    .projection(projection)
+                    .rotation(rotation)
+                    .build())
                 .build());
             File outputFile = outputDir.resolve(name + ".png").toFile();
             ImageIO.write(image.toBufferedImage(), "PNG", outputFile);

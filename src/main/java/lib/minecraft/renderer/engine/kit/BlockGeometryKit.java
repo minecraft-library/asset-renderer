@@ -2,9 +2,9 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
@@ -13,6 +13,7 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.EntityFace;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -120,6 +121,113 @@ public class BlockGeometryKit {
                 face.normal(),
                 glinted
             );
+        }
+
+        return triangles;
+    }
+
+    /**
+     * Builds block-frame triangles directly from a <b>relative</b> bone/cube tree
+     * ({@link EntityModelData}), composing the parent hierarchy through the shared
+     * {@link BoneKit} chain math - the hierarchical counterpart to {@link #buildFromElements},
+     * for block entities whose geometry is stored as a relative bone tree rather than
+     * pre-flattened block elements.
+     * <p>
+     * Each cube is walked with the same entity conventions the {@link EntityGeometryKit} uses -
+     * bone-local origins scaled by the bone's {@code scale}, {@link EntityFace} atlas-UV unwrap
+     * (via {@link BoneKit#resolvePolygonUv}), inflate, mirror, and per-cube / bind-pose
+     * rotation (via {@link BoneKit#composeCubeTransform}) - then emitted in the block engine's
+     * {@code [-0.5, +0.5]} frame by dividing the composed pixel-space position by
+     * {@link #VANILLA_PIXEL_UNITS_PER_BLOCK} and subtracting {@code 0.5}, matching
+     * {@link #buildFromElements}'s normalization. Degenerate plane-cube faces are skipped; plane
+     * cubes render two-sided; the inventory shade is baked via {@link Lighting#inventory}.
+     * <p>
+     * <b>Frame scope:</b> this emits in the bone tree's <b>native</b> orientation (Y-down, no entity
+     * flip, no inventory transform). The per-block-entity presentation transforms - the entity-render
+     * flip, the decomposed {@code inventory_transform} / {@code inventory_y_rotation}, and the iso
+     * pose - are applied downstream at render time (the same knobs that were previously baked into the
+     * block elements at tooling time). So this method is <b>not</b> triangle-identical
+     * to {@code buildFromElements(elements)}; equivalence is a render-parity property validated once
+     * the render path applies those transforms.
+     *
+     * @param model the relative bone/cube model (vanilla Y-down frame)
+     * @param texture the entity texture the cube UVs sample
+     * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
+     * @return the block-frame triangle list, ready for the downstream render transform
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromBones(
+        @NotNull EntityModelData model,
+        @NotNull PixelBuffer texture,
+        int tintArgb
+    ) {
+        return buildFromBones(model, texture, tintArgb, Matrix4f.IDENTITY);
+    }
+
+    /**
+     * {@code presentation}-aware variant of {@link #buildFromBones(EntityModelData, PixelBuffer, int)}
+     * that applies a block-entity presentation transform to each composed cube corner
+     * <b>before</b> the {@code /16 - 0.5} normalization - the same {@code [0, 16]}-space frame the
+     * bake formerly produced at tooling time.
+     * <p>
+     * The presentation reproduces the render-time knobs vanilla's {@code BlockEntityRenderer}
+     * applies around the bone geometry: the entity-render {@code scale(-1, -1, 1)} flip (or a
+     * decomposed {@code inventory_transform}), then the inventory yaw about block centre
+     * {@code (8, 8, 8)} that faces the model at the standard {@code [30, 225, 0]} iso pose (the
+     * chest's baked {@code +180}). Since the bone chain, the presentation, and the normalization all
+     * live in the same {@code [0, 16]} frame, this stays byte-compatible with the block element path
+     * a caller would otherwise build.
+     *
+     * @param model the relative bone/cube model (vanilla Y-down frame)
+     * @param texture the entity texture the cube UVs sample
+     * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
+     * @param presentation the {@code [0, 16]}-space model-to-block transform applied after the bone
+     *     chain and before normalization, or {@link Matrix4f#IDENTITY} for the native frame
+     * @return the block-frame triangle list, ready for the downstream render transform
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromBones(
+        @NotNull EntityModelData model,
+        @NotNull PixelBuffer texture,
+        int tintArgb,
+        @NotNull Matrix4f presentation
+    ) {
+        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        Map<String, Matrix4f> chains = BoneKit.buildChainTransforms(model.getBones());
+        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
+        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
+
+        for (Map.Entry<String, EntityModelData.Bone> boneEntry : model.getBones().entrySet()) {
+            EntityModelData.Bone bone = boneEntry.getValue();
+            Matrix4f boneChain = chains.get(boneEntry.getKey());
+            float s = bone.getScale();
+            for (EntityModelData.Cube cube : bone.getCubes()) {
+                Vector3f size = cube.getSize();
+                Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
+                // Column-vector chain: cubeTransform (the bone chain) applies first to a cube corner,
+                // then presentation (flip / inventory transform / inventory yaw) in the same [0, 16]
+                // block frame; the /16 - 0.5 normalization below matches buildFromElements.
+                Matrix4f cubeTransform = presentation.multiply(BoneKit.composeCubeTransform(cube, bone, boneChain));
+                boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
+
+                for (EntityFace face : EntityFace.CACHED_VALUES) {
+                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
+                    Vector3f[] corners = face.corners(cubeBounds);
+                    for (int i = 0; i < corners.length; i++) {
+                        Vector3f t = corners[i].transform(cubeTransform);
+                        corners[i] = new Vector3f(
+                            t.x() / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
+                            t.y() / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
+                            t.z() / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f);
+                    }
+                    Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
+                    Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
+                    boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
+                    addQuad(triangles,
+                        corners[0], corners[1], corners[2], corners[3],
+                        uv[0], uv[1], uv[2], uv[3],
+                        texture, tintArgb, normal,
+                        !isPlaneCube, translucent, true, false);
+                }
+            }
         }
 
         return triangles;
@@ -344,7 +452,7 @@ public class BlockGeometryKit {
                 // translucent layers (honey_block's #down outer over its #up inner) emits them in
                 // model order, which can be front-to-back; without the sort the farther inner face
                 // is depth-rejected and only one layer blends instead of vanilla's two.
-                boolean translucent = faceHasPartialAlpha(uv, texture);
+                boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
                 addQuad(
                     triangles,
                     corners[0], corners[1], corners[2], corners[3],
@@ -503,54 +611,7 @@ public class BlockGeometryKit {
         addQuad(out,
             topLeft, bottomLeft, bottomRight, topRight,
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            texture, tintArgb, normal, glinted);
-    }
-
-    /**
-     * Adds two triangles describing a quad with explicit UV corners. The vertex and UV order
-     * follow the same CCW (top-left, bottom-left, bottom-right, top-right) convention as the
-     * no-UV overload, matching vanilla's {@code FaceInfo} vertex order.
-     */
-    private static void addQuad(
-        @NotNull ConcurrentList<VisibleTriangle> out,
-        @NotNull Vector3f topLeft,
-        @NotNull Vector3f bottomLeft,
-        @NotNull Vector3f bottomRight,
-        @NotNull Vector3f topRight,
-        @NotNull Vector2f uvTL,
-        @NotNull Vector2f uvBL,
-        @NotNull Vector2f uvBR,
-        @NotNull Vector2f uvTR,
-        @NotNull PixelBuffer texture,
-        int tintArgb,
-        @NotNull Vector3f normal,
-        boolean glinted
-    ) {
-        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, true, glinted);
-    }
-
-    /**
-     * Adds a quad with explicit UV corners and an explicit back-face cull flag, defaulting to
-     * opaque ({@code translucent == false}) and directional ({@code directionalLight == true})
-     * shading. Delegates to the terminal overload.
-     */
-    private static void addQuad(
-        @NotNull ConcurrentList<VisibleTriangle> out,
-        @NotNull Vector3f topLeft,
-        @NotNull Vector3f bottomLeft,
-        @NotNull Vector3f bottomRight,
-        @NotNull Vector3f topRight,
-        @NotNull Vector2f uvTL,
-        @NotNull Vector2f uvBL,
-        @NotNull Vector2f uvBR,
-        @NotNull Vector2f uvTR,
-        @NotNull PixelBuffer texture,
-        int tintArgb,
-        @NotNull Vector3f normal,
-        boolean cullBackFaces,
-        boolean glinted
-    ) {
-        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, cullBackFaces, false, true, glinted);
+            texture, tintArgb, normal, true, false, true, glinted);
     }
 
     /**
@@ -596,35 +657,6 @@ public class BlockGeometryKit {
         SurfaceTraits traits = new SurfaceTraits(cullBackFaces, false, translucent, glinted);
         out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, traits, null));
         out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, traits, null));
-    }
-
-    /**
-     * Returns whether the texels under a face's UV rectangle include any partially transparent
-     * sample ({@code 0 < alpha < 255}), the signal vanilla uses to route a block to the translucent
-     * chunk layer (glass, ice, slime / honey shells). Mirrors the entity kit's per-cube detection;
-     * fully opaque ({@code alpha == 255}) and pure-cutout ({@code alpha == 0}) faces stay
-     * {@code false} so opaque and alpha-tested blocks keep their plain emission-order rasterization.
-     */
-    private static boolean faceHasPartialAlpha(@NotNull Vector2f @NotNull [] uv, @NotNull PixelBuffer texture) {
-        int w = texture.width();
-        int h = texture.height();
-        float minU = Float.MAX_VALUE, minV = Float.MAX_VALUE, maxU = -Float.MAX_VALUE, maxV = -Float.MAX_VALUE;
-        for (Vector2f c : uv) {
-            minU = Math.min(minU, c.x());
-            maxU = Math.max(maxU, c.x());
-            minV = Math.min(minV, c.y());
-            maxV = Math.max(maxV, c.y());
-        }
-        int x0 = Math.max(0, (int) Math.floor(minU * w));
-        int y0 = Math.max(0, (int) Math.floor(minV * h));
-        int x1 = Math.min(w, (int) Math.ceil(maxU * w));
-        int y1 = Math.min(h, (int) Math.ceil(maxV * h));
-        for (int y = y0; y < y1; y++)
-            for (int x = x0; x < x1; x++) {
-                int a = ColorMath.alpha(texture.getPixel(x, y));
-                if (a > 0 && a < 255) return true;
-            }
-        return false;
     }
 
 }

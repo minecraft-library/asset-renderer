@@ -74,8 +74,9 @@ import java.util.zip.ZipFile;
  *       {@code PartPose.offset} pivot Y literals. When the largest pivot y falls in the
  *       {@code [8, 16)} half-block band (raw block-space authoring above the floor - chest at
  *       {@code (0, 9, 1)}, bell at {@code (8, 12, 8)}) the method is {@link YAxis#UP};
- *       otherwise it's {@link YAxis#DOWN} (the standard ModelPart convention). The Parser
- *       Y-flips {@code UP} sources into the canonical {@code DOWN} form before emission.</li>
+ *       otherwise it's {@link YAxis#DOWN} (the standard ModelPart convention). The tag travels
+ *       with the emitted bones in their native frame; the render presentation applies the
+ *       source-to-block Y orientation (nothing is pre-flipped at tooling time).</li>
  * </ul>
  */
 @UtilityClass
@@ -93,9 +94,10 @@ public final class SourceDiscovery {
      * [30, 225, 0] isometric gui pose (vanilla's chest/banner/skull items use [30, 45, 0],
      * a 180 degrees delta).
      *
-     * <p>This is the <b>canonical</b> source. The actual rotation is baked into
-     * {@code block_models.json}'s {@code elements} by {@code BlockModelConverter}, which
-     * reads {@code parsedEntity.inventory_y_rotation} - itself populated from this map by
+     * <p>This is the <b>canonical</b> source. The value rides through the parse as
+     * {@code parsedEntity.inventory_y_rotation}, re-emitted per block entity by
+     * {@code ToolingBlockModels} and applied at render time by {@code BlockRenderer}'s
+     * block-entity presentation (the yaw about block centre); it is populated from this map by
      * the source-walk emission in {@link #emitSourcesFor}. Generalising to a bytecode scan of
      * {@code BlockEntityRenderer.modelTransformation} is future work.
      */

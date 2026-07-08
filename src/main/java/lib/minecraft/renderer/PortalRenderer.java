@@ -1,6 +1,5 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
@@ -10,13 +9,13 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.FinalizeStage;
-import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.compose.Finalize;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.SixFaces;
-import lib.minecraft.renderer.options.PortalOptions;
+import lib.minecraft.renderer.option.PortalOptions;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -42,8 +41,8 @@ import java.util.stream.IntStream;
  * The parallax loop is transcribed verbatim from the {@code .fsh} (including the {@code COLORS}
  * table, {@code SCALE_TRANSLATE} / per-layer {@code translate} / {@code scale*rotate} matrices,
  * and the {@code textureProj}-style divide-by-w). Animation is driven by the shader's
- * {@code GameTime} uniform, fed in from {@link PortalOptions#getStartTick()} and advancing by
- * {@link PortalOptions#getTicksPerFrame()} per output frame; static renders use {@code time = 0}.
+ * {@code GameTime} uniform, fed in from {@link AnimationOptions#getStartTick()} and advancing by
+ * {@link AnimationOptions#getTicksPerFrame()} per output frame; static renders use {@code time = 0}.
  * <p>
  * Scene-aware concerns (fog, additive translucent blending against the underlying block, view-
  * dependent parallax from the observer's camera) are deliberately out of scope - the bake treats
@@ -64,7 +63,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
     /**
      * Fixed real-time playback delay per output frame, in milliseconds. {@code 50ms = 20 FPS}.
-     * Decoupled from {@link PortalOptions#getTicksPerFrame()} so the animation speed knob
+     * Decoupled from {@link AnimationOptions#getTicksPerFrame()} so the animation speed knob
      * doesn't stretch the GIF's wall-clock playback length; the shader's {@code GameTime} is a
      * continuous day-cycle fraction so coupling sim rate to playback rate has no natural
      * semantics (unlike {@link FluidRenderer}'s tick-aligned animation strip).
@@ -399,14 +398,14 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
-     * Computes the number of bridge frames to bake on top of {@link PortalOptions#getFrameCount}
+     * Computes the number of bridge frames to bake on top of {@link AnimationOptions#getFrameCount}
      * for the seamless-loop crossfade. Returns {@code 0} when the feature is disabled or the
      * animation is too short to blend meaningfully.
      */
     private static int bridgeFrameCount(@NotNull PortalOptions options) {
-        int total = options.getFrameCount();
+        int total = options.getAnimation().getFrameCount();
         if (total < 3) return 0;
-        float bridge = options.getLoopFadeBridgePct();
+        float bridge = options.getAnimation().getLoopFadeBridgePct();
         if (bridge <= 0f) return 0;
         return Math.clamp(Math.round(bridge * total), 0, total - 1);
     }
@@ -484,6 +483,47 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
+     * Assembles a portal render through the shared {@link Finalize} pipeline. A single static frame at
+     * {@link AnimationOptions#getStartTick()} when {@code frameCount <= 1}, otherwise a seamless-loop
+     * strip: it bakes {@code frameCount + bridge} frames via {@link Finalize#renderStrip} and hands that
+     * pipeline a post-processor that applies the {@link #applyBridgeCrossfade crossfade} and trims the
+     * bridge frames. Frame baking + wrapping live in {@link Finalize}; only the portal-specific
+     * loop-crossfade stays here. Both sub-renderers share this loop, differing only in {@code raster}.
+     *
+     * @param options the render options supplying animation timing
+     * @param ssaa the supersample factor for the shared tail ({@code 1} for the flat 2D path)
+     * @param antiAlias whether the shared tail applies FXAA
+     * @param raster draws one portal frame at a tick into the target buffer
+     * @return the finished static frame or animation strip
+     */
+    private static @NotNull ImageData renderAnimated(
+        @NotNull PortalOptions options,
+        int ssaa,
+        boolean antiAlias,
+        @NotNull Finalize.FrameRasterizer raster
+    ) {
+        int size = options.getOutput().getCanvasSize();
+        int startTick = options.getAnimation().getStartTick();
+        int ticksPerFrame = options.getAnimation().getTicksPerFrame();
+        int outputCount = options.getAnimation().getFrameCount();
+        if (outputCount <= 1)
+            return Finalize.render(
+                Finalize.FinalizeSpec.animated(size, size, ssaa, antiAlias, 1, startTick, ticksPerFrame, FRAME_DELAY_MS),
+                raster);
+
+        int bridge = bridgeFrameCount(options);
+        int bakeCount = outputCount + bridge;
+        return Finalize.renderStrip(
+            Finalize.FinalizeSpec.animated(size, size, ssaa, antiAlias, bakeCount, startTick, ticksPerFrame, FRAME_DELAY_MS),
+            raster,
+            frames -> {
+                applyBridgeCrossfade(frames, outputCount, bridge);
+                trimBridgeFrames(frames, outputCount);
+                return frames;
+            });
+    }
+
+    /**
      * Full 3D isometric portal renderer. Builds geometry via {@link BlockGeometryKit} and rasterizes
      * through {@link Projection#VANILLA_ISO}'s standard {@code [30, 225, 0]} pose by default. {@code END_GATEWAY}
      * renders as a unit cube with the baked face on all 6 sides; {@code END_PORTAL} renders as a
@@ -498,69 +538,50 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
-            if (options.getFrameCount() <= 1)
-                return Frames.staticFrame(renderFrame(options, options.getStartTick()));
-
-            int outputCount = options.getFrameCount();
-            int bridge = bridgeFrameCount(options);
-            int bakeCount = outputCount + bridge;
-
-            ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-            for (int f = 0; f < bakeCount; f++) {
-                int tick = options.getStartTick() + f * options.getTicksPerFrame();
-                frames.add(renderFrame(options, tick));
-            }
-            applyBridgeCrossfade(frames, outputCount, bridge);
-            trimBridgeFrames(frames, outputCount);
-            return Frames.wrapFrames(frames, FRAME_DELAY_MS);
+            int ssaa = Math.max(1, options.getOutput().getSupersample());
+            return renderAnimated(options, ssaa, options.getOutput().isAntiAlias(),
+                (target, ignoredMask, tick) -> rasterizeFrame(options, tick, target));
         }
 
         /**
-         * Renders one 3D isometric portal frame at the given game tick: resolves the projection, bakes
-         * the parallax shader once at raster resolution as a screen-space canvas, rasterizes the cube /
-         * slab with a white sampler to capture per-face shading, then composes shader &times; shading into
-         * the output.
+         * Draws one 3D isometric portal frame at the given game tick into {@code target}: resolves the
+         * projection, bakes the parallax shader once at the target (raster) resolution as a screen-space
+         * canvas, rasterizes the cube / slab with a white sampler to capture per-face shading, then
+         * composes shader &times; shading into {@code target}. The shared {@link Finalize} tail owns the
+         * supersample / FXAA / downscale around this draw, so {@code target} is the hi-res buffer when
+         * supersampling.
          *
          * @param options the render options
          * @param tick the vanilla game tick driving the shader's {@code GameTime}
-         * @return the finished frame buffer
+         * @param target the buffer to draw the frame into
          */
-        private @NotNull PixelBuffer renderFrame(@NotNull PortalOptions options, int tick) {
+        private void rasterizeFrame(@NotNull PortalOptions options, int tick, @NotNull PixelBuffer target) {
             // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
             // poses the camera directly and the rasterize call applies no separate model-spin. Default
             // renders pass EulerRotation.NONE, leaving the byte-identical base block-icon pose.
-            var resolved = options.getProjection().resolve(options.getRotation(), options.getFacing());
+            var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
             ModelEngine engine = new ModelEngine(this.context, resolved);
-            Textures textures = new Textures(this.context);
-            PixelBuffer endSky = textures.resolveTexture(END_SKY_TEXTURE_ID);
-            PixelBuffer endPortalNoise = textures.resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
+            PixelBuffer endSky = engine.textures().resolveTexture(END_SKY_TEXTURE_ID);
+            PixelBuffer endPortalNoise = engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
 
-            int ssaa = Math.max(1, options.getSupersample());
-            int hiRes = options.getOutputSize() * ssaa;
-
-            // Pass 1: bake the parallax shader once at the raster resolution. This is the
+            // Pass 1: bake the parallax shader once at the target (raster) resolution. This is the
             // "screen-space canvas" - every output pixel that lands on the cube samples this single
             // buffer at its own screen position, not a per-face UV, so adjacent cube edges converge
             // on identical shader output and the starfield is seamless across faces.
             PixelBuffer shaderCanvas = applyTintIfNeeded(
-                bakeFace(options.getPortal(), tick, endSky, endPortalNoise, hiRes), resolveTint(options));
+                bakeFace(options.getPortal(), tick, endSky, endPortalNoise, target.width()), resolveTint(options));
 
             // Pass 2: rasterize the cube with a uniform-white sampler so each pixel's red channel is
-            // the per-face shading coefficient * 255, compose shader * mask into the target, then FXAA
-            // + downscale via the shared FinalizeStage. The shading mask is scope-local pooled scratch.
+            // the per-face shading coefficient * 255, then compose shader * mask into the target. The
+            // shading mask is scope-local pooled scratch.
             PixelBuffer white = PixelBuffer.create(1, 1);
             white.setPixel(0, 0, ColorMath.WHITE);
             ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), SixFaces.uniform(white));
-
-            return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, ignoredMask) -> {
-                    try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(target.width(), target.height())) {
-                        PixelBuffer shadingMask = maskLease.buffer();
-                        engine.rasterize(triangles, shadingMask);
-                        composeShaderMask(target, shadingMask, shaderCanvas, target.width());
-                    }
-                },
-                (buffer, ignoredMask) -> buffer);
+            try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(target.width(), target.height())) {
+                PixelBuffer shadingMask = maskLease.buffer();
+                engine.rasterize(triangles, shadingMask);
+                composeShaderMask(target, shadingMask, shaderCanvas, target.width());
+            }
         }
 
         /**
@@ -625,38 +646,28 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
-            if (options.getFrameCount() <= 1)
-                return Frames.staticFrame(renderFrame(options, options.getStartTick()));
-
-            int outputCount = options.getFrameCount();
-            int bridge = bridgeFrameCount(options);
-            int bakeCount = outputCount + bridge;
-
-            ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-            for (int f = 0; f < bakeCount; f++) {
-                int tick = options.getStartTick() + f * options.getTicksPerFrame();
-                frames.add(renderFrame(options, tick));
-            }
-            applyBridgeCrossfade(frames, outputCount, bridge);
-            trimBridgeFrames(frames, outputCount);
-            return Frames.wrapFrames(frames, FRAME_DELAY_MS);
+            // Flat 2D bake: no supersample / FXAA (ssaa = 1, antiAlias = false), matching FluidFace2D.
+            return renderAnimated(options, 1, false,
+                (target, ignoredMask, tick) -> rasterizeFrame(options, tick, target));
         }
 
         /**
-         * Renders one flat portal-face frame at the given game tick: bakes the parallax sprite at the
-         * output size and applies the optional tint override.
+         * Draws one flat portal-face frame at the given game tick into {@code target}: bakes the
+         * parallax sprite at the target size, applies the optional tint override, and blits it into
+         * {@code target}.
          *
          * @param options the render options
          * @param tick the vanilla game tick driving the shader's {@code GameTime}
-         * @return the baked (and optionally tinted) frame buffer
+         * @param target the buffer to draw the frame into
          */
-        private @NotNull PixelBuffer renderFrame(@NotNull PortalOptions options, int tick) {
+        private void rasterizeFrame(@NotNull PortalOptions options, int tick, @NotNull PixelBuffer target) {
             RasterEngine engine = new RasterEngine(this.context);
             PixelBuffer endSky = engine.textures().resolveTexture(END_SKY_TEXTURE_ID);
             PixelBuffer endPortalNoise = engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
 
-            PixelBuffer baked = bakeFace(options.getPortal(), tick, endSky, endPortalNoise, options.getOutputSize());
-            return applyTintIfNeeded(baked, resolveTint(options));
+            PixelBuffer baked = applyTintIfNeeded(
+                bakeFace(options.getPortal(), tick, endSky, endPortalNoise, target.width()), resolveTint(options));
+            target.blitScaled(baked, 0, 0, target.width(), target.height());
         }
 
     }

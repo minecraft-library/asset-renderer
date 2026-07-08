@@ -41,9 +41,9 @@ import java.util.zip.ZipFile;
  * conduit / sign / hanging_sign / banner variants. The sole exception is
  * {@code minecraft:skull_dragon_head}, whose distinguishing {@code tz = 1.25} comes from the
  * {@code DragonHeadModel} geometry rather than the shared {@code SkullBlockRenderer} factory
- * method. The decomposer emits the shared skull tuple for dragon heads; the
- * {@code recenterInventoryTransformsByBbox} geometry-aware post-pass in
- * {@code ToolingBlockModels} recovers the {@code tz = 1.25} from the parsed cube bbox.
+ * method. The decomposer emits the shared skull tuple for dragon heads; the dragon head's
+ * off-centre depth is recovered at render time by {@code BlockRenderer.recenterAndFit}, which
+ * re-centres the composed bone geometry regardless of the inventory-transform {@code tz}.
  *
  * <p><b>Policy</b>. The only hand-curated map is {@link #RENDERER_ENTRY_METHODS}: for each
  * renderer class internal name, the factory method (or static field prefixed
@@ -220,13 +220,13 @@ public final class InventoryTransformDecomposer {
      *
      * <p>A block entity whose item icon is a {@code minecraft:special} renderer authored in the
      * entity convention (head-down, mirrored) carries a {@code display.gui} <b>roll of 180</b> -
-     * the {@code scale(-1, -1, 1)} flip expressed as a Z rotation - which the
-     * {@code BlockModelConverter} reproduces as the {@code cx = -cx} / {@code cy = -cy} pair (see
-     * {@code CubeTransform#applyChain}). The chest's icon, by contrast, carries roll {@code 0} and
-     * a real yaw difference (its {@code display.gui} is {@code [30, 45, 0]}, yaw 45 vs the standard
-     * 225) that the converter already handles via {@code inventory_y_rotation}, so it must NOT get
-     * the {@code cx} flip. Returning the flip keyed on the resolved roll lets the converter drop
-     * the incidental {@code invYRot == 0} proxy it used before.
+     * the {@code scale(-1, -1, 1)} flip expressed as a Z rotation - which the render-time
+     * presentation reproduces via its {@code entity_flip} gate (the {@code scale(-1, -1, 1)}
+     * branch of {@code BlockRenderer}'s block-entity presentation). The chest's icon, by
+     * contrast, carries roll {@code 0} and a real yaw difference (its {@code display.gui} is
+     * {@code [30, 45, 0]}, yaw 45 vs the standard 225) that the presentation already handles via
+     * {@code inventory_y_rotation}, so it must NOT get the flip. Returning the flip keyed on the
+     * resolved roll lets the emitter drop the incidental {@code invYRot == 0} proxy it used before.
      *
      * <p>Resolution follows the item model chain: {@code items/<id>.json} &rarr; the
      * {@code minecraft:select} fallback case &rarr; the {@code minecraft:special} {@code base}

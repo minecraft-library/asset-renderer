@@ -2,7 +2,7 @@ package lib.minecraft.renderer.visual;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.engine.kit.RedstoneKit;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -30,7 +30,7 @@ import javax.imageio.ImageIO;
  * override on bottom) into {@code cache/visual/redstone-tints/swatch.png}.
  * <p>
  * If the wiring is broken, the override row equals the vanilla row and the visual mismatch is
- * immediate. The companion {@code RedstoneKitTest} pins the same path with strict pixel
+ * immediate. The companion {@code RedstoneTintTest} pins the same path with strict pixel
  * assertions in the regular test suite.
  * <p>
  * Usage: {@code ./gradlew :asset-renderer:redstoneTints [-PrenderSize=64]}
@@ -156,11 +156,11 @@ public final class TestRedstoneTints {
                 g.setColor(Color.LIGHT_GRAY);
                 g.drawString(label, labelX, powerY + (labelStrip + lm.getAscent()) / 2 - 2);
 
-                int vanillaArgb = RedstoneKit.resolve(vanilla, power);
+                int vanillaArgb = new Textures(vanilla).sampleRedstoneTint(power);
                 g.setColor(new Color(vanillaArgb, true));
                 g.fillRect(power * size, vanillaCellsY, size, size);
 
-                int overrideArgb = RedstoneKit.resolve(withOverrides, power);
+                int overrideArgb = new Textures(withOverrides).sampleRedstoneTint(power);
                 g.setColor(new Color(overrideArgb, true));
                 g.fillRect(power * size, overrideY, size, size);
             }
@@ -176,7 +176,7 @@ public final class TestRedstoneTints {
     }
 
     /**
-     * The same HSV gradient used by {@code RedstoneKitTest.syntheticOverrideForPower} so the
+     * The same HSV gradient used by {@code RedstoneTintTest.syntheticOverrideForPower} so the
      * visual and the unit test agree on the expected override values.
      */
     private static int syntheticOverrideForPower(int power) {

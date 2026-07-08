@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * The fully-resolved block or item model parsed from a vanilla JSON file under
@@ -18,19 +17,13 @@ import java.util.Optional;
  * has been walked and deep-merged so the textures map and elements list already contain everything
  * needed to render. No lazy resolution happens at render time.
  * <p>
- * Block and item models share the same shape ({@code parent}, {@code textures}, {@code elements},
+ * Block and item models share the same shape ({@code textures}, {@code elements},
  * {@code display}); the two domain-specific flags ({@link #ambientocclusion} for blocks,
  * {@link #guiLight3D} for items) default such that each is a no-op for the other domain's models.
  */
 @Getter
 @NoArgsConstructor
 public class ModelData {
-
-    /**
-     * The optional parent model identifier. Populated only for introspection / debugging after
-     * the resolver has already merged its contents into this instance.
-     */
-    private @NotNull Optional<String> parent = Optional.empty();
 
     /**
      * Whether the model should receive ambient occlusion during rendering. Defaults to
@@ -66,7 +59,6 @@ public class ModelData {
         ModelData that = (ModelData) o;
         return ambientocclusion == that.ambientocclusion
             && guiLight3D == that.guiLight3D
-            && Objects.equals(parent, that.parent)
             && Objects.equals(textures, that.textures)
             && Objects.equals(elements, that.elements)
             && Objects.equals(display, that.display);
@@ -74,7 +66,7 @@ public class ModelData {
 
     @Override
     public int hashCode() {
-        return Objects.hash(parent, ambientocclusion, textures, elements, display, guiLight3D);
+        return Objects.hash(ambientocclusion, textures, elements, display, guiLight3D);
     }
 
 }
