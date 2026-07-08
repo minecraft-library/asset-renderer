@@ -700,8 +700,10 @@ public class ModelEngine {
             // for entities); the rasterizer just multiplies it in.
             float shading = t.source.shading();
             // Hoist the surface traits once per triangle; the per-pixel loop below reads
-            // emissive/glinted off this local so the deref stays out of the hot path.
+            // emissive/glinted/blend/alpha off this local so the deref stays out of the hot path.
             SurfaceTraits tr = t.source.traits();
+            BlendMode blendMode = tr.blend();
+            float alphaScale = tr.alpha();
 
             // Pineda incremental edge functions. Hoist the edge value computation to the
             // bbox top-left, then walk by stepX per pixel in X and stepY per pixel in Y. Per-
@@ -771,14 +773,21 @@ public class ModelEngine {
                     int afterShade = tr.emissive()
                         ? afterTint
                         : Shading.apply(afterTint, shading);
-                    // Both emissive and non-emissive overlays composite with NORMAL (source-over
-                    // alpha), matching vanilla's TRANSLUCENT blend - NOT additive. The emissive path
-                    // differs only in the skipped shade (above) + strict-LT depth (see depthFails),
-                    // not the colour composition. (An earlier ADD produced enderman eye
-                    // (255,144,255) vs vanilla's pure (204,0,250).)
-                    BlendMode blendMode = BlendMode.NORMAL;
-
-                    int outArgb = ColorMath.blend(afterShade, buffer.getPixel(px, py), blendMode);
+                    // Per-overlay opacity multiplier: scale the fragment's alpha before compositing.
+                    // Default 1.0 (no-op) for every body / cutout / texture-alpha surface; only an
+                    // overlay declaring an explicit alpha node (the warden pulsating-spots glow at
+                    // 0.25) reduces it. A fractional layer opacity has no home in the overlay tint's
+                    // alpha byte - the MULTIPLY tint blend keeps the texel's alpha - so it rides this
+                    // dedicated path.
+                    int afterAlpha = alphaScale == 1f
+                        ? afterShade
+                        : ColorMath.withAlpha(afterShade, Math.round(ColorMath.alpha(afterShade) * alphaScale));
+                    // Colour composition is per-overlay (hoisted above): NORMAL source-over for
+                    // bodies / eyes / texture-alpha shells (matching vanilla's TRANSLUCENT fragment
+                    // blend), ADD for the additive energy-swirl glow (creeper / wither). NORMAL is the
+                    // default - only an overlay declaring `blend: additive` moves; eyes stay NORMAL (an
+                    // earlier blanket ADD produced enderman eye (255,144,255) vs vanilla's (204,0,250)).
+                    int outArgb = ColorMath.blend(afterAlpha, buffer.getPixel(px, py), blendMode);
                     buffer.setPixel(px, py, outArgb);
                     // Mark the glint mask wherever a glinted (armor) fragment wins the pixel, so the
                     // foil compositor restricts the enchantment glint to the armor. Uses absolute

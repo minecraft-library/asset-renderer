@@ -597,7 +597,7 @@ public final class EntityRuntimeJsonWriter {
                     // Overlays sharing the base geometry need a microscopic outward inflate to clear
                     // ModelEngine's equal-Z depth-fail, else they land on the lit skin texel's depth.
                     boolean sharesBaseGeometry = desc.modelLayerField() == null;
-                    overlaysJson.add(ToolingJson.object()
+                    ToolingJson.Node overlayNode = ToolingJson.object()
                         .put("geometry_ref", overlayGeometryId)
                         // A texture_by overlay whose axis has a "none" default (iron golem crackiness)
                         // bakes no default texture - the render axis supplies it. Skip texture_ref so
@@ -622,7 +622,23 @@ public final class EntityRuntimeJsonWriter {
                         .putIf(desc.inflate() != 0f, "inflate", desc.inflate())
                         .putIf(desc.inflate() == 0f && sharesBaseGeometry, "inflate", 0.001f)
                         .putIf(desc.skipBounds(), "skip_bounds", true)
-                        .build());
+                        // blend: the overlay's exact vanilla colour composition - "additive" (energy
+                        // swirl) or "translucent" (slime shell). Skipped for the default source-over
+                        // "normal" so every un-annotated overlay stays byte-identical.
+                        .putIfNotNull("blend", desc.blend())
+                        // alpha: a fractional per-fragment opacity multiplier (warden pulsating spots
+                        // 0.25). Skipped at the 1.0 default (a value the tint's alpha byte can't carry).
+                        .putIf(desc.alpha() != 1f, "alpha", desc.alpha());
+                    // retain_bones: the vanilla retainExactParts subset (warden pulsating spots)
+                    // restricting the shared mesh; emitted only when the overlay declares one so the
+                    // full-mesh overlays stay byte-identical.
+                    List<String> retainBones = desc.retainBones();
+                    if (retainBones != null && !retainBones.isEmpty()) {
+                        JsonArray retain = new JsonArray();
+                        for (String bone : retainBones) retain.add(bone);
+                        overlayNode.add("retain_bones", retain);
+                    }
+                    overlaysJson.add(overlayNode.build());
                 }
                 if (!overlaysJson.isEmpty()) row.add("overlays", overlaysJson);
             }

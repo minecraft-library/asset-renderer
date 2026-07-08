@@ -412,9 +412,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                             ? ctx.textures().resolveEntityTexture(overlayRef.get())
                             : Optional.of(ctx.baseTexture());
                         if (overlayTex.isEmpty()) return;
-                        sink.addAll(EntityGeometryKit.buildTriangles(
-                            overlay.model(), overlayTex.get(), ctx.modelAnchor(), overlay.emissive(),
-                            ctx.ndcScale(), ctx.modelScale(), overlayTint).triangles());
+                        // The overlay's declared blend / alpha (default NORMAL / 1.0) ride onto every
+                        // emitted triangle via EntityBuildParams - the additive energy-swirl glow and
+                        // the warden pulsating-spots opacity multiplier; every un-annotated overlay
+                        // keeps the source-over full-opacity default.
+                        sink.addAll(EntityGeometryKit.buildTriangles(overlay.model(), overlayTex.get(),
+                            new EntityGeometryKit.EntityBuildParams(ctx.modelAnchor(), overlay.emissive(),
+                                ctx.ndcScale(), ctx.modelScale(), overlayTint, overlay.blend(), overlay.alpha())
+                        ).triangles());
                     });
                 }
             }

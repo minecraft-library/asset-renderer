@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
@@ -149,14 +150,42 @@ public class EntityGeometryKit {
      *     combined renderer-scale + state-scale chain)
      * @param tintArgb ARGB tint multiplied into every sampled texel; {@link ColorMath#WHITE}
      *     ({@code 0xFFFFFFFF}) is a no-op tint
+     * @param blend the colour-composition mode baked onto every emitted triangle -
+     *     {@link BlendMode#NORMAL} source-over (the default for bodies / cutout / texture-alpha
+     *     overlays) or {@link BlendMode#ADD} for an additive-glow overlay (creeper / wither energy
+     *     swirl declaring {@code blend: additive})
+     * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} baked onto every emitted
+     *     triangle - {@code 1.0} (no-op) except for an overlay declaring an explicit {@code alpha}
+     *     node (the warden pulsating-spots glow at {@code 0.25})
      */
     public record EntityBuildParams(
         @NotNull Vector3f centreAnchor,
         boolean emissive,
         float ndcScale,
         float modelScale,
-        int tintArgb
-    ) {}
+        int tintArgb,
+        @NotNull BlendMode blend,
+        float alpha
+    ) {
+        /**
+         * Constructs build params compositing with the standard {@link BlendMode#NORMAL source-over}
+         * blend at full opacity - the default for every base body / cutout / texture-alpha overlay.
+         * Only an overlay declaring an explicit {@code blend} / {@code alpha} node uses the canonical
+         * seven-argument constructor, so every other call site stays byte-identical to the
+         * pre-blend-node pipeline.
+         *
+         * @param centreAnchor model-space point that maps to the canvas centre
+         * @param emissive whether every emitted triangle renders full-bright
+         * @param ndcScale model-units-to-NDC scale applied after centring
+         * @param modelScale per-render vertex pre-scale folded in before the NDC scale
+         * @param tintArgb ARGB tint multiplied into every sampled texel
+         */
+        public EntityBuildParams(
+            @NotNull Vector3f centreAnchor, boolean emissive, float ndcScale, float modelScale, int tintArgb
+        ) {
+            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, BlendMode.NORMAL, 1f);
+        }
+    }
 
     /**
      * Convenience overload that auto-computes bounds and the legacy auto-fit scale
@@ -231,6 +260,8 @@ public class EntityGeometryKit {
         float scale = params.ndcScale();
         float modelScale = params.modelScale();
         int tintArgb = params.tintArgb();
+        BlendMode blend = params.blend();
+        float alpha = params.alpha();
 
         Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
 
@@ -356,14 +387,14 @@ public class EntityGeometryKit {
                         effUv[0], effUv[1], effUv[2],
                         texture, tintArgb,
                         normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false), debugTag
+                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha), debugTag
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[2], corners[3],
                         effUv[0], effUv[2], effUv[3],
                         texture, tintArgb,
                         normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false), debugTag
+                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha), debugTag
                     ));
                 }
             }

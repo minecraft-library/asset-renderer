@@ -439,7 +439,8 @@
           "texture_ref": "creeper/creeper_armor",
           "emissive": true,
           "requires_charged": true,
-          "inflate": 2.0
+          "inflate": 2.0,
+          "blend": "additive"
         }
       ]
     },
@@ -1440,7 +1441,8 @@
       "overlays": [
         {
           "geometry_ref": "geometry.slime_1",
-          "texture_ref": "slime/slime"
+          "texture_ref": "slime/slime",
+          "blend": "translucent"
         }
       ],
       "axes": {
@@ -1755,6 +1757,21 @@
           "texture_ref": "warden/warden_bioluminescent_layer",
           "inflate": 0.001,
           "skip_bounds": true
+        },
+        {
+          "geometry_ref": "geometry.warden",
+          "texture_ref": "warden/warden_pulsating_spots_1",
+          "inflate": 0.001,
+          "skip_bounds": true,
+          "alpha": 0.25,
+          "retain_bones": [
+            "body",
+            "head",
+            "left_arm",
+            "right_arm",
+            "left_leg",
+            "right_leg"
+          ]
         }
       ]
     },

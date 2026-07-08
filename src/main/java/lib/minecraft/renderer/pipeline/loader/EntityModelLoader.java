@@ -8,6 +8,7 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
@@ -418,6 +419,16 @@ public class EntityModelLoader {
      *     (lightning-struck) entity - the creeper energy swirl, gated on {@code EntityAppearance.charged};
      *     {@link EntityDefinition#resolveFor} drops it for the default (uncharged) entity so that render
      *     stays byte-identical
+     * @param blend the colour-composition mode the rasterizer composites this overlay with -
+     *     {@link BlendMode#NORMAL} source-over (the default; also what a {@code translucent} node maps
+     *     to, since the slime shell's translucency is in its texture alpha) or {@link BlendMode#ADD}
+     *     for the additive energy-swirl glow ({@code blend: additive}). Parsed from the overlay's
+     *     optional {@code blend} node, orthogonal to {@link #emissive}
+     * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} from the overlay's optional
+     *     {@code alpha} node, multiplied into the sampled texel's alpha before the {@link #blend}
+     *     composite. {@code 1.0} (no-op) except for an overlay carrying an explicit multiplier (the
+     *     warden pulsating-spots glow at {@code 0.25}) - a fractional layer opacity that cannot ride
+     *     the tint's alpha byte (the MULTIPLY tint blend preserves the texel alpha)
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,
@@ -429,7 +440,9 @@ public class EntityModelLoader {
         boolean shearable,
         boolean requiresTint,
         @NotNull Optional<String> textureBy,
-        boolean requiresCharged
+        boolean requiresCharged,
+        @NotNull BlendMode blend,
+        float alpha
     ) {}
 
     /**
@@ -511,8 +524,15 @@ public class EntityModelLoader {
             Optional<String> overlayTexture = entry.has("texture_ref")
                 ? Optional.of(entry.get("texture_ref").getAsString())
                 : Optional.empty();
+            // retain_bones (warden pulsating spots) restricts the overlay to a vanilla
+            // retainExactParts subset of the shared mesh, so the glow texture draws only where
+            // vanilla's subset LayerDefinition does (body + legs) instead of over-drawing the
+            // whole silhouette. Applied before inflate so the surviving cubes inflate together.
+            EntityModelData retained = entry.has("retain_bones") && entry.get("retain_bones").isJsonArray()
+                ? retainExactParts(overlayModel, entry.getAsJsonArray("retain_bones"))
+                : overlayModel;
             float inflate = entry.has("inflate") ? entry.get("inflate").getAsFloat() : 0f;
-            EntityModelData materialised = inflate != 0f ? inflateModel(overlayModel, inflate) : overlayModel;
+            EntityModelData materialised = inflate != 0f ? inflateModel(retained, inflate) : retained;
             boolean emissive = entry.has("emissive") && entry.get("emissive").getAsBoolean();
             // Per-overlay multiplicative tint. Vanilla wires per-layer color through
             // {@code coloredCutoutModelRender(model, texture, ..., color, order)} - sheep wool
@@ -556,7 +576,14 @@ public class EntityModelLoader {
                 ? Optional.of(entry.get("texture_by").getAsString())
                 : Optional.empty();
             boolean requiresCharged = entry.has("requires_charged") && entry.get("requires_charged").getAsBoolean();
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, shearable, requiresTint, textureBy, requiresCharged));
+            // blend / alpha (optional; default NORMAL / 1.0). An overlay declares its exact vanilla
+            // colour-composition mode and opacity multiplier here instead of relying on the single
+            // hardcoded NORMAL: `additive` -> the energy-swirl glow, `translucent` / `normal` ->
+            // source-over (the slime shell's translucency lives in its texture alpha). An un-annotated
+            // overlay keeps NORMAL / 1.0, so it renders byte-identical.
+            BlendMode blend = parseBlend(entry.has("blend") ? entry.get("blend").getAsString() : null);
+            float alpha = entry.has("alpha") ? entry.get("alpha").getAsFloat() : 1f;
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, shearable, requiresTint, textureBy, requiresCharged, blend, alpha));
         }
         return out;
     }
@@ -635,6 +662,90 @@ public class EntityModelLoader {
         for (Map.Entry<String, Float> entry : scales.entrySet())
             out.put(Size.valueOf(entry.getKey().toUpperCase(Locale.ROOT)), entry.getValue());
         return out;
+    }
+
+    /**
+     * Parses an overlay's optional {@code blend} node into a {@link BlendMode}. {@code "additive"}
+     * maps to {@link BlendMode#ADD} (the energy-swirl glow); {@code "translucent"}, {@code "normal"},
+     * and an absent node all map to {@link BlendMode#NORMAL} source-over - {@code translucent} composites
+     * exactly like {@code normal} at the fragment level (its shell translucency is carried in the
+     * texture's own alpha, not a blend-function difference), and the node exists so the tooling can
+     * declare the vanilla blend and drop the shell out of its force-emit policy. An unrecognised value
+     * logs a warning and falls back to {@link BlendMode#NORMAL}.
+     *
+     * @param blend the {@code blend} node value, or {@code null} when absent
+     * @return the mapped blend mode
+     */
+    private static @NotNull BlendMode parseBlend(@Nullable String blend) {
+        if (blend == null) return BlendMode.NORMAL;
+        return switch (blend.toLowerCase(Locale.ROOT)) {
+            case "additive" -> BlendMode.ADD;
+            case "translucent", "normal" -> BlendMode.NORMAL;
+            default -> {
+                System.err.printf("  Warning: unknown overlay blend '%s' (expected normal/additive/translucent); using normal%n", blend);
+                yield BlendMode.NORMAL;
+            }
+        };
+    }
+
+    /**
+     * Restricts an overlay model to the vanilla {@code PartDefinition.retainExactParts} subset named by
+     * {@code retainBones}, mirroring the {@code createBodyLayer().apply(retainExactParts(...))} bake a
+     * subset {@code LayerDefinition} carries (the warden pulsating spots). A bone keeps its cubes iff it
+     * is named in the set <b>and</b> no ancestor is - because vanilla's {@code retainExactParts} clears a
+     * retained part's whole descendant subtree ({@code clearRecursively}), so a nested named part
+     * (warden {@code head} under the retained {@code body}) is emptied. Every other bone is kept as a
+     * pose-only node (cubes removed) so the surviving bones' transform hierarchy stays intact. Reuses the
+     * shared mesh, so no distinct geometry is baked (the geometry table stays byte-stable).
+     *
+     * @param source the overlay's shared base mesh
+     * @param retainBones the {@code retain_bones} JSON array (the vanilla {@code retainExactParts} set)
+     * @return the subset model with cubes only on the effectively-retained bones
+     */
+    private static @NotNull EntityModelData retainExactParts(@NotNull EntityModelData source, @NotNull JsonArray retainBones) {
+        Set<String> retain = new LinkedHashSet<>();
+        for (JsonElement el : retainBones)
+            if (el.isJsonPrimitive()) retain.add(el.getAsString());
+        Map<String, EntityModelData.Bone> bones = source.getBones();
+        LinkedHashMap<String, EntityModelData.Bone> out = new LinkedHashMap<>();
+        for (Map.Entry<String, EntityModelData.Bone> e : bones.entrySet()) {
+            EntityModelData.Bone bone = e.getValue();
+            boolean keepCubes = retain.contains(e.getKey()) && !hasAncestorInSet(bones, bone, retain);
+            if (keepCubes || bone.getCubes().isEmpty()) {
+                out.put(e.getKey(), bone);
+            } else {
+                out.put(e.getKey(), new EntityModelData.Bone(
+                    bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
+                    bone.getScale(), Concurrent.adoptList(new ArrayList<>()), bone.getParent()));
+            }
+        }
+        return new EntityModelData(
+            source.getTextureWidth(), source.getTextureHeight(),
+            source.getInventoryYRotation(), Concurrent.adoptLinkedMap(out), source.isCull());
+    }
+
+    /**
+     * Reports whether any proper ancestor of {@code bone} (walking the {@link EntityModelData.Bone#getParent()
+     * parent} chain) is named in {@code retain} - the condition under which {@code retainExactParts}
+     * clears the bone's cubes even though it is itself retained.
+     *
+     * @param bones the bone table (parent-name lookup)
+     * @param bone the bone whose ancestry to test
+     * @param retain the retain set
+     * @return {@code true} when a proper ancestor is in the set
+     */
+    private static boolean hasAncestorInSet(
+        @NotNull Map<String, EntityModelData.Bone> bones,
+        @NotNull EntityModelData.Bone bone,
+        @NotNull Set<String> retain
+    ) {
+        for (String parent = bone.getParent(); parent != null; ) {
+            if (retain.contains(parent)) return true;
+            EntityModelData.Bone p = bones.get(parent);
+            if (p == null) return false;
+            parent = p.getParent();
+        }
+        return false;
     }
 
     /**
