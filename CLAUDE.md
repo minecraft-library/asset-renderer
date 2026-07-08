@@ -93,10 +93,9 @@ Run before/after any kit refactor:
 | Entry | Path |
 |---|---|
 | Entity parity sweep | `src/test/java/lib/minecraft/renderer/visual/TestEntityParityVanilla.java` (run via `entityParityVanilla` task) |
-| Allowlist (`ACHIEVED_PARITY`) | top of that file, `Set<String>` |
 | Block parity | `src/test/java/lib/minecraft/renderer/visual/TestBlockRender3D.java` |
 
-**Allowlist policy**: only add when the static render looks natural - the bytecode-derived geometry alone isn't grounds; verify visually first.
+The parity sweeps are diagnostic reports (mean ARGB delta + per-subject vanilla/java/diff PNGs, ranked ascending), not pass/fail gates. When landing a new entity/axis, verify it renders naturally by LOOKing at the PNG - bytecode-derived geometry alone is not grounds.
 
 ### Re-render vanilla references
 ```bash
