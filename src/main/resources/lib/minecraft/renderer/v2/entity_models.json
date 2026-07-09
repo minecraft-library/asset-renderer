@@ -13,7 +13,22 @@
       "renderer": "net/minecraft/client/renderer/entity/ArmadilloRenderer",
       "geometry": "AdultArmadilloModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/armadillo/armadillo.png"
+      "texture": "minecraft:textures/entity/armadillo/armadillo.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyArmadilloModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/armadillo/armadillo_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:armor_stand": {
       "renderer": "net/minecraft/client/renderer/entity/ArmorStandRenderer",
@@ -48,7 +63,63 @@
       "renderer": "net/minecraft/client/renderer/entity/AxolotlRenderer",
       "geometry": "AdultAxolotlModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/axolotl/axolotl_lucy.png"
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "lucy",
+          "values": [
+            "lucy",
+            "wild",
+            "gold",
+            "cyan",
+            "blue"
+          ],
+          "options": {
+            "lucy": {
+              "textures": {
+                "wild": "minecraft:textures/entity/axolotl/axolotl_lucy.png"
+              },
+              "baby_texture": "minecraft:textures/entity/axolotl/axolotl_lucy_baby.png"
+            },
+            "wild": {
+              "textures": {
+                "wild": "minecraft:textures/entity/axolotl/axolotl_wild.png"
+              },
+              "baby_texture": "minecraft:textures/entity/axolotl/axolotl_wild_baby.png"
+            },
+            "gold": {
+              "textures": {
+                "wild": "minecraft:textures/entity/axolotl/axolotl_gold.png"
+              },
+              "baby_texture": "minecraft:textures/entity/axolotl/axolotl_gold_baby.png"
+            },
+            "cyan": {
+              "textures": {
+                "wild": "minecraft:textures/entity/axolotl/axolotl_cyan.png"
+              },
+              "baby_texture": "minecraft:textures/entity/axolotl/axolotl_cyan_baby.png"
+            },
+            "blue": {
+              "textures": {
+                "wild": "minecraft:textures/entity/axolotl/axolotl_blue.png"
+              },
+              "baby_texture": "minecraft:textures/entity/axolotl/axolotl_blue_baby.png"
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyAxolotlModel#createBodyLayer"
+            }
+          }
+        }
+      }
     },
     "minecraft:bat": {
       "renderer": "net/minecraft/client/renderer/entity/BatRenderer",
@@ -71,6 +142,21 @@
               "stinger"
             ],
             "default": false
+          }
+        }
+      },
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyBeeModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/bee/bee_angry_nectar_baby.png"
+            }
           }
         }
       }
@@ -113,7 +199,22 @@
       "renderer": "net/minecraft/client/renderer/entity/CamelRenderer",
       "geometry": "AdultCamelModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/camel/camel.png"
+      "texture": "minecraft:textures/entity/camel/camel.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyCamelModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/camel/camel_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:camel_husk": {
       "renderer": "net/minecraft/client/renderer/entity/CamelHuskRenderer",
@@ -124,7 +225,174 @@
     "minecraft:cat": {
       "renderer": "net/minecraft/client/renderer/entity/CatRenderer",
       "geometry": "AdultFelineModel#createBodyMesh@scaled=0.8",
-      "armor_type": "none"
+      "armor_type": "none",
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "black",
+          "values": [
+            "all_black",
+            "black",
+            "british_shorthair",
+            "calico",
+            "jellie",
+            "persian",
+            "ragdoll",
+            "red",
+            "siamese",
+            "tabby",
+            "white"
+          ],
+          "options": {
+            "all_black": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cat/cat_all_black.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cat/cat_all_black_baby.png",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:structure",
+                    "structures": "#minecraft:cats_spawn_as_black"
+                  },
+                  "priority": 1
+                },
+                {
+                  "condition": {
+                    "type": "minecraft:moon_brightness",
+                    "range": {
+                      "min": 0.9
+                    }
+                  },
+                  "priority": 0
+                }
+              ]
+            },
+            "black": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cat/cat_black.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cat/cat_black_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "british_shorthair": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cat/cat_british_shorthair.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cat/cat_british_shorthair_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "calico": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cat/cat_calico.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cat/cat_calico_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "jellie": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cat/cat_jellie.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cat/cat_jellie_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "persian": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cat/cat_persian.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cat/cat_persian_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "ragdoll": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cat/cat_ragdoll.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cat/cat_ragdoll_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "red": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cat/cat_red.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cat/cat_red_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "siamese": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cat/cat_siamese.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cat/cat_siamese_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "tabby": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cat/cat_tabby.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cat/cat_tabby_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "white": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cat/cat_white.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cat/cat_white_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyFelineModel#createBabyLayer"
+            }
+          }
+        }
+      }
     },
     "minecraft:cave_spider": {
       "renderer": "net/minecraft/client/renderer/entity/CaveSpiderRenderer",
@@ -135,7 +403,74 @@
     "minecraft:chicken": {
       "renderer": "net/minecraft/client/renderer/entity/ChickenRenderer",
       "geometry": "AdultChickenModel#createBodyLayer",
-      "armor_type": "none"
+      "armor_type": "none",
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "temperate",
+          "values": [
+            "cold",
+            "temperate",
+            "warm"
+          ],
+          "options": {
+            "cold": {
+              "textures": {
+                "wild": "minecraft:textures/entity/chicken/chicken_cold.png"
+              },
+              "baby_texture": "minecraft:textures/entity/chicken/chicken_cold_baby.png",
+              "geometry": "ColdChickenModel#createBodyLayer",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:spawns_cold_variant_farm_animals"
+                  },
+                  "priority": 1
+                }
+              ]
+            },
+            "temperate": {
+              "textures": {
+                "wild": "minecraft:textures/entity/chicken/chicken_temperate.png"
+              },
+              "baby_texture": "minecraft:textures/entity/chicken/chicken_temperate_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "warm": {
+              "textures": {
+                "wild": "minecraft:textures/entity/chicken/chicken_warm.png"
+              },
+              "baby_texture": "minecraft:textures/entity/chicken/chicken_warm_baby.png",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:spawns_warm_variant_farm_animals"
+                  },
+                  "priority": 1
+                }
+              ]
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyChickenModel#createBodyLayer"
+            }
+          }
+        }
+      }
     },
     "minecraft:cod": {
       "renderer": "net/minecraft/client/renderer/entity/CodRenderer",
@@ -152,7 +487,75 @@
     "minecraft:cow": {
       "renderer": "net/minecraft/client/renderer/entity/CowRenderer",
       "geometry": "CowModel#createBodyLayer",
-      "armor_type": "none"
+      "armor_type": "none",
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "temperate",
+          "values": [
+            "cold",
+            "temperate",
+            "warm"
+          ],
+          "options": {
+            "cold": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cow/cow_cold.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cow/cow_cold_baby.png",
+              "geometry": "ColdCowModel#createBodyLayer",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:spawns_cold_variant_farm_animals"
+                  },
+                  "priority": 1
+                }
+              ]
+            },
+            "temperate": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cow/cow_temperate.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cow/cow_temperate_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "warm": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cow/cow_warm.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cow/cow_warm_baby.png",
+              "geometry": "WarmCowModel#createBodyLayer",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:spawns_warm_variant_farm_animals"
+                  },
+                  "priority": 1
+                }
+              ]
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyCowModel#createBodyLayer"
+            }
+          }
+        }
+      }
     },
     "minecraft:creaking": {
       "renderer": "net/minecraft/client/renderer/entity/CreakingRenderer",
@@ -170,7 +573,22 @@
       "renderer": "net/minecraft/client/renderer/entity/DolphinRenderer",
       "geometry": "DolphinModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/dolphin/dolphin.png"
+      "texture": "minecraft:textures/entity/dolphin/dolphin.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyDolphinModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/dolphin/dolphin_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:donkey": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
@@ -191,13 +609,43 @@
             "default": false
           }
         }
+      },
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyDonkeyModel#createBabyLayer",
+              "texture": "minecraft:textures/entity/horse/donkey_baby.png"
+            }
+          }
+        }
       }
     },
     "minecraft:drowned": {
       "renderer": "net/minecraft/client/renderer/entity/DrownedRenderer",
       "geometry": "DrownedModel#createBodyLayer",
       "armor_type": "humanoid",
-      "texture": "minecraft:textures/entity/zombie/drowned.png"
+      "texture": "minecraft:textures/entity/zombie/drowned.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyDrownedModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/zombie/drowned_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:elder_guardian": {
       "renderer": "net/minecraft/client/renderer/entity/ElderGuardianRenderer",
@@ -238,12 +686,78 @@
       "renderer": "net/minecraft/client/renderer/entity/FoxRenderer",
       "geometry": "AdultFoxModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/fox/fox.png"
+      "texture": "minecraft:textures/entity/fox/fox.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyFoxModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/fox/fox_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:frog": {
       "renderer": "net/minecraft/client/renderer/entity/FrogRenderer",
       "geometry": "FrogModel#createBodyLayer",
-      "armor_type": "none"
+      "armor_type": "none",
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "temperate",
+          "values": [
+            "cold",
+            "temperate",
+            "warm"
+          ],
+          "options": {
+            "cold": {
+              "textures": {
+                "wild": "minecraft:textures/entity/frog/frog_cold.png"
+              },
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:spawns_cold_variant_frogs"
+                  },
+                  "priority": 1
+                }
+              ]
+            },
+            "temperate": {
+              "textures": {
+                "wild": "minecraft:textures/entity/frog/frog_temperate.png"
+              },
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "warm": {
+              "textures": {
+                "wild": "minecraft:textures/entity/frog/frog_warm.png"
+              },
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:spawns_warm_variant_frogs"
+                  },
+                  "priority": 1
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     "minecraft:ghast": {
       "renderer": "net/minecraft/client/renderer/entity/GhastRenderer",
@@ -284,6 +798,21 @@
             "default": true
           }
         }
+      },
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyGoatModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/goat/goat_baby.png"
+            }
+          }
+        }
       }
     },
     "minecraft:guardian": {
@@ -296,19 +825,119 @@
       "renderer": "net/minecraft/client/renderer/entity/HoglinRenderer",
       "geometry": "HoglinModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/hoglin/hoglin.png"
+      "texture": "minecraft:textures/entity/hoglin/hoglin.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyHoglinModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/hoglin/hoglin_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:horse": {
       "renderer": "net/minecraft/client/renderer/entity/HorseRenderer",
       "geometry": "AbstractEquineModel#createBodyMesh@scaled=1.1",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/horse/horse_white.png"
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "white",
+          "values": [
+            "white",
+            "creamy",
+            "chestnut",
+            "brown",
+            "black",
+            "gray",
+            "dark_brown"
+          ],
+          "options": {
+            "white": {
+              "textures": {
+                "wild": "minecraft:textures/entity/horse/horse_white.png"
+              },
+              "baby_texture": "minecraft:textures/entity/horse/horse_white_baby.png"
+            },
+            "creamy": {
+              "textures": {
+                "wild": "minecraft:textures/entity/horse/horse_creamy.png"
+              },
+              "baby_texture": "minecraft:textures/entity/horse/horse_creamy_baby.png"
+            },
+            "chestnut": {
+              "textures": {
+                "wild": "minecraft:textures/entity/horse/horse_chestnut.png"
+              },
+              "baby_texture": "minecraft:textures/entity/horse/horse_chestnut_baby.png"
+            },
+            "brown": {
+              "textures": {
+                "wild": "minecraft:textures/entity/horse/horse_brown.png"
+              },
+              "baby_texture": "minecraft:textures/entity/horse/horse_brown_baby.png"
+            },
+            "black": {
+              "textures": {
+                "wild": "minecraft:textures/entity/horse/horse_black.png"
+              },
+              "baby_texture": "minecraft:textures/entity/horse/horse_black_baby.png"
+            },
+            "gray": {
+              "textures": {
+                "wild": "minecraft:textures/entity/horse/horse_gray.png"
+              },
+              "baby_texture": "minecraft:textures/entity/horse/horse_gray_baby.png"
+            },
+            "dark_brown": {
+              "textures": {
+                "wild": "minecraft:textures/entity/horse/horse_darkbrown.png"
+              },
+              "baby_texture": "minecraft:textures/entity/horse/horse_darkbrown_baby.png"
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyHorseModel#createBabyMesh"
+            }
+          }
+        }
+      }
     },
     "minecraft:husk": {
       "renderer": "net/minecraft/client/renderer/entity/HuskRenderer",
       "geometry": "HumanoidModel#createMesh",
       "armor_type": "humanoid",
-      "texture": "minecraft:textures/entity/zombie/husk.png"
+      "texture": "minecraft:textures/entity/zombie/husk.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyZombieModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/zombie/husk_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:illusioner": {
       "renderer": "net/minecraft/client/renderer/entity/IllusionerRenderer",
@@ -326,7 +955,6 @@
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
       "geometry": "LlamaModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/llama/llama_creamy.png",
       "bones": {
         "hidden": [
           "right_chest",
@@ -341,19 +969,122 @@
             "default": false
           }
         }
+      },
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "creamy",
+          "values": [
+            "creamy",
+            "white",
+            "brown",
+            "gray"
+          ],
+          "options": {
+            "creamy": {
+              "textures": {
+                "wild": "minecraft:textures/entity/llama/llama_creamy.png"
+              },
+              "baby_texture": "minecraft:textures/entity/llama/llama_creamy_baby.png"
+            },
+            "white": {
+              "textures": {
+                "wild": "minecraft:textures/entity/llama/llama_white.png"
+              },
+              "baby_texture": "minecraft:textures/entity/llama/llama_white_baby.png"
+            },
+            "brown": {
+              "textures": {
+                "wild": "minecraft:textures/entity/llama/llama_brown.png"
+              },
+              "baby_texture": "minecraft:textures/entity/llama/llama_brown_baby.png"
+            },
+            "gray": {
+              "textures": {
+                "wild": "minecraft:textures/entity/llama/llama_gray.png"
+              },
+              "baby_texture": "minecraft:textures/entity/llama/llama_gray_baby.png"
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyLlamaModel#createBodyLayer"
+            }
+          }
+        }
       }
     },
     "minecraft:magma_cube": {
       "renderer": "net/minecraft/client/renderer/entity/MagmaCubeRenderer",
       "geometry": "MagmaCubeModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/slime/magmacube.png"
+      "texture": "minecraft:textures/entity/slime/magmacube.png",
+      "axes": {
+        "size": {
+          "default": "small",
+          "values": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "options": {
+            "medium": {
+              "scale": 2.0
+            },
+            "large": {
+              "scale": 4.0
+            }
+          }
+        }
+      }
     },
     "minecraft:mooshroom": {
       "renderer": "net/minecraft/client/renderer/entity/MushroomCowRenderer",
       "geometry": "CowModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/cow/mooshroom_red.png"
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "red",
+          "values": [
+            "brown",
+            "red"
+          ],
+          "options": {
+            "brown": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cow/mooshroom_brown.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cow/mooshroom_brown_baby.png"
+            },
+            "red": {
+              "textures": {
+                "wild": "minecraft:textures/entity/cow/mooshroom_red.png"
+              },
+              "baby_texture": "minecraft:textures/entity/cow/mooshroom_red_baby.png"
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyCowModel#createBodyLayer"
+            }
+          }
+        }
+      }
     },
     "minecraft:mule": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
@@ -374,6 +1105,21 @@
             "default": false
           }
         }
+      },
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyDonkeyModel#createBabyLayer",
+              "texture": "minecraft:textures/entity/horse/mule_baby.png"
+            }
+          }
+        }
       }
     },
     "minecraft:nautilus": {
@@ -386,13 +1132,98 @@
       "renderer": "net/minecraft/client/renderer/entity/OcelotRenderer",
       "geometry": "AdultFelineModel#createBodyMesh",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/cat/ocelot.png"
+      "texture": "minecraft:textures/entity/cat/ocelot.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyFelineModel#createBabyLayer",
+              "texture": "minecraft:textures/entity/cat/ocelot_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:panda": {
       "renderer": "net/minecraft/client/renderer/entity/PandaRenderer",
       "geometry": "PandaModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/panda/panda.png"
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "normal",
+          "values": [
+            "normal",
+            "lazy",
+            "worried",
+            "playful",
+            "brown",
+            "weak",
+            "aggressive"
+          ],
+          "options": {
+            "normal": {
+              "textures": {
+                "wild": "minecraft:textures/entity/panda/panda.png"
+              },
+              "baby_texture": "minecraft:textures/entity/panda/panda_baby.png"
+            },
+            "lazy": {
+              "textures": {
+                "wild": "minecraft:textures/entity/panda/panda_lazy.png"
+              },
+              "baby_texture": "minecraft:textures/entity/panda/lazy_panda_baby.png"
+            },
+            "worried": {
+              "textures": {
+                "wild": "minecraft:textures/entity/panda/panda_worried.png"
+              },
+              "baby_texture": "minecraft:textures/entity/panda/worried_panda_baby.png"
+            },
+            "playful": {
+              "textures": {
+                "wild": "minecraft:textures/entity/panda/panda_playful.png"
+              },
+              "baby_texture": "minecraft:textures/entity/panda/playful_panda_baby.png"
+            },
+            "brown": {
+              "textures": {
+                "wild": "minecraft:textures/entity/panda/panda_brown.png"
+              },
+              "baby_texture": "minecraft:textures/entity/panda/brown_panda_baby.png"
+            },
+            "weak": {
+              "textures": {
+                "wild": "minecraft:textures/entity/panda/panda_weak.png"
+              },
+              "baby_texture": "minecraft:textures/entity/panda/weak_panda_baby.png"
+            },
+            "aggressive": {
+              "textures": {
+                "wild": "minecraft:textures/entity/panda/panda_aggressive.png"
+              },
+              "baby_texture": "minecraft:textures/entity/panda/aggressive_panda_baby.png"
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyPandaModel#createBodyLayer"
+            }
+          }
+        }
+      }
     },
     "minecraft:parched": {
       "renderer": "net/minecraft/client/renderer/entity/ParchedRenderer",
@@ -415,13 +1246,95 @@
     "minecraft:pig": {
       "renderer": "net/minecraft/client/renderer/entity/PigRenderer",
       "geometry": "PigModel#createBodyLayer",
-      "armor_type": "none"
+      "armor_type": "none",
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "temperate",
+          "values": [
+            "cold",
+            "temperate",
+            "warm"
+          ],
+          "options": {
+            "cold": {
+              "textures": {
+                "wild": "minecraft:textures/entity/pig/pig_cold.png"
+              },
+              "baby_texture": "minecraft:textures/entity/pig/pig_cold_baby.png",
+              "geometry": "ColdPigModel#createBodyLayer",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:spawns_cold_variant_farm_animals"
+                  },
+                  "priority": 1
+                }
+              ]
+            },
+            "temperate": {
+              "textures": {
+                "wild": "minecraft:textures/entity/pig/pig_temperate.png"
+              },
+              "baby_texture": "minecraft:textures/entity/pig/pig_temperate_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "warm": {
+              "textures": {
+                "wild": "minecraft:textures/entity/pig/pig_warm.png"
+              },
+              "baby_texture": "minecraft:textures/entity/pig/pig_warm_baby.png",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:spawns_warm_variant_farm_animals"
+                  },
+                  "priority": 1
+                }
+              ]
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyPigModel#createBodyLayer"
+            }
+          }
+        }
+      }
     },
     "minecraft:piglin": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
       "geometry": "AdultPiglinModel#createBodyLayer",
       "armor_type": "humanoid",
-      "texture": "minecraft:textures/entity/piglin/piglin.png"
+      "texture": "minecraft:textures/entity/piglin/piglin.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyPiglinModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/piglin/piglin_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:piglin_brute": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
@@ -444,19 +1357,122 @@
       "renderer": "net/minecraft/client/renderer/entity/PolarBearRenderer",
       "geometry": "PolarBearModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/bear/polarbear.png"
+      "texture": "minecraft:textures/entity/bear/polarbear.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyPolarBearModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/bear/polarbear_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:pufferfish": {
       "renderer": "net/minecraft/client/renderer/entity/PufferfishRenderer",
       "geometry": "PufferfishBigModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/fish/pufferfish.png"
+      "texture": "minecraft:textures/entity/fish/pufferfish.png",
+      "axes": {
+        "size": {
+          "default": "large",
+          "values": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "options": {
+            "small": {
+              "geometry": "PufferfishSmallModel#createBodyLayer"
+            },
+            "medium": {
+              "geometry": "PufferfishMidModel#createBodyLayer"
+            }
+          }
+        }
+      }
     },
     "minecraft:rabbit": {
       "renderer": "net/minecraft/client/renderer/entity/RabbitRenderer",
       "geometry": "AdultRabbitModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/rabbit/rabbit_brown.png"
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "brown",
+          "values": [
+            "brown",
+            "white_splotched",
+            "evil",
+            "white",
+            "gold",
+            "black",
+            "salt"
+          ],
+          "options": {
+            "brown": {
+              "textures": {
+                "wild": "minecraft:textures/entity/rabbit/rabbit_brown.png"
+              },
+              "baby_texture": "minecraft:textures/entity/rabbit/rabbit_brown_baby.png"
+            },
+            "white_splotched": {
+              "textures": {
+                "wild": "minecraft:textures/entity/rabbit/rabbit_white_splotched.png"
+              },
+              "baby_texture": "minecraft:textures/entity/rabbit/rabbit_white_splotched_baby.png"
+            },
+            "evil": {
+              "textures": {
+                "wild": "minecraft:textures/entity/rabbit/rabbit_caerbannog.png"
+              },
+              "baby_texture": "minecraft:textures/entity/rabbit/rabbit_caerbannog_baby.png"
+            },
+            "white": {
+              "textures": {
+                "wild": "minecraft:textures/entity/rabbit/rabbit_white.png"
+              },
+              "baby_texture": "minecraft:textures/entity/rabbit/rabbit_white_baby.png"
+            },
+            "gold": {
+              "textures": {
+                "wild": "minecraft:textures/entity/rabbit/rabbit_gold.png"
+              },
+              "baby_texture": "minecraft:textures/entity/rabbit/rabbit_gold_baby.png"
+            },
+            "black": {
+              "textures": {
+                "wild": "minecraft:textures/entity/rabbit/rabbit_black.png"
+              },
+              "baby_texture": "minecraft:textures/entity/rabbit/rabbit_black_baby.png"
+            },
+            "salt": {
+              "textures": {
+                "wild": "minecraft:textures/entity/rabbit/rabbit_salt.png"
+              },
+              "baby_texture": "minecraft:textures/entity/rabbit/rabbit_salt_baby.png"
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyRabbitModel#createBodyLayer"
+            }
+          }
+        }
+      }
     },
     "minecraft:ravager": {
       "renderer": "net/minecraft/client/renderer/entity/RavagerRenderer",
@@ -468,13 +1484,46 @@
       "renderer": "net/minecraft/client/renderer/entity/SalmonRenderer",
       "geometry": "SalmonModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/fish/salmon.png"
+      "texture": "minecraft:textures/entity/fish/salmon.png",
+      "axes": {
+        "size": {
+          "default": "medium",
+          "values": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "options": {
+            "small": {
+              "scale": 0.5
+            },
+            "large": {
+              "scale": 1.5
+            }
+          }
+        }
+      }
     },
     "minecraft:sheep": {
       "renderer": "net/minecraft/client/renderer/entity/SheepRenderer",
       "geometry": "SheepModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/sheep/sheep.png"
+      "texture": "minecraft:textures/entity/sheep/sheep.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabySheepModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/sheep/sheep_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:shulker": {
       "renderer": "net/minecraft/client/renderer/entity/ShulkerRenderer",
@@ -501,7 +1550,22 @@
       "renderer": "net/minecraft/client/renderer/entity/UndeadHorseRenderer",
       "geometry": "AbstractEquineModel#createBodyMesh",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/horse/horse_skeleton.png"
+      "texture": "minecraft:textures/entity/horse/horse_skeleton.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyHorseModel#createBabyMesh",
+              "texture": "minecraft:textures/entity/horse/horse_skeleton_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:slime": {
       "renderer": "net/minecraft/client/renderer/entity/SlimeRenderer",
@@ -510,13 +1574,46 @@
       "texture": "minecraft:textures/entity/slime/slime.png",
       "render": {
         "scale": 0.999
+      },
+      "axes": {
+        "size": {
+          "default": "small",
+          "values": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "options": {
+            "medium": {
+              "scale": 2.0
+            },
+            "large": {
+              "scale": 4.0
+            }
+          }
+        }
       }
     },
     "minecraft:sniffer": {
       "renderer": "net/minecraft/client/renderer/entity/SnifferRenderer",
       "geometry": "SnifferModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/sniffer/sniffer.png"
+      "texture": "minecraft:textures/entity/sniffer/sniffer.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "SniffletModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/sniffer/snifflet.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:snow_golem": {
       "renderer": "net/minecraft/client/renderer/entity/SnowGolemRenderer",
@@ -546,7 +1643,22 @@
       "renderer": "net/minecraft/client/renderer/entity/StriderRenderer",
       "geometry": "AdultStriderModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/strider/strider.png"
+      "texture": "minecraft:textures/entity/strider/strider.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyStriderModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/strider/strider_cold_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:tadpole": {
       "renderer": "net/minecraft/client/renderer/entity/TadpoleRenderer",
@@ -558,7 +1670,6 @@
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
       "geometry": "LlamaModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/llama/llama_creamy.png",
       "bones": {
         "hidden": [
           "right_chest",
@@ -573,6 +1684,56 @@
             "default": false
           }
         }
+      },
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "creamy",
+          "values": [
+            "creamy",
+            "white",
+            "brown",
+            "gray"
+          ],
+          "options": {
+            "creamy": {
+              "textures": {
+                "wild": "minecraft:textures/entity/llama/llama_creamy.png"
+              },
+              "baby_texture": "minecraft:textures/entity/llama/llama_creamy_baby.png"
+            },
+            "white": {
+              "textures": {
+                "wild": "minecraft:textures/entity/llama/llama_white.png"
+              },
+              "baby_texture": "minecraft:textures/entity/llama/llama_white_baby.png"
+            },
+            "brown": {
+              "textures": {
+                "wild": "minecraft:textures/entity/llama/llama_brown.png"
+              },
+              "baby_texture": "minecraft:textures/entity/llama/llama_brown_baby.png"
+            },
+            "gray": {
+              "textures": {
+                "wild": "minecraft:textures/entity/llama/llama_gray.png"
+              },
+              "baby_texture": "minecraft:textures/entity/llama/llama_gray_baby.png"
+            }
+          }
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyLlamaModel#createBodyLayer"
+            }
+          }
+        }
       }
     },
     "minecraft:tropical_fish": {
@@ -582,6 +1743,21 @@
       "texture": "minecraft:textures/entity/fish/tropical_a.png",
       "render": {
         "tint": "0xFFF9FFFE"
+      },
+      "axes": {
+        "shape": {
+          "default": "small",
+          "values": [
+            "small",
+            "large"
+          ],
+          "options": {
+            "large": {
+              "geometry": "TropicalFishLargeModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/fish/tropical_b.png"
+            }
+          }
+        }
       }
     },
     "minecraft:turtle": {
@@ -601,6 +1777,21 @@
             "default": false
           }
         }
+      },
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyTurtleModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/turtle/turtle_baby.png"
+            }
+          }
+        }
       }
     },
     "minecraft:vex": {
@@ -613,7 +1804,22 @@
       "renderer": "net/minecraft/client/renderer/entity/VillagerRenderer",
       "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/villager/villager.png"
+      "texture": "minecraft:textures/entity/villager/villager.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyVillagerModel#createBodyModel",
+              "texture": "minecraft:textures/entity/villager/villager_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:vindicator": {
       "renderer": "net/minecraft/client/renderer/entity/VindicatorRenderer",
@@ -662,42 +1868,342 @@
     "minecraft:wolf": {
       "renderer": "net/minecraft/client/renderer/entity/WolfRenderer",
       "geometry": "AdultWolfModel#createBodyLayer",
-      "armor_type": "none"
+      "armor_type": "none",
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "pale",
+          "values": [
+            "ashen",
+            "black",
+            "chestnut",
+            "pale",
+            "rusty",
+            "snowy",
+            "spotted",
+            "striped",
+            "woods"
+          ],
+          "options": {
+            "ashen": {
+              "textures": {
+                "wild": "minecraft:textures/entity/wolf/wolf_ashen.png",
+                "angry": "minecraft:textures/entity/wolf/wolf_ashen_angry.png",
+                "tame": "minecraft:textures/entity/wolf/wolf_ashen_tame.png"
+              },
+              "baby_texture": "minecraft:textures/entity/wolf/wolf_ashen_baby.png",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "minecraft:snowy_taiga"
+                  },
+                  "priority": 1
+                }
+              ]
+            },
+            "black": {
+              "textures": {
+                "wild": "minecraft:textures/entity/wolf/wolf_black.png",
+                "angry": "minecraft:textures/entity/wolf/wolf_black_angry.png",
+                "tame": "minecraft:textures/entity/wolf/wolf_black_tame.png"
+              },
+              "baby_texture": "minecraft:textures/entity/wolf/wolf_black_baby.png",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "minecraft:old_growth_pine_taiga"
+                  },
+                  "priority": 1
+                }
+              ]
+            },
+            "chestnut": {
+              "textures": {
+                "wild": "minecraft:textures/entity/wolf/wolf_chestnut.png",
+                "angry": "minecraft:textures/entity/wolf/wolf_chestnut_angry.png",
+                "tame": "minecraft:textures/entity/wolf/wolf_chestnut_tame.png"
+              },
+              "baby_texture": "minecraft:textures/entity/wolf/wolf_chestnut_baby.png",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "minecraft:old_growth_spruce_taiga"
+                  },
+                  "priority": 1
+                }
+              ]
+            },
+            "pale": {
+              "textures": {
+                "wild": "minecraft:textures/entity/wolf/wolf.png",
+                "angry": "minecraft:textures/entity/wolf/wolf_angry.png",
+                "tame": "minecraft:textures/entity/wolf/wolf_tame.png"
+              },
+              "baby_texture": "minecraft:textures/entity/wolf/wolf_baby.png",
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "rusty": {
+              "textures": {
+                "wild": "minecraft:textures/entity/wolf/wolf_rusty.png",
+                "angry": "minecraft:textures/entity/wolf/wolf_rusty_angry.png",
+                "tame": "minecraft:textures/entity/wolf/wolf_rusty_tame.png"
+              },
+              "baby_texture": "minecraft:textures/entity/wolf/wolf_rusty_baby.png",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:is_jungle"
+                  },
+                  "priority": 1
+                }
+              ]
+            },
+            "snowy": {
+              "textures": {
+                "wild": "minecraft:textures/entity/wolf/wolf_snowy.png",
+                "angry": "minecraft:textures/entity/wolf/wolf_snowy_angry.png",
+                "tame": "minecraft:textures/entity/wolf/wolf_snowy_tame.png"
+              },
+              "baby_texture": "minecraft:textures/entity/wolf/wolf_snowy_baby.png",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "minecraft:grove"
+                  },
+                  "priority": 1
+                }
+              ]
+            },
+            "spotted": {
+              "textures": {
+                "wild": "minecraft:textures/entity/wolf/wolf_spotted.png",
+                "angry": "minecraft:textures/entity/wolf/wolf_spotted_angry.png",
+                "tame": "minecraft:textures/entity/wolf/wolf_spotted_tame.png"
+              },
+              "baby_texture": "minecraft:textures/entity/wolf/wolf_spotted_baby.png",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:is_savanna"
+                  },
+                  "priority": 1
+                }
+              ]
+            },
+            "striped": {
+              "textures": {
+                "wild": "minecraft:textures/entity/wolf/wolf_striped.png",
+                "angry": "minecraft:textures/entity/wolf/wolf_striped_angry.png",
+                "tame": "minecraft:textures/entity/wolf/wolf_striped_tame.png"
+              },
+              "baby_texture": "minecraft:textures/entity/wolf/wolf_striped_baby.png",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:is_badlands"
+                  },
+                  "priority": 1
+                }
+              ]
+            },
+            "woods": {
+              "textures": {
+                "wild": "minecraft:textures/entity/wolf/wolf_woods.png",
+                "angry": "minecraft:textures/entity/wolf/wolf_woods_angry.png",
+                "tame": "minecraft:textures/entity/wolf/wolf_woods_tame.png"
+              },
+              "baby_texture": "minecraft:textures/entity/wolf/wolf_woods_baby.png",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "minecraft:forest"
+                  },
+                  "priority": 1
+                }
+              ]
+            }
+          }
+        },
+        "state": {
+          "default": "wild",
+          "values": [
+            "wild",
+            "angry",
+            "tame"
+          ]
+        },
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyWolfModel#createBodyLayer"
+            }
+          }
+        }
+      }
     },
     "minecraft:zoglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZoglinRenderer",
       "geometry": "HoglinModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/hoglin/zoglin.png"
+      "texture": "minecraft:textures/entity/hoglin/zoglin.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyHoglinModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/hoglin/zoglin_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:zombie": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieRenderer",
       "geometry": "HumanoidModel#createMesh",
       "armor_type": "humanoid",
-      "texture": "minecraft:textures/entity/zombie/zombie.png"
+      "texture": "minecraft:textures/entity/zombie/zombie.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyZombieModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/zombie/zombie_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:zombie_horse": {
       "renderer": "net/minecraft/client/renderer/entity/UndeadHorseRenderer",
       "geometry": "AbstractEquineModel#createBodyMesh",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/horse/horse_zombie.png"
+      "texture": "minecraft:textures/entity/horse/horse_zombie.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyHorseModel#createBabyMesh",
+              "texture": "minecraft:textures/entity/horse/horse_zombie_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:zombie_nautilus": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieNautilusRenderer",
       "geometry": "NautilusModel#createBodyLayer",
-      "armor_type": "none"
+      "armor_type": "none",
+      "axes": {
+        "variant": {
+          "id_encoded": true,
+          "default": "temperate",
+          "values": [
+            "temperate",
+            "warm"
+          ],
+          "options": {
+            "temperate": {
+              "textures": {
+                "wild": "minecraft:textures/entity/nautilus/zombie_nautilus.png"
+              },
+              "spawn_conditions": [
+                {
+                  "priority": 0
+                }
+              ]
+            },
+            "warm": {
+              "textures": {
+                "wild": "minecraft:textures/entity/nautilus/zombie_nautilus_coral.png"
+              },
+              "geometry": "ZombieNautilusCoralModel#createBodyLayer",
+              "spawn_conditions": [
+                {
+                  "condition": {
+                    "type": "minecraft:biome",
+                    "biomes": "#minecraft:spawns_coral_variant_zombie_nautilus"
+                  },
+                  "priority": 1
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     "minecraft:zombie_villager": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieVillagerRenderer",
       "geometry": "ZombieVillagerModel#createBodyLayer",
       "armor_type": "humanoid",
-      "texture": "minecraft:textures/entity/zombie_villager/zombie_villager.png"
+      "texture": "minecraft:textures/entity/zombie_villager/zombie_villager.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyZombieVillagerModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/zombie_villager/zombie_villager_baby.png"
+            }
+          }
+        }
+      }
     },
     "minecraft:zombified_piglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZombifiedPiglinRenderer",
       "geometry": "AdultPiglinModel#createBodyLayer",
       "armor_type": "humanoid",
-      "texture": "minecraft:textures/entity/piglin/zombified_piglin.png"
+      "texture": "minecraft:textures/entity/piglin/zombified_piglin.png",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "values": [
+            "adult",
+            "baby"
+          ],
+          "options": {
+            "baby": {
+              "geometry": "BabyPiglinModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/piglin/zombified_piglin_baby.png"
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -8,6 +8,10 @@ Compares a legacy tooling JSON against its v2 sibling at three levels:
       floats compared exactly (any ULP delta is a finding, never noise)
   L3  payload key ORDER (first divergence)
 
+With --axis-rows (entity_models payloads), L1 additionally compares per-family axis rows:
+axis presence (<family>.axes.<axis>), the values domain (=<value>), and the option key set
+(.options.<opt>) - the S6 variant/option row-set gate.
+
 The two files carry different schemas by design (legacy flat fields vs v2 nodes); L2 deltas
 are FINDINGS for the doc-11 SS12 tracker, not automatic failures. Exit code is 1 when L1
 reports any miss (the per-session progress gauge), 0 otherwise.
@@ -87,12 +91,40 @@ def compact(value):
     return text if len(text) <= 120 else text[:117] + "..."
 
 
+def axis_rows(families):
+    """Flattens a families payload into '<family>.axes.<axis>[...]' row keys (the S6 gate rows)."""
+    rows = set()
+    for family_id, family in families.items():
+        if not isinstance(family, dict):
+            continue
+        for axis, node in family.get("axes", {}).items():
+            base = f"{family_id}.axes.{axis}"
+            rows.add(base)
+            for value in node.get("values", []):
+                rows.add(f"{base}={value}")
+            for option in node.get("options", {}):
+                rows.add(f"{base}.options.{option}")
+    return rows
+
+
+def report_axis_rows(legacy, v2, limit):
+    missing = sorted(axis_rows(legacy) - axis_rows(v2))
+    extra = sorted(axis_rows(v2) - axis_rows(legacy))
+    print(f"\n== L1 axis rows: {len(missing)} missing in v2, {len(extra)} extra in v2 ==")
+    for row in missing[:limit]:
+        print(f"  MISSING  {row}")
+    for row in extra[:limit]:
+        print(f"  EXTRA    {row}")
+    return len(missing)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--legacy", required=True)
     parser.add_argument("--v2", required=True)
     parser.add_argument("--levels", default="L1,L2,L3")
     parser.add_argument("--payload", default=None, help="payload member name (auto-detected when omitted)")
+    parser.add_argument("--axis-rows", action="store_true", help="add the per-family axis row comparison to L1")
     parser.add_argument("--max-findings", type=int, default=MAX_DEFAULT)
     args = parser.parse_args()
 
@@ -113,6 +145,8 @@ def main():
             print(f"  MISSING  {key}")
         for key in extra[: args.max_findings]:
             print(f"  EXTRA    {key}")
+        if args.axis_rows:
+            l1_misses += report_axis_rows(legacy, v2, args.max_findings)
 
     if "L2" in levels:
         shared = [key for key in legacy if key in v2]
