@@ -122,10 +122,24 @@ final class EntityGeometryRefResolver {
     // ------------------------------------------------------------------------------------
 
     private @Nullable String pickPrimaryLayerField() {
-        // Dataflow arm: the first bakeLayer-into-model-ctor triple in the ctor chain.
+        // Dataflow arm: the first bakeLayer-into-model-ctor triple in the ctor chain, with
+        // ModelLayerLocation PARAMETERS resolved positionally against the fields the caller
+        // one level down pushed - the lambda for the leaf (squid), the subclass ctor for an
+        // abstract renderer (skeleton), a same-class delegating ctor for zombie / spider.
         List<String> sites = new ArrayList<>();
-        AsmKit.walkConstructorChain(this.cache, this.subject.rendererClass(),
-            ctor -> collectBakedModelLayers(ctor, sites));
+        List<String> bindings = mllTypedLambdaFields();
+        String current = this.subject.rendererClass();
+        while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
+            ClassNode cn = this.cache.load(current);
+            if (cn == null) break;
+            List<String> levelPushes = new ArrayList<>();
+            for (MethodNode ctor : cn.methods) {
+                if (!AsmKit.INIT.equals(ctor.name)) continue;
+                collectBakedModelLayers(ctor, levelPushes, bindings, sites);
+            }
+            if (!levelPushes.isEmpty()) bindings = levelPushes;
+            current = cn.superName;
+        }
         for (String field : sites)
             if (this.layerDefinitions.get(field) != null) return field;
 
@@ -143,21 +157,52 @@ final class EntityGeometryRefResolver {
     }
 
     /**
-     * Appends the {@code ModelLayers} field of every
-     * {@code <source>; bakeLayer; <model>.<init>} triple in {@code ctor}, in bytecode order.
+     * Scans one ctor, appending every {@code ModelLayerLocation}-typed
+     * {@code GETSTATIC ModelLayers.X} to {@code pushes} (the positional bindings the ctors
+     * this one delegates into resolve their location parameters against) and the resolved
+     * field of every {@code <source>; bakeLayer; <model>.<init>} triple to {@code sites}.
      * The model gate is the P29 package test ({@code net/minecraft/client/model/}, never
      * {@code geom/}) applied to the {@code <init>} owner consuming the baked part.
      */
-    private void collectBakedModelLayers(@NotNull MethodNode ctor, @NotNull List<String> out) {
+    private void collectBakedModelLayers(
+        @NotNull MethodNode ctor,
+        @NotNull List<String> pushes,
+        @NotNull List<String> bindings,
+        @NotNull List<String> sites
+    ) {
         Type[] args = AsmKit.argTypes(ctor.desc);
+        String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
         for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
+                && in instanceof FieldInsnNode push
+                && mllRef.equals(push.desc)) {
+                pushes.add(push.name);
+                continue;
+            }
             if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDERER_PROVIDER_CONTEXT, VanillaSourceClasses.Methods.BAKE_LAYER)) continue;
             AbstractInsnNode next = AsmKit.nextReal(in);
             if (!(next instanceof MethodInsnNode init) || next.getOpcode() != Opcodes.INVOKESPECIAL
                 || !AsmKit.INIT.equals(init.name) || !isModelClass(init.owner)) continue;
-            String field = resolveLayerSource(AsmKit.previousReal(in), args);
-            if (field != null) out.add(field);
+            String field = resolveLayerSource(AsmKit.previousReal(in), args, pushes, bindings);
+            if (field != null) sites.add(field);
         }
+    }
+
+    /**
+     * The lambda's {@code ModelLayers} references narrowed to
+     * {@code ModelLayerLocation}-typed fields (the lambda also pushes armor-set fields off
+     * the same registry class) - the leaf-level positional bindings.
+     */
+    private @NotNull List<String> mllTypedLambdaFields() {
+        ClassNode modelLayers = this.cache.load(VanillaSourceClasses.Types.MODEL_LAYERS);
+        if (modelLayers == null) return this.subject.lambdaLayerFields();
+        String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
+        List<String> out = new ArrayList<>();
+        for (String field : this.subject.lambdaLayerFields()) {
+            var node = AsmKit.findField(modelLayers, field);
+            if (node != null && mllRef.equals(node.desc)) out.add(field);
+        }
+        return out;
     }
 
     /** The P29 positive package gate: a model class, never a geometry primitive. */
@@ -171,7 +216,12 @@ final class EntityGeometryRefResolver {
      * field name, handling the three vanilla layer-source shapes. Returns {@code null} for
      * unrecognised sources.
      */
-    private @Nullable String resolveLayerSource(@Nullable AbstractInsnNode source, Type @NotNull [] ctorArgs) {
+    private @Nullable String resolveLayerSource(
+        @Nullable AbstractInsnNode source,
+        Type @NotNull [] ctorArgs,
+        @NotNull List<String> levelPushes,
+        @NotNull List<String> bindings
+    ) {
         if (source == null) return null;
         if (AsmKit.isGetStatic(source, VanillaSourceClasses.Types.MODEL_LAYERS))
             return ((FieldInsnNode) source).name;
@@ -190,12 +240,14 @@ final class EntityGeometryRefResolver {
             return typeConstantModelLayerMap(constant.owner()).get(constant.name());
         }
 
-        // ALOAD <param> of a ModelLayerLocation parameter - squid / piglin class: the Nth
-        // location parameter pairs with the Nth ModelLayers reference the lambda pushed.
+        // ALOAD <param> of a ModelLayerLocation parameter: the Nth location parameter pairs
+        // with the caller's Nth location push - same-class delegating ctors first (zombie /
+        // spider), then the one-level-down bindings (skeleton's subclass ctor, squid's lambda).
         if (source.getOpcode() == Opcodes.ALOAD && source instanceof VarInsnNode load) {
             Integer index = paramIndexOfType(load.var, ctorArgs, VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
-            if (index != null && index < this.subject.lambdaLayerFields().size())
-                return this.subject.lambdaLayerFields().get(index);
+            if (index == null) return null;
+            if (index < levelPushes.size()) return levelPushes.get(index);
+            if (index < bindings.size()) return bindings.get(index);
         }
         return null;
     }
