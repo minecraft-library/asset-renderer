@@ -181,6 +181,21 @@ public final class VanillaSourceClasses {
          */
         public static final @NotNull String BLOCK_IDS = "net/minecraft/references/BlockIds";
 
+        /** The block-state property package prefix - the tightened "is this field a Property" gate. */
+        public static final @NotNull String STATE_PROPERTIES_PACKAGE = "net/minecraft/world/level/block/state/properties/";
+
+        /** {@code BlockStateProperties} - the shared property-constant holder ({@code FACING} etc.). */
+        public static final @NotNull String BLOCK_STATE_PROPERTIES = STATE_PROPERTIES_PACKAGE + "BlockStateProperties";
+
+        /** {@code IntegerProperty} - the {@code create(name, min, max)} default reads the min. */
+        public static final @NotNull String INTEGER_PROPERTY = STATE_PROPERTIES_PACKAGE + "IntegerProperty";
+
+        /** {@code BooleanProperty} - the declared-but-unset any()-default is {@code false} (P44). */
+        public static final @NotNull String BOOLEAN_PROPERTY = STATE_PROPERTIES_PACKAGE + "BooleanProperty";
+
+        /** {@code EnumProperty} - the {@code create} overloads (class / class+array / class+predicate). */
+        public static final @NotNull String ENUM_PROPERTY = STATE_PROPERTIES_PACKAGE + "EnumProperty";
+
         /** {@code ResourceKey} - the typed registry key the 26.x register overloads take. */
         public static final @NotNull String RESOURCE_KEY = "net/minecraft/resources/ResourceKey";
 
@@ -233,6 +248,21 @@ public final class VanillaSourceClasses {
 
         /** {@code PartPose.offset(F, F, F)} - the pivot factory the block y-axis band heuristic reads. */
         public static final @NotNull String OFFSET = "offset";
+
+        /** {@code Block.createBlockStateDefinition} - the property-declaration method the defaults walk scans. */
+        public static final @NotNull String CREATE_BLOCK_STATE_DEFINITION = "createBlockStateDefinition";
+
+        /** {@code StateDefinition.Builder} / {@code Block.registerDefaultState} - the setValue-chain terminator. */
+        public static final @NotNull String REGISTER_DEFAULT_STATE = "registerDefaultState";
+
+        /** {@code BlockState.setValue(Property, value)} - the explicit-override call in registerDefaultState. */
+        public static final @NotNull String SET_VALUE = "setValue";
+
+        /** {@code List.forEach} - the chiseled-bookshelf {@code SLOT_OCCUPIED.forEach(builder::add)} idiom. */
+        public static final @NotNull String FOR_EACH = "forEach";
+
+        /** {@code XProperty.create(...)} - the property factory the default-value decode reads. */
+        public static final @NotNull String PROPERTY_CREATE = "create";
 
         /** {@code SpriteId.texture()} - the sheet-sprite texture accessor. */
         public static final @NotNull String TEXTURE = "texture";

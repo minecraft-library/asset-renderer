@@ -242,6 +242,13 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
+    register<JavaExec>("blockDefaults2") {
+        description = "tooling2: bytewalks registerDefaultState and generates src/main/resources/lib/minecraft/renderer/v2/block_defaults.json (default blockstate per block + unresolved[])."
+        group = "tooling2"
+        mainClass.set("lib.minecraft.renderer.tooling2.ToolingBlockDefaults")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
     // Visual diagnostics - main() entry points in src/test/java/lib/minecraft/renderer/visual/.
     // Run with `./gradlew tasks --group visual` to list. Outputs land under cache/visual/.
 
