@@ -298,6 +298,9 @@ public final class VanillaSourceClasses {
         /** Variant JSON - the runtime spawn-selection rules, carried VERBATIM into v2 [D64]. */
         public static final @NotNull String SPAWN_CONDITIONS = "spawn_conditions";
 
+        /** Spawn-condition entry - the gate sub-object whose absence marks an unconditional variant [D30]. */
+        public static final @NotNull String CONDITION = "condition";
+
     }
 
     /** Shader defines [C7]: NO_CARDINAL_LIGHTING, TRANSLUCENT, withShaderDefine. */

@@ -541,7 +541,7 @@ final class EntityTextureResolver {
         Map<String, String> variantToTexture = new LinkedHashMap<>();
         String variantClass = null;
         for (MethodNode m : cn.methods) {
-            if (!m.name.startsWith("lambda$static$") && !AsmKit.CLINIT.equals(m.name)) continue;
+            if (!m.name.startsWith(AsmKit.LAMBDA_STATIC_PREFIX) && !AsmKit.CLINIT.equals(m.name)) continue;
             String pendingVariantName = null;
             for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() == Opcodes.GETSTATIC && in instanceof FieldInsnNode fi
@@ -578,7 +578,7 @@ final class EntityTextureResolver {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit != null) collectTextureLiteralsFromMethod(clinit, out);
         for (MethodNode m : cn.methods)
-            if (m.name.startsWith("lambda$static$"))
+            if (m.name.startsWith(AsmKit.LAMBDA_STATIC_PREFIX))
                 collectTextureLiteralsFromMethod(m, out);
         return out;
     }

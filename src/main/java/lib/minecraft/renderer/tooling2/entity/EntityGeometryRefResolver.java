@@ -61,6 +61,26 @@ final class EntityGeometryRefResolver {
     /** The registered body request - the bone resolver re-parses it for toggle-subtree expansion. */
     private @Nullable GeometryRequest request;
 
+    /** The picked primary {@code ModelLayers} field name, cached by {@link #resolve}. */
+    private @Nullable String primaryField;
+
+    /** Every resolved bake triple in walk order, cached by {@link #resolve} for the axis resolvers. */
+    private final @NotNull List<String> tripleSites = new ArrayList<>();
+
+    /** The multi-model constructor consumptions, cached by {@link #resolve} for the age axis [D36]. */
+    private final @NotNull List<ModelConsumer> consumers = new ArrayList<>();
+
+    /**
+     * One constructor invocation consuming two or more baked models - the shape the age
+     * axis anchors its isBaby dataflow on [D36] ({@code AgeableMobRenderer.<init>}'s
+     * adult + baby pair, {@code AdultAndBabyModelPair.<init>}). Private-helper shape.
+     *
+     * @param owner the consuming constructor's owning class internal name
+     * @param tripleFields the resolved {@code ModelLayers} fields feeding its model
+     *     arguments, in argument order
+     */
+    record ModelConsumer(@NotNull String owner, @NotNull List<String> tripleFields) {}
+
     EntityGeometryRefResolver(
         @NotNull ClassNodeCache cache,
         @NotNull EntitySubject subject,
@@ -88,6 +108,7 @@ final class EntityGeometryRefResolver {
                 this.subject.rendererClass());
             return null;
         }
+        this.primaryField = layerField;
         LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(layerField);
         if (entry == null) {
             this.diagnostics.error("primary layer ModelLayers.%s has no LayerDefinitions.createRoots entry - geometry omitted", layerField);
@@ -98,7 +119,19 @@ final class EntityGeometryRefResolver {
             entry.factoryClass(), entry.factoryMethod(), this.subject.entityId(),
             entry.texWidthOverride(), entry.texHeightOverride(),
             entry.floatParam(), entry.appliedMeshTransformerScale());
-        return this.manifest.register(this.request);
+        this.primaryKey = this.manifest.register(this.request);
+        return this.primaryKey;
+    }
+
+    /** The registered primary manifest key, cached by {@link #resolve}. */
+    private @Nullable String primaryKey;
+
+    /**
+     * The primary mesh's manifest key, or {@code null} before {@link #resolve} or for
+     * unresolvables - the axis resolvers' collapse-onto-family comparison anchor.
+     */
+    @Nullable String primaryKey() {
+        return this.primaryKey;
     }
 
     /**
@@ -117,6 +150,30 @@ final class EntityGeometryRefResolver {
         return this.request;
     }
 
+    /**
+     * The picked primary {@code ModelLayers} field name, or {@code null} before
+     * {@link #resolve} or for unresolvables.
+     */
+    @Nullable String primaryFieldName() {
+        return this.primaryField;
+    }
+
+    /**
+     * Every resolved bake triple's {@code ModelLayers} field in walk order (cached by
+     * {@link #resolve}) - the size / shape resolvers' extra-body-mesh candidate pool.
+     */
+    @NotNull List<String> tripleSites() {
+        return this.tripleSites;
+    }
+
+    /**
+     * The multi-model constructor consumptions in walk order (cached by {@link #resolve}) -
+     * the age resolver's isBaby-dataflow anchors [D36].
+     */
+    @NotNull List<ModelConsumer> modelConsumers() {
+        return this.consumers;
+    }
+
     // ------------------------------------------------------------------------------------
     // primary pick [D35]
     // ------------------------------------------------------------------------------------
@@ -126,7 +183,7 @@ final class EntityGeometryRefResolver {
         // ModelLayerLocation PARAMETERS resolved positionally against the fields the caller
         // one level down pushed - the lambda for the leaf (squid), the subclass ctor for an
         // abstract renderer (skeleton), a same-class delegating ctor for zombie / spider.
-        List<String> sites = new ArrayList<>();
+        List<String> sites = this.tripleSites;
         List<String> bindings = mllTypedLambdaFields();
         String current = this.subject.rendererClass();
         while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
@@ -140,6 +197,15 @@ final class EntityGeometryRefResolver {
             if (!levelPushes.isEmpty()) bindings = levelPushes;
             current = cn.superName;
         }
+        // The renderer's own non-ctor methods bake the per-variant model pairs (cow's static
+        // bakeModels) - scanned after the chain so ctor consumers stay first in walk order,
+        // and into a throwaway site list so the primary pick below stays ctor-chain-only.
+        ClassNode leaf = this.cache.load(this.subject.rendererClass());
+        if (leaf != null)
+            for (MethodNode method : leaf.methods) {
+                if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+                collectBakedModelLayers(method, new ArrayList<>(), List.of(), new ArrayList<>());
+            }
         for (String field : sites)
             if (this.layerDefinitions.get(field) != null) return field;
 
@@ -157,10 +223,12 @@ final class EntityGeometryRefResolver {
     }
 
     /**
-     * Scans one ctor, appending every {@code ModelLayerLocation}-typed
+     * Scans one method, appending every {@code ModelLayerLocation}-typed
      * {@code GETSTATIC ModelLayers.X} to {@code pushes} (the positional bindings the ctors
-     * this one delegates into resolve their location parameters against) and the resolved
-     * field of every {@code <source>; bakeLayer; <model>.<init>} triple to {@code sites}.
+     * this one delegates into resolve their location parameters against), the resolved
+     * field of every {@code <source>; bakeLayer; <model>.<init>} triple to {@code sites},
+     * and every {@code <init>} invocation whose descriptor takes two or more model-class
+     * arguments to the consumer cache with the freshest triples feeding it [D36].
      * The model gate is the P29 package test ({@code net/minecraft/client/model/}, never
      * {@code geom/}) applied to the {@code <init>} owner consuming the baked part.
      */
@@ -172,6 +240,7 @@ final class EntityGeometryRefResolver {
     ) {
         Type[] args = AsmKit.argTypes(ctor.desc);
         String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
+        List<String> freshTriples = new ArrayList<>();
         for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
                 && in instanceof FieldInsnNode push
@@ -179,13 +248,44 @@ final class EntityGeometryRefResolver {
                 pushes.add(push.name);
                 continue;
             }
+            if (in.getOpcode() == Opcodes.INVOKESPECIAL
+                && in instanceof MethodInsnNode init
+                && AsmKit.INIT.equals(init.name)) {
+                int modelArgs = countModelArgs(init.desc);
+                if (modelArgs >= 2) {
+                    // A multi-model consumption (AgeableMobRenderer super, model-pair record):
+                    // its model arguments are the last N fresh triples, in argument order.
+                    if (freshTriples.size() >= modelArgs)
+                        this.consumers.add(new ModelConsumer(init.owner,
+                            List.copyOf(freshTriples.subList(freshTriples.size() - modelArgs, freshTriples.size()))));
+                    freshTriples.clear();
+                    continue;
+                }
+                // A single-model consumption (MobRenderer super, one-model layer ctor)
+                // consumes its triple so a stale one never leaks into a later pairing.
+                if (modelArgs == 1 && !freshTriples.isEmpty()) {
+                    freshTriples.removeLast();
+                    continue;
+                }
+            }
             if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDERER_PROVIDER_CONTEXT, VanillaSourceClasses.Methods.BAKE_LAYER)) continue;
             AbstractInsnNode next = AsmKit.nextReal(in);
             if (!(next instanceof MethodInsnNode init) || next.getOpcode() != Opcodes.INVOKESPECIAL
                 || !AsmKit.INIT.equals(init.name) || !isModelClass(init.owner)) continue;
             String field = resolveLayerSource(AsmKit.previousReal(in), args, pushes, bindings);
-            if (field != null) sites.add(field);
+            if (field != null) {
+                sites.add(field);
+                freshTriples.add(field);
+            }
         }
+    }
+
+    /** The count of model-class reference arguments in a constructor descriptor. */
+    private static int countModelArgs(@NotNull String desc) {
+        int count = 0;
+        for (Type arg : AsmKit.argTypes(desc))
+            if (arg.getSort() == Type.OBJECT && isModelClass(arg.getInternalName())) count++;
+        return count;
     }
 
     /**

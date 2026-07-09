@@ -34,6 +34,7 @@ final class EntityRendererResolver {
     private final @NotNull EntityTextureResolver texture;
     private final @NotNull EntityRenderTraitsResolver renderTraits;
     private final @NotNull EntityBoneResolver bones;
+    private final @NotNull EntityAxesResolver axes;
     private final @NotNull List<LayerSite> layerRoster;
 
     EntityRendererResolver(
@@ -57,20 +58,27 @@ final class EntityRendererResolver {
             this.diagnostics.child("texture"));
         this.renderTraits = new EntityRenderTraitsResolver(session.cache(), subject, this.diagnostics.child("render"));
         this.bones = new EntityBoneResolver(session.cache(), subject, this.geometryRef, this.diagnostics.child("bones"));
+        this.axes = new EntityAxesResolver(session, subject, layerDefinitions, variants, this.geometryRef,
+            manifest, this.diagnostics.child("axes"));
     }
 
     /**
      * The family node - invocation order IS on-disk member order (SPINE 3.1, normative).
+     * The variant axis resolves ahead of the {@code texture} member: variant-axis families
+     * carry per-option textures and no top-level texture (SPINE 4.2 row 4).
      */
     @NotNull JsonNode resolve() {
-        return JsonNode.object()
+        JsonNode node = JsonNode.object()
             .put("renderer", this.subject.rendererClass())                              // provenance scalar (resolver-owned)
             .putIf("geometry", this.geometryRef.resolve())                              // -> manifest key
-            .put("armor_type", new EntityArmorTypeResolver(this.layerRoster).resolve())
-            .putIf("texture", this.texture.resolve())
+            .put("armor_type", new EntityArmorTypeResolver(this.layerRoster).resolve());
+        String texturePath = this.axes.resolveVariant() == null ? this.texture.resolve() : null;
+        return node
+            .putIf("texture", texturePath)
             .putIf("render", this.renderTraits.resolve())                               // {scale?, yaw_addend?, tint?}
-            .putIf("bones", this.bones.resolve());                                      // {hidden?, toggles?}
-    }   // rows 7-16 (axes / overlays / block_overlays / layers; family_of post-pass) land per plan sessions
+            .putIf("bones", this.bones.resolve())                                       // {hidden?, toggles?}
+            .putIf("axes", this.axes.resolve(texturePath));
+    }   // rows 13-16 (overlays / block_overlays / layers; family_of post-pass) land per plan sessions
 
     /**
      * One {@code addLayer(new XLayer(...))} call site in the renderer constructor chain.

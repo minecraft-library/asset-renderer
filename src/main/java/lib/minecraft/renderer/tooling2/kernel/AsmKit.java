@@ -129,6 +129,14 @@ public final class AsmKit {
     public static final @NotNull String CLINIT = "<clinit>";
 
     /**
+     * The javac-synthesised static-lambda body prefix ({@code lambda$static$N}) [D63] - a
+     * stable javac naming convention, NOT a JVM-spec guarantee: a compiler change would
+     * surface as missed lambda bodies in the texture / variant-coat walks, so the single
+     * declaration lives here.
+     */
+    public static final @NotNull String LAMBDA_STATIC_PREFIX = "lambda$static$";
+
+    /**
      * Instance-constructor method name (JVM {@code <init>}). Centralized for the same reason
      * as {@link #CLINIT}.
      */
