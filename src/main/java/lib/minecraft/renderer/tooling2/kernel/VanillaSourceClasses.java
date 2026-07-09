@@ -166,6 +166,15 @@ public final class VanillaSourceClasses {
         /** {@code Blocks} - the block registry class ({@code <clinit>} register walk). */
         public static final @NotNull String BLOCKS = "net/minecraft/world/level/block/Blocks";
 
+        /** {@code BlockEntityType} - the block-entity registry class ({@code <clinit>} id + validBlocks walk [D53]). */
+        public static final @NotNull String BLOCK_ENTITY_TYPE = "net/minecraft/world/level/block/entity/BlockEntityType";
+
+        /** {@code BlockEntityRenderers} - the block-entity-renderer registry ({@code <clinit>} type-to-renderer walk [D49]). */
+        public static final @NotNull String BLOCK_ENTITY_RENDERERS = "net/minecraft/client/renderer/blockentity/BlockEntityRenderers";
+
+        /** {@code HangingSignBlock$Attachment} - the enum the hanging-sign factory branches on (refParam CEILING / CEILING_MIDDLE / WALL). */
+        public static final @NotNull String HANGING_SIGN_ATTACHMENT = "net/minecraft/world/level/block/HangingSignBlock$Attachment";
+
         /**
          * {@code BlockIds} - the block-id {@code ResourceKey} table the 26.x
          * {@code register(ResourceKey, Function, Properties)} overload sources ids from.
@@ -221,6 +230,9 @@ public final class VanillaSourceClasses {
 
         /** {@code EntityRendererProvider$Context.bakeLayer(ModelLayerLocation)} - the mesh bake call. */
         public static final @NotNull String BAKE_LAYER = "bakeLayer";
+
+        /** {@code PartPose.offset(F, F, F)} - the pivot factory the block y-axis band heuristic reads. */
+        public static final @NotNull String OFFSET = "offset";
 
         /** {@code SpriteId.texture()} - the sheet-sprite texture accessor. */
         public static final @NotNull String TEXTURE = "texture";
