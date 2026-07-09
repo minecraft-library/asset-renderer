@@ -411,6 +411,28 @@ public final class JsonNode {
     }
 
     /**
+     * The array element at {@code index}, or {@code null} when this node is not an array or the
+     * index is out of range.
+     *
+     * @param index the zero-based element index
+     * @return the element node, or {@code null}
+     */
+    public @Nullable JsonNode at(int index) {
+        if (!(this.element instanceof JsonArray array) || index < 0 || index >= array.size()) return null;
+        return new JsonNode(array.get(index));
+    }
+
+    /**
+     * This primitive node as a float, or {@code dflt} when it is not a JSON number.
+     *
+     * @param dflt the default
+     * @return the float value, or {@code dflt}
+     */
+    public float floatValue(float dflt) {
+        return this.element.isJsonPrimitive() ? this.element.getAsFloat() : dflt;
+    }
+
+    /**
      * This array node's elements, wrapped, in order.
      */
     public @NotNull Iterable<JsonNode> elements() {

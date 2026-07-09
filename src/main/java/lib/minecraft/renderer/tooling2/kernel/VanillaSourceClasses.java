@@ -404,6 +404,15 @@ public final class VanillaSourceClasses {
         /** The equipment-texture subtree under {@link #TEXTURES_ENTITY} ({@code equipment/<subdir>/<material>.png}) [D15]. */
         public static final @NotNull String EQUIPMENT_DIR = "equipment/";
 
+        /** The item-model-definition directory ({@code assets/minecraft/items/<id>.json}) - the display.gui walk root. */
+        public static final @NotNull String ITEM_MODEL_DIR = ASSETS_ROOT + "items/";
+
+        /** The block/item model directory ({@code assets/minecraft/models/<path>.json}) - the display.gui parent chain. */
+        public static final @NotNull String MODEL_DIR = ASSETS_ROOT + "models/";
+
+        /** The {@code .json} resource suffix the resource walks append. */
+        public static final @NotNull String JSON_SUFFIX = ".json";
+
     }
 
     /** Vanilla data-schema keys [C6]: asset_id, spawn_conditions, minecraft:select, display.gui. */
@@ -432,6 +441,36 @@ public final class VanillaSourceClasses {
 
         /** Spawn-condition entry - the gate sub-object whose absence marks an unconditional variant [D30]. */
         public static final @NotNull String CONDITION = "condition";
+
+        /** Item-model / model JSON - the component / sub-object discriminator key. */
+        public static final @NotNull String TYPE = "type";
+
+        /** Item-model component - the {@code minecraft:model} type drawing a plain model ref under {@link #MODEL}. */
+        public static final @NotNull String MODEL_COMPONENT = "minecraft:model";
+
+        /** Item-model component - the {@code minecraft:special} type drawing a BER model over a {@link #BASE} model. */
+        public static final @NotNull String SPECIAL_COMPONENT = "minecraft:special";
+
+        /** Item-model component - the {@code minecraft:select} type whose {@link #FALLBACK} is the reference-pose case. */
+        public static final @NotNull String SELECT_COMPONENT = "minecraft:select";
+
+        /** Item-model {@code minecraft:special} component - the base model ref key. */
+        public static final @NotNull String BASE = "base";
+
+        /** Item-model {@code minecraft:select} component - the default-case key (the reference pose). */
+        public static final @NotNull String FALLBACK = "fallback";
+
+        /** Model JSON - the parent-model ref key the display.gui walk follows (depth-bounded). */
+        public static final @NotNull String PARENT = "parent";
+
+        /** Model JSON - the per-context display-transform block. */
+        public static final @NotNull String DISPLAY = "display";
+
+        /** Model JSON {@code display} - the inventory-icon transform ({@code rotation}/{@code translation}/{@code scale}). */
+        public static final @NotNull String GUI = "gui";
+
+        /** Model JSON {@code display.gui} - the {@code [pitch, yaw, roll]} rotation triple; roll 180 = flip [D67]. */
+        public static final @NotNull String ROTATION = "rotation";
 
     }
 

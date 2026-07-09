@@ -37,13 +37,14 @@ public final class BlockEntityRegistryWalk {
     ) {
         LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
         BlockTintFlagResolver tint = new BlockTintFlagResolver(session.cache());
+        BlockGuiResolver gui = new BlockGuiResolver(session.cache());
 
         JsonNode models = root.child("models");
         for (BlockEntitySubject subject : subjects) {
             BlockGeometrySourceResolver geometry = new BlockGeometrySourceResolver(
                 session, subject, layerDefinitions, manifest, session.diagnostics().child(subject.beTypeId()));
             for (BlockGeometrySourceResolver.Split split : geometry.resolveSplits())
-                models.put(split.splitId(), new BlockEntityRendererResolver(subject, split, tint).resolve());
+                models.put(split.splitId(), new BlockEntityRendererResolver(subject, split, tint, gui).resolve());
         }
     }
 
