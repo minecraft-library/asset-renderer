@@ -78,6 +78,14 @@ public final class Diagnostics {
     }
 
     /**
+     * This scope's path ({@code <flow>} at the root, {@code <flow>/<tag>/...} below).
+     * Package-private - the envelope stamps the flow name from the root path.
+     */
+    @NotNull String path() {
+        return this.path;
+    }
+
+    /**
      * Returns the child scope for {@code tag}, creating it on first use and reusing it after
      * (scope identity is stable per tag, so repeated resolver passes share one path).
      *

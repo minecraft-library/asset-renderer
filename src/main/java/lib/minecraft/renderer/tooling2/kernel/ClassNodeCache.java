@@ -159,8 +159,18 @@ public final class ClassNodeCache implements AutoCloseable {
         }
     }
 
-    // S2: public @Nullable JsonNode readJson(String entryPath) lands with the kernel JsonNode
-    // (variant / item-model / blockstate JSON reads route through it).
+    /**
+     * Reads and parses a JSON jar entry (variant / item-model / blockstate JSONs), or
+     * {@code null} when the entry is absent.
+     *
+     * @param entryPath the jar entry path
+     * @return the parsed node, or {@code null} when absent
+     * @throws ToolingException if the entry exists but cannot be read or parsed
+     */
+    public @Nullable JsonNode readJson(@NotNull String entryPath) {
+        byte[] bytes = readBytes(entryPath);
+        return bytes == null ? null : JsonNode.parse(bytes);
+    }
 
     /**
      * The number of distinct internal names looked up since open (including misses).
