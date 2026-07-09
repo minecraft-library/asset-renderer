@@ -58,6 +58,60 @@ public final class VanillaSourceClasses {
         /** {@code RandomSource} - vanilla's seeded random factory. */
         public static final @NotNull String RANDOM_SOURCE = "net/minecraft/util/RandomSource";
 
+        /** {@code Identifier} - the resource-location wrapper every texture binding routes through. */
+        public static final @NotNull String IDENTIFIER = "net/minecraft/resources/Identifier";
+
+        /** {@code EntityType} - the entity registry class ({@code <clinit>} + static-field scan). */
+        public static final @NotNull String ENTITY_TYPE = "net/minecraft/world/entity/EntityType";
+
+        /** {@code EntityType$Builder} - the builder companion every registration calls {@code of} on. */
+        public static final @NotNull String ENTITY_TYPE_BUILDER = ENTITY_TYPE + "$Builder";
+
+        /** {@code MobCategory} - the per-mob spawn-category enum (MONSTER, CREATURE, ...). */
+        public static final @NotNull String MOB_CATEGORY = "net/minecraft/world/entity/MobCategory";
+
+        /** {@code LivingEntity} - the mob-discovery {@code extendsClass} predicate target. */
+        public static final @NotNull String LIVING_ENTITY = "net/minecraft/world/entity/LivingEntity";
+
+        /** {@code EntityRenderers} - the entity-renderer registry class. */
+        public static final @NotNull String ENTITY_RENDERERS = "net/minecraft/client/renderer/entity/EntityRenderers";
+
+        /** {@code HumanoidArmorLayer} - the armor-mesh layer whose roster presence classifies {@code armor_type}. */
+        public static final @NotNull String HUMANOID_ARMOR_LAYER = "net/minecraft/client/renderer/entity/layers/HumanoidArmorLayer";
+
+        /** {@code LivingEntityRenderState} - the bridge-overload parameter type on renderer state methods. */
+        public static final @NotNull String LIVING_ENTITY_RENDER_STATE = "net/minecraft/client/renderer/entity/state/LivingEntityRenderState";
+
+        /** {@code PoseStack} - the render-transform stack the {@code scale} override chains on. */
+        public static final @NotNull String POSE_STACK = "com/mojang/blaze3d/vertex/PoseStack";
+
+        /** {@code DyeColor} - the dye enum whose WHITE diffuse colour backs the base-tint derivation. */
+        public static final @NotNull String DYE_COLOR = "net/minecraft/world/item/DyeColor";
+
+        /** {@code ModelPart} - the entity model bone primitive (its {@code visible:Z} field gates bones). */
+        public static final @NotNull String MODEL_PART = CLIENT_MODEL_GEOM_ROOT + "ModelPart";
+
+        /** {@code EntityModel} - the model-hierarchy walk sentinel (never walked past). */
+        public static final @NotNull String ENTITY_MODEL = CLIENT_MODEL_ROOT + "EntityModel";
+
+        /** {@code ModelLayers} - the static-field registry of baked {@code ModelLayerLocation}s. */
+        public static final @NotNull String MODEL_LAYERS = CLIENT_MODEL_GEOM_ROOT + "ModelLayers";
+
+        /** {@code LayerDefinitions} - the static {@code ModelLayers -> LayerDefinition} map builder. */
+        public static final @NotNull String LAYER_DEFINITIONS = CLIENT_MODEL_GEOM_ROOT + "LayerDefinitions";
+
+        /** {@code MeshDefinition} - the pre-compile mesh factory product {@code LayerDefinition.create} wraps. */
+        public static final @NotNull String MESH_DEFINITION = MODEL_BUILDERS_ROOT + "MeshDefinition";
+
+        /** {@code Blocks} - the block registry class ({@code <clinit>} register walk). */
+        public static final @NotNull String BLOCKS = "net/minecraft/world/level/block/Blocks";
+
+        /**
+         * {@code BlockIds} - the block-id {@code ResourceKey} table the 26.x
+         * {@code register(ResourceKey, Function, Properties)} overload sources ids from.
+         */
+        public static final @NotNull String BLOCK_IDS = "net/minecraft/references/BlockIds";
+
     }
 
     /** Member-name pattern grammar [C3]: createRoots, addBox, texOffs, scaling, ... */
@@ -69,6 +123,39 @@ public final class VanillaSourceClasses {
         /** {@code MeshTransformer.scaling(F)} - the layer-scale factory. */
         public static final @NotNull String SCALING = "scaling";
 
+        /** {@code EntityType$Builder.of(EntityFactory, MobCategory)} - the registration anchor. */
+        public static final @NotNull String BUILDER_OF = "of";
+
+        /** {@code LayerDefinitions.createRoots} - the ModelLayers-to-LayerDefinition map builder. */
+        public static final @NotNull String CREATE_ROOTS = "createRoots";
+
+        /** {@code LayerDefinition.create(MeshDefinition, W, H)} - the mesh-wrapping factory. */
+        public static final @NotNull String CREATE = "create";
+
+        /** {@code LayerDefinition.apply(MeshTransformer)} - the out-of-body scale chain. */
+        public static final @NotNull String APPLY = "apply";
+
+        /** {@code EntityRenderer.getTextureLocation} - the texture-binding override. */
+        public static final @NotNull String GET_TEXTURE_LOCATION = "getTextureLocation";
+
+        /** {@code Identifier.withDefaultNamespace(String)} - the texture-path wrapping factory. */
+        public static final @NotNull String WITH_DEFAULT_NAMESPACE = "withDefaultNamespace";
+
+        /** {@code LivingEntityRenderer.addLayer(RenderLayer)} - the layer-roster call. */
+        public static final @NotNull String ADD_LAYER = "addLayer";
+
+        /** {@code EntityRenderer.setupRotations} - the yaw-addend override. */
+        public static final @NotNull String SETUP_ROTATIONS = "setupRotations";
+
+        /** {@code EntityRenderer.scale} / {@code PoseStack.scale} - the scale-residue override + chain. */
+        public static final @NotNull String SCALE = "scale";
+
+        /** {@code ModelPart.getChild("<bone>")} - the bone-field cache builder. */
+        public static final @NotNull String GET_CHILD = "getChild";
+
+        /** {@code DyeColor.getTextureDiffuseColor} - the base-tint derivation anchor. */
+        public static final @NotNull String GET_TEXTURE_DIFFUSE_COLOR = "getTextureDiffuseColor";
+
     }
 
     /** Descriptor composer [C4] - no hand-assembled descriptors survive anywhere. */
@@ -79,6 +166,15 @@ public final class VanillaSourceClasses {
 
         /** The {@code MeshTransformer} field / return-type reference descriptor. */
         public static final @NotNull String MESH_TRANSFORMER_REF = ref(Types.MESH_TRANSFORMER);
+
+        /** The {@code EntityType} field descriptor every registry static field shares. */
+        public static final @NotNull String ENTITY_TYPE_REF = ref(Types.ENTITY_TYPE);
+
+        /** The {@code Identifier} field / return-type reference descriptor. */
+        public static final @NotNull String IDENTIFIER_REF = ref(Types.IDENTIFIER);
+
+        /** The {@code ModelPart} field / return-type reference descriptor. */
+        public static final @NotNull String MODEL_PART_REF = ref(Types.MODEL_PART);
 
         /**
          * Composes a method descriptor from already-valid type descriptors.
@@ -111,6 +207,21 @@ public final class VanillaSourceClasses {
         private Paths() {
         }
 
+        /** The vanilla asset-namespace jar prefix. */
+        public static final @NotNull String ASSETS_ROOT = "assets/minecraft/";
+
+        /** The vanilla data-namespace jar prefix (variant tables live under it). */
+        public static final @NotNull String DATA_ROOT = "data/minecraft/";
+
+        /** The entity-texture path prefix every renderer texture LDC starts with. */
+        public static final @NotNull String TEXTURES_ENTITY = "textures/entity/";
+
+        /** The vanilla resource namespace prefix. */
+        public static final @NotNull String MINECRAFT_NAMESPACE = "minecraft:";
+
+        /** The data-driven variant-table directory suffix ({@code data/minecraft/<stem>_variant/}). */
+        public static final @NotNull String VARIANT_DIR_SUFFIX = "_variant";
+
     }
 
     /** Vanilla data-schema keys [C6]: asset_id, spawn_conditions, minecraft:select, display.gui. */
@@ -118,6 +229,24 @@ public final class VanillaSourceClasses {
 
         private DataKeys() {
         }
+
+        /** Variant JSON - the single adult texture resource id. */
+        public static final @NotNull String ASSET_ID = "asset_id";
+
+        /** Variant JSON - the single baby texture resource id. */
+        public static final @NotNull String BABY_ASSET_ID = "baby_asset_id";
+
+        /** Variant JSON - the per-state adult texture map (wolf {@code wild}/{@code tame}/{@code angry}). */
+        public static final @NotNull String ASSETS = "assets";
+
+        /** Variant JSON - the per-state baby texture map. */
+        public static final @NotNull String BABY_ASSETS = "baby_assets";
+
+        /** Variant JSON - the model discriminator ({@code "cold"} selects {@code ColdCowModel}). */
+        public static final @NotNull String MODEL = "model";
+
+        /** Variant JSON - the runtime spawn-selection rules, carried VERBATIM into v2 [D64]. */
+        public static final @NotNull String SPAWN_CONDITIONS = "spawn_conditions";
 
     }
 
