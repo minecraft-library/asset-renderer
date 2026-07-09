@@ -76,14 +76,16 @@ final class BlockGeometrySourceResolver {
     }
 
     /**
-     * One resolved family split: the models key plus its registered geometry key and Y-axis
-     * convention.
+     * One resolved family split: the models key plus its registered geometry key, Y-axis
+     * convention, and mesh factory class (the {@code tinted} flag reads the {@code *FlagModel}
+     * name off it).
      *
      * @param splitId the {@code models} key
      * @param geometryKey the minted geometry manifest key (the {@code geometry} node)
      * @param yAxis the split's Y-axis convention
+     * @param factoryClass the mesh factory class internal name
      */
-    record Split(@NotNull String splitId, @NotNull String geometryKey, @NotNull YAxis yAxis) {}
+    record Split(@NotNull String splitId, @NotNull String geometryKey, @NotNull YAxis yAxis, @NotNull String factoryClass) {}
 
     /**
      * Enumerates the subject's splits, registering each split's primary mesh with the manifest.
@@ -175,7 +177,7 @@ final class BlockGeometrySourceResolver {
         @NotNull GeometryRequest request
     ) {
         if (!seenSplitIds.add(splitId)) return;
-        splits.add(new Split(splitId, this.manifest.register(request), yAxis));
+        splits.add(new Split(splitId, this.manifest.register(request), yAxis, request.factoryClass()));
     }
 
     /**

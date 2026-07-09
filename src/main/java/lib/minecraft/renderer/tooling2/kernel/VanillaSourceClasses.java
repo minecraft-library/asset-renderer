@@ -130,6 +130,12 @@ public final class VanillaSourceClasses {
         /** {@code DyeColor} - the dye enum whose WHITE diffuse colour backs the base-tint derivation. */
         public static final @NotNull String DYE_COLOR = "net/minecraft/world/item/DyeColor";
 
+        /** {@code BannerPattern} - the patterned-tint accessor owner (the block {@code tinted} signal [D51]). */
+        public static final @NotNull String BANNER_PATTERN = "net/minecraft/world/level/block/entity/BannerPattern";
+
+        /** {@code BannerPatternLayers} - any method returning it flags a patterned-tint pipeline [D51]. */
+        public static final @NotNull String BANNER_PATTERN_LAYERS = "net/minecraft/world/level/block/entity/BannerPatternLayers";
+
         /** {@code ModelPart} - the entity model bone primitive (its {@code visible:Z} field gates bones). */
         public static final @NotNull String MODEL_PART = CLIENT_MODEL_GEOM_ROOT + "ModelPart";
 
@@ -272,6 +278,9 @@ public final class VanillaSourceClasses {
 
         /** {@code DyeColor.getTextureDiffuseColor} - the base-tint derivation anchor. */
         public static final @NotNull String GET_TEXTURE_DIFFUSE_COLOR = "getTextureDiffuseColor";
+
+        /** {@code DyeColor.getTextureDiffuseColors} - the static plural tint accessor (block {@code tinted} signal). */
+        public static final @NotNull String GET_TEXTURE_DIFFUSE_COLORS = "getTextureDiffuseColors";
 
         /** {@code <X>Variants.createKey("id")} - the data-variant holder-class key factory. */
         public static final @NotNull String CREATE_KEY = "createKey";

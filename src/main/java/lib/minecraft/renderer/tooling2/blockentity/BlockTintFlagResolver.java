@@ -1,0 +1,72 @@
+package lib.minecraft.renderer.tooling2.blockentity;
+
+import lib.minecraft.renderer.tooling2.kernel.AsmKit;
+import lib.minecraft.renderer.tooling2.kernel.ClassNodeCache;
+import lib.minecraft.renderer.tooling2.kernel.VanillaSourceClasses;
+import org.jetbrains.annotations.NotNull;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Node {@code tinted} (SPINE 3.3 row 4) [D51]: a split is tint-bearing when its renderer's
+ * hierarchy calls a dye/banner tint accessor AND the split's mesh factory is a {@code *FlagModel}
+ * (the flag sub-model takes the dye; the wood-brown pole / bar does not). Session-scoped: the
+ * per-renderer tint-bearing verdict is memoised.
+ *
+ * <p>No allow-list - the only semantic judgment is "renderer calls a DyeColor / BannerPattern
+ * API"; everything downstream is structural (legacy TintDiscovery.java:84, :113-117).
+ */
+final class BlockTintFlagResolver {
+
+    private final @NotNull ClassNodeCache cache;
+
+    /** renderer internal name -> whether its hierarchy calls a tint accessor. */
+    private final @NotNull Map<String, Boolean> tintBearing = new HashMap<>();
+
+    BlockTintFlagResolver(@NotNull ClassNodeCache cache) {
+        this.cache = cache;
+    }
+
+    /**
+     * Whether a split carries the {@code tinted} flag: a tint-bearing renderer plus a
+     * {@code *FlagModel} mesh factory.
+     *
+     * @param rendererClass the renderer internal name
+     * @param factoryClass the split's mesh factory class internal name
+     * @return {@code true} when the split renders tinted
+     */
+    boolean isTinted(@NotNull String rendererClass, @NotNull String factoryClass) {
+        return isFlagModel(factoryClass) && isRendererTintBearing(rendererClass);
+    }
+
+    /** A {@code *FlagModel} mesh (banner / wall-banner flag) - the dye-taking sub-model. */
+    private static boolean isFlagModel(@NotNull String factoryClass) {
+        return factoryClass.contains("Flag") && factoryClass.endsWith("Model");
+    }
+
+    private boolean isRendererTintBearing(@NotNull String rendererClass) {
+        return this.tintBearing.computeIfAbsent(rendererClass,
+            renderer -> AsmKit.walkSuperChainUntil(this.cache, renderer, BlockTintFlagResolver::classCallsTintAccessor) != null);
+    }
+
+    /**
+     * Whether any method on a class invokes {@code DyeColor.getTextureDiffuseColor(s)},
+     * {@code BannerPattern.getColor}, or returns {@code BannerPatternLayers}.
+     */
+    private static boolean classCallsTintAccessor(@NotNull ClassNode cn) {
+        for (MethodNode method : cn.methods)
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)) return true;
+                if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLORS)) return true;
+                if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.BANNER_PATTERN, VanillaSourceClasses.Methods.GET_COLOR)) return true;
+                if (in instanceof MethodInsnNode mi && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.BANNER_PATTERN_LAYERS)) return true;
+            }
+        return false;
+    }
+
+}
