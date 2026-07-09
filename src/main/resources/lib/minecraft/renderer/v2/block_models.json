@@ -1,0 +1,127 @@
+{
+  "//": "tooling2.blockModels · regen: ./gradlew blockModels2 · order: BlockEntityRenderers.<clinit> registration order x BlockFamilyPolicies split order",
+  "format": 2,
+  "source_version": "26.1",
+  "models": {
+    "minecraft:sign": {
+      "renderer": "net/minecraft/client/renderer/blockentity/StandingSignRenderer",
+      "geometry": "StandingSignRenderer#createSignLayer@iparam=0:1",
+      "y_axis": "DOWN"
+    },
+    "minecraft:wall_sign": {
+      "renderer": "net/minecraft/client/renderer/blockentity/StandingSignRenderer",
+      "geometry": "StandingSignRenderer#createSignLayer@iparam=0:0",
+      "y_axis": "DOWN"
+    },
+    "minecraft:hanging_sign": {
+      "renderer": "net/minecraft/client/renderer/blockentity/HangingSignRenderer",
+      "geometry": "HangingSignRenderer#createHangingSignLayer@ref=CEILING",
+      "y_axis": "DOWN"
+    },
+    "minecraft:hanging_sign_attached": {
+      "renderer": "net/minecraft/client/renderer/blockentity/HangingSignRenderer",
+      "geometry": "HangingSignRenderer#createHangingSignLayer@ref=CEILING_MIDDLE",
+      "y_axis": "DOWN"
+    },
+    "minecraft:wall_hanging_sign": {
+      "renderer": "net/minecraft/client/renderer/blockentity/HangingSignRenderer",
+      "geometry": "HangingSignRenderer#createHangingSignLayer@ref=WALL",
+      "y_axis": "DOWN"
+    },
+    "minecraft:chest": {
+      "renderer": "net/minecraft/client/renderer/blockentity/ChestRenderer",
+      "geometry": "ChestModel#createSingleBodyLayer",
+      "y_axis": "UP"
+    },
+    "minecraft:enchanting_table": {
+      "renderer": "net/minecraft/client/renderer/blockentity/EnchantTableRenderer",
+      "geometry": "BookModel#createBodyLayer",
+      "y_axis": "DOWN"
+    },
+    "minecraft:lectern": {
+      "renderer": "net/minecraft/client/renderer/blockentity/LecternRenderer",
+      "geometry": "BookModel#createBodyLayer",
+      "y_axis": "DOWN"
+    },
+    "minecraft:skull_head": {
+      "renderer": "net/minecraft/client/renderer/blockentity/SkullBlockRenderer",
+      "geometry": "SkullModel#createMobHeadLayer",
+      "y_axis": "DOWN"
+    },
+    "minecraft:skull_humanoid_head": {
+      "renderer": "net/minecraft/client/renderer/blockentity/SkullBlockRenderer",
+      "geometry": "SkullModel#createHumanoidHeadLayer",
+      "y_axis": "DOWN"
+    },
+    "minecraft:skull_dragon_head": {
+      "renderer": "net/minecraft/client/renderer/blockentity/SkullBlockRenderer",
+      "geometry": "DragonHeadModel#createHeadLayer",
+      "y_axis": "DOWN"
+    },
+    "minecraft:skull_piglin_head": {
+      "renderer": "net/minecraft/client/renderer/blockentity/SkullBlockRenderer",
+      "geometry": "PiglinHeadModel#createHeadModel",
+      "y_axis": "DOWN"
+    },
+    "minecraft:banner": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BannerRenderer",
+      "geometry": "BannerModel#createBodyLayer@iparam=0:1",
+      "y_axis": "DOWN"
+    },
+    "minecraft:wall_banner": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BannerRenderer",
+      "geometry": "BannerModel#createBodyLayer@iparam=0:0",
+      "y_axis": "DOWN"
+    },
+    "minecraft:banner_flag": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BannerRenderer",
+      "geometry": "BannerFlagModel#createFlagLayer@iparam=0:1",
+      "y_axis": "DOWN"
+    },
+    "minecraft:wall_banner_flag": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BannerRenderer",
+      "geometry": "BannerFlagModel#createFlagLayer@iparam=0:0",
+      "y_axis": "DOWN"
+    },
+    "minecraft:shulker_box": {
+      "renderer": "net/minecraft/client/renderer/blockentity/ShulkerBoxRenderer",
+      "geometry": "ShulkerModel#createBoxLayer",
+      "y_axis": "DOWN"
+    },
+    "minecraft:bed_head": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BedRenderer",
+      "geometry": "BedRenderer#createHeadLayer",
+      "y_axis": "DOWN"
+    },
+    "minecraft:bed_foot": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BedRenderer",
+      "geometry": "BedRenderer#createFootLayer",
+      "y_axis": "DOWN"
+    },
+    "minecraft:conduit": {
+      "renderer": "net/minecraft/client/renderer/blockentity/ConduitRenderer",
+      "geometry": "ConduitRenderer#createShellLayer",
+      "y_axis": "DOWN"
+    },
+    "minecraft:bell_body": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BellRenderer",
+      "geometry": "BellModel#createBodyLayer",
+      "y_axis": "UP"
+    },
+    "minecraft:decorated_pot": {
+      "renderer": "net/minecraft/client/renderer/blockentity/DecoratedPotRenderer",
+      "geometry": "DecoratedPotRenderer#createBaseLayer",
+      "y_axis": "DOWN"
+    },
+    "minecraft:decorated_pot_sides": {
+      "renderer": "net/minecraft/client/renderer/blockentity/DecoratedPotRenderer",
+      "geometry": "DecoratedPotRenderer#createSidesLayer",
+      "y_axis": "DOWN"
+    },
+    "minecraft:copper_golem_statue": {
+      "renderer": "net/minecraft/client/renderer/blockentity/CopperGolemStatueBlockRenderer",
+      "geometry": "CopperGolemModel#createBodyLayer",
+      "y_axis": "DOWN"
+    }
+  }
+}

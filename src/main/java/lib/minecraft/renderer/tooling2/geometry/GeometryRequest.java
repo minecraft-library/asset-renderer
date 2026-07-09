@@ -187,6 +187,39 @@ public record GeometryRequest(
     }
 
     /**
+     * A block-primary request: a block-entity model mesh at a chosen branch variant. Unlike
+     * the entity recipes it carries an explicit {@code yAxis} (the pivot-band heuristic emits
+     * {@code UP} for block-space-authored meshes) and leaves float substitution DISABLED
+     * ({@code paramFloatValues == null} - block factories never take a body-scale float, so the
+     * legacy literal-stack-only walk applies), while the int-parameter table (banner / sign
+     * {@code withStick}) and the reference-parameter binding (hanging-sign attachment enum)
+     * drive the branch evaluation that splits one factory into its variants.
+     *
+     * @param factoryClass the factory class's internal name
+     * @param factoryMethod the factory method
+     * @param subjectId the requesting subject
+     * @param yAxis the source-frame Y convention (pivot-band heuristic)
+     * @param texWidthOverride the texture-width override, or {@code null}
+     * @param texHeightOverride the texture-height override, or {@code null}
+     * @param paramIntValues the int-parameter substitution table, or {@code null}
+     * @param refParam the reference-parameter enum binding, or {@code null}
+     * @return the request
+     */
+    public static @NotNull GeometryRequest blockGeometry(
+        @NotNull String factoryClass,
+        @NotNull String factoryMethod,
+        @NotNull String subjectId,
+        @NotNull YAxis yAxis,
+        @Nullable Integer texWidthOverride,
+        @Nullable Integer texHeightOverride,
+        int @Nullable [] paramIntValues,
+        @Nullable RefParam refParam
+    ) {
+        return new GeometryRequest(factoryClass, factoryMethod, subjectId, yAxis,
+            texWidthOverride, texHeightOverride, paramIntValues, null, NO_GROW, 1f, refParam);
+    }
+
+    /**
      * Builds the 8-slot float parameter table with slot 0 seeded from the captured factory
      * float argument (donkey / mule base body scale), or all-zero when none was captured.
      */
