@@ -131,7 +131,12 @@
       "inventory": {
         "y_rotation": 180.0,
         "flip": true
-      }
+      },
+      "parts": [
+        {
+          "model": "minecraft:banner_flag"
+        }
+      ]
     },
     "minecraft:wall_banner": {
       "renderer": "net/minecraft/client/renderer/blockentity/BannerRenderer",
@@ -141,7 +146,12 @@
       "inventory": {
         "y_rotation": 180.0,
         "flip": true
-      }
+      },
+      "parts": [
+        {
+          "model": "minecraft:wall_banner_flag"
+        }
+      ]
     },
     "minecraft:banner_flag": {
       "renderer": "net/minecraft/client/renderer/blockentity/BannerRenderer",
@@ -184,7 +194,17 @@
       },
       "icon": {
         "rotation": 90
-      }
+      },
+      "parts": [
+        {
+          "model": "minecraft:bed_foot",
+          "offset": [
+            0,
+            0,
+            16
+          ]
+        }
+      ]
     },
     "minecraft:bed_foot": {
       "renderer": "net/minecraft/client/renderer/blockentity/BedRenderer",
@@ -227,7 +247,18 @@
       "inventory": {
         "y_rotation": 0.0,
         "flip": true
-      }
+      },
+      "parts": [
+        {
+          "model": "minecraft:decorated_pot_sides",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "texture": "minecraft:entity/decorated_pot/decorated_pot_side"
+        }
+      ]
     },
     "minecraft:decorated_pot_sides": {
       "renderer": "net/minecraft/client/renderer/blockentity/DecoratedPotRenderer",

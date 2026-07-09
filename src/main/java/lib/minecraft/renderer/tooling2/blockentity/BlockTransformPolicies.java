@@ -6,6 +6,7 @@ import lib.minecraft.renderer.tooling2.policy.NavigationPolicy;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -91,10 +92,41 @@ enum BlockTransformPolicies implements NavigationPolicy {
     ICON_ADDITIVE(
         Set.of("minecraft:bell_body"),
         "[D50]: the bell body draws additively over the block's real (non builtin/entity) blockstate"
-            + " model - legacy ToolingBlockModels.applyPerBlockFamilyFields:427-429");
+            + " model - legacy ToolingBlockModels.applyPerBlockFamilyFields:427-429"),
+
+    /**
+     * P32 - the sub-model composition roster: which base split renders a sub-model part, its
+     * split id, the render offset, and any per-part texture override. Vanilla composes these in
+     * the renderer's {@code submit}; the offsets and the pot-side texture are declared (the
+     * legacy walk hard-codes them as constants). The four part-only splits (bed_foot,
+     * decorated_pot_sides, banner_flag, wall_banner_flag) exist only as reference targets and
+     * carry no parts of their own.
+     */
+    PART_COMPOSITION(
+        Map.of(
+            "minecraft:bed_head", List.of(new PartSpec("minecraft:bed_foot", new int[]{0, 0, 16}, null)),
+            "minecraft:banner", List.of(new PartSpec("minecraft:banner_flag", null, null)),
+            "minecraft:wall_banner", List.of(new PartSpec("minecraft:wall_banner_flag", null, null)),
+            "minecraft:decorated_pot", List.of(new PartSpec("minecraft:decorated_pot_sides", new int[]{0, 0, 0},
+                "minecraft:entity/decorated_pot/decorated_pot_side"))),
+        "P32: the sub-model parts roster - legacy BlockListDiscovery BED_FOOT_OFFSET={0,0,16}:171 (icon-"
+            + " composition policy; BedRenderer at 26.1 has no submit translate - the {0,0,16} matches"
+            + " BedBlock's one-block foot placement), DECORATED_POT_SIDES_OFFSET={0,0,0}:164 (no PoseStack"
+            + " .translate between the base and sides submits) + SIDE_TEXTURE:1794 (= Sheets.DECORATED_POT_SIDE);"
+            + " banner/wall_banner compose their flag sub-model with no offset - :1629-1630, :1810-1811");
 
     /** The {@code FIELD:} prefix on a P41 entry marking a static {@code Transformation} field. */
     static final @NotNull String FIELD_ENTRY_PREFIX = "FIELD:";
+
+    /**
+     * One composed sub-model part: the part's split id, its render offset (in model pixels, or
+     * {@code null} to omit), and a per-part texture override (or {@code null} to inherit).
+     *
+     * @param model the part's models key
+     * @param offset the {@code [x, y, z]} render offset, or {@code null} to omit the key
+     * @param texture the per-part texture id, or {@code null} to omit the key
+     */
+    record PartSpec(@NotNull String model, int @Nullable [] offset, @Nullable String texture) {}
 
     private final @NotNull Object value;
     private final @NotNull String provenance;
@@ -175,6 +207,18 @@ enum BlockTransformPolicies implements NavigationPolicy {
     @SuppressWarnings("unchecked")
     static boolean isIconAdditive(@NotNull String splitId) {
         return ((Set<String>) ICON_ADDITIVE.value).contains(splitId);
+    }
+
+    /**
+     * The sub-model parts a base split composes, or {@code null} when the split renders no
+     * sub-models.
+     *
+     * @param splitId the models key
+     * @return the ordered part specs, or {@code null}
+     */
+    @SuppressWarnings("unchecked")
+    static @Nullable List<PartSpec> partsOf(@NotNull String splitId) {
+        return ((Map<String, List<PartSpec>>) PART_COMPOSITION.value).get(splitId);
     }
 
 }
