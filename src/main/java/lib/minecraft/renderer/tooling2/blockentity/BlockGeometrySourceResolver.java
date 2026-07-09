@@ -43,18 +43,6 @@ import java.util.Set;
  */
 final class BlockGeometrySourceResolver {
 
-    /**
-     * The primary layer-factory method names - "which layer is the whole-block geometry vs a
-     * decorative sub-layer" (conduit eye/wind/cage, copper-golem poses). Not a vanilla type
-     * literal, so it lives here rather than the policy enum; the roster is the legacy
-     * {@code PRIMARY_METHOD_NAMES} (SourceDiscovery.java:162-178).
-     */
-    private static final @NotNull Set<String> PRIMARY_METHOD_NAMES = Set.of(
-        "createSingleBodyLayer", "createBodyLayer", "createBoxLayer", "createShellLayer",
-        "createShellMesh", "createBaseLayer", "createSidesLayer", "createHeadLayer",
-        "createFootLayer", "createHeadModel", "createFlagLayer", "createSignLayer",
-        "createHangingSignLayer", "createMobHeadLayer", "createHumanoidHeadLayer");
-
     private final @NotNull ClassNodeCache cache;
     private final @NotNull BlockEntitySubject subject;
     private final @NotNull LayerDefinitionIndex layerDefinitions;
@@ -99,7 +87,7 @@ final class BlockGeometrySourceResolver {
 
         for (String field : collectLayerRefs(this.subject.rendererClass())) {
             LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(field);
-            if (entry == null || !PRIMARY_METHOD_NAMES.contains(entry.factoryMethod())) continue;
+            if (entry == null || !BlockGeometryPolicies.isPrimary(entry.factoryMethod())) continue;
             anyPrimary = true;
             emitGenericSplit(field, entry, splits, seenSplitIds);
         }
@@ -147,7 +135,7 @@ final class BlockGeometrySourceResolver {
         for (MethodNode method : renderer.methods) {
             if ((method.access & Opcodes.ACC_STATIC) == 0) continue;
             if (!AsmKit.descriptorReturns(method.desc, VanillaSourceClasses.Types.LAYER_DEFINITION)) continue;
-            if (!PRIMARY_METHOD_NAMES.contains(method.name)) continue;
+            if (!BlockGeometryPolicies.isPrimary(method.name)) continue;
 
             YAxis yAxis = inferYAxis(this.subject.rendererClass(), method.name);
             List<BlockFamilyPolicies.SignVariant> variants = BlockFamilyPolicies.signVariants(method.name);
