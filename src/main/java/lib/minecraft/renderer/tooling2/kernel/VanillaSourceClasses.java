@@ -82,8 +82,47 @@ public final class VanillaSourceClasses {
         /** {@code HumanoidArmorLayer} - the armor-mesh layer whose roster presence classifies {@code armor_type}. */
         public static final @NotNull String HUMANOID_ARMOR_LAYER = "net/minecraft/client/renderer/entity/layers/HumanoidArmorLayer";
 
+        /** {@code SimpleEquipmentLayer} - the generic saddle / body-armor layer (roster row 15). */
+        public static final @NotNull String SIMPLE_EQUIPMENT_LAYER = "net/minecraft/client/renderer/entity/layers/SimpleEquipmentLayer";
+
+        /** {@code EntityModelSet} - the per-renderer registry of baked layers ({@code bakeLayer} owner on layer ctors). */
+        public static final @NotNull String ENTITY_MODEL_SET = CLIENT_MODEL_GEOM_ROOT + "EntityModelSet";
+
+        /** {@code RenderTypes} - the render-type factory class the pipeline-trait walks anchor on. */
+        public static final @NotNull String RENDER_TYPES = "net/minecraft/client/renderer/rendertype/RenderTypes";
+
+        /** {@code RenderType} - the factory product ({@code RenderTypes.*} return type). */
+        public static final @NotNull String RENDER_TYPE = "net/minecraft/client/renderer/rendertype/RenderType";
+
+        /** {@code RenderPipelines} - the static pipeline registry whose {@code <clinit>} build blocks carry the traits. */
+        public static final @NotNull String RENDER_PIPELINES = "net/minecraft/client/renderer/RenderPipelines";
+
+        /** {@code BlendFunction} - the blend-mode enum ({@code TRANSLUCENT} / {@code ADDITIVE} constants). */
+        public static final @NotNull String BLEND_FUNCTION = "com/mojang/blaze3d/pipeline/BlendFunction";
+
+        /** {@code EquipmentClientInfo$LayerType} - the equipment texture-subdir enum ({@code <clinit>} id LDCs [D33]). */
+        public static final @NotNull String EQUIPMENT_LAYER_TYPE = "net/minecraft/client/resources/model/EquipmentClientInfo$LayerType";
+
+        /** {@code EquipmentAssets} - the static holder of equipment-asset keys ({@code TRADER_LLAMA}, ...). */
+        public static final @NotNull String EQUIPMENT_ASSETS = "net/minecraft/world/item/equipment/EquipmentAssets";
+
+        /** {@code ColorLerper$Type} - the dyed-overlay tint evaluator ({@code getColor(DyeColor)}). */
+        public static final @NotNull String COLOR_LERPER_TYPE = "net/minecraft/client/color/ColorLerper$Type";
+
+        /** {@code BlockModelRenderState} - the per-block-overlay render state block-decoration layers read (roster row 14). */
+        public static final @NotNull String BLOCK_MODEL_RENDER_STATE = "net/minecraft/client/renderer/block/BlockModelRenderState";
+
+        /** {@code BlockModelResolver} - binds a block model into a {@code BlockModelRenderState} in {@code extractRenderState}. */
+        public static final @NotNull String BLOCK_MODEL_RESOLVER = "net/minecraft/client/renderer/block/BlockModelResolver";
+
+        /** {@code com.mojang.math.Axis} - the rotation-axis constants block-overlay transforms route through. */
+        public static final @NotNull String MATH_AXIS = "com/mojang/math/Axis";
+
         /** {@code LivingEntityRenderState} - the bridge-overload parameter type on renderer state methods. */
         public static final @NotNull String LIVING_ENTITY_RENDER_STATE = "net/minecraft/client/renderer/entity/state/LivingEntityRenderState";
+
+        /** {@code EntityRenderState} - the bridge-overload parameter type on layer {@code submit} methods. */
+        public static final @NotNull String ENTITY_RENDER_STATE = "net/minecraft/client/renderer/entity/state/EntityRenderState";
 
         /** {@code PoseStack} - the render-transform stack the {@code scale} override chains on. */
         public static final @NotNull String POSE_STACK = "com/mojang/blaze3d/vertex/PoseStack";
@@ -135,6 +174,9 @@ public final class VanillaSourceClasses {
 
         /** {@code ResourceKey} - the typed registry key the 26.x register overloads take. */
         public static final @NotNull String RESOURCE_KEY = "net/minecraft/resources/ResourceKey";
+
+        /** {@code Holder} - the registry-entry wrapper data-class accessors return (villager type / profession). */
+        public static final @NotNull String HOLDER = "net/minecraft/core/Holder";
 
     }
 
@@ -191,6 +233,42 @@ public final class VanillaSourceClasses {
 
         /** {@code <X>Variants.createKey("id")} - the data-variant holder-class key factory. */
         public static final @NotNull String CREATE_KEY = "createKey";
+
+        /** {@code RenderLayer.coloredCutoutModelCopyLayerRender} - the tinted cutout-copy helper (implies entityCutout). */
+        public static final @NotNull String COLORED_CUTOUT_HELPER = "coloredCutoutModelCopyLayerRender";
+
+        /** {@code RenderLayer.submit} - the per-layer render entry the structural gates walk. */
+        public static final @NotNull String SUBMIT = "submit";
+
+        /** {@code EntityRenderer.extractRenderState} - the state-population hook (block / gate binds). */
+        public static final @NotNull String EXTRACT_RENDER_STATE = "extractRenderState";
+
+        /** {@code PartDefinition.retainExactParts} - the subset-mesh transformer (warden spots, creaking eyes) [D21]. */
+        public static final @NotNull String RETAIN_EXACT_PARTS = "retainExactParts";
+
+        /** {@code ColorLerper$Type.getColor(DyeColor)} - the dyed-overlay tint accessor. */
+        public static final @NotNull String GET_COLOR = "getColor";
+
+        /** {@code ColorLerper.getModifiedColor(DyeColor, F)} - the WHITE-branch tint literal source [D-row 24]. */
+        public static final @NotNull String GET_MODIFIED_COLOR = "getModifiedColor";
+
+        /** {@code PoseStack.pushPose} - the block-overlay transform-block opener. */
+        public static final @NotNull String PUSH_POSE = "pushPose";
+
+        /** {@code PoseStack.popPose} - the block-overlay transform-block closer. */
+        public static final @NotNull String POP_POSE = "popPose";
+
+        /** {@code PoseStack.translate(F, F, F)} - the block-overlay translate op. */
+        public static final @NotNull String TRANSLATE = "translate";
+
+        /** {@code Axis.rotationDegrees(F)} - the block-overlay rotation op source. */
+        public static final @NotNull String ROTATION_DEGREES = "rotationDegrees";
+
+        /** {@code ModelPart.translateAndRotate(PoseStack)} - the bone bind-pose pre-application. */
+        public static final @NotNull String TRANSLATE_AND_ROTATE = "translateAndRotate";
+
+        /** {@code BlockModelResolver.update(...)} - the literal-block bind in {@code extractRenderState}. */
+        public static final @NotNull String UPDATE = "update";
 
     }
 
@@ -272,6 +350,9 @@ public final class VanillaSourceClasses {
         /** The data-driven variant-table directory suffix ({@code data/minecraft/<stem>_variant/}). */
         public static final @NotNull String VARIANT_DIR_SUFFIX = "_variant";
 
+        /** The equipment-texture subtree under {@link #TEXTURES_ENTITY} ({@code equipment/<subdir>/<material>.png}) [D15]. */
+        public static final @NotNull String EQUIPMENT_DIR = "equipment/";
+
     }
 
     /** Vanilla data-schema keys [C6]: asset_id, spawn_conditions, minecraft:select, display.gui. */
@@ -308,6 +389,21 @@ public final class VanillaSourceClasses {
 
         private Defines() {
         }
+
+        /** {@code RenderPipeline$Builder.withShaderDefine} - the define-application builder call. */
+        public static final @NotNull String WITH_SHADER_DEFINE = "withShaderDefine";
+
+        /** The full-bright define - the renderer-semantic {@code emissive} trait (skip shading). */
+        public static final @NotNull String NO_CARDINAL_LIGHTING = "NO_CARDINAL_LIGHTING";
+
+        /** The emissive shader define (EYES / ENERGY_SWIRL carry it alongside {@link #NO_CARDINAL_LIGHTING}). */
+        public static final @NotNull String EMISSIVE = "EMISSIVE";
+
+        /** {@code BlendFunction.TRANSLUCENT} - the source-over translucent blend constant. */
+        public static final @NotNull String TRANSLUCENT = "TRANSLUCENT";
+
+        /** {@code BlendFunction.ADDITIVE} - the additive-glow blend constant (energy swirl). */
+        public static final @NotNull String ADDITIVE = "ADDITIVE";
 
     }
 

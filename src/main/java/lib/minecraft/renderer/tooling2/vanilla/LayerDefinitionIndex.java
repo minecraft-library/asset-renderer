@@ -13,6 +13,7 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.Collections;
@@ -52,6 +53,10 @@ public final class LayerDefinitionIndex {
     private static final @NotNull String SCALING_DESC =
         VanillaSourceClasses.Descs.of(VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF, "F");
 
+    /** Field descriptor of a {@code CubeDeformation} reference - the [D16] static-field grow shape. */
+    private static final @NotNull String CUBE_DEFORMATION_REF =
+        VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.CUBE_DEFORMATION);
+
     /**
      * One resolved {@code ModelLayers} entry: the factory coordinate plus every call-site
      * bake argument the request factories consume.
@@ -66,7 +71,8 @@ public final class LayerDefinitionIndex {
      * @param layerField the {@code ModelLayers} field name this entry resolves - threaded,
      *     never discarded [D57]
      * @param grow the 3-component cube inflate captured from an inline
-     *     {@code new CubeDeformation(F)} at the call site ({@code {0,0,0}} = none)
+     *     {@code new CubeDeformation(F)} at the call site or resolved from a static
+     *     deformation field's {@code <clinit>} bind [D16] ({@code {0,0,0}} = none)
      * @param floatParam the call-site {@code float} literal for a single-{@code float}
      *     factory ({@code DonkeyModel.createBodyLayer(F)} - donkey {@code 0.87f}, mule
      *     {@code 0.92f} [D9]), seeded into the parser's slot 0; {@code null} for other arities
@@ -139,11 +145,14 @@ public final class LayerDefinitionIndex {
         Entry pendingDirect = null;
         Entry pendingMesh = null;
         Integer[] widthHeight = {null, null};
-        // Tracks the inflate of the most recent inline `new CubeDeformation(F); <init>`. When
-        // the next factory call consumes the deformation, this value rides into the Entry as
-        // its grow pre-seed. Reset on each new ModelLayers field so the value can't leak
-        // across registrations.
-        Float pendingDeformationInflate = null;
+        // Tracks the grow of the most recent deformation on the operand stack - an inline
+        // `new CubeDeformation(F); <init>` or a `GETSTATIC <field>:CubeDeformation` resolved
+        // through the owner's <clinit> bind [D16] (FISH_PATTERN_DEFORMATION, the cat
+        // COLLAR_DEFORMATION; CubeDeformation.NONE resolves to zero). When the next factory
+        // call consumes the deformation, this value rides into the Entry as its grow
+        // pre-seed. Reset on each new ModelLayers field so the value can't leak across
+        // registrations.
+        float[] pendingDeformationGrow = null;
         Float pendingFloat = null;
         // F of the `MeshTransformer.scaling(F)` that just returned to the operand stack but
         // hasn't yet been astored to a slot or applied. Cleared by ASTORE (captures into
@@ -166,15 +175,24 @@ public final class LayerDefinitionIndex {
             }
 
             // `new CubeDeformation; dup; ldc F; invokespecial <init>(F)V`: capture the float
-            // into pendingDeformationInflate so the next factory call that consumes the
+            // into pendingDeformationGrow so the next factory call that consumes the
             // deformation picks it up. Matches the legacy walk's `(F`-prefix gate (the
             // single-float ctor; the FFF ctor never appears inline in createRoots on 26.1).
             if (in instanceof MethodInsnNode mi
                 && opcode == Opcodes.INVOKESPECIAL
                 && AsmKit.INIT.equals(mi.name)
                 && VanillaSourceClasses.Types.CUBE_DEFORMATION.equals(mi.owner)) {
-                if (mi.desc.startsWith("(F") && pendingFloat != null) pendingDeformationInflate = pendingFloat;
+                if (mi.desc.startsWith("(F") && pendingFloat != null)
+                    pendingDeformationGrow = new float[]{pendingFloat, pendingFloat, pendingFloat};
                 pendingFloat = null;
+                continue;
+            }
+
+            // `GETSTATIC <field>: CubeDeformation` - a static-field deformation at the call
+            // site, resolved through the owner's <clinit> bind [D16].
+            if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
+                && CUBE_DEFORMATION_REF.equals(fi.desc)) {
+                pendingDeformationGrow = resolveDeformationField(cache, fi.owner, fi.name);
                 continue;
             }
 
@@ -189,7 +207,7 @@ public final class LayerDefinitionIndex {
                 pendingLayerField = ((FieldInsnNode) in).name;
                 pendingDirect = null;
                 pendingMesh = null;
-                pendingDeformationInflate = null;
+                pendingDeformationGrow = null;
                 pendingFloat = null;
                 pendingAppliedMTScale = null;
                 continue;
@@ -227,8 +245,8 @@ public final class LayerDefinitionIndex {
                 if (AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION)) {
                     pendingMesh = new Entry(mi.owner, mi.name, mi.desc, null, null,
                         pendingLayerField == null ? "" : pendingLayerField,
-                        growOf(pendingDeformationInflate), null, 1f);
-                    pendingDeformationInflate = null;
+                        growOf(pendingDeformationGrow), null, 1f);
+                    pendingDeformationGrow = null;
                     continue;
                 }
                 if (VanillaSourceClasses.Types.LAYER_DEFINITION.equals(mi.owner)
@@ -248,8 +266,8 @@ public final class LayerDefinitionIndex {
                     Float floatParam = pendingFloat != null && mi.desc.startsWith("(F)") ? pendingFloat : null;
                     pendingDirect = new Entry(mi.owner, mi.name, mi.desc, null, null,
                         pendingLayerField == null ? "" : pendingLayerField,
-                        growOf(pendingDeformationInflate), floatParam, 1f);
-                    pendingDeformationInflate = null;
+                        growOf(pendingDeformationGrow), floatParam, 1f);
+                    pendingDeformationGrow = null;
                     pendingFloat = null;
                 }
                 continue;
@@ -338,9 +356,50 @@ public final class LayerDefinitionIndex {
         return Collections.unmodifiableMap(this.entries);
     }
 
-    /** The uniform 3-component grow of a scalar inline inflate ({@code null} = no grow). */
-    private static float @NotNull [] growOf(@Nullable Float inflate) {
-        return inflate == null ? new float[]{0f, 0f, 0f} : new float[]{inflate, inflate, inflate};
+    /** The 3-component grow of a pending deformation ({@code null} = no grow). */
+    private static float @NotNull [] growOf(float @Nullable [] grow) {
+        return grow == null ? new float[]{0f, 0f, 0f} : grow;
+    }
+
+    /**
+     * Resolves a static {@code CubeDeformation} field to its 3-component grow by walking the
+     * owner's {@code <clinit>} for the {@code new CubeDeformation(F|FFF); PUTSTATIC <field>}
+     * bind [D16]. Returns {@code null} when the owner or the bind is absent (treated as no
+     * deformation - the caller's growOf handles it).
+     */
+    private static float @Nullable [] resolveDeformationField(
+        @NotNull ClassNodeCache cache,
+        @NotNull String ownerInternalName,
+        @NotNull String fieldName
+    ) {
+        ClassNode owner = cache.load(ownerInternalName);
+        MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
+        if (clinit == null) return null;
+        boolean inAlloc = false;
+        float[] literals = new float[3];
+        int seen = 0;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() == Opcodes.NEW
+                && in instanceof TypeInsnNode alloc
+                && VanillaSourceClasses.Types.CUBE_DEFORMATION.equals(alloc.desc)) {
+                inAlloc = true;
+                seen = 0;
+                continue;
+            }
+            if (!inAlloc) continue;
+            Float literal = AsmKit.readFloatLiteral(in);
+            if (literal != null) {
+                if (seen < 3) literals[seen] = literal;
+                seen++;
+                continue;
+            }
+            if (AsmKit.isPutStatic(in, ownerInternalName, fieldName) && seen >= 1)
+                return seen == 1
+                    ? new float[]{literals[0], literals[0], literals[0]}
+                    : new float[]{literals[0], literals[1], literals[2]};
+            if (in.getOpcode() == Opcodes.PUTSTATIC) inAlloc = false;
+        }
+        return null;
     }
 
     /**

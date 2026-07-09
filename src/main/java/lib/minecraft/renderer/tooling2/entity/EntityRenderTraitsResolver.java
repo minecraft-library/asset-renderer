@@ -253,7 +253,7 @@ final class EntityRenderTraitsResolver {
         for (MethodNode method : cn.methods)
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
                 if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR))
-                    return walkDyeColorWhiteTextureDiffuseColor();
+                    return whiteTextureDiffuseColor(this.cache);
         return NO_TINT;
     }
 
@@ -265,8 +265,8 @@ final class EntityRenderTraitsResolver {
      * {@code MapColor} GETSTATIC. Alpha {@code 0xFF} is prepended to match the ARGB tint
      * convention. {@code NO_TINT} on any pattern miss.
      */
-    private int walkDyeColorWhiteTextureDiffuseColor() {
-        ClassNode dyeColor = this.cache.load(VanillaSourceClasses.Types.DYE_COLOR);
+    static int whiteTextureDiffuseColor(@NotNull ClassNodeCache cache) {
+        ClassNode dyeColor = cache.load(VanillaSourceClasses.Types.DYE_COLOR);
         MethodNode clinit = dyeColor == null ? null : AsmKit.findMethod(dyeColor, AsmKit.CLINIT);
         if (clinit == null) return NO_TINT;
 
