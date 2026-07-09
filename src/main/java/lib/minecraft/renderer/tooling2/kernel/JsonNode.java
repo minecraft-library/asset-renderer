@@ -313,6 +313,19 @@ public final class JsonNode {
     // ------------------------------------------------------------------------------------
 
     /**
+     * Wraps an existing Gson element as a node - sanctioned ONLY for the geometry parser's
+     * output edge (its ~3000 KEPT-verbatim internal lines assemble Gson trees per decision
+     * 31; converting them would be the internal restructuring S14's byte pin exists to
+     * gate) and for the bridge's read side. Flow resolvers never wrap.
+     *
+     * @param element the element to wrap
+     * @return the wrapping node
+     */
+    public static @NotNull JsonNode wrap(@NotNull JsonElement element) {
+        return new JsonNode(element);
+    }
+
+    /**
      * Parses UTF-8 JSON bytes into a node (member order preserved).
      *
      * @param utf8 the raw JSON bytes

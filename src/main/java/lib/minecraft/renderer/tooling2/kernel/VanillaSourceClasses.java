@@ -23,6 +23,41 @@ public final class VanillaSourceClasses {
         private Types() {
         }
 
+        /** The model package root - the P29 invokestatic-follow gate's positive side. */
+        public static final @NotNull String CLIENT_MODEL_ROOT = "net/minecraft/client/model/";
+
+        /** The geometry-primitive package root - the P29 gate's negative side (never followed). */
+        public static final @NotNull String CLIENT_MODEL_GEOM_ROOT = CLIENT_MODEL_ROOT + "geom/";
+
+        private static final @NotNull String MODEL_BUILDERS_ROOT = CLIENT_MODEL_GEOM_ROOT + "builders/";
+
+        /** {@code PartPose} - pivot / rotation / scale factories. */
+        public static final @NotNull String PART_POSE = CLIENT_MODEL_GEOM_ROOT + "PartPose";
+
+        /** {@code PartNames} - the indexed bone-name helper class. */
+        public static final @NotNull String PART_NAMES = CLIENT_MODEL_GEOM_ROOT + "PartNames";
+
+        /** {@code LayerDefinition} - the mesh + texture-dimension carrier. */
+        public static final @NotNull String LAYER_DEFINITION = MODEL_BUILDERS_ROOT + "LayerDefinition";
+
+        /** {@code MeshTransformer} - layer-level scale / mesh-mutation wraps. */
+        public static final @NotNull String MESH_TRANSFORMER = MODEL_BUILDERS_ROOT + "MeshTransformer";
+
+        /** {@code CubeListBuilder} - the cube-chain builder. */
+        public static final @NotNull String CUBE_LIST_BUILDER = MODEL_BUILDERS_ROOT + "CubeListBuilder";
+
+        /** {@code CubeDeformation} - the inflate carrier. */
+        public static final @NotNull String CUBE_DEFORMATION = MODEL_BUILDERS_ROOT + "CubeDeformation";
+
+        /** {@code PartDefinition} - the bone-tree node. */
+        public static final @NotNull String PART_DEFINITION = MODEL_BUILDERS_ROOT + "PartDefinition";
+
+        /** {@code Mth} - vanilla's 65536-entry table trig. */
+        public static final @NotNull String MTH = "net/minecraft/util/Mth";
+
+        /** {@code RandomSource} - vanilla's seeded random factory. */
+        public static final @NotNull String RANDOM_SOURCE = "net/minecraft/util/RandomSource";
+
     }
 
     /** Member-name pattern grammar [C3]: createRoots, addBox, texOffs, scaling, ... */
@@ -31,6 +66,9 @@ public final class VanillaSourceClasses {
         private Methods() {
         }
 
+        /** {@code MeshTransformer.scaling(F)} - the layer-scale factory. */
+        public static final @NotNull String SCALING = "scaling";
+
     }
 
     /** Descriptor composer [C4] - no hand-assembled descriptors survive anywhere. */
@@ -38,6 +76,9 @@ public final class VanillaSourceClasses {
 
         private Descs() {
         }
+
+        /** The {@code MeshTransformer} field / return-type reference descriptor. */
+        public static final @NotNull String MESH_TRANSFORMER_REF = ref(Types.MESH_TRANSFORMER);
 
         /**
          * Composes a method descriptor from already-valid type descriptors.
@@ -50,6 +91,16 @@ public final class VanillaSourceClasses {
             StringBuilder out = new StringBuilder("(");
             for (String param : params) out.append(param);
             return out.append(')').append(ret).toString();
+        }
+
+        /**
+         * Wraps a class internal name as a reference-type descriptor ({@code L<name>;}).
+         *
+         * @param internalName the class internal name
+         * @return the reference descriptor
+         */
+        public static @NotNull String ref(@NotNull String internalName) {
+            return "L" + internalName + ";";
         }
 
     }

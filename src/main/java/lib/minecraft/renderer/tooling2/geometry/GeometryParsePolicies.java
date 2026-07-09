@@ -40,6 +40,14 @@ enum GeometryParsePolicies implements NavigationPolicy {
         this.provenance = provenance;
     }
 
+    /**
+     * The declared fact, for the parser's in-package consult (the parser has no
+     * {@code AsmContext} frame - it receives cache + request + diagnostics only).
+     */
+    @NotNull String value() {
+        return this.value;
+    }
+
     @Override
     public @NotNull Navigation navigate(@NotNull AsmContext context) {
         return new Navigation.Value<>(this.value, this.provenance);
