@@ -46,7 +46,7 @@ import java.util.Set;
  * <p>Mobs whose renderer registration is missing or unresolvable land as WARN diagnostics,
  * not a JSON side table (the legacy dev-dump side channel died with decision 33).
  */
-final class EntityRegistryDiscovery {
+public final class EntityRegistryDiscovery {
 
     private EntityRegistryDiscovery() {
     }
@@ -59,7 +59,7 @@ final class EntityRegistryDiscovery {
      * @param session the live session
      * @return the joined subjects in registry order
      */
-    static @NotNull List<EntitySubject> discover(@NotNull ToolingSession session) {
+    public static @NotNull List<EntitySubject> discover(@NotNull ToolingSession session) {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("discovery");
 

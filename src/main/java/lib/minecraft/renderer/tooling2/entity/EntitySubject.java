@@ -24,7 +24,7 @@ import java.util.List;
  *     observed in the lambda body - resolves instance-field-driven renderers (donkey /
  *     horse) by matching the constant against its {@code .texture} initialiser
  */
-record EntitySubject(
+public record EntitySubject(
     @NotNull String entityId,
     @NotNull String typeField,
     @NotNull String entityClass,
@@ -41,13 +41,13 @@ record EntitySubject(
      * @param owner the enum-class owner's JVM internal name
      * @param name the static-field constant name, e.g. {@code DONKEY} or {@code DONKEY_BABY}
      */
-    record TypeFieldRef(@NotNull String owner, @NotNull String name) {}
+    public record TypeFieldRef(@NotNull String owner, @NotNull String name) {}
 
     /**
      * The namespace-less id ({@code wolf} for {@code minecraft:wolf}) - the basename the
      * texture / layer-pick heuristics match against.
      */
-    @NotNull String localId() {
+    public @NotNull String localId() {
         return this.entityId.startsWith(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE)
             ? this.entityId.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length())
             : this.entityId;

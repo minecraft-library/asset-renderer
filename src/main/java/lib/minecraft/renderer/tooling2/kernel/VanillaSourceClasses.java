@@ -97,6 +97,21 @@ public final class VanillaSourceClasses {
         /** {@code ModelLayers} - the static-field registry of baked {@code ModelLayerLocation}s. */
         public static final @NotNull String MODEL_LAYERS = CLIENT_MODEL_GEOM_ROOT + "ModelLayers";
 
+        /** {@code ModelLayerLocation} - the identifier wrapping a model layer (key into {@code ModelLayers}). */
+        public static final @NotNull String MODEL_LAYER_LOCATION = CLIENT_MODEL_GEOM_ROOT + "ModelLayerLocation";
+
+        /** {@code EntityRendererProvider$Context} - the bake context every renderer ctor receives. */
+        public static final @NotNull String RENDERER_PROVIDER_CONTEXT = "net/minecraft/client/renderer/entity/EntityRendererProvider$Context";
+
+        /** {@code MapColor} - the map-palette colour class ({@code DyeColor} ctor-arg anchor). */
+        public static final @NotNull String MAP_COLOR = "net/minecraft/world/level/material/MapColor";
+
+        /** {@code SpriteId} - the sheet-sprite identifier the shulker texture routes through. */
+        public static final @NotNull String SPRITE_ID = "net/minecraft/client/resources/model/sprite/SpriteId";
+
+        /** {@code SpriteMapper} - the sheet-prefix mapper composing sprite texture stems. */
+        public static final @NotNull String SPRITE_MAPPER = "net/minecraft/client/renderer/SpriteMapper";
+
         /** {@code LayerDefinitions} - the static {@code ModelLayers -> LayerDefinition} map builder. */
         public static final @NotNull String LAYER_DEFINITIONS = CLIENT_MODEL_GEOM_ROOT + "LayerDefinitions";
 
@@ -155,6 +170,15 @@ public final class VanillaSourceClasses {
 
         /** {@code ModelPart.getChild("<bone>")} - the bone-field cache builder. */
         public static final @NotNull String GET_CHILD = "getChild";
+
+        /** {@code EntityRendererProvider$Context.bakeLayer(ModelLayerLocation)} - the mesh bake call. */
+        public static final @NotNull String BAKE_LAYER = "bakeLayer";
+
+        /** {@code SpriteId.texture()} - the sheet-sprite texture accessor. */
+        public static final @NotNull String TEXTURE = "texture";
+
+        /** {@code SpriteMapper.defaultNamespaceApply(String)} - the sprite-stem composer. */
+        public static final @NotNull String DEFAULT_NAMESPACE_APPLY = "defaultNamespaceApply";
 
         /** {@code DyeColor.getTextureDiffuseColor} - the base-tint derivation anchor. */
         public static final @NotNull String GET_TEXTURE_DIFFUSE_COLOR = "getTextureDiffuseColor";
