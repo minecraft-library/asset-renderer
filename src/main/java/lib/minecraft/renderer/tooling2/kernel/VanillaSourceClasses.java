@@ -103,6 +103,9 @@ public final class VanillaSourceClasses {
         /** {@code MeshDefinition} - the pre-compile mesh factory product {@code LayerDefinition.create} wraps. */
         public static final @NotNull String MESH_DEFINITION = MODEL_BUILDERS_ROOT + "MeshDefinition";
 
+        /** {@code Block} - the block base class (the {@code register*} overloads' return type). */
+        public static final @NotNull String BLOCK = "net/minecraft/world/level/block/Block";
+
         /** {@code Blocks} - the block registry class ({@code <clinit>} register walk). */
         public static final @NotNull String BLOCKS = "net/minecraft/world/level/block/Blocks";
 
