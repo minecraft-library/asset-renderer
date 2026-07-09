@@ -18,6 +18,7 @@ import org.objectweb.asm.tree.MethodNode;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Node {@code axes.shape} - the option-encoded body-shape axis (SPINE 3.1 row 12;
@@ -28,9 +29,11 @@ import java.util.Locale;
  * {@code [small, large]} pair (doc 06 SS3.12). The large texture is READ from the
  * renderer's {@code <clinit>} {@code LARGE_TEXTURE} static [D41] - no string surgery.
  *
- * <p>The family's pattern overlays are re-registered against the large mesh in the legacy
- * form (clone semantics) - that clone rides the overlay engine (roster row 13) and lands
- * with it; until then the option carries geometry + texture only.
+ * <p>The family's pattern overlays are re-registered against the large mesh (the legacy
+ * clone semantics, doc 06 SS3.12): each row's geometry swaps to the large body key and its
+ * texture stem swaps from the small body's stem to the large's - both stems DERIVED
+ * ([D41] + the family texture), the swap existence-probed [D28-style], so no blind string
+ * surgery survives.
  */
 final class EntityShapeAxisResolver {
 
@@ -64,9 +67,11 @@ final class EntityShapeAxisResolver {
      * The shape node, or {@code null} when the entity is not a P37 shape member (or the
      * declared membership derives no second body mesh).
      *
+     * @param adultTexture the family's resolved texture (the small-stem source), or {@code null}
+     * @param overlays the family's resolved {@code overlays} rows to clone, or {@code null}
      * @return the node, or {@code null} to omit
      */
-    @Nullable JsonNode resolve() {
+    @Nullable JsonNode resolve(@Nullable String adultTexture, @Nullable JsonNode overlays) {
         if (!"shape".equals(EntityAxisPolicies.shapeSizeAxisFor(this.subject.entityId()))) return null;
         String primaryField = this.geometryRef.primaryFieldName();
         if (primaryField == null) return null;
@@ -82,8 +87,10 @@ final class EntityShapeAxisResolver {
                 entry.factoryClass(), entry.factoryMethod(), this.subject.entityId(),
                 entry.texWidthOverride(), entry.texHeightOverride(),
                 entry.floatParam(), entry.grow(), entry.appliedMeshTransformerScale()));
+            String optionTexture = optionClinitTexture(option);
             JsonNode body = JsonNode.object().put("geometry", key)
-                .putIf("texture", optionClinitTexture(option));
+                .putIf("texture", optionTexture);
+            body.putIf("overlays", cloneOverlays(overlays, key, adultTexture, optionTexture));
             if (options == null) options = JsonNode.object();
             options.put(option, body);
             this.diagnostics.info("shape axis: option '%s' mesh ModelLayers.%s -> %s [D2]", option, field, key);
@@ -98,6 +105,55 @@ final class EntityShapeAxisResolver {
         for (String member : DOMAIN) values.add(member);
         node.put("options", options);
         return node;
+    }
+
+    /**
+     * Clones the family's overlay rows onto the shape option (doc 06 SS3.12): the
+     * family-geometry reference swaps to the option's mesh key, a texture sharing the
+     * family texture's stem swaps to the option stem when the swapped path exists in the
+     * jar; every other member copies verbatim. {@code null} when there is nothing to clone.
+     */
+    private @Nullable JsonNode cloneOverlays(
+        @Nullable JsonNode overlays,
+        @NotNull String optionKey,
+        @Nullable String familyTexture,
+        @Nullable String optionTexture
+    ) {
+        if (overlays == null) return null;
+        String familyKey = this.geometryRef.primaryKey();
+        String familyStem = textureStem(familyTexture);
+        String optionStem = textureStem(optionTexture);
+        JsonNode out = null;
+        for (JsonNode row : overlays.elements()) {
+            JsonNode clone = JsonNode.object();
+            for (var member : row.members()) {
+                if ("geometry".equals(member.getKey()) && Objects.equals(row.getString("geometry"), familyKey)) {
+                    clone.put("geometry", optionKey);
+                    continue;
+                }
+                String texture = "texture".equals(member.getKey()) ? row.getString("texture") : null;
+                if (texture != null && familyStem != null && optionStem != null && texture.startsWith(familyStem)) {
+                    String swapped = optionStem + texture.substring(familyStem.length());
+                    String rawPath = swapped.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length());
+                    if (this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + rawPath)) {
+                        clone.put("texture", swapped);
+                        continue;
+                    }
+                    this.diagnostics.warn("shape clone texture '%s' missing from the jar - original kept", swapped);
+                }
+                clone.put(member.getKey(), member.getValue());
+            }
+            if (out == null) out = JsonNode.array();
+            out.add(clone);
+        }
+        return out;
+    }
+
+    /** The {@code .png}-stripped stem of a namespaced texture path, or {@code null}. */
+    private static @Nullable String textureStem(@Nullable String texture) {
+        return texture == null || !texture.endsWith(".png")
+            ? null
+            : texture.substring(0, texture.length() - ".png".length());
     }
 
     /**

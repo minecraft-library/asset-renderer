@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling2.entity;
 import lib.minecraft.renderer.tooling2.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling2.kernel.JsonNode;
 import lib.minecraft.renderer.tooling2.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling2.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling2.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 
@@ -36,14 +37,17 @@ public final class EntityRegistryWalk {
     ) {
         LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
         VariantIndex variants = VariantIndex.build(session);
+        BlockRegistryIndex blocks = BlockRegistryIndex.build(session);
+        EntityPipelineTraits pipelineTraits = new EntityPipelineTraits(session.cache());
         Set<String> nonBaseSuffixes = EntityTextureResolver.deriveNonBaseSuffixes(session);
 
         JsonNode families = root.child("families");
         for (EntitySubject subject : subjects)
             families.put(subject.entityId(),
-                new EntityRendererResolver(session, subject, layerDefinitions, variants, nonBaseSuffixes, manifest).resolve());
-        // EntityFamilyLinker.link(root) - the family_of post-pass needs all rows; lands with
-        // roster row 16 (SPINE 3.1).
+                new EntityRendererResolver(session, subject, layerDefinitions, variants, nonBaseSuffixes,
+                    blocks, pipelineTraits, manifest).resolve());
+        // The family_of post-pass needs all rows (SPINE 3.1 row 16).
+        EntityFamilyLinker.link(root, variants, session.diagnostics().child("familyOf"));
     }
 
 }

@@ -63,18 +63,21 @@ final class EntityAxesResolver {
 
     /**
      * The {@code axes} node in fixed sub-node order, or {@code null} when all five axes
-     * decline. {@link #resolveVariant()} must have run.
+     * decline. {@link #resolveVariant()} must have run; the caller resolves the overlays
+     * FIRST (doc 06 SS3.12 - the shape option clones the family's pattern overlays onto
+     * its mesh) while the put chain keeps the on-disk order.
      *
      * @param adultTexture the family's resolved adult texture, or {@code null}
+     * @param overlays the family's resolved {@code overlays} rows, or {@code null}
      * @return the node, or {@code null} to omit
      */
-    @Nullable JsonNode resolve(@Nullable String adultTexture) {
+    @Nullable JsonNode resolve(@Nullable String adultTexture, @Nullable JsonNode overlays) {
         JsonNode axes = JsonNode.object()
             .putIf("variant", this.variantNode)
             .putIf("state", this.state.resolve())
             .putIf("age", this.age.resolve(adultTexture, this.variantNode != null))
             .putIf("size", this.size.resolve())
-            .putIf("shape", this.shape.resolve());
+            .putIf("shape", this.shape.resolve(adultTexture, overlays));
         return axes.members().iterator().hasNext() ? axes : null;
     }
 
