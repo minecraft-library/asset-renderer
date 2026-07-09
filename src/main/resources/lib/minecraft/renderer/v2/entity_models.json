@@ -187,13 +187,41 @@
             "default": true
           }
         }
-      }
+      },
+      "overlays": [
+        {
+          "source": "SkeletonClothingLayer",
+          "layer_index": 4,
+          "geometry": "HumanoidModel#createMesh@grow=0.2",
+          "texture": "minecraft:textures/entity/skeleton/bogged_overlay.png"
+        }
+      ]
     },
     "minecraft:breeze": {
       "renderer": "net/minecraft/client/renderer/entity/BreezeRenderer",
       "geometry": "BreezeModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/breeze/breeze.png"
+      "texture": "minecraft:textures/entity/breeze/breeze.png",
+      "overlays": [
+        {
+          "source": "BreezeWindLayer",
+          "layer_index": 0,
+          "geometry": "BreezeModel#createWindLayer",
+          "texture": "minecraft:textures/entity/breeze/breeze_wind.png",
+          "pipeline": {
+            "emissive": true
+          }
+        },
+        {
+          "source": "BreezeEyesLayer",
+          "layer_index": 1,
+          "geometry": "BreezeModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/breeze/breeze_eyes.png",
+          "pipeline": {
+            "blend": "translucent"
+          }
+        }
+      ]
     },
     "minecraft:camel": {
       "renderer": "net/minecraft/client/renderer/entity/CamelRenderer",
@@ -214,13 +242,44 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "CamelSaddleModel#createSaddleLayer",
+            "texture_template": "equipment/camel_saddle/<material>",
+            "default_material": "saddle"
+          }
+        }
+      ]
     },
     "minecraft:camel_husk": {
       "renderer": "net/minecraft/client/renderer/entity/CamelHuskRenderer",
       "geometry": "AdultCamelModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/camel/camel_husk.png"
+      "texture": "minecraft:textures/entity/camel/camel_husk.png",
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "CamelSaddleModel#createSaddleLayer",
+            "texture_template": "equipment/camel_husk_saddle/<material>",
+            "default_material": "saddle"
+          }
+        }
+      ],
+      "family_of": "minecraft:camel"
     },
     "minecraft:cat": {
       "renderer": "net/minecraft/client/renderer/entity/CatRenderer",
@@ -392,13 +451,39 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "CatCollarLayer",
+          "layer_index": 0,
+          "id": "collar",
+          "when": {
+            "collar_color": "set"
+          },
+          "overlay": {
+            "texture": "minecraft:textures/entity/cat/cat_collar.png",
+            "tint_by": "collar_color"
+          }
+        }
+      ]
     },
     "minecraft:cave_spider": {
       "renderer": "net/minecraft/client/renderer/entity/CaveSpiderRenderer",
       "geometry": "SpiderModel#createSpiderBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/spider/cave_spider.png"
+      "texture": "minecraft:textures/entity/spider/cave_spider.png",
+      "overlays": [
+        {
+          "source": "SpiderEyesLayer",
+          "layer_index": 0,
+          "geometry": "SpiderModel#createSpiderBodyLayer",
+          "texture": "minecraft:textures/entity/spider/spider_eyes.png",
+          "pipeline": {
+            "emissive": true
+          }
+        }
+      ],
+      "family_of": "minecraft:spider"
     },
     "minecraft:chicken": {
       "renderer": "net/minecraft/client/renderer/entity/ChickenRenderer",
@@ -482,7 +567,19 @@
       "renderer": "net/minecraft/client/renderer/entity/CopperGolemRenderer",
       "geometry": "CopperGolemModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/copper_golem/copper_golem.png"
+      "texture": "minecraft:textures/entity/copper_golem/copper_golem.png",
+      "overlays": [
+        {
+          "source": "LivingEntityEmissiveLayer",
+          "layer_index": 0,
+          "geometry": "CopperGolemModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_eyes.png",
+          "texture_by": "weathering",
+          "pipeline": {
+            "emissive": true
+          }
+        }
+      ]
     },
     "minecraft:cow": {
       "renderer": "net/minecraft/client/renderer/entity/CowRenderer",
@@ -567,7 +664,23 @@
       "renderer": "net/minecraft/client/renderer/entity/CreeperRenderer",
       "geometry": "CreeperModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/creeper/creeper.png"
+      "texture": "minecraft:textures/entity/creeper/creeper.png",
+      "overlays": [
+        {
+          "source": "CreeperPowerLayer",
+          "layer_index": 0,
+          "when": {
+            "charged": true
+          },
+          "geometry": "CreeperModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/creeper/creeper_armor.png",
+          "pipeline": {
+            "emissive": true,
+            "blend": "additive"
+          },
+          "grow": 2.0
+        }
+      ]
     },
     "minecraft:dolphin": {
       "renderer": "net/minecraft/client/renderer/entity/DolphinRenderer",
@@ -645,19 +758,79 @@
             }
           }
         }
-      }
+      },
+      "overlays": [
+        {
+          "source": "DrownedOuterLayer",
+          "layer_index": 4,
+          "geometry": "DrownedModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/zombie/drowned_outer_layer.png",
+          "grow": 0.25
+        }
+      ]
     },
     "minecraft:elder_guardian": {
       "renderer": "net/minecraft/client/renderer/entity/ElderGuardianRenderer",
       "geometry": "GuardianModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/guardian/guardian_elder.png"
+      "texture": "minecraft:textures/entity/guardian/guardian_elder.png",
+      "family_of": "minecraft:guardian"
     },
     "minecraft:enderman": {
       "renderer": "net/minecraft/client/renderer/entity/EndermanRenderer",
       "geometry": "EndermanModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/enderman/enderman.png"
+      "texture": "minecraft:textures/entity/enderman/enderman.png",
+      "overlays": [
+        {
+          "source": "EnderEyesLayer",
+          "layer_index": 0,
+          "geometry": "EndermanModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/enderman/enderman_eyes.png",
+          "pipeline": {
+            "emissive": true
+          }
+        }
+      ],
+      "block_overlays": [
+        {
+          "source": "CarriedBlockLayer",
+          "layer_index": 1,
+          "selectable": true,
+          "transforms": [
+            {
+              "op": "translate",
+              "x": 0.0,
+              "y": 0.6875,
+              "z": -0.75
+            },
+            {
+              "op": "rotate_x",
+              "degrees": 20.0
+            },
+            {
+              "op": "rotate_y",
+              "degrees": 45.0
+            },
+            {
+              "op": "translate",
+              "x": 0.25,
+              "y": 0.1875,
+              "z": 0.25
+            },
+            {
+              "op": "scale",
+              "x": -0.5,
+              "y": -0.5,
+              "z": 0.5
+            },
+            {
+              "op": "rotate_y",
+              "degrees": 90.0
+            }
+          ]
+        }
+      ]
     },
     "minecraft:endermite": {
       "renderer": "net/minecraft/client/renderer/entity/EndermiteRenderer",
@@ -669,7 +842,17 @@
       "renderer": "net/minecraft/client/renderer/entity/EnderDragonRenderer",
       "geometry": "EnderDragonModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/enderdragon/dragon_exploding.png"
+      "texture": "minecraft:textures/entity/enderdragon/dragon_exploding.png",
+      "overlays": [
+        {
+          "source": "EnderDragonRenderer",
+          "geometry": "EnderDragonModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/enderdragon/dragon_eyes.png",
+          "pipeline": {
+            "emissive": true
+          }
+        }
+      ]
     },
     "minecraft:evoker": {
       "renderer": "net/minecraft/client/renderer/entity/EvokerRenderer",
@@ -769,7 +952,23 @@
       "renderer": "net/minecraft/client/renderer/entity/HappyGhastRenderer",
       "geometry": "HappyGhastModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/ghast/happy_ghast.png"
+      "texture": "minecraft:textures/entity/ghast/happy_ghast.png",
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry": "HappyGhastHarnessModel#createHarnessLayer@iparam=0:0",
+            "texture_template": "equipment/happy_ghast_body/<material>",
+            "default_material": "white_harness",
+            "baby_geometry": "HappyGhastHarnessModel#createHarnessLayer@scaled=0.2375@iparam=0:0"
+          }
+        }
+      ]
     },
     "minecraft:giant": {
       "renderer": "net/minecraft/client/renderer/entity/GiantMobRenderer",
@@ -781,7 +980,8 @@
       "renderer": "net/minecraft/client/renderer/entity/GlowSquidRenderer",
       "geometry": "SquidModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/squid/glow_squid.png"
+      "texture": "minecraft:textures/entity/squid/glow_squid.png",
+      "family_of": "minecraft:squid"
     },
     "minecraft:goat": {
       "renderer": "net/minecraft/client/renderer/entity/GoatRenderer",
@@ -916,7 +1116,52 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "HorseMarkingLayer",
+          "layer_index": 0,
+          "id": "markings",
+          "when": {
+            "markings": "selected"
+          },
+          "overlay": {
+            "texture_by": "markings",
+            "textures_by_value": {
+              "white": "minecraft:textures/entity/horse/horse_markings_white.png",
+              "white_field": "minecraft:textures/entity/horse/horse_markings_whitefield.png",
+              "white_dots": "minecraft:textures/entity/horse/horse_markings_whitedots.png",
+              "black_dots": "minecraft:textures/entity/horse/horse_markings_blackdots.png"
+            }
+          }
+        },
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 1,
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1@scaled=1.1",
+            "texture_template": "equipment/horse_body/<material>",
+            "default_material": "leather"
+          }
+        },
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 2,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "EquineSaddleModel#createSaddleLayer@scaled=1.1",
+            "texture_template": "equipment/horse_saddle/<material>",
+            "default_material": "saddle"
+          }
+        }
+      ]
     },
     "minecraft:husk": {
       "renderer": "net/minecraft/client/renderer/entity/HuskRenderer",
@@ -949,7 +1194,60 @@
       "renderer": "net/minecraft/client/renderer/entity/IronGolemRenderer",
       "geometry": "IronGolemModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/iron_golem/iron_golem.png"
+      "texture": "minecraft:textures/entity/iron_golem/iron_golem.png",
+      "overlays": [
+        {
+          "source": "IronGolemCrackinessLayer",
+          "layer_index": 0,
+          "geometry": "IronGolemModel#createBodyLayer",
+          "texture_by": "crackiness",
+          "textures_by_value": {
+            "low": "minecraft:textures/entity/iron_golem/iron_golem_crackiness_low.png",
+            "medium": "minecraft:textures/entity/iron_golem/iron_golem_crackiness_medium.png",
+            "high": "minecraft:textures/entity/iron_golem/iron_golem_crackiness_high.png"
+          },
+          "skip_bounds": true
+        }
+      ],
+      "block_overlays": [
+        {
+          "source": "IronGolemFlowerLayer",
+          "layer_index": 1,
+          "block": "minecraft:poppy",
+          "attached_bone": "right_arm",
+          "selectable": true,
+          "transforms": [
+            {
+              "op": "translate",
+              "x": -1.1875,
+              "y": 1.0625,
+              "z": -0.9375
+            },
+            {
+              "op": "translate",
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            {
+              "op": "scale",
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            {
+              "op": "rotate_x",
+              "degrees": -90.0
+            },
+            {
+              "op": "translate",
+              "x": -0.5,
+              "y": -0.5,
+              "z": -0.5
+            }
+          ]
+        }
+      ]
     },
     "minecraft:llama": {
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
@@ -1019,7 +1317,22 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "LlamaDecorLayer",
+          "layer_index": 0,
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry": "LlamaModel#createBodyLayer@grow=0.5",
+            "texture_template": "equipment/llama_body/<material>",
+            "default_material": "white"
+          }
+        }
+      ]
     },
     "minecraft:magma_cube": {
       "renderer": "net/minecraft/client/renderer/entity/MagmaCubeRenderer",
@@ -1084,7 +1397,108 @@
             }
           }
         }
-      }
+      },
+      "block_overlays": [
+        {
+          "source": "MushroomCowMushroomLayer",
+          "layer_index": 0,
+          "block": "minecraft:red_mushroom",
+          "transforms": [
+            {
+              "op": "translate",
+              "x": 0.2,
+              "y": -0.35,
+              "z": 0.5
+            },
+            {
+              "op": "rotate_y",
+              "degrees": -48.0
+            },
+            {
+              "op": "scale",
+              "x": -1.0,
+              "y": -1.0,
+              "z": 1.0
+            },
+            {
+              "op": "translate",
+              "x": -0.5,
+              "y": -0.5,
+              "z": -0.5
+            }
+          ]
+        },
+        {
+          "source": "MushroomCowMushroomLayer",
+          "layer_index": 0,
+          "block": "minecraft:red_mushroom",
+          "transforms": [
+            {
+              "op": "translate",
+              "x": 0.2,
+              "y": -0.35,
+              "z": 0.5
+            },
+            {
+              "op": "rotate_y",
+              "degrees": 42.0
+            },
+            {
+              "op": "translate",
+              "x": 0.1,
+              "y": 0.0,
+              "z": -0.6
+            },
+            {
+              "op": "rotate_y",
+              "degrees": -48.0
+            },
+            {
+              "op": "scale",
+              "x": -1.0,
+              "y": -1.0,
+              "z": 1.0
+            },
+            {
+              "op": "translate",
+              "x": -0.5,
+              "y": -0.5,
+              "z": -0.5
+            }
+          ]
+        },
+        {
+          "source": "MushroomCowMushroomLayer",
+          "layer_index": 0,
+          "block": "minecraft:red_mushroom",
+          "attached_bone": "head",
+          "transforms": [
+            {
+              "op": "translate",
+              "x": 0.0,
+              "y": -0.7,
+              "z": -0.2
+            },
+            {
+              "op": "rotate_y",
+              "degrees": -78.0
+            },
+            {
+              "op": "scale",
+              "x": -1.0,
+              "y": -1.0,
+              "z": 1.0
+            },
+            {
+              "op": "translate",
+              "x": -0.5,
+              "y": -0.5,
+              "z": -0.5
+            }
+          ]
+        }
+      ],
+      "family_of": "minecraft:cow"
     },
     "minecraft:mule": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
@@ -1126,7 +1540,35 @@
       "renderer": "net/minecraft/client/renderer/entity/NautilusRenderer",
       "geometry": "NautilusModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/nautilus/nautilus.png"
+      "texture": "minecraft:textures/entity/nautilus/nautilus.png",
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry": "NautilusArmorModel#createBodyLayer",
+            "texture_template": "equipment/nautilus_body/<material>",
+            "default_material": "leather"
+          }
+        },
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 1,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "NautilusSaddleModel#createSaddleLayer",
+            "texture_template": "equipment/nautilus_saddle/<material>",
+            "default_material": "saddle"
+          }
+        }
+      ]
     },
     "minecraft:ocelot": {
       "renderer": "net/minecraft/client/renderer/entity/OcelotRenderer",
@@ -1241,7 +1683,18 @@
       "renderer": "net/minecraft/client/renderer/entity/PhantomRenderer",
       "geometry": "PhantomModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/phantom/phantom.png"
+      "texture": "minecraft:textures/entity/phantom/phantom.png",
+      "overlays": [
+        {
+          "source": "PhantomEyesLayer",
+          "layer_index": 0,
+          "geometry": "PhantomModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/phantom/phantom_eyes.png",
+          "pipeline": {
+            "emissive": true
+          }
+        }
+      ]
     },
     "minecraft:pig": {
       "renderer": "net/minecraft/client/renderer/entity/PigRenderer",
@@ -1313,7 +1766,22 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "PigModel#createBodyLayer@grow=0.5",
+            "texture_template": "equipment/pig_saddle/<material>",
+            "default_material": "saddle"
+          }
+        }
+      ]
     },
     "minecraft:piglin": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
@@ -1340,7 +1808,8 @@
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
       "geometry": "AdultPiglinModel#createBodyLayer",
       "armor_type": "humanoid",
-      "texture": "minecraft:textures/entity/piglin/piglin_brute.png"
+      "texture": "minecraft:textures/entity/piglin/piglin_brute.png",
+      "family_of": "minecraft:piglin"
     },
     "minecraft:pillager": {
       "renderer": "net/minecraft/client/renderer/entity/PillagerRenderer",
@@ -1523,7 +1992,32 @@
             }
           }
         }
-      }
+      },
+      "overlays": [
+        {
+          "source": "SheepWoolUndercoatLayer",
+          "layer_index": 0,
+          "when": {
+            "tinted": true
+          },
+          "geometry": "SheepModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/sheep/sheep_wool_undercoat.png",
+          "tint": "0xFFE6E6E6",
+          "tint_by": "wool_color"
+        },
+        {
+          "source": "SheepWoolLayer",
+          "layer_index": 1,
+          "when": {
+            "flag": "sheared",
+            "value": false
+          },
+          "geometry": "SheepFurModel#createFurLayer",
+          "texture": "minecraft:textures/entity/sheep/sheep_wool.png",
+          "tint": "0xFFE6E6E6",
+          "tint_by": "wool_color"
+        }
+      ]
     },
     "minecraft:shulker": {
       "renderer": "net/minecraft/client/renderer/entity/ShulkerRenderer",
@@ -1565,7 +2059,22 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1",
+            "texture_template": "equipment/horse_body/<material>",
+            "default_material": "leather"
+          }
+        }
+      ]
     },
     "minecraft:slime": {
       "renderer": "net/minecraft/client/renderer/entity/SlimeRenderer",
@@ -1592,7 +2101,18 @@
             }
           }
         }
-      }
+      },
+      "overlays": [
+        {
+          "source": "SlimeOuterLayer",
+          "layer_index": 0,
+          "geometry": "SlimeModel#createOuterBodyLayer",
+          "texture": "minecraft:textures/entity/slime/slime.png",
+          "pipeline": {
+            "blend": "translucent"
+          }
+        }
+      ]
     },
     "minecraft:sniffer": {
       "renderer": "net/minecraft/client/renderer/entity/SnifferRenderer",
@@ -1619,13 +2139,56 @@
       "renderer": "net/minecraft/client/renderer/entity/SnowGolemRenderer",
       "geometry": "SnowGolemModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/snow_golem/snow_golem.png"
+      "texture": "minecraft:textures/entity/snow_golem/snow_golem.png",
+      "block_overlays": [
+        {
+          "source": "SnowGolemHeadLayer",
+          "layer_index": 0,
+          "block": "minecraft:carved_pumpkin",
+          "attached_bone": "head",
+          "transforms": [
+            {
+              "op": "translate",
+              "x": 0.0,
+              "y": -0.34375,
+              "z": 0.0
+            },
+            {
+              "op": "rotate_y",
+              "degrees": 180.0
+            },
+            {
+              "op": "scale",
+              "x": 0.625,
+              "y": -0.625,
+              "z": -0.625
+            },
+            {
+              "op": "translate",
+              "x": -0.5,
+              "y": -0.5,
+              "z": -0.5
+            }
+          ]
+        }
+      ]
     },
     "minecraft:spider": {
       "renderer": "net/minecraft/client/renderer/entity/SpiderRenderer",
       "geometry": "SpiderModel#createSpiderBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/spider/spider.png"
+      "texture": "minecraft:textures/entity/spider/spider.png",
+      "overlays": [
+        {
+          "source": "SpiderEyesLayer",
+          "layer_index": 0,
+          "geometry": "SpiderModel#createSpiderBodyLayer",
+          "texture": "minecraft:textures/entity/spider/spider_eyes.png",
+          "pipeline": {
+            "emissive": true
+          }
+        }
+      ]
     },
     "minecraft:squid": {
       "renderer": "net/minecraft/client/renderer/entity/SquidRenderer",
@@ -1637,7 +2200,16 @@
       "renderer": "net/minecraft/client/renderer/entity/StrayRenderer",
       "geometry": "SkeletonModel#createBodyLayer",
       "armor_type": "humanoid",
-      "texture": "minecraft:textures/entity/skeleton/stray.png"
+      "texture": "minecraft:textures/entity/skeleton/stray.png",
+      "overlays": [
+        {
+          "source": "SkeletonClothingLayer",
+          "layer_index": 4,
+          "geometry": "HumanoidModel#createMesh@grow=0.25",
+          "texture": "minecraft:textures/entity/skeleton/stray_overlay.png"
+        }
+      ],
+      "family_of": "minecraft:skeleton"
     },
     "minecraft:strider": {
       "renderer": "net/minecraft/client/renderer/entity/StriderRenderer",
@@ -1658,7 +2230,22 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "AdultStriderModel#createBodyLayer",
+            "texture_template": "equipment/strider_saddle/<material>",
+            "default_material": "saddle"
+          }
+        }
+      ]
     },
     "minecraft:tadpole": {
       "renderer": "net/minecraft/client/renderer/entity/TadpoleRenderer",
@@ -1734,7 +2321,33 @@
             }
           }
         }
-      }
+      },
+      "overlays": [
+        {
+          "source": "LlamaDecorLayer",
+          "layer_index": 0,
+          "geometry": "LlamaModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/equipment/llama_body/trader_llama.png",
+          "grow": 0.5,
+          "skip_bounds": true
+        }
+      ],
+      "layers": [
+        {
+          "source": "LlamaDecorLayer",
+          "layer_index": 0,
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry": "LlamaModel#createBodyLayer@grow=0.5",
+            "texture_template": "equipment/llama_body/<material>",
+            "default_material": "white"
+          }
+        }
+      ],
+      "family_of": "minecraft:llama"
     },
     "minecraft:tropical_fish": {
       "renderer": "net/minecraft/client/renderer/entity/TropicalFishRenderer",
@@ -1754,11 +2367,35 @@
           "options": {
             "large": {
               "geometry": "TropicalFishLargeModel#createBodyLayer",
-              "texture": "minecraft:textures/entity/fish/tropical_b.png"
+              "texture": "minecraft:textures/entity/fish/tropical_b.png",
+              "overlays": [
+                {
+                  "source": "TropicalFishPatternLayer",
+                  "layer_index": 0,
+                  "geometry": "TropicalFishLargeModel#createBodyLayer",
+                  "texture": "minecraft:textures/entity/fish/tropical_b_pattern_1.png",
+                  "texture_by": "pattern",
+                  "tint": "0xFFF9FFFE",
+                  "tint_by": "pattern_color",
+                  "grow": 0.008
+                }
+              ]
             }
           }
         }
-      }
+      },
+      "overlays": [
+        {
+          "source": "TropicalFishPatternLayer",
+          "layer_index": 0,
+          "geometry": "TropicalFishSmallModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/fish/tropical_a_pattern_1.png",
+          "texture_by": "pattern",
+          "tint": "0xFFF9FFFE",
+          "tint_by": "pattern_color",
+          "grow": 0.008
+        }
+      ]
     },
     "minecraft:turtle": {
       "renderer": "net/minecraft/client/renderer/entity/TurtleRenderer",
@@ -1819,7 +2456,30 @@
             }
           }
         }
-      }
+      },
+      "overlays": [
+        {
+          "source": "VillagerProfessionLayer",
+          "layer_index": 1,
+          "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
+          "texture": "minecraft:textures/entity/villager/type/plains.png",
+          "texture_by": "type"
+        },
+        {
+          "source": "VillagerProfessionLayer",
+          "layer_index": 1,
+          "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
+          "texture_by": "profession",
+          "skip_bounds": true
+        },
+        {
+          "source": "VillagerProfessionLayer",
+          "layer_index": 1,
+          "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
+          "texture_by": "profession_level",
+          "skip_bounds": true
+        }
+      ]
     },
     "minecraft:vindicator": {
       "renderer": "net/minecraft/client/renderer/entity/VindicatorRenderer",
@@ -1836,13 +2496,45 @@
       "renderer": "net/minecraft/client/renderer/entity/WanderingTraderRenderer",
       "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/wandering_trader/wandering_trader.png"
+      "texture": "minecraft:textures/entity/wandering_trader/wandering_trader.png",
+      "family_of": "minecraft:villager"
     },
     "minecraft:warden": {
       "renderer": "net/minecraft/client/renderer/entity/WardenRenderer",
       "geometry": "WardenModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/warden/warden.png"
+      "texture": "minecraft:textures/entity/warden/warden.png",
+      "overlays": [
+        {
+          "source": "LivingEntityEmissiveLayer",
+          "layer_index": 0,
+          "geometry": "WardenModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/warden/warden_bioluminescent_layer.png",
+          "pipeline": {
+            "blend": "translucent"
+          },
+          "skip_bounds": true
+        },
+        {
+          "source": "LivingEntityEmissiveLayer",
+          "layer_index": 1,
+          "geometry": "WardenModel#createPulsatingSpotsLayer",
+          "texture": "minecraft:textures/entity/warden/warden_pulsating_spots_1.png",
+          "pipeline": {
+            "blend": "translucent",
+            "alpha": 0.25
+          },
+          "skip_bounds": true,
+          "retain_bones": [
+            "body",
+            "head",
+            "left_arm",
+            "right_arm",
+            "left_leg",
+            "right_leg"
+          ]
+        }
+      ]
     },
     "minecraft:witch": {
       "renderer": "net/minecraft/client/renderer/entity/WitchRenderer",
@@ -1857,7 +2549,23 @@
       "texture": "minecraft:textures/entity/wither/wither.png",
       "render": {
         "scale": 2.0
-      }
+      },
+      "overlays": [
+        {
+          "source": "WitherArmorLayer",
+          "layer_index": 0,
+          "when": {
+            "charged": true
+          },
+          "geometry": "WitherBossModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/wither/wither_armor.png",
+          "pipeline": {
+            "emissive": true,
+            "blend": "additive"
+          },
+          "grow": 0.5
+        }
+      ]
     },
     "minecraft:wither_skeleton": {
       "renderer": "net/minecraft/client/renderer/entity/WitherSkeletonRenderer",
@@ -2056,7 +2764,34 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "WolfArmorLayer",
+          "layer_index": 0,
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry": "AdultWolfModel#createBodyLayer@grow=0.2",
+            "texture_template": "equipment/wolf_body/<material>",
+            "default_material": "armadillo_scute"
+          }
+        },
+        {
+          "source": "WolfCollarLayer",
+          "layer_index": 1,
+          "id": "collar",
+          "when": {
+            "collar_color": "set"
+          },
+          "overlay": {
+            "texture": "minecraft:textures/entity/wolf/wolf_collar.png",
+            "tint_by": "collar_color"
+          }
+        }
+      ]
     },
     "minecraft:zoglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZoglinRenderer",
@@ -2077,7 +2812,8 @@
             }
           }
         }
-      }
+      },
+      "family_of": "minecraft:hoglin"
     },
     "minecraft:zombie": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieRenderer",
@@ -2119,7 +2855,22 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1",
+            "texture_template": "equipment/horse_body/<material>",
+            "default_material": "leather"
+          }
+        }
+      ]
     },
     "minecraft:zombie_nautilus": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieNautilusRenderer",
@@ -2161,7 +2912,35 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "body",
+          "when": {
+            "equipment": "body"
+          },
+          "overlay": {
+            "geometry": "NautilusArmorModel#createBodyLayer",
+            "texture_template": "equipment/nautilus_body/<material>",
+            "default_material": "leather"
+          }
+        },
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 1,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "NautilusSaddleModel#createSaddleLayer",
+            "texture_template": "equipment/nautilus_saddle/<material>",
+            "default_material": "saddle"
+          }
+        }
+      ]
     },
     "minecraft:zombie_villager": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieVillagerRenderer",
@@ -2182,7 +2961,30 @@
             }
           }
         }
-      }
+      },
+      "overlays": [
+        {
+          "source": "VillagerProfessionLayer",
+          "layer_index": 4,
+          "geometry": "ZombieVillagerModel#createBodyLayer",
+          "texture": "minecraft:textures/entity/zombie_villager/type/plains.png",
+          "texture_by": "type"
+        },
+        {
+          "source": "VillagerProfessionLayer",
+          "layer_index": 4,
+          "geometry": "ZombieVillagerModel#createBodyLayer",
+          "texture_by": "profession",
+          "skip_bounds": true
+        },
+        {
+          "source": "VillagerProfessionLayer",
+          "layer_index": 4,
+          "geometry": "ZombieVillagerModel#createBodyLayer",
+          "texture_by": "profession_level",
+          "skip_bounds": true
+        }
+      ]
     },
     "minecraft:zombified_piglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZombifiedPiglinRenderer",
@@ -2203,7 +3005,8 @@
             }
           }
         }
-      }
+      },
+      "family_of": "minecraft:piglin"
     }
   }
 }

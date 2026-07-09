@@ -74,11 +74,16 @@ class GeometryRefClosureTest {
         assertEquals(Set.of(), orphans, "orphan geometry entries (registered but unreferenced - doc-12 F5)");
     }
 
-    /** Recursively collects every string-valued {@code geometry} member under {@code element}. */
+    /**
+     * Recursively collects every string-valued {@code geometry} / {@code baby_geometry}
+     * member under {@code element} ({@code baby_geometry} is the equipment rows' captured
+     * baby mesh, doc 06 SS4.6 [D65]).
+     */
     private static void collectGeometryRefs(@NotNull JsonElement element, @NotNull Set<String> out) {
         if (element instanceof JsonObject object) {
             for (Map.Entry<String, JsonElement> member : object.entrySet()) {
-                if ("geometry".equals(member.getKey()) && member.getValue().isJsonPrimitive())
+                boolean geometryRef = "geometry".equals(member.getKey()) || "baby_geometry".equals(member.getKey());
+                if (geometryRef && member.getValue().isJsonPrimitive())
                     out.add(member.getValue().getAsString());
                 else collectGeometryRefs(member.getValue(), out);
             }
