@@ -36,17 +36,20 @@ import java.util.Map;
 final class VariantIndex {
 
     /**
-     * The variant holder classes' canonical-default static field name ({@code WolfVariants.DEFAULT}).
-     * P15 fact - relocates into {@code EntityNamingPolicies} when the axis-resolver session
-     * lands the policy enum (SPINE 2.1).
+     * The variant holder classes' canonical-default static field name
+     * ({@code WolfVariants.DEFAULT}) - P15, {@link EntityNamingPolicies#ENUM_DEFAULT_FIELD}.
      */
-    private static final @NotNull String DEFAULT_FIELD = "DEFAULT";
+    private static final @NotNull String DEFAULT_FIELD = EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue();
 
     /** {@code <X>Variants.createKey("id")} - the holder-class key factory (vanilla member name). */
-    private static final @NotNull String CREATE_KEY = "createKey";
+    private static final @NotNull String CREATE_KEY = VanillaSourceClasses.Methods.CREATE_KEY;
 
-    /** The holder-class file-name suffix ({@code WolfVariants.class}). */
-    private static final @NotNull String VARIANTS_CLASS_SUFFIX = "Variants.class";
+    /**
+     * The holder-class file-name suffix ({@code WolfVariants.class}) - the P20 holder stem
+     * convention ({@link EntityNamingPolicies#VARIANT_ENUM_CONVENTIONS}, first member).
+     */
+    private static final @NotNull String VARIANTS_CLASS_SUFFIX =
+        EntityNamingPolicies.VARIANT_ENUM_CONVENTIONS.strings().getFirst() + ".class";
 
     /**
      * One variant entry parsed from a variant JSON file. Carries either a single
@@ -223,9 +226,10 @@ final class VariantIndex {
      */
     private static @NotNull Map<String, String> loadHolderDefaults(@NotNull ClassNodeCache cache) {
         Map<String, String> out = new LinkedHashMap<>();
-        for (String entryPath : cache.list("net/minecraft/", VARIANTS_CLASS_SUFFIX)) {
+        String holderStem = EntityNamingPolicies.VARIANT_ENUM_CONVENTIONS.strings().getFirst();
+        for (String entryPath : cache.list(VanillaSourceClasses.Types.MINECRAFT_ROOT, VARIANTS_CLASS_SUFFIX)) {
             String simple = entryPath.substring(entryPath.lastIndexOf('/') + 1, entryPath.length() - ".class".length());
-            String stem = StringUtil.toSnakeCase(simple.substring(0, simple.length() - "Variants".length()));
+            String stem = StringUtil.toSnakeCase(simple.substring(0, simple.length() - holderStem.length()));
             String holderInternal = entryPath.substring(0, entryPath.length() - ".class".length());
             String defaultId = findHolderDefaultId(cache, holderInternal);
             if (defaultId != null) out.put(stem, defaultId);

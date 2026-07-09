@@ -37,10 +37,9 @@ final class EntityRenderTraitsResolver {
     /**
      * Tolerance for the uniform-scale check on {@code poseStack.scale(F,F,F)} args - vanilla
      * writes literal uniform triples; drift beyond this implies a non-uniform expression
-     * treated as identity. P4 fact - relocates into {@code EntityNamingPolicies} with the
-     * axis-resolver session (SPINE 2.1).
+     * treated as identity (P4, {@link EntityNamingPolicies#UNIFORM_SCALE_TOLERANCE}).
      */
-    private static final float UNIFORM_SCALE_TOLERANCE = 1e-5f;
+    private static final float UNIFORM_SCALE_TOLERANCE = EntityNamingPolicies.UNIFORM_SCALE_TOLERANCE.floatValue();
 
     /** The no-op multiplicative tint. */
     private static final int NO_TINT = 0xFFFFFFFF;

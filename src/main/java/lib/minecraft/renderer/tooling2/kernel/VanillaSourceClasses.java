@@ -23,8 +23,11 @@ public final class VanillaSourceClasses {
         private Types() {
         }
 
+        /** The vanilla package root - the class-listing prefix jar-wide scans anchor on. */
+        public static final @NotNull String MINECRAFT_ROOT = "net/minecraft/";
+
         /** The model package root - the P29 invokestatic-follow gate's positive side. */
-        public static final @NotNull String CLIENT_MODEL_ROOT = "net/minecraft/client/model/";
+        public static final @NotNull String CLIENT_MODEL_ROOT = MINECRAFT_ROOT + "client/model/";
 
         /** The geometry-primitive package root - the P29 gate's negative side (never followed). */
         public static final @NotNull String CLIENT_MODEL_GEOM_ROOT = CLIENT_MODEL_ROOT + "geom/";
@@ -130,6 +133,9 @@ public final class VanillaSourceClasses {
          */
         public static final @NotNull String BLOCK_IDS = "net/minecraft/references/BlockIds";
 
+        /** {@code ResourceKey} - the typed registry key the 26.x register overloads take. */
+        public static final @NotNull String RESOURCE_KEY = "net/minecraft/resources/ResourceKey";
+
     }
 
     /** Member-name pattern grammar [C3]: createRoots, addBox, texOffs, scaling, ... */
@@ -182,6 +188,23 @@ public final class VanillaSourceClasses {
 
         /** {@code DyeColor.getTextureDiffuseColor} - the base-tint derivation anchor. */
         public static final @NotNull String GET_TEXTURE_DIFFUSE_COLOR = "getTextureDiffuseColor";
+
+        /** {@code <X>Variants.createKey("id")} - the data-variant holder-class key factory. */
+        public static final @NotNull String CREATE_KEY = "createKey";
+
+    }
+
+    /** Vanilla field-name pattern grammar: the render-state members the walks anchor on. */
+    public static final class Fields {
+
+        private Fields() {
+        }
+
+        /** {@code LivingEntityRenderState.isBaby} - the age-selection flag every baby-model dispatch reads [D36]. */
+        public static final @NotNull String IS_BABY = "isBaby";
+
+        /** {@code <X>RenderState.variant} - the enum-typed variant field on 26.1 render-state classes. */
+        public static final @NotNull String VARIANT = "variant";
 
     }
 

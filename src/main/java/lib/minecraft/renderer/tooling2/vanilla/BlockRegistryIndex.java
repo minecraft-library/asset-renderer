@@ -41,7 +41,8 @@ public final class BlockRegistryIndex {
     private static final @NotNull String BLOCK_RETURN_SUFFIX =
         ")" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK);
     private static final @NotNull String STRING_ARG_PREFIX = "(Ljava/lang/String;";
-    private static final @NotNull String RESOURCE_KEY_ARG_PREFIX = "(Lnet/minecraft/resources/ResourceKey;";
+    private static final @NotNull String RESOURCE_KEY_ARG_PREFIX =
+        "(" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RESOURCE_KEY);
     private static final @NotNull String FUNCTION_RETURN_SUFFIX = ")Ljava/util/function/Function;";
 
     /**

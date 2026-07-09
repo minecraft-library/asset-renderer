@@ -383,12 +383,12 @@ final class EntityBoneResolver {
 
     /**
      * Strips a leading {@code left_} / {@code right_} so a symmetric pair flips under one
-     * toggle ({@code left_horn} to {@code horn}). P25 fact - relocates into
-     * {@code EntityNamingPolicies} with the axis-resolver session (SPINE 2.1).
+     * toggle ({@code left_horn} to {@code horn}) - P25,
+     * {@link EntityNamingPolicies#LEFT_RIGHT_STEMS}.
      */
     private static @NotNull String stripLeftRight(@NotNull String bone) {
-        if (bone.startsWith("left_")) return bone.substring("left_".length());
-        if (bone.startsWith("right_")) return bone.substring("right_".length());
+        for (String stem : EntityNamingPolicies.LEFT_RIGHT_STEMS.strings())
+            if (bone.startsWith(stem)) return bone.substring(stem.length());
         return bone;
     }
 

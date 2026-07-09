@@ -1474,7 +1474,8 @@ public final class GeometryParser {
             && opcode == Opcodes.INVOKESTATIC
             && methodInsn.owner.equals(VanillaSourceClasses.Types.RANDOM_SOURCE)
             && methodInsn.name.equals("createThreadLocalInstance")
-            && methodInsn.desc.equals("(J)Lnet/minecraft/util/RandomSource;")) {
+            && methodInsn.desc.equals(VanillaSourceClasses.Descs.of(
+                VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RANDOM_SOURCE), "J"))) {
             // The long seed isn't tracked on numStack (the parser's literal walk handles
             // int / float / double only). Walk back to the preceding {@code LDC2_W} or
             // {@code LCONST_0} / {@code LCONST_1} directly via {@link AsmKit#readLongLiteral}.

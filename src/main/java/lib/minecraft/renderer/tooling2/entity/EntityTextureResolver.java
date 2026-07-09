@@ -49,19 +49,19 @@ final class EntityTextureResolver {
     /**
      * Recurrence threshold for the derived non-base-suffix set: a suffix qualifies when a
      * base + suffixed sibling pair co-exists in at least this many distinct texture
-     * directories (state overlays recur; data-variant names appear once). P19 fact -
-     * relocates into {@code EntityNamingPolicies} with the axis-resolver session (SPINE 2.1).
+     * directories (state overlays recur; data-variant names appear once) - P19,
+     * {@link EntityNamingPolicies#SUFFIX_MIN_RECURRENCE}.
      */
-    private static final int SUFFIX_MIN_RECURRENCE = 2;
+    private static final int SUFFIX_MIN_RECURRENCE = EntityNamingPolicies.SUFFIX_MIN_RECURRENCE.intValue();
 
     /**
-     * The variant enums' canonical-default static field name ({@code Axolotl$Variant.DEFAULT}).
-     * P15 fact - relocates into {@code EntityNamingPolicies} with the axis-resolver session.
+     * The variant enums' canonical-default static field name ({@code Axolotl$Variant.DEFAULT})
+     * - P15, {@link EntityNamingPolicies#ENUM_DEFAULT_FIELD}.
      */
-    private static final @NotNull String DEFAULT_FIELD = "DEFAULT";
+    private static final @NotNull String DEFAULT_FIELD = EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue();
 
     /** The render-state variant field name vanilla uses on every variant RenderState class. */
-    private static final @NotNull String VARIANT_FIELD = "variant";
+    private static final @NotNull String VARIANT_FIELD = VanillaSourceClasses.Fields.VARIANT;
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -267,14 +267,20 @@ final class EntityTextureResolver {
     /**
      * The {@code XVariant} class internal name when the method pulls its texture from a
      * data-driven variant call ({@code state.variant.modelAndTexture().asset().texturePath()}
-     * or {@code state.variant.babyTexture()}), or {@code null} otherwise.
+     * or {@code state.variant.babyTexture()}), or {@code null} otherwise. Suffix policy =
+     * P18 ({@link EntityNamingPolicies#DATA_VARIANT_SUFFIXES} - owner suffix, exact accessor,
+     * accessor suffix, in declaration order).
      */
     private static @Nullable String detectDataDrivenVariant(@NotNull MethodNode method) {
+        List<String> suffixes = EntityNamingPolicies.DATA_VARIANT_SUFFIXES.strings();
+        String ownerSuffix = suffixes.getFirst();
+        String exactAccessor = suffixes.get(1);
+        String accessorSuffix = suffixes.getLast();
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
             if (in instanceof MethodInsnNode mi
                 && in.getOpcode() == Opcodes.INVOKEVIRTUAL
-                && (mi.name.endsWith("Texture") || "modelAndTexture".equals(mi.name))
-                && mi.owner.endsWith("Variant"))
+                && (mi.name.endsWith(accessorSuffix) || exactAccessor.equals(mi.name))
+                && mi.owner.endsWith(ownerSuffix))
                 return mi.owner;
         return null;
     }
