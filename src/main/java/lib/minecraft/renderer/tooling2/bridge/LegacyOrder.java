@@ -24,6 +24,33 @@ final class LegacyOrder {
      * superset entries ({@code enchanting_table}, {@code lectern}) are absent, so this list also
      * filters the v2 catalog down to the legacy 22.
      */
+    /**
+     * The legacy flat-row key order (the {@code EntityRowField} contributor-enum declaration order):
+     * the sequence the base row's members are emitted in before {@code EntityFamilyJsonWriter.group}
+     * regroups them into the family form.
+     */
+    static final @NotNull List<String> ENTITY_FLAT_ROW_KEYS = List.of(
+        "geometry_ref", "texture_ref", "armor_type", "renderer_scale", "overlays", "block_overlays",
+        "setup_yaw_addend", "base_tint", "hidden_bones", "bone_toggles");
+
+    /**
+     * The family-level carried-field order ({@code EntityFamilyJsonWriter.copyBaseOptionalFields}):
+     * the fields that ride the family level after {@code geometry_ref}/{@code armor_type}, before
+     * {@code family_of}/{@code axes}/{@code layers}.
+     */
+    static final @NotNull List<String> FAMILY_CARRIED_ORDER = List.of(
+        "renderer_scale", "setup_yaw_addend", "base_tint", "hidden_bones", "bone_toggles",
+        "overlays", "block_overlays");
+
+    /** The legacy overlay-row key order ({@code EntityRuntimeJsonWriter} OVERLAYS contributor). */
+    static final @NotNull List<String> OVERLAY_ROW_KEYS = List.of(
+        "geometry_ref", "texture_ref", "emissive", "tint_color", "tint_by", "texture_by",
+        "shearable", "requires_tint", "requires_charged", "inflate", "skip_bounds", "blend", "alpha", "retain_bones");
+
+    /** The legacy block-overlay row key order. */
+    static final @NotNull List<String> BLOCK_OVERLAY_ROW_KEYS = List.of(
+        "block_id", "attached_bone", "selectable", "transforms");
+
     static final @NotNull List<String> BLOCK_MODELS_KEYS = List.of(
         "minecraft:shulker_box",
         "minecraft:chest",
