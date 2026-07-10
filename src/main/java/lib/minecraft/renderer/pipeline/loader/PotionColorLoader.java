@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.tooling.ToolingPotionColors;
+import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -53,10 +54,15 @@ public class PotionColorLoader {
      */
     public static @NotNull ConcurrentMap<String, Integer> load() {
         try (InputStream stream = PotionColorLoader.class.getResourceAsStream(RESOURCE_PATH)) {
-            if (stream == null)
+            if (stream == null && !LegacyBridge.active())
                 throw new PipelineException("Classpath resource '%s' not found - run the 'potionColors' Gradle task to generate it", RESOURCE_PATH);
 
-            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            // tooling2 bridge seam (10-bridge SS2.3): parse() consumes a string, so the materialized
+            // tree is re-serialised under the fork-lifetime -Dasset.tooling2.bridge flag; canonical-SHA
+            // equality makes the round-trip semantically inert.
+            String json = LegacyBridge.active()
+                ? GSON.toJson(LegacyBridge.materialize("potion_colors.json").toGson())
+                : new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             return parse(json);
         } catch (IOException ex) {
             throw new PipelineException(ex, "Failed to read classpath resource '%s'", RESOURCE_PATH);

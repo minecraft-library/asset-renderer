@@ -14,6 +14,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
+import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.UtilityClass;
@@ -122,11 +123,14 @@ public class BlockStateLoader {
     private static @NotNull ConcurrentMap<String, String> loadDefaultStateKeys() {
         HashMap<String, String> defaults = new HashMap<>();
         try (InputStream stream = BlockStateLoader.class.getResourceAsStream(DEFAULTS_RESOURCE_PATH)) {
-            if (stream == null)
+            if (stream == null && !LegacyBridge.active())
                 throw new PipelineException("Vanilla block-defaults resource '%s' not found on the classpath", DEFAULTS_RESOURCE_PATH);
 
-            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            JsonObject root = GSON.fromJson(json, JsonObject.class);
+            // tooling2 bridge seam (10-bridge SS2.3): the default-state map is materialized from
+            // v2/block_defaults.json under the fork-lifetime -Dasset.tooling2.bridge flag.
+            JsonObject root = LegacyBridge.active()
+                ? LegacyBridge.materialize("block_defaults.json").toGson().getAsJsonObject()
+                : GSON.fromJson(new String(stream.readAllBytes(), StandardCharsets.UTF_8), JsonObject.class);
             if (root == null || !root.has("blocks"))
                 throw new PipelineException("Vanilla block-defaults resource '%s' has no 'blocks' object", DEFAULTS_RESOURCE_PATH);
 

@@ -8,6 +8,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
+import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -51,10 +52,14 @@ public class ColorMapLoader {
      */
     public static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> load() {
         InputStream stream = ColorMapLoader.class.getResourceAsStream(RESOURCE_PATH);
-        if (stream == null)
+        if (stream == null && !LegacyBridge.active())
             return Concurrent.<ColorMap.Type, ColorMap>newMap().toUnmodifiable();
 
-        JsonObject root = GSON.fromJson(new InputStreamReader(stream, StandardCharsets.UTF_8), JsonObject.class);
+        // tooling2 bridge seam (10-bridge SS2.3): the colormap table is materialized from
+        // v2/color_maps.json under the fork-lifetime -Dasset.tooling2.bridge flag.
+        JsonObject root = LegacyBridge.active()
+            ? LegacyBridge.materialize("color_maps.json").toGson().getAsJsonObject()
+            : GSON.fromJson(new InputStreamReader(stream, StandardCharsets.UTF_8), JsonObject.class);
         JsonArray entries = root.getAsJsonArray("color_maps");
         HashMap<ColorMap.Type, ColorMap> colorMaps = new HashMap<>(entries.size());
 
