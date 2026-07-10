@@ -73,7 +73,11 @@ final class EntityModelsBridge {
     private @NotNull JsonObject family(@NotNull JsonObject v2) {
         JsonObject axes = v2.has("axes") ? v2.getAsJsonObject("axes") : new JsonObject();
         JsonObject variant = axes.has("variant") ? axes.getAsJsonObject("variant") : null;
-        String familyGeometry = key(v2.get("geometry").getAsString());
+        // Axis unification #1: the family baseline (geometry + adult texture) lives under the
+        // mandatory age axis' options.adult, not at top level. Legacy takes them as the family/base-row
+        // geometry_ref + texture_ref.
+        JsonObject adult = adultOption(axes);
+        String familyGeometry = key(adult.get("geometry").getAsString());
         JsonObject family = new JsonObject();
 
         if (variant != null) {
@@ -90,7 +94,7 @@ final class EntityModelsBridge {
             if (v2.has("family_of")) family.add("family_of", v2.get("family_of").deepCopy());
             family.add("axes", variantAxes(variant, familyGeometry, axes));
         } else {
-            String texture = v2.has("texture") ? strip(v2.get("texture").getAsString()) : null;
+            String texture = adult.has("texture") ? strip(adult.get("texture").getAsString()) : null;
             JsonObject baseRow = baseRow(v2, familyGeometry, texture);
             family.add("geometry_ref", baseRow.get("geometry_ref"));
             family.add("armor_type", baseRow.get("armor_type"));
@@ -108,10 +112,18 @@ final class EntityModelsBridge {
         appendEquipmentRows(layers, v2);
         if (!layers.isEmpty()) family.add("layers", layers);
 
-        if (axes.has("age")) attach(family, "age", ageAxis(axes.getAsJsonObject("age")));
+        // The age axis is now mandatory (options.adult holds the baseline); legacy only carried an age
+        // axis when a dedicated baby mesh existed, so re-emit one ONLY when options.baby is present.
+        JsonObject age = axes.getAsJsonObject("age");
+        if (age.getAsJsonObject("options").has("baby")) attach(family, "age", ageAxis(age));
         if (axes.has("shape")) attach(family, "shape", shapeAxis(axes.getAsJsonObject("shape")));
         if (axes.has("size")) attach(family, "size", sizeAxis(axes.getAsJsonObject("size")));
         return family;
+    }
+
+    /** The mandatory age axis' {@code options.adult} body (axis unification #1 - carries the baseline). */
+    private static @NotNull JsonObject adultOption(@NotNull JsonObject axes) {
+        return axes.getAsJsonObject("age").getAsJsonObject("options").getAsJsonObject("adult");
     }
 
     /** The flat base row in {@code ENTITY_FLAT_ROW_KEYS} order. */
@@ -221,7 +233,11 @@ final class EntityModelsBridge {
             JsonObject state = axes.getAsJsonObject("state");
             JsonObject stateOut = new JsonObject();
             stateOut.add("default", state.get("default").deepCopy());
-            stateOut.add("values", state.get("values").deepCopy());
+            // Axis unification #2: the state domain is now the options key-order (empty bodies), not a
+            // separate values list; rebuild the legacy values array from it.
+            JsonArray stateValues = new JsonArray();
+            for (String stateKey : state.getAsJsonObject("options").keySet()) stateValues.add(stateKey);
+            stateOut.add("values", stateValues);
             stateOut.add("options", new JsonObject());
             axesOut.add("state", stateOut);
         }

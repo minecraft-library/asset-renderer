@@ -61,7 +61,7 @@ final class LegacyGeometryIds {
     private static void stageMajor(@NotNull JsonObject families, @NotNull LinkedHashSet<String> seen) {
         // 1: primary body meshes (family order == EntityType registry order).
         for (Map.Entry<String, JsonElement> entry : families.entrySet())
-            add(seen, entry.getValue().getAsJsonObject().getAsJsonPrimitive("geometry").getAsString());
+            add(seen, primaryGeometry(entry.getValue().getAsJsonObject()));
         // 2: variant-model geometry overrides.
         for (Map.Entry<String, JsonElement> entry : families.entrySet()) {
             JsonObject variant = axis(entry.getValue().getAsJsonObject(), "variant");
@@ -73,7 +73,7 @@ final class LegacyGeometryIds {
         for (Map.Entry<String, JsonElement> entry : families.entrySet()) {
             JsonObject family = entry.getValue().getAsJsonObject();
             if (!family.has("overlays")) continue;
-            String primary = family.getAsJsonPrimitive("geometry").getAsString();
+            String primary = primaryGeometry(family);
             for (JsonElement overlay : family.getAsJsonArray("overlays")) {
                 String reference = geometryOf(overlay.getAsJsonObject());
                 if (reference != null && !reference.equals(primary)) add(seen, reference);
@@ -140,6 +140,15 @@ final class LegacyGeometryIds {
     private static @Nullable String geometryOf(@NotNull JsonObject node) {
         JsonElement geometry = node.get("geometry");
         return geometry == null ? null : geometry.getAsString();
+    }
+
+    /**
+     * The family's primary body-mesh coordinate, read from the mandatory age axis' {@code options.adult}
+     * (axis unification #1 moved the family baseline there from the former top-level {@code geometry}).
+     */
+    private static @NotNull String primaryGeometry(@NotNull JsonObject family) {
+        return family.getAsJsonObject("axes").getAsJsonObject("age").getAsJsonObject("options")
+            .getAsJsonObject("adult").getAsJsonPrimitive("geometry").getAsString();
     }
 
     private static @Nullable JsonObject axis(@NotNull JsonObject family, @NotNull String name) {
