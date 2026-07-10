@@ -131,7 +131,7 @@ final class EntityModelsBridge {
         Map<String, JsonElement> values = new LinkedHashMap<>();
         values.put("geometry_ref", new JsonPrimitive(geometry));
         if (texture != null) values.put("texture_ref", new JsonPrimitive(texture));
-        values.put("armor_type", v2.get("armor_type").deepCopy());
+        values.put("armor_type", new JsonPrimitive(armorType(v2)));
         JsonObject render = v2.has("render") ? v2.getAsJsonObject("render") : new JsonObject();
         if (render.has("scale")) values.put("renderer_scale", render.get("scale").deepCopy());
         if (render.has("yaw_addend")) values.put("setup_yaw_addend", render.get("yaw_addend").deepCopy());
@@ -321,6 +321,7 @@ final class EntityModelsBridge {
         if (!v2.has("layers")) return;
         for (JsonElement element : v2.getAsJsonArray("layers")) {
             JsonObject layer = element.getAsJsonObject();
+            if (!layer.has("when")) continue;               // skip the armor classification row (no `when`)
             JsonObject when = layer.getAsJsonObject("when");
             if (!when.has("equipment")) continue;
             JsonObject overlay = layer.getAsJsonObject("overlay");
@@ -339,6 +340,21 @@ final class EntityModelsBridge {
     // ------------------------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------------------------
+
+    /**
+     * Reconstructs the legacy top-level {@code armor_type} from the relocated {@code layers} armor row
+     * [LOCKED 3] - the bridge inverse of {@code EntityLayersResolver.armorRow}. A family with a
+     * {@code humanoid} armor row classifies {@code humanoid}; absence IS {@code none} (the flattener
+     * hard-requires the member on every family, so the bridge always emits one).
+     */
+    private static @NotNull String armorType(@NotNull JsonObject v2) {
+        if (v2.has("layers"))
+            for (JsonElement element : v2.getAsJsonArray("layers")) {
+                JsonObject layer = element.getAsJsonObject();
+                if (layer.has("armor_type")) return layer.get("armor_type").getAsString();
+            }
+        return "none";
+    }
 
     private @NotNull String key(@NotNull String coordinate) {
         String legacy = this.geometryKeys.get(coordinate);

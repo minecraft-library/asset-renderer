@@ -92,7 +92,8 @@ final class LegacyGeometryIds {
             if (!family.has("layers")) continue;
             for (JsonElement element : family.getAsJsonArray("layers")) {
                 JsonObject layer = element.getAsJsonObject();
-                if (layer.getAsJsonObject("when").has("equipment"))
+                // The armor classification row [LOCKED 3] carries no `when`/`overlay` mesh - skip it.
+                if (layer.has("when") && layer.getAsJsonObject("when").has("equipment"))
                     add(seen, geometryOf(layer.getAsJsonObject("overlay")));
             }
         }
