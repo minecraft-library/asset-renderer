@@ -249,6 +249,13 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
+    register<JavaExec>("blockTints2") {
+        description = "tooling2: walks BlockColors.createDefault() and generates src/main/resources/lib/minecraft/renderer/v2/block_tints.json (tints + dropped[])."
+        group = "tooling2"
+        mainClass.set("lib.minecraft.renderer.tooling2.ToolingBlockTints")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
     // Visual diagnostics - main() entry points in src/test/java/lib/minecraft/renderer/visual/.
     // Run with `./gradlew tasks --group visual` to list. Outputs land under cache/visual/.
 

@@ -232,6 +232,39 @@ public final class VanillaSourceClasses {
         /** {@code RotationSegment} - the 16-segment rotation helper whose {@code convertToDegrees} the skull transform reads. */
         public static final @NotNull String ROTATION_SEGMENT = "net/minecraft/world/level/block/state/properties/RotationSegment";
 
+        /** {@code BlockColors} - the block-tint registry whose {@code createDefault} the tint walk anchors on. */
+        public static final @NotNull String BLOCK_COLORS = "net/minecraft/client/color/block/BlockColors";
+
+        /** {@code BlockTintSources} - the static tint-source factory ({@code grass}/{@code foliage}/{@code constant}/{@code stem}/...). */
+        public static final @NotNull String BLOCK_TINT_SOURCES = "net/minecraft/client/color/block/BlockTintSources";
+
+        /** {@code BiomeColors} - the biome-average colour helper the tint-source bodies call, deriving the colormap target. */
+        public static final @NotNull String BIOME_COLORS = "net/minecraft/client/renderer/BiomeColors";
+
+        /** {@code ARGB} - the colour-packing helper the stem tint body terminates in ({@code color(r,g,b)}) [D60]. */
+        public static final @NotNull String ARGB = "net/minecraft/util/ARGB";
+
+        /** {@code BlockState} - the tint-source {@code color(BlockState)} parameter (its {@code getValue} feeds the stem eval). */
+        public static final @NotNull String BLOCK_STATE = "net/minecraft/world/level/block/state/BlockState";
+
+        /** {@code MobEffects} - the effect registry whose {@code <clinit>} the potion-colour walk anchors on. */
+        public static final @NotNull String MOB_EFFECTS = "net/minecraft/world/effect/MobEffects";
+
+        /** {@code MobEffectCategory} - the first parameter of the colour-carrying {@code MobEffect} constructor. */
+        public static final @NotNull String MOB_EFFECT_CATEGORY = "net/minecraft/world/effect/MobEffectCategory";
+
+        /** The effect package prefix - the {@code NEW MobEffect-or-subclass} + {@code <init>} prefix-owner gate (trailing slash for {@code startsWith}). */
+        public static final @NotNull String EFFECT_PACKAGE_PREFIX = "net/minecraft/world/effect/";
+
+        /** {@code Items} - the item registry whose {@code <clinit>} the glint walk anchors on. */
+        public static final @NotNull String ITEMS = "net/minecraft/world/item/Items";
+
+        /** {@code Item} - the field type each {@code Items.<NAME>} {@code PUTSTATIC} terminates a registration into. */
+        public static final @NotNull String ITEM = "net/minecraft/world/item/Item";
+
+        /** {@code DataComponents} - the component registry holding {@code ENCHANTMENT_GLINT_OVERRIDE} the glint walk reads. */
+        public static final @NotNull String DATA_COMPONENTS = "net/minecraft/core/component/DataComponents";
+
     }
 
     /** Member-name pattern grammar [C3]: createRoots, addBox, texOffs, scaling, ... */
@@ -345,6 +378,33 @@ public final class VanillaSourceClasses {
         /** {@code BlockModelResolver.update(...)} - the literal-block bind in {@code extractRenderState}. */
         public static final @NotNull String UPDATE = "update";
 
+        /** {@code BlockColors.createDefault} - the tint-registration method the tint walk scans. */
+        public static final @NotNull String CREATE_DEFAULT = "createDefault";
+
+        /** {@code BlockColors.register} / {@code MobEffects.register} - the registration-commit call each snapshot walk terminates on. */
+        public static final @NotNull String REGISTER = "register";
+
+        /** {@code BlockTintSources.constant} - the constant-colour tint-source factory (the in-hand pick source). */
+        public static final @NotNull String CONSTANT = "constant";
+
+        /** {@code BlockTintSources.stem} - the age-driven stem tint-source factory (its body is symbolically evaluated at age 0) [D60]. */
+        public static final @NotNull String STEM = "stem";
+
+        /** {@code BlockTintSource.color} / {@code ARGB.color} - the tint colour body + the packing helper the stem eval walks into. */
+        public static final @NotNull String COLOR = "color";
+
+        /** {@code BiomeColors.getAverageGrassColor} - the grass-family colormap-target derivation call. */
+        public static final @NotNull String GET_AVERAGE_GRASS_COLOR = "getAverageGrassColor";
+
+        /** {@code BiomeColors.getAverageFoliageColor} - the foliage colormap-target derivation call. */
+        public static final @NotNull String GET_AVERAGE_FOLIAGE_COLOR = "getAverageFoliageColor";
+
+        /** {@code BiomeColors.getAverageDryFoliageColor} - the dry-foliage colormap-target derivation call. */
+        public static final @NotNull String GET_AVERAGE_DRY_FOLIAGE_COLOR = "getAverageDryFoliageColor";
+
+        /** {@code BlockState.getValue(Property)} - the property read the stem eval binds to the property min. */
+        public static final @NotNull String GET_VALUE = "getValue";
+
     }
 
     /** Vanilla field-name pattern grammar: the render-state members the walks anchor on. */
@@ -358,6 +418,9 @@ public final class VanillaSourceClasses {
 
         /** {@code <X>RenderState.variant} - the enum-typed variant field on 26.1 render-state classes. */
         public static final @NotNull String VARIANT = "variant";
+
+        /** {@code DataComponents.ENCHANTMENT_GLINT_OVERRIDE} - the always-foil component the glint walk keys on. */
+        public static final @NotNull String ENCHANTMENT_GLINT_OVERRIDE = "ENCHANTMENT_GLINT_OVERRIDE";
 
     }
 
@@ -442,6 +505,9 @@ public final class VanillaSourceClasses {
 
         /** The {@code .png} texture suffix of the decision-21 full asset grammar. */
         public static final @NotNull String PNG_SUFFIX = ".png";
+
+        /** The biome-colormap directory ({@code assets/minecraft/textures/colormap/}) the colormap policies anchor their PNGs on. */
+        public static final @NotNull String COLORMAP_DIR = ASSETS_ROOT + "textures/colormap/";
 
     }
 
