@@ -79,6 +79,39 @@ class BridgeParityTest {
                 + "skull_humanoid_head hat-bone difference is expected)");
     }
 
+    @Test
+    @DisplayName("entity_geometry reconstructs every shared mesh byte-exact; residuals are v2-superior")
+    void entityGeometryReconstructsSharedMeshesByteExact() {
+        JsonObject bridge = LegacyBridge.materialize("entity_geometry.json").toGson().getAsJsonObject()
+            .getAsJsonObject("geometries");
+        JsonObject legacy = parse(LEGACY_DIR + "entity_geometry.json").getAsJsonObject("geometries");
+
+        List<String> divergentShared = new ArrayList<>();
+        for (String key : legacy.keySet()) {
+            if (!bridge.has(key)) continue;                    // legacy-only handled below
+            if (!CanonicalSha.of(bridge.get(key)).equals(CanonicalSha.of(legacy.get(key))))
+                divergentShared.add(key);
+        }
+        assertEquals(List.of(), divergentShared,
+            "shared entity_geometry meshes must reconstruct byte-exact from v2");
+
+        // The renderer-scale flow fix (elder_guardian/cave_spider/husk) collapsed the old key-set
+        // gap: the only legacy key v2 no longer emits as a distinct mesh is drowned_1, which v2
+        // represents as an overlay grow on the shared drowned mesh (10-bridge tracker delta 3).
+        List<String> legacyOnly = new ArrayList<>();
+        for (String key : legacy.keySet()) if (!bridge.has(key)) legacyOnly.add(key);
+        assertEquals(List.of("geometry.drowned_1"), legacyOnly,
+            "only drowned_1 is legacy-only (v2 keeps it as an overlay grow)");
+
+        // v2-superior meshes legacy lacked - kept so the models refs resolve, recorded not dropped.
+        List<String> bridgeOnly = new ArrayList<>();
+        for (String key : bridge.keySet()) if (!legacy.has(key)) bridgeOnly.add(key);
+        assertEquals(
+            List.of("geometry.warden_1", "geometry.babydonkey", "geometry.babyllama",
+                "geometry.babypiglin", "geometry.happyghastharness_1"),
+            bridgeOnly, "v2-superior extra meshes (warden overlay, per-family babies, ghast harness baby)");
+    }
+
     private static @NotNull JsonObject parse(@NotNull String classpath) {
         try (InputStream in = BridgeParityTest.class.getResourceAsStream(classpath)) {
             Objects.requireNonNull(in, classpath);

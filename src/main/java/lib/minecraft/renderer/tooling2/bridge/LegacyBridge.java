@@ -71,6 +71,8 @@ public final class LegacyBridge {
             case "block_defaults.json" -> BlockDefaultsBridge.convert(readV2("block_defaults.json"));
             case "block_models.json" ->
                 BlockModelsBridge.convert(readV2("block_models.json"), readV2("block_geometry.json"));
+            case "entity_geometry.json" ->
+                EntityGeometryBridge.convert(readV2("entity_models.json"), readV2("entity_geometry.json"));
             default -> throw new ToolingException("No tooling2 bridge converter for '%s'", legacyResourceName);
         };
         return JsonNode.wrap(legacy);
