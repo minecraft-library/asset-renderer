@@ -747,7 +747,8 @@ public final class EntityFamilyReader {
                 cubes.add(new EntityModelData.Cube(
                     cube.getOrigin(), cube.getSize(), cube.getUv(),
                     cube.getInflate() + delta, cube.isMirror(),
-                    cube.getPivot(), cube.getRotation(), cube.getFaceUv()));
+                    cube.getPivot(), cube.getRotation(), cube.getFaceUv(),
+                    cube.getGrowAxis()));       // depth-clearance is a scalar bump; per-axis grow (none in 26.1) rides through
             inflated.put(e.getKey(), new EntityModelData.Bone(
                 bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
                 bone.getScale(), Concurrent.adoptList(cubes), bone.getParent()));
