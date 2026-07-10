@@ -62,23 +62,24 @@ final class EntityAxesResolver {
     }
 
     /**
-     * The {@code axes} node in fixed sub-node order, or {@code null} when all five axes
-     * decline. {@link #resolveVariant()} must have run; the caller resolves the overlays
-     * FIRST (doc 06 SS3.12 - the shape option clones the family's pattern overlays onto
-     * its mesh) while the put chain keeps the on-disk order.
+     * The {@code axes} node in fixed sub-node order. Never {@code null}: the {@code age} axis is
+     * mandatory (axis unification #1 - {@code options.adult} holds the family baseline), so every
+     * family carries at least an age axis. {@link #resolveVariant()} must have run; the caller
+     * resolves the overlays FIRST (doc 06 SS3.12 - the shape option clones the family's pattern
+     * overlays onto its mesh) while the put chain keeps the on-disk order.
      *
+     * @param baseGeometry the family's resolved primary geometry key (the adult mesh), or {@code null}
      * @param adultTexture the family's resolved adult texture, or {@code null}
      * @param overlays the family's resolved {@code overlays} rows, or {@code null}
-     * @return the node, or {@code null} to omit
+     * @return the axes node
      */
-    @Nullable JsonNode resolve(@Nullable String adultTexture, @Nullable JsonNode overlays) {
-        JsonNode axes = JsonNode.object()
+    @NotNull JsonNode resolve(@Nullable String baseGeometry, @Nullable String adultTexture, @Nullable JsonNode overlays) {
+        return JsonNode.object()
             .putIf("variant", this.variantNode)
             .putIf("state", this.state.resolve())
-            .putIf("age", this.age.resolve(adultTexture, this.variantNode != null))
+            .put("age", this.age.resolve(baseGeometry, adultTexture, this.variantNode != null))
             .putIf("size", this.size.resolve())
             .putIf("shape", this.shape.resolve(adultTexture, overlays));
-        return axes.members().iterator().hasNext() ? axes : null;
     }
 
 }

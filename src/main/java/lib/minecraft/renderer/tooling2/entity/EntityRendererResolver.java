@@ -79,22 +79,26 @@ final class EntityRendererResolver {
 
     /**
      * The family node - invocation order IS on-disk member order (SPINE 3.1, normative).
-     * The variant axis resolves ahead of the {@code texture} member (variant-axis families
-     * carry per-option textures and no top-level texture, SPINE 4.2 row 4); the overlays
-     * resolve ahead of the axes (the shape-axis clone) - the put order is unaffected.
+     * The variant axis resolves ahead of the adult-texture resolution (variant-axis families
+     * carry per-option textures, so no adult texture is resolved for them, SPINE 4.2 row 4);
+     * the base geometry and adult texture feed the mandatory age axis' {@code options.adult}
+     * (axis unification #1), and the overlays resolve ahead of the axes (the shape-axis clone) -
+     * the put order is unaffected.
      */
     @NotNull JsonNode resolve() {
+        // The primary geometry is registered FIRST (unchanged manifest order) but no longer emitted
+        // at top level: axis unification #1 moves the family baseline (base geometry + adult texture)
+        // into the mandatory age axis' options.adult (EntityAgeAxisResolver).
+        String baseGeometry = this.geometryRef.resolve();                               // -> manifest key
         JsonNode node = JsonNode.object()
             .put("renderer", this.subject.rendererClass())                              // provenance scalar (resolver-owned)
-            .putIf("geometry", this.geometryRef.resolve())                              // -> manifest key
             .put("armor_type", new EntityArmorTypeResolver(this.layerRoster).resolve());
         String texturePath = this.axes.resolveVariant() == null ? this.texture.resolve() : null;
         JsonNode overlays = this.overlays.resolve();
         return node
-            .putIf("texture", texturePath)
             .putIf("render", this.renderTraits.resolve())                               // {scale?, yaw_addend?, tint?}
             .putIf("bones", this.bones.resolve())                                       // {hidden?, toggles?}
-            .putIf("axes", this.axes.resolve(texturePath, overlays))
+            .put("axes", this.axes.resolve(baseGeometry, texturePath, overlays))        // age mandatory -> always present
             .putIf("overlays", overlays)
             .putIf("block_overlays", this.blockOverlays.resolve())
             .putIf("layers", this.layers.resolve());

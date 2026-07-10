@@ -112,10 +112,8 @@ final class EntityVariantAxisResolver {
 
         Map<String, String> modelTypeLayers = modelTypeToModelLayerField();
         JsonNode node = JsonNode.object().put("id_encoded", true).put("default", dflt);
-        JsonNode values = node.childArray("values");
         JsonNode options = node.child("options");
         for (VariantIndex.Variant variant : table) {
-            values.add(variant.variantId());
             JsonNode option = JsonNode.object()
                 .put("textures", texturesNode(variant.textures()))
                 .putIf("baby_texture", fullPath(pickByStatePrecedence(variant.babyTextures())))
@@ -272,11 +270,9 @@ final class EntityVariantAxisResolver {
                 this.diagnostics.info("variant default '%s' via first map key [D1] (enum has no DEFAULT)", dflt);
 
             JsonNode node = JsonNode.object().put("id_encoded", true).put("default", dflt);
-            JsonNode values = node.childArray("values");
             JsonNode options = node.child("options");
             for (Map.Entry<String, List<String>> coat : coats.byConstant().entrySet()) {
                 String id = variantId(coat.getKey(), ids);
-                values.add(id);
                 options.put(id, JsonNode.object()
                     .put("textures", JsonNode.object().put("wild", fullPath(coat.getValue().getFirst())))
                     .putIf("baby_texture", fullPath(coat.getValue().size() > 1 ? coat.getValue().get(1) : null)));

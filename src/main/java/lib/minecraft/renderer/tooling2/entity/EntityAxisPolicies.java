@@ -63,7 +63,8 @@ enum EntityAxisPolicies implements NavigationPolicy {
      * P28 - the size-axis option domain, in declared order, plus the default-pick rule: the
      * default is the option-less domain member (the mesh the family's base {@code geometry}
      * already renders - pufferfish {@code large}, salmon {@code medium}, slime {@code small}).
-     * Invented vocabulary; option JSON member order follows this domain order.
+     * Invented vocabulary; the emitted {@code options} key-order follows this domain order and IS
+     * the domain (axis unification #2 - no per-family {@code values} list).
      */
     SIZE_DOMAIN(
         List.of("small", "medium", "large"),

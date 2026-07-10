@@ -50,7 +50,7 @@ final class EntityFamilyLinker {
         JsonNode families = root.child("families");
         Map<String, List<String>> clusters = new LinkedHashMap<>();
         for (Map.Entry<String, JsonNode> family : families.members()) {
-            String geometry = family.getValue().getString("geometry");
+            String geometry = primaryGeometry(family.getValue());
             if (geometry != null)
                 clusters.computeIfAbsent(geometry, key -> new ArrayList<>()).add(family.getKey());
         }
@@ -91,6 +91,19 @@ final class EntityFamilyLinker {
         for (String member : members)
             if (localId(member).replace("_", "").equals(normalizedStem)) return member;
         return null;
+    }
+
+    /**
+     * The family's primary geometry manifest key, read from the mandatory age axis' {@code options.adult}
+     * (axis unification #1 moved the family baseline there from the former top-level {@code geometry}), or
+     * {@code null} when any node on that path is absent (an unresolvable family links nothing).
+     */
+    private static @Nullable String primaryGeometry(@NotNull JsonNode family) {
+        JsonNode axes = family.get("axes");
+        JsonNode age = axes == null ? null : axes.get("age");
+        JsonNode options = age == null ? null : age.get("options");
+        JsonNode adult = options == null ? null : options.get("adult");
+        return adult == null ? null : adult.getString("geometry");
     }
 
     /** The namespace-stripped local id of a family key. */

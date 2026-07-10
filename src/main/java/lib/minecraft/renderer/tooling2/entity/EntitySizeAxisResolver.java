@@ -136,7 +136,11 @@ final class EntitySizeAxisResolver {
         return sizeNode(domain, options);
     }
 
-    /** Assembles the node: full P28 domain under {@code values}, options in domain order, option-less default. */
+    /**
+     * Assembles the node: the non-default delta options in P28 domain order, option-less default (the
+     * base mesh the family {@code geometry} already renders). The domain lives in the P28 policy, not a
+     * per-family {@code values} list (axis unification #2).
+     */
     private static @NotNull JsonNode sizeNode(@NotNull List<String> domain, @NotNull Map<String, JsonNode> options) {
         String dflt = domain.getFirst();
         for (String member : domain)
@@ -145,8 +149,6 @@ final class EntitySizeAxisResolver {
                 break;
             }
         JsonNode node = JsonNode.object().put("default", dflt);
-        JsonNode values = node.childArray("values");
-        for (String member : domain) values.add(member);
         JsonNode optionsNode = node.child("options");
         for (String member : domain) {
             JsonNode option = options.get(member);

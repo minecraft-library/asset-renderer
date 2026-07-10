@@ -101,8 +101,6 @@ final class EntityShapeAxisResolver {
         }
 
         JsonNode node = JsonNode.object().put("default", DOMAIN.getFirst());
-        JsonNode values = node.childArray("values");
-        for (String member : DOMAIN) values.add(member);
         node.put("options", options);
         return node;
     }

@@ -66,20 +66,41 @@ final class EntityAgeAxisResolver {
     }
 
     /**
-     * The age node, or {@code null} when no dedicated baby mesh resolves.
+     * The mandatory age node (axis unification #1): {@code options.adult} carries the family
+     * baseline - the base {@code geometry} and, for non-variant families, the adult
+     * {@code texture} - and {@code options.baby} is added only when a dedicated baby mesh
+     * resolves. Every family emits an age axis; the {@code options} key-order IS the domain (no
+     * {@code values} list, #2).
      *
+     * @param baseGeometry the family's resolved primary geometry key (the adult mesh), or
+     *     {@code null} on an unresolvable family (mirrors the former top-level {@code putIf})
      * @param adultTexture the family's resolved adult texture (full namespaced path), or
      *     {@code null} on variant-axis / unresolved families
      * @param variantFamily whether the family carries a variant axis (baby textures then
-     *     live per-option as {@code baby_texture} - this node emits geometry only)
-     * @return the node, or {@code null} to omit
+     *     live per-option as {@code baby_texture} - the adult / baby options emit geometry only)
+     * @return the age node (always non-null)
      */
-    @Nullable JsonNode resolve(@Nullable String adultTexture, boolean variantFamily) {
+    @NotNull JsonNode resolve(@Nullable String baseGeometry, @Nullable String adultTexture, boolean variantFamily) {
+        JsonNode adult = JsonNode.object().putIf("geometry", baseGeometry);
+        if (!variantFamily) adult.putIf("texture", adultTexture);
+        JsonNode node = JsonNode.object().put("default", "adult");
+        JsonNode options = node.child("options");
+        options.put("adult", adult);
+        JsonNode baby = resolveBaby(adultTexture, variantFamily);
+        if (baby != null) options.put("baby", baby);
+        return node;
+    }
+
+    /**
+     * The {@code options.baby} delta body, or {@code null} when no dedicated baby mesh resolves
+     * (the baby field is unindexed, or the baby bakes from the adult model class [D10]).
+     */
+    private @Nullable JsonNode resolveBaby(@Nullable String adultTexture, boolean variantFamily) {
         String babyField = pickBabyLayerField();
         if (babyField == null) return null;
         LayerDefinitionIndex.Entry babyEntry = this.layerDefinitions.get(babyField);
         if (babyEntry == null) {
-            this.diagnostics.info("baby layer ModelLayers.%s has no LayerDefinitions.createRoots entry - age axis omitted", babyField);
+            this.diagnostics.info("baby layer ModelLayers.%s has no LayerDefinitions.createRoots entry - baby option omitted", babyField);
             return null;
         }
         LayerDefinitionIndex.Entry primary = this.geometryRef.resolvedEntry();
@@ -87,7 +108,7 @@ final class EntityAgeAxisResolver {
         // NautilusModel#createBabyBodyLayer vs #createBodyLayer) [D10] - their geometry ids
         // derive the same class-based stem and the collision suffix would shift the adult's.
         if (primary != null && primary.factoryClass().equals(babyEntry.factoryClass())) {
-            this.diagnostics.info("baby layer ModelLayers.%s shares the adult model class - age axis skipped [D10]", babyField);
+            this.diagnostics.info("baby layer ModelLayers.%s shares the adult model class - baby option skipped [D10]", babyField);
             return null;
         }
 
@@ -98,11 +119,8 @@ final class EntityAgeAxisResolver {
 
         JsonNode baby = JsonNode.object().put("geometry", key);
         if (!variantFamily) baby.putIf("texture", resolveBabyTexture(adultTexture));
-        JsonNode node = JsonNode.object().put("default", "adult");
-        node.childArray("values").add("adult").add("baby");
-        node.child("options").put("baby", baby);
         this.diagnostics.info("age axis: baby mesh ModelLayers.%s -> %s", babyField, key);
-        return node;
+        return baby;
     }
 
     // ------------------------------------------------------------------------------------

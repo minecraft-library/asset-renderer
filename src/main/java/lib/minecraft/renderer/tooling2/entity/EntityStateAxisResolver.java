@@ -10,13 +10,14 @@ import java.util.List;
 
 /**
  * Node {@code axes.state} - the option-encoded state axis (SPINE 3.1 row 10; wolf
- * wild / tame / angry, the sole 26.1 family). Values come from the multi-asset variant-JSON
- * {@code assets} subkeys already held by {@link VariantIndex}; the node is a pure selector -
- * per-state textures stay INSIDE the variant options' state-keyed {@code textures} maps, so
- * no {@code options} member is ever emitted (empty-vs-absent: a state option never carries a
- * delta body).
+ * wild / tame / angry, the sole 26.1 family). The domain comes from the multi-asset
+ * variant-JSON {@code assets} subkeys already held by {@link VariantIndex}; the node is a pure
+ * selector - per-state textures stay INSIDE the variant options' state-keyed {@code textures}
+ * maps, so every option body is EMPTY (a state option never carries a delta body). The
+ * {@code options} key-order IS the domain (axis unification #2 - no separate {@code values}
+ * list).
  *
- * <p>Default and values ordering = P22 precedence, {@code wild} first, then the remaining
+ * <p>Default and option ordering = P22 precedence, {@code wild} first, then the remaining
  * subkeys in table walk order ({@link EntityAxisPolicies#STATE_PRECEDENCE}).
  */
 final class EntityStateAxisResolver {
@@ -58,10 +59,10 @@ final class EntityStateAxisResolver {
         if (dflt == null) dflt = stateKeys.iterator().next();
 
         JsonNode node = JsonNode.object().put("default", dflt);
-        JsonNode values = node.childArray("values");
-        values.add(dflt);
+        JsonNode options = node.child("options");
+        options.put(dflt, JsonNode.object());
         for (String state : stateKeys)
-            if (!state.equals(dflt)) values.add(state);
+            if (!state.equals(dflt)) options.put(state, JsonNode.object());
         this.diagnostics.info("state axis: %s, default '%s' [P22]", stateKeys, dflt);
         return node;
     }
