@@ -16,8 +16,6 @@ import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.load.entity.EntityFamilyReader;
 import lib.minecraft.renderer.option.Size;
-import lib.minecraft.renderer.option.TintAxis;
-import lib.minecraft.renderer.option.TropicalFishPattern;
 import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.Builder;
@@ -135,15 +133,15 @@ public class EntityModelLoader {
      *     empty for entities with no toggleable bones
      * @param largeShape the {@code shape} axis's large alternative (tropical fish): the large body
      *     mesh + {@code tropical_b} texture + pattern overlays cloned onto it, swapped in by
-     *     {@link #resolveFor} when the selected pattern's {@code Shape} is large; empty otherwise
+     *     the entity definition resolver when the selected pattern's {@code Shape} is large; empty otherwise
      * @param sizeModels the {@code size} axis's non-default alternate meshes keyed by {@link Size}
-     *     (pufferfish {@link Size#SMALL} / {@link Size#MEDIUM}), swapped in by {@link #resolveFor} when
+     *     (pufferfish {@link Size#SMALL} / {@link Size#MEDIUM}), swapped in by the entity definition resolver when
      *     {@code EntityAppearance.size} selects one. The entity's default size is the base {@link #model}
      *     and is absent from the map, so an unset / default size leaves the render byte-identical; empty
      *     for entities with no size axis
      * @param sizeScales the {@code size} axis's non-default render scale factors keyed by {@link Size}
      *     (salmon {@link Size#SMALL} 0.5 / {@link Size#LARGE} 1.5; slime + magma_cube {@link Size#MEDIUM}
-     *     2 / {@link Size#LARGE} 4), multiplied onto {@link #rendererScale} by {@link #resolveFor} when
+     *     2 / {@link Size#LARGE} 4), multiplied onto {@link #rendererScale} by the entity definition resolver when
      *     {@code EntityAppearance.size} selects one. The default size is scale {@code 1.0} (absent), so an
      *     unset / default size leaves the render byte-identical; empty for mesh-select and no-size-axis
      *     entities. (A uniform scale is a visual no-op under the auto-fit renderer - see the size axis note)
@@ -181,133 +179,6 @@ public class EntityModelLoader {
          */
         public @NotNull EntityDefinition withoutBlockOverlays() {
             return toBuilder().blockOverlays(List.of()).build();
-        }
-
-        /**
-         * Resolves this definition for the given {@link EntityAppearance}, folding the age / carried
-         * policy into the returned definition so the renderer iterates its data unconditionally
-         * (no scattered {@code !baby} gates). A baby swaps in the {@link #babyModel} and drops the
-         * model overlays, block overlays, and collar - each carries adult geometry that would render
-         * adult-sized around the smaller baby body. The block overlays are resolved against the
-         * carried selection (see {@link #resolveBlockOverlays}): {@code carried == "none"} drops the
-         * always-present decorations, and a selected block id fills the selectable held-block slots
-         * (enderman carried block, iron golem flower). A non-baby, non-carried appearance returns an
-         * equivalent definition unchanged.
-         *
-         * @param appearance the axis selections to resolve against
-         * @return the age / carried / sheared-resolved definition
-         */
-        public @NotNull EntityDefinition resolveFor(@NotNull EntityAppearance appearance) {
-            EntityDefinitionBuilder builder = toBuilder();
-            if (appearance.isBaby() && this.babyModel.isPresent()) {
-                builder.model(this.babyModel.get()).overlays(List.of()).blockOverlays(List.of()).collarTexture(Optional.empty()).equipment(List.of());
-            } else {
-                // Drop overlays the appearance doesn't activate: shearable overlays (the sheep wool)
-                // when sheared - both the rendered geometry and its canvas-bounds contribution - and
-                // charged-only overlays (the creeper energy swirl) unless the charged axis is set. A
-                // charged overlay renders only for a lightning-struck entity, so the default (uncharged)
-                // render is byte-identical. Only rebuilds the list when there is something to drop, so an
-                // entity with no shearable / charged overlay keeps its exact overlay list.
-                boolean hasCharged = this.overlays.stream().anyMatch(OverlayLayer::requiresCharged);
-                if (appearance.isSheared() || hasCharged)
-                    builder.overlays(this.overlays.stream()
-                        .filter(overlay -> !(overlay.shearable() && appearance.isSheared()))
-                        .filter(overlay -> !(overlay.requiresCharged() && !appearance.isCharged()))
-                        .toList());
-                // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal,
-                // goat horns hide). Guarded to the non-baby path - the baby mesh has its own bones.
-                // The sheared axis additionally activates the "sheared" toggle for entities that
-                // declare one (bogged drops its mushrooms); entities whose sheared handling is
-                // overlay-only (sheep wool) declare no such toggle and are left byte-identical.
-                Set<String> selectedToggles = appearance.getToggles();
-                if (appearance.isSheared() && this.boneToggles.containsKey("sheared")) {
-                    selectedToggles = new LinkedHashSet<>(selectedToggles);
-                    selectedToggles.add("sheared");
-                }
-                EntityModelData toggled = applyBoneToggles(selectedToggles);
-                if (toggled != null) builder.model(toggled);
-                builder.blockOverlays(resolveBlockOverlays(appearance));
-                // The shape axis (tropical fish) swaps to the large body when the selected pattern's
-                // Shape is large: the large mesh, tropical_b base texture, and the pattern overlays
-                // cloned onto the large geometry (the pattern axis still picks the concrete overlay
-                // texture via texture_by). A small/default pattern leaves the small body untouched, so
-                // the default render is byte-identical.
-                if (this.largeShape.isPresent()
-                    && appearance.getPattern().map(p -> p.shape() == TropicalFishPattern.Shape.LARGE).orElse(false)) {
-                    LargeShape large = this.largeShape.get();
-                    builder.model(large.model()).textureRef(large.textureRef()).overlays(large.overlays());
-                }
-                // The size axis (pufferfish) swaps to the selected size's distinct baked mesh. An unset
-                // size, or the entity's default size (pufferfish large = the base mesh, absent from the
-                // map), leaves the base model untouched, so the default render is byte-identical.
-                appearance.getSize().map(this.sizeModels::get).ifPresent(builder::model);
-                // The size axis (salmon / slime / magma_cube) instead multiplies rendererScale by the
-                // selected size's factor. An unset / default size (scale 1.0, absent from the map) leaves
-                // rendererScale untouched, so the default render is byte-identical. A uniform scale is a
-                // visual no-op under the auto-fit renderer (self-similar); the factor is applied for a
-                // future absolute-scale scene renderer.
-                appearance.getSize().map(this.sizeScales::get)
-                    .ifPresent(scale -> builder.rendererScale(this.rendererScale * scale));
-            }
-            // The base_color axis (tropical fish) overrides the family base_tint with the selected
-            // dye; absent (default) keeps the baked base_tint, so the default render is byte-identical.
-            appearance.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
-            return builder.build();
-        }
-
-        /**
-         * Resolves this definition's block overlays against the appearance's carried selection. A
-         * <b>fixed</b> overlay (mooshroom mushrooms, snow golem pumpkin) is kept unless
-         * {@link EntityAppearance#dropsCarried() carried == "none"} drops it; a <b>selectable</b>
-         * overlay (enderman carried block, iron golem flower) is kept only when
-         * {@link EntityAppearance#selectedCarriedBlock() a block is selected}, with its block id
-         * replaced by that selection. The default (empty) appearance therefore renders the fixed
-         * decorations and no selectable held block - byte-identical to the pre-selectable behaviour.
-         *
-         * @param appearance the axis selections to resolve against
-         * @return the resolved block-overlay list
-         */
-        private @NotNull List<BlockOverlayLayer> resolveBlockOverlays(@NotNull EntityAppearance appearance) {
-            if (this.blockOverlays.isEmpty()) return this.blockOverlays;
-            Optional<String> selected = appearance.selectedCarriedBlock();
-            boolean dropsFixed = appearance.dropsCarried();
-            List<BlockOverlayLayer> out = new ArrayList<>(this.blockOverlays.size());
-            for (BlockOverlayLayer overlay : this.blockOverlays) {
-                if (overlay.selectable())
-                    selected.ifPresent(id -> out.add(overlay.withBlockId(id)));
-                else if (!dropsFixed)
-                    out.add(overlay);
-            }
-            return List.copyOf(out);
-        }
-
-        /**
-         * Rebuilds {@link #model} with the appearance's selected {@link #boneToggles bone toggles}
-         * flipped, or {@code null} when no selected toggle applies (leaving the default model). A
-         * default-hidden toggle re-adds its bones (chest); a default-visible toggle removes them
-         * (goat horns). Re-added bones' parents are already present, so the kit resolves them by name;
-         * the rebuilt model grows/shrinks the canvas bounds automatically (the bounds walk reads the
-         * resolved model).
-         *
-         * @param toggles the appearance's selected toggle names
-         * @return the model with the selected toggle bones flipped, or {@code null} when none apply
-         */
-        private @Nullable EntityModelData applyBoneToggles(@NotNull Set<String> toggles) {
-            if (toggles.isEmpty() || this.boneToggles.isEmpty()) return null;
-            LinkedHashMap<String, EntityModelData.Bone> bones = null;
-            for (String toggle : toggles) {
-                BoneToggle spec = this.boneToggles.get(toggle);
-                if (spec == null || spec.bones().isEmpty()) continue;
-                if (bones == null) bones = new LinkedHashMap<>(this.model.getBones());
-                if (spec.defaultVisible())
-                    spec.bones().keySet().forEach(bones::remove);
-                else
-                    bones.putAll(spec.bones());
-            }
-            if (bones == null) return null;
-            return new EntityModelData(
-                this.model.getTextureWidth(), this.model.getTextureHeight(),
-                this.model.getInventoryYRotation(), Concurrent.adoptLinkedMap(bones), this.model.isCull());
         }
     }
 
@@ -424,7 +295,7 @@ public class EntityModelLoader {
      *     {@link #textureRef}
      * @param requiresCharged when {@code true} this overlay renders only for a charged
      *     (lightning-struck) entity - the creeper energy swirl, gated on {@code EntityAppearance.charged};
-     *     {@link EntityDefinition#resolveFor} drops it for the default (uncharged) entity so that render
+     *     the entity definition resolver drops it for the default (uncharged) entity so that render
      *     stays byte-identical
      * @param blend the colour-composition mode the rasterizer composites this overlay with -
      *     {@link BlendMode#NORMAL} source-over (the default; also what a {@code translucent} node maps
@@ -598,7 +469,7 @@ public class EntityModelLoader {
     /**
      * The {@code shape} axis's large-body alternative (tropical fish), resolved eagerly at load: the
      * large body mesh, its base texture, and the pattern overlays materialised onto the large
-     * geometry. {@link EntityDefinition#resolveFor} swaps these in wholesale when the selected
+     * geometry. the entity definition resolver swaps these in wholesale when the selected
      * pattern's {@code Shape} is large.
      *
      * @param model the large body mesh
@@ -911,7 +782,7 @@ public class EntityModelLoader {
                 : Optional.empty();
 
             // bone_toggles: capture each toggle's Bone objects from the FULL geometry BEFORE the
-            // hidden-bones strip below, so resolveFor can re-insert them when a render option selects
+            // hidden-bones strip below, so the resolver can re-insert them when a render option selects
             // the toggle (donkey/mule/llama chest). The bones also appear in hidden_bones and are
             // stripped just below, so the default model - and its render - stay byte-identical.
             Map<String, BoneToggle> boneToggles =
@@ -967,12 +838,12 @@ public class EntityModelLoader {
             List<EquipmentOverlay> equipment = loadEquipment(equipmentSpecs.get(entityId), geometries, entityId);
             // The shape axis's large alternative (tropical fish): the large body mesh + tropical_b
             // texture + the pattern overlays cloned onto the large geometry, resolved eagerly so
-            // resolveFor can swap them in when the selected pattern's Shape is large.
+            // the resolver can swap them in when the selected pattern's Shape is large.
             Optional<LargeShape> largeShape = buildLargeShape(shapeAlternatives.get(entityId), geometries, entityId);
-            // The size axis's non-default meshes (pufferfish small / medium), resolved so resolveFor can
+            // The size axis's non-default meshes (pufferfish small / medium), resolved so the resolver can
             // swap the base mesh for the selected size.
             Map<Size, EntityModelData> sizeModels = buildSizeModels(sizeAlternatives.get(entityId), geometries);
-            // The size axis's non-default scale factors (salmon / slime / magma_cube), so resolveFor can
+            // The size axis's non-default scale factors (salmon / slime / magma_cube), so the resolver can
             // multiply rendererScale by the selected size.
             Map<Size, Float> sizeScales = buildSizeScales(sizeScaleRefs.get(entityId));
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale,
@@ -984,7 +855,7 @@ public class EntityModelLoader {
 
     /**
      * A named bone-visibility toggle resolved at load: the geometry {@link EntityModelData.Bone bones}
-     * it flips (kept by name so {@link EntityDefinition#resolveFor} can add or remove them) plus their
+     * it flips (kept by name so the entity definition resolver can add or remove them) plus their
      * default visibility. {@code defaultVisible = false} (donkey chest) - the bones are stripped from
      * the default model and the toggle re-adds them; {@code defaultVisible = true} (goat horns) - the
      * bones render by default and the toggle removes them.
