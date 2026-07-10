@@ -208,6 +208,24 @@ public final class VanillaSourceClasses {
         /** {@code Holder} - the registry-entry wrapper data-class accessors return (villager type / profession). */
         public static final @NotNull String HOLDER = "net/minecraft/core/Holder";
 
+        /** {@code ChestSpecialRenderer} - its {@code <clinit>} binds the chest variant texture base names. */
+        public static final @NotNull String CHEST_SPECIAL_RENDERER = "net/minecraft/client/renderer/special/ChestSpecialRenderer";
+
+        /** {@code CopperGolemOxidationLevels} - its {@code <clinit>} binds the per-weather statue texture paths. */
+        public static final @NotNull String COPPER_GOLEM_OXIDATION_LEVELS = "net/minecraft/world/entity/animal/golem/CopperGolemOxidationLevels";
+
+        /** {@code ConduitRenderer} - its {@code <clinit>} binds the conduit shell texture. */
+        public static final @NotNull String CONDUIT_RENDERER = "net/minecraft/client/renderer/blockentity/ConduitRenderer";
+
+        /** {@code BellRenderer} - its {@code <clinit>} binds the bell body texture. */
+        public static final @NotNull String BELL_RENDERER = "net/minecraft/client/renderer/blockentity/BellRenderer";
+
+        /** {@code SkullBlockRenderer} - its {@code SKIN_BY_TYPE} populate lambda binds each skull type's skin. */
+        public static final @NotNull String SKULL_BLOCK_RENDERER = "net/minecraft/client/renderer/blockentity/SkullBlockRenderer";
+
+        /** {@code SkullBlock$Types} - the enum keying the skull skin map. */
+        public static final @NotNull String SKULL_BLOCK_TYPES = "net/minecraft/world/level/block/SkullBlock$Types";
+
     }
 
     /** Member-name pattern grammar [C3]: createRoots, addBox, texOffs, scaling, ... */

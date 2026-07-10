@@ -82,7 +82,26 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             "WALL_BANNER_FLAG", new BannerVariant("minecraft:wall_banner_flag", 0)),
         "P34: banner ModelLayers field -> (split id, withStick); the ICONST split is baked in"
             + " createRoots, the flag/pole split is the _FLAG field suffix - legacy"
-            + " SourceDiscovery.PARAM_INT_SUFFIX:125-128 + BannerFlagModel endsWith heuristic");
+            + " SourceDiscovery.PARAM_INT_SUFFIX:125-128 + BannerFlagModel endsWith heuristic"),
+
+    /**
+     * P31 - the {@code SkullBlock$Types} to catalog split-id map. Vanilla has ONE
+     * {@code BlockEntityType.SKULL}; our 4-way split groups the seven skull types by shared mesh
+     * + texture dims (skeleton/wither/creeper = mob head; zombie/player = humanoid; dragon;
+     * piglin ears). Keyed by the block-id type prefix ({@code skeleton_skull} -> {@code skeleton}).
+     */
+    SKULL_TYPE_SPLIT(
+        Map.ofEntries(
+            Map.entry("skeleton", "minecraft:skull_head"),
+            Map.entry("wither_skeleton", "minecraft:skull_head"),
+            Map.entry("creeper", "minecraft:skull_head"),
+            Map.entry("zombie", "minecraft:skull_humanoid_head"),
+            Map.entry("player", "minecraft:skull_humanoid_head"),
+            Map.entry("dragon", "minecraft:skull_dragon_head"),
+            Map.entry("piglin", "minecraft:skull_piglin_head")),
+        "P31: the 4-way skull split grouping the seven SkullBlock$Types by shared mesh + texture dims -"
+            + " legacy BlockListDiscovery.SKULL_TYPE_TO_ENTITY_ID:149-157 (mob 64x32 / humanoid 64x64 /"
+            + " dragon mesh / piglin ears); vanilla registers one BlockEntityType.SKULL, the split is ours");
 
     /**
      * One sign / hanging-sign variant: the split id plus the branch parameter selecting it -
@@ -151,6 +170,18 @@ enum BlockFamilyPolicies implements NavigationPolicy {
     @SuppressWarnings("unchecked")
     static @Nullable BannerVariant bannerVariant(@NotNull String modelLayersField) {
         return ((Map<String, BannerVariant>) BANNER_FIELDS.value).get(modelLayersField);
+    }
+
+    /**
+     * The catalog split id for a skull block's type prefix, or {@code null} when the prefix is
+     * not a known skull type.
+     *
+     * @param typePrefix the block-id type prefix ({@code skeleton}, {@code wither_skeleton})
+     * @return the declared split id, or {@code null}
+     */
+    @SuppressWarnings("unchecked")
+    static @Nullable String skullTypeSplit(@NotNull String typePrefix) {
+        return ((Map<String, String>) SKULL_TYPE_SPLIT.value).get(typePrefix);
     }
 
 }

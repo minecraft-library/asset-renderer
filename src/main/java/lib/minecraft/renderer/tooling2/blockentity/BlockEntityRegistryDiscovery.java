@@ -14,10 +14,8 @@ import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Single-pass discovery of every registered block-entity type joined with its renderer -
@@ -60,27 +58,31 @@ public final class BlockEntityRegistryDiscovery {
         Map<String, TypeRegistration> types = collectTypeRegistrations(cache, diagnostics);
         Map<String, String> renderers = collectRendererRegistrations(cache, diagnostics);
 
-        List<BlockEntitySubject> subjects = new ArrayList<>();
-        Set<String> seenRenderers = new LinkedHashSet<>();
+        // Shared-renderer collapse: one subject per renderer class, at its first-registration
+        // position (chest wins over trapped/ender - same geometry). The deduped types' valid
+        // blocks are MERGED into the surviving subject in registration order so the catalog
+        // fans the full family back out (legacy Chest.discover unions
+        // validBlocks(CHEST)+validBlocks(TRAPPED_CHEST)+validBlocks(ENDER_CHEST)).
+        Map<String, Pending> byRenderer = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : renderers.entrySet()) {
             String typeField = entry.getKey();
             String rendererClass = entry.getValue();
-            // Shared-renderer collapse: keep only the first registration of each renderer
-            // class (chest wins over trapped/ender - same geometry, one subject).
-            if (!seenRenderers.add(rendererClass)) continue;
-
             TypeRegistration type = types.get(typeField);
             if (type == null) {
                 diagnostics.warn("renderer '%s' registered for BlockEntityType.%s but the type field has no LDC id - skipped",
                     rendererClass, typeField);
                 continue;
             }
-            subjects.add(new BlockEntitySubject(
-                VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + type.id(),
-                typeField,
-                rendererClass,
-                List.copyOf(type.blockFields())));
+            Pending pending = byRenderer.get(rendererClass);
+            if (pending == null)
+                byRenderer.put(rendererClass, pending = new Pending(
+                    VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + type.id(), typeField, rendererClass));
+            pending.blockFields.addAll(type.blockFields());
         }
+
+        List<BlockEntitySubject> subjects = new ArrayList<>();
+        for (Pending pending : byRenderer.values())
+            subjects.add(new BlockEntitySubject(pending.id, pending.typeField, pending.rendererClass, List.copyOf(pending.blockFields)));
 
         diagnostics.info("discovered %d block-entity types, %d subjects after shared-renderer dedupe",
             types.size(), subjects.size());
@@ -183,5 +185,21 @@ public final class BlockEntityRegistryDiscovery {
      * @param blockFields the ordered {@code Blocks} static-field names in {@code validBlocks}
      */
     private record TypeRegistration(@NotNull String id, @NotNull List<String> blockFields) {}
+
+    /** A subject under construction, accumulating the block fields of every type sharing its renderer. */
+    private static final class Pending {
+
+        private final @NotNull String id;
+        private final @NotNull String typeField;
+        private final @NotNull String rendererClass;
+        private final @NotNull List<String> blockFields = new ArrayList<>();
+
+        private Pending(@NotNull String id, @NotNull String typeField, @NotNull String rendererClass) {
+            this.id = id;
+            this.typeField = typeField;
+            this.rendererClass = rendererClass;
+        }
+
+    }
 
 }

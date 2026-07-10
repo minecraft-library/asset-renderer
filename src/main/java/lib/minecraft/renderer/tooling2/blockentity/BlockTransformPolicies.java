@@ -221,4 +221,19 @@ enum BlockTransformPolicies implements NavigationPolicy {
         return ((Map<String, List<PartSpec>>) PART_COMPOSITION.value).get(splitId);
     }
 
+    /**
+     * Whether a split id is a sub-model part (a value in the {@link #PART_COMPOSITION} roster) -
+     * the part-only splits carry no {@code blocks[]} of their own.
+     *
+     * @param splitId the models key
+     * @return {@code true} when the split is some base's composed sub-model
+     */
+    @SuppressWarnings("unchecked")
+    static boolean isPartModel(@NotNull String splitId) {
+        for (List<PartSpec> specs : ((Map<String, List<PartSpec>>) PART_COMPOSITION.value).values())
+            for (PartSpec spec : specs)
+                if (spec.model().equals(splitId)) return true;
+        return false;
+    }
+
 }

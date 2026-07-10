@@ -3,9 +3,11 @@ package lib.minecraft.renderer.tooling2.blockentity;
 import lib.minecraft.renderer.tooling2.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling2.kernel.JsonNode;
 import lib.minecraft.renderer.tooling2.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling2.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling2.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -36,6 +38,7 @@ public final class BlockEntityRegistryWalk {
         @NotNull JsonNode root
     ) {
         LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
+        BlockRegistryIndex blockRegistry = BlockRegistryIndex.build(session);
         BlockTintFlagResolver tint = new BlockTintFlagResolver(session.cache());
         BlockGuiResolver gui = new BlockGuiResolver(session.cache());
 
@@ -43,8 +46,15 @@ public final class BlockEntityRegistryWalk {
         for (BlockEntitySubject subject : subjects) {
             BlockGeometrySourceResolver geometry = new BlockGeometrySourceResolver(
                 session, subject, layerDefinitions, manifest, session.diagnostics().child(subject.beTypeId()));
-            for (BlockGeometrySourceResolver.Split split : geometry.resolveSplits())
-                models.put(split.splitId(), new BlockEntityRendererResolver(subject, split, tint, gui).resolve());
+            List<BlockGeometrySourceResolver.Split> splits = geometry.resolveSplits();
+
+            List<String> splitIds = new ArrayList<>();
+            for (BlockGeometrySourceResolver.Split split : splits) splitIds.add(split.splitId());
+            BlockCatalogResolver catalog = new BlockCatalogResolver(session.cache(), blockRegistry, subject,
+                splitIds, session.diagnostics().child(subject.beTypeId()));
+
+            for (BlockGeometrySourceResolver.Split split : splits)
+                models.put(split.splitId(), new BlockEntityRendererResolver(subject, split, tint, gui, catalog).resolve());
         }
     }
 

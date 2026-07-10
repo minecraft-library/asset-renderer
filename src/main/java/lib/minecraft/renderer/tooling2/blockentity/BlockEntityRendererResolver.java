@@ -7,8 +7,7 @@ import org.jetbrains.annotations.NotNull;
  * ONE split id, ONE pass (SPINE 3.3 stage 3) - the {@link #resolve()} put-chain IS the on-disk
  * key order, declared once, here. The chain follows the SPINE 4 sample (normative, doc-12
  * P1 / 02 F1): {@code renderer} (provenance scalar) FIRST, then {@code geometry}, {@code y_axis},
- * {@code tinted}, {@code inventory}, {@code icon}, {@code parts}, and (later sessions)
- * {@code blocks}.
+ * {@code tinted}, {@code inventory}, {@code icon}, {@code parts}, {@code blocks}.
  */
 final class BlockEntityRendererResolver {
 
@@ -16,17 +15,20 @@ final class BlockEntityRendererResolver {
     private final @NotNull BlockGeometrySourceResolver.Split split;
     private final @NotNull BlockTintFlagResolver tint;
     private final @NotNull BlockGuiResolver gui;
+    private final @NotNull BlockCatalogResolver catalog;
 
     BlockEntityRendererResolver(
         @NotNull BlockEntitySubject subject,
         @NotNull BlockGeometrySourceResolver.Split split,
         @NotNull BlockTintFlagResolver tint,
-        @NotNull BlockGuiResolver gui
+        @NotNull BlockGuiResolver gui,
+        @NotNull BlockCatalogResolver catalog
     ) {
         this.subject = subject;
         this.split = split;
         this.tint = tint;
         this.gui = gui;
+        this.catalog = catalog;
     }
 
     /**
@@ -42,7 +44,8 @@ final class BlockEntityRendererResolver {
             .put("tinted", this.tint.isTinted(this.subject.rendererClass(), this.split.factoryClass()))  // [D51]
             .put("inventory", inventory())                          // { y_rotation, flip, transform? }
             .putIf("icon", this.gui.icon(this.split.splitId()))     // { rotation?, additive? }
-            .putIf("parts", BlockPartsResolver.resolve(this.split.splitId()));  // [P32] sub-model composition
+            .putIf("parts", BlockPartsResolver.resolve(this.split.splitId()))  // [P32] sub-model composition
+            .putIf("blocks", this.catalog.blocks(this.split.splitId()));  // ordered {block, texture, variant?, tint?}
     }
 
     /** The {@code inventory} node - GUI facing (BlockGuiResolver) plus, later, the bytecode transform. */
