@@ -49,6 +49,7 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -466,7 +467,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 if (!ctx.definition().layers().markings()) return;
                 EntityAppearance appearance = ctx.options().getAppearance();
-                Optional<String> markingRef = appearance.getMarkings().overlayTexture();
+                HorseMarking marking = appearance.getMarkings();
+                // dir 4c: the marking texture comes from the load-validated v2 textures_by_value table
+                // (enum-equal by construction) when present; the flag-on path strips it, so fall back to
+                // the HorseMarking enum. NONE has no table entry / enum ref, so it draws nothing.
+                Map<String, String> table = ctx.definition().layers().markingTextures();
+                Optional<String> markingRef = table.isEmpty()
+                    ? marking.overlayTexture()
+                    : Optional.ofNullable(table.get(marking.name().toLowerCase(Locale.ROOT)));
                 if (markingRef.isEmpty()) return;
                 String ref = appearance.isBaby() ? markingRef.get() + "_baby" : markingRef.get();
                 EntityModelData model = ctx.model();

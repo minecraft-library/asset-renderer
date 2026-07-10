@@ -204,12 +204,18 @@ public class EntityModelLoader {
          *     {@code layers} armor row carries [LOCKED 3], read off it at load. No 26.1 render consumes
          *     it (humanoid armor is not drawn); it is the located, first-class successor to the former
          *     required-but-unconsumed top-level {@code armor_type} member
+         * @param markingTextures the horse {@code markings} axis value-name -&gt; overlay texture sub-path
+         *     table, read from the v2 {@code layers} markings row's {@code textures_by_value} (dir 4c) and
+         *     load-validated equal to the {@link lib.minecraft.renderer.option.HorseMarking} enum table
+         *     (the enum survives as a value-name validator); empty for the legacy flag-on path, which
+         *     strips {@code textures_by_value} and falls back to the enum
          */
         public record Layers(
             @NotNull Optional<String> collar,
             @NotNull List<EquipmentOverlay> equipment,
             boolean markings,
-            boolean humanoidArmor
+            boolean humanoidArmor,
+            @NotNull Map<String, String> markingTextures
         ) {}
     }
 
@@ -890,7 +896,7 @@ public class EntityModelLoader {
             boolean humanoidArmor = entityJson.has("armor_type") && "humanoid".equals(entityJson.get("armor_type").getAsString());
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale, boneToggles,
                 new EntityDefinition.Axes(stateTextures.getOrDefault(entityId, Map.of()), babyModel, largeShape, sizeModels, sizeScales),
-                new EntityDefinition.Layers(Optional.ofNullable(collarTextures.get(entityId)), equipment, markingsRows.contains(entityId), humanoidArmor)));
+                new EntityDefinition.Layers(Optional.ofNullable(collarTextures.get(entityId)), equipment, markingsRows.contains(entityId), humanoidArmor, Map.of())));
         }
         return Concurrent.adoptMap(definitions);
     }
