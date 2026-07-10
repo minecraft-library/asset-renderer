@@ -270,6 +270,13 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
+    register<JavaExec>("colorMaps2") {
+        description = "tooling2: reads the biome colormap PNGs from the jar and generates src/main/resources/lib/minecraft/renderer/v2/color_maps.json (base64 big-endian ARGB pixels)."
+        group = "tooling2"
+        mainClass.set("lib.minecraft.renderer.tooling2.ToolingColorMaps")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
     // Visual diagnostics - main() entry points in src/test/java/lib/minecraft/renderer/visual/.
     // Run with `./gradlew tasks --group visual` to list. Outputs land under cache/visual/.
 
