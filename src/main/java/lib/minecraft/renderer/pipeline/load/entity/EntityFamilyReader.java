@@ -25,6 +25,7 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.RotateY;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.Scale;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.TransformOp;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.Translate;
+import lib.minecraft.renderer.pipeline.resolve.AppearanceGate;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -316,18 +317,38 @@ public final class EntityFamilyReader {
             boolean skipBounds = entry.has("skip_bounds") && entry.get("skip_bounds").getAsBoolean() || depthClearanceOnly;
             Optional<String> tintBy = entry.has("tint_by") ? Optional.of(entry.get("tint_by").getAsString()) : Optional.empty();
             Optional<String> textureBy = entry.has("texture_by") ? Optional.of(entry.get("texture_by").getAsString()) : Optional.empty();
-            JsonObject when = entry.has("when") ? entry.getAsJsonObject("when") : null;
-            boolean shearable = when != null && "sheared".equals(when.has("flag") ? when.get("flag").getAsString() : null);
-            boolean requiresTint = when != null && when.has("tinted") && when.get("tinted").getAsBoolean();
-            boolean requiresCharged = when != null && when.has("charged") && when.get("charged").getAsBoolean();
+            // The overlay's render condition, parsed straight from its v2 `when` object into the typed
+            // AppearanceGate (flag/charged/tinted). Absent -> unconditional.
+            Optional<AppearanceGate> gate = parseOverlayGate(entry.has("when") ? entry.getAsJsonObject("when") : null, tintBy);
             // blend / alpha (default NORMAL / 1.0). `additive` -> the energy-swirl glow; `translucent` /
             // `normal` -> source-over (the slime shell's translucency lives in its texture alpha, not a
             // blend-function difference). An un-annotated overlay renders byte-identical.
             BlendMode blend = parseBlend(pipeline != null && pipeline.has("blend") ? pipeline.get("blend").getAsString() : null, diagnostics);
             float alpha = pipeline != null && pipeline.has("alpha") ? pipeline.get("alpha").getAsFloat() : 1f;
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, shearable, requiresTint, textureBy, requiresCharged, blend, alpha));
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, textureBy, blend, alpha, gate));
         }
         return out;
+    }
+
+    /**
+     * Parses an overlay's v2 {@code when} object into a typed {@link AppearanceGate}: {@code flag} maps
+     * to {@link AppearanceGate.FlagGate}, {@code charged} to {@link AppearanceGate.ChargedGate}, and
+     * {@code tinted} to {@link AppearanceGate.TintedGate} (carrying the overlay's tint axis token so the
+     * gate is self-contained). Absent or unrecognised yields empty (unconditional).
+     *
+     * @param when the overlay's {@code when} object, or {@code null} when absent
+     * @param tintBy the overlay's tint axis token, used to seed a {@link AppearanceGate.TintedGate}
+     * @return the parsed gate, or empty when unconditional
+     */
+    private static @NotNull Optional<AppearanceGate> parseOverlayGate(@Nullable JsonObject when, @NotNull Optional<String> tintBy) {
+        if (when == null) return Optional.empty();
+        if (when.has("flag"))
+            return Optional.of(new AppearanceGate.FlagGate(when.get("flag").getAsString(), when.has("value") && when.get("value").getAsBoolean()));
+        if (when.has("charged") && when.get("charged").getAsBoolean())
+            return Optional.of(new AppearanceGate.ChargedGate());
+        if (when.has("tinted") && when.get("tinted").getAsBoolean())
+            return Optional.of(new AppearanceGate.TintedGate(tintBy.orElse("")));
+        return Optional.empty();
     }
 
     /**

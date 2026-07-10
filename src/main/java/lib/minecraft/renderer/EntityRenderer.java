@@ -34,6 +34,7 @@ import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.slot.EntitySlot;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.pipeline.resolve.AppearanceGate;
 import lib.minecraft.renderer.pipeline.resolve.EntityDefinitionResolver;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.option.spec.DyeColor;
@@ -397,9 +398,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 // serves both entities.
                 String texturePrefix = texturePrefix(ctx.definition());
                 for (EntityModelLoader.OverlayLayer overlay : ctx.definition().overlays()) {
-                    // A requires_tint overlay (sheep wool undercoat) only renders once its tint_by colour
+                    // A tint-gated overlay (sheep wool undercoat) only renders once its tint_by colour
                     // is selected; skip it for the default (untinted) entity so the default is unchanged.
-                    if (overlay.requiresTint() && !hasSelectedTint(overlay, appearance)) continue;
+                    if (overlay.gate().filter(gate -> gate instanceof AppearanceGate.TintedGate).isPresent()
+                        && !hasSelectedTint(overlay, appearance)) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
                     Optional<String> overlayRef = resolveOverlayTextureRef(overlay, appearance, texturePrefix);
                     // A texture_by overlay whose axis resolves to no texture draws nothing - the base /

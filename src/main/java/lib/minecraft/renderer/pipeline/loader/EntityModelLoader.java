@@ -15,6 +15,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.load.entity.EntityFamilyReader;
+import lib.minecraft.renderer.pipeline.resolve.AppearanceGate;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
@@ -283,20 +284,10 @@ public class EntityModelLoader {
      * @param tintBy the render-axis token whose selected colour overrides {@link #tintArgb} at
      *     render (e.g. {@code "wool_color"} for the sheep wool, tinted by
      *     {@code EntityAppearance.woolColor}), or empty when the tint is fixed at {@link #tintArgb}
-     * @param shearable when {@code true} this overlay is dropped by the {@code sheared} render axis
-     *     (the sheep wool, gated off by vanilla's {@code isSheared} state); {@code false} for
-     *     overlays that always render
-     * @param requiresTint when {@code true} this overlay only renders once its {@link #tintBy} colour
-     *     is selected (the sheep wool undercoat); it is skipped for the default (untinted) entity so
-     *     the default render stays byte-identical
      * @param textureBy the render-axis token whose selection overrides {@link #textureRef} at render
      *     (e.g. {@code "pattern"} for the tropical-fish pattern, sourced from
      *     {@code EntityAppearance.pattern}), or empty when the overlay texture is fixed at
      *     {@link #textureRef}
-     * @param requiresCharged when {@code true} this overlay renders only for a charged
-     *     (lightning-struck) entity - the creeper energy swirl, gated on {@code EntityAppearance.charged};
-     *     the entity definition resolver drops it for the default (uncharged) entity so that render
-     *     stays byte-identical
      * @param blend the colour-composition mode the rasterizer composites this overlay with -
      *     {@link BlendMode#NORMAL} source-over (the default; also what a {@code translucent} node maps
      *     to, since the slime shell's translucency is in its texture alpha) or {@link BlendMode#ADD}
@@ -307,6 +298,10 @@ public class EntityModelLoader {
      *     composite. {@code 1.0} (no-op) except for an overlay carrying an explicit multiplier (the
      *     warden pulsating-spots glow at {@code 0.25}) - a fractional layer opacity that cannot ride
      *     the tint's alpha byte (the MULTIPLY tint blend preserves the texel alpha)
+     * @param gate the render condition parsed from the overlay's {@code when} object (the sheep wool
+     *     {@code sheared} flag, the wool undercoat {@code tinted} axis, the creeper {@code charged}
+     *     axis), or empty when the overlay renders unconditionally. Retires the former
+     *     {@code shearable} / {@code requiresTint} / {@code requiresCharged} booleans
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,
@@ -315,12 +310,10 @@ public class EntityModelLoader {
         int tintArgb,
         boolean skipBounds,
         @NotNull Optional<String> tintBy,
-        boolean shearable,
-        boolean requiresTint,
         @NotNull Optional<String> textureBy,
-        boolean requiresCharged,
         @NotNull BlendMode blend,
-        float alpha
+        float alpha,
+        @NotNull Optional<AppearanceGate> gate
     ) {}
 
     /**
@@ -448,12 +441,20 @@ public class EntityModelLoader {
             Optional<String> tintBy = entry.has("tint_by")
                 ? Optional.of(entry.get("tint_by").getAsString())
                 : Optional.empty();
-            boolean shearable = entry.has("shearable") && entry.get("shearable").getAsBoolean();
-            boolean requiresTint = entry.has("requires_tint") && entry.get("requires_tint").getAsBoolean();
             Optional<String> textureBy = entry.has("texture_by")
                 ? Optional.of(entry.get("texture_by").getAsString())
                 : Optional.empty();
-            boolean requiresCharged = entry.has("requires_charged") && entry.get("requires_charged").getAsBoolean();
+            // The overlay's render condition, rebuilt from the legacy shearable / requires_tint /
+            // requires_charged booleans into the typed AppearanceGate the runtime now carries.
+            Optional<AppearanceGate> gate;
+            if (entry.has("shearable") && entry.get("shearable").getAsBoolean())
+                gate = Optional.of(new AppearanceGate.FlagGate("sheared", false));
+            else if (entry.has("requires_charged") && entry.get("requires_charged").getAsBoolean())
+                gate = Optional.of(new AppearanceGate.ChargedGate());
+            else if (entry.has("requires_tint") && entry.get("requires_tint").getAsBoolean())
+                gate = Optional.of(new AppearanceGate.TintedGate(tintBy.orElse("")));
+            else
+                gate = Optional.empty();
             // blend / alpha (optional; default NORMAL / 1.0). An overlay declares its exact vanilla
             // colour-composition mode and opacity multiplier here instead of relying on the single
             // hardcoded NORMAL: `additive` -> the energy-swirl glow, `translucent` / `normal` ->
@@ -461,7 +462,7 @@ public class EntityModelLoader {
             // overlay keeps NORMAL / 1.0, so it renders byte-identical.
             BlendMode blend = parseBlend(entry.has("blend") ? entry.get("blend").getAsString() : null);
             float alpha = entry.has("alpha") ? entry.get("alpha").getAsFloat() : 1f;
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, shearable, requiresTint, textureBy, requiresCharged, blend, alpha));
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, textureBy, blend, alpha, gate));
         }
         return out;
     }

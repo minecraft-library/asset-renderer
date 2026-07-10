@@ -61,11 +61,11 @@ public final class EntityDefinitionResolver {
             // only for a lightning-struck entity, so the default (uncharged) render is byte-identical. Only
             // rebuilds the list when there is something to drop, so an entity with no shearable / charged
             // overlay keeps its exact overlay list.
-            boolean hasCharged = definition.overlays().stream().anyMatch(OverlayLayer::requiresCharged);
+            boolean hasCharged = definition.overlays().stream()
+                .anyMatch(overlay -> overlay.gate().filter(gate -> gate instanceof AppearanceGate.ChargedGate).isPresent());
             if (appearance.isSheared() || hasCharged)
                 builder.overlays(definition.overlays().stream()
-                    .filter(overlay -> !(overlay.shearable() && appearance.isSheared()))
-                    .filter(overlay -> !(overlay.requiresCharged() && !appearance.isCharged()))
+                    .filter(overlay -> rendersAtResolve(overlay, appearance))
                     .toList());
             // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
             // horns hide). Guarded to the non-baby path - the baby mesh has its own bones. The sheared axis
@@ -104,6 +104,23 @@ public final class EntityDefinitionResolver {
         // (default) keeps the baked base_tint, so the default render is byte-identical.
         appearance.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
         return builder.build();
+    }
+
+    /**
+     * Whether an overlay survives the resolve-stage gate filter: an unconditional or tint-gated overlay
+     * is kept here (a {@link AppearanceGate.TintedGate} is evaluated at render, mirroring the historic
+     * two-stage split), while a flag / charged gate that fails for this appearance drops the overlay
+     * (the sheared wool, the uncharged creeper swirl).
+     *
+     * @param overlay the overlay to test
+     * @param appearance the render-axis selections
+     * @return {@code true} when the overlay is kept in the resolved list
+     */
+    private static boolean rendersAtResolve(@NotNull OverlayLayer overlay, @NotNull EntityAppearance appearance) {
+        return overlay.gate()
+            .filter(gate -> !(gate instanceof AppearanceGate.TintedGate))
+            .map(gate -> gate.test(appearance))
+            .orElse(true);
     }
 
     /**
