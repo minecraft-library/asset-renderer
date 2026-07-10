@@ -57,8 +57,9 @@ final class EntityRendererResolver {
         this.subject = subject;
         this.diagnostics = session.diagnostics().child(subject.entityId());
         // ONE renderer-ctor-chain scan produces the ordered addLayer roster every
-        // layer-consuming node reads (armor_type, overlays, block_overlays, layers); a row's
-        // layer_index is its position here. No same-class dedupe - the legacy dedupe forced
+        // layer-consuming node reads (overlays, block_overlays, layers - the latter now also
+        // carries the armor classification); a row's layer_index is its position here. No
+        // same-class dedupe - the legacy dedupe forced
         // the warden five-pass re-walk.
         this.layerRoster = scanLayerRoster(session);
         this.geometryRef = new EntityGeometryRefResolver(session.cache(), subject, layerDefinitions, manifest,
@@ -90,9 +91,10 @@ final class EntityRendererResolver {
         // at top level: axis unification #1 moves the family baseline (base geometry + adult texture)
         // into the mandatory age axis' options.adult (EntityAgeAxisResolver).
         String baseGeometry = this.geometryRef.resolve();                               // -> manifest key
+        // armor_type is no longer a top-level member [LOCKED 3]: EntityLayersResolver emits the
+        // humanoid classification as a `layers` row derived off the same addLayer roster.
         JsonNode node = JsonNode.object()
-            .put("renderer", this.subject.rendererClass())                              // provenance scalar (resolver-owned)
-            .put("armor_type", new EntityArmorTypeResolver(this.layerRoster).resolve());
+            .put("renderer", this.subject.rendererClass());                             // provenance scalar (resolver-owned)
         String texturePath = this.axes.resolveVariant() == null ? this.texture.resolve() : null;
         JsonNode overlays = this.overlays.resolve();
         return node

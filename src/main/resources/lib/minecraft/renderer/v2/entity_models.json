@@ -5,7 +5,6 @@
   "families": {
     "minecraft:allay": {
       "renderer": "net/minecraft/client/renderer/entity/AllayRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -20,7 +19,6 @@
     },
     "minecraft:armadillo": {
       "renderer": "net/minecraft/client/renderer/entity/ArmadilloRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -39,7 +37,6 @@
     },
     "minecraft:armor_stand": {
       "renderer": "net/minecraft/client/renderer/entity/ArmorStandRenderer",
-      "armor_type": "humanoid",
       "bones": {
         "hidden": [
           "hat",
@@ -73,11 +70,18 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 0,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
+      ]
     },
     "minecraft:axolotl": {
       "renderer": "net/minecraft/client/renderer/entity/AxolotlRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -130,7 +134,6 @@
     },
     "minecraft:bat": {
       "renderer": "net/minecraft/client/renderer/entity/BatRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -145,7 +148,6 @@
     },
     "minecraft:bee": {
       "renderer": "net/minecraft/client/renderer/entity/BeeRenderer",
-      "armor_type": "none",
       "bones": {
         "hidden": [
           "stinger"
@@ -177,7 +179,6 @@
     },
     "minecraft:blaze": {
       "renderer": "net/minecraft/client/renderer/entity/BlazeRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -192,7 +193,6 @@
     },
     "minecraft:bogged": {
       "renderer": "net/minecraft/client/renderer/entity/BoggedRenderer",
-      "armor_type": "humanoid",
       "bones": {
         "toggles": {
           "sheared": {
@@ -227,11 +227,18 @@
           "geometry": "HumanoidModel#createMesh@grow=0.2",
           "texture": "minecraft:textures/entity/skeleton/bogged_overlay.png"
         }
+      ],
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
       ]
     },
     "minecraft:breeze": {
       "renderer": "net/minecraft/client/renderer/entity/BreezeRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -266,7 +273,6 @@
     },
     "minecraft:camel": {
       "renderer": "net/minecraft/client/renderer/entity/CamelRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -300,7 +306,6 @@
     },
     "minecraft:camel_husk": {
       "renderer": "net/minecraft/client/renderer/entity/CamelHuskRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -331,7 +336,6 @@
     },
     "minecraft:cat": {
       "renderer": "net/minecraft/client/renderer/entity/CatRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -502,7 +506,6 @@
     },
     "minecraft:cave_spider": {
       "renderer": "net/minecraft/client/renderer/entity/CaveSpiderRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -528,7 +531,6 @@
     },
     "minecraft:chicken": {
       "renderer": "net/minecraft/client/renderer/entity/ChickenRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -593,7 +595,6 @@
     },
     "minecraft:cod": {
       "renderer": "net/minecraft/client/renderer/entity/CodRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -608,7 +609,6 @@
     },
     "minecraft:copper_golem": {
       "renderer": "net/minecraft/client/renderer/entity/CopperGolemRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -635,7 +635,6 @@
     },
     "minecraft:cow": {
       "renderer": "net/minecraft/client/renderer/entity/CowRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -701,7 +700,6 @@
     },
     "minecraft:creaking": {
       "renderer": "net/minecraft/client/renderer/entity/CreakingRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -716,7 +714,6 @@
     },
     "minecraft:creeper": {
       "renderer": "net/minecraft/client/renderer/entity/CreeperRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -747,7 +744,6 @@
     },
     "minecraft:dolphin": {
       "renderer": "net/minecraft/client/renderer/entity/DolphinRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -766,7 +762,6 @@
     },
     "minecraft:donkey": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
-      "armor_type": "none",
       "bones": {
         "hidden": [
           "left_chest",
@@ -800,7 +795,6 @@
     },
     "minecraft:drowned": {
       "renderer": "net/minecraft/client/renderer/entity/DrownedRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -824,11 +818,18 @@
           "texture": "minecraft:textures/entity/zombie/drowned_outer_layer.png",
           "grow": 0.25
         }
+      ],
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
       ]
     },
     "minecraft:elder_guardian": {
       "renderer": "net/minecraft/client/renderer/entity/ElderGuardianRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -843,7 +844,6 @@
     },
     "minecraft:enderman": {
       "renderer": "net/minecraft/client/renderer/entity/EndermanRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -908,7 +908,6 @@
     },
     "minecraft:endermite": {
       "renderer": "net/minecraft/client/renderer/entity/EndermiteRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -923,7 +922,6 @@
     },
     "minecraft:ender_dragon": {
       "renderer": "net/minecraft/client/renderer/entity/EnderDragonRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -948,7 +946,6 @@
     },
     "minecraft:evoker": {
       "renderer": "net/minecraft/client/renderer/entity/EvokerRenderer",
-      "armor_type": "none",
       "bones": {
         "hidden": [
           "hat"
@@ -968,7 +965,6 @@
     },
     "minecraft:fox": {
       "renderer": "net/minecraft/client/renderer/entity/FoxRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -987,7 +983,6 @@
     },
     "minecraft:frog": {
       "renderer": "net/minecraft/client/renderer/entity/FrogRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -1045,7 +1040,6 @@
     },
     "minecraft:ghast": {
       "renderer": "net/minecraft/client/renderer/entity/GhastRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1060,7 +1054,6 @@
     },
     "minecraft:happy_ghast": {
       "renderer": "net/minecraft/client/renderer/entity/HappyGhastRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1091,7 +1084,6 @@
     },
     "minecraft:giant": {
       "renderer": "net/minecraft/client/renderer/entity/GiantMobRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -1102,11 +1094,18 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 1,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
+      ]
     },
     "minecraft:glow_squid": {
       "renderer": "net/minecraft/client/renderer/entity/GlowSquidRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1122,7 +1121,6 @@
     },
     "minecraft:goat": {
       "renderer": "net/minecraft/client/renderer/entity/GoatRenderer",
-      "armor_type": "none",
       "bones": {
         "toggles": {
           "horn": {
@@ -1152,7 +1150,6 @@
     },
     "minecraft:guardian": {
       "renderer": "net/minecraft/client/renderer/entity/GuardianRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1167,7 +1164,6 @@
     },
     "minecraft:hoglin": {
       "renderer": "net/minecraft/client/renderer/entity/HoglinRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1186,7 +1182,6 @@
     },
     "minecraft:horse": {
       "renderer": "net/minecraft/client/renderer/entity/HorseRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -1296,7 +1291,6 @@
     },
     "minecraft:husk": {
       "renderer": "net/minecraft/client/renderer/entity/HuskRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -1311,11 +1305,18 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
+      ]
     },
     "minecraft:illusioner": {
       "renderer": "net/minecraft/client/renderer/entity/IllusionerRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1330,7 +1331,6 @@
     },
     "minecraft:iron_golem": {
       "renderer": "net/minecraft/client/renderer/entity/IronGolemRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1398,7 +1398,6 @@
     },
     "minecraft:llama": {
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
-      "armor_type": "none",
       "bones": {
         "hidden": [
           "right_chest",
@@ -1475,7 +1474,6 @@
     },
     "minecraft:magma_cube": {
       "renderer": "net/minecraft/client/renderer/entity/MagmaCubeRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1501,7 +1499,6 @@
     },
     "minecraft:mooshroom": {
       "renderer": "net/minecraft/client/renderer/entity/MushroomCowRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -1637,7 +1634,6 @@
     },
     "minecraft:mule": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
-      "armor_type": "none",
       "bones": {
         "hidden": [
           "left_chest",
@@ -1671,7 +1667,6 @@
     },
     "minecraft:nautilus": {
       "renderer": "net/minecraft/client/renderer/entity/NautilusRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1714,7 +1709,6 @@
     },
     "minecraft:ocelot": {
       "renderer": "net/minecraft/client/renderer/entity/OcelotRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1733,7 +1727,6 @@
     },
     "minecraft:panda": {
       "renderer": "net/minecraft/client/renderer/entity/PandaRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -1798,7 +1791,6 @@
     },
     "minecraft:parched": {
       "renderer": "net/minecraft/client/renderer/entity/ParchedRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -1809,11 +1801,18 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
+      ]
     },
     "minecraft:parrot": {
       "renderer": "net/minecraft/client/renderer/entity/ParrotRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1828,7 +1827,6 @@
     },
     "minecraft:phantom": {
       "renderer": "net/minecraft/client/renderer/entity/PhantomRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -1854,7 +1852,6 @@
     },
     "minecraft:pig": {
       "renderer": "net/minecraft/client/renderer/entity/PigRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -1934,7 +1931,6 @@
     },
     "minecraft:piglin": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -1949,11 +1945,18 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
+      ]
     },
     "minecraft:piglin_brute": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -1965,11 +1968,18 @@
           }
         }
       },
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
+      ],
       "family_of": "minecraft:piglin"
     },
     "minecraft:pillager": {
       "renderer": "net/minecraft/client/renderer/entity/PillagerRenderer",
-      "armor_type": "none",
       "bones": {
         "hidden": [
           "hat"
@@ -1989,7 +1999,6 @@
     },
     "minecraft:polar_bear": {
       "renderer": "net/minecraft/client/renderer/entity/PolarBearRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2008,7 +2017,6 @@
     },
     "minecraft:pufferfish": {
       "renderer": "net/minecraft/client/renderer/entity/PufferfishRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2034,7 +2042,6 @@
     },
     "minecraft:rabbit": {
       "renderer": "net/minecraft/client/renderer/entity/RabbitRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -2099,7 +2106,6 @@
     },
     "minecraft:ravager": {
       "renderer": "net/minecraft/client/renderer/entity/RavagerRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2114,7 +2120,6 @@
     },
     "minecraft:salmon": {
       "renderer": "net/minecraft/client/renderer/entity/SalmonRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2140,7 +2145,6 @@
     },
     "minecraft:sheep": {
       "renderer": "net/minecraft/client/renderer/entity/SheepRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2184,7 +2188,6 @@
     },
     "minecraft:shulker": {
       "renderer": "net/minecraft/client/renderer/entity/ShulkerRenderer",
-      "armor_type": "none",
       "render": {
         "yaw_addend": 180.0
       },
@@ -2202,7 +2205,6 @@
     },
     "minecraft:silverfish": {
       "renderer": "net/minecraft/client/renderer/entity/SilverfishRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2217,7 +2219,6 @@
     },
     "minecraft:skeleton": {
       "renderer": "net/minecraft/client/renderer/entity/SkeletonRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -2228,11 +2229,18 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
+      ]
     },
     "minecraft:skeleton_horse": {
       "renderer": "net/minecraft/client/renderer/entity/UndeadHorseRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2266,7 +2274,6 @@
     },
     "minecraft:slime": {
       "renderer": "net/minecraft/client/renderer/entity/SlimeRenderer",
-      "armor_type": "none",
       "render": {
         "scale": 0.999
       },
@@ -2306,7 +2313,6 @@
     },
     "minecraft:sniffer": {
       "renderer": "net/minecraft/client/renderer/entity/SnifferRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2325,7 +2331,6 @@
     },
     "minecraft:snow_golem": {
       "renderer": "net/minecraft/client/renderer/entity/SnowGolemRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2372,7 +2377,6 @@
     },
     "minecraft:spider": {
       "renderer": "net/minecraft/client/renderer/entity/SpiderRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2398,7 +2402,6 @@
     },
     "minecraft:squid": {
       "renderer": "net/minecraft/client/renderer/entity/SquidRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2413,7 +2416,6 @@
     },
     "minecraft:stray": {
       "renderer": "net/minecraft/client/renderer/entity/StrayRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -2433,11 +2435,18 @@
           "texture": "minecraft:textures/entity/skeleton/stray_overlay.png"
         }
       ],
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
+      ],
       "family_of": "minecraft:skeleton"
     },
     "minecraft:strider": {
       "renderer": "net/minecraft/client/renderer/entity/StriderRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2471,7 +2480,6 @@
     },
     "minecraft:tadpole": {
       "renderer": "net/minecraft/client/renderer/entity/TadpoleRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2486,7 +2494,6 @@
     },
     "minecraft:trader_llama": {
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
-      "armor_type": "none",
       "bones": {
         "hidden": [
           "right_chest",
@@ -2574,7 +2581,6 @@
     },
     "minecraft:tropical_fish": {
       "renderer": "net/minecraft/client/renderer/entity/TropicalFishRenderer",
-      "armor_type": "none",
       "render": {
         "tint": "0xFFF9FFFE"
       },
@@ -2625,7 +2631,6 @@
     },
     "minecraft:turtle": {
       "renderer": "net/minecraft/client/renderer/entity/TurtleRenderer",
-      "armor_type": "none",
       "bones": {
         "hidden": [
           "egg_belly"
@@ -2657,7 +2662,6 @@
     },
     "minecraft:vex": {
       "renderer": "net/minecraft/client/renderer/entity/VexRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2672,7 +2676,6 @@
     },
     "minecraft:villager": {
       "renderer": "net/minecraft/client/renderer/entity/VillagerRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2714,7 +2717,6 @@
     },
     "minecraft:vindicator": {
       "renderer": "net/minecraft/client/renderer/entity/VindicatorRenderer",
-      "armor_type": "none",
       "bones": {
         "hidden": [
           "hat"
@@ -2734,7 +2736,6 @@
     },
     "minecraft:wandering_trader": {
       "renderer": "net/minecraft/client/renderer/entity/WanderingTraderRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2750,7 +2751,6 @@
     },
     "minecraft:warden": {
       "renderer": "net/minecraft/client/renderer/entity/WardenRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2796,7 +2796,6 @@
     },
     "minecraft:witch": {
       "renderer": "net/minecraft/client/renderer/entity/WitchRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -2811,7 +2810,6 @@
     },
     "minecraft:wither": {
       "renderer": "net/minecraft/client/renderer/entity/WitherBossRenderer",
-      "armor_type": "none",
       "render": {
         "scale": 2.0
       },
@@ -2845,7 +2843,6 @@
     },
     "minecraft:wither_skeleton": {
       "renderer": "net/minecraft/client/renderer/entity/WitherSkeletonRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -2856,11 +2853,18 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
+      ]
     },
     "minecraft:wolf": {
       "renderer": "net/minecraft/client/renderer/entity/WolfRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -3067,7 +3071,6 @@
     },
     "minecraft:zoglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZoglinRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -3087,7 +3090,6 @@
     },
     "minecraft:zombie": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -3102,11 +3104,18 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
+      ]
     },
     "minecraft:zombie_horse": {
       "renderer": "net/minecraft/client/renderer/entity/UndeadHorseRenderer",
-      "armor_type": "none",
       "axes": {
         "age": {
           "default": "adult",
@@ -3140,7 +3149,6 @@
     },
     "minecraft:zombie_nautilus": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieNautilusRenderer",
-      "armor_type": "none",
       "axes": {
         "variant": {
           "id_encoded": true,
@@ -3213,7 +3221,6 @@
     },
     "minecraft:zombie_villager": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieVillagerRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -3251,11 +3258,18 @@
           "texture_by": "profession_level",
           "skip_bounds": true
         }
+      ],
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
       ]
     },
     "minecraft:zombified_piglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZombifiedPiglinRenderer",
-      "armor_type": "humanoid",
       "axes": {
         "age": {
           "default": "adult",
@@ -3271,6 +3285,14 @@
           }
         }
       },
+      "layers": [
+        {
+          "source": "HumanoidArmorLayer",
+          "layer_index": 3,
+          "id": "armor",
+          "armor_type": "humanoid"
+        }
+      ],
       "family_of": "minecraft:piglin"
     }
   }

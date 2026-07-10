@@ -78,6 +78,14 @@ final class EntityLayersResolver {
             AbstractInsnNode windowStart = lastAddLayer.getOrDefault(site.method(), site.method().instructions.getFirst());
             lastAddLayer.put(site.method(), site.addLayer());
 
+            // armor_type relocated under `layers` [LOCKED 3]: a HumanoidArmorLayer site emits the
+            // humanoid classification row here (in roster order) instead of a top-level member. The
+            // predicate is the same exact class match the former EntityArmorTypeResolver used.
+            if (VanillaSourceClasses.Types.HUMANOID_ARMOR_LAYER.equals(site.layerClass())) {
+                rows.add(armorRow(site));
+                continue;
+            }
+
             ClassNode cn = this.cache.load(site.layerClass());
             if (cn == null) continue;
             if (EntityOverlayResolver.isCollarShaped(cn)) {
@@ -169,6 +177,23 @@ final class EntityLayersResolver {
             .put("overlay", JsonNode.object()
                 .put("texture_by", MARKINGS_TOKEN)
                 .put("textures_by_value", byValue));
+    }
+
+    /**
+     * The armor classification row [LOCKED 3]: humanoid armor is rendered by a vanilla
+     * {@code HumanoidArmorLayer} (SPINE 3.1 row 3), so the classification is a layer-roster fact.
+     * Relocated from the former top-level {@code armor_type} member into this {@code layers} row
+     * (carrying {@code armor_type: "humanoid"}) so the fact travels with the roster it derives from;
+     * the native reader reads it off this row and the bridge inverts it back to the legacy top-level
+     * member. A {@code none} family emits no armor row - absence IS {@code none}.
+     */
+    private @NotNull JsonNode armorRow(@NotNull EntityRendererResolver.LayerSite site) {
+        this.diagnostics.info("armor row: humanoid [LOCKED 3]");
+        return JsonNode.object()
+            .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
+            .putInt("layer_index", site.layerIndex())
+            .put("id", "armor")
+            .put("armor_type", "humanoid");
     }
 
 }
