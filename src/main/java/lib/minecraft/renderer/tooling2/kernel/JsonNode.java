@@ -429,7 +429,8 @@ public final class JsonNode {
      * @return the float value, or {@code dflt}
      */
     public float floatValue(float dflt) {
-        return this.element.isJsonPrimitive() ? this.element.getAsFloat() : dflt;
+        return this.element.isJsonPrimitive() && this.element.getAsJsonPrimitive().isNumber()
+            ? this.element.getAsFloat() : dflt;
     }
 
     /**

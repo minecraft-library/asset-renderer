@@ -110,6 +110,21 @@ class JsonNodeTest {
     }
 
     @Test
+    @DisplayName("at() bounds-checks arrays; floatValue() defaults on any non-number")
+    void arrayIndexAndFloatValue() {
+        JsonNode node = JsonNode.parse("{\"a\":[30,45.5,\"roll\"],\"s\":\"x\"}".getBytes(StandardCharsets.UTF_8));
+        JsonNode array = node.get("a");
+        assertEquals(30f, array.at(0).floatValue(0f));
+        assertEquals(45.5f, array.at(1).floatValue(0f));
+        assertEquals(9f, array.at(2).floatValue(9f));          // string primitive -> default, never a parse throw
+        assertNull(array.at(3));
+        assertNull(array.at(-1));
+        assertNull(node.get("s").at(0));                       // non-array -> null
+        assertEquals(9f, node.get("s").floatValue(9f));
+        assertEquals(9f, node.get("a").floatValue(9f));        // non-primitive -> default
+    }
+
+    @Test
     @DisplayName("writeResource emits pretty JSON terminated by exactly one platform newline")
     void writeResourceNewlineContract() throws IOException {
         Path out = tempDir.resolve("nested/out.json");

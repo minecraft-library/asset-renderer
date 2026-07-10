@@ -161,7 +161,12 @@ final class BlockCatalogResolver {
         Row ender = null;
         for (String field : this.subject.blockFields()) {
             String local = blockLocal(field);
-            String base = bases.getOrDefault(chestVariantField(local), "");
+            String variantField = chestVariantField(local);
+            String base = bases.get(variantField);
+            if (base == null) {
+                this.diagnostics.warn("no ChestSpecialRenderer texture base bound for field '%s' (block '%s') - empty base", variantField, field);
+                base = "";
+            }
             Row row = new Row(blockId(field),
                 BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.CHEST) + base, null, null);
             switch (local) {
@@ -181,7 +186,11 @@ final class BlockCatalogResolver {
         List<Row> list = new ArrayList<>();
         for (String field : this.subject.blockFields()) {
             String weather = copperWeatherField(blockLocal(field), "copper_golem_statue");
-            String texture = textures.getOrDefault(weather, "");
+            String texture = textures.get(weather);
+            if (texture == null) {
+                this.diagnostics.warn("no CopperGolemOxidationLevels texture bound for weather '%s' (block '%s') - empty stem", weather, field);
+                texture = "";
+            }
             list.add(new Row(blockId(field), texture, null, null));
         }
         rows.put(primarySplit(), list);

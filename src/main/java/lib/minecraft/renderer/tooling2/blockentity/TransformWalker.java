@@ -53,6 +53,9 @@ final class TransformWalker {
     private static final @NotNull String TRANSFORMATION_CTOR_MATRIX = "(Lorg/joml/Matrix4fc;)V";
     private static final @NotNull String TRANSFORMATION_CTOR_COMPONENTS =
         "(Lorg/joml/Vector3fc;Lorg/joml/Quaternionfc;Lorg/joml/Vector3fc;Lorg/joml/Quaternionfc;)V";
+    private static final @NotNull String VEC3_PARAMS = "(FFF)";
+    private static final @NotNull String QUAT_PARAM = "(Lorg/joml/Quaternionfc;)";
+    private static final @NotNull String QUAT_VEC3_PARAMS = "(Lorg/joml/Quaternionfc;FFF)";
     private static final @NotNull String ATTACHMENT_SUFFIX = "Attachment";
     private static final @NotNull String WALL_CONSTANT = "WALL";
     private static final @NotNull String FLOOR_CONSTANT = "FLOOR";
@@ -82,7 +85,9 @@ final class TransformWalker {
             if (clinit == null) return null;
             Frame frame = new Frame(0);
             frame.run(cn, clinit, field);
-            return frame.finalTransform == null ? null : canonicalise(frame.finalTransform);
+            // Only the Transformation live at the stop field's PUTSTATIC counts - a <clinit> may
+            // construct other Transformations before (or instead of) the target field's.
+            return frame.stopReached && frame.finalTransform != null ? canonicalise(frame.finalTransform) : null;
         }
 
         MethodNode method = findTransformMethod(cn, entry);
@@ -117,6 +122,7 @@ final class TransformWalker {
         private @Nullable State finalTransform;
         private @Nullable Val returnValue;
         private boolean poisoned;
+        private boolean stopReached;
 
         private Frame(int depth) {
             this.depth = depth;
@@ -141,7 +147,7 @@ final class TransformWalker {
             }
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null && !this.poisoned; in = in.getNext()) {
                 AbstractInsnNode jump = step(owner, in, stopField);
-                if (this.returnValue != null || (stopField != null && this.finalTransform != null)) return;
+                if (this.returnValue != null || this.stopReached) return;
                 if (jump != null) in = jump;
             }
         }
@@ -171,7 +177,10 @@ final class TransformWalker {
                 case Opcodes.FSTORE, Opcodes.ASTORE, Opcodes.ISTORE -> this.locals.put(((VarInsnNode) in).var, pop());
                 case Opcodes.GETSTATIC -> getStatic((FieldInsnNode) in);
                 case Opcodes.PUTSTATIC -> {
-                    if (((FieldInsnNode) in).name.equals(stopField)) return null;
+                    if (((FieldInsnNode) in).name.equals(stopField)) {
+                        this.stopReached = true;
+                        return null;
+                    }
                     pop();
                 }
                 case Opcodes.IF_ACMPEQ, Opcodes.IF_ACMPNE -> {
@@ -203,7 +212,8 @@ final class TransformWalker {
 
         private void getStatic(@NotNull FieldInsnNode field) {
             if (field.owner.equals(VanillaSourceClasses.Types.MATH_AXIS)) {
-                push(Val.axis(field.name.charAt(0)));   // XP / YP / ZP -> X / Y / Z
+                // XP / YP / ZP -> X / Y / Z; the N constants (XN...) carry a negated rotation sense.
+                push(Val.axis(field.name.charAt(0), field.name.length() > 1 && field.name.charAt(1) == 'N'));
                 return;
             }
             if (field.name.endsWith(WALL_CONSTANT) || field.name.equals(FLOOR_CONSTANT) || field.owner.endsWith(ATTACHMENT_SUFFIX)) {
@@ -237,7 +247,8 @@ final class TransformWalker {
             if (call.owner.equals(VanillaSourceClasses.Types.MATH_AXIS) && "rotationDegrees".equals(call.name)) {
                 float angle = popFloat();
                 Val axis = pop();
-                push(Val.quat(axis.kind == Kind.AXIS ? axis.axis : 'X', angle));
+                if (axis.kind == Kind.AXIS) push(Val.quat(axis.axis, axis.number * angle));   // number = +-1 sense
+                else push(Val.quat('X', angle));
                 return;
             }
             if (call.owner.equals(VanillaSourceClasses.Types.DIRECTION) && "toYRot".equals(call.name)) {
@@ -262,7 +273,12 @@ final class TransformWalker {
             passThrough(call);
         }
 
-        /** Applies a {@code Matrix4f} instance op to the receiver {@link State} on the stack. */
+        /**
+         * Applies a {@code Matrix4f} instance op to the receiver {@link State} on the stack. Ops
+         * match by name AND parameter shape; anything else (matrix-arg overloads, {@code mul}, the
+         * {@code Vector3fc} translate) passes through per descriptor - the OTHER it pushes poisons
+         * the next {@code popMatrix} rather than silently mis-popping the stack.
+         */
         private void matrixInvoke(@NotNull MethodInsnNode call) {
             if (AsmKit.INIT.equals(call.name)) {
                 pop();                       // the invokespecial receiver ref
@@ -270,43 +286,36 @@ final class TransformWalker {
                 push(Val.matrix(new State()));
                 return;
             }
-            switch (call.name) {
-                case "translation" -> {
-                    float[] t = popVec3();
-                    State state = popMatrix();
-                    if (state != null) state.setTranslation(t);
-                    push(Val.matrix(state));
-                }
-                case "translate" -> {
-                    float[] t = popVec3();
-                    State state = popMatrix();
-                    if (state != null) state.postTranslate(t);
-                    push(Val.matrix(state));
-                }
-                case "scale" -> {
-                    float[] s = popVec3();
-                    State state = popMatrix();
-                    if (state != null) state.postScale(s);
-                    push(Val.matrix(state));
-                }
-                case "rotate" -> {
-                    Val q = pop();
-                    State state = popMatrix();
-                    if (state != null && q.kind == Kind.QUAT) state.postRotate(q.axis, q.angle);
-                    push(Val.matrix(state));
-                }
-                case "rotateAround" -> {
-                    float[] c = popVec3();
-                    Val q = pop();
-                    State state = popMatrix();
-                    if (state != null) state.postRotateAround(q, c);
-                    push(Val.matrix(state));
-                }
-                default -> {
-                    pop();
-                    push(Val.other());
-                }
+            String name = call.name;
+            if (call.desc.startsWith(VEC3_PARAMS)
+                && ("translation".equals(name) || "translate".equals(name) || "scale".equals(name))) {
+                float[] v = popVec3();
+                State state = popMatrix();
+                if (state != null)
+                    switch (name) {
+                        case "translation" -> state.setTranslation(v);
+                        case "translate" -> state.postTranslate(v);
+                        default -> state.postScale(v);
+                    }
+                push(Val.matrix(state));
+                return;
             }
+            if ("rotate".equals(name) && call.desc.startsWith(QUAT_PARAM)) {
+                Val q = pop();
+                State state = popMatrix();
+                if (state != null && q.kind == Kind.QUAT) state.postRotate(q.axis, q.angle);
+                push(Val.matrix(state));
+                return;
+            }
+            if ("rotateAround".equals(name) && call.desc.startsWith(QUAT_VEC3_PARAMS)) {
+                float[] c = popVec3();
+                Val q = pop();
+                State state = popMatrix();
+                if (state != null) state.postRotateAround(q, c);
+                push(Val.matrix(state));
+                return;
+            }
+            passThrough(call);
         }
 
         /** Consumes a {@code Transformation.<init>} - matrix form or the 4-component form - into {@link #finalTransform}. */
@@ -520,7 +529,7 @@ final class TransformWalker {
         private static @NotNull Val yaw() { return new Val(Kind.YAW, 0f, 'I', 0f, null, null, null); }
         private static @NotNull Val matrix(@Nullable State state) { return new Val(Kind.MATRIX, 0f, 'I', 0f, state, null, null); }
         private static @NotNull Val quat(char axis, float angle) { return new Val(Kind.QUAT, 0f, axis, angle, null, null, null); }
-        private static @NotNull Val axis(char axis) { return new Val(Kind.AXIS, 0f, axis, 0f, null, null, null); }
+        private static @NotNull Val axis(char axis, boolean negated) { return new Val(Kind.AXIS, negated ? -1f : 1f, axis, 0f, null, null, null); }
         private static @NotNull Val vector(float @NotNull [] vec) { return new Val(Kind.VECTOR, 0f, 'I', 0f, null, vec, null); }
         private static @NotNull Val nul() { return new Val(Kind.NULL, 0f, 'I', 0f, null, null, null); }
         private static @NotNull Val enumConst(@NotNull String name) { return new Val(Kind.ENUM, 0f, 'I', 0f, null, null, name); }
