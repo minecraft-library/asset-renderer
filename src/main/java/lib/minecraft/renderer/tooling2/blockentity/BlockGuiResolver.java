@@ -56,7 +56,8 @@ final class BlockGuiResolver {
         if (BlockTransformPolicies.isTransformTarget(rendererClass)) return true;
         if (BlockTransformPolicies.isFlipSuppressed(splitId)) return false;
         Float roll = displayGuiRoll(splitId);
-        return roll == null || Math.abs(roll - 180f) < 0.5f;
+        if (roll == null) return BlockTransformPolicies.entityFlipDefault();   // no display.gui [P36]
+        return Math.abs(roll - 180f) < 0.5f;
     }
 
     /**

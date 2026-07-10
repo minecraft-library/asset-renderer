@@ -101,7 +101,90 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             Map.entry("piglin", "minecraft:skull_piglin_head")),
         "P31: the 4-way skull split grouping the seven SkullBlock$Types by shared mesh + texture dims -"
             + " legacy BlockListDiscovery.SKULL_TYPE_TO_ENTITY_ID:149-157 (mob 64x32 / humanoid 64x64 /"
-            + " dragon mesh / piglin ears); vanilla registers one BlockEntityType.SKULL, the split is ours");
+            + " dragon mesh / piglin ears); vanilla registers one BlockEntityType.SKULL, the split is ours"),
+
+    /**
+     * P33 - the catalog family-dispatch roster: which subjects emit a {@code blocks[]} catalog and
+     * which family builder each rides. The family SET is derivable from discovery; the
+     * split/texture-source divergence per family is the declared fact. Subjects absent here
+     * (enchanting_table / lectern) carry no catalog; the part-only pseudo families ride
+     * {@link BlockTransformPolicies#PART_COMPOSITION} [P32] instead.
+     */
+    FAMILY_ROSTER(
+        Map.ofEntries(
+            Map.entry("shulker_box", CatalogFamily.SHULKER_BOX),
+            Map.entry("chest", CatalogFamily.CHEST),
+            Map.entry("bed", CatalogFamily.BED),
+            Map.entry("sign", CatalogFamily.SIGN),
+            Map.entry("hanging_sign", CatalogFamily.HANGING_SIGN),
+            Map.entry("conduit", CatalogFamily.CONDUIT),
+            Map.entry("bell", CatalogFamily.BELL),
+            Map.entry("decorated_pot", CatalogFamily.DECORATED_POT),
+            Map.entry("copper_golem_statue", CatalogFamily.COPPER_GOLEM_STATUE),
+            Map.entry("skull", CatalogFamily.SKULL),
+            Map.entry("banner", CatalogFamily.BANNER)),
+        "P33: the family-dispatch roster - legacy BlockListDiscovery.FAMILY_DISPATCH:191/:203-222;"
+            + " the family set is derivable from discovery, only the per-family split/texture-source"
+            + " divergence is declared (07 3 row 18); part-only pseudo families ride PART_COMPOSITION [P32]"),
+
+    /**
+     * P35 - the chest block-to-{@code ChestSpecialRenderer}-texture-field binding: the three fixed
+     * classes plus the copper composition rule ({@code COPPER_ + <WeatherState>}, {@code UNAFFECTED}
+     * for the bare base, waxed sharing the unwaxed sheet). The binding is spread across vanilla's
+     * special-renderer dispatch - not one walkable site.
+     */
+    CHEST_VARIANT(
+        new ChestVariants(
+            Map.of("chest", "REGULAR", "trapped_chest", "TRAPPED", "ender_chest", "ENDER_CHEST"),
+            "COPPER_"),
+        "P35: chest class->texture-field binding + COPPER_<weather> composition with the UNAFFECTED"
+            + " fallback - legacy BlockListDiscovery switch :1199-1212 + weather default :1914; 'the"
+            + " class<->field binding is spread across vanilla's special-renderer dispatch; not one"
+            + " walkable site' (07 3 row 22)"),
+
+    /**
+     * P43 - which of a tint-bearing renderer's meshes takes the dye: the {@code *FlagModel} factory
+     * (the banner flag); the wood-brown pole / bar never tints. An escape hatch - the honest
+     * derivation would need data-flow analysis of which submitted buffer receives the DyeColor.
+     */
+    BANNER_DYE_TARGET(
+        "FlagModel",
+        "P43: the dye-taking mesh is the *FlagModel factory - legacy TintDiscovery.java:84 (classEntry"
+            + " .contains(\"Flag\") && endsWith(\"Model.class\")), rationale :81-85; 'LIKELY-hard - would"
+            + " need renderer data-flow analysis of which submitted buffer receives the DyeColor'"
+            + " (08 3 row 34); consulted by BlockTintFlagResolver"),
+
+    /**
+     * D54 - the fixed sheet texture stems ({@code = Sheets.<X>} sprite prefixes) per catalog
+     * family. The legacy flow hard-codes the same values; deriving them from {@code Sheets.<clinit>}
+     * stays a post-bridge option (08 A5). Conduit is absent - its base derives from
+     * {@code ConduitRenderer.<clinit>}.
+     */
+    SHEET_TEXTURE_BASES(
+        Map.ofEntries(
+            Map.entry(CatalogFamily.SHULKER_BOX, "entity/shulker/shulker"),
+            Map.entry(CatalogFamily.CHEST, "entity/chest/"),
+            Map.entry(CatalogFamily.BED, "entity/bed/"),
+            Map.entry(CatalogFamily.SIGN, "entity/signs/"),
+            Map.entry(CatalogFamily.HANGING_SIGN, "entity/signs/hanging/"),
+            Map.entry(CatalogFamily.BELL, "entity/"),
+            Map.entry(CatalogFamily.DECORATED_POT, "entity/decorated_pot/decorated_pot_base"),
+            Map.entry(CatalogFamily.BANNER, "entity/banner/banner_base")),
+        "D54: the Sheets.<X> sprite stems the legacy flow hard-codes (BlockListDiscovery constants;"
+            + " shulker colorToShulkerSprite concat base, bed/sign/hanging/banner/pot sheet prefixes,"
+            + " chest special-renderer sheet dir, bell BLOCK_ENTITIES_MAPPER entity/ base - 08 A5 rows"
+            + " 21-28); Sheets.<clinit> derivation deferred post-bridge"),
+
+    /**
+     * The PLAYER skull skin stem - legacy chases {@code DefaultPlayerSkin.getDefaultSkin} through
+     * its array-index shape (SourceDiscovery :969-1046) to this stable value; declared since the
+     * chase bottoms out in a constant.
+     */
+    PLAYER_SKULL_SKIN(
+        "entity/player/slim/steve",
+        "the DefaultPlayerSkin.getDefaultSkin chase result (legacy SourceDiscovery:969-1046) - the"
+            + " stable default skin the PLAYER SkullBlock$Types entry renders; every other type reads"
+            + " SKIN_BY_TYPE from the SkullBlockRenderer populate lambda");
 
     /**
      * One sign / hanging-sign variant: the split id plus the branch parameter selecting it -
@@ -121,6 +204,21 @@ enum BlockFamilyPolicies implements NavigationPolicy {
      * @param withStick the {@code createBodyLayer(boolean)} / {@code createFlagLayer(boolean)} value
      */
     record BannerVariant(@NotNull String splitId, int withStick) {}
+
+    /** A catalog-bearing family of the P33 roster - the dispatch token its builder rides. */
+    enum CatalogFamily {
+        SHULKER_BOX, CHEST, BED, SIGN, HANGING_SIGN, CONDUIT, BELL,
+        DECORATED_POT, COPPER_GOLEM_STATUE, SKULL, BANNER
+    }
+
+    /**
+     * The P35 chest binding: the fixed block-to-field entries plus the copper field-name prefix
+     * the weather composition prepends.
+     *
+     * @param fixedFields block local id -> {@code ChestSpecialRenderer} texture-field name
+     * @param copperFieldPrefix the {@code COPPER_} prefix before the {@code WeatherState} name
+     */
+    record ChestVariants(@NotNull Map<String, String> fixedFields, @NotNull String copperFieldPrefix) {}
 
     private final @NotNull Object value;
     private final @NotNull String provenance;
@@ -182,6 +280,57 @@ enum BlockFamilyPolicies implements NavigationPolicy {
     @SuppressWarnings("unchecked")
     static @Nullable String skullTypeSplit(@NotNull String typePrefix) {
         return ((Map<String, String>) SKULL_TYPE_SPLIT.value).get(typePrefix);
+    }
+
+    /**
+     * The P33 catalog family a subject dispatches to, or {@code null} when the subject emits no
+     * block catalog (enchanting_table / lectern).
+     *
+     * @param subjectLocalId the namespace-less subject id
+     * @return the family token, or {@code null}
+     */
+    @SuppressWarnings("unchecked")
+    static @Nullable CatalogFamily catalogFamily(@NotNull String subjectLocalId) {
+        return ((Map<String, CatalogFamily>) FAMILY_ROSTER.value).get(subjectLocalId);
+    }
+
+    /**
+     * The fixed {@code ChestSpecialRenderer} texture field for a chest block, or {@code null}
+     * when the block is a copper chest (composed as {@code COPPER_<weather>}).
+     *
+     * @param blockLocal the block's namespace-less id
+     * @return the field name, or {@code null} for the copper composition
+     */
+    static @Nullable String chestVariantField(@NotNull String blockLocal) {
+        return ((ChestVariants) CHEST_VARIANT.value).fixedFields().get(blockLocal);
+    }
+
+    /** The {@code COPPER_} field-name prefix the chest weather composition prepends. */
+    static @NotNull String chestCopperFieldPrefix() {
+        return ((ChestVariants) CHEST_VARIANT.value).copperFieldPrefix();
+    }
+
+    /** The factory-class suffix marking the dye-taking mesh (the banner {@code *FlagModel}) [P43]. */
+    static @NotNull String dyeTargetModelSuffix() {
+        return (String) BANNER_DYE_TARGET.value;
+    }
+
+    /**
+     * The declared sheet texture stem for a catalog family [D54].
+     *
+     * @param family the P33 family token
+     * @return the {@code Sheets.<X>} stem
+     */
+    @SuppressWarnings("unchecked")
+    static @NotNull String sheetTextureBase(@NotNull CatalogFamily family) {
+        String base = ((Map<CatalogFamily, String>) SHEET_TEXTURE_BASES.value).get(family);
+        if (base == null) throw new IllegalArgumentException("No declared sheet base for family " + family);
+        return base;
+    }
+
+    /** The declared PLAYER skull skin stem (the DefaultPlayerSkin chase result). */
+    static @NotNull String playerSkullSkin() {
+        return (String) PLAYER_SKULL_SKIN.value;
     }
 
 }

@@ -30,23 +30,12 @@ import java.util.Map;
  * id family (standing vs wall, skull type). Texture bases the vanilla bytecode carries are DERIVED
  * from the owning {@code <clinit>} (chest variants, copper oxidation, skull skins, conduit / bell);
  * the fixed sheet prefixes (shulker / bed / signs / banner / decorated_pot) the legacy hard-codes
- * are declared here as the same constants [D54]. The colour / wood / weather / type discriminators
- * ride the block id - identical to the legacy ctor-enum walk on 26.1, without the walk.
+ * are declared in {@link BlockFamilyPolicies} ({@code SHEET_TEXTURE_BASES}) [D54]. The colour /
+ * wood / weather / type discriminators ride the block id - identical to the legacy ctor-enum walk
+ * on 26.1, without the walk.
  */
 final class BlockCatalogResolver {
 
-    // Fixed sheet prefixes (stems; assetPath wraps them in the decision-21 full grammar). The legacy
-    // hard-codes these as constants (= the Sheets.<X> sprite prefixes); derivation from Sheets.<clinit>
-    // is a post-bridge option (08 A5). No "minecraft:" here - PolicyPurityTest keeps those in policies / VSC.
-    private static final @NotNull String SHULKER_TEXTURE = "entity/shulker/shulker";
-    private static final @NotNull String BED_TEXTURE_PREFIX = "entity/bed/";
-    private static final @NotNull String SIGN_TEXTURE_PREFIX = "entity/signs/";
-    private static final @NotNull String HANGING_SIGN_TEXTURE_PREFIX = "entity/signs/hanging/";
-    private static final @NotNull String BANNER_TEXTURE = "entity/banner/banner_base";
-    private static final @NotNull String DECORATED_POT_TEXTURE = "entity/decorated_pot/decorated_pot_base";
-    private static final @NotNull String CHEST_TEXTURE_PREFIX = "entity/chest/";
-    /** The PLAYER skull skin (legacy chases DefaultPlayerSkin.getDefaultTexture -> this stable value). */
-    private static final @NotNull String PLAYER_SKULL_SKIN = "entity/player/slim/steve";
     /** The one variant gate any block row carries: the ceiling hanging sign's straight-chain mesh. */
     private static final @NotNull String ATTACHED_VARIANT = "attached=true";
 
@@ -87,23 +76,24 @@ final class BlockCatalogResolver {
         return this.bySplitId.get(splitId);
     }
 
-    /** Dispatches the subject to its family builder, producing split id -> block rows. */
+    /** Dispatches the subject to its P33 family builder, producing split id -> block rows. */
     private @NotNull Map<String, JsonNode> build() {
         Map<String, List<Row>> rows = new LinkedHashMap<>();
-        switch (this.subject.localId()) {
-            case "shulker_box" -> shulker(rows);
-            case "chest" -> chest(rows);
-            case "bed" -> bed(rows);
-            case "sign" -> signs(rows, SIGN_TEXTURE_PREFIX);
-            case "hanging_sign" -> hangingSigns(rows);
-            case "conduit" -> single(rows, conduitTexture());
-            case "bell" -> single(rows, bellTexture());
-            case "decorated_pot" -> single(rows, DECORATED_POT_TEXTURE);
-            case "copper_golem_statue" -> copperGolem(rows);
-            case "skull" -> skull(rows);
-            case "banner" -> banner(rows);
-            default -> { /* enchanting_table / lectern: v2-only, no block catalog */ }
-        }
+        BlockFamilyPolicies.CatalogFamily family = BlockFamilyPolicies.catalogFamily(this.subject.localId());
+        if (family != null)                 // absent from the P33 roster (enchanting_table / lectern) = no catalog
+            switch (family) {
+                case SHULKER_BOX -> shulker(rows);
+                case CHEST -> chest(rows);
+                case BED -> bed(rows);
+                case SIGN -> signs(rows, BlockFamilyPolicies.sheetTextureBase(family));
+                case HANGING_SIGN -> hangingSigns(rows);
+                case CONDUIT -> single(rows, conduitTexture());
+                case BELL -> single(rows, bellTexture());
+                case DECORATED_POT -> single(rows, BlockFamilyPolicies.sheetTextureBase(family));
+                case COPPER_GOLEM_STATUE -> copperGolem(rows);
+                case SKULL -> skull(rows);
+                case BANNER -> banner(rows);
+            }
 
         Map<String, JsonNode> out = new LinkedHashMap<>();
         rows.forEach((splitId, list) -> out.put(splitId, toArray(list)));
@@ -132,8 +122,9 @@ final class BlockCatalogResolver {
 
     /** The shulker texture stem: the bare sheet for the uncolored box, {@code shulker_<color>} for the dyed. */
     private static @NotNull String shulkerTextureStem(@NotNull String blockLocal) {
-        if (blockLocal.equals(SHULKER_BASE_LOCAL)) return SHULKER_TEXTURE;
-        return SHULKER_TEXTURE + "_" + stripSuffix(blockLocal, SHULKER_BASE_LOCAL);
+        String sheet = BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.SHULKER_BOX);
+        if (blockLocal.equals(SHULKER_BASE_LOCAL)) return sheet;
+        return sheet + "_" + stripSuffix(blockLocal, SHULKER_BASE_LOCAL);
     }
 
     /** Bed: the 16 dyed beds under bed_head in DyeColor declaration order, texture entity/bed/<color>. */
@@ -141,7 +132,8 @@ final class BlockCatalogResolver {
         Map<String, Row> byColour = new LinkedHashMap<>();
         for (String field : this.subject.blockFields()) {
             String colour = stripSuffix(blockLocal(field), "bed");
-            byColour.put(colour, new Row(blockId(field), BED_TEXTURE_PREFIX + colour, null, null));
+            byColour.put(colour,
+                new Row(blockId(field), BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.BED) + colour, null, null));
         }
         List<Row> list = new ArrayList<>();
         orderByDye(byColour, list);
@@ -170,7 +162,8 @@ final class BlockCatalogResolver {
         for (String field : this.subject.blockFields()) {
             String local = blockLocal(field);
             String base = bases.getOrDefault(chestVariantField(local), "");
-            Row row = new Row(blockId(field), CHEST_TEXTURE_PREFIX + base, null, null);
+            Row row = new Row(blockId(field),
+                BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.CHEST) + base, null, null);
             switch (local) {
                 case "trapped_chest" -> trapped = row;
                 case "ender_chest" -> ender = row;
@@ -220,7 +213,7 @@ final class BlockCatalogResolver {
 
     /** Hanging signs: standing / wall by suffix, plus the hanging_sign_attached alternate (same blocks + variant). */
     private void hangingSigns(@NotNull Map<String, List<Row>> rows) {
-        signs(rows, HANGING_SIGN_TEXTURE_PREFIX);
+        signs(rows, BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.HANGING_SIGN));
         // hanging_sign_attached re-lists the ceiling hanging sign's rows under variant attached=true.
         String source = splitEndingWith("hanging_sign");
         String attached = splitEndingWith("hanging_sign_attached");
@@ -242,7 +235,7 @@ final class BlockCatalogResolver {
                 this.diagnostics.warn("skull block '%s' has unknown type prefix '%s' - dropped", field, type);
                 continue;
             }
-            String skin = "player".equals(type) ? PLAYER_SKULL_SKIN : skins.get(type.toUpperCase(Locale.ROOT));
+            String skin = "player".equals(type) ? BlockFamilyPolicies.playerSkullSkin() : skins.get(type.toUpperCase(Locale.ROOT));
             if (skin == null) {
                 this.diagnostics.warn("no skull skin for type '%s' (block '%s') - dropped", type, field);
                 continue;
@@ -260,7 +253,7 @@ final class BlockCatalogResolver {
             if (split == null) continue;
             String tint = stripSuffix(blockLocal, localId(split)).toUpperCase(Locale.ROOT);
             rows.computeIfAbsent(split, key -> new ArrayList<>())
-                .add(new Row(blockId(field), BANNER_TEXTURE, null, tint));
+                .add(new Row(blockId(field), BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.BANNER), null, tint));
         }
     }
 
@@ -381,7 +374,7 @@ final class BlockCatalogResolver {
                 continue;
             }
             if (pendingStem != null && AsmKit.isPutStatic(in, VanillaSourceClasses.Types.BELL_RENDERER, "BELL_TEXTURE"))
-                return "entity/" + pendingStem;
+                return BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.BELL) + pendingStem;
         }
         return "";
     }
@@ -467,14 +460,11 @@ final class BlockCatalogResolver {
         return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + field.toLowerCase(Locale.ROOT);
     }
 
-    /** The chest ChestSpecialRenderer variant field a block maps to (class-by-id + copper weather). */
+    /** The chest ChestSpecialRenderer variant field a block maps to (P35 fixed binding + copper weather). */
     private static @NotNull String chestVariantField(@NotNull String blockLocal) {
-        return switch (blockLocal) {
-            case "chest" -> "REGULAR";
-            case "trapped_chest" -> "TRAPPED";
-            case "ender_chest" -> "ENDER_CHEST";
-            default -> "COPPER_" + copperWeatherField(blockLocal, "copper_chest");
-        };
+        String fixed = BlockFamilyPolicies.chestVariantField(blockLocal);
+        if (fixed != null) return fixed;
+        return BlockFamilyPolicies.chestCopperFieldPrefix() + copperWeatherField(blockLocal, "copper_chest");
     }
 
     /**

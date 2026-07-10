@@ -43,7 +43,8 @@ import java.util.Map;
 final class TransformWalker {
 
     private static final int MAX_INLINE_DEPTH = 2;
-    private static final float UNIT_EPS = 1e-3f;
+    /** The canonicalisation tolerance - declared as {@link BlockTransformPolicies#CANONICALISE} [P42]. */
+    private static final float UNIT_EPS = BlockTransformPolicies.canonicalUnitEps();
     private static final float MCPIXEL = 16f;
 
     private static final @NotNull String MATRIX4F = "org/joml/Matrix4f";

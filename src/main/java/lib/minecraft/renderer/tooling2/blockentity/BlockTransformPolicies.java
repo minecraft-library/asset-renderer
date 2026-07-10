@@ -125,7 +125,43 @@ enum BlockTransformPolicies implements NavigationPolicy {
             + " BedBlock's one-block foot placement), DECORATED_POT_SIDES_OFFSET={0,0,0}:164 (no PoseStack"
             + " .translate between the base and sides submits) + SIDE_TEXTURE:1794 (= Sheets.DECORATED_POT_SIDE,"
             + " carried in the decision-21 full asset grammar);"
-            + " banner/wall_banner compose their flag sub-model with no offset - :1629-1630, :1810-1811");
+            + " banner/wall_banner compose their flag sub-model with no offset - :1629-1630, :1810-1811"),
+
+    /**
+     * P36 - the flip default for splits whose icon roll is unreadable (a flat sprite with no
+     * {@code display.gui}): flip TRUE. Consulted only when the display.gui derivation misses and
+     * {@link #FLIP_SUPPRESSED} does not name the split.
+     */
+    ENTITY_FLIP_DEFAULT(
+        Boolean.TRUE,
+        "P36: unresolved flat-sprite icons default to flip=true - legacy ToolingBlockModels entity_flip"
+            + " default (07 3 rows 9, 10); consulted only when the item model carries no display.gui"
+            + " roll and the split is not FLIP_SUPPRESSED"),
+
+    /**
+     * P40 - the pivot-Y half-block band {@code [8, 16)} marking a block-space-authored factory
+     * ({@code UP}): ChestModel pivots {@code (0, 9, 1)}, BellModel {@code (8, 12, 8)}. Outside the
+     * band stays {@code DOWN}: ShulkerModel's {@code y = 24} mob root, banner-flag / dragon-head
+     * pure-entity meshes, and {@code offsetAndRotation} users (decorated pot).
+     */
+    Y_AXIS_BAND(
+        new float[]{8f, 16f},
+        "P40: the [8,16) half-block pivot-Y band - legacy SourceDiscovery.inferYAxisFromMethod:877-911"
+            + " (the code applies the band, not the javadoc's bare >= 8; band check :910); counter-examples:"
+            + " ChestModel (0,9,1) / BellModel (8,12,8) block-space UP, ShulkerModel y=24 mob-root DOWN,"
+            + " offsetAndRotation users (decorated pot) DOWN (YAxis.java:3-15, 08 3 row 11)"),
+
+    /**
+     * P42 - the canonicalisation tolerance {@code UNIT_EPS = 1e-3}: the band that snaps the
+     * shulker's {@code 0.9995} z-fight fudge to unit scale, gates the near-unity translation fold,
+     * and bounds the sign-fold / rotateAround comparisons.
+     */
+    CANONICALISE(
+        1e-3f,
+        "P42: UNIT_EPS 1e-3 - the shulker 0.9995 z-fight-fudge snap band (legacy ITD :67-69) plus the"
+            + " sign-fold axis preference (scale(1,-1,-1)=Rx180, (-s,-s,+s)->Rx180 by Y-symmetry, ITD"
+            + " :821-824) and the block-centred rotateAround-180 = camera-facing flip already carried by"
+            + " the y_rotation (ITD :881-901)");
 
     /** The {@code FIELD:} prefix on a P41 entry marking a static {@code Transformation} field. */
     static final @NotNull String FIELD_ENTRY_PREFIX = "FIELD:";
@@ -231,6 +267,26 @@ enum BlockTransformPolicies implements NavigationPolicy {
     @SuppressWarnings("unchecked")
     static boolean isIconAdditive(@NotNull String splitId) {
         return ((Set<String>) ICON_ADDITIVE.value).contains(splitId);
+    }
+
+    /** The flip for splits whose icon roll is unreadable ({@code true}) [P36]. */
+    static boolean entityFlipDefault() {
+        return (Boolean) ENTITY_FLIP_DEFAULT.value;
+    }
+
+    /** The inclusive lower bound of the block-space pivot-Y band [P40]. */
+    static float yAxisBandMin() {
+        return ((float[]) Y_AXIS_BAND.value)[0];
+    }
+
+    /** The exclusive upper bound of the block-space pivot-Y band [P40]. */
+    static float yAxisBandMax() {
+        return ((float[]) Y_AXIS_BAND.value)[1];
+    }
+
+    /** The canonicalisation tolerance ({@code UNIT_EPS}) [P42]. */
+    static float canonicalUnitEps() {
+        return (Float) CANONICALISE.value;
     }
 
     /**

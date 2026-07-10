@@ -184,13 +184,10 @@ final class BlockGeometrySourceResolver {
     }
 
     /**
-     * The pivot-band Y-axis heuristic [P40]: {@code UP} when the factory method's largest
-     * {@code PartPose.offset(x, y, z)} pivot Y falls in the {@code [8, 16)} half-block band
-     * (block-space authored - ChestModel {@code (0,9,1)}, BellModel {@code (8,12,8)}); else
-     * {@code DOWN} (ShulkerModel's {@code y=24} mob root, banner-flag / dragon-head pure-entity
-     * meshes, {@code offsetAndRotation} users like the decorated pot). Legacy
-     * SourceDiscovery.inferYAxisFromMethod:877-911 (the code applies the band, not the javadoc's
-     * bare {@code >= 8}).
+     * The pivot-band Y-axis heuristic: {@code UP} when the factory method's largest
+     * {@code PartPose.offset(x, y, z)} pivot Y falls in the declared half-block band
+     * ({@link BlockTransformPolicies#Y_AXIS_BAND} [P40] - band constants, counter-examples and
+     * provenance live there); else {@code DOWN}.
      */
     private @NotNull YAxis inferYAxis(@NotNull String factoryClass, @NotNull String factoryMethod) {
         ClassNode cn = this.cache.load(factoryClass);
@@ -216,7 +213,8 @@ final class BlockGeometrySourceResolver {
             }
             floats.clear();
         }
-        return maxPivotY >= 8f && maxPivotY < 16f ? YAxis.UP : YAxis.DOWN;
+        return maxPivotY >= BlockTransformPolicies.yAxisBandMin() && maxPivotY < BlockTransformPolicies.yAxisBandMax()
+            ? YAxis.UP : YAxis.DOWN;
     }
 
 }

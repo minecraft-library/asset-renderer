@@ -44,9 +44,9 @@ final class BlockTintFlagResolver {
         return isFlagModel(factoryClass) && isRendererTintBearing(rendererClass);
     }
 
-    /** A {@code *FlagModel} mesh (banner / wall-banner flag) - the dye-taking sub-model. */
+    /** A {@code *FlagModel} mesh (banner / wall-banner flag) - the dye-taking sub-model [P43]. */
     private static boolean isFlagModel(@NotNull String factoryClass) {
-        return factoryClass.contains("Flag") && factoryClass.endsWith("Model");
+        return factoryClass.endsWith(BlockFamilyPolicies.dyeTargetModelSuffix());
     }
 
     private boolean isRendererTintBearing(@NotNull String rendererClass) {
