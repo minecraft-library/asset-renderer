@@ -22,6 +22,7 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.LargeShape;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.OverlayLayer;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.RotateX;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.RotateY;
+import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.RotateZ;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.Scale;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.TransformOp;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.Translate;
@@ -405,6 +406,7 @@ public final class EntityFamilyReader {
                         case "translate" -> ops.add(new Translate(opObj.get("x").getAsFloat(), opObj.get("y").getAsFloat(), opObj.get("z").getAsFloat()));
                         case "rotate_y" -> ops.add(new RotateY(opObj.get("degrees").getAsFloat()));
                         case "rotate_x" -> ops.add(new RotateX(opObj.get("degrees").getAsFloat()));
+                        case "rotate_z" -> ops.add(new RotateZ(opObj.get("degrees").getAsFloat()));
                         case "scale" -> ops.add(new Scale(opObj.get("x").getAsFloat(), opObj.get("y").getAsFloat(), opObj.get("z").getAsFloat()));
                         default -> { }
                     }

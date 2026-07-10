@@ -262,13 +262,13 @@ public class EntityModelLoader {
      * One transform operation in a {@link BlockOverlayLayer}'s chain. Mirrors the vanilla
      * {@code PoseStack} ops a render layer issues between {@code pushPose} / {@code popPose}:
      * {@code translate(F, F, F)} -> {@link Translate}, {@code mulPose(rotationDegrees(deg))} on
-     * the Y axis -> {@link RotateY} / on the X axis -> {@link RotateX}, {@code scale(F, F, F)} ->
-     * {@link Scale}.
+     * the Y axis -> {@link RotateY} / on the X axis -> {@link RotateX} / on the Z axis ->
+     * {@link RotateZ}, {@code scale(F, F, F)} -> {@link Scale}.
      *
      * <p>Sealed so the renderer can pattern-match without a default branch. Add a new op kind
      * by extending the seal and updating both the JSON serialiser and the renderer dispatch.
      */
-    public sealed interface TransformOp permits Translate, RotateY, RotateX, Scale {}
+    public sealed interface TransformOp permits Translate, RotateY, RotateX, RotateZ, Scale {}
 
     /**
      * Translation by {@code (x, y, z)} in entity-local units.
@@ -285,6 +285,13 @@ public class EntityModelLoader {
      * tilt, the iron golem flower's {@code Axis.XP} lay-flat).
      */
     public record RotateX(float degrees) implements TransformOp {}
+
+    /**
+     * Rotation around the Z axis by {@code degrees} (a {@code mulPose(rotationDegrees)} on
+     * {@code Axis.ZP}). Vocabulary-only in 26.1 - no vanilla block-overlay layer emits a
+     * {@code rotate_z} row - but present so a future one composes in the correct PoseStack order.
+     */
+    public record RotateZ(float degrees) implements TransformOp {}
 
     /**
      * Per-axis scale {@code (x, y, z)}. Negative components flip the axis.
@@ -976,6 +983,7 @@ public class EntityModelLoader {
                             opObj.get("z").getAsFloat()));
                         case "rotate_y" -> ops.add(new RotateY(opObj.get("degrees").getAsFloat()));
                         case "rotate_x" -> ops.add(new RotateX(opObj.get("degrees").getAsFloat()));
+                        case "rotate_z" -> ops.add(new RotateZ(opObj.get("degrees").getAsFloat()));
                         case "scale" -> ops.add(new Scale(
                             opObj.get("x").getAsFloat(),
                             opObj.get("y").getAsFloat(),
