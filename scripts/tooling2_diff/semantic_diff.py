@@ -30,6 +30,10 @@ import sys
 ENVELOPE_KEYS = {"//", "format", "source_version", "version", "generated_by", "comment"}
 MAX_DEFAULT = 50
 
+# Natural row keys for array payloads (snapshot files: tints/effects/maps rows), in priority
+# order; a scalar-element array (glint items) keys each row on the element itself.
+NATURAL_KEYS = ("block", "effect", "type", "id")
+
 
 def load(path):
     with open(path, encoding="utf-8") as handle:
@@ -37,7 +41,7 @@ def load(path):
 
 
 def payload_of(doc, override):
-    """The payload member: the override when given, else the first dict-valued non-envelope member."""
+    """The payload member: the override when given, else the first dict/list non-envelope member."""
     if override:
         if override not in doc:
             sys.exit(f"payload key '{override}' not in document")
@@ -45,9 +49,24 @@ def payload_of(doc, override):
     for key, value in doc.items():
         if key in ENVELOPE_KEYS:
             continue
-        if isinstance(value, dict):
+        if isinstance(value, (dict, list)):
             return key, value
-    sys.exit("no dict-valued payload member found (pass --payload)")
+    sys.exit("no dict- or list-valued payload member found (pass --payload)")
+
+
+def as_keyed(payload, ignore):
+    """Normalises a payload to a keyed dict: dicts pass through; arrays key each row on its
+    natural id field (or the scalar element itself), dropping any ignored (v2-only) row keys."""
+    if isinstance(payload, dict):
+        return payload
+    rows = {}
+    for index, row in enumerate(payload):
+        if isinstance(row, dict):
+            key = next((str(row[k]) for k in NATURAL_KEYS if k in row), str(index))
+            rows[key] = {k: v for k, v in row.items() if k not in ignore}
+        else:
+            rows[str(row)] = row
+    return rows
 
 
 def canon(value):
@@ -125,14 +144,18 @@ def main():
     parser.add_argument("--levels", default="L1,L2,L3")
     parser.add_argument("--payload", default=None, help="payload member name (auto-detected when omitted)")
     parser.add_argument("--axis-rows", action="store_true", help="add the per-family axis row comparison to L1")
+    parser.add_argument("--ignore-keys", default="", help="comma-separated row keys to drop before compare (v2-only fields)")
     parser.add_argument("--max-findings", type=int, default=MAX_DEFAULT)
     args = parser.parse_args()
 
     levels = {level.strip().upper() for level in args.levels.split(",")}
+    ignore = {key.strip() for key in args.ignore_keys.split(",") if key.strip()}
     legacy_doc = load(args.legacy)
     v2_doc = load(args.v2)
-    legacy_key, legacy = payload_of(legacy_doc, args.payload)
-    v2_key, v2 = payload_of(v2_doc, args.payload)
+    legacy_key, legacy_raw = payload_of(legacy_doc, args.payload)
+    v2_key, v2_raw = payload_of(v2_doc, args.payload)
+    legacy = as_keyed(legacy_raw, ignore)
+    v2 = as_keyed(v2_raw, ignore)
     print(f"payload: legacy '{legacy_key}' ({len(legacy)} keys) vs v2 '{v2_key}' ({len(v2)} keys)")
 
     l1_misses = 0
