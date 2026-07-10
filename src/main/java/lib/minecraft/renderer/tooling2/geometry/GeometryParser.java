@@ -1812,76 +1812,42 @@ public final class GeometryParser {
                 }
             }
             case "addBox" -> {
-                // Five addBox variants observed in vanilla (names/CubeDeformation refs don't
-                // land on numStack, so only the numeric literals + boolean mirror flag drive
-                // the pop order):
-                //  1. (FFFFFF) or (FFFFFF + CubeDeformation) - origin xyz + size whd; uses current texOffs.
-                //  2. (FFFFFFZ) or (FFFFFFZ + CubeDeformation) - origin + size + mirror flag.
-                //     {@code GuardianModel.createBodyLayer}'s third head cube uses this with
-                //     {@code mirror=true}; without popping the boolean, the numStack top
-                //     consumed as the d-size is the mirror int (1), not the actual depth.
-                //  3. (Ljava/lang/String;FFFFFF) - named single-cube, uses current texOffs.
-                //  4. (Ljava/lang/String;FFFIIIII) - named multi-cube with inline (w,h,d,u,v) ints.
-                //     Dragon's head bone stacks 6 cubes this way, each with its own UV.
-                //  5. (Ljava/lang/String;FFFIII,CubeDeformation,II) - named multi-cube with
-                //     int (w,h,d) + inline UV (u,v), split by a CubeDeformation ref (cat / ocelot
-                //     nose / ear / tail via AdultFelineModel.createBodyMesh). The two named-int
-                //     variants (4, 5) are disambiguated by whether "CubeDeformation;II" appears
-                //     in the descriptor, since both start (Ljava/lang/String;FFFIII).
-                if (methodInsn.desc.startsWith("(Ljava/lang/String;FFFIIIII")) {
-                    requireStack(state, 8, "CubeListBuilder.addBox(name,FFFIIIII)");
-                    int v = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) v");
-                    int u = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) u");
-                    int d = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) d");
-                    int h = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) h");
-                    int w = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) w");
-                    float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) z");
-                    float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) y");
-                    float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) x");
-                    emitCube(state, x, y, z, w, h, d, u, v);
-                } else if (methodInsn.desc.startsWith("(Ljava/lang/String;FFFIII")
-                        && methodInsn.desc.contains("CubeDeformation;II")) {
-                    // Variant: addBox(name, F, F, F, I, I, I, CubeDeformation, I, I) - named
-                    // multi-cube with int dimensions (w, h, d) plus per-cube UV (u, v) split by
-                    // a CubeDeformation arg. Used by AdultFelineModel.createBodyMesh's nose /
-                    // ear / tail bones (cat / ocelot family). The CubeDeformation is an object
-                    // ref, not on numStack; pop the 5 ints + 3 floats around it.
-                    requireStack(state, 8, "CubeListBuilder.addBox(name,FFFIII,CubeDeformation,II)");
-                    int v = popIntWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) v");
-                    int u = popIntWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) u");
-                    int d = popIntWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) d");
-                    int h = popIntWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) h");
-                    int w = popIntWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) w");
-                    float z = popFloatWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) z");
-                    float y = popFloatWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) y");
-                    float x = popFloatWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) x");
-                    emitCube(state, x, y, z, w, h, d, u, v);
-                } else if (methodInsn.desc.startsWith("(FFFFFFZ") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFFZ")) {
-                    // Mirror-flagged addBox: pop the trailing boolean first so the float
-                    // pop order isn't shifted by one. {@code mirror=true} flips face UVs on
-                    // this cube only (does not affect the builder's pendingMirror state for
-                    // subsequent cubes).
-                    requireStack(state, 7, "CubeListBuilder.addBox(FFFFFFZ)");
-                    int cubeMirror = popIntWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) mirror");
-                    float d = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) d");
-                    float h = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) h");
-                    float w = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) w");
-                    float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) z");
-                    float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) y");
-                    float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) x");
+                // Pop order is fully determined by the descriptor's arg types [D44]: the
+                // String name and any CubeDeformation ref never land on numStack, so
+                // {@link #popCubeArgs} pops only the numeric args (floats via popFloat, ints /
+                // the mirror boolean via popInt) in reverse and hands them back forward-ordered.
+                // Vanilla emits three cube shapes; the descriptor prefix selects which:
+                //  - inline-UV named multi-cube: (Ljava/lang/String;FFFIIIII) or the
+                //    CubeDeformation-split (Ljava/lang/String;FFFIII,CubeDeformation,II) - both
+                //    decode to 8 numerics (origin xyz + size whd + inline uv). Dragon head;
+                //    cat / ocelot nose / ear / tail via AdultFelineModel.createBodyMesh.
+                //  - mirror-flagged: (FFFFFFZ) / (Ljava/lang/String;FFFFFFZ) - 6 floats + a
+                //    per-cube mirror bool. GuardianModel's third head cube uses mirror=true;
+                //    without popping the boolean the d-size would consume the mirror int (1).
+                //  - plain: (FFFFFF) / (Ljava/lang/String;FFFFFF), incl. the +CubeDeformation
+                //    overload - 6 floats, using the current texOffs UV.
+                String desc = methodInsn.desc;
+                boolean inlineUv = desc.startsWith("(Ljava/lang/String;FFFIIIII")
+                    || (desc.startsWith("(Ljava/lang/String;FFFIII") && desc.contains("CubeDeformation;II"));
+                if (inlineUv) {
+                    Number[] a = popCubeArgs(state, desc, "addBox(inline-uv)");
+                    emitCube(state, a[0].floatValue(), a[1].floatValue(), a[2].floatValue(),
+                        a[3].floatValue(), a[4].floatValue(), a[5].floatValue(), a[6].intValue(), a[7].intValue());
+                } else if (desc.startsWith("(FFFFFFZ") || desc.startsWith("(Ljava/lang/String;FFFFFFZ")) {
+                    // Mirror-flagged: parseArgTypes decodes the trailing boolean as 'Z' so
+                    // popCubeArgs pops it (as an int) first, keeping the float pop order intact.
+                    // mirror=true flips face UVs on this cube only (does not touch the builder's
+                    // pendingMirror state for subsequent cubes).
+                    Number[] a = popCubeArgs(state, desc, "addBox(FFFFFFZ)");
                     boolean savedMirror = state.frame.pendingMirror;
-                    if (state.mode == Mode.EVALUATING) state.frame.pendingMirror = cubeMirror != 0;
-                    emitCube(state, x, y, z, w, h, d, state.frame.pendingUv[0], state.frame.pendingUv[1]);
+                    if (state.mode == Mode.EVALUATING) state.frame.pendingMirror = a[6].intValue() != 0;
+                    emitCube(state, a[0].floatValue(), a[1].floatValue(), a[2].floatValue(),
+                        a[3].floatValue(), a[4].floatValue(), a[5].floatValue(), state.frame.pendingUv[0], state.frame.pendingUv[1]);
                     state.frame.pendingMirror = savedMirror;
-                } else if (methodInsn.desc.startsWith("(FFFFFF") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFF")) {
-                    requireStack(state, 6, "CubeListBuilder.addBox(FFFFFF)");
-                    float d = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) d");
-                    float h = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) h");
-                    float w = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) w");
-                    float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) z");
-                    float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) y");
-                    float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) x");
-                    emitCube(state, x, y, z, w, h, d, state.frame.pendingUv[0], state.frame.pendingUv[1]);
+                } else if (desc.startsWith("(FFFFFF") || desc.startsWith("(Ljava/lang/String;FFFFFF")) {
+                    Number[] a = popCubeArgs(state, desc, "addBox(FFFFFF)");
+                    emitCube(state, a[0].floatValue(), a[1].floatValue(), a[2].floatValue(),
+                        a[3].floatValue(), a[4].floatValue(), a[5].floatValue(), state.frame.pendingUv[0], state.frame.pendingUv[1]);
                 }
             }
             case "mirror" -> {
@@ -1907,6 +1873,47 @@ public final class GeometryParser {
             }
             default -> { }
         }
+    }
+
+    /**
+     * Pops one {@code addBox} overload's numeric args off {@link WalkState#numStack} in
+     * reverse (JVM operand order) per the descriptor's decoded arg types [D44] - {@code 'F'}
+     * via {@link #popFloatWithDiagnostics}, {@code 'I'} / {@code 'Z'} via
+     * {@link #popIntWithDiagnostics}; reference args (the {@code String} name, any
+     * {@code CubeDeformation}) never reach {@code numStack} so they are skipped. Returns the
+     * boxed values forward-ordered (source arg 0 first), each an {@link Integer} or
+     * {@link Float} preserving the arg's primitive type, so the caller's
+     * {@code intValue()} / {@code floatValue()} reconstruction matches the historical
+     * per-variant pops byte-for-byte (int-typed size / UV args widen to {@code float} at the
+     * {@link #emitCube} call exactly as before). Guards with a {@link #requireStack} underflow
+     * check on the numeric-arg count.
+     *
+     * @param state the parse state whose {@code numStack} supplies the literals
+     * @param descriptor the {@code addBox} call descriptor
+     * @param where a dispatch-site label for the underflow / non-literal diagnostic
+     * @return the boxed numeric args in forward (source) order
+     */
+    private static @NotNull Number @NotNull [] popCubeArgs(@NotNull WalkState state, @NotNull String descriptor, @NotNull String where) {
+        char[] argTypes = parseArgTypes(descriptor);
+        int count = 0;
+        for (char t : argTypes) if (t != 'L' && t != '[') count++;
+        String label = "CubeListBuilder." + where;
+        requireStack(state, count, label);
+        Number[] forward = new Number[count];
+        int idx = count - 1;
+        for (int i = argTypes.length - 1; i >= 0; i--) {
+            char t = argTypes[i];
+            if (t == 'L' || t == '[') continue;
+            // Pop with the type-correct method (popFloat vs popInt route to distinct
+            // LiteralStack pops); an explicit if/else avoids the Float/Integer ternary's
+            // numeric-promotion trap that would collapse both to float.
+            if (t == 'F' || t == 'D') {
+                forward[idx--] = Float.valueOf(popFloatWithDiagnostics(state, label));
+            } else {
+                forward[idx--] = Integer.valueOf(popIntWithDiagnostics(state, label));
+            }
+        }
+        return forward;
     }
 
     /**
