@@ -11,6 +11,7 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.tooling.ToolingBlockTints;
+import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -69,11 +70,14 @@ public class BlockTintsLoader {
         LinkedHashMap<String, Block.Tint> tints = new LinkedHashMap<>();
 
         try (InputStream stream = BlockTintsLoader.class.getResourceAsStream(RESOURCE_PATH)) {
-            if (stream == null)
+            if (stream == null && !LegacyBridge.active())
                 throw new PipelineException("Vanilla tints resource '%s' not found on the classpath", RESOURCE_PATH);
 
-            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            JsonObject root = GSON.fromJson(json, JsonObject.class);
+            // tooling2 bridge seam (10-bridge SS2.3): the tint table is materialized from
+            // v2/block_tints.json under the fork-lifetime -Dasset.tooling2.bridge flag.
+            JsonObject root = LegacyBridge.active()
+                ? LegacyBridge.materialize("block_tints.json").toGson().getAsJsonObject()
+                : GSON.fromJson(new String(stream.readAllBytes(), StandardCharsets.UTF_8), JsonObject.class);
             if (root == null || !root.has("tints"))
                 throw new PipelineException("Vanilla tints resource '%s' has no 'tints' array", RESOURCE_PATH);
 

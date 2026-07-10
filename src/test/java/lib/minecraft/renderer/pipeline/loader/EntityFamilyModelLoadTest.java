@@ -56,8 +56,14 @@ class EntityFamilyModelLoadTest {
             defs.get("minecraft:cow_warm").stateTextures().get("baby"), is("cow/cow_warm_baby"));
         assertThat("non-variant entity sources its baby texture from the isBaby binding",
             defs.get("minecraft:sheep").stateTextures().get("baby"), is("sheep/sheep_baby"));
+        // axolotl gained an id-encoded variant axis only in v2 (a recorded bridge divergence), so the
+        // default enum variant is the flat "minecraft:axolotl" against the legacy resource but the
+        // "minecraft:axolotl_lucy" default-variant pseudo-id against bridge output; both carry the same
+        // <adult>_baby fallback texture, so look up whichever id is present.
+        EntityDefinition axolotl = defs.get("minecraft:axolotl");
+        if (axolotl == null) axolotl = defs.get("minecraft:axolotl_lucy");
         assertThat("enum-variant entity falls back to the <adult>_baby naming convention",
-            defs.get("minecraft:axolotl").stateTextures().get("baby"), is("axolotl/axolotl_lucy_baby"));
+            axolotl.stateTextures().get("baby"), is("axolotl/axolotl_lucy_baby"));
         assertThat("cow has a distinct baby mesh", defs.get("minecraft:cow_temperate").babyModel().isPresent(), is(true));
     }
 

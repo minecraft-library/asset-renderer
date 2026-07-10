@@ -1,0 +1,1166 @@
+{
+  "//": "tooling2.blockModels · regen: ./gradlew blockModels2 · order: BlockEntityRenderers.<clinit> registration order x BlockFamilyPolicies split order",
+  "format": 2,
+  "source_version": "26.1",
+  "models": {
+    "minecraft:sign": {
+      "renderer": "net/minecraft/client/renderer/blockentity/StandingSignRenderer",
+      "geometry": "StandingSignRenderer#createSignLayer@iparam=0:1",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          8.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0,
+          0.6666667
+        ]
+      },
+      "blocks": [
+        {
+          "block": "minecraft:oak_sign",
+          "texture": "minecraft:textures/entity/signs/oak.png"
+        },
+        {
+          "block": "minecraft:spruce_sign",
+          "texture": "minecraft:textures/entity/signs/spruce.png"
+        },
+        {
+          "block": "minecraft:birch_sign",
+          "texture": "minecraft:textures/entity/signs/birch.png"
+        },
+        {
+          "block": "minecraft:acacia_sign",
+          "texture": "minecraft:textures/entity/signs/acacia.png"
+        },
+        {
+          "block": "minecraft:cherry_sign",
+          "texture": "minecraft:textures/entity/signs/cherry.png"
+        },
+        {
+          "block": "minecraft:jungle_sign",
+          "texture": "minecraft:textures/entity/signs/jungle.png"
+        },
+        {
+          "block": "minecraft:dark_oak_sign",
+          "texture": "minecraft:textures/entity/signs/dark_oak.png"
+        },
+        {
+          "block": "minecraft:pale_oak_sign",
+          "texture": "minecraft:textures/entity/signs/pale_oak.png"
+        },
+        {
+          "block": "minecraft:crimson_sign",
+          "texture": "minecraft:textures/entity/signs/crimson.png"
+        },
+        {
+          "block": "minecraft:warped_sign",
+          "texture": "minecraft:textures/entity/signs/warped.png"
+        },
+        {
+          "block": "minecraft:mangrove_sign",
+          "texture": "minecraft:textures/entity/signs/mangrove.png"
+        },
+        {
+          "block": "minecraft:bamboo_sign",
+          "texture": "minecraft:textures/entity/signs/bamboo.png"
+        }
+      ]
+    },
+    "minecraft:wall_sign": {
+      "renderer": "net/minecraft/client/renderer/blockentity/StandingSignRenderer",
+      "geometry": "StandingSignRenderer#createSignLayer@iparam=0:0",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          3.0,
+          1.0,
+          180.0,
+          0.0,
+          0.0,
+          0.6666667
+        ]
+      },
+      "blocks": [
+        {
+          "block": "minecraft:oak_wall_sign",
+          "texture": "minecraft:textures/entity/signs/oak.png"
+        },
+        {
+          "block": "minecraft:spruce_wall_sign",
+          "texture": "minecraft:textures/entity/signs/spruce.png"
+        },
+        {
+          "block": "minecraft:birch_wall_sign",
+          "texture": "minecraft:textures/entity/signs/birch.png"
+        },
+        {
+          "block": "minecraft:acacia_wall_sign",
+          "texture": "minecraft:textures/entity/signs/acacia.png"
+        },
+        {
+          "block": "minecraft:cherry_wall_sign",
+          "texture": "minecraft:textures/entity/signs/cherry.png"
+        },
+        {
+          "block": "minecraft:jungle_wall_sign",
+          "texture": "minecraft:textures/entity/signs/jungle.png"
+        },
+        {
+          "block": "minecraft:dark_oak_wall_sign",
+          "texture": "minecraft:textures/entity/signs/dark_oak.png"
+        },
+        {
+          "block": "minecraft:pale_oak_wall_sign",
+          "texture": "minecraft:textures/entity/signs/pale_oak.png"
+        },
+        {
+          "block": "minecraft:crimson_wall_sign",
+          "texture": "minecraft:textures/entity/signs/crimson.png"
+        },
+        {
+          "block": "minecraft:warped_wall_sign",
+          "texture": "minecraft:textures/entity/signs/warped.png"
+        },
+        {
+          "block": "minecraft:mangrove_wall_sign",
+          "texture": "minecraft:textures/entity/signs/mangrove.png"
+        },
+        {
+          "block": "minecraft:bamboo_wall_sign",
+          "texture": "minecraft:textures/entity/signs/bamboo.png"
+        }
+      ]
+    },
+    "minecraft:hanging_sign": {
+      "renderer": "net/minecraft/client/renderer/blockentity/HangingSignRenderer",
+      "geometry": "HangingSignRenderer#createHangingSignLayer@ref=CEILING",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          10.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0
+        ]
+      },
+      "blocks": [
+        {
+          "block": "minecraft:oak_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/oak.png"
+        },
+        {
+          "block": "minecraft:spruce_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/spruce.png"
+        },
+        {
+          "block": "minecraft:birch_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/birch.png"
+        },
+        {
+          "block": "minecraft:acacia_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/acacia.png"
+        },
+        {
+          "block": "minecraft:cherry_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/cherry.png"
+        },
+        {
+          "block": "minecraft:jungle_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/jungle.png"
+        },
+        {
+          "block": "minecraft:dark_oak_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/dark_oak.png"
+        },
+        {
+          "block": "minecraft:pale_oak_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/pale_oak.png"
+        },
+        {
+          "block": "minecraft:crimson_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/crimson.png"
+        },
+        {
+          "block": "minecraft:warped_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/warped.png"
+        },
+        {
+          "block": "minecraft:mangrove_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/mangrove.png"
+        },
+        {
+          "block": "minecraft:bamboo_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/bamboo.png"
+        }
+      ]
+    },
+    "minecraft:hanging_sign_attached": {
+      "renderer": "net/minecraft/client/renderer/blockentity/HangingSignRenderer",
+      "geometry": "HangingSignRenderer#createHangingSignLayer@ref=CEILING_MIDDLE",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          10.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0
+        ]
+      },
+      "blocks": [
+        {
+          "block": "minecraft:oak_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/oak.png",
+          "variant": "attached=true"
+        },
+        {
+          "block": "minecraft:spruce_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/spruce.png",
+          "variant": "attached=true"
+        },
+        {
+          "block": "minecraft:birch_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/birch.png",
+          "variant": "attached=true"
+        },
+        {
+          "block": "minecraft:acacia_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/acacia.png",
+          "variant": "attached=true"
+        },
+        {
+          "block": "minecraft:cherry_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/cherry.png",
+          "variant": "attached=true"
+        },
+        {
+          "block": "minecraft:jungle_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/jungle.png",
+          "variant": "attached=true"
+        },
+        {
+          "block": "minecraft:dark_oak_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/dark_oak.png",
+          "variant": "attached=true"
+        },
+        {
+          "block": "minecraft:pale_oak_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/pale_oak.png",
+          "variant": "attached=true"
+        },
+        {
+          "block": "minecraft:crimson_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/crimson.png",
+          "variant": "attached=true"
+        },
+        {
+          "block": "minecraft:warped_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/warped.png",
+          "variant": "attached=true"
+        },
+        {
+          "block": "minecraft:mangrove_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/mangrove.png",
+          "variant": "attached=true"
+        },
+        {
+          "block": "minecraft:bamboo_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/bamboo.png",
+          "variant": "attached=true"
+        }
+      ]
+    },
+    "minecraft:wall_hanging_sign": {
+      "renderer": "net/minecraft/client/renderer/blockentity/HangingSignRenderer",
+      "geometry": "HangingSignRenderer#createHangingSignLayer@ref=WALL",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          10.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0
+        ]
+      },
+      "blocks": [
+        {
+          "block": "minecraft:oak_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/oak.png"
+        },
+        {
+          "block": "minecraft:spruce_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/spruce.png"
+        },
+        {
+          "block": "minecraft:birch_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/birch.png"
+        },
+        {
+          "block": "minecraft:acacia_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/acacia.png"
+        },
+        {
+          "block": "minecraft:cherry_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/cherry.png"
+        },
+        {
+          "block": "minecraft:jungle_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/jungle.png"
+        },
+        {
+          "block": "minecraft:dark_oak_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/dark_oak.png"
+        },
+        {
+          "block": "minecraft:pale_oak_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/pale_oak.png"
+        },
+        {
+          "block": "minecraft:crimson_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/crimson.png"
+        },
+        {
+          "block": "minecraft:warped_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/warped.png"
+        },
+        {
+          "block": "minecraft:mangrove_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/mangrove.png"
+        },
+        {
+          "block": "minecraft:bamboo_wall_hanging_sign",
+          "texture": "minecraft:textures/entity/signs/hanging/bamboo.png"
+        }
+      ]
+    },
+    "minecraft:chest": {
+      "renderer": "net/minecraft/client/renderer/blockentity/ChestRenderer",
+      "geometry": "ChestModel#createSingleBodyLayer",
+      "y_axis": "UP",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 180.0,
+        "flip": false
+      },
+      "blocks": [
+        {
+          "block": "minecraft:chest",
+          "texture": "minecraft:textures/entity/chest/normal.png"
+        },
+        {
+          "block": "minecraft:copper_chest",
+          "texture": "minecraft:textures/entity/chest/copper.png"
+        },
+        {
+          "block": "minecraft:exposed_copper_chest",
+          "texture": "minecraft:textures/entity/chest/copper_exposed.png"
+        },
+        {
+          "block": "minecraft:weathered_copper_chest",
+          "texture": "minecraft:textures/entity/chest/copper_weathered.png"
+        },
+        {
+          "block": "minecraft:oxidized_copper_chest",
+          "texture": "minecraft:textures/entity/chest/copper_oxidized.png"
+        },
+        {
+          "block": "minecraft:waxed_copper_chest",
+          "texture": "minecraft:textures/entity/chest/copper.png"
+        },
+        {
+          "block": "minecraft:waxed_exposed_copper_chest",
+          "texture": "minecraft:textures/entity/chest/copper_exposed.png"
+        },
+        {
+          "block": "minecraft:waxed_weathered_copper_chest",
+          "texture": "minecraft:textures/entity/chest/copper_weathered.png"
+        },
+        {
+          "block": "minecraft:waxed_oxidized_copper_chest",
+          "texture": "minecraft:textures/entity/chest/copper_oxidized.png"
+        },
+        {
+          "block": "minecraft:trapped_chest",
+          "texture": "minecraft:textures/entity/chest/trapped.png"
+        },
+        {
+          "block": "minecraft:ender_chest",
+          "texture": "minecraft:textures/entity/chest/ender.png"
+        }
+      ]
+    },
+    "minecraft:enchanting_table": {
+      "renderer": "net/minecraft/client/renderer/blockentity/EnchantTableRenderer",
+      "geometry": "BookModel#createBodyLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": false
+      }
+    },
+    "minecraft:lectern": {
+      "renderer": "net/minecraft/client/renderer/blockentity/LecternRenderer",
+      "geometry": "BookModel#createBodyLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": false
+      }
+    },
+    "minecraft:skull_head": {
+      "renderer": "net/minecraft/client/renderer/blockentity/SkullBlockRenderer",
+      "geometry": "SkullModel#createMobHeadLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 180.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          0.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0
+        ]
+      },
+      "blocks": [
+        {
+          "block": "minecraft:skeleton_skull",
+          "texture": "minecraft:textures/entity/skeleton/skeleton.png"
+        },
+        {
+          "block": "minecraft:skeleton_wall_skull",
+          "texture": "minecraft:textures/entity/skeleton/skeleton.png"
+        },
+        {
+          "block": "minecraft:creeper_head",
+          "texture": "minecraft:textures/entity/creeper/creeper.png"
+        },
+        {
+          "block": "minecraft:creeper_wall_head",
+          "texture": "minecraft:textures/entity/creeper/creeper.png"
+        },
+        {
+          "block": "minecraft:wither_skeleton_skull",
+          "texture": "minecraft:textures/entity/skeleton/wither_skeleton.png"
+        },
+        {
+          "block": "minecraft:wither_skeleton_wall_skull",
+          "texture": "minecraft:textures/entity/skeleton/wither_skeleton.png"
+        }
+      ]
+    },
+    "minecraft:skull_humanoid_head": {
+      "renderer": "net/minecraft/client/renderer/blockentity/SkullBlockRenderer",
+      "geometry": "SkullModel#createHumanoidHeadLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 180.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          0.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0
+        ]
+      },
+      "blocks": [
+        {
+          "block": "minecraft:zombie_head",
+          "texture": "minecraft:textures/entity/zombie/zombie.png"
+        },
+        {
+          "block": "minecraft:zombie_wall_head",
+          "texture": "minecraft:textures/entity/zombie/zombie.png"
+        },
+        {
+          "block": "minecraft:player_head",
+          "texture": "minecraft:textures/entity/player/slim/steve.png"
+        },
+        {
+          "block": "minecraft:player_wall_head",
+          "texture": "minecraft:textures/entity/player/slim/steve.png"
+        }
+      ]
+    },
+    "minecraft:skull_dragon_head": {
+      "renderer": "net/minecraft/client/renderer/blockentity/SkullBlockRenderer",
+      "geometry": "DragonHeadModel#createHeadLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 180.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          0.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0
+        ]
+      },
+      "blocks": [
+        {
+          "block": "minecraft:dragon_head",
+          "texture": "minecraft:textures/entity/enderdragon/dragon.png"
+        },
+        {
+          "block": "minecraft:dragon_wall_head",
+          "texture": "minecraft:textures/entity/enderdragon/dragon.png"
+        }
+      ]
+    },
+    "minecraft:skull_piglin_head": {
+      "renderer": "net/minecraft/client/renderer/blockentity/SkullBlockRenderer",
+      "geometry": "PiglinHeadModel#createHeadModel",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 180.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          0.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0
+        ]
+      },
+      "blocks": [
+        {
+          "block": "minecraft:piglin_head",
+          "texture": "minecraft:textures/entity/piglin/piglin.png"
+        },
+        {
+          "block": "minecraft:piglin_wall_head",
+          "texture": "minecraft:textures/entity/piglin/piglin.png"
+        }
+      ]
+    },
+    "minecraft:banner": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BannerRenderer",
+      "geometry": "BannerModel#createBodyLayer@iparam=0:1",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 180.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          0.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0,
+          0.6666667
+        ]
+      },
+      "parts": [
+        {
+          "model": "minecraft:banner_flag"
+        }
+      ],
+      "blocks": [
+        {
+          "block": "minecraft:white_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "WHITE"
+        },
+        {
+          "block": "minecraft:orange_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "ORANGE"
+        },
+        {
+          "block": "minecraft:magenta_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "MAGENTA"
+        },
+        {
+          "block": "minecraft:light_blue_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "LIGHT_BLUE"
+        },
+        {
+          "block": "minecraft:yellow_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "YELLOW"
+        },
+        {
+          "block": "minecraft:lime_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "LIME"
+        },
+        {
+          "block": "minecraft:pink_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "PINK"
+        },
+        {
+          "block": "minecraft:gray_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "GRAY"
+        },
+        {
+          "block": "minecraft:light_gray_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "LIGHT_GRAY"
+        },
+        {
+          "block": "minecraft:cyan_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "CYAN"
+        },
+        {
+          "block": "minecraft:purple_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "PURPLE"
+        },
+        {
+          "block": "minecraft:blue_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "BLUE"
+        },
+        {
+          "block": "minecraft:brown_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "BROWN"
+        },
+        {
+          "block": "minecraft:green_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "GREEN"
+        },
+        {
+          "block": "minecraft:red_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "RED"
+        },
+        {
+          "block": "minecraft:black_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "BLACK"
+        }
+      ]
+    },
+    "minecraft:wall_banner": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BannerRenderer",
+      "geometry": "BannerModel#createBodyLayer@iparam=0:0",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 180.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          0.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0,
+          0.6666667
+        ]
+      },
+      "parts": [
+        {
+          "model": "minecraft:wall_banner_flag"
+        }
+      ],
+      "blocks": [
+        {
+          "block": "minecraft:white_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "WHITE"
+        },
+        {
+          "block": "minecraft:orange_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "ORANGE"
+        },
+        {
+          "block": "minecraft:magenta_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "MAGENTA"
+        },
+        {
+          "block": "minecraft:light_blue_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "LIGHT_BLUE"
+        },
+        {
+          "block": "minecraft:yellow_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "YELLOW"
+        },
+        {
+          "block": "minecraft:lime_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "LIME"
+        },
+        {
+          "block": "minecraft:pink_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "PINK"
+        },
+        {
+          "block": "minecraft:gray_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "GRAY"
+        },
+        {
+          "block": "minecraft:light_gray_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "LIGHT_GRAY"
+        },
+        {
+          "block": "minecraft:cyan_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "CYAN"
+        },
+        {
+          "block": "minecraft:purple_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "PURPLE"
+        },
+        {
+          "block": "minecraft:blue_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "BLUE"
+        },
+        {
+          "block": "minecraft:brown_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "BROWN"
+        },
+        {
+          "block": "minecraft:green_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "GREEN"
+        },
+        {
+          "block": "minecraft:red_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "RED"
+        },
+        {
+          "block": "minecraft:black_wall_banner",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
+          "tint": "BLACK"
+        }
+      ]
+    },
+    "minecraft:banner_flag": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BannerRenderer",
+      "geometry": "BannerFlagModel#createFlagLayer@iparam=0:1",
+      "y_axis": "DOWN",
+      "tinted": true,
+      "inventory": {
+        "y_rotation": 180.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          0.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0,
+          0.6666667
+        ]
+      }
+    },
+    "minecraft:wall_banner_flag": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BannerRenderer",
+      "geometry": "BannerFlagModel#createFlagLayer@iparam=0:0",
+      "y_axis": "DOWN",
+      "tinted": true,
+      "inventory": {
+        "y_rotation": 180.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          0.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0,
+          0.6666667
+        ]
+      }
+    },
+    "minecraft:shulker_box": {
+      "renderer": "net/minecraft/client/renderer/blockentity/ShulkerBoxRenderer",
+      "geometry": "ShulkerModel#createBoxLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          24.0,
+          8.0,
+          180.0,
+          0.0,
+          0.0
+        ]
+      },
+      "blocks": [
+        {
+          "block": "minecraft:shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker.png"
+        },
+        {
+          "block": "minecraft:white_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_white.png"
+        },
+        {
+          "block": "minecraft:orange_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_orange.png"
+        },
+        {
+          "block": "minecraft:magenta_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_magenta.png"
+        },
+        {
+          "block": "minecraft:light_blue_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_light_blue.png"
+        },
+        {
+          "block": "minecraft:yellow_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_yellow.png"
+        },
+        {
+          "block": "minecraft:lime_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_lime.png"
+        },
+        {
+          "block": "minecraft:pink_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_pink.png"
+        },
+        {
+          "block": "minecraft:gray_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_gray.png"
+        },
+        {
+          "block": "minecraft:light_gray_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_light_gray.png"
+        },
+        {
+          "block": "minecraft:cyan_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_cyan.png"
+        },
+        {
+          "block": "minecraft:purple_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_purple.png"
+        },
+        {
+          "block": "minecraft:blue_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_blue.png"
+        },
+        {
+          "block": "minecraft:brown_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_brown.png"
+        },
+        {
+          "block": "minecraft:green_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_green.png"
+        },
+        {
+          "block": "minecraft:red_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_red.png"
+        },
+        {
+          "block": "minecraft:black_shulker_box",
+          "texture": "minecraft:textures/entity/shulker/shulker_black.png"
+        }
+      ]
+    },
+    "minecraft:bed_head": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BedRenderer",
+      "geometry": "BedRenderer#createHeadLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true,
+        "transform": [
+          0.0,
+          9.0,
+          0.0,
+          90.0,
+          0.0,
+          0.0
+        ]
+      },
+      "icon": {
+        "rotation": 90
+      },
+      "parts": [
+        {
+          "model": "minecraft:bed_foot",
+          "offset": [
+            0,
+            0,
+            16
+          ]
+        }
+      ],
+      "blocks": [
+        {
+          "block": "minecraft:white_bed",
+          "texture": "minecraft:textures/entity/bed/white.png"
+        },
+        {
+          "block": "minecraft:orange_bed",
+          "texture": "minecraft:textures/entity/bed/orange.png"
+        },
+        {
+          "block": "minecraft:magenta_bed",
+          "texture": "minecraft:textures/entity/bed/magenta.png"
+        },
+        {
+          "block": "minecraft:light_blue_bed",
+          "texture": "minecraft:textures/entity/bed/light_blue.png"
+        },
+        {
+          "block": "minecraft:yellow_bed",
+          "texture": "minecraft:textures/entity/bed/yellow.png"
+        },
+        {
+          "block": "minecraft:lime_bed",
+          "texture": "minecraft:textures/entity/bed/lime.png"
+        },
+        {
+          "block": "minecraft:pink_bed",
+          "texture": "minecraft:textures/entity/bed/pink.png"
+        },
+        {
+          "block": "minecraft:gray_bed",
+          "texture": "minecraft:textures/entity/bed/gray.png"
+        },
+        {
+          "block": "minecraft:light_gray_bed",
+          "texture": "minecraft:textures/entity/bed/light_gray.png"
+        },
+        {
+          "block": "minecraft:cyan_bed",
+          "texture": "minecraft:textures/entity/bed/cyan.png"
+        },
+        {
+          "block": "minecraft:purple_bed",
+          "texture": "minecraft:textures/entity/bed/purple.png"
+        },
+        {
+          "block": "minecraft:blue_bed",
+          "texture": "minecraft:textures/entity/bed/blue.png"
+        },
+        {
+          "block": "minecraft:brown_bed",
+          "texture": "minecraft:textures/entity/bed/brown.png"
+        },
+        {
+          "block": "minecraft:green_bed",
+          "texture": "minecraft:textures/entity/bed/green.png"
+        },
+        {
+          "block": "minecraft:red_bed",
+          "texture": "minecraft:textures/entity/bed/red.png"
+        },
+        {
+          "block": "minecraft:black_bed",
+          "texture": "minecraft:textures/entity/bed/black.png"
+        }
+      ]
+    },
+    "minecraft:bed_foot": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BedRenderer",
+      "geometry": "BedRenderer#createFootLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true,
+        "transform": [
+          0.0,
+          9.0,
+          0.0,
+          90.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "minecraft:conduit": {
+      "renderer": "net/minecraft/client/renderer/blockentity/ConduitRenderer",
+      "geometry": "ConduitRenderer#createShellLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true,
+        "transform": [
+          8.0,
+          8.0,
+          8.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "blocks": [
+        {
+          "block": "minecraft:conduit",
+          "texture": "minecraft:textures/entity/conduit/base.png"
+        }
+      ]
+    },
+    "minecraft:bell_body": {
+      "renderer": "net/minecraft/client/renderer/blockentity/BellRenderer",
+      "geometry": "BellModel#createBodyLayer",
+      "y_axis": "UP",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": false
+      },
+      "icon": {
+        "additive": true
+      },
+      "blocks": [
+        {
+          "block": "minecraft:bell",
+          "texture": "minecraft:textures/entity/bell/bell_body.png"
+        }
+      ]
+    },
+    "minecraft:decorated_pot": {
+      "renderer": "net/minecraft/client/renderer/blockentity/DecoratedPotRenderer",
+      "geometry": "DecoratedPotRenderer#createBaseLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true,
+        "transform": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "parts": [
+        {
+          "model": "minecraft:decorated_pot_sides",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "texture": "minecraft:textures/entity/decorated_pot/decorated_pot_side.png"
+        }
+      ],
+      "blocks": [
+        {
+          "block": "minecraft:decorated_pot",
+          "texture": "minecraft:textures/entity/decorated_pot/decorated_pot_base.png"
+        }
+      ]
+    },
+    "minecraft:decorated_pot_sides": {
+      "renderer": "net/minecraft/client/renderer/blockentity/DecoratedPotRenderer",
+      "geometry": "DecoratedPotRenderer#createSidesLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true,
+        "transform": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "minecraft:copper_golem_statue": {
+      "renderer": "net/minecraft/client/renderer/blockentity/CopperGolemStatueBlockRenderer",
+      "geometry": "CopperGolemModel#createBodyLayer",
+      "y_axis": "DOWN",
+      "tinted": false,
+      "inventory": {
+        "y_rotation": 0.0,
+        "flip": true
+      },
+      "blocks": [
+        {
+          "block": "minecraft:copper_golem_statue",
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem.png"
+        },
+        {
+          "block": "minecraft:exposed_copper_golem_statue",
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_exposed.png"
+        },
+        {
+          "block": "minecraft:weathered_copper_golem_statue",
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_weathered.png"
+        },
+        {
+          "block": "minecraft:oxidized_copper_golem_statue",
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_oxidized.png"
+        },
+        {
+          "block": "minecraft:waxed_copper_golem_statue",
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem.png"
+        },
+        {
+          "block": "minecraft:waxed_exposed_copper_golem_statue",
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_exposed.png"
+        },
+        {
+          "block": "minecraft:waxed_weathered_copper_golem_statue",
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_weathered.png"
+        },
+        {
+          "block": "minecraft:waxed_oxidized_copper_golem_statue",
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_oxidized.png"
+        }
+      ]
+    }
+  }
+}

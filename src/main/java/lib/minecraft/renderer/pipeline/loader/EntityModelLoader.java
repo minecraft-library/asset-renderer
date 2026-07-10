@@ -17,6 +17,7 @@ import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
+import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lombok.Builder;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -79,8 +80,12 @@ public class EntityModelLoader {
      * {@link #loadOverlays}). A larger inflate is a real vanilla {@code CubeDeformation}
      * (tropical_fish 0.008, llama carpet 0.5) that vanilla's bounds walk includes, so it keeps
      * contributing.
+     *
+     * <p>Public solely so the temporary tooling2 bridge ({@code EntityModelsBridge}) re-adds this
+     * exact value onto same-mesh grow-less overlays instead of re-minting a literal (decision 22);
+     * the widening reverts to private when the bridge retires (10-bridge SS9).
      */
-    private static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
+    public static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
 
     /**
      * An entity definition loaded from the bundled resources.
@@ -1152,13 +1157,18 @@ public class EntityModelLoader {
      */
     private static @NotNull Map<String, EntityModelData> readGeometriesJsonResource(@NotNull String path, boolean required) {
         try (InputStream stream = EntityModelLoader.class.getResourceAsStream(path)) {
-            if (stream == null) {
+            if (stream == null && !LegacyBridge.active()) {
                 if (required)
                     throw new PipelineException("Entity geometry resource '%s' not found on the classpath", path);
                 return new LinkedHashMap<>();
             }
-            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            JsonObject root = GSON.fromJson(json, JsonObject.class);
+            // tooling2 bridge seam (10-bridge SS2.3): a fork-lifetime -Dasset.tooling2.bridge run
+            // materializes the legacy-shaped tree from the v2 resources instead of the checked-in
+            // classpath bytes; toggled once per JVM (loadFamilies caches via FAMILIES_CACHE) so
+            // gradle-forked consumers satisfy the never-mid-JVM constraint by construction.
+            JsonObject root = LegacyBridge.active()
+                ? LegacyBridge.materialize("entity_geometry.json").toGson().getAsJsonObject()
+                : GSON.fromJson(new String(stream.readAllBytes(), StandardCharsets.UTF_8), JsonObject.class);
             if (root == null || !root.has("geometries")) return new LinkedHashMap<>();
             JsonObject geometriesJson = root.getAsJsonObject("geometries");
             Map<String, EntityModelData> out = new LinkedHashMap<>();
@@ -1180,10 +1190,14 @@ public class EntityModelLoader {
      */
     private static EntityFamilyFlattener.@NotNull Flat loadFlat() {
         try (InputStream stream = EntityModelLoader.class.getResourceAsStream(MODELS_RESOURCE_PATH)) {
-            if (stream == null)
+            if (stream == null && !LegacyBridge.active())
                 return EntityFamilyFlattener.Flat.empty();
-            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            JsonObject root = GSON.fromJson(json, JsonObject.class);
+            // tooling2 bridge seam (10-bridge SS2.3): see readGeometriesJsonResource - the family form
+            // is materialized from the v2 resources under -Dasset.tooling2.bridge and still flattened
+            // by the untouched EntityFamilyFlattener downstream.
+            JsonObject root = LegacyBridge.active()
+                ? LegacyBridge.materialize("entity_models.json").toGson().getAsJsonObject()
+                : GSON.fromJson(new String(stream.readAllBytes(), StandardCharsets.UTF_8), JsonObject.class);
             if (root == null || !root.has("families"))
                 return EntityFamilyFlattener.Flat.empty();
             return EntityFamilyFlattener.flatten(root.getAsJsonObject("families"));

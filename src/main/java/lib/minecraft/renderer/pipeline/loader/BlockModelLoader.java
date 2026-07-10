@@ -14,6 +14,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.spec.DyeColor;
+import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -76,7 +77,11 @@ public class BlockModelLoader {
      * @throws PipelineException if the resource is missing or cannot be parsed
      */
     public static @NotNull LoadResult load() {
-        JsonObject root = readJson(BLOCK_MODELS_PATH);
+        // tooling2 bridge seam (10-bridge SS2.3): under the fork-lifetime -Dasset.tooling2.bridge flag
+        // the catalog is materialized from the v2 block resources instead of the checked-in bytes.
+        JsonObject root = LegacyBridge.active()
+            ? LegacyBridge.materialize("block_models.json").toGson().getAsJsonObject()
+            : readJson(BLOCK_MODELS_PATH);
 
         JsonObject models = root.has("models")
             ? root.getAsJsonObject("models")

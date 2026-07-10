@@ -350,8 +350,13 @@ public final class EntityFamilyFlattener {
                 optionObj.has("geometry_ref") ? optionObj.get("geometry_ref").getAsString() : familyGeometry);
             addTextureRef(row, optionObj);
             row.addProperty("armor_type", armorType);
-            if (option.equals(defaultOption)) copyCarriedFields(family, row);
-            else row.addProperty("variant_of", baseId);
+            // The family's render fields (overlays, block_overlays, scale, tint, ...) apply to EVERY
+            // variant, not just the default - the render resolves each variant row directly and does
+            // not inherit through variant_of, so a non-default variant would otherwise render bare
+            // (mooshroom_brown with no mushrooms). variant_of stays on the non-default rows purely for
+            // family membership (EntityModelLoader.loadFamilies).
+            copyCarriedFields(family, row);
+            if (!option.equals(defaultOption)) row.addProperty("variant_of", baseId);
 
             entities.add(rowId, row);
             collectStateTextures(rowId, optionObj, stateTextures);
