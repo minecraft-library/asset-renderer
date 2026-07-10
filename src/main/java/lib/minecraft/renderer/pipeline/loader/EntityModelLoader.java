@@ -116,41 +116,15 @@ public class EntityModelLoader {
      *     UV orientation unrotated against the viewer
      * @param rendererScale per-entity render-time scale extracted by
      *     {@code EntityRendererScaleResolver}; defaults to {@code 1f} (identity)
-     * @param stateTextures alternate base textures keyed by behavioural state (wolf
-     *     {@code wild}/{@code tame}/{@code angry}), populated for multi-state variant families.
-     *     Empty for every other entity; the {@code wild}
-     *     entry (when present) equals {@link #textureRef}. Consulted by the renderer when
-     *     {@code EntityAppearance.state} selects a non-default state, else {@link #textureRef} is used
-     * @param collarTexture dyed-collar texture drawn on the body geometry and tinted at render by
-     *     {@code EntityAppearance.collar} (wolf, cat). Present only in the family form
-     *     for collar-bearing entities; empty otherwise
-     * @param babyModel the distinct baked baby mesh, used in place of {@link #model} when
-     *     {@code EntityAppearance.age} selects {@code baby}. Present only in the family form
-     *     for ageable entities with a dedicated {@code Baby<X>Model}; empty otherwise
      * @param boneToggles named bone-visibility toggles (toggle name -&gt; {@link BoneToggle}), flipped
      *     at render when {@code EntityAppearance.toggles} selects the toggle: a default-hidden toggle
      *     (donkey/mule/llama {@code chest}) re-adds its bones, a default-visible toggle (goat
      *     {@code horn}) removes them. The default render is unchanged (chest stripped, horns present);
      *     empty for entities with no toggleable bones
-     * @param largeShape the {@code shape} axis's large alternative (tropical fish): the large body
-     *     mesh + {@code tropical_b} texture + pattern overlays cloned onto it, swapped in by
-     *     the entity definition resolver when the selected pattern's {@code Shape} is large; empty otherwise
-     * @param sizeModels the {@code size} axis's non-default alternate meshes keyed by {@link Size}
-     *     (pufferfish {@link Size#SMALL} / {@link Size#MEDIUM}), swapped in by the entity definition resolver when
-     *     {@code EntityAppearance.size} selects one. The entity's default size is the base {@link #model}
-     *     and is absent from the map, so an unset / default size leaves the render byte-identical; empty
-     *     for entities with no size axis
-     * @param sizeScales the {@code size} axis's non-default render scale factors keyed by {@link Size}
-     *     (salmon {@link Size#SMALL} 0.5 / {@link Size#LARGE} 1.5; slime + magma_cube {@link Size#MEDIUM}
-     *     2 / {@link Size#LARGE} 4), multiplied onto {@link #rendererScale} by the entity definition resolver when
-     *     {@code EntityAppearance.size} selects one. The default size is scale {@code 1.0} (absent), so an
-     *     unset / default size leaves the render byte-identical; empty for mesh-select and no-size-axis
-     *     entities. (A uniform scale is a visual no-op under the auto-fit renderer - see the size axis note)
-     * @param markings whether the entity supports the horse {@code markings} axis - a same-geometry
-     *     translucent overlay (white socks / blaze / patches) whose texture the renderer picks from
-     *     {@code EntityAppearance.markings} and composites over the coat. {@code true} only for the
-     *     horse; the default marking ({@code NONE}) draws nothing, so the default render is
-     *     byte-identical
+     * @param axes the option-axis mesh / texture selections a render appearance chooses among (state
+     *     textures, baby mesh, large shape, size meshes / scales) - see {@link Axes}
+     * @param layers the conditional decoration layers drawn over the base body (collar, equipment,
+     *     markings), each gated at render on its appearance axis - see {@link Layers}
      */
     @Builder(toBuilder = true)
     public record EntityDefinition(
@@ -161,15 +135,9 @@ public class EntityModelLoader {
         int baseTintArgb,
         float setupYawAddend,
         float rendererScale,
-        @NotNull Map<String, String> stateTextures,
-        @NotNull Optional<String> collarTexture,
-        @NotNull Optional<EntityModelData> babyModel,
         @NotNull Map<String, BoneToggle> boneToggles,
-        @NotNull List<EquipmentOverlay> equipment,
-        @NotNull Optional<LargeShape> largeShape,
-        @NotNull Map<Size, EntityModelData> sizeModels,
-        @NotNull Map<Size, Float> sizeScales,
-        boolean markings
+        @NotNull Axes axes,
+        @NotNull Layers layers
     ) {
         /**
          * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried}
@@ -181,6 +149,50 @@ public class EntityModelLoader {
         public @NotNull EntityDefinition withoutBlockOverlays() {
             return toBuilder().blockOverlays(List.of()).build();
         }
+
+        /**
+         * The option-axis meshes and textures a render appearance selects among (the former
+         * {@code stateTextures} / {@code babyModel} / {@code largeShape} / {@code sizeModels} /
+         * {@code sizeScales} side-channels, nested into first-class structure).
+         *
+         * @param stateTextures alternate base textures keyed by behavioural state (wolf
+         *     {@code wild}/{@code tame}/{@code angry}) plus the {@code baby} texture, populated for
+         *     multi-state / ageable variant families; empty otherwise. The {@code wild} entry, when
+         *     present, equals the definition's {@code textureRef}
+         * @param babyModel the distinct baked baby mesh, used in place of the base model when the
+         *     {@code age} axis selects {@code baby}; empty for entities with no dedicated baby mesh
+         * @param largeShape the {@code shape} axis's large alternative (tropical fish): the large body
+         *     mesh + {@code tropical_b} texture + pattern overlays cloned onto it; empty otherwise
+         * @param sizeModels the {@code size} axis's non-default alternate meshes keyed by {@link Size}
+         *     (pufferfish); the default size is the base model and absent here; empty for no-size-axis entities
+         * @param sizeScales the {@code size} axis's non-default render scale factors keyed by {@link Size}
+         *     (salmon / slime / magma_cube); the default size is scale {@code 1.0} and absent here; empty otherwise
+         */
+        public record Axes(
+            @NotNull Map<String, String> stateTextures,
+            @NotNull Optional<EntityModelData> babyModel,
+            @NotNull Optional<LargeShape> largeShape,
+            @NotNull Map<Size, EntityModelData> sizeModels,
+            @NotNull Map<Size, Float> sizeScales
+        ) {}
+
+        /**
+         * The conditional decoration layers drawn over the base body (the former {@code collarTexture}
+         * / {@code equipment} / {@code markings} side-channels, nested into first-class structure),
+         * each gated at render on its appearance axis.
+         *
+         * @param collar the dyed-collar texture drawn on the body geometry and tinted by the collar
+         *     colour (wolf, cat); empty for non-collar entities
+         * @param equipment the saddle / body-armor overlays rendered when the {@code equipment} axis
+         *     selects their slot; empty for entities with no equipment layer
+         * @param markings whether the entity supports the horse {@code markings} axis (a same-geometry
+         *     translucent overlay over the coat); the default marking draws nothing
+         */
+        public record Layers(
+            @NotNull Optional<String> collar,
+            @NotNull List<EquipmentOverlay> equipment,
+            boolean markings
+        ) {}
     }
 
     /**
@@ -847,9 +859,9 @@ public class EntityModelLoader {
             // The size axis's non-default scale factors (salmon / slime / magma_cube), so the resolver can
             // multiply rendererScale by the selected size.
             Map<Size, Float> sizeScales = buildSizeScales(sizeScaleRefs.get(entityId));
-            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale,
-                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles, equipment, largeShape, sizeModels, sizeScales,
-                markingsRows.contains(entityId)));
+            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale, boneToggles,
+                new EntityDefinition.Axes(stateTextures.getOrDefault(entityId, Map.of()), babyModel, largeShape, sizeModels, sizeScales),
+                new EntityDefinition.Layers(Optional.ofNullable(collarTextures.get(entityId)), equipment, markingsRows.contains(entityId))));
         }
         return Concurrent.adoptMap(definitions);
     }

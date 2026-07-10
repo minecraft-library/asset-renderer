@@ -52,8 +52,9 @@ public final class EntityDefinitionResolver {
      */
     public static @NotNull EntityDefinition resolve(@NotNull EntityDefinition definition, @NotNull EntityAppearance appearance) {
         EntityDefinition.EntityDefinitionBuilder builder = definition.toBuilder();
-        if (appearance.isBaby() && definition.babyModel().isPresent()) {
-            builder.model(definition.babyModel().get()).overlays(List.of()).blockOverlays(List.of()).collarTexture(Optional.empty()).equipment(List.of());
+        if (appearance.isBaby() && definition.axes().babyModel().isPresent()) {
+            builder.model(definition.axes().babyModel().get()).overlays(List.of()).blockOverlays(List.of())
+                .layers(new EntityDefinition.Layers(Optional.empty(), List.of(), definition.layers().markings()));
         } else {
             // Drop overlays the appearance doesn't activate: shearable overlays (the sheep wool) when
             // sheared - both the rendered geometry and its canvas-bounds contribution - and charged-only
@@ -84,20 +85,20 @@ public final class EntityDefinitionResolver {
             // large: the large mesh, tropical_b base texture, and the pattern overlays cloned onto the
             // large geometry (the pattern axis still picks the concrete overlay texture via texture_by). A
             // small/default pattern leaves the small body untouched, so the default render is byte-identical.
-            if (definition.largeShape().isPresent()
+            if (definition.axes().largeShape().isPresent()
                 && appearance.getPattern().map(p -> p.shape() == TropicalFishPattern.Shape.LARGE).orElse(false)) {
-                LargeShape large = definition.largeShape().get();
+                LargeShape large = definition.axes().largeShape().get();
                 builder.model(large.model()).textureRef(large.textureRef()).overlays(large.overlays());
             }
             // The size axis (pufferfish) swaps to the selected size's distinct baked mesh. An unset size, or
             // the entity's default size (pufferfish large = the base mesh, absent from the map), leaves the
             // base model untouched, so the default render is byte-identical.
-            appearance.getSize().map(definition.sizeModels()::get).ifPresent(builder::model);
+            appearance.getSize().map(definition.axes().sizeModels()::get).ifPresent(builder::model);
             // The size axis (salmon / slime / magma_cube) instead multiplies rendererScale by the selected
             // size's factor. An unset / default size (scale 1.0, absent from the map) leaves rendererScale
             // untouched, so the default render is byte-identical. A uniform scale is a visual no-op under the
             // auto-fit renderer (self-similar); the factor is applied for a future absolute-scale renderer.
-            appearance.getSize().map(definition.sizeScales()::get)
+            appearance.getSize().map(definition.axes().sizeScales()::get)
                 .ifPresent(scale -> builder.rendererScale(definition.rendererScale() * scale));
         }
         // The base_color axis (tropical fish) overrides the family base_tint with the selected dye; absent

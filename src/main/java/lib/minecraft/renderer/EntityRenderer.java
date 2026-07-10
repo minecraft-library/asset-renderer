@@ -157,7 +157,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // equipment mesh (horse/nautilus/wolf armor, the llama carpet's CubeDeformation) can't crop at
         // the canvas edge. Gated on the equipment axis, so the default (unequipped) render is
         // byte-identical (mirrors the EQUIPMENT feature's render gate).
-        for (EntityModelLoader.EquipmentOverlay equipment : resolved.equipment()) {
+        for (EntityModelLoader.EquipmentOverlay equipment : resolved.layers().equipment()) {
             if (!equipmentSelected(equipment, options.getAppearance())) continue;
             baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(equipment.model()));
         }
@@ -218,7 +218,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // sizes from these bounds, not the rendered triangles). A null texture measures the mesh's
             // geometric AABB - conservative, no equipment-texture resolution. Gated on the equipment
             // axis, so the default (unequipped) canvas stays byte-identical.
-            for (EntityModelLoader.EquipmentOverlay equipment : resolved.equipment()) {
+            for (EntityModelLoader.EquipmentOverlay equipment : resolved.layers().equipment()) {
                 if (!equipmentSelected(equipment, options.getAppearance())) continue;
                 screenBounds = unionBoxes(screenBounds,
                     EntityGeometryKit.computeScreenBounds(equipment.model(), renderOrient, modelScale, null));
@@ -350,9 +350,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull EntityAppearance appearance
     ) {
-        if (!appearance.isBaby() || definition.babyModel().isEmpty())
+        if (!appearance.isBaby() || definition.axes().babyModel().isEmpty())
             return Optional.empty();
-        return Optional.ofNullable(definition.stateTextures().get("baby")).flatMap(this::resolveEntityRef);
+        return Optional.ofNullable(definition.axes().stateTextures().get("baby")).flatMap(this::resolveEntityRef);
     }
 
     /**
@@ -365,7 +365,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull EntityAppearance appearance
     ) {
-        return appearance.getState().map(definition.stateTextures()::get);
+        return appearance.getState().map(definition.axes().stateTextures()::get);
     }
 
     /**
@@ -438,7 +438,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 Optional<DyeColor> collar = ctx.options().getAppearance().tint(TintAxis.COLLAR);
-                Optional<String> collarRef = ctx.definition().collarTexture();
+                Optional<String> collarRef = ctx.definition().layers().collar();
                 if (collar.isEmpty() || collarRef.isEmpty()) return;
                 EntityModelData model = ctx.model();
                 int collarTint = collar.get().argb();
@@ -464,7 +464,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         MARKINGS(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                if (!ctx.definition().markings()) return;
+                if (!ctx.definition().layers().markings()) return;
                 EntityAppearance appearance = ctx.options().getAppearance();
                 Optional<String> markingRef = appearance.getMarkings().overlayTexture();
                 if (markingRef.isEmpty()) return;
@@ -492,7 +492,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 EntityAppearance appearance = ctx.options().getAppearance();
-                for (EntityModelLoader.EquipmentOverlay equipment : ctx.definition().equipment()) {
+                for (EntityModelLoader.EquipmentOverlay equipment : ctx.definition().layers().equipment()) {
                     Optional<String> material = appearance.equipmentMaterial(equipment.slot());
                     if (material.isEmpty()) continue;
                     String textureRef = equipment.textureFor(material.get());

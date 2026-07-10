@@ -222,9 +222,9 @@ public final class EntityFamilyReader {
                 definitions.put(rowId, EntityDefinition.builder()
                     .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
                     .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
-                    .stateTextures(stateTextures).collarTexture(collarTexture).babyModel(babyModel)
-                    .boneToggles(toggles).equipment(equipment).largeShape(Optional.empty())
-                    .sizeModels(Map.of()).sizeScales(Map.of()).markings(markings)
+                    .boneToggles(toggles)
+                    .axes(new EntityDefinition.Axes(stateTextures, babyModel, Optional.empty(), Map.of(), Map.of()))
+                    .layers(new EntityDefinition.Layers(collarTexture, equipment, markings))
                     .build());
             }
             return;
@@ -247,9 +247,10 @@ public final class EntityFamilyReader {
         definitions.put(familyId, EntityDefinition.builder()
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
-            .stateTextures(stateTextures).collarTexture(collarTexture).babyModel(babyModel)
-            .boneToggles(toggles).equipment(equipment).largeShape(buildLargeShape(family, geometries, familyId, diagnostics))
-            .sizeModels(buildSizeModels(family, geometries)).sizeScales(buildSizeScales(family)).markings(markings)
+            .boneToggles(toggles)
+            .axes(new EntityDefinition.Axes(stateTextures, babyModel,
+                buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries), buildSizeScales(family)))
+            .layers(new EntityDefinition.Layers(collarTexture, equipment, markings))
             .build());
     }
 

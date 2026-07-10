@@ -34,14 +34,14 @@ class EntityFamilyModelLoadTest {
         ConcurrentMap<String, EntityDefinition> defs = EntityModelLoader.load();
 
         EntityDefinition pale = defs.get("minecraft:wolf_pale");
-        assertThat(pale.stateTextures().keySet(), hasItems("wild", "tame", "angry"));
-        assertThat(pale.stateTextures().get("wild"), is("wolf/wolf"));
-        assertThat(pale.stateTextures().get("tame"), is("wolf/wolf_tame"));
+        assertThat(pale.axes().stateTextures().keySet(), hasItems("wild", "tame", "angry"));
+        assertThat(pale.axes().stateTextures().get("wild"), is("wolf/wolf"));
+        assertThat(pale.axes().stateTextures().get("tame"), is("wolf/wolf_tame"));
         assertThat("wild state equals the default texture_ref",
-            Optional.of(pale.stateTextures().get("wild")), equalTo(pale.textureRef()));
-        assertThat(defs.get("minecraft:wolf_ashen").stateTextures().get("tame"), is("wolf/wolf_ashen_tame"));
+            Optional.of(pale.axes().stateTextures().get("wild")), equalTo(pale.textureRef()));
+        assertThat(defs.get("minecraft:wolf_ashen").axes().stateTextures().get("tame"), is("wolf/wolf_ashen_tame"));
         assertThat("a single-asset variant has no tame/angry behavioural states",
-            defs.get("minecraft:cow_temperate").stateTextures().containsKey("tame"), is(false));
+            defs.get("minecraft:cow_temperate").axes().stateTextures().containsKey("tame"), is(false));
     }
 
     @Test
@@ -50,12 +50,12 @@ class EntityFamilyModelLoadTest {
         ConcurrentMap<String, EntityDefinition> defs = EntityModelLoader.load();
 
         assertThat("variant table baby_asset_id",
-            defs.get("minecraft:cow_temperate").stateTextures().get("baby"), is("cow/cow_temperate_baby"));
-        assertThat(defs.get("minecraft:pig_temperate").stateTextures().get("baby"), is("pig/pig_temperate_baby"));
+            defs.get("minecraft:cow_temperate").axes().stateTextures().get("baby"), is("cow/cow_temperate_baby"));
+        assertThat(defs.get("minecraft:pig_temperate").axes().stateTextures().get("baby"), is("pig/pig_temperate_baby"));
         assertThat("the baby variant differs from the base texture",
-            defs.get("minecraft:cow_warm").stateTextures().get("baby"), is("cow/cow_warm_baby"));
+            defs.get("minecraft:cow_warm").axes().stateTextures().get("baby"), is("cow/cow_warm_baby"));
         assertThat("non-variant entity sources its baby texture from the isBaby binding",
-            defs.get("minecraft:sheep").stateTextures().get("baby"), is("sheep/sheep_baby"));
+            defs.get("minecraft:sheep").axes().stateTextures().get("baby"), is("sheep/sheep_baby"));
         // axolotl gained an id-encoded variant axis only in v2 (a recorded bridge divergence), so the
         // default enum variant is the flat "minecraft:axolotl" against the legacy resource but the
         // "minecraft:axolotl_lucy" default-variant pseudo-id against bridge output; both carry the same
@@ -63,8 +63,8 @@ class EntityFamilyModelLoadTest {
         EntityDefinition axolotl = defs.get("minecraft:axolotl");
         if (axolotl == null) axolotl = defs.get("minecraft:axolotl_lucy");
         assertThat("enum-variant entity falls back to the <adult>_baby naming convention",
-            axolotl.stateTextures().get("baby"), is("axolotl/axolotl_lucy_baby"));
-        assertThat("cow has a distinct baby mesh", defs.get("minecraft:cow_temperate").babyModel().isPresent(), is(true));
+            axolotl.axes().stateTextures().get("baby"), is("axolotl/axolotl_lucy_baby"));
+        assertThat("cow has a distinct baby mesh", defs.get("minecraft:cow_temperate").axes().babyModel().isPresent(), is(true));
     }
 
     @Test
@@ -72,12 +72,12 @@ class EntityFamilyModelLoadTest {
     void collarTextures() {
         ConcurrentMap<String, EntityDefinition> defs = EntityModelLoader.load();
 
-        assertThat(defs.get("minecraft:wolf_pale").collarTexture(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat(defs.get("minecraft:wolf_pale").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
         assertThat("every wolf variant shares the family collar",
-            defs.get("minecraft:wolf_ashen").collarTexture(), equalTo(Optional.of("wolf/wolf_collar")));
-        assertThat(defs.get("minecraft:cat_black").collarTexture(), equalTo(Optional.of("cat/cat_collar")));
+            defs.get("minecraft:wolf_ashen").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat(defs.get("minecraft:cat_black").layers().collar(), equalTo(Optional.of("cat/cat_collar")));
         assertThat("a non-collar entity has none",
-            defs.get("minecraft:cow_temperate").collarTexture().isPresent(), is(false));
+            defs.get("minecraft:cow_temperate").layers().collar().isPresent(), is(false));
     }
 
     @Test
@@ -91,6 +91,6 @@ class EntityFamilyModelLoadTest {
         assertThat(stripped.model(), is(snowGolem.model()));
         assertThat(stripped.textureRef(), equalTo(snowGolem.textureRef()));
         assertThat(stripped.overlays(), equalTo(snowGolem.overlays()));
-        assertThat(stripped.stateTextures(), equalTo(snowGolem.stateTextures()));
+        assertThat(stripped.axes().stateTextures(), equalTo(snowGolem.axes().stateTextures()));
     }
 }

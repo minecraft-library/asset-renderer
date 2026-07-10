@@ -34,11 +34,11 @@ class EntityFamilyReaderTest {
     void wolfWildEqualsTextureRef() {
         ConcurrentMap<String, EntityDefinition> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         EntityDefinition pale = defs.get("minecraft:wolf_pale");
-        assertThat(pale.stateTextures().get("wild"), is("wolf/wolf"));
+        assertThat(pale.axes().stateTextures().get("wild"), is("wolf/wolf"));
         assertThat("wild state equals the default texture_ref",
-            Optional.of(pale.stateTextures().get("wild")), equalTo(pale.textureRef()));
-        assertThat(pale.stateTextures().keySet(), hasItems("wild", "tame", "angry"));
-        assertThat(defs.get("minecraft:wolf_ashen").stateTextures().get("tame"), is("wolf/wolf_ashen_tame"));
+            Optional.of(pale.axes().stateTextures().get("wild")), equalTo(pale.textureRef()));
+        assertThat(pale.axes().stateTextures().keySet(), hasItems("wild", "tame", "angry"));
+        assertThat(defs.get("minecraft:wolf_ashen").axes().stateTextures().get("tame"), is("wolf/wolf_ashen_tame"));
     }
 
     @Test
@@ -46,15 +46,15 @@ class EntityFamilyReaderTest {
     void babyThreeSourceChain() {
         ConcurrentMap<String, EntityDefinition> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         // 1) variant-table per-option baby_texture
-        assertThat(defs.get("minecraft:cow_temperate").stateTextures().get("baby"), is("cow/cow_temperate_baby"));
-        assertThat(defs.get("minecraft:cow_warm").stateTextures().get("baby"), is("cow/cow_warm_baby"));
-        assertThat("cow carries a distinct baby mesh", defs.get("minecraft:cow_temperate").babyModel().isPresent(), is(true));
+        assertThat(defs.get("minecraft:cow_temperate").axes().stateTextures().get("baby"), is("cow/cow_temperate_baby"));
+        assertThat(defs.get("minecraft:cow_warm").axes().stateTextures().get("baby"), is("cow/cow_warm_baby"));
+        assertThat("cow carries a distinct baby mesh", defs.get("minecraft:cow_temperate").axes().babyModel().isPresent(), is(true));
         // 2) non-variant entity sources its baby texture from the age.baby.texture (isBaby) binding
-        assertThat(defs.get("minecraft:sheep").stateTextures().get("baby"), is("sheep/sheep_baby"));
+        assertThat(defs.get("minecraft:sheep").axes().stateTextures().get("baby"), is("sheep/sheep_baby"));
         // 3) enum-variant fallback to the <adult>_baby naming convention
         EntityDefinition axolotl = defs.get("minecraft:axolotl");
         if (axolotl == null) axolotl = defs.get("minecraft:axolotl_lucy");
-        assertThat(axolotl.stateTextures().get("baby"), is("axolotl/axolotl_lucy_baby"));
+        assertThat(axolotl.axes().stateTextures().get("baby"), is("axolotl/axolotl_lucy_baby"));
     }
 
     @Test
@@ -64,12 +64,12 @@ class EntityFamilyReaderTest {
         // load contract pins the collar texture presence that gate resolves against. A bare wolf / cat
         // with no collar colour therefore renders no collar band.
         ConcurrentMap<String, EntityDefinition> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
-        assertThat(defs.get("minecraft:wolf_pale").collarTexture(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat(defs.get("minecraft:wolf_pale").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
         assertThat("every wolf variant shares the family collar",
-            defs.get("minecraft:wolf_ashen").collarTexture(), equalTo(Optional.of("wolf/wolf_collar")));
-        assertThat(defs.get("minecraft:cat_black").collarTexture(), equalTo(Optional.of("cat/cat_collar")));
+            defs.get("minecraft:wolf_ashen").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat(defs.get("minecraft:cat_black").layers().collar(), equalTo(Optional.of("cat/cat_collar")));
         assertThat("a non-collar entity has none",
-            defs.get("minecraft:cow_temperate").collarTexture().isPresent(), is(false));
+            defs.get("minecraft:cow_temperate").layers().collar().isPresent(), is(false));
     }
 
     @Test
