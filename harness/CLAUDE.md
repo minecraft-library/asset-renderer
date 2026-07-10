@@ -104,6 +104,7 @@ Full catalog + formulas in README's Mixins section. Quick reference:
 - `PufferfishStateMixin` — `puffState = STATE_FULL`.
 - `ZombieVillagerStateMixin` — `villagerData = default` (PLAINS/NONE/1).
 - `DonkeyModelMixin` / `LlamaModelMixin` — hide equipment-driven `left_chest`/`right_chest` bones.
+- `ArmorStandBasePlateMixin` (`ArmorStandModel.<init>`) — force `basePlate.visible = false` (asset-renderer toggles the base-plate bone off). Pinned at model construction, not via `showBasePlate`, because `SkipSetupAnimMixin` cancels the `setupAnim` that would otherwise apply the flag.
 
 ### Randomization to pin (common sources)
 
@@ -130,7 +131,7 @@ When a new transient entity renders inconsistently across runs, check its constr
 
 ## Family-locked sizing
 
-Pre-pass measures every (entity, variant) pair, groups by family root via `EntitySweeper.FAMILY_OVERRIDES`, takes the union of bounds. Each family member uses the union's canvas + scale + anchor so shared geometry is byte-identical across variants. Variants of one `EntityType` (cow_cold, cow_warm, ...) auto-share a family; the override map is for cross-`EntityType` siblings (mooshroom→cow, stray→skeleton). Hard cap `MAX_CANVAS_SIZE` (default 1024) shrinks oversized canvases (ender_dragon, full-scale wither, giant×6) by uniformly scaling down both canvas dimensions + scale.
+Pre-pass measures every (entity, variant) pair, groups by family root via `EntitySweeper.FAMILY_OVERRIDES`, takes the union of bounds. Each family member uses the union's canvas + scale + anchor so shared geometry is byte-identical across variants. Variants of one `EntityType` (cow_cold, cow_warm, ...) auto-share a family; the override map is for cross-`EntityType` siblings (currently just `stray→skeleton`). Data-driven variants (`cow`, `pig`, `wolf`, `cat`, ...) enumerate via `VARIANT_REGISTRIES`; enum variants without a registry get their own loop (`renderAllHorseCoats` for the equine coat enum, `renderAllMooshroomVariants` for `MushroomCow.Variant` red/brown). Mooshroom is deliberately NOT overridden into cow: the asset-renderer id-encodes it as `mooshroom_red`/`mooshroom_brown` that no longer roll into cow's family-union, so cow canvas-fits to its own body (overriding pushed cow down by the mushroom height). Hard cap `MAX_CANVAS_SIZE` (default 1024) shrinks oversized canvases (ender_dragon, full-scale wither, giant×6) by uniformly scaling down both canvas dimensions + scale.
 
 ## Chirality fix
 
