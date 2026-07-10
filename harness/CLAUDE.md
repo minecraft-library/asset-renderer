@@ -105,6 +105,7 @@ Full catalog + formulas in README's Mixins section. Quick reference:
 - `ZombieVillagerStateMixin` — `villagerData = default` (PLAINS/NONE/1).
 - `DonkeyModelMixin` / `LlamaModelMixin` — hide equipment-driven `left_chest`/`right_chest` bones.
 - `ArmorStandBasePlateMixin` (`ArmorStandModel.<init>`) — force `basePlate.visible = false` (asset-renderer toggles the base-plate bone off). Pinned at model construction, not via `showBasePlate`, because `SkipSetupAnimMixin` cancels the `setupAnim` that would otherwise apply the flag.
+- `TurtleEggBellyMixin` (`AdultTurtleModel.<init>`) — force `eggBelly.visible = false` (asset-renderer toggles the `egg_belly` bone off; a default turtle has `hasEgg = false`). Pinned at model construction for the same reason as `ArmorStandBasePlateMixin` — `setupAnim` (which sets `eggBelly.visible = hasEgg`) is cancelled.
 
 ### Randomization to pin (common sources)
 

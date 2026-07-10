@@ -23,6 +23,7 @@
     "ShadeFalseFullBrightMixin",
     "SkipSetupAnimMixin",
     "SuppressShakingMixin",
+    "TurtleEggBellyMixin",
     "WitherBossModelMixin",
     "ZombieVillagerStateMixin"
   ],
