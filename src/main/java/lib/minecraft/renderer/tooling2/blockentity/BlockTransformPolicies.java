@@ -76,6 +76,17 @@ enum BlockTransformPolicies implements NavigationPolicy {
             + " legacy ToolingBlockModels:161-167. Every other unresolved icon defaults to flip=true"),
 
     /**
+     * The standing-sign attachment constant seeded into {@code bodyTransformation}'s enum param
+     * so the {@code baseTransformation} branch resolves per split ({@code sign} = floor icon,
+     * {@code wall_sign} = the wall offset). The enum-gate STRUCTURE is bytecode; only which split
+     * takes which attachment is declared.
+     */
+    STANDING_SIGN_ATTACHMENT(
+        Map.of("minecraft:sign", "FLOOR", "minecraft:wall_sign", "WALL"),
+        "the standing-sign icon attachment per split - sign renders floor-attached, wall_sign takes"
+            + " the PlainSignBlock$Attachment.WALL branch offset in StandingSignRenderer.baseTransformation"),
+
+    /**
      * P36 - the split ids whose inventory icon renders rotated a quarter turn, and the rotation.
      * Only the bed head (90 degrees) - a GUI presentation policy, not bytecode.
      */
@@ -162,6 +173,18 @@ enum BlockTransformPolicies implements NavigationPolicy {
      */
     static boolean isTransformTarget(@NotNull String rendererClass) {
         return rendererEntry(rendererClass) != null;
+    }
+
+    /**
+     * The standing-sign attachment constant to seed for a split, or {@code null} when the split is
+     * not a standing sign.
+     *
+     * @param splitId the models key
+     * @return the attachment enum constant name, or {@code null}
+     */
+    @SuppressWarnings("unchecked")
+    static @Nullable String signAttachment(@NotNull String splitId) {
+        return ((Map<String, String>) STANDING_SIGN_ATTACHMENT.value).get(splitId);
     }
 
     /**

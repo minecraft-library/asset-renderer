@@ -16,19 +16,22 @@ final class BlockEntityRendererResolver {
     private final @NotNull BlockTintFlagResolver tint;
     private final @NotNull BlockGuiResolver gui;
     private final @NotNull BlockCatalogResolver catalog;
+    private final @NotNull InventoryTransformResolver transform;
 
     BlockEntityRendererResolver(
         @NotNull BlockEntitySubject subject,
         @NotNull BlockGeometrySourceResolver.Split split,
         @NotNull BlockTintFlagResolver tint,
         @NotNull BlockGuiResolver gui,
-        @NotNull BlockCatalogResolver catalog
+        @NotNull BlockCatalogResolver catalog,
+        @NotNull InventoryTransformResolver transform
     ) {
         this.subject = subject;
         this.split = split;
         this.tint = tint;
         this.gui = gui;
         this.catalog = catalog;
+        this.transform = transform;
     }
 
     /**
@@ -48,11 +51,12 @@ final class BlockEntityRendererResolver {
             .putIf("blocks", this.catalog.blocks(this.split.splitId()));  // ordered {block, texture, variant?, tint?}
     }
 
-    /** The {@code inventory} node - GUI facing (BlockGuiResolver) plus, later, the bytecode transform. */
+    /** The {@code inventory} node - GUI facing (BlockGuiResolver) plus the decomposed bytecode transform. */
     private @NotNull JsonNode inventory() {
         return JsonNode.object()
             .put("y_rotation", this.gui.yRotation(this.split.splitId()))
-            .put("flip", this.gui.flip(this.subject.rendererClass(), this.split.splitId()));
+            .put("flip", this.gui.flip(this.subject.rendererClass(), this.split.splitId()))
+            .putIf("transform", this.transform.resolve(this.subject.rendererClass(), this.split.splitId()));
     }
 
 }

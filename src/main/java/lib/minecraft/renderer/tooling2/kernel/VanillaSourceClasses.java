@@ -226,6 +226,12 @@ public final class VanillaSourceClasses {
         /** {@code SkullBlock$Types} - the enum keying the skull skin map. */
         public static final @NotNull String SKULL_BLOCK_TYPES = "net/minecraft/world/level/block/SkullBlock$Types";
 
+        /** {@code Direction} - the block-facing enum whose {@code toYRot} / {@code getRotation} the transform walk reads as a reference yaw. */
+        public static final @NotNull String DIRECTION = "net/minecraft/core/Direction";
+
+        /** {@code RotationSegment} - the 16-segment rotation helper whose {@code convertToDegrees} the skull transform reads. */
+        public static final @NotNull String ROTATION_SEGMENT = "net/minecraft/world/level/block/state/properties/RotationSegment";
+
     }
 
     /** Member-name pattern grammar [C3]: createRoots, addBox, texOffs, scaling, ... */

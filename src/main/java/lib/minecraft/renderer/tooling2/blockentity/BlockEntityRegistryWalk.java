@@ -41,6 +41,7 @@ public final class BlockEntityRegistryWalk {
         BlockRegistryIndex blockRegistry = BlockRegistryIndex.build(session);
         BlockTintFlagResolver tint = new BlockTintFlagResolver(session.cache());
         BlockGuiResolver gui = new BlockGuiResolver(session.cache());
+        InventoryTransformResolver transform = new InventoryTransformResolver(session.cache());
 
         JsonNode models = root.child("models");
         for (BlockEntitySubject subject : subjects) {
@@ -54,7 +55,7 @@ public final class BlockEntityRegistryWalk {
                 splitIds, session.diagnostics().child(subject.beTypeId()));
 
             for (BlockGeometrySourceResolver.Split split : splits)
-                models.put(split.splitId(), new BlockEntityRendererResolver(subject, split, tint, gui, catalog).resolve());
+                models.put(split.splitId(), new BlockEntityRendererResolver(subject, split, tint, gui, catalog, transform).resolve());
         }
     }
 
