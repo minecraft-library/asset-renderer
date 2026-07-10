@@ -14,10 +14,12 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.pipeline.load.entity.EntityFamilyReader;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
 import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
+import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.Builder;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -870,6 +872,13 @@ public class EntityModelLoader {
      *     entity references a geometry id not in the geometry file
      */
     public static @NotNull ConcurrentMap<String, EntityDefinition> load() {
+        // Flag-off reads the v2 family form natively (the flattener inverse - EntityFamilyReader reads
+        // v2/entity_models.json + v2/entity_geometry.json directly into this map). Under
+        // -Dasset.tooling2.bridge the legacy-shaped tree is materialized and flattened the legacy way,
+        // kept as the rollback floor until the bridge is retired.
+        if (!LegacyBridge.active())
+            return EntityFamilyReader.load(Diagnostics.root("entity_models", Diagnostics.Output.CONSOLE, null));
+
         Map<String, EntityModelData> geometries = loadGeometries();
         if (geometries.isEmpty()) return Concurrent.newMap();
 
@@ -1115,32 +1124,45 @@ public class EntityModelLoader {
         if (cached != null) return cached;
         synchronized (EntityModelLoader.class) {
             if (FAMILIES_CACHE != null) return FAMILIES_CACHE;
-            EntityFamilyFlattener.Flat flat = loadFlat();
-            JsonObject entities = flat.entities();
-            Map<String, String> familiesTable = familiesToMap(flat.families());
-            // Two-pass: first pass assigns each entity to its family root via variant_of /
-            // families table; second pass inverts the map to family -> [members] so any member
-            // looking up by its own id sees the whole family.
-            Map<String, String> entityToFamily = new LinkedHashMap<>();
-            for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
-                String entityId = entry.getKey();
-                if (!entry.getValue().isJsonObject()) continue;
-                JsonObject obj = entry.getValue().getAsJsonObject();
-                String family = familiesTable.get(entityId);
-                if (family == null && obj.has("variant_of"))
-                    family = obj.get("variant_of").getAsString();
-                if (family == null) family = entityId;
-                entityToFamily.put(entityId, family);
-            }
-            Map<String, List<String>> familyToMembers = new LinkedHashMap<>();
-            for (Map.Entry<String, String> e : entityToFamily.entrySet())
-                familyToMembers.computeIfAbsent(e.getValue(), k -> new java.util.ArrayList<>()).add(e.getKey());
-            Map<String, List<String>> result = new LinkedHashMap<>();
-            for (Map.Entry<String, String> e : entityToFamily.entrySet())
-                result.put(e.getKey(), List.copyOf(familyToMembers.get(e.getValue())));
+            // Flag-off derives family membership natively from the v2 families (variant_of + family_of);
+            // under the bridge flag the materialized legacy flat rows are folded the legacy way.
+            Map<String, List<String>> result = LegacyBridge.active()
+                ? computeFamiliesLegacy()
+                : EntityFamilyReader.loadFamilies(Diagnostics.root("entity_models", Diagnostics.Output.CONSOLE, null));
             FAMILIES_CACHE = result;
             return result;
         }
+    }
+
+    /**
+     * Folds the materialized legacy flat rows into {@code entityId -> familyMembers} - the bridge-flag
+     * rollback path of {@link #loadFamilies()}.
+     */
+    private static @NotNull Map<String, List<String>> computeFamiliesLegacy() {
+        EntityFamilyFlattener.Flat flat = loadFlat();
+        JsonObject entities = flat.entities();
+        Map<String, String> familiesTable = familiesToMap(flat.families());
+        // Two-pass: first pass assigns each entity to its family root via variant_of /
+        // families table; second pass inverts the map to family -> [members] so any member
+        // looking up by its own id sees the whole family.
+        Map<String, String> entityToFamily = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
+            String entityId = entry.getKey();
+            if (!entry.getValue().isJsonObject()) continue;
+            JsonObject obj = entry.getValue().getAsJsonObject();
+            String family = familiesTable.get(entityId);
+            if (family == null && obj.has("variant_of"))
+                family = obj.get("variant_of").getAsString();
+            if (family == null) family = entityId;
+            entityToFamily.put(entityId, family);
+        }
+        Map<String, List<String>> familyToMembers = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : entityToFamily.entrySet())
+            familyToMembers.computeIfAbsent(e.getValue(), k -> new java.util.ArrayList<>()).add(e.getKey());
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : entityToFamily.entrySet())
+            result.put(e.getKey(), List.copyOf(familyToMembers.get(e.getValue())));
+        return result;
     }
 
     /**
