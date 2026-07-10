@@ -119,11 +119,12 @@ enum BlockTransformPolicies implements NavigationPolicy {
             "minecraft:banner", List.of(new PartSpec("minecraft:banner_flag", null, null)),
             "minecraft:wall_banner", List.of(new PartSpec("minecraft:wall_banner_flag", null, null)),
             "minecraft:decorated_pot", List.of(new PartSpec("minecraft:decorated_pot_sides", new int[]{0, 0, 0},
-                "minecraft:entity/decorated_pot/decorated_pot_side"))),
+                "minecraft:textures/entity/decorated_pot/decorated_pot_side.png"))),
         "P32: the sub-model parts roster - legacy BlockListDiscovery BED_FOOT_OFFSET={0,0,16}:171 (icon-"
             + " composition policy; BedRenderer at 26.1 has no submit translate - the {0,0,16} matches"
             + " BedBlock's one-block foot placement), DECORATED_POT_SIDES_OFFSET={0,0,0}:164 (no PoseStack"
-            + " .translate between the base and sides submits) + SIDE_TEXTURE:1794 (= Sheets.DECORATED_POT_SIDE);"
+            + " .translate between the base and sides submits) + SIDE_TEXTURE:1794 (= Sheets.DECORATED_POT_SIDE,"
+            + " carried in the decision-21 full asset grammar);"
             + " banner/wall_banner compose their flag sub-model with no offset - :1629-1630, :1810-1811");
 
     /** The {@code FIELD:} prefix on a P41 entry marking a static {@code Transformation} field. */

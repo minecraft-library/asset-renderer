@@ -437,6 +437,12 @@ public final class VanillaSourceClasses {
         /** The {@code .json} resource suffix the resource walks append. */
         public static final @NotNull String JSON_SUFFIX = ".json";
 
+        /** The texture-tree jar prefix the decision-21 full asset grammar carries ({@code textures/<stem>.png}). */
+        public static final @NotNull String TEXTURE_DIR = "textures/";
+
+        /** The {@code .png} texture suffix of the decision-21 full asset grammar. */
+        public static final @NotNull String PNG_SUFFIX = ".png";
+
     }
 
     /** Vanilla data-schema keys [C6]: asset_id, spawn_conditions, minecraft:select, display.gui. */

@@ -35,9 +35,9 @@ import java.util.Map;
  */
 final class BlockCatalogResolver {
 
-    // Fixed sheet prefixes (namespace-less; MINECRAFT_NAMESPACE is prepended). The legacy hard-codes
-    // these as constants (= the Sheets.<X> sprite prefixes); derivation from Sheets.<clinit> is a
-    // post-bridge option (08 A5). No "minecraft:" here - PolicyPurityTest keeps those in policies / VSC.
+    // Fixed sheet prefixes (stems; assetPath wraps them in the decision-21 full grammar). The legacy
+    // hard-codes these as constants (= the Sheets.<X> sprite prefixes); derivation from Sheets.<clinit>
+    // is a post-bridge option (08 A5). No "minecraft:" here - PolicyPurityTest keeps those in policies / VSC.
     private static final @NotNull String SHULKER_TEXTURE = "entity/shulker/shulker";
     private static final @NotNull String BED_TEXTURE_PREFIX = "entity/bed/";
     private static final @NotNull String SIGN_TEXTURE_PREFIX = "entity/signs/";
@@ -52,8 +52,6 @@ final class BlockCatalogResolver {
 
     private static final @NotNull String SHULKER_BASE_LOCAL = "shulker_box";
     private static final @NotNull String HASHMAP_CONSUMER_DESC = "(Ljava/util/HashMap;)V";
-    private static final @NotNull String TEXTURES_PREFIX = "textures/";
-    private static final @NotNull String PNG_SUFFIX = ".png";
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull BlockRegistryIndex blockRegistry;
@@ -98,9 +96,9 @@ final class BlockCatalogResolver {
             case "bed" -> bed(rows);
             case "sign" -> signs(rows, SIGN_TEXTURE_PREFIX);
             case "hanging_sign" -> hangingSigns(rows);
-            case "conduit" -> single(rows, VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + conduitTexture());
-            case "bell" -> single(rows, VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + bellTexture());
-            case "decorated_pot" -> single(rows, VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + DECORATED_POT_TEXTURE);
+            case "conduit" -> single(rows, conduitTexture());
+            case "bell" -> single(rows, bellTexture());
+            case "decorated_pot" -> single(rows, DECORATED_POT_TEXTURE);
             case "copper_golem_statue" -> copperGolem(rows);
             case "skull" -> skull(rows);
             case "banner" -> banner(rows);
@@ -122,7 +120,7 @@ final class BlockCatalogResolver {
         Row uncolored = null;
         for (String field : this.subject.blockFields()) {
             String local = blockLocal(field);
-            Row row = new Row(blockId(field), VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + shulkerTextureStem(local), null, null);
+            Row row = new Row(blockId(field), shulkerTextureStem(local), null, null);
             if (local.equals(SHULKER_BASE_LOCAL)) uncolored = row;
             else byColour.put(stripSuffix(local, SHULKER_BASE_LOCAL), row);
         }
@@ -143,7 +141,7 @@ final class BlockCatalogResolver {
         Map<String, Row> byColour = new LinkedHashMap<>();
         for (String field : this.subject.blockFields()) {
             String colour = stripSuffix(blockLocal(field), "bed");
-            byColour.put(colour, new Row(blockId(field), VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + BED_TEXTURE_PREFIX + colour, null, null));
+            byColour.put(colour, new Row(blockId(field), BED_TEXTURE_PREFIX + colour, null, null));
         }
         List<Row> list = new ArrayList<>();
         orderByDye(byColour, list);
@@ -172,7 +170,7 @@ final class BlockCatalogResolver {
         for (String field : this.subject.blockFields()) {
             String local = blockLocal(field);
             String base = bases.getOrDefault(chestVariantField(local), "");
-            Row row = new Row(blockId(field), VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + CHEST_TEXTURE_PREFIX + base, null, null);
+            Row row = new Row(blockId(field), CHEST_TEXTURE_PREFIX + base, null, null);
             switch (local) {
                 case "trapped_chest" -> trapped = row;
                 case "ender_chest" -> ender = row;
@@ -191,7 +189,7 @@ final class BlockCatalogResolver {
         for (String field : this.subject.blockFields()) {
             String weather = copperWeatherField(blockLocal(field), "copper_golem_statue");
             String texture = textures.getOrDefault(weather, "");
-            list.add(new Row(blockId(field), VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + texture, null, null));
+            list.add(new Row(blockId(field), texture, null, null));
         }
         rows.put(primarySplit(), list);
     }
@@ -216,7 +214,7 @@ final class BlockCatalogResolver {
             if (split == null) continue;
             String wood = stripSuffix(blockLocal, localId(split));
             rows.computeIfAbsent(split, key -> new ArrayList<>())
-                .add(new Row(blockId(field), VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + texturePrefix + wood, null, null));
+                .add(new Row(blockId(field), texturePrefix + wood, null, null));
         }
     }
 
@@ -250,7 +248,7 @@ final class BlockCatalogResolver {
                 continue;
             }
             rows.computeIfAbsent(split, key -> new ArrayList<>())
-                .add(new Row(blockId(field), VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + skin, null, null));
+                .add(new Row(blockId(field), skin, null, null));
         }
     }
 
@@ -262,7 +260,7 @@ final class BlockCatalogResolver {
             if (split == null) continue;
             String tint = stripSuffix(blockLocal, localId(split)).toUpperCase(Locale.ROOT);
             rows.computeIfAbsent(split, key -> new ArrayList<>())
-                .add(new Row(blockId(field), VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + BANNER_TEXTURE, null, tint));
+                .add(new Row(blockId(field), BANNER_TEXTURE, null, tint));
         }
     }
 
@@ -309,7 +307,7 @@ final class BlockCatalogResolver {
                 continue;
             }
             String literal = AsmKit.readStringLiteral(in);
-            if (literal != null && pending == null && literal.startsWith(TEXTURES_PREFIX)) {
+            if (literal != null && pending == null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURE_DIR)) {
                 pending = stripTexturePath(literal);
                 continue;
             }
@@ -340,7 +338,7 @@ final class BlockCatalogResolver {
                 continue;
             }
             String literal = AsmKit.readStringLiteral(in);
-            if (literal != null && pendingType != null && literal.startsWith(TEXTURES_PREFIX)) {
+            if (literal != null && pendingType != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURE_DIR)) {
                 out.putIfAbsent(pendingType, stripTexturePath(literal));
                 pendingType = null;
             }
@@ -502,10 +500,12 @@ final class BlockCatalogResolver {
         return cut > 0 ? blockLocal.substring(0, cut) : blockLocal;
     }
 
-    /** Strips the {@code textures/} prefix + {@code .png} suffix from a raw texture LDC. */
+    /** Strips the {@code textures/} prefix + {@code .png} suffix from a raw texture LDC (the stem currency). */
     private static @NotNull String stripTexturePath(@NotNull String raw) {
-        String path = raw.startsWith(TEXTURES_PREFIX) ? raw.substring(TEXTURES_PREFIX.length()) : raw;
-        return path.endsWith(PNG_SUFFIX) ? path.substring(0, path.length() - PNG_SUFFIX.length()) : path;
+        String path = raw.startsWith(VanillaSourceClasses.Paths.TEXTURE_DIR)
+            ? raw.substring(VanillaSourceClasses.Paths.TEXTURE_DIR.length()) : raw;
+        return path.endsWith(VanillaSourceClasses.Paths.PNG_SUFFIX)
+            ? path.substring(0, path.length() - VanillaSourceClasses.Paths.PNG_SUFFIX.length()) : path;
     }
 
     /** A block id / split id stripped of its {@code minecraft:} namespace. */
@@ -514,19 +514,25 @@ final class BlockCatalogResolver {
         return colon < 0 ? id : id.substring(colon + 1);
     }
 
-    /** Materialises a row list into the {@code blocks} array node. */
+    /** Materialises a row list into the {@code blocks} array node, wrapping stems in the full asset grammar. */
     private static @NotNull JsonNode toArray(@NotNull List<Row> rows) {
         JsonNode array = JsonNode.array();
         for (Row row : rows)
             array.add(JsonNode.object()
                 .put("block", row.block())
-                .put("texture", row.texture())
+                .put("texture", assetPath(row.texture()))
                 .putIf("variant", row.variant())
                 .putIf("tint", row.tint()));
         return array;
     }
 
-    /** One catalog row: the block id, its entity-texture id, an optional blockstate gate, an optional dye tint. */
+    /** A texture stem in the decision-21 full asset grammar ({@code minecraft:textures/<stem>.png}). */
+    private static @NotNull String assetPath(@NotNull String stem) {
+        return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + VanillaSourceClasses.Paths.TEXTURE_DIR
+            + stem + VanillaSourceClasses.Paths.PNG_SUFFIX;
+    }
+
+    /** One catalog row: the block id, its entity-texture stem, an optional blockstate gate, an optional dye tint. */
     private record Row(@NotNull String block, @NotNull String texture, @Nullable String variant, @Nullable String tint) {}
 
 }

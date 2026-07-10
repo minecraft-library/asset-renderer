@@ -24,51 +24,51 @@
       "blocks": [
         {
           "block": "minecraft:oak_sign",
-          "texture": "minecraft:entity/signs/oak"
+          "texture": "minecraft:textures/entity/signs/oak.png"
         },
         {
           "block": "minecraft:spruce_sign",
-          "texture": "minecraft:entity/signs/spruce"
+          "texture": "minecraft:textures/entity/signs/spruce.png"
         },
         {
           "block": "minecraft:birch_sign",
-          "texture": "minecraft:entity/signs/birch"
+          "texture": "minecraft:textures/entity/signs/birch.png"
         },
         {
           "block": "minecraft:acacia_sign",
-          "texture": "minecraft:entity/signs/acacia"
+          "texture": "minecraft:textures/entity/signs/acacia.png"
         },
         {
           "block": "minecraft:cherry_sign",
-          "texture": "minecraft:entity/signs/cherry"
+          "texture": "minecraft:textures/entity/signs/cherry.png"
         },
         {
           "block": "minecraft:jungle_sign",
-          "texture": "minecraft:entity/signs/jungle"
+          "texture": "minecraft:textures/entity/signs/jungle.png"
         },
         {
           "block": "minecraft:dark_oak_sign",
-          "texture": "minecraft:entity/signs/dark_oak"
+          "texture": "minecraft:textures/entity/signs/dark_oak.png"
         },
         {
           "block": "minecraft:pale_oak_sign",
-          "texture": "minecraft:entity/signs/pale_oak"
+          "texture": "minecraft:textures/entity/signs/pale_oak.png"
         },
         {
           "block": "minecraft:crimson_sign",
-          "texture": "minecraft:entity/signs/crimson"
+          "texture": "minecraft:textures/entity/signs/crimson.png"
         },
         {
           "block": "minecraft:warped_sign",
-          "texture": "minecraft:entity/signs/warped"
+          "texture": "minecraft:textures/entity/signs/warped.png"
         },
         {
           "block": "minecraft:mangrove_sign",
-          "texture": "minecraft:entity/signs/mangrove"
+          "texture": "minecraft:textures/entity/signs/mangrove.png"
         },
         {
           "block": "minecraft:bamboo_sign",
-          "texture": "minecraft:entity/signs/bamboo"
+          "texture": "minecraft:textures/entity/signs/bamboo.png"
         }
       ]
     },
@@ -93,51 +93,51 @@
       "blocks": [
         {
           "block": "minecraft:oak_wall_sign",
-          "texture": "minecraft:entity/signs/oak"
+          "texture": "minecraft:textures/entity/signs/oak.png"
         },
         {
           "block": "minecraft:spruce_wall_sign",
-          "texture": "minecraft:entity/signs/spruce"
+          "texture": "minecraft:textures/entity/signs/spruce.png"
         },
         {
           "block": "minecraft:birch_wall_sign",
-          "texture": "minecraft:entity/signs/birch"
+          "texture": "minecraft:textures/entity/signs/birch.png"
         },
         {
           "block": "minecraft:acacia_wall_sign",
-          "texture": "minecraft:entity/signs/acacia"
+          "texture": "minecraft:textures/entity/signs/acacia.png"
         },
         {
           "block": "minecraft:cherry_wall_sign",
-          "texture": "minecraft:entity/signs/cherry"
+          "texture": "minecraft:textures/entity/signs/cherry.png"
         },
         {
           "block": "minecraft:jungle_wall_sign",
-          "texture": "minecraft:entity/signs/jungle"
+          "texture": "minecraft:textures/entity/signs/jungle.png"
         },
         {
           "block": "minecraft:dark_oak_wall_sign",
-          "texture": "minecraft:entity/signs/dark_oak"
+          "texture": "minecraft:textures/entity/signs/dark_oak.png"
         },
         {
           "block": "minecraft:pale_oak_wall_sign",
-          "texture": "minecraft:entity/signs/pale_oak"
+          "texture": "minecraft:textures/entity/signs/pale_oak.png"
         },
         {
           "block": "minecraft:crimson_wall_sign",
-          "texture": "minecraft:entity/signs/crimson"
+          "texture": "minecraft:textures/entity/signs/crimson.png"
         },
         {
           "block": "minecraft:warped_wall_sign",
-          "texture": "minecraft:entity/signs/warped"
+          "texture": "minecraft:textures/entity/signs/warped.png"
         },
         {
           "block": "minecraft:mangrove_wall_sign",
-          "texture": "minecraft:entity/signs/mangrove"
+          "texture": "minecraft:textures/entity/signs/mangrove.png"
         },
         {
           "block": "minecraft:bamboo_wall_sign",
-          "texture": "minecraft:entity/signs/bamboo"
+          "texture": "minecraft:textures/entity/signs/bamboo.png"
         }
       ]
     },
@@ -161,51 +161,51 @@
       "blocks": [
         {
           "block": "minecraft:oak_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/oak"
+          "texture": "minecraft:textures/entity/signs/hanging/oak.png"
         },
         {
           "block": "minecraft:spruce_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/spruce"
+          "texture": "minecraft:textures/entity/signs/hanging/spruce.png"
         },
         {
           "block": "minecraft:birch_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/birch"
+          "texture": "minecraft:textures/entity/signs/hanging/birch.png"
         },
         {
           "block": "minecraft:acacia_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/acacia"
+          "texture": "minecraft:textures/entity/signs/hanging/acacia.png"
         },
         {
           "block": "minecraft:cherry_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/cherry"
+          "texture": "minecraft:textures/entity/signs/hanging/cherry.png"
         },
         {
           "block": "minecraft:jungle_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/jungle"
+          "texture": "minecraft:textures/entity/signs/hanging/jungle.png"
         },
         {
           "block": "minecraft:dark_oak_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/dark_oak"
+          "texture": "minecraft:textures/entity/signs/hanging/dark_oak.png"
         },
         {
           "block": "minecraft:pale_oak_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/pale_oak"
+          "texture": "minecraft:textures/entity/signs/hanging/pale_oak.png"
         },
         {
           "block": "minecraft:crimson_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/crimson"
+          "texture": "minecraft:textures/entity/signs/hanging/crimson.png"
         },
         {
           "block": "minecraft:warped_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/warped"
+          "texture": "minecraft:textures/entity/signs/hanging/warped.png"
         },
         {
           "block": "minecraft:mangrove_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/mangrove"
+          "texture": "minecraft:textures/entity/signs/hanging/mangrove.png"
         },
         {
           "block": "minecraft:bamboo_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/bamboo"
+          "texture": "minecraft:textures/entity/signs/hanging/bamboo.png"
         }
       ]
     },
@@ -229,62 +229,62 @@
       "blocks": [
         {
           "block": "minecraft:oak_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/oak",
+          "texture": "minecraft:textures/entity/signs/hanging/oak.png",
           "variant": "attached=true"
         },
         {
           "block": "minecraft:spruce_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/spruce",
+          "texture": "minecraft:textures/entity/signs/hanging/spruce.png",
           "variant": "attached=true"
         },
         {
           "block": "minecraft:birch_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/birch",
+          "texture": "minecraft:textures/entity/signs/hanging/birch.png",
           "variant": "attached=true"
         },
         {
           "block": "minecraft:acacia_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/acacia",
+          "texture": "minecraft:textures/entity/signs/hanging/acacia.png",
           "variant": "attached=true"
         },
         {
           "block": "minecraft:cherry_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/cherry",
+          "texture": "minecraft:textures/entity/signs/hanging/cherry.png",
           "variant": "attached=true"
         },
         {
           "block": "minecraft:jungle_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/jungle",
+          "texture": "minecraft:textures/entity/signs/hanging/jungle.png",
           "variant": "attached=true"
         },
         {
           "block": "minecraft:dark_oak_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/dark_oak",
+          "texture": "minecraft:textures/entity/signs/hanging/dark_oak.png",
           "variant": "attached=true"
         },
         {
           "block": "minecraft:pale_oak_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/pale_oak",
+          "texture": "minecraft:textures/entity/signs/hanging/pale_oak.png",
           "variant": "attached=true"
         },
         {
           "block": "minecraft:crimson_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/crimson",
+          "texture": "minecraft:textures/entity/signs/hanging/crimson.png",
           "variant": "attached=true"
         },
         {
           "block": "minecraft:warped_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/warped",
+          "texture": "minecraft:textures/entity/signs/hanging/warped.png",
           "variant": "attached=true"
         },
         {
           "block": "minecraft:mangrove_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/mangrove",
+          "texture": "minecraft:textures/entity/signs/hanging/mangrove.png",
           "variant": "attached=true"
         },
         {
           "block": "minecraft:bamboo_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/bamboo",
+          "texture": "minecraft:textures/entity/signs/hanging/bamboo.png",
           "variant": "attached=true"
         }
       ]
@@ -309,51 +309,51 @@
       "blocks": [
         {
           "block": "minecraft:oak_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/oak"
+          "texture": "minecraft:textures/entity/signs/hanging/oak.png"
         },
         {
           "block": "minecraft:spruce_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/spruce"
+          "texture": "minecraft:textures/entity/signs/hanging/spruce.png"
         },
         {
           "block": "minecraft:birch_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/birch"
+          "texture": "minecraft:textures/entity/signs/hanging/birch.png"
         },
         {
           "block": "minecraft:acacia_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/acacia"
+          "texture": "minecraft:textures/entity/signs/hanging/acacia.png"
         },
         {
           "block": "minecraft:cherry_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/cherry"
+          "texture": "minecraft:textures/entity/signs/hanging/cherry.png"
         },
         {
           "block": "minecraft:jungle_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/jungle"
+          "texture": "minecraft:textures/entity/signs/hanging/jungle.png"
         },
         {
           "block": "minecraft:dark_oak_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/dark_oak"
+          "texture": "minecraft:textures/entity/signs/hanging/dark_oak.png"
         },
         {
           "block": "minecraft:pale_oak_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/pale_oak"
+          "texture": "minecraft:textures/entity/signs/hanging/pale_oak.png"
         },
         {
           "block": "minecraft:crimson_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/crimson"
+          "texture": "minecraft:textures/entity/signs/hanging/crimson.png"
         },
         {
           "block": "minecraft:warped_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/warped"
+          "texture": "minecraft:textures/entity/signs/hanging/warped.png"
         },
         {
           "block": "minecraft:mangrove_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/mangrove"
+          "texture": "minecraft:textures/entity/signs/hanging/mangrove.png"
         },
         {
           "block": "minecraft:bamboo_wall_hanging_sign",
-          "texture": "minecraft:entity/signs/hanging/bamboo"
+          "texture": "minecraft:textures/entity/signs/hanging/bamboo.png"
         }
       ]
     },
@@ -369,47 +369,47 @@
       "blocks": [
         {
           "block": "minecraft:chest",
-          "texture": "minecraft:entity/chest/normal"
+          "texture": "minecraft:textures/entity/chest/normal.png"
         },
         {
           "block": "minecraft:copper_chest",
-          "texture": "minecraft:entity/chest/copper"
+          "texture": "minecraft:textures/entity/chest/copper.png"
         },
         {
           "block": "minecraft:exposed_copper_chest",
-          "texture": "minecraft:entity/chest/copper_exposed"
+          "texture": "minecraft:textures/entity/chest/copper_exposed.png"
         },
         {
           "block": "minecraft:weathered_copper_chest",
-          "texture": "minecraft:entity/chest/copper_weathered"
+          "texture": "minecraft:textures/entity/chest/copper_weathered.png"
         },
         {
           "block": "minecraft:oxidized_copper_chest",
-          "texture": "minecraft:entity/chest/copper_oxidized"
+          "texture": "minecraft:textures/entity/chest/copper_oxidized.png"
         },
         {
           "block": "minecraft:waxed_copper_chest",
-          "texture": "minecraft:entity/chest/copper"
+          "texture": "minecraft:textures/entity/chest/copper.png"
         },
         {
           "block": "minecraft:waxed_exposed_copper_chest",
-          "texture": "minecraft:entity/chest/copper_exposed"
+          "texture": "minecraft:textures/entity/chest/copper_exposed.png"
         },
         {
           "block": "minecraft:waxed_weathered_copper_chest",
-          "texture": "minecraft:entity/chest/copper_weathered"
+          "texture": "minecraft:textures/entity/chest/copper_weathered.png"
         },
         {
           "block": "minecraft:waxed_oxidized_copper_chest",
-          "texture": "minecraft:entity/chest/copper_oxidized"
+          "texture": "minecraft:textures/entity/chest/copper_oxidized.png"
         },
         {
           "block": "minecraft:trapped_chest",
-          "texture": "minecraft:entity/chest/trapped"
+          "texture": "minecraft:textures/entity/chest/trapped.png"
         },
         {
           "block": "minecraft:ender_chest",
-          "texture": "minecraft:entity/chest/ender"
+          "texture": "minecraft:textures/entity/chest/ender.png"
         }
       ]
     },
@@ -453,27 +453,27 @@
       "blocks": [
         {
           "block": "minecraft:skeleton_skull",
-          "texture": "minecraft:entity/skeleton/skeleton"
+          "texture": "minecraft:textures/entity/skeleton/skeleton.png"
         },
         {
           "block": "minecraft:skeleton_wall_skull",
-          "texture": "minecraft:entity/skeleton/skeleton"
+          "texture": "minecraft:textures/entity/skeleton/skeleton.png"
         },
         {
           "block": "minecraft:creeper_head",
-          "texture": "minecraft:entity/creeper/creeper"
+          "texture": "minecraft:textures/entity/creeper/creeper.png"
         },
         {
           "block": "minecraft:creeper_wall_head",
-          "texture": "minecraft:entity/creeper/creeper"
+          "texture": "minecraft:textures/entity/creeper/creeper.png"
         },
         {
           "block": "minecraft:wither_skeleton_skull",
-          "texture": "minecraft:entity/skeleton/wither_skeleton"
+          "texture": "minecraft:textures/entity/skeleton/wither_skeleton.png"
         },
         {
           "block": "minecraft:wither_skeleton_wall_skull",
-          "texture": "minecraft:entity/skeleton/wither_skeleton"
+          "texture": "minecraft:textures/entity/skeleton/wither_skeleton.png"
         }
       ]
     },
@@ -497,19 +497,19 @@
       "blocks": [
         {
           "block": "minecraft:zombie_head",
-          "texture": "minecraft:entity/zombie/zombie"
+          "texture": "minecraft:textures/entity/zombie/zombie.png"
         },
         {
           "block": "minecraft:zombie_wall_head",
-          "texture": "minecraft:entity/zombie/zombie"
+          "texture": "minecraft:textures/entity/zombie/zombie.png"
         },
         {
           "block": "minecraft:player_head",
-          "texture": "minecraft:entity/player/slim/steve"
+          "texture": "minecraft:textures/entity/player/slim/steve.png"
         },
         {
           "block": "minecraft:player_wall_head",
-          "texture": "minecraft:entity/player/slim/steve"
+          "texture": "minecraft:textures/entity/player/slim/steve.png"
         }
       ]
     },
@@ -533,11 +533,11 @@
       "blocks": [
         {
           "block": "minecraft:dragon_head",
-          "texture": "minecraft:entity/enderdragon/dragon"
+          "texture": "minecraft:textures/entity/enderdragon/dragon.png"
         },
         {
           "block": "minecraft:dragon_wall_head",
-          "texture": "minecraft:entity/enderdragon/dragon"
+          "texture": "minecraft:textures/entity/enderdragon/dragon.png"
         }
       ]
     },
@@ -561,11 +561,11 @@
       "blocks": [
         {
           "block": "minecraft:piglin_head",
-          "texture": "minecraft:entity/piglin/piglin"
+          "texture": "minecraft:textures/entity/piglin/piglin.png"
         },
         {
           "block": "minecraft:piglin_wall_head",
-          "texture": "minecraft:entity/piglin/piglin"
+          "texture": "minecraft:textures/entity/piglin/piglin.png"
         }
       ]
     },
@@ -595,82 +595,82 @@
       "blocks": [
         {
           "block": "minecraft:white_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "WHITE"
         },
         {
           "block": "minecraft:orange_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "ORANGE"
         },
         {
           "block": "minecraft:magenta_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "MAGENTA"
         },
         {
           "block": "minecraft:light_blue_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "LIGHT_BLUE"
         },
         {
           "block": "minecraft:yellow_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "YELLOW"
         },
         {
           "block": "minecraft:lime_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "LIME"
         },
         {
           "block": "minecraft:pink_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "PINK"
         },
         {
           "block": "minecraft:gray_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "GRAY"
         },
         {
           "block": "minecraft:light_gray_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "LIGHT_GRAY"
         },
         {
           "block": "minecraft:cyan_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "CYAN"
         },
         {
           "block": "minecraft:purple_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "PURPLE"
         },
         {
           "block": "minecraft:blue_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "BLUE"
         },
         {
           "block": "minecraft:brown_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "BROWN"
         },
         {
           "block": "minecraft:green_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "GREEN"
         },
         {
           "block": "minecraft:red_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "RED"
         },
         {
           "block": "minecraft:black_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "BLACK"
         }
       ]
@@ -701,82 +701,82 @@
       "blocks": [
         {
           "block": "minecraft:white_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "WHITE"
         },
         {
           "block": "minecraft:orange_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "ORANGE"
         },
         {
           "block": "minecraft:magenta_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "MAGENTA"
         },
         {
           "block": "minecraft:light_blue_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "LIGHT_BLUE"
         },
         {
           "block": "minecraft:yellow_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "YELLOW"
         },
         {
           "block": "minecraft:lime_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "LIME"
         },
         {
           "block": "minecraft:pink_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "PINK"
         },
         {
           "block": "minecraft:gray_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "GRAY"
         },
         {
           "block": "minecraft:light_gray_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "LIGHT_GRAY"
         },
         {
           "block": "minecraft:cyan_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "CYAN"
         },
         {
           "block": "minecraft:purple_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "PURPLE"
         },
         {
           "block": "minecraft:blue_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "BLUE"
         },
         {
           "block": "minecraft:brown_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "BROWN"
         },
         {
           "block": "minecraft:green_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "GREEN"
         },
         {
           "block": "minecraft:red_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "RED"
         },
         {
           "block": "minecraft:black_wall_banner",
-          "texture": "minecraft:entity/banner/banner_base",
+          "texture": "minecraft:textures/entity/banner/banner_base.png",
           "tint": "BLACK"
         }
       ]
@@ -839,71 +839,71 @@
       "blocks": [
         {
           "block": "minecraft:shulker_box",
-          "texture": "minecraft:entity/shulker/shulker"
+          "texture": "minecraft:textures/entity/shulker/shulker.png"
         },
         {
           "block": "minecraft:white_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_white"
+          "texture": "minecraft:textures/entity/shulker/shulker_white.png"
         },
         {
           "block": "minecraft:orange_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_orange"
+          "texture": "minecraft:textures/entity/shulker/shulker_orange.png"
         },
         {
           "block": "minecraft:magenta_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_magenta"
+          "texture": "minecraft:textures/entity/shulker/shulker_magenta.png"
         },
         {
           "block": "minecraft:light_blue_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_light_blue"
+          "texture": "minecraft:textures/entity/shulker/shulker_light_blue.png"
         },
         {
           "block": "minecraft:yellow_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_yellow"
+          "texture": "minecraft:textures/entity/shulker/shulker_yellow.png"
         },
         {
           "block": "minecraft:lime_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_lime"
+          "texture": "minecraft:textures/entity/shulker/shulker_lime.png"
         },
         {
           "block": "minecraft:pink_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_pink"
+          "texture": "minecraft:textures/entity/shulker/shulker_pink.png"
         },
         {
           "block": "minecraft:gray_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_gray"
+          "texture": "minecraft:textures/entity/shulker/shulker_gray.png"
         },
         {
           "block": "minecraft:light_gray_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_light_gray"
+          "texture": "minecraft:textures/entity/shulker/shulker_light_gray.png"
         },
         {
           "block": "minecraft:cyan_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_cyan"
+          "texture": "minecraft:textures/entity/shulker/shulker_cyan.png"
         },
         {
           "block": "minecraft:purple_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_purple"
+          "texture": "minecraft:textures/entity/shulker/shulker_purple.png"
         },
         {
           "block": "minecraft:blue_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_blue"
+          "texture": "minecraft:textures/entity/shulker/shulker_blue.png"
         },
         {
           "block": "minecraft:brown_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_brown"
+          "texture": "minecraft:textures/entity/shulker/shulker_brown.png"
         },
         {
           "block": "minecraft:green_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_green"
+          "texture": "minecraft:textures/entity/shulker/shulker_green.png"
         },
         {
           "block": "minecraft:red_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_red"
+          "texture": "minecraft:textures/entity/shulker/shulker_red.png"
         },
         {
           "block": "minecraft:black_shulker_box",
-          "texture": "minecraft:entity/shulker/shulker_black"
+          "texture": "minecraft:textures/entity/shulker/shulker_black.png"
         }
       ]
     },
@@ -940,67 +940,67 @@
       "blocks": [
         {
           "block": "minecraft:white_bed",
-          "texture": "minecraft:entity/bed/white"
+          "texture": "minecraft:textures/entity/bed/white.png"
         },
         {
           "block": "minecraft:orange_bed",
-          "texture": "minecraft:entity/bed/orange"
+          "texture": "minecraft:textures/entity/bed/orange.png"
         },
         {
           "block": "minecraft:magenta_bed",
-          "texture": "minecraft:entity/bed/magenta"
+          "texture": "minecraft:textures/entity/bed/magenta.png"
         },
         {
           "block": "minecraft:light_blue_bed",
-          "texture": "minecraft:entity/bed/light_blue"
+          "texture": "minecraft:textures/entity/bed/light_blue.png"
         },
         {
           "block": "minecraft:yellow_bed",
-          "texture": "minecraft:entity/bed/yellow"
+          "texture": "minecraft:textures/entity/bed/yellow.png"
         },
         {
           "block": "minecraft:lime_bed",
-          "texture": "minecraft:entity/bed/lime"
+          "texture": "minecraft:textures/entity/bed/lime.png"
         },
         {
           "block": "minecraft:pink_bed",
-          "texture": "minecraft:entity/bed/pink"
+          "texture": "minecraft:textures/entity/bed/pink.png"
         },
         {
           "block": "minecraft:gray_bed",
-          "texture": "minecraft:entity/bed/gray"
+          "texture": "minecraft:textures/entity/bed/gray.png"
         },
         {
           "block": "minecraft:light_gray_bed",
-          "texture": "minecraft:entity/bed/light_gray"
+          "texture": "minecraft:textures/entity/bed/light_gray.png"
         },
         {
           "block": "minecraft:cyan_bed",
-          "texture": "minecraft:entity/bed/cyan"
+          "texture": "minecraft:textures/entity/bed/cyan.png"
         },
         {
           "block": "minecraft:purple_bed",
-          "texture": "minecraft:entity/bed/purple"
+          "texture": "minecraft:textures/entity/bed/purple.png"
         },
         {
           "block": "minecraft:blue_bed",
-          "texture": "minecraft:entity/bed/blue"
+          "texture": "minecraft:textures/entity/bed/blue.png"
         },
         {
           "block": "minecraft:brown_bed",
-          "texture": "minecraft:entity/bed/brown"
+          "texture": "minecraft:textures/entity/bed/brown.png"
         },
         {
           "block": "minecraft:green_bed",
-          "texture": "minecraft:entity/bed/green"
+          "texture": "minecraft:textures/entity/bed/green.png"
         },
         {
           "block": "minecraft:red_bed",
-          "texture": "minecraft:entity/bed/red"
+          "texture": "minecraft:textures/entity/bed/red.png"
         },
         {
           "block": "minecraft:black_bed",
-          "texture": "minecraft:entity/bed/black"
+          "texture": "minecraft:textures/entity/bed/black.png"
         }
       ]
     },
@@ -1042,7 +1042,7 @@
       "blocks": [
         {
           "block": "minecraft:conduit",
-          "texture": "minecraft:entity/conduit/base"
+          "texture": "minecraft:textures/entity/conduit/base.png"
         }
       ]
     },
@@ -1061,7 +1061,7 @@
       "blocks": [
         {
           "block": "minecraft:bell",
-          "texture": "minecraft:entity/bell/bell_body"
+          "texture": "minecraft:textures/entity/bell/bell_body.png"
         }
       ]
     },
@@ -1090,13 +1090,13 @@
             0,
             0
           ],
-          "texture": "minecraft:entity/decorated_pot/decorated_pot_side"
+          "texture": "minecraft:textures/entity/decorated_pot/decorated_pot_side.png"
         }
       ],
       "blocks": [
         {
           "block": "minecraft:decorated_pot",
-          "texture": "minecraft:entity/decorated_pot/decorated_pot_base"
+          "texture": "minecraft:textures/entity/decorated_pot/decorated_pot_base.png"
         }
       ]
     },
@@ -1130,35 +1130,35 @@
       "blocks": [
         {
           "block": "minecraft:copper_golem_statue",
-          "texture": "minecraft:entity/copper_golem/copper_golem"
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem.png"
         },
         {
           "block": "minecraft:exposed_copper_golem_statue",
-          "texture": "minecraft:entity/copper_golem/copper_golem_exposed"
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_exposed.png"
         },
         {
           "block": "minecraft:weathered_copper_golem_statue",
-          "texture": "minecraft:entity/copper_golem/copper_golem_weathered"
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_weathered.png"
         },
         {
           "block": "minecraft:oxidized_copper_golem_statue",
-          "texture": "minecraft:entity/copper_golem/copper_golem_oxidized"
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_oxidized.png"
         },
         {
           "block": "minecraft:waxed_copper_golem_statue",
-          "texture": "minecraft:entity/copper_golem/copper_golem"
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem.png"
         },
         {
           "block": "minecraft:waxed_exposed_copper_golem_statue",
-          "texture": "minecraft:entity/copper_golem/copper_golem_exposed"
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_exposed.png"
         },
         {
           "block": "minecraft:waxed_weathered_copper_golem_statue",
-          "texture": "minecraft:entity/copper_golem/copper_golem_weathered"
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_weathered.png"
         },
         {
           "block": "minecraft:waxed_oxidized_copper_golem_statue",
-          "texture": "minecraft:entity/copper_golem/copper_golem_oxidized"
+          "texture": "minecraft:textures/entity/copper_golem/copper_golem_oxidized.png"
         }
       ]
     }
