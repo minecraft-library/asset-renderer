@@ -217,20 +217,41 @@ final class EntityAgeAxisResolver {
         return null;
     }
 
-    /** The first Identifier {@code GETSTATIC} on the isBaby-true fall-through arm, or {@code null}. */
+    /**
+     * The first Identifier {@code GETSTATIC} on the {@code isBaby}-true arm reached along the
+     * DEFAULT state path, or {@code null}. Renderers that gate the texture on more than one flag
+     * ({@code StriderRenderer}: {@code isSuffocating} outside {@code isBaby}) expose several
+     * {@code GETFIELD isBaby; IFEQ} sites; the baby texture must match the same state branch the
+     * adult resolves to (all other flags false - {@code EntityTextureResolver.findPrimaryByDefaultPath}),
+     * so a plain first-site pick returns the wrong sibling (cold baby vs the warm-default baby).
+     * This traces each {@code GETFIELD <flag>; IFEQ} taking the false arm for non-{@code isBaby}
+     * flags and falling through into the {@code isBaby}-true arm at the isBaby gate.
+     */
     private static @Nullable String isBabyTrueArmIdentifierField(@NotNull MethodNode method) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() != Opcodes.GETFIELD
-                || !(in instanceof FieldInsnNode fi)
-                || !VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)
-                || !"Z".equals(fi.desc)) continue;
-            AbstractInsnNode branch = AsmKit.nextReal(in);
-            if (branch == null || branch.getOpcode() != Opcodes.IFEQ || !(branch instanceof JumpInsnNode jump)) continue;
-            for (AbstractInsnNode arm = branch.getNext(); arm != null && arm != jump.label; arm = arm.getNext())
-                if (arm.getOpcode() == Opcodes.GETSTATIC
-                    && arm instanceof FieldInsnNode texture
-                    && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(texture.desc))
-                    return texture.name;
+        java.util.Set<AbstractInsnNode> visited = new java.util.HashSet<>();
+        AbstractInsnNode in = method.instructions.getFirst();
+        while (in != null && visited.add(in)) {
+            if (in.getOpcode() == Opcodes.GETFIELD
+                && in instanceof FieldInsnNode fi
+                && "Z".equals(fi.desc)
+                && AsmKit.nextReal(in) instanceof JumpInsnNode jump
+                && jump.getOpcode() == Opcodes.IFEQ) {
+                if (VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)) {
+                    for (AbstractInsnNode arm = jump.getNext(); arm != null && arm != jump.label; arm = arm.getNext())
+                        if (arm.getOpcode() == Opcodes.GETSTATIC
+                            && arm instanceof FieldInsnNode texture
+                            && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(texture.desc))
+                            return texture.name;
+                    return null;
+                }
+                in = jump.label;                      // a non-isBaby flag: take its false arm
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.GOTO && in instanceof JumpInsnNode goTo) {
+                in = goTo.label;
+                continue;
+            }
+            in = in.getNext();
         }
         return null;
     }

@@ -155,7 +155,7 @@
           "options": {
             "baby": {
               "geometry": "BabyBeeModel#createBodyLayer",
-              "texture": "minecraft:textures/entity/bee/bee_angry_nectar_baby.png"
+              "texture": "minecraft:textures/entity/bee/bee_baby.png"
             }
           }
         }
@@ -840,7 +840,7 @@
       "renderer": "net/minecraft/client/renderer/entity/EnderDragonRenderer",
       "geometry": "EnderDragonModel#createBodyLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/enderdragon/dragon_exploding.png",
+      "texture": "minecraft:textures/entity/enderdragon/dragon.png",
       "overlays": [
         {
           "source": "EnderDragonRenderer",
@@ -2224,7 +2224,7 @@
           "options": {
             "baby": {
               "geometry": "BabyStriderModel#createBodyLayer",
-              "texture": "minecraft:textures/entity/strider/strider_cold_baby.png"
+              "texture": "minecraft:textures/entity/strider/strider_baby.png"
             }
           }
         }

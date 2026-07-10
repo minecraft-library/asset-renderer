@@ -700,6 +700,10 @@ final class EntityTextureResolver {
             }
         }
 
+        Set<String> candidateStems = new HashSet<>();
+        for (String path : candidates)
+            candidateStems.add(path.substring(VanillaSourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length()));
+
         for (String path : candidates) {
             String stem = path.substring(VanillaSourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length());
             boolean nonBase = false;
@@ -708,9 +712,32 @@ final class EntityTextureResolver {
                     nonBase = true;
                     break;
                 }
+            // A state-overlay sibling of a base texture present in the SAME candidate set is not
+            // the base (ender dragon: skip dragon_exploding / dragon_eyes when dragon is a
+            // candidate) - catches the non-recurring suffixes the derived set misses [D27].
+            if (!nonBase && hasBaseSibling(stem, candidateStems)) nonBase = true;
             if (!nonBase) return stem;
         }
         return findSheetsTextureFallback();
+    }
+
+    /**
+     * Whether {@code stem} is a {@code <base>_<suffix>} overlay whose {@code <base>} sibling is
+     * itself in the candidate set (same directory) - the local, single-directory analogue of the
+     * cross-directory recurrence derivation, for state suffixes that appear only once
+     * ({@code _exploding}).
+     *
+     * @param stem the candidate stem (directory + local name, no prefix / suffix)
+     * @param candidateStems every candidate stem in the fallback set
+     * @return whether a strict underscore-prefix of {@code stem} is also a candidate
+     */
+    private static boolean hasBaseSibling(@NotNull String stem, @NotNull Set<String> candidateStems) {
+        int slash = stem.lastIndexOf('/');
+        String directory = slash >= 0 ? stem.substring(0, slash + 1) : "";
+        String local = slash >= 0 ? stem.substring(slash + 1) : stem;
+        for (int underscore = local.indexOf('_'); underscore > 0; underscore = local.indexOf('_', underscore + 1))
+            if (candidateStems.contains(directory + local.substring(0, underscore))) return true;
+        return false;
     }
 
     /**

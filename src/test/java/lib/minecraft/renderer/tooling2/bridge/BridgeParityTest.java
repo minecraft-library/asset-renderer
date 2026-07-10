@@ -127,13 +127,13 @@ class BridgeParityTest {
         "minecraft:zombified_piglin",
         // same-mesh overlays missing the S11-absent inflate:0.001 (+ some also carry v2-superior
         // pipeline blend/emissive the legacy hardcoded arms never classified)
-        "minecraft:breeze", "minecraft:cave_spider", "minecraft:copper_golem", "minecraft:enderman",
-        "minecraft:iron_golem", "minecraft:phantom", "minecraft:spider", "minecraft:villager",
-        "minecraft:warden", "minecraft:zombie_villager",
+        "minecraft:breeze", "minecraft:cave_spider", "minecraft:copper_golem", "minecraft:ender_dragon",
+        "minecraft:enderman", "minecraft:iron_golem", "minecraft:phantom", "minecraft:spider",
+        "minecraft:villager", "minecraft:warden", "minecraft:zombie_villager",
         // v2-superior structure kept: bone toggles, energy-swirl overlay, drowned overlay-grow
         "minecraft:armor_stand", "minecraft:bee", "minecraft:turtle", "minecraft:wither", "minecraft:drowned",
-        // v2 texture-selection differences (base/baby texture picks) - flagged for flow review
-        "minecraft:ender_dragon", "minecraft:sniffer", "minecraft:strider");
+        // v2 is more correct than legacy's baby texture (Snifflet uses snifflet.png, not sniffer_baby)
+        "minecraft:sniffer");
 
     @Test
     @DisplayName("entity_models reconstructs shared-intent families byte-exact; divergences are the recorded v2-superior set")
