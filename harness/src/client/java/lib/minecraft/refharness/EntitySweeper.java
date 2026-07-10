@@ -16,6 +16,7 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.animal.cow.MushroomCow;
 import net.minecraft.world.entity.animal.equine.Variant;
 import org.joml.Quaternionf;
 import org.slf4j.Logger;
@@ -124,13 +125,10 @@ public final class EntitySweeper implements AutoCloseable {
     /**
      * Cross-{@link EntityType} family overrides for the family-locked sizing pre-pass.
      * Maps a "secondary" entity type to the "primary" entity type whose family it should
-     * share (and thus whose canvas + scale + anchor it renders with). Mooshroom is the
-     * canonical case: it's a separate {@code EntityType} from cow, but uses the cow model
-     * for its body, so visually it should render at the same scale as cow / cow_cold /
-     * cow_warm with the mushroom overlays protruding into otherwise-empty top canvas space.
+     * share (and thus whose canvas + scale + anchor it renders with).
      * <p>
      * Variants of the same {@code EntityType} (cow_cold, cow_warm, ...) are family-grouped
-     * automatically since they all key on {@code EntityType.COW} - no override needed.
+     * automatically since they all key on the same {@code EntityType} - no override needed.
      * Add an entry here only when two distinct {@code EntityType} values should visually
      * group. Other candidates if vanilla adds them: {@code zombified_piglin → piglin},
      * {@code wither_skeleton → skeleton}, {@code husk → zombie}.
@@ -139,9 +137,15 @@ public final class EntitySweeper implements AutoCloseable {
      * (shared {@code geometry.skeleton}): the Java pipeline canvas-fits skeleton with stray's
      * inflated clothing-layer overlay, so the harness must apply the same union to keep
      * skeleton's reference PNG at the same canvas dimensions as stray's.
+     * <p>
+     * Mooshroom is deliberately NOT overridden into cow: the asset-renderer id-encodes it as
+     * {@code mooshroom_red}/{@code mooshroom_brown} variants that do not roll into cow's
+     * family-union (the {@code family_of} table keys on the base id, not the pseudo-ids), so
+     * cow is canvas-fit to the cow body alone and mooshroom sizes to its own body + mushrooms.
+     * Overriding it into cow here would push the cow reference down by the mushroom height and
+     * diverge from the Java render (see {@link #renderAllMooshroomVariants}).
      */
     private static final Map<EntityType<?>, EntityType<?>> FAMILY_OVERRIDES = Map.of(
-        EntityType.MOOSHROOM, EntityType.COW,
         EntityType.STRAY, EntityType.SKELETON
     );
 
@@ -232,6 +236,17 @@ public final class EntitySweeper implements AutoCloseable {
                     skipped++;
                 } else {
                     rendered += coatsRendered;
+                }
+            } else if (type == EntityType.MOOSHROOM && !HarnessConfig.PITCH_ROLL_SWEEP) {
+                // Mooshroom's mushroom colour is the MushroomCow.Variant enum (RED/BROWN) persisted
+                // as the STRING NBT "Type", not a data-driven <X>_variant registry - its own enum
+                // loop, matching the asset-renderer's id-encoded mooshroom_red/mooshroom_brown rows.
+                int variantsRendered = renderAllMooshroomVariants(client, type, safeName);
+                if (variantsRendered == 0) {
+                    LOG.warn("EntitySweeper: no mooshroom variants rendered for {} (family fit missed?)", id);
+                    skipped++;
+                } else {
+                    rendered += variantsRendered;
                 }
             } else if (variantRegistryKey != null && !HarnessConfig.PITCH_ROLL_SWEEP) {
                 int variantsRendered = renderAllVariants(client, type, variantRegistryKey, safeName);
@@ -455,6 +470,47 @@ public final class EntitySweeper implements AutoCloseable {
             }
             zeroRotations(entity);
             String safeName = baseName + "_" + coat.getSerializedName();
+            Path out = HarnessConfig.OUTPUT_DIR.resolve("entities").resolve(safeName + ".png");
+            frameRenderer.renderAndWrite(client, entity, fit, out);
+            success++;
+        }
+        return success;
+    }
+
+    /**
+     * Renders one PNG per mooshroom mushroom colour ({@code red}, {@code brown}). Like the horse
+     * coat ({@link #renderAllHorseCoats}), the mushroom colour is the
+     * {@link MushroomCow.Variant} enum - not a data-driven {@code <X>_variant} registry - persisted
+     * as the STRING NBT {@code "Type"} read through {@code MushroomCow.Variant.CODEC}
+     * ({@link MushroomCow.Variant#getSerializedName() serialized name}), so it needs its own enum
+     * loop. Each variant is reconstructed through {@link EntityType#loadEntityRecursive(EntityType,
+     * CompoundTag, net.minecraft.world.level.Level, EntitySpawnReason, EntityProcessor)
+     * loadEntityRecursive} so vanilla's deserialiser applies it before render-state extraction.
+     * <p>
+     * Filenames are {@code minecraft__mooshroom_<colour>.png}, matching the asset-renderer's
+     * id-encoded {@code minecraft:mooshroom_red}/{@code minecraft:mooshroom_brown} variant rows.
+     * Mooshroom sizes to its own family (not cow's - see {@link #FAMILY_OVERRIDES}) so its
+     * mushrooms fit the canvas rather than pushing the cow reference down.
+     *
+     * @return the number of mushroom colours successfully rendered
+     */
+    private int renderAllMooshroomVariants(Minecraft client, EntityType<?> type, String baseName) throws IOException {
+        EntityFrameRenderer.FamilyFit fit = familyFits.get(familyRoot(type));
+        if (fit == null) {
+            LOG.warn("EntitySweeper: no family fit for mooshroom (pre-pass missed it?)");
+            return 0;
+        }
+        int success = 0;
+        for (MushroomCow.Variant variant : new MushroomCow.Variant[]{MushroomCow.Variant.RED, MushroomCow.Variant.BROWN}) {
+            CompoundTag nbt = new CompoundTag();
+            nbt.putString("Type", variant.getSerializedName());
+            Entity entity = EntityType.loadEntityRecursive(type, nbt, client.level, EntitySpawnReason.LOAD, EntityProcessor.NOP);
+            if (entity == null) {
+                LOG.warn("EntitySweeper: loadEntityRecursive returned null for {} variant={}", baseName, variant);
+                continue;
+            }
+            zeroRotations(entity);
+            String safeName = baseName + "_" + variant.getSerializedName();
             Path out = HarnessConfig.OUTPUT_DIR.resolve("entities").resolve(safeName + ".png");
             frameRenderer.renderAndWrite(client, entity, fit, out);
             success++;
