@@ -129,7 +129,7 @@ public final class GeometryParser {
      * {@code PiglinHeadModel.createHeadModel -> PiglinModel.addHead} resolve without
      * needing a dedicated source entry per delegate.
      *
-     * <p>Seeds a fresh {@link ParseState} from the {@link GeometryRequest}'s substitution
+     * <p>Seeds a fresh {@link WalkState} from the {@link GeometryRequest}'s substitution
      * hooks ({@code paramIntValues} / {@code paramFloatValues} / {@code grow} /
      * {@code appliedMeshTransformerScale} / {@code refParam}), runs {@link #walkInstructions},
      * then applies the post-walk passes ({@link #applyRetainedNamesFilter},
@@ -144,9 +144,9 @@ public final class GeometryParser {
      *     {@code null} when no bone with cubes was emitted
      */
     private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ClassNodeCache cache, @NotNull GeometryRequest request, @NotNull Diagnostics diagnostics) {
-        ParseState state = new ParseState();
-        state.paramIntValues = request.paramIntValues();
-        state.paramFloatValues = request.paramFloatValues();
+        WalkState state = new WalkState();
+        state.frame.paramIntValues = request.paramIntValues();
+        state.frame.paramFloatValues = request.paramFloatValues();
         // A request carrying a float-substitution table opts into the EVALUATING walk
         // (arithmetic / loops / inflate); its absence is the byte-stable LEGACY_LINEAR
         // block-entity walk. Fixed once here - the mode is invariant for the parse.
@@ -323,7 +323,7 @@ public final class GeometryParser {
     }
 
     /**
-     * Bakes the captured {@link ParseState#meshTransformerScale} (from
+     * Bakes the captured {@link WalkState#meshTransformerScale} (from
      * {@code MeshTransformer.scaling(F)} call(s) on the {@code LayerDefinition}) into every
      * emitted bone. Vanilla's expansion is, per {@code PartPose},
      * {@code pose.scaled(F).translated(0, 24.016*(1-F), 0)} - scales bone pivots uniformly
@@ -348,7 +348,7 @@ public final class GeometryParser {
      *
      * @param state the parse state whose emitted bones are re-walked and scaled in place
      */
-    private static void applyMeshTransformerScaling(@NotNull ParseState state) {
+    private static void applyMeshTransformerScaling(@NotNull WalkState state) {
         float f = state.meshTransformerScale;
         if (f == 1f) return;
         float dy = 24.016f * (1f - f);
@@ -380,7 +380,7 @@ public final class GeometryParser {
 
     /**
      * Drops bones whose ancestor chain (self -> root) contains no name in
-     * {@link ParseState#retainedNames}. Mirrors the effect of
+     * {@link WalkState#retainedNames}. Mirrors the effect of
      * {@code PartDefinition.retainPartsAndChildren(Set)} on the mesh root: vanilla replaces
      * every non-retained bone's cubes with empty (recursing through children, leaving
      * subtrees rooted at a retained name fully intact). Since {@link #flushPendingBone}
@@ -388,12 +388,12 @@ public final class GeometryParser {
      * render output as vanilla's "strip cubes, keep empty placeholder" path.
      *
      * <p>No-op when {@code retainedNames} is null (no filter requested) or empty (vanishingly
-     * unusual, would drop every bone). Walks via {@link ParseState#boneParents} populated
+     * unusual, would drop every bone). Walks via {@link WalkState#boneParents} populated
      * during {@link #flushPendingBone}.
      *
-     * @param state the parse state whose {@link ParseState#bones} are filtered in place
+     * @param state the parse state whose {@link WalkState#bones} are filtered in place
      */
-    private static void applyRetainedNamesFilter(@NotNull ParseState state) {
+    private static void applyRetainedNamesFilter(@NotNull WalkState state) {
         Set<String> retained = state.retainedNames;
         if (retained == null) return;
         List<String> toRemove = new java.util.ArrayList<>();
@@ -405,18 +405,18 @@ public final class GeometryParser {
     }
 
     /**
-     * Drops every bone named in {@link ParseState#clearedBones} along with every descendant
-     * (walked via {@link ParseState#boneParents}). Mirrors {@code PartDefinition.clearChild}'s
+     * Drops every bone named in {@link WalkState#clearedBones} along with every descendant
+     * (walked via {@link WalkState#boneParents}). Mirrors {@code PartDefinition.clearChild}'s
      * cascading delete - removing a child from a PartDefinition orphans its sub-tree, which
      * vanilla then renders nothing for. The canonical case (AdultPiglinModel) clears a leaf
      * ("hat"), so the descendant walk is just a safety net for future models that might
      * prune a non-leaf.
      *
-     * <p>No-op when {@link ParseState#clearedBones} is empty.
+     * <p>No-op when {@link WalkState#clearedBones} is empty.
      *
-     * @param state the parse state whose {@link ParseState#bones} are filtered in place
+     * @param state the parse state whose {@link WalkState#bones} are filtered in place
      */
-    private static void applyClearedBonesFilter(@NotNull ParseState state) {
+    private static void applyClearedBonesFilter(@NotNull WalkState state) {
         if (state.clearedBones.isEmpty()) return;
         Set<String> toRemove = new LinkedHashSet<>(state.clearedBones);
         // Expand to include descendants: any bone whose parent chain hits a cleared name.
@@ -462,7 +462,7 @@ public final class GeometryParser {
     /**
      * Walks an instruction list, accumulating numeric literals on a stack and matching
      * builder-chain patterns. Recurses via {@link #handleMethodInsn}'s invokestatic-follow
-     * branch so a single {@link ParseState} spans the entire dispatch chain.
+     * branch so a single {@link WalkState} spans the entire dispatch chain.
      *
      * <p>Thin wrapper around {@link #walkRange}; the per-instruction logic lives in
      * {@link #handleInstruction}. Split into three methods so for-loop unrolling can
@@ -473,7 +473,7 @@ public final class GeometryParser {
      * @param state the parse state to mutate
      * @param cache the session's jar cache
      */
-    private static void walkInstructions(@NotNull InsnList instructions, @NotNull ParseState state, @NotNull ClassNodeCache cache) {
+    private static void walkInstructions(@NotNull InsnList instructions, @NotNull WalkState state, @NotNull ClassNodeCache cache) {
         walkRange(instructions, instructions.getFirst(), null, state, cache);
     }
 
@@ -496,7 +496,7 @@ public final class GeometryParser {
         @NotNull InsnList instructions,
         @Nullable AbstractInsnNode first,
         @Nullable AbstractInsnNode endExclusive,
-        @NotNull ParseState state,
+        @NotNull WalkState state,
         @NotNull ClassNodeCache cache
     ) {
         AbstractInsnNode node = first;
@@ -524,7 +524,7 @@ public final class GeometryParser {
     private static @NotNull AbstractInsnNode handleInstruction(
         @NotNull InsnList instructions,
         @NotNull AbstractInsnNode node,
-        @NotNull ParseState state,
+        @NotNull WalkState state,
         @NotNull ClassNodeCache cache
     ) {
         // Canonical javac for-loop unrolling: when {@code node} opens the
@@ -550,11 +550,11 @@ public final class GeometryParser {
             AsmKit.IntForLoop loop = AsmKit.detectIntForLoop(node);
             if (loop != null) {
                 int slot = loop.iteratorSlot();
-                int[] previousInts = state.paramIntValues;
+                int[] previousInts = state.frame.paramIntValues;
                 int[] working = ensureIntSlotCapacity(previousInts, slot);
                 int savedAtSlot = working[slot];
-                Number savedNumericLocal = state.numericLocals.remove(slot);
-                state.paramIntValues = working;
+                Number savedNumericLocal = state.frame.numericLocals.remove(slot);
+                state.frame.paramIntValues = working;
                 try {
                     for (int i = loop.initValue(); i < loop.boundExclusive(); i += loop.step()) {
                         working[slot] = i;
@@ -562,16 +562,16 @@ public final class GeometryParser {
                         // iterator slot in a prior iteration; otherwise the next iteration's
                         // ILOAD <slot> would read the stale captured value and shadow the
                         // freshly-injected paramIntValues[slot] = i.
-                        state.numericLocals.remove(slot);
+                        state.frame.numericLocals.remove(slot);
                         walkRange(instructions, loop.firstBodyInsn(), loop.firstInsnAfterLoop(), state, cache);
                     }
                 } finally {
                     working[slot] = savedAtSlot;
-                    state.paramIntValues = previousInts;
+                    state.frame.paramIntValues = previousInts;
                     if (savedNumericLocal != null) {
-                        state.numericLocals.put(slot, savedNumericLocal);
+                        state.frame.numericLocals.put(slot, savedNumericLocal);
                     } else {
-                        state.numericLocals.remove(slot);
+                        state.frame.numericLocals.remove(slot);
                     }
                 }
                 AbstractInsnNode resumeAt = loop.firstInsnAfterLoop().getPrevious();
@@ -584,10 +584,10 @@ public final class GeometryParser {
             // LiteralStack auto-evicts the oldest on capacity overflow; surface the first
             // overflow as a WARN so a true accounting bug surfaces (subsequent overflows
             // stay silent to avoid spamming when a broken source pushes 1000 literals).
-            boolean willOverflow = state.numStack.size() >= ParseState.NUM_STACK_CAPACITY;
+            boolean willOverflow = state.numStack.size() >= WalkState.NUM_STACK_CAPACITY;
             state.numStack.push(literal);
             if (willOverflow && state.diagnostics != null && !state.overflowWarned && state.currentSource != null) {
-                state.diagnostics.warn("%s: numStack overflow (>%d literals) - oldest literals being dropped, pop accounting may be broken", state.currentSource.subjectId(), ParseState.NUM_STACK_CAPACITY);
+                state.diagnostics.warn("%s: numStack overflow (>%d literals) - oldest literals being dropped, pop accounting may be broken", state.currentSource.subjectId(), WalkState.NUM_STACK_CAPACITY);
                 state.overflowWarned = true;
             }
             return node;
@@ -604,7 +604,7 @@ public final class GeometryParser {
         // {@code EVALUATING}) still pop the comparison values, preventing
         // the leftover-literal warnings produced by for-loop {@code IF_ICMPGE} etc.
         if (node instanceof JumpInsnNode jumpInsn) {
-            boolean canFollow = state.paramIntValues != null;
+            boolean canFollow = state.frame.paramIntValues != null;
             switch (opcode) {
                 case Opcodes.GOTO -> {
                     // Forward GOTO only - skips the not-taken branch of an if/else
@@ -679,16 +679,16 @@ public final class GeometryParser {
                     // numStack. When an enum-reference parameter is bound (sign-hanging
                     // attachment split), the {@code aload <slot>; getstatic <Enum>.<C>;
                     // if_acmp*} triplet pushed a sentinel + the constant name onto
-                    // {@link ParseState#refStack}; pop both and evaluate the comparison so the
+                    // {@link WalkState#refStack}; pop both and evaluate the comparison so the
                     // parser follows the correct attachment branch.
                     if (state.refParamOwner != null
                         && (opcode == Opcodes.IF_ACMPEQ || opcode == Opcodes.IF_ACMPNE)
                         && state.refStack.size() >= 2) {
                         String b = state.refStack.removeLast();
                         String a = state.refStack.removeLast();
-                        String constant = ParseState.REF_PARAM_SENTINEL.equals(a) ? b
-                            : ParseState.REF_PARAM_SENTINEL.equals(b) ? a : null;
-                        boolean sentinelSeen = ParseState.REF_PARAM_SENTINEL.equals(a) || ParseState.REF_PARAM_SENTINEL.equals(b);
+                        String constant = WalkState.REF_PARAM_SENTINEL.equals(a) ? b
+                            : WalkState.REF_PARAM_SENTINEL.equals(b) ? a : null;
+                        boolean sentinelSeen = WalkState.REF_PARAM_SENTINEL.equals(a) || WalkState.REF_PARAM_SENTINEL.equals(b);
                         if (sentinelSeen && constant != null) {
                             boolean equal = constant.equals(state.refParamValue);
                             boolean takeJump = opcode == Opcodes.IF_ACMPEQ ? equal : !equal;
@@ -703,12 +703,12 @@ public final class GeometryParser {
 
         // TABLESWITCH / LOOKUPSWITCH evaluation. Follows the same {@code paramIntValues}
         // -driven branch-evaluation gate as IFEQ / IFNE - when the top of
-        // {@link ParseState#branchStack} holds a concrete value (put there by a preceding
+        // {@link WalkState#branchStack} holds a concrete value (put there by a preceding
         // ILOAD of a paramIntValues-registered slot), jump to the matching case label.
         // Otherwise the parser falls through linearly, and - when {@code paramIntValues}
         // is set but the switch value is unknown - surfaces a {@code WARN:} so the
         // maintainer knows an unmodelled dispatch slipped through.
-        if (node instanceof TableSwitchInsnNode tableSwitch && state.paramIntValues != null) {
+        if (node instanceof TableSwitchInsnNode tableSwitch && state.frame.paramIntValues != null) {
             Integer value = popIntForBranch(state);
             if (value != null) {
                 LabelNode target = value >= tableSwitch.min && value <= tableSwitch.max
@@ -721,7 +721,7 @@ public final class GeometryParser {
             if (state.diagnostics != null && state.currentSource != null)
                 state.diagnostics.warn("%s: TABLESWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.subjectId());
         }
-        if (node instanceof LookupSwitchInsnNode lookupSwitch && state.paramIntValues != null) {
+        if (node instanceof LookupSwitchInsnNode lookupSwitch && state.frame.paramIntValues != null) {
             Integer value = popIntForBranch(state);
             if (value != null) {
                 int idx = lookupSwitch.keys.indexOf(value);
@@ -738,7 +738,7 @@ public final class GeometryParser {
         // branch stack so the upcoming IFEQ / IFNE / switch can evaluate the
         // conditional. If the slot is NOT in {@code paramIntValues} (or the source
         // didn't supply any values), call {@code state.numStack.pushNonLiteral()} to
-        // mark the entry as non-literal on {@link ParseState#numStack} - when a
+        // mark the entry as non-literal on {@link WalkState#numStack} - when a
         // downstream addBox / PartPose consumes it, {@link #popIntWithDiagnostics}
         // surfaces a {@code WARN:} so the silent-zero failure mode doesn't get baked
         // into the output cube.
@@ -747,11 +747,11 @@ public final class GeometryParser {
             // numericLocals first: an in-method ISTORE captured a precise value (overrides
             // any param-table default for the same slot). Java pipeline only - legacy
             // literal-stack walkers don't STORE into numericLocals.
-            Number local = state.mode == Mode.EVALUATING ? state.numericLocals.get(slot) : null;
+            Number local = state.mode == Mode.EVALUATING ? state.frame.numericLocals.get(slot) : null;
             if (local != null) {
                 state.numStack.push(local.intValue());
             } else {
-                boolean resolved = state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length;
+                boolean resolved = state.frame.paramIntValues != null && slot >= 0 && slot < state.frame.paramIntValues.length;
                 if (resolved) {
                     // Java pipeline ({@code EVALUATING} mode) routes ILOAD through numStack
                     // so call-site-propagated literals (pig's {@code legSize=6}) feed the
@@ -761,9 +761,9 @@ public final class GeometryParser {
                     // path so banner standing/wall and similar paramIntValues uses are
                     // unaffected.
                     if (state.mode == Mode.EVALUATING)
-                        state.numStack.push(state.paramIntValues[slot]);
+                        state.numStack.push(state.frame.paramIntValues[slot]);
                     else
-                        state.branchStack.add(state.paramIntValues[slot]);
+                        state.branchStack.add(state.frame.paramIntValues[slot]);
                 } else {
                     state.numStack.pushNonLiteral();
                 }
@@ -784,11 +784,11 @@ public final class GeometryParser {
             int slot = varInsn.var;
             // numericLocals first: an in-method FSTORE / DSTORE / LSTORE captured a precise
             // value (overrides any param-table default for the same slot).
-            Number local = state.mode == Mode.EVALUATING ? state.numericLocals.get(slot) : null;
+            Number local = state.mode == Mode.EVALUATING ? state.frame.numericLocals.get(slot) : null;
             if (local != null) {
                 state.numStack.push(local);
-            } else if (state.mode == Mode.EVALUATING && slot >= 0 && slot < state.paramFloatValues.length) {
-                state.numStack.push(state.paramFloatValues[slot]);
+            } else if (state.mode == Mode.EVALUATING && slot >= 0 && slot < state.frame.paramFloatValues.length) {
+                state.numStack.push(state.frame.paramFloatValues[slot]);
             } else {
                 state.numStack.pushNonLiteral();
             }
@@ -814,9 +814,9 @@ public final class GeometryParser {
             // bytecode just overwrote with an unknown computation.
             Number popped = state.numStack.isEmpty() ? null : state.numStack.popNumber();
             if (popped != null) {
-                state.numericLocals.put(storeInsn.var, popped);
+                state.frame.numericLocals.put(storeInsn.var, popped);
             } else {
-                state.numericLocals.remove(storeInsn.var);
+                state.frame.numericLocals.remove(storeInsn.var);
             }
         }
 
@@ -875,7 +875,7 @@ public final class GeometryParser {
                 state.numStack.pushNonLiteral();
             } else if (opcode == Opcodes.NEWARRAY) {
                 // Pop 1 int (length); push ref (refs aren't tracked on numStack). Also
-                // captures the length + element-type on {@link ParseState#pendingFreshArrayLength}
+                // captures the length + element-type on {@link CallFrame#pendingFreshArrayLength}
                 // so the next {@code ASTORE} can bind the array to a slot and the parser
                 // can subsequently fold {@code FASTORE} writes and {@code FALOAD} reads
                 // against the tracked local array. Silverfish's {@code float[7]}
@@ -886,11 +886,11 @@ public final class GeometryParser {
                     int length = lengthN.intValue();
                     if (length >= 0 && length < 1024) {
                         if (arrInsn.operand == Opcodes.T_FLOAT) {
-                            state.pendingFreshArrayLength = length;
-                            state.pendingFreshArrayType = 'F';
+                            state.frame.pendingFreshArrayLength = length;
+                            state.frame.pendingFreshArrayType = 'F';
                         } else if (arrInsn.operand == Opcodes.T_INT) {
-                            state.pendingFreshArrayLength = length;
-                            state.pendingFreshArrayType = 'I';
+                            state.frame.pendingFreshArrayLength = length;
+                            state.frame.pendingFreshArrayType = 'I';
                         }
                     }
                 }
@@ -908,7 +908,7 @@ public final class GeometryParser {
                 // {@code FASTORE} writes into a {@code float[]}. Pops value + index +
                 // array-ref. Walks back over the prior real instructions to find the
                 // {@code ALOAD <slot>} that pushed the array ref; when the slot has a
-                // tracked {@link ParseState#localFloatArrays} entry AND both popped
+                // tracked {@link CallFrame#localFloatArrays} entry AND both popped
                 // operands are real literals, writes {@code arr[idx] = value}. Otherwise
                 // just pops to keep the JVM stack aligned. SilverfishModel's
                 // {@code aload_2; iload i; fload f; fastore} cumulative-pivot pattern
@@ -921,7 +921,7 @@ public final class GeometryParser {
                     AbstractInsnNode i = v != null ? AsmKit.previousReal(v) : null;
                     AbstractInsnNode a = i != null ? AsmKit.previousReal(i) : null;
                     if (a instanceof VarInsnNode aload && aload.getOpcode() == Opcodes.ALOAD) {
-                        float[] arr = state.localFloatArrays.get(aload.var);
+                        float[] arr = state.frame.localFloatArrays.get(aload.var);
                         int idxInt = idx.intValue();
                         if (arr != null && idxInt >= 0 && idxInt < arr.length) {
                             arr[idxInt] = value.floatValue();
@@ -1067,9 +1067,9 @@ public final class GeometryParser {
                 if (fieldInsn.owner.equals(state.refParamOwner))
                     state.refStack.add(fieldInsn.name);
                 if (fieldInsn.owner.equals(VanillaSourceClasses.Types.PART_POSE) && fieldInsn.name.equals("ZERO")) {
-                    state.pendingPivot = new float[]{ 0, 0, 0 };
-                    state.pendingRotation = new float[]{ 0, 0, 0 };
-                    state.pendingScale = 1f;
+                    state.frame.pendingPivot = new float[]{ 0, 0, 0 };
+                    state.frame.pendingRotation = new float[]{ 0, 0, 0 };
+                    state.frame.pendingScale = 1f;
                 }
                 // {@code GETSTATIC <field>: MeshTransformer} - vanilla static-field pattern
                 // for layer-level scale wraps that don't appear inline in the factory body.
@@ -1080,7 +1080,7 @@ public final class GeometryParser {
                 // {@code LayerDefinition.apply(MeshTransformer)} - the parser sees the
                 // getstatic but not the scaling literal. Lazily walk the field owner's
                 // {@code <clinit>} for the matching {@code putstatic} and fold the captured
-                // F into {@link ParseState#meshTransformerScale}; the subsequent
+                // F into {@link WalkState#meshTransformerScale}; the subsequent
                 // {@code apply()} call is then a no-op for our tracking (we don't track
                 // LayerDefinition refs anyway). Cached per-class so repeated parses of the
                 // same source don't reload. Gated on {@code EVALUATING} so
@@ -1095,7 +1095,7 @@ public final class GeometryParser {
                 // the subsequent {@code .apply(MeshTransformer.scaling(F))} bakes the
                 // per-renderer scale across every bone. modifyMesh's
                 // {@code body.addOrReplaceChild("left_chest", ...)} relies on the
-                // {@link ParseState#boneMeta} entries already populated by
+                // {@link WalkState#boneMeta} entries already populated by
                 // {@code AbstractEquineModel.createBodyMesh}, which flow through
                 // {@link #inlineStaticMethodBody}'s save/restore set untouched.
                 else if (state.mode == Mode.EVALUATING
@@ -1124,7 +1124,7 @@ public final class GeometryParser {
                 String recipe = AsmKit.resolveStringConcatRecipe(indy);
                 if (recipe != null) {
                     int i = state.numStack.popNumber().intValue();
-                    state.pendingPartName = AsmKit.applyStringConcatRecipeWithInt(recipe, i);
+                    state.frame.pendingPartName = AsmKit.applyStringConcatRecipeWithInt(recipe, i);
                 }
             }
             // Track local-variable slot -> bone mapping so child bones inherit their
@@ -1135,29 +1135,29 @@ public final class GeometryParser {
             // Additionally, slots may hold a pre-built CubeListBuilder that multiple
             // addOrReplaceChild calls share (DecoratedPotRenderer stores one builder and
             // reuses it for both {@code top} and {@code bottom} bones). Snapshot pending
-            // cubes into {@link ParseState#slotToCubes} so a later aload_N can re-hydrate
+            // cubes into {@link CallFrame#slotToCubes} so a later aload_N can re-hydrate
             // them for the next bone without re-reading the same addBox literals.
             case VarInsnNode varInsn when opcode == Opcodes.ASTORE -> {
-                if (state.pendingFreshArrayLength != null && state.pendingFreshArrayType != '\0') {
+                if (state.frame.pendingFreshArrayLength != null && state.frame.pendingFreshArrayType != '\0') {
                     // The previous {@code NEWARRAY <type>} captured a length + element-type
                     // on the pending fields; bind a tracked array to this slot now so
                     // subsequent {@code FASTORE} writes and {@code FALOAD} reads can fold
                     // against it. SilverfishModel's {@code bipush 7; newarray float;
                     // astore_2} cumulative-pivot cache hits this exactly.
-                    int len = state.pendingFreshArrayLength;
-                    if (state.pendingFreshArrayType == 'F') {
-                        state.localFloatArrays.put(varInsn.var, new float[len]);
+                    int len = state.frame.pendingFreshArrayLength;
+                    if (state.frame.pendingFreshArrayType == 'F') {
+                        state.frame.localFloatArrays.put(varInsn.var, new float[len]);
                     }
-                    state.pendingFreshArrayLength = null;
-                    state.pendingFreshArrayType = '\0';
-                } else if (state.pendingRandomSource != null) {
+                    state.frame.pendingFreshArrayLength = null;
+                    state.frame.pendingFreshArrayType = '\0';
+                } else if (state.frame.pendingRandomSource != null) {
                     // The previous {@code RandomSource.createThreadLocalInstance(J)}
                     // captured a seeded {@link java.util.Random}; bind it to this slot so
                     // subsequent {@code aload <slot>; <bound>; invokeinterface nextInt}
                     // calls can step it. GhastModel's {@code ldc2_w 1660L;
                     // invokestatic createThreadLocalInstance; astore_2} hits this exactly.
-                    state.localRandomSources.put(varInsn.var, state.pendingRandomSource);
-                    state.pendingRandomSource = null;
+                    state.frame.localRandomSources.put(varInsn.var, state.frame.pendingRandomSource);
+                    state.frame.pendingRandomSource = null;
                 } else if (state.pendingFreshDeformationInflate != null) {
                     state.cubeDeformationSlots.put(varInsn.var, state.pendingFreshDeformationInflate);
                     state.pendingFreshDeformationInflate = null;
@@ -1171,40 +1171,40 @@ public final class GeometryParser {
                     // {@code g} is the parameter (call-site default), would otherwise
                     // emit the head main cube with the stale -0.02 instead of 0.
                     state.pendingInflate = state.defaultInflate.clone();
-                } else if (state.lastFlushedBone != null) {
-                    state.localSlotBone.put(varInsn.var, state.lastFlushedBone);
-                    state.lastFlushedBone = null;
+                } else if (state.frame.lastFlushedBone != null) {
+                    state.frame.localSlotBone.put(varInsn.var, state.frame.lastFlushedBone);
+                    state.frame.lastFlushedBone = null;
                     // Storing a bone reference defers its use to a later ALOAD; drop any parent a
                     // preceding getChild propagated so it doesn't leak onto the next inline bone
                     // (the ALOAD re-derives nextParent from localSlotBone). No-op outside the
                     // getChild-then-store shape, where nextParent is already null at this point.
-                    state.nextParent = null;
-                } else if (!state.pendingCubes.isEmpty()) {
+                    state.frame.nextParent = null;
+                } else if (!state.frame.pendingCubes.isEmpty()) {
                     ConcurrentList<float[]> snapshot = Concurrent.newList();
-                    for (float[] c : state.pendingCubes) snapshot.add(c.clone());
-                    state.slotToCubes.put(varInsn.var, snapshot);
-                    state.pendingCubes = Concurrent.newList();
-                    state.pendingUv = new int[]{ 0, 0 };
+                    for (float[] c : state.frame.pendingCubes) snapshot.add(c.clone());
+                    state.frame.slotToCubes.put(varInsn.var, snapshot);
+                    state.frame.pendingCubes = Concurrent.newList();
+                    state.frame.pendingUv = new int[]{ 0, 0 };
                 }
             }
             case VarInsnNode varInsn when opcode == Opcodes.ALOAD -> {
                 // Enum-reference attachment split: loading the bound parameter slot pushes the
                 // sentinel so the upcoming {@code getstatic <Enum>.<C>; if_acmp*} resolves.
                 if (state.refParamOwner != null && varInsn.var == state.refParamSlot)
-                    state.refStack.add(ParseState.REF_PARAM_SENTINEL);
+                    state.refStack.add(WalkState.REF_PARAM_SENTINEL);
                 float[] deformationInflate = state.cubeDeformationSlots.get(varInsn.var);
                 if (deformationInflate != null)
                     state.pendingInflate = deformationInflate.clone();
-                String parent = state.localSlotBone.get(varInsn.var);
+                String parent = state.frame.localSlotBone.get(varInsn.var);
                 if (parent != null)
-                    state.nextParent = parent;
-                ConcurrentList<float[]> savedCubes = state.slotToCubes.get(varInsn.var);
+                    state.frame.nextParent = parent;
+                ConcurrentList<float[]> savedCubes = state.frame.slotToCubes.get(varInsn.var);
                 if (savedCubes != null) {
-                    for (float[] c : savedCubes) state.pendingCubes.add(c.clone());
+                    for (float[] c : savedCubes) state.frame.pendingCubes.add(c.clone());
                 }
             }
             case LdcInsnNode ldc when ldc.cst instanceof String s ->
-                state.pendingPartName = s;
+                state.frame.pendingPartName = s;
             default -> { }
         }
         return node;
@@ -1226,7 +1226,7 @@ public final class GeometryParser {
      * @param state the parse state to mutate
      * @param cache the session's jar cache
      */
-    private static void handleMethodInsn(@NotNull MethodInsnNode methodInsn, int opcode, @NotNull ParseState state, @NotNull ClassNodeCache cache) {
+    private static void handleMethodInsn(@NotNull MethodInsnNode methodInsn, int opcode, @NotNull WalkState state, @NotNull ClassNodeCache cache) {
         if (methodInsn.owner.equals(VanillaSourceClasses.Types.CUBE_LIST_BUILDER)) {
             handleCubeListBuilder(methodInsn, state);
             return;
@@ -1240,8 +1240,8 @@ public final class GeometryParser {
             return;
         }
         // PartDefinition.getChild(String name) returns the named child PartDefinition.
-        // The preceding LDC pushed the child name into {@link ParseState#pendingPartName};
-        // re-aim {@link ParseState#lastFlushedBone} at it so the following ASTORE associates
+        // The preceding LDC pushed the child name into {@link CallFrame#pendingPartName};
+        // re-aim {@link CallFrame#lastFlushedBone} at it so the following ASTORE associates
         // the local slot with the correct bone (the named child), not the most-recently-
         // created bone. Without this, patterns like
         // {@code PartDefinition nose = head.getChild("nose"); nose.addOrReplaceChild("mole", ...);}
@@ -1249,8 +1249,8 @@ public final class GeometryParser {
         // flushed last - in witch's case "hat4", landing mole's pivot accumulated through
         // the wrong rotation chain.
         if (methodInsn.owner.equals(VanillaSourceClasses.Types.PART_DEFINITION) && methodInsn.name.equals("getChild")) {
-            if (state.pendingPartName != null) {
-                state.lastFlushedBone = state.pendingPartName;
+            if (state.frame.pendingPartName != null) {
+                state.frame.lastFlushedBone = state.frame.pendingPartName;
                 // A getChild result is the parent for whatever addOrReplaceChild is invoked on
                 // it. Propagate it to nextParent so a directly method-chained
                 // {@code getRoot().getChild("root").getChild("shell").addOrReplaceChild("corals", ...)}
@@ -1260,8 +1260,8 @@ public final class GeometryParser {
                 // form ({@code nose = head.getChild("nose"); nose.addOrReplaceChild("mole", ...)},
                 // WitchModel) clears this at the following ASTORE and re-derives it at the ALOAD, so
                 // both forms resolve the same parent.
-                state.nextParent = state.pendingPartName;
-                state.pendingPartName = null;
+                state.frame.nextParent = state.frame.pendingPartName;
+                state.frame.pendingPartName = null;
             }
             return;
         }
@@ -1269,7 +1269,7 @@ public final class GeometryParser {
         // cubes from any bone whose ancestor chain doesn't contain a name in the set (vanilla
         // recurses through children, replacing cubes with empty along the way; subtrees rooted
         // at a retained name are left untouched). Captured here on the trailing
-        // {@code retainPartsAndChildren} dispatch using {@link ParseState#pendingRetainSet}
+        // {@code retainPartsAndChildren} dispatch using {@link WalkState#pendingRetainSet}
         // populated by the preceding {@code Set.of} branch below; consumed post-walk in
         // {@link #parseLayerMethod} once the full bone tree has flushed. Gated on
         // {@code EVALUATING} so legacy literal-stack walkers (which never call
@@ -1286,7 +1286,7 @@ public final class GeometryParser {
         // Post-build pruning: {@code <parent>.clearChild("<name>")} drops the named child
         // (and its sub-tree) from the parent's PartDefinition. The previous {@code ALOAD}
         // identified the parent slot and the previous {@code LDC} pushed the child name into
-        // {@link ParseState#pendingPartName}; record the name and let
+        // {@link CallFrame#pendingPartName}; record the name and let
         // {@link #applyClearedBonesFilter} drop it (and any descendants) from {@link #bones}
         // after the walk completes. The parent identification is informational only - bone
         // names are globally unique within a model, so name-keyed removal is sufficient.
@@ -1297,9 +1297,9 @@ public final class GeometryParser {
         if (methodInsn.owner.equals(VanillaSourceClasses.Types.PART_DEFINITION)
             && methodInsn.name.equals("clearChild")
             && state.mode == Mode.EVALUATING) {
-            if (state.pendingPartName != null) {
-                state.clearedBones.add(state.pendingPartName);
-                state.pendingPartName = null;
+            if (state.frame.pendingPartName != null) {
+                state.clearedBones.add(state.frame.pendingPartName);
+                state.frame.pendingPartName = null;
             }
             return;
         }
@@ -1307,7 +1307,7 @@ public final class GeometryParser {
         // factories ({@code BreezeModel.createBodyLayer} -> {@code Set.of("head", "rods")},
         // {@code BreezeModel.createWindLayer} -> {@code Set.of("wind_body")}, etc). Walks
         // back from the methodInsn collecting the N preceding LDC strings (where N is the
-        // descriptor's ref-arg count) and stashes them on {@link ParseState#pendingRetainSet}
+        // descriptor's ref-arg count) and stashes them on {@link WalkState#pendingRetainSet}
         // for the next {@code retainPartsAndChildren} dispatch. Skips line / frame / label
         // pseudo-nodes during the walkback. The varargs {@code Set.of([Ljava/lang/Object;)}
         // overload would need an anewarray walker; not used by any vanilla entity factory
@@ -1351,7 +1351,7 @@ public final class GeometryParser {
                 String recipe = AsmKit.findStringConcatRecipeIn(helper);
                 if (recipe != null) {
                     int i = state.numStack.popNumber().intValue();
-                    state.pendingPartName = AsmKit.applyStringConcatRecipeWithInt(recipe, i);
+                    state.frame.pendingPartName = AsmKit.applyStringConcatRecipeWithInt(recipe, i);
                     return;
                 }
             }
@@ -1367,7 +1367,7 @@ public final class GeometryParser {
             && methodInsn.desc.startsWith("(I)") && methodInsn.desc.endsWith("Ljava/lang/String;")
             && !state.numStack.isEmpty()) {
             int i = state.numStack.popNumber().intValue();
-            state.pendingPartName = methodInsn.name + i;
+            state.frame.pendingPartName = methodInsn.name + i;
             return;
         }
         if (methodInsn.owner.equals(VanillaSourceClasses.Types.CUBE_DEFORMATION)) {
@@ -1469,7 +1469,7 @@ public final class GeometryParser {
         // rejection-sampling loop for non-power-of-2 bounds. So substituting
         // {@code new java.util.Random(seed)} produces bit-identical results. Pops the
         // long seed from numStack, stashes a fresh Random on
-        // {@link ParseState#pendingRandomSource}; the next {@code ASTORE} binds it to a
+        // {@link CallFrame#pendingRandomSource}; the next {@code ASTORE} binds it to a
         // local slot.
         //
         // <p>GhastModel.createBodyLayer uses seed {@code 1660L} to deterministically
@@ -1486,7 +1486,7 @@ public final class GeometryParser {
             AbstractInsnNode seedNode = AsmKit.previousReal(methodInsn);
             Long seed = seedNode != null ? AsmKit.readLongLiteral(seedNode) : null;
             if (seed != null) {
-                state.pendingRandomSource = new java.util.Random(seed);
+                state.frame.pendingRandomSource = new java.util.Random(seed);
             }
             return;
         }
@@ -1507,7 +1507,7 @@ public final class GeometryParser {
                 AbstractInsnNode boundNode = AsmKit.previousReal(methodInsn);
                 AbstractInsnNode aloadNode = boundNode != null ? AsmKit.previousReal(boundNode) : null;
                 if (aloadNode instanceof VarInsnNode aload && aload.getOpcode() == Opcodes.ALOAD) {
-                    java.util.Random rng = state.localRandomSources.get(aload.var);
+                    java.util.Random rng = state.frame.localRandomSources.get(aload.var);
                     if (rng != null && bound.intValue() > 0) {
                         state.numStack.push(rng.nextInt(bound.intValue()));
                         return;
@@ -1530,25 +1530,29 @@ public final class GeometryParser {
     }
 
     /**
-     * Walks {@code inlined}'s instructions on {@code state}, saving and restoring every
-     * call-frame-local field (slot maps, pending pose, pending mirror, paramIntValues /
-     * paramFloatValues) around the call. Output containers ({@link ParseState#bones},
-     * {@link ParseState#boneMeta}, {@link ParseState#boneParents}) flow through unchanged
-     * so bones flushed inside the callee land in the caller's geometry.
+     * Walks {@code inlined}'s instructions inside a fresh {@link CallFrame} pushed onto
+     * {@link WalkState#frame} for the duration of the call, restoring the caller's frame when
+     * the callee returns. The per-method-invocation locals (slot maps, pending pose, pending
+     * part names) reset fresh in the child frame while the parameter tables and the
+     * builder-level mirror inherit the caller's values ({@link CallFrame#inlineChild}). The
+     * per-parse output containers ({@link WalkState#bones}, {@link WalkState#boneMeta},
+     * {@link WalkState#boneParents}) live on the walk state, not the frame, so bones flushed
+     * inside the callee land in the caller's geometry.
      *
      * <p>JVM local-variable slots are method-scoped: {@code astore_2} inside the callee
      * writes to a slot independent of the caller's slot 2, so the caller's {@code aload_2}
-     * after the helper returns must not pick up the callee's bone bindings. Without this
-     * reset, the callee's last flushed bone (e.g. {@code left_front_leg}) leaks into the
+     * after the helper returns must not pick up the callee's bone bindings. Without the fresh
+     * frame, the callee's last flushed bone (e.g. {@code left_front_leg}) leaks into the
      * caller's slot map and the caller's next {@code addOrReplaceChild} mis-parents to a
-     * leg instead of the mesh root. Builder-level {@link ParseState#pendingMirror} is
-     * scoped to the current CubeListBuilder chain - without saving it across the recurse,
-     * a callee that internally toggles mirror (HumanoidModel.createMesh's left-arm /
-     * left-leg .mirror() calls) leaks the flag into the caller's continuation.
+     * leg instead of the mesh root. Builder-level {@link CallFrame#pendingMirror} is
+     * scoped to the current CubeListBuilder chain - the frame carries the caller's value in
+     * and discards the callee's on return, so a callee that internally toggles mirror
+     * (HumanoidModel.createMesh's left-arm / left-leg .mirror() calls) can't leak the flag
+     * into the caller's continuation.
      *
-     * <p>When {@code callDesc} is non-null and {@link ParseState#paramFloatValues} is
-     * non-null, the call-site's numeric literals are captured into the callee's parameter
-     * slots via {@link #captureInlineParams}. Vanilla shares quadruped construction in
+     * <p>When {@code callDesc} is non-null and the walk is in {@code EVALUATING} mode, the
+     * call-site's numeric literals are captured into the child frame's parameter slots via
+     * {@link #captureInlineParams}. Vanilla shares quadruped construction in
      * {@code QuadrupedModel.createBodyMesh(int legSize, ...)} - the call site pushes
      * literal ints (pig's {@code bipush 6, iconst_1, iconst_0}); without this the inlined
      * method's {@code iload_0} resolves to a non-literal marker and downstream
@@ -1558,89 +1562,33 @@ public final class GeometryParser {
      *
      * @param inlined the callee method whose body is walked in the current parse
      * @param callDesc the call-site descriptor for parameter capture, or {@code null} to skip
-     * @param state the parse state to mutate (output containers flow through; locals restored)
+     * @param state the parse state whose frame is pushed for the callee and restored on return
      * @param cache the session's jar cache
      */
     private static void inlineStaticMethodBody(
         @NotNull MethodNode inlined,
         @Nullable String callDesc,
-        @NotNull ParseState state,
+        @NotNull WalkState state,
         @NotNull ClassNodeCache cache
     ) {
-        int[] previousInts = state.paramIntValues;
-        float[] previousFloats = state.paramFloatValues;
+        // Push a fresh child frame for the callee. Per-method locals (slot maps, pending
+        // pose / part names) reset; the parameter tables and builder-level mirror inherit
+        // the caller's values (JVM call-frame scoping - see CallFrame.inlineChild).
+        CallFrame parent = state.frame;
+        CallFrame child = parent.inlineChild();
+        // callDesc + EVALUATING: capture the call-site's on-stack numeric literals into the
+        // child's parameter slots (pig legSize=6 etc.) - popped off the shared numStack,
+        // which is walk-state, not frame-scoped.
         if (callDesc != null && state.mode == Mode.EVALUATING) {
             InlineParams params = captureInlineParams(callDesc, state, inlined.maxLocals);
-            state.paramIntValues = params.ints;
-            state.paramFloatValues = params.floats;
+            child.paramIntValues = params.ints;
+            child.paramFloatValues = params.floats;
         }
-        ConcurrentMap<Integer, String> savedLocalSlotBone = state.localSlotBone;
-        ConcurrentMap<Integer, ConcurrentList<float[]>> savedSlotToCubes = state.slotToCubes;
-        // JVM scoping: callee's ISTORE / FSTORE / DSTORE writes its own slot N, not the
-        // caller's slot N. Swap a fresh numericLocals map for the callee and restore the
-        // caller's on exit so a static helper's locals don't leak into the surrounding
-        // factory's slot table.
-        ConcurrentMap<Integer, Number> savedNumericLocals = state.numericLocals;
-        // Same scoping applies to local primitive-array slots - the callee can't
-        // see / write the caller's tracked float[] / int[] arrays.
-        ConcurrentMap<Integer, float[]> savedLocalFloatArrays = state.localFloatArrays;
-        Integer savedPendingFreshArrayLength = state.pendingFreshArrayLength;
-        char savedPendingFreshArrayType = state.pendingFreshArrayType;
-        ConcurrentMap<Integer, java.util.Random> savedLocalRandomSources = state.localRandomSources;
-        java.util.Random savedPendingRandomSource = state.pendingRandomSource;
-        String savedPendingPartName = state.pendingPartName;
-        String savedBoneName = state.boneName;
-        String savedParentBone = state.parentBone;
-        String savedNextParent = state.nextParent;
-        String savedLastFlushedBone = state.lastFlushedBone;
-        ConcurrentList<float[]> savedPendingCubes = state.pendingCubes;
-        int[] savedPendingUv = state.pendingUv;
-        float[] savedPendingPivot = state.pendingPivot;
-        float[] savedPendingRotation = state.pendingRotation;
-        float savedPendingScale = state.pendingScale;
-        boolean savedPendingMirror = state.pendingMirror;
-        state.localSlotBone = Concurrent.newMap();
-        state.slotToCubes = Concurrent.newMap();
-        state.numericLocals = Concurrent.newMap();
-        state.localFloatArrays = Concurrent.newMap();
-        state.pendingFreshArrayLength = null;
-        state.pendingFreshArrayType = '\0';
-        state.localRandomSources = Concurrent.newMap();
-        state.pendingRandomSource = null;
-        state.pendingPartName = null;
-        state.boneName = null;
-        state.parentBone = null;
-        state.nextParent = null;
-        state.lastFlushedBone = null;
-        state.pendingCubes = Concurrent.newList();
-        state.pendingUv = new int[]{ 0, 0 };
-        state.pendingPivot = new float[]{ 0, 0, 0 };
-        state.pendingRotation = new float[]{ 0, 0, 0 };
-        state.pendingScale = 1f;
+        state.frame = child;
         try {
             walkInstructions(inlined.instructions, state, cache);
         } finally {
-            state.paramIntValues = previousInts;
-            state.paramFloatValues = previousFloats;
-            state.localSlotBone = savedLocalSlotBone;
-            state.slotToCubes = savedSlotToCubes;
-            state.numericLocals = savedNumericLocals;
-            state.localFloatArrays = savedLocalFloatArrays;
-            state.pendingFreshArrayLength = savedPendingFreshArrayLength;
-            state.pendingFreshArrayType = savedPendingFreshArrayType;
-            state.localRandomSources = savedLocalRandomSources;
-            state.pendingRandomSource = savedPendingRandomSource;
-            state.pendingPartName = savedPendingPartName;
-            state.boneName = savedBoneName;
-            state.parentBone = savedParentBone;
-            state.nextParent = savedNextParent;
-            state.lastFlushedBone = savedLastFlushedBone;
-            state.pendingCubes = savedPendingCubes;
-            state.pendingUv = savedPendingUv;
-            state.pendingPivot = savedPendingPivot;
-            state.pendingRotation = savedPendingRotation;
-            state.pendingScale = savedPendingScale;
-            state.pendingMirror = savedPendingMirror;
+            state.frame = parent;
         }
     }
 
@@ -1656,7 +1604,7 @@ public final class GeometryParser {
     /**
      * Captures call-site numeric literals as parameter slot values for an inlined static
      * method. Walks the descriptor's arg types in reverse, popping one numeric off
-     * {@link ParseState#numStack} per primitive arg, and writes the value into the
+     * {@link WalkState#numStack} per primitive arg, and writes the value into the
      * matching slot of two parallel arrays sized to {@code maxLocals}. Reference args
      * (CubeDeformation, PartDefinition, etc.) skip the pop since they never appear on
      * {@code numStack}. Long / double args occupy two slots per JVM convention; only the
@@ -1676,7 +1624,7 @@ public final class GeometryParser {
      */
     private static @NotNull InlineParams captureInlineParams(
         @NotNull String descriptor,
-        @NotNull ParseState state,
+        @NotNull WalkState state,
         int maxLocals
     ) {
         int slots = Math.max(maxLocals, 8);
@@ -1711,7 +1659,7 @@ public final class GeometryParser {
      * E.g. {@code (IZZLnet/minecraft/X;)V} yields {@code ['I', 'Z', 'Z', 'L']}. Reference
      * types collapse to {@code 'L'}; arrays collapse to {@code '['}. Used by
      * {@link #captureInlineParams} to decide which args are primitives that pop a numeric
-     * off {@link ParseState#numStack}.
+     * off {@link WalkState#numStack}.
      *
      * @param descriptor the JVM method descriptor
      * @return the arg-type characters in source order, or an empty array on a malformed
@@ -1803,7 +1751,7 @@ public final class GeometryParser {
      * @param required the minimum number of entries the dispatch site needs
      * @param where a human-readable dispatch-site label for the diagnostic
      */
-    private static void requireStack(@NotNull ParseState state, int required, @NotNull String where) {
+    private static void requireStack(@NotNull WalkState state, int required, @NotNull String where) {
         if (state.diagnostics == null || state.currentSource == null) return;
         int have = state.numStack.size();
         if (have < required)
@@ -1815,14 +1763,14 @@ public final class GeometryParser {
 
     /**
      * Handles {@code CubeListBuilder.create / texOffs / addBox / mirror} calls, consuming
-     * literals off {@link ParseState#numStack} and emitting pending cubes. Five {@code addBox}
+     * literals off {@link WalkState#numStack} and emitting pending cubes. Five {@code addBox}
      * variants are recognised - see the inline comment at the {@code addBox} case for the
      * per-variant descriptor and pop order.
      *
      * @param methodInsn the {@code CubeListBuilder} method call being dispatched
      * @param state the parse state whose pending cube / UV / mirror fields are mutated
      */
-    private static void handleCubeListBuilder(@NotNull MethodInsnNode methodInsn, @NotNull ParseState state) {
+    private static void handleCubeListBuilder(@NotNull MethodInsnNode methodInsn, @NotNull WalkState state) {
         switch (methodInsn.name) {
             case "create" -> {
                 // CubeListBuilder.create() opens a builder chain. Snapshot the outer bone
@@ -1844,23 +1792,23 @@ public final class GeometryParser {
                 // addOrReplaceChild. By the time the flush fires, the parent has been
                 // re-aload'd into {@code nextParent} so resolvedParent picks it up
                 // through the nextParent fallback in {@link #flushPendingBone}.
-                if (state.pendingPartName != null) {
-                    state.boneName = state.pendingPartName;
-                    state.parentBone = state.nextParent;
+                if (state.frame.pendingPartName != null) {
+                    state.frame.boneName = state.frame.pendingPartName;
+                    state.frame.parentBone = state.frame.nextParent;
                 }
-                state.nextParent = null;
-                state.lastFlushedBone = null;
+                state.frame.nextParent = null;
+                state.frame.lastFlushedBone = null;
                 // Each new builder starts fresh - clear the mirror flag so it doesn't leak
                 // from a previous bone's CubeListBuilder.mirror() call. Vanilla constructs a
                 // new CubeListBuilder per addOrReplaceChild via create(), and the new
                 // builder's mirror starts false.
-                state.pendingMirror = false;
+                state.frame.pendingMirror = false;
             }
             case "texOffs" -> {
                 if (methodInsn.desc.startsWith("(II")) {
                     requireStack(state, 2, "CubeListBuilder.texOffs(II)");
-                    state.pendingUv[1] = popIntWithDiagnostics(state, "CubeListBuilder.texOffs(II) v");
-                    state.pendingUv[0] = popIntWithDiagnostics(state, "CubeListBuilder.texOffs(II) u");
+                    state.frame.pendingUv[1] = popIntWithDiagnostics(state, "CubeListBuilder.texOffs(II) v");
+                    state.frame.pendingUv[0] = popIntWithDiagnostics(state, "CubeListBuilder.texOffs(II) u");
                 }
             }
             case "addBox" -> {
@@ -1921,10 +1869,10 @@ public final class GeometryParser {
                     float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) z");
                     float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) y");
                     float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) x");
-                    boolean savedMirror = state.pendingMirror;
-                    if (state.mode == Mode.EVALUATING) state.pendingMirror = cubeMirror != 0;
-                    emitCube(state, x, y, z, w, h, d, state.pendingUv[0], state.pendingUv[1]);
-                    state.pendingMirror = savedMirror;
+                    boolean savedMirror = state.frame.pendingMirror;
+                    if (state.mode == Mode.EVALUATING) state.frame.pendingMirror = cubeMirror != 0;
+                    emitCube(state, x, y, z, w, h, d, state.frame.pendingUv[0], state.frame.pendingUv[1]);
+                    state.frame.pendingMirror = savedMirror;
                 } else if (methodInsn.desc.startsWith("(FFFFFF") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFF")) {
                     requireStack(state, 6, "CubeListBuilder.addBox(FFFFFF)");
                     float d = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) d");
@@ -1933,7 +1881,7 @@ public final class GeometryParser {
                     float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) z");
                     float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) y");
                     float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) x");
-                    emitCube(state, x, y, z, w, h, d, state.pendingUv[0], state.pendingUv[1]);
+                    emitCube(state, x, y, z, w, h, d, state.frame.pendingUv[0], state.frame.pendingUv[1]);
                 }
             }
             case "mirror" -> {
@@ -1942,7 +1890,7 @@ public final class GeometryParser {
                 // AbstractEquineModel.createBodyMesh / similar use this for the right-side
                 // legs / right ear to flip UVs so the leg's outer face draws the same texture
                 // region as the left leg's outer face. Captured into
-                // {@link ParseState#pendingMirror} so it propagates to the cube's emitted
+                // {@link CallFrame#pendingMirror} so it propagates to the cube's emitted
                 // {@code mirror} field; the kit's UV resolution then flips face UVs
                 // horizontally for those cubes (already wired via
                 // {@code rect.toUvCorners(..., mirror)}).
@@ -1950,11 +1898,11 @@ public final class GeometryParser {
                     requireStack(state, 1, "CubeListBuilder.mirror(Z)");
                     int mirrorVal = popIntWithDiagnostics(state, "CubeListBuilder.mirror(Z)");
                     if (state.mode == Mode.EVALUATING)
-                        state.pendingMirror = mirrorVal != 0;
+                        state.frame.pendingMirror = mirrorVal != 0;
                 } else if (methodInsn.desc.startsWith("()")) {
                     // No-arg mirror() is the equivalent of mirror(true).
                     if (state.mode == Mode.EVALUATING)
-                        state.pendingMirror = true;
+                        state.frame.pendingMirror = true;
                 }
             }
             default -> { }
@@ -1962,10 +1910,10 @@ public final class GeometryParser {
     }
 
     /**
-     * Appends one cube to {@link ParseState#pendingCubes}, capturing the current
-     * {@link ParseState#pendingInflate} (indices 8-10, the 3-component grow) and
-     * {@link ParseState#pendingMirror} (index 11, {@code 0f} / {@code 1f}), then resets the
-     * pending inflate back to {@link ParseState#defaultInflate} (the call-site's
+     * Appends one cube to {@link CallFrame#pendingCubes}, capturing the current
+     * {@link WalkState#pendingInflate} (indices 8-10, the 3-component grow) and
+     * {@link CallFrame#pendingMirror} (index 11, {@code 0f} / {@code 1f}), then resets the
+     * pending inflate back to {@link WalkState#defaultInflate} (the call-site's
      * {@code CubeDeformation}, zero for normal sources) so a per-cube inline deformation
      * doesn't leak into the next addBox in the same builder chain. Cube layout is
      * {@code [x, y, z, w, h, d, u, v, gx, gy, gz, mirror]}.
@@ -1980,14 +1928,14 @@ public final class GeometryParser {
      * @param u texture U offset
      * @param v texture V offset
      */
-    private static void emitCube(@NotNull ParseState state, float x, float y, float z, float w, float h, float d, int u, int v) {
+    private static void emitCube(@NotNull WalkState state, float x, float y, float z, float w, float h, float d, int u, int v) {
         // Cube layout slot 11: mirror flag (0f = not mirrored, 1f = mirrored). Per-cube
-        // mirror-flagged addBox variants pre-set {@code state.pendingMirror} and restore it
+        // mirror-flagged addBox variants pre-set {@code state.frame.pendingMirror} and restore it
         // after; builder-level {@code mirror(Z)} state persists until changed.
-        state.pendingCubes.add(new float[]{
+        state.frame.pendingCubes.add(new float[]{
             x, y, z, w, h, d, u, v,
             state.pendingInflate[0], state.pendingInflate[1], state.pendingInflate[2],
-            state.pendingMirror ? 1f : 0f
+            state.frame.pendingMirror ? 1f : 0f
         });
         // Reset to the source's defaultInflate (zero for normal entity sources, non-zero for
         // composite-overlay sources whose factory takes a {@code CubeDeformation} arg) so
@@ -2004,7 +1952,7 @@ public final class GeometryParser {
     /**
      * Handles {@code CubeDeformation.extend(F)} / {@code .extend(FFF)} which consume float
      * inflate args from the operand stack adjacent to a subsequent {@code CubeListBuilder
-     * .addBox}. Without this, the inflate arg leaks onto {@link ParseState#numStack} and
+     * .addBox}. Without this, the inflate arg leaks onto {@link WalkState#numStack} and
      * shifts the addBox pop order, producing garbage cube dimensions (HumanoidModel's hat
      * bone is the canonical example: a {@code .extend(0.5f)} on the deformation arg
      * leaves {@code 0.5} above the addBox's d-arg, so addBox sees d=0.5 and h/w/z/y/x
@@ -2017,13 +1965,13 @@ public final class GeometryParser {
      * {@code addBox}'s coordinate pops. Asymmetric {@code (FFF)} variants keep their three
      * components (decision 24 - the legacy lossy /3 average dies here). {@code .extend}
      * always <i>adds</i> to the current {@code pendingInflate}; a {@code <init>}
-     * <i>replaces</i> it and records {@link ParseState#pendingFreshDeformationInflate} for
+     * <i>replaces</i> it and records {@link WalkState#pendingFreshDeformationInflate} for
      * the next {@code ASTORE}.
      *
      * @param methodInsn the {@code CubeDeformation} method call being dispatched
      * @param state the parse state whose pending inflate is set
      */
-    private static void handleCubeDeformation(@NotNull MethodInsnNode methodInsn, @NotNull ParseState state) {
+    private static void handleCubeDeformation(@NotNull MethodInsnNode methodInsn, @NotNull WalkState state) {
         if ("extend".equals(methodInsn.name)) {
             if (methodInsn.desc.startsWith("(FFF")) {
                 requireStack(state, 3, "CubeDeformation.extend(FFF)");
@@ -2071,15 +2019,15 @@ public final class GeometryParser {
 
     /**
      * Handles {@code PartPose.offset / rotation / offsetAndRotation / scaled} calls,
-     * consuming literals off {@link ParseState#numStack} and storing the result on
-     * {@link ParseState#pendingPivot} / {@link ParseState#pendingRotation} /
-     * {@link ParseState#pendingScale} for the next {@code addOrReplaceChild} flush. Rotation
+     * consuming literals off {@link WalkState#numStack} and storing the result on
+     * {@link CallFrame#pendingPivot} / {@link CallFrame#pendingRotation} /
+     * {@link CallFrame#pendingScale} for the next {@code addOrReplaceChild} flush. Rotation
      * args arrive in radians and are converted to degrees for the JSON.
      *
      * @param methodInsn the {@code PartPose} method call being dispatched
      * @param state the parse state whose pending pivot / rotation / scale are set
      */
-    private static void handlePartPose(@NotNull MethodInsnNode methodInsn, @NotNull ParseState state) {
+    private static void handlePartPose(@NotNull MethodInsnNode methodInsn, @NotNull WalkState state) {
         switch (methodInsn.name) {
             case "offset" -> {
                 if (methodInsn.desc.startsWith("(FFF")) {
@@ -2087,8 +2035,8 @@ public final class GeometryParser {
                     float pz = popFloatWithDiagnostics(state, "PartPose.offset(FFF) z");
                     float py = popFloatWithDiagnostics(state, "PartPose.offset(FFF) y");
                     float px = popFloatWithDiagnostics(state, "PartPose.offset(FFF) x");
-                    state.pendingPivot = new float[]{ px, py, pz };
-                    state.pendingRotation = new float[]{ 0, 0, 0 };
+                    state.frame.pendingPivot = new float[]{ px, py, pz };
+                    state.frame.pendingRotation = new float[]{ 0, 0, 0 };
                 }
             }
             case "rotation" -> {
@@ -2099,8 +2047,8 @@ public final class GeometryParser {
                     float rz = popFloatWithDiagnostics(state, "PartPose.rotation(FFF) z");
                     float ry = popFloatWithDiagnostics(state, "PartPose.rotation(FFF) y");
                     float rx = popFloatWithDiagnostics(state, "PartPose.rotation(FFF) x");
-                    state.pendingPivot = new float[]{ 0, 0, 0 };
-                    state.pendingRotation = new float[]{
+                    state.frame.pendingPivot = new float[]{ 0, 0, 0 };
+                    state.frame.pendingRotation = new float[]{
                         (float) Math.toDegrees(rx),
                         (float) Math.toDegrees(ry),
                         (float) Math.toDegrees(rz)
@@ -2116,8 +2064,8 @@ public final class GeometryParser {
                     float pz = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) pz");
                     float py = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) py");
                     float px = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) px");
-                    state.pendingPivot = new float[]{ px, py, pz };
-                    state.pendingRotation = new float[]{
+                    state.frame.pendingPivot = new float[]{ px, py, pz };
+                    state.frame.pendingRotation = new float[]{
                         (float) Math.toDegrees(rx),
                         (float) Math.toDegrees(ry),
                         (float) Math.toDegrees(rz)
@@ -2132,7 +2080,7 @@ public final class GeometryParser {
                 // applies to and resets when the next addOrReplaceChild finalises the bone.
                 if (methodInsn.desc.startsWith("(F") && !methodInsn.desc.startsWith("(FF")) {
                     requireStack(state, 1, "PartPose.scaled(F)");
-                    state.pendingScale = popFloatWithDiagnostics(state, "PartPose.scaled(F)");
+                    state.frame.pendingScale = popFloatWithDiagnostics(state, "PartPose.scaled(F)");
                 }
             }
             default -> { }
@@ -2152,11 +2100,11 @@ public final class GeometryParser {
      *
      * @param state the parse state whose pending bone fields are flushed and reset
      */
-    private static void flushPendingBone(@NotNull ParseState state) {
+    private static void flushPendingBone(@NotNull WalkState state) {
         // Prefer the snapshot taken at CubeListBuilder.create(); fall back to pendingPartName
         // for models that set the name immediately before addOrReplaceChild (no builder
         // chain - rare, but cheap to support).
-        String name = state.boneName != null ? state.boneName : state.pendingPartName;
+        String name = state.frame.boneName != null ? state.frame.boneName : state.frame.pendingPartName;
         if (name != null) {
             // Resolve the parent. Fall back to nextParent when parentBone wasn't captured at a
             // CubeListBuilder.create() call: vanilla's pre-built-builder pattern
@@ -2166,7 +2114,7 @@ public final class GeometryParser {
             // flush, so parentBone stays null; nextParent still holds the most recent
             // {@code aload} of the parent's PartDefinition slot. For the standard chain (where
             // create() captures parentBone) nextParent is null at flush so this is a no-op.
-            String resolvedParent = state.parentBone != null ? state.parentBone : state.nextParent;
+            String resolvedParent = state.frame.parentBone != null ? state.frame.parentBone : state.frame.nextParent;
             BoneMeta parentMeta = resolvedParent != null ? state.boneMeta.get(resolvedParent) : null;
             float parentScale = parentMeta != null ? parentMeta.scale : 1f;
 
@@ -2176,7 +2124,7 @@ public final class GeometryParser {
             // shared {@link lib.minecraft.renderer.engine.kit.BoneKit}) supplies each ancestor's
             // rotation + translation at render. Children read the cumulative scale back via
             // {@link BoneMeta}.
-            float worldScale = parentScale * state.pendingScale;
+            float worldScale = parentScale * state.frame.pendingScale;
             state.boneMeta.put(name, new BoneMeta(worldScale));
 
             // Emit the bone in its PARENT-LOCAL frame: local pivot scaled by the ancestor cumulative
@@ -2185,24 +2133,24 @@ public final class GeometryParser {
             // parent present to resolve the chain (a missing parent silently degrades to root,
             // dropping the group transform), and keeping groups lets their children hide as a unit.
             float[] localPivot = {
-                parentScale * state.pendingPivot[0],
-                parentScale * state.pendingPivot[1],
-                parentScale * state.pendingPivot[2]
+                parentScale * state.frame.pendingPivot[0],
+                parentScale * state.frame.pendingPivot[1],
+                parentScale * state.frame.pendingPivot[2]
             };
-            state.bones.add(name, buildBone(localPivot, state.pendingRotation, worldScale, state.pendingCubes, resolvedParent));
+            state.bones.add(name, buildBone(localPivot, state.frame.pendingRotation, worldScale, state.frame.pendingCubes, resolvedParent));
             // Record the resolved parent so the post-walk retainedNames / clearedBones filters
             // can chase the ancestor chain. Root-level bones map to a null parent.
             state.boneParents.put(name, resolvedParent);
-            state.lastFlushedBone = name;
+            state.frame.lastFlushedBone = name;
         }
-        state.pendingPartName = null;
-        state.boneName = null;
-        state.parentBone = null;
-        state.pendingCubes = Concurrent.newList();
-        state.pendingPivot = new float[]{ 0, 0, 0 };
-        state.pendingRotation = new float[]{ 0, 0, 0 };
-        state.pendingUv = new int[]{ 0, 0 };
-        state.pendingScale = 1f;
+        state.frame.pendingPartName = null;
+        state.frame.boneName = null;
+        state.frame.parentBone = null;
+        state.frame.pendingCubes = Concurrent.newList();
+        state.frame.pendingPivot = new float[]{ 0, 0, 0 };
+        state.frame.pendingRotation = new float[]{ 0, 0, 0 };
+        state.frame.pendingUv = new int[]{ 0, 0 };
+        state.frame.pendingScale = 1f;
     }
 
     /**
@@ -2223,45 +2171,28 @@ public final class GeometryParser {
     }
 
     /**
-     * Mutable parse state threaded through one top-level method parse (plus any inlined invokestatic targets).
+     * The per-method-invocation slice of the parser's mutable state - JVM call-frame scoping
+     * for the symbolic walk. One frame is live at a time on {@link WalkState#frame};
+     * {@link GeometryParser#inlineStaticMethodBody} pushes a fresh child for an inlined
+     * {@code invokestatic} target and restores the caller's frame on return. Per-method locals
+     * (slot maps, pending pose / part names, fresh-array + random-source carries) start empty
+     * in a child frame; the parameter tables ({@link #paramIntValues} / {@link #paramFloatValues})
+     * and the builder-level {@link #pendingMirror} inherit the caller's values
+     * ({@link #inlineChild}). Per-parse output and configuration live on {@link WalkState}.
      */
-    private static final class ParseState {
-
-        /**
-         * The walk mode for this parse, fixed at seed (see {@link Mode}). Every historical
-         * {@code paramFloatValues}-nullness gate reads {@code mode == Mode.EVALUATING}; the
-         * {@link #paramFloatValues} table itself is still consulted as substitution data.
-         */
-        @NotNull Mode mode = Mode.LEGACY_LINEAR;
-
-        /**
-         * Bounded retention for the symbolic operand stack: 16 entries is comfortably above
-         * the deepest single-expression stack vanilla bytecode pushes (PartPose six-float
-         * factory + a few coercions) while still being a hard cap that surfaces parser
-         * accounting bugs as overflow warnings rather than runaway growth.
-         */
-        private static final int NUM_STACK_CAPACITY = 16;
-
-        /**
-         * Marker pushed onto {@link #refStack} when the bound reference parameter is loaded. A
-         * sentinel distinct from any enum constant field name so the {@code IF_ACMP*} evaluator
-         * can tell the parameter side from the constant side of the comparison.
-         */
-        private static final @NotNull String REF_PARAM_SENTINEL = " REF_PARAM";
-
-        final @NotNull AsmKit.LiteralStack numStack = new AsmKit.LiteralStack(NUM_STACK_CAPACITY);
+    private static final class CallFrame {
 
         /**
          * Int values to substitute for {@code ILOAD_N} parameters when evaluating branches.
          * On an {@code ILOAD slot} the resolved {@code paramIntValues[slot]} is pushed onto
-         * whichever stack the current pipeline consumes: {@link #numStack} in the Java
+         * whichever stack the current pipeline consumes: {@link WalkState#numStack} in the Java
          * pipeline ({@link #paramFloatValues} non-null, so the value can also feed
-         * {@code IADD} / {@code ISUB} arithmetic) or {@link #branchStack} in the legacy
+         * {@code IADD} / {@code ISUB} arithmetic) or {@link WalkState#branchStack} in the legacy
          * literal-stack pipeline. The subsequent {@code IFEQ} / {@code IFNE} / switch then
          * pops a concrete value and follows (or not) the branch. {@code null} disables branch
          * evaluation - the parser falls back to its default linear walk and lets both sides
          * of any conditional land on the stack. Also grown on demand by the for-loop unroller
-         * (see {@link #ensureIntSlotCapacity}) to hold the injected iterator value.
+         * (see {@link GeometryParser#ensureIntSlotCapacity}) to hold the injected iterator value.
          */
         int @Nullable [] paramIntValues;
 
@@ -2272,32 +2203,6 @@ public final class GeometryParser {
          * see {@link Source#paramFloatValues()} for the substitution rules.
          */
         float @Nullable [] paramFloatValues;
-
-        /**
-         * Pushed by ILOAD when the slot maps to a paramIntValues entry; consumed by IFEQ / IFNE.
-         */
-        final @NotNull ConcurrentList<Integer> branchStack = Concurrent.newList();
-
-        /**
-         * Enum-reference branch evaluation (set from {@link Source#refParam()}). When
-         * {@link #refParamOwner} is non-null, {@code ALOAD <refParamSlot>} pushes the
-         * {@link #REF_PARAM_SENTINEL} marker onto {@link #refStack}, {@code GETSTATIC
-         * <refParamOwner>.<name>} pushes the constant field name, and {@code IF_ACMPEQ} /
-         * {@code IF_ACMPNE} compares the bound {@link #refParamValue} against the constant to
-         * follow the branch. Used to split {@code createHangingSignLayer(Attachment)} per
-         * attachment without hardcoding the mesh.
-         */
-        @Nullable String refParamOwner;
-        @Nullable String refParamValue;
-        int refParamSlot = -1;
-
-        /**
-         * Object-reference branch stack for {@link #refParamOwner} evaluation. Holds either
-         * {@link #REF_PARAM_SENTINEL} (the bound attachment parameter) or an enum constant field
-         * name pushed by {@code GETSTATIC <refParamOwner>}. Each {@code aload;getstatic;if_acmp}
-         * triplet pushes two entries and pops them in the comparison, keeping the stack balanced.
-         */
-        final @NotNull ConcurrentList<String> refStack = Concurrent.newList();
 
         /**
          * Most recent ldc String - tracks both bone names and inner cube names.
@@ -2341,9 +2246,9 @@ public final class GeometryParser {
          * {@code ldc <value>; fstore <slot>; ...; fload <slot>} sequence (vanilla
          * {@code BlazeModel.createBodyLayer}'s rolling-angle accumulator slot 2;
          * {@code SquidModel.createBodyLayer}'s reused-angle double slot 7) folds back to the
-         * literal value instead of the param-table default. Reset by
-         * {@link #inlineStaticMethodBody} so JVM scoping (callee locals don't leak into
-         * caller) is preserved.
+         * literal value instead of the param-table default. Starts empty in each child frame
+         * ({@link #inlineChild}) so JVM scoping (callee locals don't leak into caller) is
+         * preserved.
          */
         @NotNull ConcurrentMap<Integer, Number> numericLocals = Concurrent.newMap();
 
@@ -2353,8 +2258,8 @@ public final class GeometryParser {
          * {@code SilverfishModel.createBodyLayer} uses this for its cumulative-pivot
          * {@code float[7]}: each loop iteration writes {@code f[i] = currentF} via
          * {@code FASTORE} and the post-loop layer bones read back via
-         * {@code FALOAD}. Cleared in {@link #inlineStaticMethodBody} so the callee can't
-         * leak its local arrays into the caller's scope.
+         * {@code FALOAD}. Starts empty in each child frame ({@link #inlineChild}) so the
+         * callee can't leak its local arrays into the caller's scope.
          */
         @NotNull ConcurrentMap<Integer, float[]> localFloatArrays = Concurrent.newMap();
 
@@ -2366,7 +2271,7 @@ public final class GeometryParser {
          * result. Vanilla's {@code GhastModel.createBodyLayer} uses seed {@code 1660L} to
          * deterministically produce tentacle heights; the parser substitutes the same
          * {@link java.util.Random} algorithm (Mojang's {@code BitRandomSource} matches the
-         * standard LCG bit-for-bit). Cleared in {@link #inlineStaticMethodBody}.
+         * standard LCG bit-for-bit). Starts empty in each child frame ({@link #inlineChild}).
          */
         @NotNull ConcurrentMap<Integer, java.util.Random> localRandomSources = Concurrent.newMap();
 
@@ -2391,6 +2296,123 @@ public final class GeometryParser {
          * .operand} via {@code T_FLOAT} / {@code T_INT}.
          */
         char pendingFreshArrayType;
+
+        /**
+         * Cubes accumulated for the current builder chain, flushed by the next {@code addOrReplaceChild}.
+         */
+        @NotNull ConcurrentList<float[]> pendingCubes = Concurrent.newList();
+
+        /**
+         * Current {@code texOffs(u, v)} values used by subsequent {@code addBox} variants that omit inline UV.
+         */
+        int @NotNull [] pendingUv = { 0, 0 };
+
+        /**
+         * Current {@code PartPose} pivot for the next bone flush; defaults to origin.
+         */
+        float @NotNull [] pendingPivot = { 0, 0, 0 };
+
+        /**
+         * Current {@code PartPose} rotation (Euler degrees) for the next bone flush.
+         */
+        float @NotNull [] pendingRotation = { 0, 0, 0 };
+
+        /**
+         * Uniform scale from {@code PartPose.scaled}; {@code 1f} when no scale was applied.
+         */
+        float pendingScale = 1f;
+
+        /**
+         * Current builder-level mirror flag set by {@code CubeListBuilder.mirror(true)} -
+         * applies to every subsequent {@code addBox} cube until the builder hits a
+         * {@code mirror(false)} call or the chain ends. Captured on the
+         * {@code CubeListBuilder.mirror(Z)} dispatch (the boolean is popped into this slot
+         * instead of being discarded). The {@code addBox(..., Z, ...)} mirror-flagged
+         * variants override this on a per-cube basis. Vanilla's
+         * {@code AbstractEquineModel.createBodyMesh} flips {@code mirror=true} for the
+         * right-side legs / right ear so the leg's outer-face UV draws the same texture
+         * region as the left leg's outer face rather than its mirror; without propagating
+         * this through to the kit, both right legs render facing the wrong way (the
+         * skeleton-horse user report). The kit already consumes
+         * {@link EntityModelData.Cube#isMirror()} via {@code rect.toUvCorners(..., mirror)}.
+         */
+        boolean pendingMirror = false;
+
+        /**
+         * Derives the child frame for an inlined {@code invokestatic} target: per-method
+         * locals reset empty (fresh maps, null pendings, origin pose), while the parameter
+         * tables and the builder-level {@link #pendingMirror} inherit this (caller's) frame -
+         * so the callee sees the propagated mirror flag and, after
+         * {@link GeometryParser#captureInlineParams}, any call-site params. The caller's frame
+         * is restored wholesale on return, so nothing the callee writes to the child leaks back.
+         *
+         * @return a fresh child frame inheriting this frame's parameter tables and mirror flag
+         */
+        @NotNull CallFrame inlineChild() {
+            CallFrame child = new CallFrame();
+            child.paramIntValues = this.paramIntValues;
+            child.paramFloatValues = this.paramFloatValues;
+            child.pendingMirror = this.pendingMirror;
+            return child;
+        }
+    }
+
+    /**
+     * Mutable per-parse state threaded through one top-level method parse. The
+     * per-method-invocation slice lives on {@link #frame}, swapped for a fresh
+     * {@link CallFrame} while an inlined {@code invokestatic} target is walked.
+     */
+    private static final class WalkState {
+
+        /**
+         * The walk mode for this parse, fixed at seed (see {@link Mode}). Every historical
+         * {@code paramFloatValues}-nullness gate reads {@code mode == Mode.EVALUATING}; the
+         * {@link CallFrame#paramFloatValues} table itself is still consulted as substitution data.
+         */
+        @NotNull Mode mode = Mode.LEGACY_LINEAR;
+
+        /**
+         * Bounded retention for the symbolic operand stack: 16 entries is comfortably above
+         * the deepest single-expression stack vanilla bytecode pushes (PartPose six-float
+         * factory + a few coercions) while still being a hard cap that surfaces parser
+         * accounting bugs as overflow warnings rather than runaway growth.
+         */
+        private static final int NUM_STACK_CAPACITY = 16;
+
+        /**
+         * Marker pushed onto {@link #refStack} when the bound reference parameter is loaded. A
+         * sentinel distinct from any enum constant field name so the {@code IF_ACMP*} evaluator
+         * can tell the parameter side from the constant side of the comparison.
+         */
+        private static final @NotNull String REF_PARAM_SENTINEL = " REF_PARAM";
+
+        final @NotNull AsmKit.LiteralStack numStack = new AsmKit.LiteralStack(NUM_STACK_CAPACITY);
+
+        /**
+         * Pushed by ILOAD when the slot maps to a paramIntValues entry; consumed by IFEQ / IFNE.
+         */
+        final @NotNull ConcurrentList<Integer> branchStack = Concurrent.newList();
+
+        /**
+         * Enum-reference branch evaluation (set from {@link Source#refParam()}). When
+         * {@link #refParamOwner} is non-null, {@code ALOAD <refParamSlot>} pushes the
+         * {@link #REF_PARAM_SENTINEL} marker onto {@link #refStack}, {@code GETSTATIC
+         * <refParamOwner>.<name>} pushes the constant field name, and {@code IF_ACMPEQ} /
+         * {@code IF_ACMPNE} compares the bound {@link #refParamValue} against the constant to
+         * follow the branch. Used to split {@code createHangingSignLayer(Attachment)} per
+         * attachment without hardcoding the mesh.
+         */
+        @Nullable String refParamOwner;
+        @Nullable String refParamValue;
+        int refParamSlot = -1;
+
+        /**
+         * Object-reference branch stack for {@link #refParamOwner} evaluation. Holds either
+         * {@link #REF_PARAM_SENTINEL} (the bound attachment parameter) or an enum constant field
+         * name pushed by {@code GETSTATIC <refParamOwner>}. Each {@code aload;getstatic;if_acmp}
+         * triplet pushes two entries and pops them in the comparison, keeping the stack balanced.
+         */
+        final @NotNull ConcurrentList<String> refStack = Concurrent.newList();
 
         /**
          * Flattened pivot + scale for each flushed bone, used to resolve child inheritance.
@@ -2439,31 +2461,6 @@ public final class GeometryParser {
         final @NotNull Set<String> clearedBones = new LinkedHashSet<>();
 
         /**
-         * Cubes accumulated for the current builder chain, flushed by the next {@code addOrReplaceChild}.
-         */
-        @NotNull ConcurrentList<float[]> pendingCubes = Concurrent.newList();
-
-        /**
-         * Current {@code texOffs(u, v)} values used by subsequent {@code addBox} variants that omit inline UV.
-         */
-        int @NotNull [] pendingUv = { 0, 0 };
-
-        /**
-         * Current {@code PartPose} pivot for the next bone flush; defaults to origin.
-         */
-        float @NotNull [] pendingPivot = { 0, 0, 0 };
-
-        /**
-         * Current {@code PartPose} rotation (Euler degrees) for the next bone flush.
-         */
-        float @NotNull [] pendingRotation = { 0, 0, 0 };
-
-        /**
-         * Uniform scale from {@code PartPose.scaled}; {@code 1f} when no scale was applied.
-         */
-        float pendingScale = 1f;
-
-        /**
          * Whole-layer uniform scale captured from {@code MeshTransformer.scaling(F)} call(s)
          * on the {@code LayerDefinition}; {@code 1f} when no MeshTransformer is applied.
          * Re-walked into the emitted bone tree by {@link #applyMeshTransformerScaling} after
@@ -2480,22 +2477,6 @@ public final class GeometryParser {
          * re-averages {@code (x + y + z) / 3f} on the emitted floats for legacy parity).
          */
         float @NotNull [] pendingInflate = { 0f, 0f, 0f };
-
-        /**
-         * Current builder-level mirror flag set by {@code CubeListBuilder.mirror(true)} -
-         * applies to every subsequent {@code addBox} cube until the builder hits a
-         * {@code mirror(false)} call or the chain ends. Captured on the
-         * {@code CubeListBuilder.mirror(Z)} dispatch (the boolean is popped into this slot
-         * instead of being discarded). The {@code addBox(..., Z, ...)} mirror-flagged
-         * variants override this on a per-cube basis. Vanilla's
-         * {@code AbstractEquineModel.createBodyMesh} flips {@code mirror=true} for the
-         * right-side legs / right ear so the leg's outer-face UV draws the same texture
-         * region as the left leg's outer face rather than its mirror; without propagating
-         * this through to the kit, both right legs render facing the wrong way (the
-         * skeleton-horse user report). The kit already consumes
-         * {@link EntityModelData.Cube#isMirror()} via {@code rect.toUvCorners(..., mirror)}.
-         */
-        boolean pendingMirror = false;
 
         /**
          * The factory's default {@code CubeDeformation} inflate, captured at the call site
@@ -2560,6 +2541,13 @@ public final class GeometryParser {
          * Set after the first overflow warn so a single parse doesn't spam the log.
          */
         boolean overflowWarned;
+
+        /**
+         * The live per-method-invocation frame (see {@link CallFrame}). Swapped for a fresh
+         * child while an inlined {@code invokestatic} target is walked and restored on return
+         * by {@link GeometryParser#inlineStaticMethodBody}.
+         */
+        @NotNull CallFrame frame = new CallFrame();
 
     }
 
@@ -2667,7 +2655,7 @@ public final class GeometryParser {
      * @param state the parse state whose {@code numStack} / {@code branchStack} is popped
      * @return the popped int, or {@code null} when no branch value is available
      */
-    private static @Nullable Integer popIntForBranch(@NotNull ParseState state) {
+    private static @Nullable Integer popIntForBranch(@NotNull WalkState state) {
         if (state.mode == Mode.EVALUATING && !state.numStack.isEmpty())
             return state.numStack.popNumber().intValue();
         if (!state.branchStack.isEmpty())
@@ -2711,8 +2699,8 @@ public final class GeometryParser {
      *       {@code SPIKE_*_ROT[i]}</li>
      * </ul>
      * Returns the resolved literal value when all three pieces match AND the row slot
-     * resolves to a literal via {@link ParseState#numericLocals} or
-     * {@link ParseState#paramIntValues}. Returns {@code null} otherwise (caller falls back
+     * resolves to a literal via {@link CallFrame#numericLocals} or
+     * {@link CallFrame#paramIntValues}. Returns {@code null} otherwise (caller falls back
      * to the non-literal marker).
      *
      * <p>The {@code <clinit>} initializer is walked once per (owner, field) pair via the
@@ -2729,7 +2717,7 @@ public final class GeometryParser {
      */
     private static @Nullable Number tryFoldStaticArrayRead(
         @NotNull AbstractInsnNode loadNode,
-        @NotNull ParseState state,
+        @NotNull WalkState state,
         @NotNull ClassNodeCache cache
     ) {
         int loadOp = loadNode.getOpcode();
@@ -2793,7 +2781,7 @@ public final class GeometryParser {
             if (rr != null) {
                 AbstractInsnNode aloadNode = AsmKit.previousReal(rr.startNode());
                 if (aloadNode instanceof VarInsnNode aload && aload.getOpcode() == Opcodes.ALOAD) {
-                    float[] arr = state.localFloatArrays.get(aload.var);
+                    float[] arr = state.frame.localFloatArrays.get(aload.var);
                     if (arr != null && rr.value() >= 0 && rr.value() < arr.length) {
                         return arr[rr.value()];
                     }
@@ -2819,8 +2807,8 @@ public final class GeometryParser {
      * the expression's starting instruction. Supports:
      * <ul>
      *   <li>{@code ILOAD slot} - the simple case, when {@link #resolveSlotInt} can resolve
-     *       the slot via {@link ParseState#numericLocals} or
-     *       {@link ParseState#paramIntValues}.</li>
+     *       the slot via {@link CallFrame#numericLocals} or
+     *       {@link CallFrame#paramIntValues}.</li>
      *   <li>{@code ILOAD slot; <int lit>; IADD} / {@code ISUB} - silverfish / endermite
      *       update {@code f += sizes[i][2] + sizes[i+1][2]} which compiles to
      *       {@code iload <slot>; iconst_1; iadd; aaload}.</li>
@@ -2835,7 +2823,7 @@ public final class GeometryParser {
      */
     private static @Nullable RowResolution resolveRowExpression(
         @Nullable AbstractInsnNode endNode,
-        @NotNull ParseState state
+        @NotNull WalkState state
     ) {
         if (endNode == null) return null;
         // Literal int row: silverfish's post-loop layer bones use ICONST_2 / ICONST_4 /
@@ -2865,8 +2853,8 @@ public final class GeometryParser {
 
     /**
      * Returns the resolved int for a JVM local slot - first checking
-     * {@link ParseState#numericLocals} (where in-body {@code ISTORE}s are captured), then
-     * {@link ParseState#paramIntValues} (where the for-loop unroller injects the iterator
+     * {@link CallFrame#numericLocals} (where in-body {@code ISTORE}s are captured), then
+     * {@link CallFrame#paramIntValues} (where the for-loop unroller injects the iterator
      * value and {@code captureInlineParams} injects call-site literals). Returns
      * {@code null} when neither holds a value, signalling the static-array fold to fall
      * through.
@@ -2875,11 +2863,11 @@ public final class GeometryParser {
      * @param slot the JVM local-variable slot to resolve
      * @return the resolved int, or {@code null} when neither table holds a value
      */
-    private static @Nullable Integer resolveSlotInt(@NotNull ParseState state, int slot) {
-        Number local = state.numericLocals.get(slot);
+    private static @Nullable Integer resolveSlotInt(@NotNull WalkState state, int slot) {
+        Number local = state.frame.numericLocals.get(slot);
         if (local != null) return local.intValue();
-        if (state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length) {
-            return state.paramIntValues[slot];
+        if (state.frame.paramIntValues != null && slot >= 0 && slot < state.frame.paramIntValues.length) {
+            return state.frame.paramIntValues[slot];
         }
         return null;
     }
@@ -2916,7 +2904,7 @@ public final class GeometryParser {
      * @param where a human-readable dispatch-site label for the diagnostic
      * @return the popped int, or {@code 0} on empty stack / non-literal top
      */
-    private static int popIntWithDiagnostics(@NotNull ParseState state, @NotNull String where) {
+    private static int popIntWithDiagnostics(@NotNull WalkState state, @NotNull String where) {
         if (state.diagnostics == null || state.currentSource == null) {
             // No diagnostic sink attached - fall back to the silent-coerce path so legacy
             // callers (single-source parsing without a Diagnostics) don't NPE.
@@ -2933,7 +2921,7 @@ public final class GeometryParser {
      * @param where a human-readable dispatch-site label for the diagnostic
      * @return the popped float, or {@code 0f} on empty stack / non-literal top
      */
-    private static float popFloatWithDiagnostics(@NotNull ParseState state, @NotNull String where) {
+    private static float popFloatWithDiagnostics(@NotNull WalkState state, @NotNull String where) {
         if (state.diagnostics == null || state.currentSource == null) {
             Number top = state.numStack.popNumber();
             return top == null ? 0f : top.floatValue();
