@@ -87,6 +87,20 @@ class EntityFamilyReaderTest {
     }
 
     @Test
+    @DisplayName("humanoid armor_type is consumed off the relocated layers armor row")
+    void humanoidArmorFromLayersRow() {
+        // armor_type relocated under `layers` [LOCKED 3]: the native reader classifies humanoid off the
+        // layers armor row (absence IS none), replacing the flattener's required-but-unconsumed top-level
+        // member. Skeleton/zombie are humanoid; cow/sheep are none.
+        ConcurrentMap<String, EntityDefinition> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        assertThat("skeleton is humanoid-armored", defs.get("minecraft:skeleton").humanoidArmor(), is(true));
+        assertThat("zombie is humanoid-armored", defs.get("minecraft:zombie").humanoidArmor(), is(true));
+        assertThat("the derived accessor reads the layers row", defs.get("minecraft:zombie").layers().humanoidArmor(), is(true));
+        assertThat("cow is not humanoid-armored", defs.get("minecraft:cow_temperate").humanoidArmor(), is(false));
+        assertThat("sheep is not humanoid-armored", defs.get("minecraft:sheep").humanoidArmor(), is(false));
+    }
+
+    @Test
     @DisplayName("a base-mesh-inheriting grow-less overlay is auto-skipped from canvas bounds")
     void depthClearanceOnGeometryInheritance() {
         ConcurrentMap<String, EntityDefinition> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));

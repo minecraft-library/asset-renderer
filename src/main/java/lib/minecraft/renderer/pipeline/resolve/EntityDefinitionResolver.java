@@ -54,7 +54,7 @@ public final class EntityDefinitionResolver {
         EntityDefinition.EntityDefinitionBuilder builder = definition.toBuilder();
         if (appearance.isBaby() && definition.axes().babyModel().isPresent()) {
             builder.model(definition.axes().babyModel().get()).overlays(List.of()).blockOverlays(List.of())
-                .layers(new EntityDefinition.Layers(Optional.empty(), List.of(), definition.layers().markings()));
+                .layers(new EntityDefinition.Layers(Optional.empty(), List.of(), definition.layers().markings(), definition.layers().humanoidArmor()));
         } else {
             // Drop overlays the appearance doesn't activate: shearable overlays (the sheep wool) when
             // sheared - both the rendered geometry and its canvas-bounds contribution - and charged-only

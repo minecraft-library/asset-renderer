@@ -205,6 +205,7 @@ public final class EntityFamilyReader {
         Optional<String> collarTexture = collarTextureOf(family);
         List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId, diagnostics);
         boolean markings = markingsOf(family);
+        boolean humanoidArmor = humanoidArmorOf(family);
         String babyCoord = babyGeometryOf(family);
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyCoord));
 
@@ -228,7 +229,7 @@ public final class EntityFamilyReader {
                     .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
                     .boneToggles(toggles)
                     .axes(new EntityDefinition.Axes(stateTextures, babyModel, Optional.empty(), Map.of(), Map.of()))
-                    .layers(new EntityDefinition.Layers(collarTexture, equipment, markings))
+                    .layers(new EntityDefinition.Layers(collarTexture, equipment, markings, humanoidArmor))
                     .build());
             }
             return;
@@ -254,7 +255,7 @@ public final class EntityFamilyReader {
             .boneToggles(toggles)
             .axes(new EntityDefinition.Axes(stateTextures, babyModel,
                 buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries), buildSizeScales(family)))
-            .layers(new EntityDefinition.Layers(collarTexture, equipment, markings))
+            .layers(new EntityDefinition.Layers(collarTexture, equipment, markings, humanoidArmor))
             .build());
     }
 
@@ -498,6 +499,22 @@ public final class EntityFamilyReader {
         for (JsonElement element : family.getAsJsonArray("layers")) {
             JsonObject layer = element.getAsJsonObject();
             if (layer.has("id") && "markings".equals(layer.get("id").getAsString())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns whether the family carries a {@code humanoid} armor classification row [LOCKED 3] - the
+     * v2 {@code layers} armor row EntityLayersResolver emits off a {@code HumanoidArmorLayer} site.
+     * Absence IS {@code none} (the classification is derived off the roster, not a required member).
+     * The native reader's consumption of the relocated {@code armor_type}, replacing the former
+     * flattener hard-require of a top-level member the render path dropped (debt row 7).
+     */
+    private static boolean humanoidArmorOf(@NotNull JsonObject family) {
+        if (!family.has("layers")) return false;
+        for (JsonElement element : family.getAsJsonArray("layers")) {
+            JsonObject layer = element.getAsJsonObject();
+            if (layer.has("armor_type") && "humanoid".equals(layer.get("armor_type").getAsString())) return true;
         }
         return false;
     }

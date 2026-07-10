@@ -151,6 +151,18 @@ public class EntityModelLoader {
         }
 
         /**
+         * Whether a vanilla {@code HumanoidArmorLayer} classifies this entity - a derived view over
+         * {@link #layers()} (delegating to {@link Layers#humanoidArmor()}), so no top-level component
+         * stores the classification. The successor to the former top-level {@code armor_type} member
+         * [LOCKED 3], populated by the native reader off the v2 {@code layers} armor row.
+         *
+         * @return {@code true} when a humanoid-armor layer classifies this entity
+         */
+        public boolean humanoidArmor() {
+            return this.layers.humanoidArmor();
+        }
+
+        /**
          * The option-axis meshes and textures a render appearance selects among (the former
          * {@code stateTextures} / {@code babyModel} / {@code largeShape} / {@code sizeModels} /
          * {@code sizeScales} side-channels, nested into first-class structure).
@@ -187,11 +199,17 @@ public class EntityModelLoader {
          *     selects their slot; empty for entities with no equipment layer
          * @param markings whether the entity supports the horse {@code markings} axis (a same-geometry
          *     translucent overlay over the coat); the default marking draws nothing
+         * @param humanoidArmor whether a vanilla {@code HumanoidArmorLayer} classifies this entity
+         *     (skeletons, zombies, piglins) - the {@code armor_type: "humanoid"} classification the v2
+         *     {@code layers} armor row carries [LOCKED 3], read off it at load. No 26.1 render consumes
+         *     it (humanoid armor is not drawn); it is the located, first-class successor to the former
+         *     required-but-unconsumed top-level {@code armor_type} member
          */
         public record Layers(
             @NotNull Optional<String> collar,
             @NotNull List<EquipmentOverlay> equipment,
-            boolean markings
+            boolean markings,
+            boolean humanoidArmor
         ) {}
     }
 
@@ -859,9 +877,12 @@ public class EntityModelLoader {
             // The size axis's non-default scale factors (salmon / slime / magma_cube), so the resolver can
             // multiply rendererScale by the selected size.
             Map<Size, Float> sizeScales = buildSizeScales(sizeScaleRefs.get(entityId));
+            // The flattened row still carries the legacy top-level armor_type (the bridge re-emits it);
+            // read it so the flag-on Layers matches the native reader's (byte-neutral - unconsumed).
+            boolean humanoidArmor = entityJson.has("armor_type") && "humanoid".equals(entityJson.get("armor_type").getAsString());
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale, boneToggles,
                 new EntityDefinition.Axes(stateTextures.getOrDefault(entityId, Map.of()), babyModel, largeShape, sizeModels, sizeScales),
-                new EntityDefinition.Layers(Optional.ofNullable(collarTextures.get(entityId)), equipment, markingsRows.contains(entityId))));
+                new EntityDefinition.Layers(Optional.ofNullable(collarTextures.get(entityId)), equipment, markingsRows.contains(entityId), humanoidArmor)));
         }
         return Concurrent.adoptMap(definitions);
     }
