@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -14,14 +13,13 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.spec.DyeColor;
+import lib.minecraft.renderer.pipeline.load.block.BlockModelReader;
 import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
+import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +43,6 @@ import java.util.Map;
 @UtilityClass
 public class BlockModelLoader {
 
-    private static final @NotNull String BLOCK_MODELS_PATH = "/lib/minecraft/renderer/block_models.json";
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
@@ -77,12 +74,13 @@ public class BlockModelLoader {
      * @throws PipelineException if the resource is missing or cannot be parsed
      */
     public static @NotNull LoadResult load() {
-        // tooling2 bridge seam (10-bridge SS2.3): under the fork-lifetime -Dasset.tooling2.bridge flag
-        // the catalog is materialized from the v2 block resources instead of the checked-in bytes.
-        JsonObject root = LegacyBridge.active()
-            ? LegacyBridge.materialize("block_models.json").toGson().getAsJsonObject()
-            : readJson(BLOCK_MODELS_PATH);
+        // Flag-off reads the v2 block resources natively (the two-file models + geometry join). Under
+        // -Dasset.tooling2.bridge the legacy-shaped tree is materialized and parsed the legacy way,
+        // kept as the rollback floor until the bridge is retired.
+        if (!LegacyBridge.active())
+            return BlockModelReader.load(Diagnostics.root("blockModels", Diagnostics.Output.CONSOLE, null));
 
+        JsonObject root = LegacyBridge.materialize("block_models.json").toGson().getAsJsonObject();
         JsonObject models = root.has("models")
             ? root.getAsJsonObject("models")
             : root;
@@ -178,27 +176,6 @@ public class BlockModelLoader {
             Concurrent.adoptMap(result).toUnmodifiable(),
             variants.toUnmodifiable()
         );
-    }
-
-    /**
-     * Reads a JSON resource off the classpath as a {@link JsonObject}.
-     *
-     * @param path the absolute classpath resource path
-     * @return the parsed root object
-     * @throws PipelineException if the resource is missing, empty, or fails to parse
-     */
-    private static @NotNull JsonObject readJson(@NotNull String path) {
-        try (InputStream stream = BlockModelLoader.class.getResourceAsStream(path)) {
-            if (stream == null)
-                throw new PipelineException("Block model resource '%s' not found", path);
-            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            JsonObject root = GSON.fromJson(json, JsonObject.class);
-            if (root == null)
-                throw new PipelineException("Block model resource '%s' is empty", path);
-            return root;
-        } catch (IOException | JsonSyntaxException ex) {
-            throw new PipelineException(ex, "Failed to load block model resource '%s'", path);
-        }
     }
 
     /**

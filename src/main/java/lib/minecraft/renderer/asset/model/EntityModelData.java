@@ -220,8 +220,10 @@ public class EntityModelData {
 
         /**
          * Uniform outward expansion applied to every face in model units; {@code 0} leaves the cube
-         * at its authored size.
+         * at its authored size. Deserialises from either the legacy {@code inflate} key or the v2
+         * geometry {@code grow} key (a scalar in 26.1; per-axis {@code grow} is a later evolution).
          */
+        @SerializedName(value = "inflate", alternate = {"grow"})
         private float inflate = 0f;
 
         /**
