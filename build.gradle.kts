@@ -277,6 +277,33 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
+    // atlas render job (decision 35: not an extraction flow); output stays scratch build/atlas/.
+    // Diagnose task names per doc-12 F9 (diagnoseAtlas2 + diagnoseAtlas2Task10).
+
+    register<JavaExec>("atlas2") {
+        description = "tooling2: renders a block/item atlas PNG + typed AtlasSidecar JSON to build/atlas/."
+        group = "tooling2"
+        mainClass.set("lib.minecraft.renderer.tooling2.ToolingAtlas")
+        classpath = sourceSets["main"].runtimeClasspath
+        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
+    }
+
+    register<JavaExec>("diagnoseAtlas2") {
+        description = "tooling2: slices build/atlas/atlas.png by the AtlasSidecar, flags blank/sparse tiles to build/atlas/missing.json."
+        group = "tooling2"
+        mainClass.set("lib.minecraft.renderer.tooling2.ToolingAtlasDiagnose")
+        classpath = sourceSets["main"].runtimeClasspath
+        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
+    }
+
+    register<JavaExec>("diagnoseAtlas2Task10") {
+        description = "tooling2: writes a mini atlas containing only blockstate additions to build/atlas/blockstate_only/."
+        group = "tooling2"
+        mainClass.set("lib.minecraft.renderer.tooling2.ToolingAtlasDiagnose")
+        classpath = sourceSets["main"].runtimeClasspath
+        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath, "--source-filter=blockstate_only")
+    }
+
     // Visual diagnostics - main() entry points in src/test/java/lib/minecraft/renderer/visual/.
     // Run with `./gradlew tasks --group visual` to list. Outputs land under cache/visual/.
 
