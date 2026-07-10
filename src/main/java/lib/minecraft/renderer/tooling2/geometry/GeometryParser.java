@@ -147,6 +147,10 @@ public final class GeometryParser {
         ParseState state = new ParseState();
         state.paramIntValues = request.paramIntValues();
         state.paramFloatValues = request.paramFloatValues();
+        // A request carrying a float-substitution table opts into the EVALUATING walk
+        // (arithmetic / loops / inflate); its absence is the byte-stable LEGACY_LINEAR
+        // block-entity walk. Fixed once here - the mode is invariant for the parse.
+        state.mode = request.paramFloatValues() != null ? Mode.EVALUATING : Mode.LEGACY_LINEAR;
         // Pre-seed pendingInflate from the request's grow so factory methods that take a
         // {@code CubeDeformation} arg (instead of constructing one inline) emit cubes with
         // the call-site-provided inflate. The composite-overlay flow uses this for
@@ -531,7 +535,7 @@ public final class GeometryParser {
         // procedural-loop entity factories (squid / blaze / ghast / magma_cube / guardian
         // / silverfish / endermite / ender_dragon / elder_guardian) all use this exact
         // shape to emit N tentacles / segments / spikes per loop. Skipped when
-        // {@code paramFloatValues == null} so legacy block-entity literal-stack walkers
+        // {@code LEGACY_LINEAR} so legacy block-entity literal-stack walkers
         // (which never opted into arithmetic evaluation) keep their byte-stable linear walk.
         //
         // <p>The body range {@code [firstBodyInsn, firstInsnAfterLoop)} naturally contains
@@ -542,7 +546,7 @@ public final class GeometryParser {
         // Return {@code firstInsnAfterLoop.getPrevious()} so the outer walkRange's
         // {@code .getNext()} lands on {@code firstInsnAfterLoop} - i.e. the parser
         // resumes at the first real instruction after the loop.
-        if (state.paramFloatValues != null) {
+        if (state.mode == Mode.EVALUATING) {
             AsmKit.IntForLoop loop = AsmKit.detectIntForLoop(node);
             if (loop != null) {
                 int slot = loop.iteratorSlot();
@@ -592,12 +596,12 @@ public final class GeometryParser {
         int opcode = node.getOpcode();
 
         // Conditional / unconditional jumps + their JVM-stack-pop accounting. The pop
-        // accounting is gated on {@code paramFloatValues != null} (Java pipeline opt-in)
+        // accounting is gated on {@code EVALUATING} (Java pipeline opt-in)
         // so legacy literal-stack walkers keep their literal-only walk. Branch-following
         // remains gated on {@code paramIntValues != null} - without a known parameter
         // value the parser falls through linearly. Decoupling the two gates means Java
         // entities at the top-level Source (where {@code paramIntValues == null} but
-        // {@code paramFloatValues != null}) still pop the comparison values, preventing
+        // {@code EVALUATING}) still pop the comparison values, preventing
         // the leftover-literal warnings produced by for-loop {@code IF_ICMPGE} etc.
         if (node instanceof JumpInsnNode jumpInsn) {
             boolean canFollow = state.paramIntValues != null;
@@ -622,7 +626,7 @@ public final class GeometryParser {
                     // pipeline pops from branchStack (where ILOAD-of-paramIntValues lives,
                     // used by the banner standing/wall split).
                     Integer value = null;
-                    if (state.paramFloatValues != null && !state.numStack.isEmpty()) {
+                    if (state.mode == Mode.EVALUATING && !state.numStack.isEmpty()) {
                         Number popped = state.numStack.popLiteralNumber();
                         if (popped != null) value = popped.intValue();
                     } else if (canFollow && !state.branchStack.isEmpty()) {
@@ -653,7 +657,7 @@ public final class GeometryParser {
                     // popLiteralNumber consumes the entry regardless.
                     Integer rhs = null;
                     Integer lhs = null;
-                    if (state.paramFloatValues != null) {
+                    if (state.mode == Mode.EVALUATING) {
                         if (!state.numStack.isEmpty()) {
                             Number poppedB = state.numStack.popLiteralNumber();
                             if (poppedB != null) rhs = poppedB.intValue();
@@ -743,20 +747,20 @@ public final class GeometryParser {
             // numericLocals first: an in-method ISTORE captured a precise value (overrides
             // any param-table default for the same slot). Java pipeline only - legacy
             // literal-stack walkers don't STORE into numericLocals.
-            Number local = state.paramFloatValues != null ? state.numericLocals.get(slot) : null;
+            Number local = state.mode == Mode.EVALUATING ? state.numericLocals.get(slot) : null;
             if (local != null) {
                 state.numStack.push(local.intValue());
             } else {
                 boolean resolved = state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length;
                 if (resolved) {
-                    // Java pipeline (paramFloatValues != null) routes ILOAD through numStack
+                    // Java pipeline ({@code EVALUATING} mode) routes ILOAD through numStack
                     // so call-site-propagated literals (pig's {@code legSize=6}) feed the
                     // subsequent {@code 18 - legSize} {@link Opcodes#ISUB} arithmetic. The
                     // matching IFEQ / IFNE / switch consumer above pops from numStack in
                     // the same gated branch. Legacy pipeline keeps the legacy branchStack
                     // path so banner standing/wall and similar paramIntValues uses are
                     // unaffected.
-                    if (state.paramFloatValues != null)
+                    if (state.mode == Mode.EVALUATING)
                         state.numStack.push(state.paramIntValues[slot]);
                     else
                         state.branchStack.add(state.paramIntValues[slot]);
@@ -780,10 +784,10 @@ public final class GeometryParser {
             int slot = varInsn.var;
             // numericLocals first: an in-method FSTORE / DSTORE / LSTORE captured a precise
             // value (overrides any param-table default for the same slot).
-            Number local = state.paramFloatValues != null ? state.numericLocals.get(slot) : null;
+            Number local = state.mode == Mode.EVALUATING ? state.numericLocals.get(slot) : null;
             if (local != null) {
                 state.numStack.push(local);
-            } else if (state.paramFloatValues != null && slot >= 0 && slot < state.paramFloatValues.length) {
+            } else if (state.mode == Mode.EVALUATING && slot >= 0 && slot < state.paramFloatValues.length) {
                 state.numStack.push(state.paramFloatValues[slot]);
             } else {
                 state.numStack.pushNonLiteral();
@@ -796,12 +800,12 @@ public final class GeometryParser {
         // (e.g. {@code WitherBossModel.createBodyLayer}'s {@code RIBCAGE_X_ROT_OFFSET = 0.20420352f})
         // leaks the LDC value, which then sits at the bottom of every subsequent pop
         // and surfaces as a "leftover literal" warning at end-of-parse. Gated on
-        // {@code paramFloatValues != null} for byte-stability - legacy literal-stack
+        // {@code EVALUATING} for byte-stability - legacy literal-stack
         // walkers use {@code ASTORE} (handled in the switch below) for their bone slot
         // tracking, never primitive STOREs in {@code createBodyLayer}-shaped code.
         // ASTORE is intentionally NOT included here; its bone-slot tracking remains in
         // the existing switch case below.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && (opcode == Opcodes.ISTORE || opcode == Opcodes.FSTORE
                 || opcode == Opcodes.DSTORE || opcode == Opcodes.LSTORE)
             && node instanceof VarInsnNode storeInsn) {
@@ -821,7 +825,7 @@ public final class GeometryParser {
         // slots. Our numStack treats long / double as single Number entries, so POP2
         // of a wide value pops 1 entry. javac never emits POP2 for two narrow values
         // (it uses POP; POP), so the single-entry pop is correct in practice.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && (opcode == Opcodes.POP || opcode == Opcodes.POP2)
             && !state.numStack.isEmpty()) {
             state.numStack.pop();
@@ -841,7 +845,7 @@ public final class GeometryParser {
         //       still represented as a single non-literal marker on numStack.</li>
         //   <li>ARRAYLENGTH: pop 1 ref, push 1 int. Push NL.</li>
         // </ul>
-        // Gated on {@code paramFloatValues != null} for byte-stability.
+        // Gated on {@code EVALUATING} for byte-stability.
         //
         // <p>For {@code IALOAD} / {@code FALOAD} the parser also tries
         // {@link #tryFoldStaticArrayRead}, which walks back over the prior real
@@ -854,7 +858,7 @@ public final class GeometryParser {
         // {@code SPIKE_X[i]} / {@code SPIKE_Y[i]} / {@code SPIKE_Z[i]} +
         // {@code SPIKE_*_ROT[i]} reads fold to compile-time constants per unrolled
         // iteration.
-        if (state.paramFloatValues != null) {
+        if (state.mode == Mode.EVALUATING) {
             if (opcode == Opcodes.AALOAD) {
                 if (!state.numStack.isEmpty()) state.numStack.pop();
             } else if (opcode == Opcodes.IALOAD || opcode == Opcodes.FALOAD) {
@@ -937,7 +941,7 @@ public final class GeometryParser {
         // stack. Our walker can't statically know the result so push a non-literal
         // marker - the next IFEQ / IFNE / IF_ICMP* handler above pops it and falls
         // through linearly without taking the branch.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && (opcode == Opcodes.LCMP || opcode == Opcodes.FCMPL || opcode == Opcodes.FCMPG
                 || opcode == Opcodes.DCMPL || opcode == Opcodes.DCMPG)) {
             if (!state.numStack.isEmpty()) state.numStack.pop();
@@ -946,13 +950,13 @@ public final class GeometryParser {
         }
 
         // Binary integer arithmetic: pops two ints, pushes the result. Same
-        // {@code paramFloatValues != null} gate as the float / double block below so
+        // {@code EVALUATING} gate as the float / double block below so
         // legacy literal-stack walkers keep the legacy literal-stack-only walk. Vanilla
         // shares parameterised quadruped construction in {@code QuadrupedModel
         // .createBodyMesh(int legSize, ...)} which computes head/body Y as
         // {@code bipush 18; iload_0; isub; i2f}; without this block the {@code isub}
         // is a no-op and pig head ends up at world Y=18 instead of 12.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && (opcode == Opcodes.IADD || opcode == Opcodes.ISUB
                 || opcode == Opcodes.IMUL || opcode == Opcodes.IDIV
                 || opcode == Opcodes.IREM)
@@ -971,7 +975,7 @@ public final class GeometryParser {
         }
 
         // Unary numeric negation: pops 1, pushes 1. INEG = -i, FNEG = -f, etc.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && (opcode == Opcodes.INEG || opcode == Opcodes.FNEG
                 || opcode == Opcodes.DNEG || opcode == Opcodes.LNEG)
             && !state.numStack.isEmpty()) {
@@ -987,13 +991,13 @@ public final class GeometryParser {
         }
 
         // Binary float / double arithmetic: only fires when the source opted into
-        // arithmetic evaluation via {@code paramFloatValues != null}. Legacy
+        // arithmetic evaluation via {@code EVALUATING}. Legacy
         // sources never set this so the legacy linear walk is preserved unchanged.
         // For Java-side sources, this fixes patterns like
         // {@code HumanoidModel.createMesh}'s arm pivot {@code 2 + yOffset} where
         // yOffset is a parameter and the {@code FADD} would otherwise leave the stack
         // mis-aligned. Non-literal markers are treated as zero during the operation.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && (opcode == Opcodes.FADD || opcode == Opcodes.FSUB || opcode == Opcodes.FMUL || opcode == Opcodes.FDIV || opcode == Opcodes.FREM
                 || opcode == Opcodes.DADD || opcode == Opcodes.DSUB || opcode == Opcodes.DMUL || opcode == Opcodes.DDIV || opcode == Opcodes.DREM)) {
             if (state.numStack.size() >= 2) {
@@ -1037,9 +1041,9 @@ public final class GeometryParser {
 
         // Type-conversion ops between numeric stack slots. Mirrored on the literal
         // stack so subsequent arithmetic / argument-pop sees the correct precision.
-        // Gated on paramFloatValues for the same byte-stability reason as the
+        // Gated on {@code EVALUATING} for the same byte-stability reason as the
         // arithmetic block above.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && (opcode == Opcodes.I2F || opcode == Opcodes.I2D || opcode == Opcodes.F2D
                 || opcode == Opcodes.D2F || opcode == Opcodes.F2I || opcode == Opcodes.D2I)
             && !state.numStack.isEmpty()) {
@@ -1079,7 +1083,7 @@ public final class GeometryParser {
                 // F into {@link ParseState#meshTransformerScale}; the subsequent
                 // {@code apply()} call is then a no-op for our tracking (we don't track
                 // LayerDefinition refs anyway). Cached per-class so repeated parses of the
-                // same source don't reload. Gated on {@code paramFloatValues != null} so
+                // same source don't reload. Gated on {@code EVALUATING} so
                 // legacy literal-stack walkers keep their byte-stable behaviour.
                 //
                 // <p>Fallback for non-scaling transformers: when the field is initialised
@@ -1094,7 +1098,7 @@ public final class GeometryParser {
                 // {@link ParseState#boneMeta} entries already populated by
                 // {@code AbstractEquineModel.createBodyMesh}, which flow through
                 // {@link #inlineStaticMethodBody}'s save/restore set untouched.
-                else if (state.paramFloatValues != null
+                else if (state.mode == Mode.EVALUATING
                     && MESH_TRANSFORMER_DESC.equals(fieldInsn.desc)) {
                     Float f = resolveStaticMeshTransformer(fieldInsn.owner, fieldInsn.name, cache);
                     if (f != null) {
@@ -1114,7 +1118,7 @@ public final class GeometryParser {
             // Vanilla procedural-loop factories (ghast tentacle scaling, etc.) emit the
             // indy directly; helper-wrapped variants (squid's createTentacleName, blaze's
             // getPartName) are resolved in {@link #handleMethodInsn}'s invokestatic-follow.
-            case InvokeDynamicInsnNode indy when state.paramFloatValues != null
+            case InvokeDynamicInsnNode indy when state.mode == Mode.EVALUATING
                 && indy.desc.equals("(I)Ljava/lang/String;")
                 && !state.numStack.isEmpty() -> {
                 String recipe = AsmKit.resolveStringConcatRecipe(indy);
@@ -1268,11 +1272,11 @@ public final class GeometryParser {
         // {@code retainPartsAndChildren} dispatch using {@link ParseState#pendingRetainSet}
         // populated by the preceding {@code Set.of} branch below; consumed post-walk in
         // {@link #parseLayerMethod} once the full bone tree has flushed. Gated on
-        // {@code paramFloatValues != null} so legacy literal-stack walkers (which never call
+        // {@code EVALUATING} so legacy literal-stack walkers (which never call
         // retainPartsAndChildren) keep their byte-stable output.
         if (methodInsn.owner.equals(VanillaSourceClasses.Types.PART_DEFINITION)
             && methodInsn.name.equals("retainPartsAndChildren")
-            && state.paramFloatValues != null) {
+            && state.mode == Mode.EVALUATING) {
             if (state.pendingRetainSet != null) {
                 state.retainedNames = state.pendingRetainSet;
                 state.pendingRetainSet = null;
@@ -1288,11 +1292,11 @@ public final class GeometryParser {
         // names are globally unique within a model, so name-keyed removal is sufficient.
         // Canonical case: {@code AdultPiglinModel.createBodyLayer} inherits "hat" from
         // {@code PlayerModel.createMesh}, then prunes it via {@code head.clearChild("hat")}.
-        // Gated on {@code paramFloatValues != null} so legacy block-entity walkers (which
+        // Gated on {@code EVALUATING} so legacy block-entity walkers (which
         // never see clearChild) keep their byte-stable output.
         if (methodInsn.owner.equals(VanillaSourceClasses.Types.PART_DEFINITION)
             && methodInsn.name.equals("clearChild")
-            && state.paramFloatValues != null) {
+            && state.mode == Mode.EVALUATING) {
             if (state.pendingPartName != null) {
                 state.clearedBones.add(state.pendingPartName);
                 state.pendingPartName = null;
@@ -1308,11 +1312,11 @@ public final class GeometryParser {
         // pseudo-nodes during the walkback. The varargs {@code Set.of([Ljava/lang/Object;)}
         // overload would need an anewarray walker; not used by any vanilla entity factory
         // observed so far so the implementation is deferred. Gated on
-        // {@code paramFloatValues != null}.
+        // {@code EVALUATING}.
         if (methodInsn.owner.equals("java/util/Set")
             && methodInsn.name.equals("of")
             && opcode == Opcodes.INVOKESTATIC
-            && state.paramFloatValues != null) {
+            && state.mode == Mode.EVALUATING) {
             state.pendingRetainSet = collectSetOfStringArgs(methodInsn);
             return;
         }
@@ -1340,7 +1344,7 @@ public final class GeometryParser {
         // static methods just return a constant String field via {@code areturn}).
         if (opcode == Opcodes.INVOKESTATIC
             && methodInsn.desc.equals("(I)Ljava/lang/String;")
-            && state.paramFloatValues != null
+            && state.mode == Mode.EVALUATING
             && !state.numStack.isEmpty()) {
             MethodNode helper = AsmKit.findMethodInHierarchy(cache, methodInsn.owner, methodInsn.name, methodInsn.desc);
             if (helper != null) {
@@ -1382,9 +1386,9 @@ public final class GeometryParser {
         // vanilla's apply-after-build semantics. Multiplies into any existing capture so
         // sequential {@code .apply(scaling(a)).apply(scaling(b))} chains compose (none
         // observed in vanilla 26.1, but cheap to support). Gated on
-        // {@code paramFloatValues != null} so legacy literal-stack walkers, which never call
+        // {@code EVALUATING} so legacy literal-stack walkers, which never call
         // MeshTransformer, are unaffected.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKESTATIC
             && methodInsn.owner.equals(VanillaSourceClasses.Types.MESH_TRANSFORMER)
             && methodInsn.name.equals(VanillaSourceClasses.Methods.SCALING)
@@ -1411,7 +1415,7 @@ public final class GeometryParser {
         // (6.9 + Mth.cos(0.20420352F) * 10 for Y, -0.5 + Mth.sin(0.20420352F) * 10 for Z).
         // Pop the top double from numStack, compute the result via the FastTrig table lookup,
         // push the float so the surrounding FMUL / FADD chain folds correctly. Gated on
-        // paramFloatValues != null so legacy literal-stack walkers keep their byte-stable
+        // {@code EVALUATING} so legacy literal-stack walkers keep their byte-stable
         // parse - none observed call Mth.cos / sin during their layer build.
         //
         // Vanilla's Mth.cos(double) / Mth.sin(double) are 65536-entry sin-table lookups,
@@ -1420,7 +1424,7 @@ public final class GeometryParser {
         // rotation but a slightly different float result, enough to flip the wither tail
         // pivot Y across a canvas-pixel rounding boundary (Math: 16.6922283, Mth: 16.6924076).
         // FastTrig.cos / sin reproduce vanilla's bytecode bit-for-bit.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKESTATIC
             && methodInsn.owner.equals(VanillaSourceClasses.Types.MTH)
             && (methodInsn.name.equals("cos") || methodInsn.name.equals("sin"))
@@ -1440,10 +1444,10 @@ public final class GeometryParser {
         // - enough to flip a pivot across a canvas-pixel rounding boundary - so this handler
         // returns {@code Math.cos / sin} double directly. The subsequent
         // {@code D2F / DMUL / DADD / DSUB} arithmetic in the body folds the double back to
-        // the target precision. Gated on {@code paramFloatValues != null} so legacy
+        // the target precision. Gated on {@code EVALUATING} so legacy
         // literal-stack walkers, which never see Math.cos / sin in their createBodyLayer
         // bodies, keep their byte-stable output.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKESTATIC
             && methodInsn.owner.equals("java/lang/Math")
             && (methodInsn.name.equals("cos") || methodInsn.name.equals("sin"))
@@ -1470,7 +1474,7 @@ public final class GeometryParser {
         //
         // <p>GhastModel.createBodyLayer uses seed {@code 1660L} to deterministically
         // produce 9 tentacle heights via repeated {@code nextInt(7) + 8} calls.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKESTATIC
             && methodInsn.owner.equals(VanillaSourceClasses.Types.RANDOM_SOURCE)
             && methodInsn.name.equals("createThreadLocalInstance")
@@ -1492,7 +1496,7 @@ public final class GeometryParser {
         // operand is a real literal, steps the random and pushes the literal int result.
         // Otherwise pops the bound and pushes a non-literal marker so the JVM stack stays
         // aligned.
-        if (state.paramFloatValues != null
+        if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKEINTERFACE
             && methodInsn.owner.equals(VanillaSourceClasses.Types.RANDOM_SOURCE)
             && methodInsn.name.equals("nextInt")
@@ -1565,7 +1569,7 @@ public final class GeometryParser {
     ) {
         int[] previousInts = state.paramIntValues;
         float[] previousFloats = state.paramFloatValues;
-        if (callDesc != null && state.paramFloatValues != null) {
+        if (callDesc != null && state.mode == Mode.EVALUATING) {
             InlineParams params = captureInlineParams(callDesc, state, inlined.maxLocals);
             state.paramIntValues = params.ints;
             state.paramFloatValues = params.floats;
@@ -1918,7 +1922,7 @@ public final class GeometryParser {
                     float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) y");
                     float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) x");
                     boolean savedMirror = state.pendingMirror;
-                    if (state.paramFloatValues != null) state.pendingMirror = cubeMirror != 0;
+                    if (state.mode == Mode.EVALUATING) state.pendingMirror = cubeMirror != 0;
                     emitCube(state, x, y, z, w, h, d, state.pendingUv[0], state.pendingUv[1]);
                     state.pendingMirror = savedMirror;
                 } else if (methodInsn.desc.startsWith("(FFFFFF") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFF")) {
@@ -1945,11 +1949,11 @@ public final class GeometryParser {
                 if (methodInsn.desc.startsWith("(Z")) {
                     requireStack(state, 1, "CubeListBuilder.mirror(Z)");
                     int mirrorVal = popIntWithDiagnostics(state, "CubeListBuilder.mirror(Z)");
-                    if (state.paramFloatValues != null)
+                    if (state.mode == Mode.EVALUATING)
                         state.pendingMirror = mirrorVal != 0;
                 } else if (methodInsn.desc.startsWith("()")) {
                     // No-arg mirror() is the equivalent of mirror(true).
-                    if (state.paramFloatValues != null)
+                    if (state.mode == Mode.EVALUATING)
                         state.pendingMirror = true;
                 }
             }
@@ -2008,7 +2012,7 @@ public final class GeometryParser {
      *
      * <p>Constructor variants ({@code CubeDeformation.<init>(F)} / {@code <init>(FFF)}) pop
      * the inflate literal(s) <b>unconditionally</b> (NOT gated on the Java pipeline) - the
-     * legacy block-entity walk (which runs with {@code paramFloatValues == null}) would
+     * legacy block-entity walk (which runs with {@code LEGACY_LINEAR}) would
      * otherwise leave the inflate float on {@code numStack} and corrupt the following
      * {@code addBox}'s coordinate pops. Asymmetric {@code (FFF)} variants keep their three
      * components (decision 24 - the legacy lossy /3 average dies here). {@code .extend}
@@ -2026,14 +2030,14 @@ public final class GeometryParser {
                 float ez = popFloatWithDiagnostics(state, "CubeDeformation.extend(FFF) z");
                 float ey = popFloatWithDiagnostics(state, "CubeDeformation.extend(FFF) y");
                 float ex = popFloatWithDiagnostics(state, "CubeDeformation.extend(FFF) x");
-                if (state.paramFloatValues != null)
+                if (state.mode == Mode.EVALUATING)
                     state.pendingInflate = new float[]{
                         state.pendingInflate[0] + ex, state.pendingInflate[1] + ey, state.pendingInflate[2] + ez
                     };
             } else if (methodInsn.desc.startsWith("(F")) {
                 requireStack(state, 1, "CubeDeformation.extend(F)");
                 float e = popFloatWithDiagnostics(state, "CubeDeformation.extend(F)");
-                if (state.paramFloatValues != null)
+                if (state.mode == Mode.EVALUATING)
                     state.pendingInflate = new float[]{
                         state.pendingInflate[0] + e, state.pendingInflate[1] + e, state.pendingInflate[2] + e
                     };
@@ -2042,7 +2046,7 @@ public final class GeometryParser {
         }
         // Inline {@code new CubeDeformation(F)} / {@code (FFF)} - pop the inflate literal(s)
         // unconditionally (NOT gated on the Java pipeline). The block-entity (legacy) pipeline
-        // runs with {@code paramFloatValues == null}; gating the pop there left the inflate float
+        // runs with {@code LEGACY_LINEAR}; gating the pop there left the inflate float
         // on numStack, corrupting the following addBox's coordinate pops. copper_golem_statue is
         // the first block-entity model to construct a CubeDeformation inline (head cube + the two
         // antenna cubes use {@code new CubeDeformation(0.015F)} / {@code (-0.015F)}); before it,
@@ -2202,9 +2206,33 @@ public final class GeometryParser {
     }
 
     /**
+     * The two walk modes the parser runs in, replacing the historical
+     * {@code paramFloatValues}-nullness dual-mode gate with an explicit,
+     * once-determined mode. {@link #EVALUATING} is the Java entity pipeline
+     * (arithmetic evaluation, stack accounting, loop unrolling, inflate / mirror
+     * capture); {@link #LEGACY_LINEAR} is the block-entity literal-stack-only walk
+     * that is byte-stable by construction. The mode is fixed at parse seed from
+     * whether the request carries a {@code paramFloatValues} table and is invariant
+     * for the whole walk - {@link #inlineStaticMethodBody} swaps the underlying
+     * float table for an inlined callee but preserves its non-null-ness, so the mode
+     * never changes mid-parse.
+     */
+    private enum Mode {
+        LEGACY_LINEAR,
+        EVALUATING
+    }
+
+    /**
      * Mutable parse state threaded through one top-level method parse (plus any inlined invokestatic targets).
      */
     private static final class ParseState {
+
+        /**
+         * The walk mode for this parse, fixed at seed (see {@link Mode}). Every historical
+         * {@code paramFloatValues}-nullness gate reads {@code mode == Mode.EVALUATING}; the
+         * {@link #paramFloatValues} table itself is still consulted as substitution data.
+         */
+        @NotNull Mode mode = Mode.LEGACY_LINEAR;
 
         /**
          * Bounded retention for the symbolic operand stack: 16 entries is comfortably above
@@ -2394,7 +2422,7 @@ public final class GeometryParser {
          * non-retained bone's cubes with empty (recursing into its children); since
          * {@link #flushPendingBone} skips JSON emission for cube-less bones, "strip cubes"
          * and "drop bone from JSON" produce the same render output. Only set when
-         * {@code paramFloatValues != null} so legacy walker parses are unaffected.
+         * {@code EVALUATING} so legacy walker parses are unaffected.
          */
         @Nullable Set<String> retainedNames;
 
@@ -2406,7 +2434,7 @@ public final class GeometryParser {
          * {@code head.clearChild("hat")} to drop it. Applied in
          * {@link #applyClearedBonesFilter} after the walk, which also drops descendants
          * (since {@code clearChild} cascades through the child's sub-tree in vanilla).
-         * Only populated when {@code paramFloatValues != null}.
+         * Only populated when {@code EVALUATING}.
          */
         final @NotNull Set<String> clearedBones = new LinkedHashSet<>();
 
@@ -2491,7 +2519,7 @@ public final class GeometryParser {
          * the second addBox emits {@code inflate=0} because {@link #pendingInflate} resets
          * to {@link #defaultInflate} after each {@code emitCube}. Re-hydrated by the ALOAD
          * handler so the next addBox picks up the correct inflate. Only populated when
-         * {@code paramFloatValues != null}.
+         * {@code EVALUATING}.
          */
         final @NotNull java.util.Map<Integer, float[]> cubeDeformationSlots = new java.util.HashMap<>();
 
@@ -2630,9 +2658,9 @@ public final class GeometryParser {
 
     /**
      * Pops an int from whichever stack the current parser config feeds branch evaluators.
-     * When {@code paramFloatValues != null} (Java pipeline) ints flow through {@code numStack}
+     * When {@code EVALUATING} (Java pipeline) ints flow through {@code numStack}
      * so the call-site-propagated literal can also feed {@code IADD/ISUB/...} arithmetic;
-     * when {@code paramFloatValues == null} (legacy literal-stack walkers) the legacy
+     * when {@code LEGACY_LINEAR} (legacy literal-stack walkers) the legacy
      * branchStack consumer is preserved. Returns {@code null} when neither stack has a
      * value, signalling the caller to fall through linearly.
      *
@@ -2640,7 +2668,7 @@ public final class GeometryParser {
      * @return the popped int, or {@code null} when no branch value is available
      */
     private static @Nullable Integer popIntForBranch(@NotNull ParseState state) {
-        if (state.paramFloatValues != null && !state.numStack.isEmpty())
+        if (state.mode == Mode.EVALUATING && !state.numStack.isEmpty())
             return state.numStack.popNumber().intValue();
         if (!state.branchStack.isEmpty())
             return state.branchStack.removeLast();
