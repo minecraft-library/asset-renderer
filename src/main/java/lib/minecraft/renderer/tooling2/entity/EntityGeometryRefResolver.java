@@ -340,14 +340,21 @@ final class EntityGeometryRefResolver {
             return typeConstantModelLayerMap(constant.owner()).get(constant.name());
         }
 
-        // ALOAD <param> of a ModelLayerLocation parameter: the Nth location parameter pairs
-        // with the caller's Nth location push - same-class delegating ctors first (zombie /
-        // spider), then the one-level-down bindings (skeleton's subclass ctor, squid's lambda).
+        // ALOAD <param> of a ModelLayerLocation parameter: the Nth location parameter resolves
+        // to the Nth location the ACTUAL CALLER pushed. A subclass caller (bindings, one level
+        // down - ElderGuardianRenderer passing ELDER_GUARDIAN into the protected GuardianRenderer
+        // ctor, CaveSpiderRenderer passing CAVE_SPIDER into SpiderRenderer) takes precedence over
+        // a same-class SIBLING ctor's push (levelPushes): a convenience ctor like
+        // GuardianRenderer(ctx) -> this(ctx, 0.5f, GUARDIAN) is NOT the caller when the subclass
+        // invokes the parameterized ctor directly, so its GUARDIAN push must not shadow the
+        // subclass's ELDER_GUARDIAN. Only when NO subclass passed a location (leaf renderer,
+        // bindings empty) is the same-class delegating ctor the caller (zombie / spider:
+        // public ctor -> this(ctx, ZOMBIE)).
         if (source.getOpcode() == Opcodes.ALOAD && source instanceof VarInsnNode load) {
             Integer index = paramIndexOfType(load.var, ctorArgs, VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
             if (index == null) return null;
-            if (index < levelPushes.size()) return levelPushes.get(index);
             if (index < bindings.size()) return bindings.get(index);
+            if (index < levelPushes.size()) return levelPushes.get(index);
         }
         return null;
     }

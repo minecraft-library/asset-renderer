@@ -469,21 +469,20 @@
     },
     "minecraft:cave_spider": {
       "renderer": "net/minecraft/client/renderer/entity/CaveSpiderRenderer",
-      "geometry": "SpiderModel#createSpiderBodyLayer",
+      "geometry": "SpiderModel#createSpiderBodyLayer@scaled=0.7",
       "armor_type": "none",
       "texture": "minecraft:textures/entity/spider/cave_spider.png",
       "overlays": [
         {
           "source": "SpiderEyesLayer",
           "layer_index": 0,
-          "geometry": "SpiderModel#createSpiderBodyLayer",
+          "geometry": "SpiderModel#createSpiderBodyLayer@scaled=0.7",
           "texture": "minecraft:textures/entity/spider/spider_eyes.png",
           "pipeline": {
             "emissive": true
           }
         }
-      ],
-      "family_of": "minecraft:spider"
+      ]
     },
     "minecraft:chicken": {
       "renderer": "net/minecraft/client/renderer/entity/ChickenRenderer",
@@ -771,10 +770,9 @@
     },
     "minecraft:elder_guardian": {
       "renderer": "net/minecraft/client/renderer/entity/ElderGuardianRenderer",
-      "geometry": "GuardianModel#createBodyLayer",
+      "geometry": "GuardianModel#createElderGuardianLayer",
       "armor_type": "none",
-      "texture": "minecraft:textures/entity/guardian/guardian_elder.png",
-      "family_of": "minecraft:guardian"
+      "texture": "minecraft:textures/entity/guardian/guardian_elder.png"
     },
     "minecraft:enderman": {
       "renderer": "net/minecraft/client/renderer/entity/EndermanRenderer",
@@ -1165,7 +1163,7 @@
     },
     "minecraft:husk": {
       "renderer": "net/minecraft/client/renderer/entity/HuskRenderer",
-      "geometry": "HumanoidModel#createMesh",
+      "geometry": "HumanoidModel#createMesh@scaled=1.0625",
       "armor_type": "humanoid",
       "texture": "minecraft:textures/entity/zombie/husk.png",
       "axes": {
