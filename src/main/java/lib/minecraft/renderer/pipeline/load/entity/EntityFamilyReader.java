@@ -46,11 +46,12 @@ import java.util.Set;
  * with no legacy flat-row intermediate, no eight parallel side-channel maps, and no
  * {@code CARRIED_FIELDS} lock-step.
  *
- * <p>The v2 geometry file is keyed by the same manifest factory coordinate the family {@code geometry}
- * member names (e.g. {@code AdultWolfModel#createBodyLayer}, {@code PigModel#createBodyLayer@grow=0.5}),
- * so a coordinate resolves DIRECTLY - the bridge's {@code geometry.<stem>} legacy-id replay is a bridge
- * fiction the native path never mints. A dangling coordinate fails LOUD ({@link PipelineException}),
- * matching the historic {@code EntityModelLoader} contract.
+ * <p>The v2 geometry file is keyed by the same manifest factory coordinate the family baseline names
+ * under {@code axes.age.options.adult.geometry} (e.g. {@code AdultWolfModel#createBodyLayer},
+ * {@code PigModel#createBodyLayer@grow=0.5}), so a coordinate resolves DIRECTLY - the bridge's
+ * {@code geometry.<stem>} legacy-id replay is a bridge fiction the native path never mints. A dangling
+ * coordinate fails LOUD ({@link PipelineException}), matching the historic {@code EntityModelLoader}
+ * contract.
  *
  * <p>The one surviving concept from the flattener is <b>id-encoded variant expansion</b>: a
  * {@code variant} axis flattens to {@code minecraft:<id>_<opt>} render pseudo-ids, the default option
@@ -183,7 +184,10 @@ public final class EntityFamilyReader {
         @NotNull Map<String, EntityDefinition> definitions,
         @NotNull Diagnostics diagnostics
     ) {
-        String baseCoord = family.get("geometry").getAsString();
+        // Axis unification #1: the family baseline (primary geometry + adult texture) lives under the
+        // mandatory age axis' options.adult, not at top level.
+        JsonObject adult = adultOption(family);
+        String baseCoord = adult.get("geometry").getAsString();
 
         JsonObject render = family.has("render") ? family.getAsJsonObject("render") : null;
         float rendererScale = render != null && render.has("scale") ? render.get("scale").getAsFloat() : 1f;
@@ -236,7 +240,7 @@ public final class EntityFamilyReader {
         Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, familyId, diagnostics);
         model = applyHiddenBones(model, hiddenBones, familyId, diagnostics);
         List<OverlayLayer> overlays = loadOverlays(familyOverlays, geometries, baseCoord, model, familyId, diagnostics);
-        Optional<String> textureRef = family.has("texture") ? Optional.of(stripEntity(family.get("texture").getAsString())) : Optional.empty();
+        Optional<String> textureRef = adult.has("texture") ? Optional.of(stripEntity(adult.get("texture").getAsString())) : Optional.empty();
 
         Map<String, String> stateTextures = new LinkedHashMap<>();
         // Plain families carry their single baby texture on age.baby.texture; expose it under the "baby"
@@ -436,6 +440,15 @@ public final class EntityFamilyReader {
         if (!optionObj.has("textures")) return Optional.empty();
         JsonObject textures = optionObj.getAsJsonObject("textures");
         return textures.has("wild") ? Optional.of(stripEntity(textures.get("wild").getAsString())) : Optional.empty();
+    }
+
+    /**
+     * Returns the mandatory age axis' {@code options.adult} body - the family baseline (primary
+     * {@code geometry}, and for non-variant families the adult {@code texture}) that axis unification #1
+     * relocated from the former top-level {@code geometry}/{@code texture} members.
+     */
+    private static @NotNull JsonObject adultOption(@NotNull JsonObject family) {
+        return family.getAsJsonObject("axes").getAsJsonObject("age").getAsJsonObject("options").getAsJsonObject("adult");
     }
 
     /** Returns the {@code axes.variant} object when the family carries an id-encoded variant axis. */
