@@ -26,13 +26,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * escalation path (v2 data loss -&gt; fix the flow; replay defect -&gt; fix {@code LegacyOrder}; transform
  * defect -&gt; fix the converter).
  *
- * <p>Scope of this S11 slice: the five fully-derivable snapshot/defaults files are asserted strictly
- * SHA-equal. {@code block_models} is asserted byte-exact per entry with ONE localized divergence
- * recorded ({@code skull_humanoid_head}, see below) - a genuine v2-vs-legacy geometry data
- * difference (10-bridge SS6 case a), surfaced for a user tier decision rather than silently accepted.
- * The two entity files are not yet converted: their v2 geometry drops renderer-scaled meshes
- * (elder_guardian 2.35, cave_spider 0.7) that legacy baked as distinct entries, so tier-1 SHA is
- * blocked on the same escalation path pending a decision.
+ * <p>The five fully-derivable snapshot/defaults files are asserted strictly SHA-equal.
+ * {@code block_models} is asserted byte-exact per entry with ONE localized divergence recorded
+ * ({@code skull_humanoid_head}, see below) - a genuine v2-vs-legacy geometry data difference
+ * (10-bridge SS6 case a), surfaced for a user tier decision rather than silently accepted. The two
+ * entity files reconstruct every SHARED mesh/family byte-exact; the residuals are the recorded
+ * v2-superior set (superset variant/age axes, v2-only pipeline blend, structural improvements) that
+ * the more-accurate-is-better decision keeps rather than degrading to legacy bytes.
  */
 class BridgeParityTest {
 
@@ -115,9 +115,13 @@ class BridgeParityTest {
 
     /**
      * The families where bridge output intentionally diverges from the checked-in legacy resource,
-     * each because v2 is more accurate or v2-only (kept per the more-accurate-is-better decision),
-     * or because the S11 {@code inflate: 0.001} re-add is absent until S12. Any family NOT here must
-     * reconstruct byte-exact; any NEW divergence fails the test for review.
+     * each because v2 is more accurate or v2-only (kept per the more-accurate-is-better decision).
+     * Any family NOT here must reconstruct byte-exact; any NEW divergence fails the test for review.
+     *
+     * <p>S12 landed the {@code inflate: 0.001} depth-clearance re-add on grow-less base-mesh overlays
+     * ({@code EntityModelsBridge.overlayRow}), which reconstructed the nine families that diverged
+     * SOLELY on that field (cave_spider, copper_golem, ender_dragon, enderman, iron_golem, phantom,
+     * spider, villager, zombie_villager); they are now byte-exact and dropped from this set.
      */
     private static final @NotNull List<String> EXPECTED_ENTITY_MODEL_DIVERGENCES = List.of(
         // superset axes v2 captured and legacy lacked (variant/age data-gap fixes)
@@ -125,11 +129,10 @@ class BridgeParityTest {
         "minecraft:mule", "minecraft:panda", "minecraft:piglin", "minecraft:rabbit",
         "minecraft:skeleton_horse", "minecraft:trader_llama", "minecraft:zombie_horse",
         "minecraft:zombified_piglin",
-        // same-mesh overlays missing the S11-absent inflate:0.001 (+ some also carry v2-superior
-        // pipeline blend/emissive the legacy hardcoded arms never classified)
-        "minecraft:breeze", "minecraft:cave_spider", "minecraft:copper_golem", "minecraft:ender_dragon",
-        "minecraft:enderman", "minecraft:iron_golem", "minecraft:phantom", "minecraft:spider",
-        "minecraft:villager", "minecraft:warden", "minecraft:zombie_villager",
+        // same-mesh overlays whose inflate:0.001 now reconstructs (S12), but which ALSO carry a
+        // v2-superior pipeline blend the legacy hardcoded arms never classified (breeze eyes +
+        // warden bioluminescent/pulsating spots = translucent, plus warden's retain_bones subset)
+        "minecraft:breeze", "minecraft:warden",
         // v2-superior structure kept: bone toggles, energy-swirl overlay, drowned overlay-grow
         "minecraft:armor_stand", "minecraft:bee", "minecraft:turtle", "minecraft:wither", "minecraft:drowned",
         // v2 is more correct than legacy's baby texture (Snifflet uses snifflet.png, not sniffer_baby)

@@ -79,8 +79,12 @@ public class EntityModelLoader {
      * {@link #loadOverlays}). A larger inflate is a real vanilla {@code CubeDeformation}
      * (tropical_fish 0.008, llama carpet 0.5) that vanilla's bounds walk includes, so it keeps
      * contributing.
+     *
+     * <p>Public solely so the temporary tooling2 bridge ({@code EntityModelsBridge}) re-adds this
+     * exact value onto same-mesh grow-less overlays instead of re-minting a literal (decision 22);
+     * the widening reverts to private when the bridge retires (10-bridge SS9).
      */
-    private static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
+    public static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
 
     /**
      * An entity definition loaded from the bundled resources.

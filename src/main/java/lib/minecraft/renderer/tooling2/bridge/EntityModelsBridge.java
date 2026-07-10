@@ -3,7 +3,9 @@ package lib.minecraft.renderer.tooling2.bridge;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
+import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,9 +28,10 @@ import java.util.Map;
  * NON-render metadata that legacy deliberately dropped is stripped ({@code renderer}, {@code format},
  * {@code source}, {@code layer_index}, {@code spawn_conditions}, {@code textures_by_value}).
  *
- * <p><b>S11 note</b>: the {@code inflate: 0.001} depth-clearance re-add on same-mesh grow-less
- * overlays is ABSENT here - {@code EntityModelLoader.DEPTH_CLEARANCE_INFLATE} is private until S12's
- * widening (decision 22 forbids a mirror constant), and the runtime loader re-applies it anyway.
+ * <p>The {@code inflate: 0.001} depth-clearance re-add on grow-less overlays that inherit the base
+ * mesh replays legacy bytes the loader would otherwise auto-apply; it references
+ * {@link EntityModelLoader#DEPTH_CLEARANCE_INFLATE} directly (widened to public in S12) rather than
+ * re-minting a literal (decision 22).
  */
 final class EntityModelsBridge {
 
@@ -142,7 +145,8 @@ final class EntityModelsBridge {
     private @NotNull JsonObject overlayRow(@NotNull JsonObject v2, @NotNull String baseGeometry) {
         Map<String, JsonElement> values = new LinkedHashMap<>();
         boolean inherits = !v2.has("geometry");        // absent = inherits the family mesh
-        values.put("geometry_ref", new JsonPrimitive(inherits ? baseGeometry : key(v2.get("geometry").getAsString())));
+        String overlayGeometry = inherits ? baseGeometry : key(v2.get("geometry").getAsString());
+        values.put("geometry_ref", new JsonPrimitive(overlayGeometry));
         if (v2.has("texture")) values.put("texture_ref", new JsonPrimitive(strip(v2.get("texture").getAsString())));
         JsonObject pipeline = v2.has("pipeline") ? v2.getAsJsonObject("pipeline") : new JsonObject();
         if (pipeline.has("emissive")) values.put("emissive", pipeline.get("emissive").deepCopy());
@@ -155,7 +159,15 @@ final class EntityModelsBridge {
         if (when.has("tinted") && when.get("tinted").getAsBoolean()) values.put("requires_tint", new JsonPrimitive(true));
         if (when.has("charged") && when.get("charged").getAsBoolean()) values.put("requires_charged", new JsonPrimitive(true));
         if (v2.has("grow")) values.put("inflate", v2.get("grow").deepCopy());
-        // 0.001 re-add ABSENT in S11 (DEPTH_CLEARANCE_INFLATE private until S12; loader re-applies).
+        // Legacy (EntityRuntimeJsonWriter) stamped its depth-clearance inflate onto grow-less
+        // overlays that RE-SUBMIT the base mesh - vanilla's modelLayerField==null case: emissive eyes
+        // and texture_by profession/crackiness layers, which resolve to the base geometry and apply no
+        // colour tint. A tinted separate-LayerDefinition overlay that merely dedupes into the base id
+        // (sheep wool undercoat: tint_by wool_color) is NOT stamped, so the tint gate excludes it.
+        // Minted as a PARSED literal from the loader's own constant - new JsonPrimitive(0.001f) would
+        // widen to the inexact double 0.0010000000474974513 on serialize (decision 22, S0 spike note).
+        else if (overlayGeometry.equals(baseGeometry) && !v2.has("tint") && !v2.has("tint_by"))
+            values.put("inflate", JsonParser.parseString(Float.toString(EntityModelLoader.DEPTH_CLEARANCE_INFLATE)));
         if (v2.has("skip_bounds")) values.put("skip_bounds", v2.get("skip_bounds").deepCopy());
         if (pipeline.has("blend")) values.put("blend", pipeline.get("blend").deepCopy());
         if (pipeline.has("alpha")) values.put("alpha", pipeline.get("alpha").deepCopy());
