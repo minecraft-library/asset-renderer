@@ -24,24 +24,24 @@ import static org.hamcrest.Matchers.is;
  * <ul>
  *   <li><b>grow[3]</b> - no 26.1 cube carries an {@code [x, y, z]} array grow (all scalar), so the
  *       per-axis capacity degenerates to the uniform path on every real cube.</li>
- *   <li><b>rotate_z</b> - no v2 row emits a {@code rotate_z} transform, so the sealed
+ *   <li><b>rotate_z</b> - no row emits a {@code rotate_z} transform, so the sealed
  *       {@code TransformOp} arm is vocabulary-only.</li>
  * </ul>
  */
 @DisplayName("directive-4 golden pins (Fact C: byte-moving set empty in 26.1)")
 class Directive4GoldenPinsTest {
 
-    private static final @NotNull String V2 = "/lib/minecraft/renderer/";
+    private static final @NotNull String RESOURCE_DIR = "/lib/minecraft/renderer/";
 
     @Test
-    @DisplayName("grow[3]: no v2 geometry cube carries an [x,y,z] array grow (all scalar)")
+    @DisplayName("grow[3]: no geometry cube carries an [x,y,z] array grow (all scalar)")
     void noArrayGrow() {
         assertAllGrowsScalar("entity_geometry.json");
         assertAllGrowsScalar("block_geometry.json");
     }
 
     @Test
-    @DisplayName("rotate_z: no v2 block-overlay row emits a rotate_z transform")
+    @DisplayName("rotate_z: no block-overlay row emits a rotate_z transform")
     void noRotateZ() {
         JsonObject families = read("entity_models.json").getAsJsonObject("families");
         for (Map.Entry<String, JsonElement> family : families.entrySet()) {
@@ -81,11 +81,11 @@ class Directive4GoldenPinsTest {
     }
 
     private static @NotNull JsonObject read(@NotNull String name) {
-        try (InputStream in = Directive4GoldenPinsTest.class.getResourceAsStream(V2 + name)) {
-            if (in == null) throw new IllegalStateException("missing v2 resource " + name);
+        try (InputStream in = Directive4GoldenPinsTest.class.getResourceAsStream(RESOURCE_DIR + name)) {
+            if (in == null) throw new IllegalStateException("missing bundled resource " + name);
             return JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
         } catch (java.io.IOException failure) {
-            throw new IllegalStateException("failed to read v2 resource " + name, failure);
+            throw new IllegalStateException("failed to read bundled resource " + name, failure);
         }
     }
 }

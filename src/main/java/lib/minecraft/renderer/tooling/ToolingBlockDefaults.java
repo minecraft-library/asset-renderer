@@ -11,15 +11,15 @@ import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import java.nio.file.Path;
 
 /**
- * Entry point of the {@code blockDefaults2} Gradle task - the block-defaults flow (SPINE 3.4):
+ * Entry point of the {@code blockDefaults} Gradle task - the block-defaults flow (SPINE 3.4):
  * every registered block's default blockstate from a {@code registerDefaultState} bytewalk, plus
  * the in-file {@code unresolved[]} for class-resolution failures (decision 24 - the file is
  * reconstructible-from-itself, fixing the ledger-15 absent-vs-empty conflation).
  */
 public final class ToolingBlockDefaults {
 
-    /** The v2 resource directory (SPINE 4 registry). */
-    private static final Path V2 = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
+    /** The bundled resource directory (SPINE 4 registry). */
+    private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingBlockDefaults() {
     }
@@ -36,7 +36,7 @@ public final class ToolingBlockDefaults {
             JsonNode root = JsonNode.envelope(session,
                 "block ids sorted; properties sorted within each default object");
             BlockDefaultsWalk.run(session, index, root);
-            root.writeResource(V2.resolve("block_defaults.json"), session.diagnostics());
+            root.writeResource(RESOURCE_DIR.resolve("block_defaults.json"), session.diagnostics());
             failOnStrictGate(session);
         }
     }

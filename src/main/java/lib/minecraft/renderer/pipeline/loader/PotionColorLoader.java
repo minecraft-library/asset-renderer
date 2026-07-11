@@ -4,8 +4,8 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.ArgbHex;
-import lib.minecraft.renderer.pipeline.load.V2Document;
-import lib.minecraft.renderer.pipeline.load.V2Resources;
+import lib.minecraft.renderer.pipeline.load.ResourceDocument;
+import lib.minecraft.renderer.pipeline.load.BundledResources;
 import lib.minecraft.renderer.tooling.ToolingPotionColors;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -16,12 +16,12 @@ import java.util.List;
 
 /**
  * A loader that reads the bundled vanilla potion effect colour table from the
- * {@code v2/potion_colors.json} classpath resource and produces a lookup map of effect id to ARGB.
+ * {@code potion_colors.json} classpath resource and produces a lookup map of effect id to ARGB.
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
  * {@code net.minecraft.world.effect.MobEffects} static initializer as parsed by
  * {@link ToolingPotionColors} {@code .Parser}. To refresh it on a Minecraft version bump, run the
- * {@code potionColors2} Gradle task; the runtime pipeline never invokes the ASM walker directly.
+ * {@code potionColors} Gradle task; the runtime pipeline never invokes the ASM walker directly.
  * <p>
  * Colours are stored as {@code 0x}-prefixed hex strings in the JSON because Gson cannot round-trip
  * {@code 0xFF000000}-class signed integers literally; the native read decodes them through
@@ -36,7 +36,7 @@ public class PotionColorLoader {
     private static final @NotNull String RESOURCE_NAME = "potion_colors.json";
 
     /**
-     * Loads the bundled effect colour table natively from v2.
+     * Loads the bundled effect colour table natively.
      *
      * @return a map of namespaced effect id to ARGB colour
      * @throws PipelineException if the classpath resource is missing or malformed
@@ -46,7 +46,7 @@ public class PotionColorLoader {
     }
 
     /**
-     * Reads the effect colour table from {@code v2/potion_colors.json} natively through the shared
+     * Reads the effect colour table from {@code potion_colors.json} natively through the shared
      * read layer, decoding each row's {@code color} through {@link ArgbHex}. Exposed for tests.
      *
      * @param diagnostics the scope envelope and colour warnings are recorded to
@@ -54,22 +54,22 @@ public class PotionColorLoader {
      * @throws PipelineException if the resource is missing or malformed
      */
     static @NotNull ConcurrentMap<String, Integer> loadNative(@NotNull Diagnostics diagnostics) {
-        V2Document document = V2Resources.read(RESOURCE_NAME, V2Resources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument document = BundledResources.read(RESOURCE_NAME, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         HashMap<String, Integer> colors = new HashMap<>();
-        for (V2Effect effect : document.as(V2PotionColors.class).effects())
+        for (EffectRow effect : document.as(PotionColorTable.class).effects())
             colors.put(effect.effect(), ArgbHex.parse(effect.color(), diagnostics));
         return Concurrent.adoptMap(colors).toUnmodifiable();
     }
 
-    /** The v2 {@code potion_colors.json} payload: the ordered effect-colour rows. */
-    private record V2PotionColors(@NotNull List<V2Effect> effects) {}
+    /** The {@code potion_colors.json} payload: the ordered effect-colour rows. */
+    private record PotionColorTable(@NotNull List<EffectRow> effects) {}
 
     /**
-     * One v2 effect-colour row.
+     * One effect-colour row.
      *
      * @param effect the namespaced effect id
      * @param color the {@code 0xAARRGGBB} hex colour
      */
-    private record V2Effect(@NotNull String effect, @NotNull String color) {}
+    private record EffectRow(@NotNull String effect, @NotNull String color) {}
 
 }

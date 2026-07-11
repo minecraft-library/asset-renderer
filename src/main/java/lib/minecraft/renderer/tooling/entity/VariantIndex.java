@@ -28,7 +28,7 @@ import java.util.Map;
  * {@code <X>Variants} holder-class {@code DEFAULT} map.
  *
  * <p>{@code spawn_conditions} subtrees are retained VERBATIM as parsed nodes [D64] - the
- * variant axis resolver copies them into v2 without reserialisation drift. Sound-variant
+ * variant axis resolver copies them into the emitted resource without reserialisation drift. Sound-variant
  * directories ({@code _sound_variant}) are runtime audio metadata, not rendering data, and
  * are skipped. Enum-map variants (horse coats [D1]) are the variant axis resolver's
  * per-subject detection, not table data - they carry no {@code data/} directory.

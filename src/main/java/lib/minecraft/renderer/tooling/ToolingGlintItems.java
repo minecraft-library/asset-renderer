@@ -10,14 +10,14 @@ import lib.minecraft.renderer.tooling.snapshot.GlintItemsWalk;
 import java.nio.file.Path;
 
 /**
- * Entry point of the {@code glintItems2} Gradle task - the always-glinted item flow (SPINE 3.5):
+ * Entry point of the {@code glintItems} Gradle task - the always-glinted item flow (SPINE 3.5):
  * every item whose {@code Items} registration sets {@code ENCHANTMENT_GLINT_OVERRIDE = true},
  * from an {@code Items.<clinit>} walk, as sorted namespaced ids.
  */
 public final class ToolingGlintItems {
 
-    /** The v2 resource directory (SPINE 4 registry). */
-    private static final Path V2 = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
+    /** The bundled resource directory (SPINE 4 registry). */
+    private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingGlintItems() {
     }
@@ -32,7 +32,7 @@ public final class ToolingGlintItems {
         try (ToolingSession session = ToolingPipeline.openSession("glintItems", Diagnostics.Output.CONSOLE)) {
             JsonNode root = JsonNode.envelope(session, "item id sort order");
             GlintItemsWalk.run(session, root);
-            root.writeResource(V2.resolve("glint_items.json"), session.diagnostics());
+            root.writeResource(RESOURCE_DIR.resolve("glint_items.json"), session.diagnostics());
             failOnStrictGate(session);
         }
     }

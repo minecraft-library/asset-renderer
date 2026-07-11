@@ -25,7 +25,7 @@ import java.util.Set;
  * Folds an {@link EntityAppearance}'s render-axis selections into a single resolved
  * {@link Entity} the renderer iterates unconditionally, with no scattered {@code !baby}
  * gates. This is the render-time policy that used to live on {@code Entity.resolveFor} in
- * the loader - relocated to a renderer-owned home so the reader stays a pure v2 -&gt; data mapper.
+ * the loader - relocated to a renderer-owned home so the reader stays a pure data mapper.
  *
  * <p>The nine axis semantics apply in a fixed short-circuit order (byte-identical to the historic
  * fold): (1) a baby swaps in the baby mesh and DROPS overlays / block overlays / collar / equipment -

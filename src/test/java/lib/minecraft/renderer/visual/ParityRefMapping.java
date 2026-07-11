@@ -2,8 +2,8 @@ package lib.minecraft.renderer.visual;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import lib.minecraft.renderer.pipeline.load.V2Document;
-import lib.minecraft.renderer.pipeline.load.V2Resources;
+import lib.minecraft.renderer.pipeline.load.ResourceDocument;
+import lib.minecraft.renderer.pipeline.load.BundledResources;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 
@@ -24,7 +24,7 @@ import java.util.Set;
  * {@code java_keys ∩ vanilla_keys} enumeration.
  *
  * <p>The variant-family structure ({@code family -> {default, options}}) is read from
- * {@code v2/entity_models.json}'s {@code axes.variant} node, whose {@code default} and {@code options}
+ * {@code entity_models.json}'s {@code axes.variant} node, whose {@code default} and {@code options}
  * key-order are unchanged by the id-encoding flip - only the {@code id_encoded} flag flips. Each ref is
  * resolved to a render target by <b>probing the actual Java keyset</b> rather than the flag, so one mapping
  * spans both states:
@@ -79,13 +79,13 @@ public final class ParityRefMapping {
     }
 
     /**
-     * Builds a mapping from the variant-family structure in {@code v2/entity_models.json}.
+     * Builds a mapping from the variant-family structure in {@code entity_models.json}.
      *
      * @return the mapping, or an empty mapping when the resource is absent
      */
     public static @NotNull ParityRefMapping load() {
-        Optional<V2Document> doc = V2Resources.read(MODELS_RESOURCE, V2Resources.MissingPolicy.GRACEFUL_EMPTY,
-            Diagnostics.root("parity_ref_mapping", Diagnostics.Output.NONE, null));
+        Optional<ResourceDocument> doc = BundledResources.read(MODELS_RESOURCE, BundledResources.MissingPolicy.GRACEFUL_EMPTY,
+                                                               Diagnostics.root("parity_ref_mapping", Diagnostics.Output.NONE, null));
         if (doc.isEmpty()) return new ParityRefMapping(Map.of());
         JsonObject root = doc.get().payload().toGson().getAsJsonObject();
         if (!root.has("families")) return new ParityRefMapping(Map.of());
@@ -221,7 +221,7 @@ public final class ParityRefMapping {
         return out;
     }
 
-    /** Whether the mapping loaded any variant families (false only when the v2 resource is absent). */
+    /** Whether the mapping loaded any variant families (false only when the bundled resource is absent). */
     boolean hasVariantFamilies() {
         return !this.variantFamilies.isEmpty();
     }

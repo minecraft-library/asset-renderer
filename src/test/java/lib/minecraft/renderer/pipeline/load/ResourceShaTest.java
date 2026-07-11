@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Single golden-reference guard for every bundled v2 JSON resource under
+ * Single golden-reference guard for every bundled JSON resource under
  * {@code src/main/resources/lib/minecraft/renderer/}: the block snapshots
  * ({@code block_models}, {@code block_geometry}, {@code block_defaults}, {@code block_tints}) plus the
  * colormap, entity, and potion / glint tables ({@code color_maps}, {@code entity_geometry},
@@ -37,15 +37,15 @@ import static org.hamcrest.Matchers.is;
  * and line-ending drift does not break the check) and compared against its committed
  * {@code *.sha256} fixture. Any change - intentional (MC version bump, tooling change) or
  * accidental (a regression in the generator) - forces a review. This is byte-stability only, NOT a
- * parity or value-parity gate (a v2 file can be byte-stable and wrong; the render sweeps and the
+ * parity or value-parity gate (a file can be byte-stable and wrong; the render sweeps and the
  * value-parity ledger catch that).
  * <p>
- * Regeneration workflow: regenerate the JSON via the matching {@code ./gradlew} {@code <task>2}
+ * Regeneration workflow: regenerate the JSON via the matching {@code ./gradlew} {@code <task>}
  * tooling task, re-run this test, read the printed actual SHA-256, paste it into the matching fixture
  * under {@code src/test/resources/lib/minecraft/renderer/}, and commit both.
  */
-@DisplayName("bundled v2 JSON resources match their committed SHA-256 fixtures")
-class V2JsonResourceShaTest {
+@DisplayName("bundled JSON resources match their committed SHA-256 fixtures")
+class ResourceShaTest {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
@@ -58,7 +58,7 @@ class V2JsonResourceShaTest {
     );
 
     @Test
-    @DisplayName("canonical SHA-256 of each v2 resource equals its fixture")
+    @DisplayName("canonical SHA-256 of each resource equals its fixture")
     void resourcesMatchFixtures() throws IOException, NoSuchAlgorithmException {
         List<String> drift = new ArrayList<>();
         for (String name : COVERED) {
@@ -68,7 +68,7 @@ class V2JsonResourceShaTest {
             if (!actual.equals(expected))
                 drift.add(name + ".json: fixture " + expected + " but actual " + actual);
         }
-        assertThat("bundled v2 JSON drifted from the committed SHA-256 fixtures. If intentional, "
+        assertThat("bundled JSON drifted from the committed SHA-256 fixtures. If intentional, "
                 + "paste each actual value into the matching .sha256 and commit:\n" + String.join("\n", drift),
             drift, is(empty()));
     }

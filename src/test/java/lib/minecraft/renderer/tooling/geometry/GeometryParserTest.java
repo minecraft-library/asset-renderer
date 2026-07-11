@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Smoke tests for the tooling {@link GeometryParser} edge refit (SPINE decision 31): a
  * plain factory (wolf) and a gnarly one (ghast - MeshTransformer 4.5, seeded RandomSource
- * tentacles, string-concat bone names) must value-match the checked-in {@code v2/entity_geometry.json}
+ * tentacles, string-concat bone names) must value-match the checked-in {@code entity_geometry.json}
  * entries with floats EXACT - any ULP delta is a different computation path, a finding, never noise
  * (the match-vanilla rule). Retargeted from the legacy resource to the v2 file when the tooling
  * bridge retired: a live parse must still reproduce the committed v2 bytes (a regen-drift guard). Plus
@@ -39,18 +39,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>FQN in the doc-12 K11 registry addition; shadows no legacy name (the legacy parser
  * had no dedicated test).
  */
-@DisplayName("tooling GeometryParser smoke: exact-float value parity vs checked-in v2 entries")
+@DisplayName("tooling GeometryParser smoke: exact-float value parity vs checked-in entries")
 class GeometryParserTest {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     private static ClassNodeCache cache;
-    private static JsonObject v2Geometries;
+    private static JsonObject referenceGeometries;
 
     @BeforeAll
     static void open() {
         cache = ClassNodeCache.open(Pipeline.downloadJarToCache(PipelineOptions.defaults()));
-        v2Geometries = GSON.fromJson(new InputStreamReader(
+        referenceGeometries = GSON.fromJson(new InputStreamReader(
                 Objects.requireNonNull(GeometryParserTest.class.getResourceAsStream(
                     "/lib/minecraft/renderer/entity_geometry.json")), StandardCharsets.UTF_8),
                 JsonElement.class)
@@ -63,7 +63,7 @@ class GeometryParserTest {
     }
 
     @Test
-    @DisplayName("plain factory: AdultWolfModel#createBodyLayer matches its v2 entry exactly")
+    @DisplayName("plain factory: AdultWolfModel#createBodyLayer matches its reference entry exactly")
     void wolfParsesExact() {
         // createBodyLayer(CubeDeformation) returns a MeshDefinition - texture dims come from
         // the LayerDefinitions.createRoots call site, carried as request overrides (doc-12 S7)
@@ -74,7 +74,7 @@ class GeometryParserTest {
     }
 
     @Test
-    @DisplayName("gnarly factory: GhastModel#createBodyLayer (MT 4.5, seeded random) matches its v2 entry exactly")
+    @DisplayName("gnarly factory: GhastModel#createBodyLayer (MT 4.5, seeded random) matches its reference entry exactly")
     void ghastParsesExact() {
         // the 4.5 MeshTransformer is INLINE in the factory body - the walk captures it and
         // applyMeshTransformerScaling folds it; the request carries no external scale
@@ -118,14 +118,14 @@ class GeometryParserTest {
     // ------------------------------------------------------------------------------------
 
     private static void assertParsesExactly(@NotNull GeometryRequest request, @NotNull String key) {
-        JsonObject reference = v2Geometries.getAsJsonObject(key);
-        assertNotNull(reference, key + " missing from the checked-in v2 resource");
+        JsonObject reference = referenceGeometries.getAsJsonObject(key);
+        assertNotNull(reference, key + " missing from the checked-in resource");
         JsonNode parsedNode = GeometryParser.parse(cache, request,
             Diagnostics.root("geometryParserTest", Diagnostics.Output.NONE, null));
         assertNotNull(parsedNode, request.subjectId() + " parse returned null");
         JsonObject parsed = parsedNode.toGson().getAsJsonObject();
 
-        // effective dims mirror GeometryFlow's rule: request overrides win over the parse. The v2
+        // effective dims mirror GeometryFlow's rule: request overrides win over the parse. The
         // reference pairs the atlas dims as a texture_size[w,h] array (the parser emits scalars).
         int textureWidth = request.texWidthOverride() != null ? request.texWidthOverride() : parsed.get("textureWidth").getAsInt();
         int textureHeight = request.texHeightOverride() != null ? request.texHeightOverride() : parsed.get("textureHeight").getAsInt();
@@ -152,11 +152,11 @@ class GeometryParserTest {
                 assertExactFloats(expectedCube.getAsJsonArray("origin"), actualCube.getAsJsonArray("origin"), at + ".origin");
                 assertExactFloats(expectedCube.getAsJsonArray("size"), actualCube.getAsJsonArray("size"), at + ".size");
                 assertEquals(expectedCube.getAsJsonArray("uv").toString(), actualCube.getAsJsonArray("uv").toString(), at + ".uv");
-                // the live parse must reproduce the committed v2 grow exactly (07 F4: bit-exact)
-                assertEquals(growMean(expectedCube), growMean(actualCube), at + ".grow vs v2 grow");
+                // the live parse must reproduce the committed grow exactly (07 F4: bit-exact)
+                assertEquals(growMean(expectedCube), growMean(actualCube), at + ".grow vs reference grow");
                 assertEquals(expectedCube.has("mirror") && expectedCube.get("mirror").getAsBoolean(),
                     actualCube.has("mirror") && actualCube.get("mirror").getAsBoolean(), at + ".mirror");
-                assertTrue(!actualCube.has("face_uv"), at + ": face_uv deleted in v2 [X1]");
+                assertTrue(!actualCube.has("face_uv"), at + ": face_uv deleted from the emitted geometry [X1]");
             }
         }
     }

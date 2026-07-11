@@ -35,7 +35,7 @@ import java.util.Map;
 public final class JsonNode {
 
     /**
-     * Pretty-printing Gson with HTML escaping disabled - the single serialisation every v2
+     * Pretty-printing Gson with HTML escaping disabled - the single serialisation every
      * resource shares (same settings as the legacy shared writer, so formatting can never
      * drift between files).
      */
@@ -70,7 +70,7 @@ public final class JsonNode {
     }
 
     /**
-     * A fresh v2 envelope root: the {@code //} header (generator, regen task, AND the file's
+     * A fresh resource envelope root: the {@code //} header (generator, regen task, AND the file's
      * declared ordering source - decision 36), {@code format: 2}, and {@code source_version}
      * derived from the session's jar options [D47].
      *

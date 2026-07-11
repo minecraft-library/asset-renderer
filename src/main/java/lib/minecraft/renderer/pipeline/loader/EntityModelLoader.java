@@ -13,8 +13,8 @@ import java.util.Map;
 
 /**
  * The native entry point to the bundled entity definitions: delegates loading to
- * {@link EntityFamilyReader}, which reads {@code v2/entity_models.json} (per-entity metadata: geometry
- * reference, texture reference, overlays, axes, layers) joined against {@code v2/entity_geometry.json}
+ * {@link EntityFamilyReader}, which reads {@code entity_models.json} (per-entity metadata: geometry
+ * reference, texture reference, overlays, axes, layers) joined against {@code entity_geometry.json}
  * (the deduplicated bone/cube trees) directly into the {@link Entity} map the renderer consumes, and
  * derives the {@code variant_of} / {@code family_of} groupings.
  * <p>
@@ -27,7 +27,7 @@ import java.util.Map;
 public class EntityModelLoader {
 
     /**
-     * Loads the bundled entity definitions natively from the v2 resources, delegating to
+     * Loads the bundled entity definitions, delegating to
      * {@link EntityFamilyReader}.
      *
      * @return definitions keyed by namespaced entity id (empty when the geometry resource is absent)

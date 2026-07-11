@@ -15,7 +15,7 @@ import java.util.List;
  * sidecar and {@link #toJson} writes one, but {@code AtlasRenderer} still emits the raw JSON
  * natively (making it build this record would touch a pipeline class - deferred to the pipeline
  * rewrite). Tiles are kept in grid-layout order so streaming consumers walk JSON + PNG in
- * lockstep. The {@code build/atlas/} output stays scratch - never a v2 resource (decision 35).
+ * lockstep. The {@code build/atlas/} output stays scratch - never a bundled resource (decision 35).
  *
  * @param tileSize the per-tile edge length in pixels
  * @param columns the grid column count

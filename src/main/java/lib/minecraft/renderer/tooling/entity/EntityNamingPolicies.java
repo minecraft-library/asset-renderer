@@ -23,7 +23,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
     SYNTHETIC_SOURCE_IDS(
         "retired-by-key-grammar",
         "P2: legacy tooling-own id vocabulary (ToolingEntityModels:376,425,444) - dissolved by"
-            + " GeometryIds factory-coordinate keys (decision 15); no v2 consumer"),
+            + " GeometryIds factory-coordinate keys (decision 15); no runtime consumer"),
 
     /**
      * P3 - the entity {@link lib.minecraft.renderer.tooling.geometry.GeometryRequest}

@@ -8,7 +8,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link GlintItemsLoader} against the bundled {@code v2/glint_items.json} snapshot. The
+ * Verifies {@link GlintItemsLoader} against the bundled {@code glint_items.json} snapshot. The
  * vanilla MC 26.1 set is the seven intrinsically-foil items; the test pins those ids and a couple of
  * non-glint negatives so regressions in either the ASM tooling or the JSON loader get caught early.
  */

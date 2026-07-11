@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The geometry ref-integrity gate (SPINE decision 14): every {@code geometry} reference in
- * a v2 models file resolves in its paired geometry file, both carry the same
+ * a models file resolves in its paired geometry file, both carry the same
  * {@code source_version} stamp, and - the doc-12 F5 reverse closure - every geometry entry
  * is referenced by at least one model ref (a registered-but-unreferenced parse means a
  * resolver registered a request and then dropped the key).
@@ -32,11 +32,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * at S8) - a missing pair is assumption-skipped, never a pass. {@code legacy_id} is never
  * required (the S0 spike selected the PRIMARY replay arm - 02 F3).
  */
-@DisplayName("v2 geometry ref closure: models refs resolve, versions match, no orphan geometry")
+@DisplayName("geometry ref closure: models refs resolve, versions match, no orphan geometry")
 class GeometryRefClosureTest {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
-    private static final @NotNull Path V2 = Path.of("src/main/resources/lib/minecraft/renderer");
+    private static final @NotNull Path RESOURCE_DIR = Path.of("src/main/resources/lib/minecraft/renderer");
 
     @Test
     @DisplayName("entity pair: entity_models.json refs close over entity_geometry.json")
@@ -51,13 +51,13 @@ class GeometryRefClosureTest {
     }
 
     @Test
-    @DisplayName("C5: legacy_id is never emitted in either v2 geometry file")
+    @DisplayName("C5: legacy_id is never emitted in either geometry file")
     void noLegacyIdInGeometryFiles() throws IOException {
         // The S0 spike selected the PRIMARY key-replay arm (02 F3), so the legacy_id fallback was
-        // never activated; both v2 geometry files must carry zero occurrences. Closes bridge-retirement
+        // never activated; both geometry files must carry zero occurrences. Closes bridge-retirement
         // criterion C5 by assertion (no file edit / regen was owed).
         for (String name : List.of("entity_geometry.json", "block_geometry.json")) {
-            Path path = V2.resolve(name);
+            Path path = RESOURCE_DIR.resolve(name);
             assumeTrue(Files.exists(path), name + " not yet emitted (activates with its flow session)");
             assertTrue(!Files.readString(path).contains("legacy_id"),
                 name + " must not contain legacy_id (C5: the PRIMARY key-replay arm was selected)");
@@ -65,10 +65,10 @@ class GeometryRefClosureTest {
     }
 
     private static void assertPairCloses(@NotNull String modelsName, @NotNull String payloadKey, @NotNull String geometryName) throws IOException {
-        Path modelsPath = V2.resolve(modelsName);
-        Path geometryPath = V2.resolve(geometryName);
+        Path modelsPath = RESOURCE_DIR.resolve(modelsName);
+        Path geometryPath = RESOURCE_DIR.resolve(geometryName);
         assumeTrue(Files.exists(modelsPath) && Files.exists(geometryPath),
-            "v2 pair not yet emitted (activates with its flow session)");
+            "pair not yet emitted (activates with its flow session)");
 
         JsonObject models = GSON.fromJson(Files.readString(modelsPath), JsonElement.class).getAsJsonObject();
         JsonObject geometry = GSON.fromJson(Files.readString(geometryPath), JsonElement.class).getAsJsonObject();

@@ -10,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Envelope-aware reader for a {@code v2/*.json} asset resource.
+ * Envelope-aware reader for a bundled {@code *.json} asset resource.
  *
  * <p>{@link #open(byte[], Diagnostics)} parses the payload, asserts the {@code format == 2}
  * discriminator, and surfaces a {@code source_version} mismatch against the expected
@@ -22,12 +22,12 @@ import org.jetbrains.annotations.Nullable;
  * {@code pipeline -> tooling.kernel} edge is sanctioned pending relocation of the shared JSON core
  * to a neutral package.
  */
-public final class V2Document {
+public final class ResourceDocument {
 
-    /** The version stamp every 26.1 v2 resource carries; mirrors {@code PipelineOptions.version}. */
+    /** The version stamp every 26.1 resource carries; mirrors {@code PipelineOptions.version}. */
     static final @NotNull String EXPECTED_SOURCE_VERSION = "26.1";
 
-    /** The {@code format} discriminator every v2 resource carries. */
+    /** The {@code format} discriminator every resource carries. */
     private static final int EXPECTED_FORMAT = 2;
 
     /** Sentinel returned by {@link JsonNode#getInt} when the {@code format} member is absent. */
@@ -37,15 +37,15 @@ public final class V2Document {
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     private final @NotNull JsonNode payload;
-    private final @NotNull V2Envelope envelope;
+    private final @NotNull ResourceEnvelope envelope;
 
-    private V2Document(@NotNull JsonNode payload, @NotNull V2Envelope envelope) {
+    private ResourceDocument(@NotNull JsonNode payload, @NotNull ResourceEnvelope envelope) {
         this.payload = payload;
         this.envelope = envelope;
     }
 
     /**
-     * Parses and envelope-validates a v2 resource's UTF-8 bytes.
+     * Parses and envelope-validates a resource's UTF-8 bytes.
      *
      * @param utf8 the raw resource bytes
      * @param diagnostics the scope a {@code source_version} mismatch is warned to
@@ -53,23 +53,23 @@ public final class V2Document {
      * @throws PipelineException if the bytes are not parseable JSON, or carry a {@code format} other
      *     than {@value #EXPECTED_FORMAT}
      */
-    public static @NotNull V2Document open(byte @NotNull [] utf8, @NotNull Diagnostics diagnostics) {
+    public static @NotNull ResourceDocument open(byte @NotNull [] utf8, @NotNull Diagnostics diagnostics) {
         JsonNode payload;
         try {
             payload = JsonNode.parse(utf8);
         } catch (ToolingException ex) {
-            throw new PipelineException(ex, "Malformed v2 JSON resource (%d bytes)", utf8.length);
+            throw new PipelineException(ex, "Malformed JSON resource (%d bytes)", utf8.length);
         }
 
         int format = payload.getInt("format", NO_FORMAT);
         if (format != EXPECTED_FORMAT)
-            throw new PipelineException("v2 resource declares format '%d', expected '%d'", format, EXPECTED_FORMAT);
+            throw new PipelineException("Resource declares format '%d', expected '%d'", format, EXPECTED_FORMAT);
 
         @Nullable String sourceVersion = payload.getString("source_version");
         if (!EXPECTED_SOURCE_VERSION.equals(sourceVersion))
-            diagnostics.warn("v2 resource source_version '%s' does not match expected '%s'", sourceVersion, EXPECTED_SOURCE_VERSION);
+            diagnostics.warn("Resource source_version '%s' does not match expected '%s'", sourceVersion, EXPECTED_SOURCE_VERSION);
 
-        return new V2Document(payload, new V2Envelope(payload.getString("//"), format, sourceVersion));
+        return new ResourceDocument(payload, new ResourceEnvelope(payload.getString("//"), format, sourceVersion));
     }
 
     /**

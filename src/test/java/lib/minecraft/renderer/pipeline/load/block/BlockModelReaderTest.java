@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies {@link BlockModelReader} against the bundled v2 block resources: the two-file
+ * Verifies {@link BlockModelReader} against the bundled block resources: the two-file
  * models+geometry join, the {@code texture_size} adaptation, the runtime texture-path strip, the
  * icon open bag, DyeColor tints, and the no-{@code blocks[]} models (which carry no block binding).
  */
@@ -30,7 +30,7 @@ class BlockModelReaderTest {
         Block.Entity sign = load().models().get("minecraft:oak_sign");
 
         assertNotNull(sign, "oak_sign binds to the sign model");
-        assertEquals("minecraft:entity/signs/oak", sign.textureId(), "the full v2 path is stripped to the runtime id");
+        assertEquals("minecraft:entity/signs/oak", sign.textureId(), "the full path is stripped to the runtime id");
         assertFalse(sign.boneModel().model().getBones().isEmpty(), "the geometry coordinate resolved to a bone tree");
         assertEquals(32, sign.boneModel().model().getTextureHeight(), "texture_size [64,32] populates textureHeight");
     }

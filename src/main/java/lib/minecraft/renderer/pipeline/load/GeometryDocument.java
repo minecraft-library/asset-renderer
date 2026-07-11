@@ -11,11 +11,11 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Map;
 
 /**
- * The single parse home turning a {@code v2/*_geometry.json} bone-tree entry into an
+ * The single parse home turning a {@code *_geometry.json} bone-tree entry into an
  * {@link EntityModelData} - shared by the block and entity native readers (debt row 9: one bone-tree
  * schema, one parse).
  *
- * <p>The v2 geometry dialect pairs the atlas dimensions as a {@code texture_size:[w,h]} array; the
+ * <p>The geometry dialect pairs the atlas dimensions as a {@code texture_size:[w,h]} array; the
  * runtime record keeps them as the {@code textureWidth}/{@code textureHeight} scalars, so this helper
  * splits the array before deserialising. A scalar {@code grow} key is read straight into
  * {@link EntityModelData.Cube} via its {@code inflate}/{@code grow} alias; an {@code [x, y, z]} array
@@ -25,18 +25,18 @@ import java.util.Map;
  * {@code y_axis} provenance on the entry is ignored (unknown Gson fields); {@code y_axis} is read at
  * the model level by the caller.
  */
-public final class V2Geometry {
+public final class GeometryDocument {
 
     /** Shared Gson configured with the project defaults, used to deserialise into the model record. */
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
-    private V2Geometry() {}
+    private GeometryDocument() {}
 
     /**
-     * Parses a v2 geometry entry into the runtime model record, adapting the {@code texture_size}
+     * Parses a geometry entry into the runtime model record, adapting the {@code texture_size}
      * array into the {@code textureWidth}/{@code textureHeight} scalars.
      *
-     * @param geometry the v2 geometry entry (a {@code geometries[<coord>]} object)
+     * @param geometry the geometry entry (a {@code geometries[<coord>]} object)
      * @return the parsed model geometry
      */
     public static @NotNull EntityModelData parse(@NotNull JsonObject geometry) {

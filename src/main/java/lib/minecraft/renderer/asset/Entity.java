@@ -19,7 +19,7 @@ import java.util.Optional;
 /**
  * A fully-parsed entity definition - the base bone/cube geometry, its vanilla texture reference, and
  * the overlay / block-overlay / axis / layer structure a render appearance selects among - consumed by
- * {@link EntityRenderer}. Loaded from the bundled v2 resources by {@link EntityFamilyReader} (per-entity
+ * {@link EntityRenderer}. Loaded from the bundled resources by {@link EntityFamilyReader} (per-entity
  * metadata joined against the deduplicated bone/cube trees) and looked up by namespaced id via
  * {@link RendererContext#findEntity(String)}. Player skins are never stored on this DTO; they are
  * supplied at render time through the {@code PlayerOptions.skinBytes} / {@code skinUrl} /
@@ -108,7 +108,7 @@ public record Entity(
      * Whether a vanilla {@code HumanoidArmorLayer} classifies this entity - a derived view over
      * {@link #layers()} (delegating to {@link Layers#humanoidArmor()}), so no top-level component stores
      * the classification. The successor to the former top-level {@code armor_type} member [LOCKED 3],
-     * populated by the native reader off the v2 {@code layers} armor row.
+     * populated by the native reader off the {@code layers} armor row.
      *
      * @return {@code true} when a humanoid-armor layer classifies this entity
      */
@@ -163,7 +163,7 @@ public record Entity(
      *     translucent overlay over the coat, textured by the selected
      *     {@link lib.minecraft.renderer.option.HorseMarking}); the default marking draws nothing
      * @param humanoidArmor whether a vanilla {@code HumanoidArmorLayer} classifies this entity
-     *     (skeletons, zombies, piglins) - the {@code armor_type: "humanoid"} classification the v2
+     *     (skeletons, zombies, piglins) - the {@code armor_type: "humanoid"} classification the
      *     {@code layers} armor row carries [LOCKED 3], read off it at load. No 26.1 render consumes it
      *     (humanoid armor is not drawn); it is the located, first-class successor to the former
      *     required-but-unconsumed top-level {@code armor_type} member

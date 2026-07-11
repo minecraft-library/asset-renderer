@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies {@link ColorMapLoader} against the bundled {@code v2/color_maps.json} snapshot: the native
+ * Verifies {@link ColorMapLoader} against the bundled {@code color_maps.json} snapshot: the native
  * read decodes the three biome colormaps, the mapping helper guards a {@code null} row list (the
  * historical NPE fix), and an unknown {@link ColorMap.Type} is skipped with a diagnostic.
  */
@@ -47,7 +47,7 @@ class ColorMapLoaderTest {
     void skipsUnknownType() {
         Diagnostics diag = diagnostics();
         ConcurrentMap<ColorMap.Type, ColorMap> maps = ColorMapLoader.toColorMaps(
-            List.of(new ColorMapLoader.V2MapRow("NOT_A_TYPE", "AAAA")), diag);
+            List.of(new ColorMapLoader.ColorMapRow("NOT_A_TYPE", "AAAA")), diag);
 
         assertEquals(0, maps.size(), "the unknown-type row is skipped");
         assertEquals(1, diag.count(Diagnostics.Severity.WARN), "the skip is recorded as a warning");
@@ -58,7 +58,7 @@ class ColorMapLoaderTest {
     void decodesKnownType() {
         String pixels = Base64.getEncoder().encodeToString(new byte[]{1, 2, 3, 4});
         ConcurrentMap<ColorMap.Type, ColorMap> maps = ColorMapLoader.toColorMaps(
-            List.of(new ColorMapLoader.V2MapRow("GRASS", pixels)), diagnostics());
+            List.of(new ColorMapLoader.ColorMapRow("GRASS", pixels)), diagnostics());
 
         assertEquals(1, maps.size());
         assertEquals(4, maps.get(ColorMap.Type.GRASS).pixels().length);

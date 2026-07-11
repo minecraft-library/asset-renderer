@@ -15,14 +15,14 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Entry point of the {@code entityModels2} Gradle task - the entity-models flow, then the
+ * Entry point of the {@code entityModels} Gradle task - the entity-models flow, then the
  * shared geometry flow, ONE session (SPINE 3.1 / decision 12): discovery, registry walk,
- * {@code v2/entity_models.json}, {@code v2/entity_geometry.json}.
+ * {@code entity_models.json}, {@code entity_geometry.json}.
  */
 public final class ToolingEntityModels {
 
-    /** The v2 resource directory (SPINE 4 registry). */
-    private static final Path V2 = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
+    /** The bundled resource directory (SPINE 4 registry). */
+    private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingEntityModels() {
     }
@@ -40,8 +40,8 @@ public final class ToolingEntityModels {
                 "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain");
             GeometryManifest manifest = new GeometryManifest();
             EntityRegistryWalk.run(session, subjects, manifest, root);
-            root.writeResource(V2.resolve("entity_models.json"), session.diagnostics());
-            GeometryFlow.emit(session, manifest, V2.resolve("entity_geometry.json"));
+            root.writeResource(RESOURCE_DIR.resolve("entity_models.json"), session.diagnostics());
+            GeometryFlow.emit(session, manifest, RESOURCE_DIR.resolve("entity_geometry.json"));
             failOnStrictGate(session);
         }
     }

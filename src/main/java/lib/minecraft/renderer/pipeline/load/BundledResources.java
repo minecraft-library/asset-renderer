@@ -9,7 +9,7 @@ import java.io.InputStream;
 import java.util.Optional;
 
 /**
- * The single classpath-read site for the bundled {@code v2/*.json} asset resources.
+ * The single classpath-read site for the bundled {@code *.json} asset resources.
  *
  * <p>{@link #read(String, MissingPolicy, Diagnostics)} opens
  * {@code /lib/minecraft/renderer/<name>} under try-with-resources - closing the stream on every
@@ -19,12 +19,12 @@ import java.util.Optional;
  * resources are {@link MissingPolicy#GRACEFUL_EMPTY} (their features are optional), while
  * {@code block} / {@code tints} / {@code potions} / {@code glint} are {@link MissingPolicy#REQUIRED}.
  */
-public final class V2Resources {
+public final class BundledResources {
 
-    /** Classpath root under which every v2 resource is bundled. */
-    private static final @NotNull String V2_DIR = "/lib/minecraft/renderer/";
+    /** Classpath root under which every resource is bundled. */
+    private static final @NotNull String RESOURCE_DIR = "/lib/minecraft/renderer/";
 
-    private V2Resources() {}
+    private BundledResources() {}
 
     /** How {@link #read(String, MissingPolicy, Diagnostics)} reacts to an absent resource. */
     public enum MissingPolicy {
@@ -35,7 +35,7 @@ public final class V2Resources {
     }
 
     /**
-     * Reads and envelope-validates a bundled v2 resource.
+     * Reads and envelope-validates a bundled resource.
      *
      * @param name the resource file name (e.g. {@code potion_colors.json})
      * @param policy how an absent resource is handled
@@ -45,14 +45,14 @@ public final class V2Resources {
      * @throws PipelineException if the resource is absent under {@link MissingPolicy#REQUIRED}, or its
      *     stream cannot be read
      */
-    public static @NotNull Optional<V2Document> read(@NotNull String name, @NotNull MissingPolicy policy, @NotNull Diagnostics diagnostics) {
-        try (InputStream stream = V2Resources.class.getResourceAsStream(V2_DIR + name)) {
+    public static @NotNull Optional<ResourceDocument> read(@NotNull String name, @NotNull MissingPolicy policy, @NotNull Diagnostics diagnostics) {
+        try (InputStream stream = BundledResources.class.getResourceAsStream(RESOURCE_DIR + name)) {
             if (stream == null) {
                 if (policy == MissingPolicy.REQUIRED)
                     throw new PipelineException("Classpath resource '%s' not found - run its tooling Gradle task to generate it", name);
                 return Optional.empty();
             }
-            return Optional.of(V2Document.open(stream.readAllBytes(), diagnostics.child(name)));
+            return Optional.of(ResourceDocument.open(stream.readAllBytes(), diagnostics.child(name)));
         } catch (IOException ex) {
             throw new PipelineException(ex, "Failed to read classpath resource '%s'", name);
         }

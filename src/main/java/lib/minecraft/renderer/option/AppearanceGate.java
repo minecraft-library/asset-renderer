@@ -3,7 +3,7 @@ package lib.minecraft.renderer.option;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A typed render condition parsed from a v2 {@code when} object: {@code gate.test(appearance)} reports
+ * A typed render condition parsed from a {@code when} object: {@code gate.test(appearance)} reports
  * whether the gated overlay / layer renders for a given {@link EntityAppearance}. An absent {@code when}
  * is modelled as no gate (an {@code Optional.empty()} on the owning row), meaning unconditional.
  *

@@ -11,15 +11,15 @@ import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import java.nio.file.Path;
 
 /**
- * Entry point of the {@code blockTints2} Gradle task - the block-tints flow (SPINE 3.5): every
+ * Entry point of the {@code blockTints} Gradle task - the block-tints flow (SPINE 3.5): every
  * default tint registration from a {@code BlockColors.createDefault()} walk, with colormap
  * targets derived from the source bodies and renderer-capability drops recorded in
  * {@code dropped[]} (decision 24).
  */
 public final class ToolingBlockTints {
 
-    /** The v2 resource directory (SPINE 4 registry). */
-    private static final Path V2 = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
+    /** The bundled resource directory (SPINE 4 registry). */
+    private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingBlockTints() {
     }
@@ -35,7 +35,7 @@ public final class ToolingBlockTints {
             BlockRegistryIndex index = BlockRegistryIndex.build(session);
             JsonNode root = JsonNode.envelope(session, "BlockColors.createDefault() walk order");
             TintWalk.run(session, index, root);
-            root.writeResource(V2.resolve("block_tints.json"), session.diagnostics());
+            root.writeResource(RESOURCE_DIR.resolve("block_tints.json"), session.diagnostics());
             failOnStrictGate(session);
         }
     }

@@ -66,7 +66,7 @@ final class BlockCatalogResolver {
 
     /**
      * The split's {@code blocks} array, or {@code null} when it renders no blocks (the part-only
-     * splits and the v2-only enchanting_table / lectern).
+     * splits and the enchanting_table / lectern).
      *
      * @param splitId the models key
      * @return the {@code blocks} array node, or {@code null}

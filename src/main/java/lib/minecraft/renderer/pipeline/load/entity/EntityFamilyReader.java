@@ -10,9 +10,9 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.pipeline.load.ArgbHex;
-import lib.minecraft.renderer.pipeline.load.V2Document;
-import lib.minecraft.renderer.pipeline.load.V2Geometry;
-import lib.minecraft.renderer.pipeline.load.V2Resources;
+import lib.minecraft.renderer.pipeline.load.ResourceDocument;
+import lib.minecraft.renderer.pipeline.load.GeometryDocument;
+import lib.minecraft.renderer.pipeline.load.BundledResources;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
 import lib.minecraft.renderer.asset.Entity.BoneToggle;
@@ -41,13 +41,13 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * The native v2 reader for entity model definitions: the flattener inverse. Reads the family form of
- * {@code v2/entity_models.json} (90 base-entity families) joined against {@code v2/entity_geometry.json}
+ * The native reader for entity model definitions: the flattener inverse. Reads the family form of
+ * {@code entity_models.json} (90 base-entity families) joined against {@code entity_geometry.json}
  * (the deduplicated bone trees) DIRECTLY into the {@link Entity} map the renderer consumes -
  * with no legacy flat-row intermediate, no eight parallel side-channel maps, and no
  * {@code CARRIED_FIELDS} lock-step.
  *
- * <p>The v2 geometry file is keyed by the same manifest factory coordinate the family baseline names
+ * <p>The geometry file is keyed by the same manifest factory coordinate the family baseline names
  * under {@code axes.age.options.adult.geometry} (e.g. {@code AdultWolfModel#createBodyLayer},
  * {@code PigModel#createBodyLayer@grow=0.5}), so a coordinate resolves DIRECTLY - the bridge's
  * {@code geometry.<stem>} legacy-id replay is a bridge fiction the native path never mints. A dangling
@@ -91,7 +91,7 @@ public final class EntityFamilyReader {
     private EntityFamilyReader() {}
 
     /**
-     * Reads the entity model catalog natively from the v2 resources.
+     * Reads the entity model catalog natively from the bundled resources.
      *
      * @param diagnostics the scope envelope and read warnings are recorded to
      * @return definitions keyed by namespaced entity id (empty when the geometry resource is absent)
@@ -99,8 +99,8 @@ public final class EntityFamilyReader {
      *     coordinate absent from the geometry file
      */
     public static @NotNull ConcurrentMap<String, Entity> load(@NotNull Diagnostics diagnostics) {
-        Optional<V2Document> geometryDoc = V2Resources.read(GEOMETRY_RESOURCE, V2Resources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
-        Optional<V2Document> modelsDoc = V2Resources.read(MODELS_RESOURCE, V2Resources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
+        Optional<ResourceDocument> geometryDoc = BundledResources.read(GEOMETRY_RESOURCE, BundledResources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
+        Optional<ResourceDocument> modelsDoc = BundledResources.read(MODELS_RESOURCE, BundledResources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
         if (geometryDoc.isEmpty() || modelsDoc.isEmpty()) return Concurrent.newMap();
 
         Map<String, EntityModelData> geometries = parseGeometries(geometryDoc.get());
@@ -127,7 +127,7 @@ public final class EntityFamilyReader {
      * @return family membership keyed by entity id (empty when the models resource is absent)
      */
     public static @NotNull Map<String, List<String>> loadFamilies(@NotNull Diagnostics diagnostics) {
-        Optional<V2Document> modelsDoc = V2Resources.read(MODELS_RESOURCE, V2Resources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
+        Optional<ResourceDocument> modelsDoc = BundledResources.read(MODELS_RESOURCE, BundledResources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
         if (modelsDoc.isEmpty()) return Map.of();
         JsonObject families = familiesOf(modelsDoc.get());
         if (families == null) return Map.of();
@@ -184,7 +184,7 @@ public final class EntityFamilyReader {
     // ------------------------------------------------------------------------------------
 
     /**
-     * Reads one v2 family into one (plain) or many (id-encoded variant) {@link Entity} rows,
+     * Reads one family into one (plain) or many (id-encoded variant) {@link Entity} rows,
      * adding each to {@code definitions}.
      */
     private static void readFamily(
@@ -331,7 +331,7 @@ public final class EntityFamilyReader {
     // ------------------------------------------------------------------------------------
 
     /**
-     * Resolves a v2 {@code overlays} array into {@link OverlayLayer}s. An overlay without a
+     * Resolves an {@code overlays} array into {@link OverlayLayer}s. An overlay without a
      * {@code geometry} member (or one naming the base coordinate) inherits the post-hidden-strip base
      * mesh so its cubes co-register with the base; a distinct coordinate resolves fresh from the
      * geometry table (a missing coordinate warns and drops). {@code retain_bones} restricts the mesh
@@ -390,7 +390,7 @@ public final class EntityFamilyReader {
             boolean skipBounds = entry.has("skip_bounds") && entry.get("skip_bounds").getAsBoolean() || depthClearanceOnly;
             Optional<String> tintBy = entry.has("tint_by") ? Optional.of(entry.get("tint_by").getAsString()) : Optional.empty();
             Optional<String> textureBy = entry.has("texture_by") ? Optional.of(entry.get("texture_by").getAsString()) : Optional.empty();
-            // The overlay's render condition, parsed straight from its v2 `when` object into the typed
+            // The overlay's render condition, parsed straight from its `when` object into the typed
             // AppearanceGate (flag/charged/tinted). Absent -> unconditional.
             Optional<AppearanceGate> gate = parseOverlayGate(entry.has("when") ? entry.getAsJsonObject("when") : null, tintBy);
             // blend / alpha (default NORMAL / 1.0). `additive` -> the energy-swirl glow; `translucent` /
@@ -404,7 +404,7 @@ public final class EntityFamilyReader {
     }
 
     /**
-     * Parses an overlay's v2 {@code when} object into a typed {@link AppearanceGate}: {@code flag} maps
+     * Parses an overlay's {@code when} object into a typed {@link AppearanceGate}: {@code flag} maps
      * to {@link AppearanceGate.FlagGate}, {@code charged} to {@link AppearanceGate.ChargedGate}, and
      * {@code tinted} to {@link AppearanceGate.TintedGate} (carrying the overlay's tint axis token so the
      * gate is self-contained). Absent or unrecognised yields empty (unconditional).
@@ -447,7 +447,7 @@ public final class EntityFamilyReader {
     // ------------------------------------------------------------------------------------
 
     /**
-     * Resolves a v2 {@code block_overlays} array into {@link BlockOverlayLayer} rows. A fixed row names
+     * Resolves a {@code block_overlays} array into {@link BlockOverlayLayer} rows. A fixed row names
      * its {@code block}; a {@code selectable} row's block is supplied at render from the carried
      * selection, so its {@code block} may be omitted entirely (the enderman carried block). The
      * {@code transforms} entries are the tagged op objects the renderer pattern-matches.
@@ -573,7 +573,7 @@ public final class EntityFamilyReader {
 
     /**
      * Returns whether the family carries a {@code humanoid} armor classification row [LOCKED 3] - the
-     * v2 {@code layers} armor row EntityLayersResolver emits off a {@code HumanoidArmorLayer} site.
+     * {@code layers} armor row EntityLayersResolver emits off a {@code HumanoidArmorLayer} site.
      * Absence IS {@code none} (the classification is derived off the roster, not a required member).
      * The native reader's consumption of the relocated {@code armor_type}, replacing the former
      * flattener hard-require of a top-level member the render path dropped (debt row 7).
@@ -827,26 +827,26 @@ public final class EntityFamilyReader {
     // ------------------------------------------------------------------------------------
 
     /** Parses every {@code geometries} entry (skipping {@code //} comment keys) into a coordinate map. */
-    private static @NotNull Map<String, EntityModelData> parseGeometries(@NotNull V2Document geometryDoc) {
+    private static @NotNull Map<String, EntityModelData> parseGeometries(@NotNull ResourceDocument geometryDoc) {
         JsonObject root = geometryDoc.payload().toGson().getAsJsonObject();
         if (!root.has("geometries")) return Map.of();
         JsonObject geometriesJson = root.getAsJsonObject("geometries");
         Map<String, EntityModelData> out = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> entry : geometriesJson.entrySet()) {
             if (entry.getKey().startsWith("//")) continue;
-            out.put(entry.getKey(), V2Geometry.parse(entry.getValue().getAsJsonObject()));
+            out.put(entry.getKey(), GeometryDocument.parse(entry.getValue().getAsJsonObject()));
         }
         return out;
     }
 
     /** Returns the {@code families} object of a parsed models document, or {@code null} when absent. */
-    private static @Nullable JsonObject familiesOf(@NotNull V2Document modelsDoc) {
+    private static @Nullable JsonObject familiesOf(@NotNull ResourceDocument modelsDoc) {
         JsonObject root = modelsDoc.payload().toGson().getAsJsonObject();
         return root.has("families") ? root.getAsJsonObject("families") : null;
     }
 
     /**
-     * Reduces a full v2 entity texture path to the {@code textures/entity/}-relative sub-path the
+     * Reduces a full entity texture path to the {@code textures/entity/}-relative sub-path the
      * texture resolver re-qualifies as {@code minecraft:entity/<ref>} - dropping the
      * {@code minecraft:textures/entity/} prefix and the {@code .png} suffix. Mirrors
      * {@code EntityModelsBridge.strip} so the resolved id is byte-identical.

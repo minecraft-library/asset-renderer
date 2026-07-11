@@ -32,22 +32,22 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Live-pipeline cross-check for {@code v2/block_defaults.json}.
+ * Live-pipeline cross-check for {@code block_defaults.json}.
  * <p>
- * The byte-level integrity fixture ({@code v2/block_defaults.sha256}) is asserted alongside the other
- * bundled v2 JSON in {@code V2JsonResourceShaTest}. This {@code slow}-tagged test cross-checks the
+ * The byte-level integrity fixture ({@code block_defaults.sha256}) is asserted alongside the other
+ * bundled JSON in {@code ResourceShaTest}. This {@code slow}-tagged test cross-checks the
  * committed snapshot against a live pipeline: each non-empty {@code default} key must subset-resolve
  * to one of the block's runtime {@code block.getVariants().keySet()} variants. This catches the
  * ASM-derived default drifting away from the live blockstate parse.
  * <p>
- * The v2 snapshot stores each block's default state as a structured {@code {prop:"val"}} object (an
+ * The snapshot stores each block's default state as a structured {@code {prop:"val"}} object (an
  * empty {@code {}} for a no-property block); this test reconstructs the comma-joined key from that
  * object exactly as {@code BlockDefaultsReader} does at load.
  * <p>
- * Regeneration workflow: run {@code ./gradlew :asset-renderer:blockDefaults2} to refresh the snapshot,
- * then update {@code v2/block_defaults.sha256} per {@code V2JsonResourceShaTest}.
+ * Regeneration workflow: run {@code ./gradlew :asset-renderer:blockDefaults} to refresh the snapshot,
+ * then update {@code block_defaults.sha256} per {@code ResourceShaTest}.
  */
-@DisplayName("v2/block_defaults.json agrees with the live pipeline")
+@DisplayName("block_defaults.json agrees with the live pipeline")
 class BlockDefaultsGoldenTest {
 
     private static final Path JSON_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_defaults.json");
@@ -82,7 +82,7 @@ class BlockDefaultsGoldenTest {
     }
 
     /**
-     * Reconstructs the comma-joined {@code prop=val} default-state key from the v2 structured
+     * Reconstructs the comma-joined {@code prop=val} default-state key from the structured
      * {@code {prop:"val"}} object (properties are stored sorted), mirroring {@code BlockDefaultsReader}.
      * An empty object yields the empty key (a no-property block).
      */
@@ -112,7 +112,7 @@ class BlockDefaultsGoldenTest {
     @BeforeAll
     static void ensureGeneratedJsonExists() {
         if (!Files.exists(JSON_PATH))
-            throw new IllegalStateException("Run ./gradlew :asset-renderer:blockDefaults2 to generate " + JSON_PATH);
+            throw new IllegalStateException("Run ./gradlew :asset-renderer:blockDefaults to generate " + JSON_PATH);
     }
 
 }

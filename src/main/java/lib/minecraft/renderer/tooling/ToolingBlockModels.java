@@ -15,17 +15,17 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Entry point of the {@code blockModels2} Gradle task - the block-models flow, then the shared
+ * Entry point of the {@code blockModels} Gradle task - the block-models flow, then the shared
  * geometry flow, ONE session (SPINE 3.3 / decision 12): discovery, registry walk,
- * {@code v2/block_models.json}, {@code v2/block_geometry.json}.
+ * {@code block_models.json}, {@code block_geometry.json}.
  *
  * <p>Pure jar to JSON: the legacy merge-with-previous [X10] and whitelist [X11] are gone -
  * every registered BER emits (incl. enchanting_table / lectern), the version is derived [D47].
  */
 public final class ToolingBlockModels {
 
-    /** The v2 resource directory (SPINE 4 registry). */
-    private static final Path V2 = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
+    /** The bundled resource directory (SPINE 4 registry). */
+    private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingBlockModels() {
     }
@@ -43,8 +43,8 @@ public final class ToolingBlockModels {
                 "BlockEntityRenderers.<clinit> registration order x BlockFamilyPolicies split order");
             GeometryManifest manifest = new GeometryManifest();
             BlockEntityRegistryWalk.run(session, subjects, manifest, root);
-            root.writeResource(V2.resolve("block_models.json"), session.diagnostics());
-            GeometryFlow.emit(session, manifest, V2.resolve("block_geometry.json"));
+            root.writeResource(RESOURCE_DIR.resolve("block_models.json"), session.diagnostics());
+            GeometryFlow.emit(session, manifest, RESOURCE_DIR.resolve("block_geometry.json"));
             failOnStrictGate(session);
         }
     }

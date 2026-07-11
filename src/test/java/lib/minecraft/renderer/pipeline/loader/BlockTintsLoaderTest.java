@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies {@link BlockTintsLoader} against the bundled {@code v2/block_tints.json} snapshot: the
+ * Verifies {@link BlockTintsLoader} against the bundled {@code block_tints.json} snapshot: the
  * native read resolves colormap-target and constant tints, ignores {@code dropped} rows, and the
  * mapping helper skips an unknown {@link Block.TintTarget} with a diagnostic rather than aborting.
  */
@@ -25,7 +25,7 @@ class BlockTintsLoaderTest {
     }
 
     @Test
-    @DisplayName("native load resolves colormap-target tints from the bundled v2 snapshot")
+    @DisplayName("native load resolves colormap-target tints from the bundled snapshot")
     void loadsColormapTargets() {
         ConcurrentMap<String, Block.Tint> tints = BlockTintsLoader.load();
 
@@ -57,7 +57,7 @@ class BlockTintsLoaderTest {
     void skipsUnknownTarget() {
         Diagnostics diag = diagnostics();
         ConcurrentMap<String, Block.Tint> tints = BlockTintsLoader.toTints(
-            List.of(new BlockTintsLoader.V2TintRow("minecraft:mystery", "NOT_A_TARGET", null)), diag);
+            List.of(new BlockTintsLoader.TintRow("minecraft:mystery", "NOT_A_TARGET", null)), diag);
 
         assertEquals(0, tints.size(), "the unknown-target row is skipped");
         assertEquals(1, diag.count(Diagnostics.Severity.WARN), "the skip is recorded as a warning");
@@ -67,7 +67,7 @@ class BlockTintsLoaderTest {
     @DisplayName("toTints decodes an 8-digit constant identically to the legacy parseUnsignedInt")
     void constantMatchesLegacy() {
         ConcurrentMap<String, Block.Tint> tints = BlockTintsLoader.toTints(
-            List.of(new BlockTintsLoader.V2TintRow("minecraft:x", "CONSTANT", "0xFF00FF00")), diagnostics());
+            List.of(new BlockTintsLoader.TintRow("minecraft:x", "CONSTANT", "0xFF00FF00")), diagnostics());
 
         assertEquals(0xFF00FF00, tints.get("minecraft:x").constant().orElseThrow());
     }

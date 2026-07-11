@@ -10,14 +10,14 @@ import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import java.nio.file.Path;
 
 /**
- * Entry point of the {@code colorMaps2} Gradle task - the biome-colormap flow (SPINE 3.6): the
+ * Entry point of the {@code colorMaps} Gradle task - the biome-colormap flow (SPINE 3.6): the
  * three vanilla colormap PNGs read straight from the jar (no pack extraction) as base64
  * big-endian ARGB pixels.
  */
 public final class ToolingColorMaps {
 
-    /** The v2 resource directory (SPINE 4 registry). */
-    private static final Path V2 = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
+    /** The bundled resource directory (SPINE 4 registry). */
+    private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingColorMaps() {
     }
@@ -32,7 +32,7 @@ public final class ToolingColorMaps {
         try (ToolingSession session = ToolingPipeline.openSession("colorMaps", Diagnostics.Output.CONSOLE)) {
             JsonNode root = JsonNode.envelope(session, "ColorMapPolicies declaration order");
             ColorMapWalk.run(session, root);
-            root.writeResource(V2.resolve("color_maps.json"), session.diagnostics());
+            root.writeResource(RESOURCE_DIR.resolve("color_maps.json"), session.diagnostics());
             failOnStrictGate(session);
         }
     }

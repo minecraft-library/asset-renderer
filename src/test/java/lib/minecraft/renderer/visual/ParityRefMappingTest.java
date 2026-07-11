@@ -44,7 +44,7 @@ final class ParityRefMappingTest {
         assumeTrue(!vanillaKeys.isEmpty(), "no harness reference PNGs present");
 
         ParityRefMapping mapping = ParityRefMapping.load();
-        assertThat("v2 variant families loaded", mapping.hasVariantFamilies(), is(true));
+        assertThat("variant families loaded", mapping.hasVariantFamilies(), is(true));
 
         List<ParityRefMapping.Subject> subjects = mapping.resolve(javaKeys, vanillaKeys);
         Set<String> comparedRefs = subjects.stream().map(ParityRefMapping.Subject::refId).collect(Collectors.toCollection(TreeSet::new));

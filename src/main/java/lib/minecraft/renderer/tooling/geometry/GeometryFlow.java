@@ -30,7 +30,7 @@ public final class GeometryFlow {
      *
      * @param session the live session
      * @param manifest the registry the models walk populated
-     * @param out the output path ({@code v2/entity_geometry.json} / {@code v2/block_geometry.json})
+     * @param out the output path ({@code entity_geometry.json} / {@code block_geometry.json})
      */
     public static void emit(@NotNull ToolingSession session, @NotNull GeometryManifest manifest, @NotNull Path out) {
         Diagnostics diagnostics = session.diagnostics().child("geometry");

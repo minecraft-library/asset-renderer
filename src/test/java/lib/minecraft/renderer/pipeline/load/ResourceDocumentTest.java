@@ -12,12 +12,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Pins for {@link V2Document} envelope validation: {@code format == 2} accept, missing/wrong format
+ * Pins for {@link ResourceDocument} envelope validation: {@code format == 2} accept, missing/wrong format
  * reject, the {@code source_version} mismatch warning path, {@code //} header parse, and the typed
  * DTO deserialisation surface.
  */
-@DisplayName("V2Document envelope validation + DTO surface")
-class V2DocumentTest {
+@DisplayName("ResourceDocument envelope validation + DTO surface")
+class ResourceDocumentTest {
 
     private static @NotNull Diagnostics diagnostics() {
         return Diagnostics.root("test", Diagnostics.Output.NONE, null);
@@ -31,7 +31,7 @@ class V2DocumentTest {
     @DisplayName("accepts format 2 and parses the // header + source_version")
     void acceptsFormatTwo() {
         Diagnostics diag = diagnostics();
-        V2Document doc = V2Document.open(
+        ResourceDocument doc = ResourceDocument.open(
             bytes("{\"//\":\"provenance\",\"format\":2,\"source_version\":\"26.1\",\"effects\":[]}"), diag);
 
         assertEquals(2, doc.format());
@@ -44,28 +44,28 @@ class V2DocumentTest {
     @DisplayName("rejects a resource with no format member")
     void rejectsMissingFormat() {
         assertThrows(PipelineException.class,
-            () -> V2Document.open(bytes("{\"source_version\":\"26.1\"}"), diagnostics()));
+            () -> ResourceDocument.open(bytes("{\"source_version\":\"26.1\"}"), diagnostics()));
     }
 
     @Test
     @DisplayName("rejects a resource declaring a non-2 format")
     void rejectsWrongFormat() {
         assertThrows(PipelineException.class,
-            () -> V2Document.open(bytes("{\"format\":1,\"source_version\":\"26.1\"}"), diagnostics()));
+            () -> ResourceDocument.open(bytes("{\"format\":1,\"source_version\":\"26.1\"}"), diagnostics()));
     }
 
     @Test
     @DisplayName("rejects non-JSON bytes")
     void rejectsMalformedJson() {
         assertThrows(PipelineException.class,
-            () -> V2Document.open(bytes("not json at all"), diagnostics()));
+            () -> ResourceDocument.open(bytes("not json at all"), diagnostics()));
     }
 
     @Test
     @DisplayName("warns (not throws) on a source_version mismatch")
     void warnsOnVersionMismatch() {
         Diagnostics diag = diagnostics();
-        V2Document doc = V2Document.open(bytes("{\"format\":2,\"source_version\":\"99.9\"}"), diag);
+        ResourceDocument doc = ResourceDocument.open(bytes("{\"format\":2,\"source_version\":\"99.9\"}"), diag);
 
         assertEquals("99.9", doc.sourceVersion());
         assertEquals(1, diag.count(Diagnostics.Severity.WARN), "a mismatched source_version must warn once");
@@ -75,7 +75,7 @@ class V2DocumentTest {
     @DisplayName("warns on an absent source_version")
     void warnsOnAbsentVersion() {
         Diagnostics diag = diagnostics();
-        V2Document.open(bytes("{\"format\":2}"), diag);
+        ResourceDocument.open(bytes("{\"format\":2}"), diag);
 
         assertEquals(1, diag.count(Diagnostics.Severity.WARN), "an absent source_version must warn once");
     }
@@ -83,7 +83,7 @@ class V2DocumentTest {
     @Test
     @DisplayName("as() deserialises the payload into a typed DTO, ignoring envelope members")
     void asDeserialisesDto() {
-        V2Document doc = V2Document.open(
+        ResourceDocument doc = ResourceDocument.open(
             bytes("{\"format\":2,\"source_version\":\"26.1\",\"count\":7,\"label\":\"glint\"}"), diagnostics());
 
         Payload payload = doc.as(Payload.class);

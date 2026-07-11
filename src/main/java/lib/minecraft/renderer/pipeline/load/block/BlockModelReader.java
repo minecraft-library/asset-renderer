@@ -10,9 +10,9 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.spec.DyeColor;
-import lib.minecraft.renderer.pipeline.load.V2Document;
-import lib.minecraft.renderer.pipeline.load.V2Geometry;
-import lib.minecraft.renderer.pipeline.load.V2Resources;
+import lib.minecraft.renderer.pipeline.load.ResourceDocument;
+import lib.minecraft.renderer.pipeline.load.GeometryDocument;
+import lib.minecraft.renderer.pipeline.load.BundledResources;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
@@ -23,8 +23,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * The native v2 reader for block-entity models: the two-file join of {@code v2/block_models.json}
- * (the model catalog) and {@code v2/block_geometry.json} (the bone trees), producing the same
+ * The native reader for block-entity models: the two-file join of {@code block_models.json}
+ * (the model catalog) and {@code block_geometry.json} (the bone trees), producing the same
  * {@link BlockModelLoader.LoadResult} the legacy inline-{@code model} parse produced.
  *
  * <p>Reads every one of the 24 {@code models} entries natively - it does NOT replay the bridge's
@@ -33,7 +33,7 @@ import java.util.Map;
  * {@code geometry} coordinate resolves into {@code block_geometry.geometries}; a dangling coordinate
  * fails LOUD ({@link PipelineException}). The nested {@code inventory} object, entry-level {@code icon}
  * open bag ({@code rotation} / {@code additive}), and full-path {@code blocks[].texture} are read
- * forward from v2.
+ * forward from the resource.
  *
  * <p>Texture paths are reduced to the runtime {@code minecraft:<sub-path>} form the texture resolver
  * indexes on (drop {@code textures/} + {@code .png}, keep namespace) - matching the format the bridge
@@ -49,15 +49,15 @@ public final class BlockModelReader {
     private BlockModelReader() {}
 
     /**
-     * Reads the block-entity model catalog natively from the v2 resources.
+     * Reads the block-entity model catalog natively from the bundled resources.
      *
      * @param diagnostics the scope envelope and read warnings are recorded to
      * @return the primary models keyed by block id plus any per-variant state-conditional models
      * @throws PipelineException if a resource is missing, malformed, or a geometry coordinate dangles
      */
     public static @NotNull BlockModelLoader.LoadResult load(@NotNull Diagnostics diagnostics) {
-        V2Document modelsDoc = V2Resources.read(MODELS_RESOURCE, V2Resources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
-        V2Document geometryDoc = V2Resources.read(GEOMETRY_RESOURCE, V2Resources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument modelsDoc = BundledResources.read(MODELS_RESOURCE, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument geometryDoc = BundledResources.read(GEOMETRY_RESOURCE, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
 
         JsonObject models = modelsDoc.payload().toGson().getAsJsonObject().getAsJsonObject("models");
         JsonObject geometries = geometryDoc.payload().toGson().getAsJsonObject().getAsJsonObject("geometries");
@@ -118,7 +118,7 @@ public final class BlockModelReader {
         JsonObject geometry = geometries.getAsJsonObject(coordinate);
         if (geometry == null)
             throw new PipelineException("Block model '%s' references geometry '%s' which is absent from block_geometry", modelId, coordinate);
-        EntityModelData mesh = V2Geometry.parse(geometry);
+        EntityModelData mesh = GeometryDocument.parse(geometry);
 
         boolean sourceYUp = "UP".equals(model.has("y_axis") ? model.get("y_axis").getAsString() : null);
         boolean tinted = model.has("tinted") && model.get("tinted").getAsBoolean();
@@ -167,7 +167,7 @@ public final class BlockModelReader {
     }
 
     /**
-     * Reduces a full v2 asset texture path to the runtime {@code minecraft:<sub-path>} id the texture
+     * Reduces a full asset texture path to the runtime {@code minecraft:<sub-path>} id the texture
      * resolver indexes on - dropping {@code textures/} and {@code .png}, keeping the namespace.
      * Matches {@code BlockModelsBridge.stripTexture} so the native id is byte-identical.
      */
@@ -182,7 +182,7 @@ public final class BlockModelReader {
 
     /**
      * Resolves a banner {@code tint} DyeColor name to its ARGB; an unknown name warns and falls back
-     * to white. v2 {@code tint} is always a DyeColor name, never a hex.
+     * to white. The {@code tint} is always a DyeColor name, never a hex.
      */
     private static int resolveTint(@NotNull String name, @NotNull Diagnostics diagnostics) {
         DyeColor dye = DyeColor.ofName(name);

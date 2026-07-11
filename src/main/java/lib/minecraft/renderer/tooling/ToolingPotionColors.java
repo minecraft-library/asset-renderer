@@ -10,14 +10,14 @@ import lib.minecraft.renderer.tooling.snapshot.PotionColorWalk;
 import java.nio.file.Path;
 
 /**
- * Entry point of the {@code potionColors2} Gradle task - the potion-colour flow (SPINE 3.5):
+ * Entry point of the {@code potionColors} Gradle task - the potion-colour flow (SPINE 3.5):
  * every effect colour from a {@code MobEffects.<clinit>} walk, sorted by effect id and forced
  * fully opaque.
  */
 public final class ToolingPotionColors {
 
-    /** The v2 resource directory (SPINE 4 registry). */
-    private static final Path V2 = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
+    /** The bundled resource directory (SPINE 4 registry). */
+    private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingPotionColors() {
     }
@@ -32,7 +32,7 @@ public final class ToolingPotionColors {
         try (ToolingSession session = ToolingPipeline.openSession("potionColors", Diagnostics.Output.CONSOLE)) {
             JsonNode root = JsonNode.envelope(session, "effect id sort order");
             PotionColorWalk.run(session, root);
-            root.writeResource(V2.resolve("potion_colors.json"), session.diagnostics());
+            root.writeResource(RESOURCE_DIR.resolve("potion_colors.json"), session.diagnostics());
             failOnStrictGate(session);
         }
     }

@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
- * Verifies {@link BlockDefaultsReader} against the bundled {@code v2/block_defaults.json}: the
+ * Verifies {@link BlockDefaultsReader} against the bundled {@code block_defaults.json}: the
  * structured {@code {prop:val}} states flatten to the property-sorted comma-joined key (empty state to
  * the empty string), and {@code unresolved} ids are absent - the empty-vs-absent distinction.
  */
