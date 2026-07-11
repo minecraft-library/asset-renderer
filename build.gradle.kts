@@ -102,6 +102,12 @@ dependencies {
     // exceptions still extend.
     api("com.github.minecraft-library:text") { version { strictly("318157a") } }
 
+    // nbt-factory (github.com/minecraft-library/nbt-factory, group dev.sbs rewritten by jitpack).
+    // Supplies the NBT tag model (CompoundTag/ListTag/NumericalTag) + parse surface
+    // (fromBase64/fromByteArray/fromSnbt) the pipeline.pack.rule CIT nbt-conditional layer walks;
+    // the built-in getPath is compound-only, so the rule layer supplies its own list/wildcard walker.
+    api("com.github.minecraft-library:nbt-factory") { version { strictly("f8b5f52") } }
+
     // ASM - used by VanillaTintsLoader to parse net.minecraft.client.color.block.BlockColors
     // straight from the extracted client jar, replacing the previously hand-curated tint table.
     // 9.8 added support for Java 25 class files (major version 69) which 26.1 emits.
