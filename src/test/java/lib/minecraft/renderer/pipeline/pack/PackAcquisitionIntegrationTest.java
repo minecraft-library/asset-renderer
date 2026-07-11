@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -11,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
@@ -68,6 +72,27 @@ class PackAcquisitionIntegrationTest {
         assertThat(eur.has(Capability.CATHARSIS_CONVENTIONS), is(true));
         assertThat(eur.container(), is(org.hamcrest.Matchers.instanceOf(PackContainer.Directory.class)));
         assertThat(Files.isRegularFile(cache.resolve("packs/eureka/pack.mcmeta")), is(true));
+    }
+
+    @Test
+    @DisplayName("the texture index spans the vanilla and user-pack namespaces")
+    void indexesUserPackTextures(@TempDir Path cache) {
+        assumeTrue(Files.isDirectory(VANILLA), () -> "vanilla pack not extracted: " + VANILLA);
+        Path defrosted = PACKS.resolve("defrosted");
+        Path hypixel = PACKS.resolve("hypixel-skyblock");
+        assumeTrue(Files.isDirectory(defrosted) && Files.isDirectory(hypixel),
+            "sample packs not present under " + PACKS);
+
+        List<Path> sources = new ArrayList<>(List.of(defrosted, hypixel));
+        PackStack stack = PackAcquisition.acquire(sources, cache, VANILLA);
+        ConcurrentMap<ResourceId, IndexedTexture> index = TextureIndexer.index(stack);
+
+        // Vanilla alone catalogues > 500 textures; the user packs override some and add their own.
+        assertThat(index.size(), is(greaterThan(500)));
+        assertThat("vanilla namespace present",
+            index.keySet().stream().anyMatch(id -> id.namespace().equals("minecraft")), is(true));
+        assertThat("hypixel_skyblock namespace present",
+            index.keySet().stream().anyMatch(id -> id.namespace().equals("hypixel_skyblock")), is(true));
     }
 
 }

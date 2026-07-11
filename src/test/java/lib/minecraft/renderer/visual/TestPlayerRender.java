@@ -20,7 +20,6 @@ import lib.minecraft.renderer.option.spec.TextureOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.util.PackDownloader;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
@@ -85,12 +84,6 @@ public final class TestPlayerRender {
     /** Account whose live skin + cape the {@code account} sheet renders (requires network). */
     private static final String ACCOUNT_USERNAME = "CraftedFury";
 
-    /** The Defrosted 16x pack used by the {@code pack} sheet when no explicit url is supplied. */
-    private static final String DEFROSTED_URL =
-        "https://cdn.modrinth.com/data/NPzwNDRa/versions/kdfFWoXg/%21%20%20%20%20%20%C2%A73defrosted%20%C2%A78%5B%C2%A7f16x%C2%A78%5D%20%5B1.21.11%5D%20%5Bv1.4%5D.zip";
-
-    private static final String DEFROSTED_FILE = "defrosted-16x-1.21.11-v1.4.zip";
-
     /**
      * Runs the player-render sweep.
      *
@@ -106,7 +99,6 @@ public final class TestPlayerRender {
         List<String> sheetFilter = opts.containsKey("sheets")
             ? List.of(opts.get("sheets").split(","))
             : List.of();
-        boolean pack = opts.containsKey("pack");
 
         Files.createDirectories(OUTPUT_DIR);
         PipelineRendererContext context = buildContext(Concurrent.newList());
@@ -131,9 +123,6 @@ public final class TestPlayerRender {
         // Animated glint GIFs (enchanted iron per slot, 2D + 3D) beside the armor-per-slot sheet.
         if (sheetFilter.isEmpty() || sheetFilter.contains("glint-per-slot"))
             renderGlintGifs(renderer, "glint-per-slot", glintPerSlot(size));
-
-        if (pack && (sheetFilter.isEmpty() || sheetFilter.contains("pack")))
-            renderPackSheet(context, opts.getOrDefault("pack", "defrosted"), size);
 
         // Live-account sheet (CraftedFury skin + cape). Built lazily so the Mojang fetch only runs
         // when the sheet is in scope, and skipped (not fatal) when the network/profile is unavailable.
@@ -367,42 +356,6 @@ public final class TestPlayerRender {
             ? TextureOptions.builder().url(skinUrl).build()
             : TextureOptions.builder().id(Optional.of(SKIN_ID)).build();
         return SkinOptions.builder().skin(skin);
-    }
-
-    // ---------------------------------------------------------------------------------------
-    // Pack sheet (vanilla vs texture pack).
-    // ---------------------------------------------------------------------------------------
-
-    /**
-     * Renders armor sets through a vanilla-only and a vanilla-plus-pack pipeline, writing a
-     * side-by-side comparison cell per armor material.
-     */
-    private static void renderPackSheet(
-        @NotNull PipelineRendererContext vanilla,
-        @NotNull String packSpec,
-        int size
-    ) throws IOException {
-        Path texturepacks = Path.of("cache/texturepacks");
-        Files.createDirectories(texturepacks);
-        String url = packSpec.startsWith("http") ? packSpec : DEFROSTED_URL;
-        Path zip = texturepacks.resolve(DEFROSTED_FILE);
-        System.out.println("Ensuring pack downloaded -> " + zip);
-        PackDownloader.download(url, zip, false);
-
-        PipelineRendererContext packed = buildContext(Concurrent.newList(zip.toFile()));
-        PlayerRenderer vanillaRenderer = new PlayerRenderer(vanilla);
-        PlayerRenderer packedRenderer = new PlayerRenderer(packed);
-
-        ArmorMaterial[] materials = {ArmorMaterial.IRON, ArmorMaterial.DIAMOND, ArmorMaterial.GOLDEN, ArmorMaterial.NETHERITE};
-        List<Cell> cells = new ArrayList<>();
-        for (ArmorMaterial m : materials) {
-            PlayerOptions opt = allSlots(base(size).type(PlayerOptions.Type.FULL), ArmorPiece.of(m)).build();
-            BufferedImage v = render(vanillaRenderer, opt);
-            BufferedImage p = render(packedRenderer, opt);
-            cells.add(new Cell(m.name().toLowerCase() + " vanilla", v));
-            cells.add(new Cell(m.name().toLowerCase() + " pack", p));
-        }
-        writeGrid("pack", cells, 4, size);
     }
 
     // ---------------------------------------------------------------------------------------

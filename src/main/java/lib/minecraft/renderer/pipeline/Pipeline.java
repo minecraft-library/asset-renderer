@@ -22,8 +22,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Item.LayerTint;
-import lib.minecraft.renderer.asset.Texture;
-import lib.minecraft.renderer.asset.TexturePack;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.ColorProperties;
@@ -40,10 +39,14 @@ import lib.minecraft.renderer.pipeline.loader.CtmLoader;
 import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemDefinitionLoader;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
-import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
+import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
+import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
+import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
+import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.pipeline.pack.PackRoot;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
-import lib.minecraft.renderer.pipeline.resolver.PackResolver;
-import lib.minecraft.renderer.pipeline.util.PackAcquirer;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -114,152 +117,103 @@ public class Pipeline {
         Path jarPath = downloadJarToCache(options);
         extractClientJar(jarPath, packRoot);
 
-        PackBundle packs = resolvePacks(options, packRoot);
+        List<Path> userSources = options.getTexturePacks().stream().map(File::toPath).toList();
+        PackStack acquired = PackAcquisition.acquire(userSources, options.getCacheRoot().toPath(), packRoot);
+        ConcurrentMap<ResourceId, IndexedTexture> textures = TextureIndexer.index(acquired);
+        PackStack stack = acquired.withTextureIndex(textures);
+        ConcurrentList<Path> combinedRoots = combinedRoots(stack);
 
-        ConcurrentMap<String, ModelData> blockModels = ModelResolver.loadBlockModels(packs.combinedRoots());
-        ConcurrentMap<String, ModelData> itemModels = ModelResolver.loadItemModels(packs.combinedRoots());
+        ConcurrentMap<String, ModelData> blockModels = ModelResolver.loadBlockModels(combinedRoots);
+        ConcurrentMap<String, ModelData> itemModels = ModelResolver.loadItemModels(combinedRoots);
 
-        ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(packs.ascending());
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
-        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packs.combinedRoots(), blockModels);
-        ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packs.combinedRoots());
-        ConcurrentMap<String, List<LayerTint>> itemTints = ItemDefinitionLoader.loadTints(packs.combinedRoots());
+        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(combinedRoots, blockModels);
+        ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(combinedRoots);
+        ConcurrentMap<String, List<LayerTint>> itemTints = ItemDefinitionLoader.loadTints(combinedRoots);
         ConcurrentSet<String> glintItems = GlintItemsLoader.load();
-        ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(packs.combinedRoots());
+        ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(combinedRoots);
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
-        ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(packs.combinedRoots());
+        ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(combinedRoots);
 
-        ConcurrentMap<String, Integer> colorOverrides = collectColorOverrides(packs.ascending());
-        ConcurrentList<CitRule> citRules = collectCitRules(packs.ascending());
-        ConcurrentList<CtmRule> ctmRules = collectCtmRules(packs.ascending());
+        ConcurrentMap<String, Integer> colorOverrides = collectColorOverrides(combinedRoots);
+        ConcurrentList<CitRule> citRules = collectCitRules(combinedRoots);
+        ConcurrentList<CtmRule> ctmRules = collectCtmRules(combinedRoots);
 
-        return new Result(packRoot, packs.vanilla(), packs.packsById(), textures, colorMaps, blockTints, blockModels, itemModels,
+        return new Result(packRoot, stack, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, itemTints, glintItems, blockTags,
             potionEffectColors, bannerPatterns, colorOverrides, citRules, ctmRules, blockStateResult.getDefaultStateKeys());
     }
 
     /**
-     * Resolves the vanilla pack and every user-supplied pack into a single {@link PackBundle},
-     * eagerly computing the four projections downstream loaders and collectors consume:
-     * the vanilla {@link TexturePack} itself, the ascending-priority list, the id-keyed
-     * render-priority map (for {@link Result#getPacks()}), and the flat list of every
-     * pack's asset roots in ascending priority order (for loaders that don't need pack
-     * attribution).
-     * <p>
-     * Each pack's overlay matching uses its own declared {@code pack_format} (read from the
-     * pack's own {@code pack.mcmeta} by {@link PackResolver}) - vanilla matches its own format,
-     * each user pack matches its own. A pack missing or with malformed mcmeta throws a
-     * {@code PipelineException}; the renderer can't function against a broken jar or a
-     * non-conforming user pack, so loud failure is the right call.
-     * <p>
-     * User packs are materialised through {@link PackAcquirer} (zip extraction with caching),
-     * keyed by a sanitised id derived from the source filename, and assigned priorities {@code 1..N}
-     * so they all win over vanilla (priority {@code 0}) on overlay merges.
+     * Flattens the resolved stack into the ascending-priority asset-root list downstream loaders and
+     * collectors consume - every pack's active roots (base first, matched overlays after) as absolute
+     * directories, packs in ascending priority so later roots win. Pack attribution of these roots (for
+     * {@code filter.block} on the non-texture kinds) lands in a later phase; the texture index already
+     * carries it. After acquisition every pack is a materialized {@link PackContainer.Directory}.
+     *
+     * @param stack the resolved pack stack
+     * @return the flattened asset roots in ascending-priority order
      */
-    private static @NotNull PackBundle resolvePacks(
-        @NotNull PipelineOptions options,
-        @NotNull Path vanillaPackRoot
-    ) {
-        TexturePack vanilla = PackResolver.resolve(vanillaPackRoot, "vanilla", 0);
-
-        ArrayList<TexturePack> packs = new ArrayList<>();
-        packs.add(vanilla);
-        for (int i = 0; i < options.getTexturePacks().size(); i++) {
-            File source = options.getTexturePacks().get(i);
-            String packId = PackAcquirer.derivePackId(source);
-            Path userRoot = PackAcquirer.materialize(source, options.getCacheRoot().toPath());
-            packs.add(PackResolver.resolve(userRoot, packId, i + 1));
-        }
-
-        ConcurrentList<TexturePack> ascending = Concurrent.adoptList(packs).toUnmodifiable();
-
-        // Index the packs by id in render-priority order (highest priority first) so
-        // Result#getPacks() is a ready-to-use O(1) lookup: insertion-ordered, first-wins on a
-        // duplicate id. Built here once so the renderer context consumes the map directly.
-        ConcurrentMap<String, TexturePack> packsById = Concurrent.newLinkedMap();
-        ascending.stream()
-            .sorted(Comparator.comparingInt(TexturePack::getPriority).reversed())
-            .forEachOrdered(pack -> packsById.putIfAbsent(pack.getId(), pack));
-
+    private static @NotNull ConcurrentList<Path> combinedRoots(@NotNull PackStack stack) {
         ArrayList<Path> roots = new ArrayList<>();
-        for (TexturePack pack : ascending)
-            roots.addAll(pack.getAssetRoots());
-        ConcurrentList<Path> combinedRoots = Concurrent.adoptList(roots).toUnmodifiable();
+        for (ResourcePack pack : stack.ascending()) {
+            if (!(pack.container() instanceof PackContainer.Directory dir)) continue;
+            for (PackRoot root : pack.roots())
+                roots.add(root.isBase() ? dir.root() : dir.root().resolve(trimSlash(root.prefix())));
+        }
+        return Concurrent.adoptList(roots).toUnmodifiable();
+    }
 
-        return new PackBundle(vanilla, ascending, packsById.toUnmodifiable(), combinedRoots);
+    /** Drops the trailing path separator an overlay-root prefix carries so {@link Path#resolve} yields a clean directory. */
+    private static @NotNull String trimSlash(@NotNull String prefix) {
+        return prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
     }
 
     /**
-     * Eager projection of the resolved pack stack into the four views downstream consumers need.
-     * {@code ascending} drives per-pack walks (texture scan, CIT / CTM / colour collectors);
-     * {@code combinedRoots} is the flattened root list every loader that doesn't need pack
-     * attribution consumes; {@code packsById} is the render-priority, id-keyed view passed
-     * through to {@link Result#getPacks()}; {@code vanilla} is the bundled minimum every pipeline
-     * run carries.
-     *
-     * @param vanilla the vanilla pack (priority {@code 0}), the bundled minimum
-     * @param ascending every resolved pack in ascending-priority order, driving per-pack walks
-     * @param packsById the render-priority (highest first), id-keyed view passed to {@link Result#getPacks()}
-     * @param combinedRoots the flattened asset roots of every pack in ascending-priority order
-     */
-    private record PackBundle(
-        @NotNull TexturePack vanilla,
-        @NotNull ConcurrentList<TexturePack> ascending,
-        @NotNull ConcurrentMap<String, TexturePack> packsById,
-        @NotNull ConcurrentList<Path> combinedRoots
-    ) {}
-
-    /**
-     * Walks every pack's asset roots in ascending-priority order, calling
+     * Walks every asset root in ascending-priority order, calling
      * {@link ColorProperties#loadFrom(Path)} per root and merging overrides with later-wins
-     * semantics. Packs that ship no {@code optifine/color.properties} or
+     * semantics. Roots that ship no {@code optifine/color.properties} or
      * {@code mcpatcher/color.properties} contribute zero entries.
      */
-    private static @NotNull ConcurrentMap<String, Integer> collectColorOverrides(@NotNull ConcurrentList<TexturePack> ascending) {
+    private static @NotNull ConcurrentMap<String, Integer> collectColorOverrides(@NotNull ConcurrentList<Path> combinedRoots) {
         HashMap<String, Integer> merged = new HashMap<>();
 
-        for (TexturePack pack : ascending) {
-            for (Path root : pack.getAssetRoots())
-                merged.putAll(ColorProperties.loadFrom(root).overrides());
-        }
+        for (Path root : combinedRoots)
+            merged.putAll(ColorProperties.loadFrom(root).overrides());
 
         return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 
     /**
-     * Walks every pack's asset roots in ascending-priority order, calling
+     * Walks every asset root in ascending-priority order, calling
      * {@link CitLoader#load(Path)} per root and concatenating the resulting rules. The combined
      * list is sorted by descending weight so the highest-priority rules appear first; ties
-     * preserve their declaration order, which means later-priority packs naturally win on
+     * preserve their declaration order, which means later-priority roots naturally win on
      * weight-tied collisions.
      */
-    private static @NotNull ConcurrentList<CitRule> collectCitRules(@NotNull ConcurrentList<TexturePack> ascending) {
+    private static @NotNull ConcurrentList<CitRule> collectCitRules(@NotNull ConcurrentList<Path> combinedRoots) {
         ArrayList<CitRule> rules = new ArrayList<>();
 
-        for (TexturePack pack : ascending) {
-            for (Path root : pack.getAssetRoots())
-                rules.addAll(CitLoader.load(root));
-        }
+        for (Path root : combinedRoots)
+            rules.addAll(CitLoader.load(root));
 
         rules.sort(Comparator.comparingInt(CitRule::weight).reversed());
         return Concurrent.adoptList(rules).toUnmodifiable();
     }
 
     /**
-     * Walks every pack's asset roots in ascending-priority order, calling
+     * Walks every asset root in ascending-priority order, calling
      * {@link CtmLoader#load(Path)} per root and concatenating the resulting rules. The combined
      * list is sorted by descending weight so the highest-priority rules appear first; ties
-     * preserve their declaration order, which means later-priority packs naturally win on
+     * preserve their declaration order, which means later-priority roots naturally win on
      * weight-tied collisions.
      */
-    private static @NotNull ConcurrentList<CtmRule> collectCtmRules(@NotNull ConcurrentList<TexturePack> ascending) {
+    private static @NotNull ConcurrentList<CtmRule> collectCtmRules(@NotNull ConcurrentList<Path> combinedRoots) {
         ArrayList<CtmRule> rules = new ArrayList<>();
 
-        for (TexturePack pack : ascending) {
-            for (Path root : pack.getAssetRoots())
-                rules.addAll(CtmLoader.load(root));
-        }
+        for (Path root : combinedRoots)
+            rules.addAll(CtmLoader.load(root));
 
         rules.sort(Comparator.comparingInt(CtmRule::weight).reversed());
         return Concurrent.adoptList(rules).toUnmodifiable();
@@ -334,8 +288,8 @@ public class Pipeline {
      * {@code .class} files, manifests, and other non-resource entries. Idempotent - safe to
      * re-run with the same {@code packRoot}.
      * <p>
-     * The root mcmeta is included so {@link PackResolver} can resolve the vanilla pack the same
-     * way it resolves user packs - reading the format and overlay entries from the extracted
+     * The root mcmeta is included so {@link PackAcquisition} can build the vanilla pack the same
+     * way it builds user packs - reading the format and overlay entries from the extracted
      * tree rather than reaching back into the jar. Modern Mojang client jars (verified across
      * 1.21.4 and 26.1) no longer ship a root {@code pack.mcmeta} - the launcher synthesises one
      * from the jar's own {@code version.json} at runtime. To keep
@@ -399,7 +353,7 @@ public class Pipeline {
      * {@code version.json} bytes - reads {@code pack_version.resource_major} for the
      * {@code pack_format} and the {@code name} field for a human-readable description.
      * No-op when the JSON is malformed or missing the required keys - downstream
-     * {@link PackResolver#resolve} will then throw the usual missing-mcmeta error.
+     * {@link PackAcquisition#acquire} will then read an empty {@code MCMeta} for the vanilla pack.
      * <p>
      * This mirrors what the Minecraft launcher does at runtime for vanilla resource packs in
      * recent versions, where {@code pack.mcmeta} was dropped as a static jar entry in favour
@@ -482,25 +436,12 @@ public class Pipeline {
         private final @NotNull Path packRoot;
 
         /**
-         * The vanilla {@link TexturePack} (priority {@code 0}), the bundled minimum every run carries.
+         * The resolved pack stack (vanilla at priority 0, user packs ascending) carrying the scanned
+         * texture index. Owns the resolution rule the renderer consults through
+         * {@link PipelineRendererContext}; replaces the former vanilla-pack / id-keyed-map / texture-map
+         * projections.
          */
-        private final @NotNull TexturePack vanillaPack;
-
-        /**
-         * Every registered pack keyed by its {@link TexturePack#getId() id} for O(1) lookup, in
-         * render priority order - {@code values()} iterate highest priority first. Always contains
-         * the vanilla pack at minimum; user packs from {@link PipelineOptions#getTexturePacks()}
-         * appear before vanilla when present; on a duplicate id the first (highest priority) pack
-         * wins. Each pack's {@link TexturePack#getAssetRoots()} carries the on-disk directories the
-         * renderer walks when reading raw PNG bytes for a texture attributed to that pack.
-         */
-        private final @NotNull ConcurrentMap<String, TexturePack> packs;
-
-        /**
-         * Namespaced texture id to {@link Texture} descriptor (owning pack id, on-disk relative path,
-         * optional animation), scanned across the pack stack with higher-priority packs winning.
-         */
-        private final @NotNull ConcurrentMap<String, Texture> textures;
+        private final @NotNull PackStack stack;
 
         /**
          * Biome colormap PNGs keyed by {@link ColorMap.Type} (grass, foliage, ...), loaded from the bundled snapshot.

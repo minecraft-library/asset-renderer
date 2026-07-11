@@ -8,7 +8,8 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.TexturePack;
+import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.option.spec.BannerLayer;
@@ -150,7 +151,7 @@ class BannerKitTest {
         }
 
         @Override
-        public @NotNull Optional<TexturePack> findPack(@NotNull String id) {
+        public @NotNull Optional<ResourcePack> findPack(@NotNull PackId id) {
             return Optional.empty();
         }
 

@@ -7,8 +7,6 @@
  * {@link lib.minecraft.renderer.asset.BannerPattern BannerPattern},
  * {@link lib.minecraft.renderer.asset.ColorMap ColorMap},
  * {@link lib.minecraft.renderer.asset.AnimationData AnimationData},
- * {@link lib.minecraft.renderer.asset.Texture Texture},
- * {@link lib.minecraft.renderer.asset.TexturePack TexturePack},
  * {@link lib.minecraft.renderer.asset.BlockTag BlockTag},
  * {@link lib.minecraft.renderer.asset.ResourceId ResourceId}).
  *

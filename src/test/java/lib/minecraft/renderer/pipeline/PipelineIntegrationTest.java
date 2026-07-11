@@ -2,8 +2,12 @@ package lib.minecraft.renderer.pipeline;
 
 
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.Texture;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
+import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -75,13 +79,14 @@ class PipelineIntegrationTest {
     }
 
     @Test
-    @DisplayName("populates the vanilla texture pack entity")
+    @DisplayName("populates the vanilla pack at the base of the stack")
     void populatesVanillaPack() {
-        assertThat(result.getVanillaPack(), is(notNullValue()));
-        assertThat(result.getVanillaPack().getId(), equalTo("vanilla"));
-        assertThat(result.getVanillaPack().getNamespace(), equalTo("minecraft"));
-        assertThat(result.getVanillaPack().getAssetRoots().getFirst().toString(), containsString("vanilla"));
-        assertThat(result.getVanillaPack().getPriority(), is(0));
+        ResourcePack vanilla = result.getStack().vanilla();
+        assertThat(vanilla.id(), equalTo(PackId.VANILLA));
+        assertThat(vanilla.namespaces(), hasItem("minecraft"));
+        assertThat(vanilla.container(), instanceOf(PackContainer.Directory.class));
+        assertThat(((PackContainer.Directory) vanilla.container()).root().toString(), containsString("vanilla"));
+        assertThat(result.getStack().ascending().getFirst(), is(vanilla));
     }
 
     @Test
@@ -111,9 +116,9 @@ class PipelineIntegrationTest {
     @Test
     @DisplayName("catalogues every texture under assets/minecraft/textures")
     void cataloguesTextures() {
-        assertThat("texture catalogue is populated", result.getTextures().size(), is(greaterThan(500)));
+        assertThat("texture catalogue is populated", result.getStack().textureIndex().size(), is(greaterThan(500)));
 
-        Texture grassTop = result.getTextures().get("minecraft:block/grass_block_top");
+        IndexedTexture grassTop = result.getStack().textureIndex().get(ResourceId.parse("minecraft:block/grass_block_top"));
         assertThat("grass_block_top texture catalogued", grassTop, is(notNullValue()));
         assertThat(grassTop.width(), is(greaterThanOrEqualTo(16)));
         assertThat(grassTop.height(), is(greaterThanOrEqualTo(16)));
