@@ -192,10 +192,14 @@ public final class TestEntityParityVanilla {
             int vw = vanillaImg.getWidth();
             int vh = vanillaImg.getHeight();
 
-            EntityOptions options = EntityOptions.builder()
+            EntityOptions.EntityOptionsBuilder optionsBuilder = EntityOptions.builder()
                 .entityId(Optional.of(subject.entityId()))
-                .fitMode(EntityOptions.FitMode.FAMILY_BOUNDS)
-                .build();
+                .fitMode(EntityOptions.FitMode.FAMILY_BOUNDS);
+            // Drive the option-encoded variant coat (empty for an id-encoded pseudo-id, whose id already
+            // selects the coat, or a non-variant subject).
+            subject.variant().ifPresent(v -> optionsBuilder.appearance(
+                lib.minecraft.renderer.option.EntityAppearance.builder().variant(Optional.of(v)).build()));
+            EntityOptions options = optionsBuilder.build();
             ImageData java;
             lib.minecraft.renderer.engine.RendererDebug.beginPerEntityBoundsDump(refId);
             try {

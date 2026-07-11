@@ -142,7 +142,8 @@ public final class EntityFamilyReader {
             String familyId = entry.getKey();
             JsonObject family = entry.getValue().getAsJsonObject();
             JsonObject variant = variantAxis(family);
-            if (variant != null) {
+            boolean idEncoded = variant != null && variant.has("id_encoded") && variant.get("id_encoded").getAsBoolean();
+            if (variant != null && idEncoded) {
                 String defaultOption = variant.get("default").getAsString();
                 String baseId = familyId + "_" + defaultOption;
                 for (String option : variant.getAsJsonObject("options").keySet()) {
@@ -150,9 +151,17 @@ public final class EntityFamilyReader {
                     variantOf.put(rowId, option.equals(defaultOption) ? null : baseId);
                 }
             } else {
+                // Non-variant OR option-encoded variant family: one base row. Option-encoded coats live on
+                // the base definition's axes.variants and are measured by the family canvas union, not as
+                // separate member rows.
                 variantOf.put(familyId, null);
             }
-            if (family.has("family_of")) crossFamilies.put(familyId, family.get("family_of").getAsString());
+            // family_of groups a non-variant sub-species under its base (camel_husk -> camel). A variant
+            // family's family_of (mooshroom -> cow, trader_llama -> llama) is INERT at runtime in both
+            // id-encoding states - id-encoded, its rows are pseudo-ids the family-id-keyed crossFamilies
+            // never matches; guarding it to non-variant families keeps that inertness once option-encoding
+            // makes the base row a plain id, so the coat's family stays itself in both states.
+            if (variant == null && family.has("family_of")) crossFamilies.put(familyId, family.get("family_of").getAsString());
         }
 
         Map<String, String> entityToFamily = new LinkedHashMap<>();
@@ -214,27 +223,32 @@ public final class EntityFamilyReader {
 
         JsonObject variant = variantAxis(family);
         if (variant != null) {
+            boolean idEncoded = variant.has("id_encoded") && variant.get("id_encoded").getAsBoolean();
             String defaultOption = variant.get("default").getAsString();
             JsonObject options = variant.getAsJsonObject("options");
-            for (Map.Entry<String, JsonElement> option : options.entrySet()) {
-                String rowId = familyId + "_" + option.getKey();
-                JsonObject optionObj = option.getValue().getAsJsonObject();
-                String rowCoord = optionObj.has("geometry") ? optionObj.get("geometry").getAsString() : baseCoord;
-                EntityModelData model = resolveModel(geometries, rowCoord, rowId);
-                Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, rowId, diagnostics);
-                model = applyHiddenBones(model, hiddenBones, rowId, diagnostics);
-                List<OverlayLayer> overlays = loadOverlays(familyOverlays, geometries, rowCoord, model, rowId, diagnostics);
-
-                Map<String, String> stateTextures = variantStateTextures(optionObj);
-                Optional<String> textureRef = variantWildTexture(optionObj);
-                definitions.put(rowId, EntityDefinition.builder()
-                    .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
-                    .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
-                    .boneToggles(toggles)
-                    .axes(new EntityDefinition.Axes(stateTextures, babyModel, Optional.empty(), Map.of(), Map.of()))
-                    .layers(new EntityDefinition.Layers(collarTexture, equipment, markings, humanoidArmor, markingTextures))
-                    .build());
+            VariantContext ctx = new VariantContext(baseCoord, geometries, hiddenBones, boneToggleSpecs, familyOverlays,
+                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, collarTexture, equipment, markings, humanoidArmor, markingTextures);
+            if (idEncoded) {
+                // id-encoded: each coat is a first-class render pseudo-id minecraft:<id>_<opt>.
+                for (Map.Entry<String, JsonElement> option : options.entrySet()) {
+                    String rowId = familyId + "_" + option.getKey();
+                    definitions.put(rowId, buildVariantRow(rowId, option.getValue().getAsJsonObject(), ctx, diagnostics));
+                }
+                return;
             }
+            // option-encoded [axis-unification #3]: one base row minecraft:<id>, the coat resolved at render
+            // from EntityAppearance.variant. Every option is built into a sub-definition (byte-identical to
+            // the pseudo-id it replaced); the base row IS the default coat carrying the full option map so
+            // the resolver fold + family canvas union reach every coat.
+            LinkedHashMap<String, EntityDefinition> coats = new LinkedHashMap<>();
+            for (Map.Entry<String, JsonElement> option : options.entrySet())
+                coats.put(option.getKey(), buildVariantRow(familyId, option.getValue().getAsJsonObject(), ctx, diagnostics));
+            EntityDefinition base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
+            EntityDefinition.Axes baseAxes = base.axes();
+            definitions.put(familyId, base.toBuilder()
+                .axes(new EntityDefinition.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.largeShape(),
+                    baseAxes.sizeModels(), baseAxes.sizeScales(), Map.copyOf(coats)))
+                .build());
             return;
         }
 
@@ -257,9 +271,60 @@ public final class EntityFamilyReader {
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .boneToggles(toggles)
             .axes(new EntityDefinition.Axes(stateTextures, babyModel,
-                buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries), buildSizeScales(family)))
+                buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries), buildSizeScales(family), Map.of()))
             .layers(new EntityDefinition.Layers(collarTexture, equipment, markings, humanoidArmor, markingTextures))
             .build());
+    }
+
+    /**
+     * The family-level render context shared by every variant option's build, so one coat build serves
+     * both the id-encoded pseudo-id expansion and the option-encoded sub-definition map.
+     */
+    private record VariantContext(
+        @NotNull String baseCoord,
+        @NotNull Map<String, EntityModelData> geometries,
+        @Nullable JsonArray hiddenBones,
+        @Nullable JsonObject boneToggleSpecs,
+        @NotNull JsonArray familyOverlays,
+        @NotNull List<BlockOverlayLayer> blockOverlays,
+        int baseTint,
+        float setupYawAddend,
+        float rendererScale,
+        @NotNull Optional<EntityModelData> babyModel,
+        @NotNull Optional<String> collarTexture,
+        @NotNull List<EquipmentOverlay> equipment,
+        boolean markings,
+        boolean humanoidArmor,
+        @NotNull Map<String, String> markingTextures
+    ) {}
+
+    /**
+     * Builds one variant option's {@link EntityDefinition}: the option's geometry (its own coordinate when
+     * it overrides the family mesh, else the base coordinate) with the family's bone toggles, hidden-bone
+     * strip, and overlays materialised on it, plus the option's {@code wild} coat texture and per-state
+     * textures. The built definition carries an empty {@code axes.variants} - it is a leaf coat, whether it
+     * lands under an id-encoded pseudo-id or in an option-encoded family's coat map.
+     */
+    private static @NotNull EntityDefinition buildVariantRow(
+        @NotNull String rowId,
+        @NotNull JsonObject optionObj,
+        @NotNull VariantContext ctx,
+        @NotNull Diagnostics diagnostics
+    ) {
+        String rowCoord = optionObj.has("geometry") ? optionObj.get("geometry").getAsString() : ctx.baseCoord();
+        EntityModelData model = resolveModel(ctx.geometries(), rowCoord, rowId);
+        Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, rowId, diagnostics);
+        model = applyHiddenBones(model, ctx.hiddenBones(), rowId, diagnostics);
+        List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), rowCoord, model, rowId, diagnostics);
+        Map<String, String> stateTextures = variantStateTextures(optionObj);
+        Optional<String> textureRef = variantWildTexture(optionObj);
+        return EntityDefinition.builder()
+            .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(ctx.blockOverlays())
+            .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
+            .boneToggles(toggles)
+            .axes(new EntityDefinition.Axes(stateTextures, ctx.babyModel(), Optional.empty(), Map.of(), Map.of(), Map.of()))
+            .layers(new EntityDefinition.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor(), ctx.markingTextures()))
+            .build();
     }
 
     // ------------------------------------------------------------------------------------

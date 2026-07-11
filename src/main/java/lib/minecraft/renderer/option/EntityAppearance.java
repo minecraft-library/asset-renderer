@@ -43,6 +43,16 @@ public class EntityAppearance {
     private final @NotNull Optional<String> state = Optional.empty();
 
     /**
+     * Variant selector for entities whose coat / colour {@code variant} axis is option-encoded (cow
+     * temperate / cold / warm, wolf coats, cat breeds, ...). Selects that option's baked mesh + coat
+     * texture in place of the family's default coat; empty (default) renders the default coat, so the
+     * default appearance is byte-identical to the id-encoded default pseudo-id. Ignored by entities with
+     * no variant axis, or while the axis is still id-encoded (each coat a first-class render id).
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<String> variant = Optional.empty();
+
+    /**
      * Carried-block selector. Two roles depending on the entity's block overlays:
      *
      * <ul>

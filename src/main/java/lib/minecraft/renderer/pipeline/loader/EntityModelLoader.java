@@ -179,13 +179,21 @@ public class EntityModelLoader {
          *     (pufferfish); the default size is the base model and absent here; empty for no-size-axis entities
          * @param sizeScales the {@code size} axis's non-default render scale factors keyed by {@link Size}
          *     (salmon / slime / magma_cube); the default size is scale {@code 1.0} and absent here; empty otherwise
+         * @param variants the {@code variant} axis's option-encoded coat sub-definitions keyed by option
+         *     (cow {@code temperate}/{@code cold}/{@code warm}, wolf coats, cat breeds), each a fully-built
+         *     definition byte-identical to the id-encoded pseudo-id it replaces; the base definition IS the
+         *     default option's build. Empty when {@code variant} is id-encoded (each coat a first-class
+         *     pseudo-id) or the family has no variant axis. The render-time variant fold in
+         *     {@link lib.minecraft.renderer.pipeline.resolve.EntityDefinitionResolver} swaps to the selected
+         *     option's sub-definition, and the family canvas union measures every option's silhouette
          */
         public record Axes(
             @NotNull Map<String, String> stateTextures,
             @NotNull Optional<EntityModelData> babyModel,
             @NotNull Optional<LargeShape> largeShape,
             @NotNull Map<Size, EntityModelData> sizeModels,
-            @NotNull Map<Size, Float> sizeScales
+            @NotNull Map<Size, Float> sizeScales,
+            @NotNull Map<String, EntityDefinition> variants
         ) {}
 
         /**
@@ -895,7 +903,7 @@ public class EntityModelLoader {
             // read it so the flag-on Layers matches the native reader's (byte-neutral - unconsumed).
             boolean humanoidArmor = entityJson.has("armor_type") && "humanoid".equals(entityJson.get("armor_type").getAsString());
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale, boneToggles,
-                new EntityDefinition.Axes(stateTextures.getOrDefault(entityId, Map.of()), babyModel, largeShape, sizeModels, sizeScales),
+                new EntityDefinition.Axes(stateTextures.getOrDefault(entityId, Map.of()), babyModel, largeShape, sizeModels, sizeScales, Map.of()),
                 new EntityDefinition.Layers(Optional.ofNullable(collarTextures.get(entityId)), equipment, markingsRows.contains(entityId), humanoidArmor, Map.of())));
         }
         return Concurrent.adoptMap(definitions);

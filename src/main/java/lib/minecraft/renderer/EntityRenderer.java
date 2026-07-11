@@ -47,6 +47,7 @@ import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Locale;
@@ -974,6 +975,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer texture
     ) {
         Box bounds = computeUnionScreenBounds(definition, transform, modelScale, texture);
+        // Option-encoded variant coats (axis-unification #3) live on the base definition's axes.variants
+        // rather than as separate family-member rows, so union each coat's silhouette here - reproducing
+        // the id-encoded canvas union across every coat pseudo-id. Empty (a no-op) while variant is
+        // id-encoded (each coat is a member row measured below) or the family has no variant axis.
+        bounds = unionVariantSilhouettes(bounds, this.javaEntities.get(entityId), transform);
         List<String> members = EntityModelLoader.loadFamilies().getOrDefault(entityId, List.of(entityId));
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
@@ -985,6 +991,25 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             float memberScale = memberDef.rendererScale();
             Box memberBounds = computeUnionScreenBounds(memberDef, transform, memberScale, memberTexture.get());
             bounds = unionBoxes(bounds, memberBounds);
+            bounds = unionVariantSilhouettes(bounds, memberDef, transform);
+        }
+        return bounds;
+    }
+
+    /**
+     * Unions the screen-space silhouettes of a definition's option-encoded variant coats
+     * ({@link EntityModelLoader.EntityDefinition.Axes#variants()}) into {@code bounds}, each measured at its
+     * own coat texture + render scale (mirroring the family-member walk). A no-op when the definition is
+     * absent or carries no variant coats (id-encoded / non-variant families), so the canvas is byte-identical
+     * there.
+     */
+    private @NotNull Box unionVariantSilhouettes(@NotNull Box bounds, @Nullable EntityModelLoader.EntityDefinition definition, @NotNull Matrix4f transform) {
+        if (definition == null) return bounds;
+        for (EntityModelLoader.EntityDefinition coat : definition.axes().variants().values()) {
+            if (coat.model().getBones().isEmpty()) continue;
+            Optional<PixelBuffer> coatTexture = resolveFamilyMemberTexture(coat);
+            if (coatTexture.isEmpty()) continue;
+            bounds = unionBoxes(bounds, computeUnionScreenBounds(coat, transform, coat.rendererScale(), coatTexture.get()));
         }
         return bounds;
     }
