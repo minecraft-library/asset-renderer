@@ -711,7 +711,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Faces whose ref still resolves to a {@code #} after dereference (broken bindings) skip
         // texture loading; the kit treats them as no-texture faces.
         ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-            block.get().getModel().getElements(), block.get().getModel().getTextures(),
+            block.get().model().getElements(), block.get().model().getTextures(),
             context::resolveTexture);
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
@@ -721,7 +721,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // context for a held block); untinted (tintindex -1) faces keep white.
         int blockTint = BlockRenderer.resolveBlockTint(context, block.get(), Biome.Vanilla.PLAINS);
         ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(
-            block.get().getModel().getElements(), faceTextures, blockTint, ColorMath.WHITE);
+            block.get().model().getElements(), faceTextures, blockTint, ColorMath.WHITE);
         if (blockTris.isEmpty()) return Concurrent.newList();
 
         // Compose the per-overlay transform matrix in vanilla block units. PoseStack ops apply

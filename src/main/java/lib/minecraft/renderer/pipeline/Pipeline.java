@@ -550,7 +550,7 @@ public class Pipeline {
          * (the always-foil items: enchanted_book, written_book, enchanted_golden_apple,
          * experience_bottle, nether_star, debug_stick, end_crystal), parsed from {@code Items} by
          * the glint-item loader. Read at item-index build time and surfaced as
-         * {@link lib.minecraft.renderer.asset.Item#isAlwaysGlinted()}.
+         * {@link lib.minecraft.renderer.asset.Item#alwaysGlinted()}.
          */
         private final @NotNull ConcurrentSet<String> glintItems;
 

@@ -71,7 +71,7 @@ class BlockDefaultsGoldenTest {
             Block block = context.findBlock(blockId).orElse(null);
             if (block == null) continue;
 
-            Set<String> runtimeVariants = new TreeSet<>(block.getVariants().keySet());
+            Set<String> runtimeVariants = new TreeSet<>(block.variants().keySet());
             String defaultKey = joinDefaultKey(blocks.getAsJsonObject(blockId));
             if (!defaultKey.isEmpty() && !runtimeVariants.isEmpty() && !subsetResolves(defaultKey, runtimeVariants))
                 mismatches.add(blockId + ": default '" + defaultKey + "' resolves to no variant in " + runtimeVariants);

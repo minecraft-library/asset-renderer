@@ -14,8 +14,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Pins {@link AnimationKit#sampleFrame} playback of a vanilla {@code .mcmeta} animation over a
  * vertically-stacked strip: single-frame passthrough, per-tick frame selection, modulo-cycle
- * looping (including negative ticks), {@link AnimationData#getFrametime() frametime} frame holds,
- * linear {@link AnimationData#isInterpolate() interpolation}, and explicit
+ * looping (including negative ticks), {@link AnimationData#frametime() frametime} frame holds,
+ * linear {@link AnimationData#interpolate() interpolation}, and explicit
  * {@link AnimationData.FrameEntry} durations. Also pins {@link AnimationKit#extractFrame} row
  * cropping. Each frame is authored as a distinctive solid colour so the sampled pixel identifies
  * which strip row was selected.

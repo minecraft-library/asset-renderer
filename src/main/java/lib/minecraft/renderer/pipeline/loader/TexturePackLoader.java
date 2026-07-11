@@ -34,7 +34,7 @@ import javax.imageio.ImageIO;
  * {@code assets/minecraft/textures}.
  * <p>
  * Texture sizes are read from the PNG header via {@link ImageIO} and any adjacent
- * {@code .png.mcmeta} sidecar is parsed eagerly so the resulting {@link Texture#getAnimation()}
+ * {@code .png.mcmeta} sidecar is parsed eagerly so the resulting {@link Texture#animation()}
  * field already carries the frame list when the caller queries it. The sidecar format is
  * vanilla's heterogeneous frames array - a mix of bare integers ({@code [0, 1, 2]}) and
  * explicit frame objects ({@code [{"index":0,"time":5}]}) - which is normalised into
@@ -98,7 +98,7 @@ public class TexturePackLoader {
 
         return pngFiles.parallelStream()
             .map(p -> buildTexture(p, texturesDir, packId))
-            .collect(Concurrent.toMap(Texture::getId, Function.identity()));
+            .collect(Concurrent.toMap(Texture::id, Function.identity()));
     }
 
     /**

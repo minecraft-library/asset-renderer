@@ -148,12 +148,12 @@ public final class PipelineRendererContext implements RendererContext {
         Texture texture = this.textures.get(normalized);
         if (texture == null) return Optional.empty();
 
-        TexturePack owner = this.packs.get(texture.getPackId());
+        TexturePack owner = this.packs.get(texture.packId());
         if (owner == null) return Optional.empty();
 
         Path winning = null;
         for (Path root : owner.getAssetRoots()) {
-            Path candidate = root.resolve(VanillaSourcePaths.TEXTURES_DIR).resolve(texture.getRelativePath());
+            Path candidate = root.resolve(VanillaSourcePaths.TEXTURES_DIR).resolve(texture.relativePath());
             if (Files.isRegularFile(candidate)) winning = candidate;
         }
         if (winning == null) return Optional.empty();
@@ -202,7 +202,7 @@ public final class PipelineRendererContext implements RendererContext {
     public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
         String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
         Texture texture = this.textures.get(normalized);
-        return texture == null ? Optional.empty() : texture.getAnimation();
+        return texture == null ? Optional.empty() : texture.animation();
     }
 
     /**
@@ -313,11 +313,11 @@ public final class PipelineRendererContext implements RendererContext {
     private @NotNull String primaryTag(@NotNull String blockId) {
         Block block = this.blockIndex.get(blockId);
 
-        if (block != null && !block.getTags().isEmpty()) {
-            return block.getTags()
+        if (block != null && !block.tags().isEmpty()) {
+            return block.tags()
                 .stream()
                 .filter(this.blockTags::containsKey)
-                .min(Comparator.comparingInt(tag -> this.blockTags.get(tag).getValues().size()))
+                .min(Comparator.comparingInt(tag -> this.blockTags.get(tag).values().size()))
                 .orElse(blockId);
         }
 

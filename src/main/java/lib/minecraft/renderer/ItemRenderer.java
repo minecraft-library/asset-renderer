@@ -124,7 +124,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     static @NotNull Finalize.Glint itemGlint(
         @NotNull Textures textures, @NotNull Item item, @NotNull ItemOptions options
     ) {
-        boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
+        boolean glinted = options.getGlintOverride().orElse(item.alwaysGlinted() || options.isEnchanted());
         return Finalize.Glint.item(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond());
     }
 
@@ -329,7 +329,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         int layerIndex,
         @NotNull ItemOptions options
     ) {
-        List<LayerTint> tints = item.getTints();
+        List<LayerTint> tints = item.tints();
         if (layerIndex < tints.size()) {
             return switch (tints.get(layerIndex)) {
                 case LayerTint.Dye dye ->
@@ -361,13 +361,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     ) {
         String layer0Ref = engine.textures().resolveLayer0(item, options);
         if (layer0Ref == null || layer0Ref.isBlank())
-            throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.getId().id());
+            throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.id().id());
         PixelBuffer base = engine.textures().resolveTexture(layer0Ref);
         PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
 
         int layerIndex = 0;
         while (true) {
-            String textureRef = layerIndex == 0 ? layer0Ref : item.getTextures().get(LAYER_TEXTURE_PREFIX + layerIndex);
+            String textureRef = layerIndex == 0 ? layer0Ref : item.textures().get(LAYER_TEXTURE_PREFIX + layerIndex);
             if (textureRef == null || textureRef.isBlank()) break;
             PixelBuffer layer = engine.textures().resolveTexture(textureRef);
             int color = resolveLayerTint(context, item, layerIndex, options);
@@ -392,13 +392,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * @return the tintindex for the layer, or {@code -1} when the layer should render untinted
      */
     static int tintIndexForLayer(@NotNull Item item, int layerIndex) {
-        ConcurrentList<ModelElement> elements = item.getModel().getElements();
+        ConcurrentList<ModelElement> elements = item.model().getElements();
         if (elements.isEmpty()) {
             // Vanilla item/generated convention: layer N has tintindex N.
             return layerIndex;
         }
 
-        ConcurrentMap<String, String> variables = item.getModel().getTextures();
+        ConcurrentMap<String, String> variables = item.model().getTextures();
         String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
         String layerRef = variables.get(layerKey);
         for (ModelElement element : elements) {
@@ -441,7 +441,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // textures-map lookup.
             String textureRef = layerIndex == 0
                 ? engine.resolveLayer0(item, options)
-                : item.getTextures().get(layerKey);
+                : item.textures().get(layerKey);
             if (textureRef == null || textureRef.isBlank()) break;
 
             if (TrimKit.isTrimTexture(textureRef)) {
@@ -517,7 +517,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             if (options.isShowDamageBar())
                 stack.append(ItemSlot.DAMAGE_BAR, frame ->
-                    ItemStackKit.drawDamageBar(frame, options.getContext().damage(), ctx.item().getMaxDurability()));
+                    ItemStackKit.drawDamageBar(frame, options.getContext().damage(), ctx.item().maxDurability()));
 
             if (options.getContext().stackCount() > 1)
                 stack.append(ItemSlot.STACK_COUNT, frame ->
@@ -583,12 +583,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ConcurrentList<VisibleTriangle> triangles;
             if (isBannerOrShield(options.getItemId())) {
                 triangles = buildBannerOrShield3D(engine, options.getItemId(), options);
-            } else if (!item.getModel().getElements().isEmpty()) {
+            } else if (!item.model().getElements().isEmpty()) {
                 // Element-based path - held block items and any custom item whose model JSON
                 // supplies 'elements'. The element bounds and face bindings are fully resolved
                 // at pipeline time.
                 Map<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item);
-                triangles = BlockGeometryKit.buildFromElements(item.getModel().getElements(), faceTextures, tint);
+                triangles = BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint);
             } else {
                 // Flat sprite fallback - composite the (tinted) layer stack into one texture and
                 // render it as a thin Z-axis slab. composeTintedLayers folds in each layer's
@@ -624,7 +624,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull Item item
         ) {
             return Textures.loadElementFaceTextures(
-                item.getModel().getElements(), item.getModel().getTextures(),
+                item.model().getElements(), item.model().getTextures(),
                 id -> Optional.of(engine.textures().resolveTexture(id)));
         }
 
@@ -640,7 +640,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * first to a vertex, then rotation, then scale - matching the PoseStack op sequence.
          */
         private static @NotNull Matrix4f resolveDisplayTransform(@NotNull Item item, @NotNull String slot) {
-            ModelTransform transform = item.getModel().getDisplay().get(slot);
+            ModelTransform transform = item.model().getDisplay().get(slot);
             if (transform == null) return Matrix4f.IDENTITY;
 
             EulerRotation angles = transform.getRotation();

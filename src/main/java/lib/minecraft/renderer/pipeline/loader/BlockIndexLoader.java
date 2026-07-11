@@ -78,9 +78,9 @@ public class BlockIndexLoader {
             // Block entities carry their mesh as a relative bone tree (block.getModel() is an empty
             // element sentinel that would trip rendersNothing); they render via
             // BlockGeometryKit#buildFromBones, so keep them regardless.
-            if (block.getEntity().isPresent())
+            if (block.entity().isPresent())
                 return false;
-            ModelData model = block.getModel();
+            ModelData model = block.model();
             return isInvisible(entry.getKey())
                 || Models.rendersNothing(model.getElements(), model.getTextures(), false);
         });
@@ -139,7 +139,7 @@ public class BlockIndexLoader {
         // into plain ArrayLists, so the build phase pays no ConcurrentList write locks.
         return tagMap.stream()
             .flatMap(tagEntry -> tagEntry.getValue()
-                .getValues()
+                .values()
                 .stream()
                 .map(blockId -> Map.entry(blockId, tagEntry.getKey()))
             )

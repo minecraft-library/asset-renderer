@@ -32,7 +32,7 @@ public class BlockModelLoader {
      * The result of loading {@code block_models.json}: the per-block-id primary geometry
      * ({@link #models}) plus any state-conditional geometry ({@link #variants}) a block-entity
      * model registers under a blockstate variant key. The pipeline context merges {@link #variants}
-     * into each block's {@link Block#getVariants()} so the standard variant path selects them - the
+     * into each block's {@link Block#variants()} so the standard variant path selects them - the
      * ceiling hanging sign's straight-chain mesh is bound to {@code attached=true} this way.
      *
      * @param models block id to its primary (default-state) block-entity model

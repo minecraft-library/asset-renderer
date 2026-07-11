@@ -81,8 +81,8 @@ public final class ToolingColorMaps {
         JsonArray entries = new JsonArray();
         for (ColorMap colorMap : colorMaps) {
             JsonObject entry = new JsonObject();
-            entry.addProperty("type", colorMap.getType().name());
-            entry.addProperty("pixels", Base64.getEncoder().encodeToString(colorMap.getPixels()));
+            entry.addProperty("type", colorMap.type().name());
+            entry.addProperty("pixels", Base64.getEncoder().encodeToString(colorMap.pixels()));
             entries.add(entry);
         }
         return entries;

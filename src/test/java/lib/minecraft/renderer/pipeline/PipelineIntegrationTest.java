@@ -115,9 +115,9 @@ class PipelineIntegrationTest {
 
         Texture grassTop = result.getTextures().get("minecraft:block/grass_block_top");
         assertThat("grass_block_top texture catalogued", grassTop, is(notNullValue()));
-        assertThat(grassTop.getWidth(), is(greaterThanOrEqualTo(16)));
-        assertThat(grassTop.getHeight(), is(greaterThanOrEqualTo(16)));
-        assertThat(grassTop.getRelativePath(), allOf(
+        assertThat(grassTop.width(), is(greaterThanOrEqualTo(16)));
+        assertThat(grassTop.height(), is(greaterThanOrEqualTo(16)));
+        assertThat(grassTop.relativePath(), allOf(
             containsString("block"),
             containsString("grass_block_top"),
             containsString(".png")

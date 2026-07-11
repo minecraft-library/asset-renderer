@@ -33,7 +33,7 @@ class ColorMapLoaderTest {
         assertTrue(maps.containsKey(ColorMap.Type.GRASS));
         assertTrue(maps.containsKey(ColorMap.Type.FOLIAGE));
         assertTrue(maps.containsKey(ColorMap.Type.DRY_FOLIAGE));
-        assertTrue(maps.get(ColorMap.Type.GRASS).getPixels().length > 0, "decoded pixels must be non-empty");
+        assertTrue(maps.get(ColorMap.Type.GRASS).pixels().length > 0, "decoded pixels must be non-empty");
     }
 
     @Test
@@ -61,6 +61,6 @@ class ColorMapLoaderTest {
             List.of(new ColorMapLoader.V2MapRow("GRASS", pixels)), diagnostics());
 
         assertEquals(1, maps.size());
-        assertEquals(4, maps.get(ColorMap.Type.GRASS).getPixels().length);
+        assertEquals(4, maps.get(ColorMap.Type.GRASS).pixels().length);
     }
 }

@@ -10,9 +10,6 @@ import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,79 +23,52 @@ import java.util.Optional;
  * Every field is populated once during {@code Pipeline} bootstrap and stored verbatim; no
  * lazy or computed fields live on this DTO. Lookup happens through the active renderer
  * context.
+ *
+ * @param id the block's namespaced identifier (e.g. {@code minecraft:furnace})
+ * @param model the resolved model supplying the block's geometry and texture bindings
+ * @param textures the model's texture variable bindings, keyed by variable name
+ * @param variants the blockstate variants keyed by their sorted {@code property=value} state key,
+ *     each carrying a resolved model and whole-block rotation
+ * @param multipart the multipart blockstate definition, or empty when the block uses discrete
+ *     variants
+ * @param tags tag names this block belongs to, e.g.
+ *     {@code ["minecraft:stairs", "minecraft:wooden_stairs"]}
+ * @param tint the biome tint binding selecting which colormap or constant the renderer samples for
+ *     tinted faces
+ * @param entity rendering override for blocks whose visual geometry comes from a vanilla
+ *     {@code BlockEntityRenderer} (beds, chests, banners, shulkers, signs, skulls, conduit,
+ *     decorated_pot, etc.). When present, renderers prefer {@link Entity#boneModel()} over
+ *     {@link #model()}, multiply {@link Entity#tintArgb()} against sampled texels, honour
+ *     {@link Entity#iconRotation()} for the atlas icon, and optionally compose {@link Entity#parts()}
+ *     for multi-part atlas views (bed head + foot, decorated_pot body + sides, banner post + flag).
+ *     Absent for plain blocks
+ * @param source where this block's registration originated. Used by atlas tile classification to
+ *     label the source path (block-model file, blockstate-only fallback, or block-entity geometry
+ *     override) without forcing consumers to type-check the renderer-context implementation
+ * @param defaultStateKey the block's canonical default blockstate key as {@code property=value} pairs
+ *     sorted alphabetically (e.g.
+ *     {@code "facing=north,half=lower,hinge=left,open=false,powered=false"}), or empty when the block
+ *     has no properties. Sourced from {@code block_defaults.json} (an ASM bytewalk of
+ *     {@code registerDefaultState}) and baked on at pipeline-context construction. The renderer falls
+ *     back to this key when a caller supplies no explicit variant, so blocks with per-state models
+ *     render their default rather than whichever state registered first
  */
-@Getter
-@AllArgsConstructor
-@EqualsAndHashCode
-public final class Block {
-
-    /**
-     * The block's namespaced identifier (e.g. {@code minecraft:furnace}).
-     */
-    private final @NotNull ResourceId id;
-
-    /**
-     * The resolved model supplying the block's geometry and texture bindings.
-     */
-    private final @NotNull ModelData model;
-
-    /**
-     * The model's texture variable bindings, keyed by variable name.
-     */
-    private final @NotNull ConcurrentMap<String, String> textures;
-
-    /**
-     * The blockstate variants keyed by their sorted {@code property=value} state key, each carrying
-     * a resolved model and whole-block rotation.
-     */
-    private final @NotNull ConcurrentMap<String, Variant> variants;
-
-    /**
-     * The multipart blockstate definition, or empty when the block uses discrete variants.
-     */
-    private final @NotNull Optional<Multipart> multipart;
-
-    /**
-     * Tag names this block belongs to, e.g. {@code ["minecraft:stairs", "minecraft:wooden_stairs"]}.
-     */
-    private final @NotNull ConcurrentList<String> tags;
-
-    /**
-     * The biome tint binding selecting which colormap or constant the renderer samples for tinted faces.
-     */
-    private final @NotNull Tint tint;
-
-    /**
-     * Rendering override for blocks whose visual geometry comes from a vanilla
-     * {@code BlockEntityRenderer} (beds, chests, banners, shulkers, signs, skulls, conduit,
-     * decorated_pot, etc.). When present, renderers prefer {@link Entity#boneModel()} over
-     * {@link #getModel()}, multiply {@link Entity#tintArgb()} against sampled texels, honour
-     * {@link Entity#iconRotation()} for the atlas icon, and optionally compose
-     * {@link Entity#parts()} for multi-part atlas views (bed head + foot, decorated_pot body +
-     * sides, banner post + flag). Absent for plain blocks.
-     */
-    private final @NotNull Optional<Entity> entity;
-
-    /**
-     * Where this block's registration originated. Used by atlas tile classification to label the
-     * source path (block-model file, blockstate-only fallback, or block-entity geometry override)
-     * without forcing consumers to type-check the renderer-context implementation.
-     */
-    private final @NotNull Source source;
-
-    /**
-     * The block's canonical default blockstate key as {@code property=value} pairs sorted
-     * alphabetically (e.g. {@code "facing=north,half=lower,hinge=left,open=false,powered=false"}),
-     * or empty when the block has no properties. Sourced from {@code block_defaults.json} (an ASM
-     * bytewalk of {@code registerDefaultState}) and baked on at pipeline-context construction. The
-     * renderer falls back to this key when a caller supplies no explicit variant, so blocks with
-     * per-state models render their default rather than whichever state registered first.
-     */
-    private final @NotNull String defaultStateKey;
+public record Block(
+    @NotNull ResourceId id,
+    @NotNull ModelData model,
+    @NotNull ConcurrentMap<String, String> textures,
+    @NotNull ConcurrentMap<String, Variant> variants,
+    @NotNull Optional<Multipart> multipart,
+    @NotNull ConcurrentList<String> tags,
+    @NotNull Tint tint,
+    @NotNull Optional<Entity> entity,
+    @NotNull Source source,
+    @NotNull String defaultStateKey
+) {
 
     /**
      * Returns this block's texture reference for the first of {@code directionKeys} that is bound in
-     * {@link #getTextures()}, or {@code ""} when none is. Callers pass the fallback chain in priority
+     * {@link #textures()}, or {@code ""} when none is. Callers pass the fallback chain in priority
      * order - e.g. {@code textureRef(direction, "all", "side", "particle")} - so the block owns its
      * own first-bound resolution instead of each call site cascading {@code getOrDefault}.
      *

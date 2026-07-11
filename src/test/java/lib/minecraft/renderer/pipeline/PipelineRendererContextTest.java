@@ -196,11 +196,11 @@ class PipelineRendererContextTest {
     void findBlockDerivesEntityId() {
         Optional<Block> stone = context.findBlock("minecraft:stone");
         assertThat(stone.isPresent(), is(true));
-        assertThat(stone.get().getId().id(), equalTo("minecraft:stone"));
-        assertThat(stone.get().getId().namespace(), equalTo("minecraft"));
-        assertThat(stone.get().getId().name(), equalTo("stone"));
-        assertThat(stone.get().getModel(), notNullValue());
-        assertThat(stone.get().getTextures().get("all"), equalTo("minecraft:block/fixture"));
+        assertThat(stone.get().id().id(), equalTo("minecraft:stone"));
+        assertThat(stone.get().id().namespace(), equalTo("minecraft"));
+        assertThat(stone.get().id().name(), equalTo("stone"));
+        assertThat(stone.get().model(), notNullValue());
+        assertThat(stone.get().textures().get("all"), equalTo("minecraft:block/fixture"));
     }
 
     @Test
@@ -214,10 +214,10 @@ class PipelineRendererContextTest {
     void findItemDerivesEntityId() {
         Optional<Item> stick = context.findItem("minecraft:stick");
         assertThat(stick.isPresent(), is(true));
-        assertThat(stick.get().getId().id(), equalTo("minecraft:stick"));
-        assertThat(stick.get().getId().namespace(), equalTo("minecraft"));
-        assertThat(stick.get().getId().name(), equalTo("stick"));
-        assertThat(stick.get().getTextures().get("layer0"), equalTo("minecraft:block/fixture"));
+        assertThat(stick.get().id().id(), equalTo("minecraft:stick"));
+        assertThat(stick.get().id().namespace(), equalTo("minecraft"));
+        assertThat(stick.get().id().name(), equalTo("stick"));
+        assertThat(stick.get().textures().get("layer0"), equalTo("minecraft:block/fixture"));
     }
 
     @Test
@@ -231,9 +231,9 @@ class PipelineRendererContextTest {
     void leatherHelmetGetsTintsAtPipelineTime() {
         Optional<Item> leatherHelmet = context.findItem("minecraft:leather_helmet");
         assertThat(leatherHelmet.isPresent(), is(true));
-        assertThat(leatherHelmet.get().getTints(), hasSize(1));
-        assertThat(leatherHelmet.get().getTints().getFirst(), instanceOf(LayerTint.Dye.class));
-        LayerTint.Dye dye = (LayerTint.Dye) leatherHelmet.get().getTints().getFirst();
+        assertThat(leatherHelmet.get().tints(), hasSize(1));
+        assertThat(leatherHelmet.get().tints().getFirst(), instanceOf(LayerTint.Dye.class));
+        LayerTint.Dye dye = (LayerTint.Dye) leatherHelmet.get().tints().getFirst();
         assertThat(dye.defaultColor(), equalTo(0xFFA06540));
     }
 
@@ -242,15 +242,15 @@ class PipelineRendererContextTest {
     void nonTintedItemsGetEmptyTints() {
         Optional<Item> stick = context.findItem("minecraft:stick");
         assertThat(stick.isPresent(), is(true));
-        assertThat(stick.get().getTints().isEmpty(), is(true));
+        assertThat(stick.get().tints().isEmpty(), is(true));
     }
 
     @Test
     @DisplayName("items in the glint set materialise with alwaysGlinted=true, others false")
     void glintItemsGetAlwaysGlintedFlag() {
         // The fixture marks stick as always-glinted; leather_helmet is not in the set.
-        assertThat(context.findItem("minecraft:stick").orElseThrow().isAlwaysGlinted(), is(true));
-        assertThat(context.findItem("minecraft:leather_helmet").orElseThrow().isAlwaysGlinted(), is(false));
+        assertThat(context.findItem("minecraft:stick").orElseThrow().alwaysGlinted(), is(true));
+        assertThat(context.findItem("minecraft:leather_helmet").orElseThrow().alwaysGlinted(), is(false));
     }
 
     @Test
@@ -292,10 +292,10 @@ class PipelineRendererContextTest {
     void findColorMapReturnsLoadedGrass() {
         Optional<ColorMap> grass = context.findColorMap(ColorMap.Type.GRASS);
         assertThat(grass.isPresent(), is(true));
-        assertThat(grass.get().getType(), equalTo(ColorMap.Type.GRASS));
-        assertThat(grass.get().getPackId(), equalTo("vanilla"));
+        assertThat(grass.get().type(), equalTo(ColorMap.Type.GRASS));
+        assertThat(grass.get().packId(), equalTo("vanilla"));
         // 256x256 ARGB pixels = 262144 bytes from the bundled colormap resource.
-        assertThat(grass.get().getPixels().length, equalTo(256 * 256 * 4));
+        assertThat(grass.get().pixels().length, equalTo(256 * 256 * 4));
     }
 
     @Test
@@ -378,7 +378,7 @@ class PipelineRendererContextTest {
         assertThat(cube.isPresent(), is(true));
 
         // Direction keys derived from element[0].faces, with #variable references resolved.
-        ConcurrentMap<String, String> textures = cube.get().getTextures();
+        ConcurrentMap<String, String> textures = cube.get().textures();
         assertThat(textures.get("down"), equalTo("minecraft:block/fixture"));
         assertThat(textures.get("up"), equalTo("minecraft:block/fixture"));
         assertThat(textures.get("north"), equalTo("minecraft:block/fixture"));
@@ -397,7 +397,7 @@ class PipelineRendererContextTest {
     void blockWithoutElementsKeepsRawTextures() {
         Optional<Block> stone = context.findBlock("minecraft:stone");
         assertThat(stone.isPresent(), is(true));
-        ConcurrentMap<String, String> textures = stone.get().getTextures();
+        ConcurrentMap<String, String> textures = stone.get().textures();
         assertThat(textures.containsKey("down"), is(false));
         assertThat(textures.get("all"), equalTo("minecraft:block/fixture"));
     }
@@ -409,19 +409,19 @@ class PipelineRendererContextTest {
         assertThat(animation.isPresent(), is(true));
 
         AnimationData a = animation.get();
-        assertThat(a.getFrametime(), equalTo(4));
-        assertThat(a.isInterpolate(), is(true));
-        assertThat(a.getFrames().size(), equalTo(4));
+        assertThat(a.frametime(), equalTo(4));
+        assertThat(a.interpolate(), is(true));
+        assertThat(a.frames().size(), equalTo(4));
 
         // Bare-integer frames carry the -1 sentinel so AnimationKit can fall back to frametime.
-        assertThat(a.getFrames().get(0).index(), equalTo(0));
-        assertThat(a.getFrames().get(0).time(), equalTo(-1));
-        assertThat(a.getFrames().get(1).index(), equalTo(1));
-        assertThat(a.getFrames().get(1).time(), equalTo(-1));
+        assertThat(a.frames().get(0).index(), equalTo(0));
+        assertThat(a.frames().get(0).time(), equalTo(-1));
+        assertThat(a.frames().get(1).index(), equalTo(1));
+        assertThat(a.frames().get(1).time(), equalTo(-1));
 
         // Object-form frames carry their explicit per-frame duration override.
-        assertThat(a.getFrames().get(3).index(), equalTo(3));
-        assertThat(a.getFrames().get(3).time(), equalTo(8));
+        assertThat(a.frames().get(3).index(), equalTo(3));
+        assertThat(a.frames().get(3).time(), equalTo(8));
     }
 
     @Test
@@ -435,8 +435,8 @@ class PipelineRendererContextTest {
     void textureAnimationFieldIsPopulated() {
         Texture fixture = result.getTextures().get("minecraft:block/fixture");
         assertThat(fixture, is(notNullValue()));
-        assertThat(fixture.getAnimation().isPresent(), is(true));
-        assertThat(fixture.getAnimation().get().getFrametime(), equalTo(4));
+        assertThat(fixture.animation().isPresent(), is(true));
+        assertThat(fixture.animation().get().frametime(), equalTo(4));
     }
 
     @Test
@@ -453,25 +453,25 @@ class PipelineRendererContextTest {
     @DisplayName("Block.tint.target is populated for known vanilla colormap-tinted blocks")
     void blockTintTargetPopulatedFromVanillaTintsTable() {
         Block grassBlock = context.findBlock("minecraft:grass_block").orElseThrow();
-        assertThat(grassBlock.getTint().target(), equalTo(Block.TintTarget.GRASS));
-        assertThat(grassBlock.getTint().constant().isPresent(), is(false));
+        assertThat(grassBlock.tint().target(), equalTo(Block.TintTarget.GRASS));
+        assertThat(grassBlock.tint().constant().isPresent(), is(false));
     }
 
     @Test
     @DisplayName("Block.tint.constant is populated for known vanilla constant-tinted blocks")
     void blockTintConstantPopulatedFromVanillaTintsTable() {
         Block spruceLeaves = context.findBlock("minecraft:spruce_leaves").orElseThrow();
-        assertThat(spruceLeaves.getTint().target(), equalTo(Block.TintTarget.CONSTANT));
-        assertThat(spruceLeaves.getTint().constant().isPresent(), is(true));
-        assertThat(spruceLeaves.getTint().constant().get(), equalTo(0xFF619961));
+        assertThat(spruceLeaves.tint().target(), equalTo(Block.TintTarget.CONSTANT));
+        assertThat(spruceLeaves.tint().constant().isPresent(), is(true));
+        assertThat(spruceLeaves.tint().constant().get(), equalTo(0xFF619961));
     }
 
     @Test
     @DisplayName("Untinted blocks (not in the tints table) keep tint.target=NONE")
     void blockTintTargetDefaultsForUntintedBlocks() {
         Block stone = context.findBlock("minecraft:stone").orElseThrow();
-        assertThat(stone.getTint().target(), equalTo(Block.TintTarget.NONE));
-        assertThat(stone.getTint().constant().isPresent(), is(false));
+        assertThat(stone.tint().target(), equalTo(Block.TintTarget.NONE));
+        assertThat(stone.tint().constant().isPresent(), is(false));
     }
 
 }
