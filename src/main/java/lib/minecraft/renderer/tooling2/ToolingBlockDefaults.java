@@ -19,7 +19,7 @@ import java.nio.file.Path;
 public final class ToolingBlockDefaults {
 
     /** The v2 resource directory (SPINE 4 registry). */
-    private static final Path V2 = Path.of("src", "main", "resources", "lib", "minecraft", "renderer", "v2");
+    private static final Path V2 = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingBlockDefaults() {
     }

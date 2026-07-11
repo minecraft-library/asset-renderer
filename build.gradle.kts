@@ -151,52 +151,52 @@ tasks {
     }
 
     // tooling2 - the rewrite flows (decision 30 naming); outputs land under
-    // src/main/resources/lib/minecraft/renderer/v2/, never the legacy top-level JSONs.
+    // src/main/resources/lib/minecraft/renderer/, never the legacy top-level JSONs.
 
     register<JavaExec>("entityModels2") {
-        description = "tooling2: walks the client jar and generates src/main/resources/lib/minecraft/renderer/v2/entity_models.json + v2/entity_geometry.json."
+        description = "tooling2: walks the client jar and generates src/main/resources/lib/minecraft/renderer/entity_models.json + v2/entity_geometry.json."
         group = "tooling2"
         mainClass.set("lib.minecraft.renderer.tooling2.ToolingEntityModels")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("blockModels2") {
-        description = "tooling2: walks the client jar and generates src/main/resources/lib/minecraft/renderer/v2/block_models.json + v2/block_geometry.json."
+        description = "tooling2: walks the client jar and generates src/main/resources/lib/minecraft/renderer/block_models.json + v2/block_geometry.json."
         group = "tooling2"
         mainClass.set("lib.minecraft.renderer.tooling2.ToolingBlockModels")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("blockDefaults2") {
-        description = "tooling2: bytewalks registerDefaultState and generates src/main/resources/lib/minecraft/renderer/v2/block_defaults.json (default blockstate per block + unresolved[])."
+        description = "tooling2: bytewalks registerDefaultState and generates src/main/resources/lib/minecraft/renderer/block_defaults.json (default blockstate per block + unresolved[])."
         group = "tooling2"
         mainClass.set("lib.minecraft.renderer.tooling2.ToolingBlockDefaults")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("blockTints2") {
-        description = "tooling2: walks BlockColors.createDefault() and generates src/main/resources/lib/minecraft/renderer/v2/block_tints.json (tints + dropped[])."
+        description = "tooling2: walks BlockColors.createDefault() and generates src/main/resources/lib/minecraft/renderer/block_tints.json (tints + dropped[])."
         group = "tooling2"
         mainClass.set("lib.minecraft.renderer.tooling2.ToolingBlockTints")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("potionColors2") {
-        description = "tooling2: walks MobEffects.<clinit> and generates src/main/resources/lib/minecraft/renderer/v2/potion_colors.json (effect colours, sorted by id)."
+        description = "tooling2: walks MobEffects.<clinit> and generates src/main/resources/lib/minecraft/renderer/potion_colors.json (effect colours, sorted by id)."
         group = "tooling2"
         mainClass.set("lib.minecraft.renderer.tooling2.ToolingPotionColors")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("glintItems2") {
-        description = "tooling2: walks Items.<clinit> and generates src/main/resources/lib/minecraft/renderer/v2/glint_items.json (always-glinted item ids, sorted)."
+        description = "tooling2: walks Items.<clinit> and generates src/main/resources/lib/minecraft/renderer/glint_items.json (always-glinted item ids, sorted)."
         group = "tooling2"
         mainClass.set("lib.minecraft.renderer.tooling2.ToolingGlintItems")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("colorMaps2") {
-        description = "tooling2: reads the biome colormap PNGs from the jar and generates src/main/resources/lib/minecraft/renderer/v2/color_maps.json (base64 big-endian ARGB pixels)."
+        description = "tooling2: reads the biome colormap PNGs from the jar and generates src/main/resources/lib/minecraft/renderer/color_maps.json (base64 big-endian ARGB pixels)."
         group = "tooling2"
         mainClass.set("lib.minecraft.renderer.tooling2.ToolingColorMaps")
         classpath = sourceSets["main"].runtimeClasspath

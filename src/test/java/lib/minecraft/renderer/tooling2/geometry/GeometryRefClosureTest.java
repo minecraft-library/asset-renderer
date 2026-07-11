@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 class GeometryRefClosureTest {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
-    private static final @NotNull Path V2 = Path.of("src/main/resources/lib/minecraft/renderer/v2");
+    private static final @NotNull Path V2 = Path.of("src/main/resources/lib/minecraft/renderer");
 
     @Test
     @DisplayName("entity pair: entity_models.json refs close over entity_geometry.json")

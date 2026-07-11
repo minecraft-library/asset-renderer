@@ -52,7 +52,7 @@ class GeometryParserTest {
         cache = ClassNodeCache.open(Pipeline.downloadJarToCache(PipelineOptions.defaults()));
         v2Geometries = GSON.fromJson(new InputStreamReader(
                 Objects.requireNonNull(GeometryParserTest.class.getResourceAsStream(
-                    "/lib/minecraft/renderer/v2/entity_geometry.json")), StandardCharsets.UTF_8),
+                    "/lib/minecraft/renderer/entity_geometry.json")), StandardCharsets.UTF_8),
                 JsonElement.class)
             .getAsJsonObject().getAsJsonObject("geometries");
     }

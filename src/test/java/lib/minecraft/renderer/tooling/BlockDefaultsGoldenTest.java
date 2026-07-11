@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.is;
 @DisplayName("v2/block_defaults.json agrees with the live pipeline")
 class BlockDefaultsGoldenTest {
 
-    private static final Path JSON_PATH = Path.of("src/main/resources/lib/minecraft/renderer/v2/block_defaults.json");
+    private static final Path JSON_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_defaults.json");
     private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test

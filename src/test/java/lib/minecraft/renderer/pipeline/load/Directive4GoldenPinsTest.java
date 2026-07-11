@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 @DisplayName("directive-4 golden pins (Fact C: byte-moving set empty in 26.1)")
 class Directive4GoldenPinsTest {
 
-    private static final @NotNull String V2 = "/lib/minecraft/renderer/v2/";
+    private static final @NotNull String V2 = "/lib/minecraft/renderer/";
 
     @Test
     @DisplayName("grow[3]: no v2 geometry cube carries an [x,y,z] array grow (all scalar)")

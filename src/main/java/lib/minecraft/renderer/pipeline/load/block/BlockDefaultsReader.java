@@ -48,7 +48,7 @@ public final class BlockDefaultsReader {
         V2Document document = V2Resources.read(RESOURCE_NAME, V2Resources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         JsonObject root = document.payload().toGson().getAsJsonObject();
         if (!root.has("blocks"))
-            throw new PipelineException("Block-defaults resource 'v2/%s' has no 'blocks' object", RESOURCE_NAME);
+            throw new PipelineException("Block-defaults resource '%s' has no 'blocks' object", RESOURCE_NAME);
 
         Set<String> unresolved = new HashSet<>();
         if (root.has("unresolved"))

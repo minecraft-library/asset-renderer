@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Single golden-reference guard for every bundled v2 JSON resource under
- * {@code src/main/resources/lib/minecraft/renderer/v2/}: the block snapshots
+ * {@code src/main/resources/lib/minecraft/renderer/}: the block snapshots
  * ({@code block_models}, {@code block_geometry}, {@code block_defaults}, {@code block_tints}) plus the
  * colormap, entity, and potion / glint tables ({@code color_maps}, {@code entity_geometry},
  * {@code entity_models}, {@code potion_colors}, {@code glint_items}).
@@ -42,15 +42,15 @@ import static org.hamcrest.Matchers.is;
  * <p>
  * Regeneration workflow: regenerate the JSON via the matching {@code ./gradlew} {@code <task>2}
  * tooling task, re-run this test, read the printed actual SHA-256, paste it into the matching fixture
- * under {@code src/test/resources/lib/minecraft/renderer/v2/}, and commit both.
+ * under {@code src/test/resources/lib/minecraft/renderer/}, and commit both.
  */
 @DisplayName("bundled v2 JSON resources match their committed SHA-256 fixtures")
 class V2JsonResourceShaTest {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
-    static final @NotNull Path RESOURCES = Path.of("src/main/resources/lib/minecraft/renderer/v2");
-    static final @NotNull Path FIXTURES = Path.of("src/test/resources/lib/minecraft/renderer/v2");
+    static final @NotNull Path RESOURCES = Path.of("src/main/resources/lib/minecraft/renderer");
+    static final @NotNull Path FIXTURES = Path.of("src/test/resources/lib/minecraft/renderer");
 
     static final @NotNull List<String> COVERED = List.of(
         "block_models", "block_geometry", "block_defaults", "block_tints",

@@ -12,7 +12,7 @@ import java.util.Optional;
  * The single classpath-read site for the bundled {@code v2/*.json} asset resources.
  *
  * <p>{@link #read(String, MissingPolicy, Diagnostics)} opens
- * {@code /lib/minecraft/renderer/v2/<name>} under try-with-resources - closing the stream on every
+ * {@code /lib/minecraft/renderer/<name>} under try-with-resources - closing the stream on every
  * path, fixing the historical colormap-loader leak - and applies the caller-declared
  * {@link MissingPolicy} when the resource is absent. The graceful-empty vs required split is an
  * explicit per-file policy the caller declares, not an accident: {@code entity} and {@code colormap}
@@ -22,7 +22,7 @@ import java.util.Optional;
 public final class V2Resources {
 
     /** Classpath root under which every v2 resource is bundled. */
-    private static final @NotNull String V2_DIR = "/lib/minecraft/renderer/v2/";
+    private static final @NotNull String V2_DIR = "/lib/minecraft/renderer/";
 
     private V2Resources() {}
 
@@ -49,12 +49,12 @@ public final class V2Resources {
         try (InputStream stream = V2Resources.class.getResourceAsStream(V2_DIR + name)) {
             if (stream == null) {
                 if (policy == MissingPolicy.REQUIRED)
-                    throw new PipelineException("Classpath resource 'v2/%s' not found - run its tooling2 Gradle task to generate it", name);
+                    throw new PipelineException("Classpath resource '%s' not found - run its tooling2 Gradle task to generate it", name);
                 return Optional.empty();
             }
             return Optional.of(V2Document.open(stream.readAllBytes(), diagnostics.child(name)));
         } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to read classpath resource 'v2/%s'", name);
+            throw new PipelineException(ex, "Failed to read classpath resource '%s'", name);
         }
     }
 }
