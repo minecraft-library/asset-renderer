@@ -726,16 +726,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // applied separately in pixel space (see finalMatrix) so it composes the bone's FULL
         // ancestor chain, not just the attached bone's own local pivot / rotation.
         Matrix4f blockUnitChain = Matrix4f.IDENTITY;
-
-        for (Entity.TransformOp op : overlay.transforms()) {
-            blockUnitChain = switch (op) {
-                case Entity.Translate t -> blockUnitChain.translate(t.x(), t.y(), t.z());
-                case Entity.RotateY r -> blockUnitChain.rotateY((float) Math.toRadians(r.degrees()));
-                case Entity.RotateX r -> blockUnitChain.rotateX((float) Math.toRadians(r.degrees()));
-                case Entity.RotateZ r -> blockUnitChain.rotateZ((float) Math.toRadians(r.degrees()));
-                case Entity.Scale s -> blockUnitChain.scale(s.x(), s.y(), s.z());
-            };
-        }
+        for (Entity.TransformOp op : overlay.transforms())
+            blockUnitChain = op.appendTo(blockUnitChain);
 
         // Vanilla expects block-model vertices in {@code [0, 1]} (corner-at-origin) since the
         // last pose op {@code translate(-0.5, -0.5, -0.5)} re-centers them at origin before the

@@ -8,6 +8,7 @@ import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.pipeline.load.entity.EntityFamilyReader;
+import lib.minecraft.renderer.tensor.Matrix4f;
 import lombok.Builder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -222,38 +223,75 @@ public record Entity(
      * axis -> {@link RotateY} / on the X axis -> {@link RotateX} / on the Z axis -> {@link RotateZ},
      * {@code scale(F, F, F)} -> {@link Scale}.
      *
-     * <p>Sealed so the renderer can pattern-match without a default branch. Add a new op kind by
-     * extending the seal and updating both the JSON serialiser and the renderer dispatch.
+     * <p>Sealed so each op knows how to {@link #appendTo(Matrix4f) append itself} to the chain, letting
+     * the renderer compose a transform without a dispatch switch. Add a new op kind by adding a nested
+     * record and updating the JSON parser.
      */
-    public sealed interface TransformOp permits Translate, RotateY, RotateX, RotateZ, Scale {}
+    public sealed interface TransformOp {
 
-    /**
-     * Translation by {@code (x, y, z)} in entity-local units.
-     */
-    public record Translate(float x, float y, float z) implements TransformOp {}
+        /**
+         * Post-multiplies this op onto {@code chain}, matching vanilla's {@code pose = pose * newOp} so
+         * that, under the column-vector convention, the most-recently-appended op applies first to a
+         * cube-local vertex.
+         *
+         * @param chain the accumulated block-unit chain
+         * @return {@code chain} with this op appended
+         */
+        @NotNull Matrix4f appendTo(@NotNull Matrix4f chain);
 
-    /**
-     * Rotation around the Y axis by {@code degrees}.
-     */
-    public record RotateY(float degrees) implements TransformOp {}
+        /**
+         * Translation by {@code (x, y, z)} in entity-local units.
+         */
+        record Translate(float x, float y, float z) implements TransformOp {
+            @Override
+            public @NotNull Matrix4f appendTo(@NotNull Matrix4f chain) {
+                return chain.translate(this.x, this.y, this.z);
+            }
+        }
 
-    /**
-     * Rotation around the X axis by {@code degrees} (the enderman carried block's {@code Axis.XP} tilt,
-     * the iron golem flower's {@code Axis.XP} lay-flat).
-     */
-    public record RotateX(float degrees) implements TransformOp {}
+        /**
+         * Rotation around the Y axis by {@code degrees}.
+         */
+        record RotateY(float degrees) implements TransformOp {
+            @Override
+            public @NotNull Matrix4f appendTo(@NotNull Matrix4f chain) {
+                return chain.rotateY((float) Math.toRadians(this.degrees));
+            }
+        }
 
-    /**
-     * Rotation around the Z axis by {@code degrees} (a {@code mulPose(rotationDegrees)} on
-     * {@code Axis.ZP}). Vocabulary-only in 26.1 - no vanilla block-overlay layer emits a {@code rotate_z}
-     * row - but present so a future one composes in the correct PoseStack order.
-     */
-    public record RotateZ(float degrees) implements TransformOp {}
+        /**
+         * Rotation around the X axis by {@code degrees} (the enderman carried block's {@code Axis.XP} tilt,
+         * the iron golem flower's {@code Axis.XP} lay-flat).
+         */
+        record RotateX(float degrees) implements TransformOp {
+            @Override
+            public @NotNull Matrix4f appendTo(@NotNull Matrix4f chain) {
+                return chain.rotateX((float) Math.toRadians(this.degrees));
+            }
+        }
 
-    /**
-     * Per-axis scale {@code (x, y, z)}. Negative components flip the axis.
-     */
-    public record Scale(float x, float y, float z) implements TransformOp {}
+        /**
+         * Rotation around the Z axis by {@code degrees} (a {@code mulPose(rotationDegrees)} on
+         * {@code Axis.ZP}). Vocabulary-only in 26.1 - no vanilla block-overlay layer emits a {@code rotate_z}
+         * row - but present so a future one composes in the correct PoseStack order.
+         */
+        record RotateZ(float degrees) implements TransformOp {
+            @Override
+            public @NotNull Matrix4f appendTo(@NotNull Matrix4f chain) {
+                return chain.rotateZ((float) Math.toRadians(this.degrees));
+            }
+        }
+
+        /**
+         * Per-axis scale {@code (x, y, z)}. Negative components flip the axis.
+         */
+        record Scale(float x, float y, float z) implements TransformOp {
+            @Override
+            public @NotNull Matrix4f appendTo(@NotNull Matrix4f chain) {
+                return chain.scale(this.x, this.y, this.z);
+            }
+        }
+    }
 
     /**
      * One overlay layer on an {@link Entity}: an independent geometry plus its own bundled texture
