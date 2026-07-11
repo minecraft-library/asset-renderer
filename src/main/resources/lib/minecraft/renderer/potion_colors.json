@@ -1,5 +1,5 @@
 {
-  "//": "tooling2.potionColors · regen: ./gradlew potionColors2 · order: effect id sort order",
+  "//": "tooling.potionColors · regen: ./gradlew potionColors · order: effect id sort order",
   "format": 2,
   "source_version": "26.1",
   "effects": [

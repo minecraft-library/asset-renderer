@@ -1,5 +1,5 @@
 {
-  "//": "tooling2.entityModels · regen: ./gradlew entityModels2 · order: EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain",
+  "//": "tooling.entityModels · regen: ./gradlew entityModels · order: EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain",
   "format": 2,
   "source_version": "26.1",
   "families": {

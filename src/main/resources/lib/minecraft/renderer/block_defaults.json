@@ -1,5 +1,5 @@
 {
-  "//": "tooling2.blockDefaults · regen: ./gradlew blockDefaults2 · order: block ids sorted; properties sorted within each default object",
+  "//": "tooling.blockDefaults · regen: ./gradlew blockDefaults · order: block ids sorted; properties sorted within each default object",
   "format": 2,
   "source_version": "26.1",
   "blocks": {

@@ -1,5 +1,5 @@
 {
-  "//": "tooling2.glintItems · regen: ./gradlew glintItems2 · order: item id sort order",
+  "//": "tooling.glintItems · regen: ./gradlew glintItems · order: item id sort order",
   "format": 2,
   "source_version": "26.1",
   "items": [

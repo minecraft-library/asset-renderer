@@ -1,5 +1,5 @@
 {
-  "//": "tooling2.blockTints · regen: ./gradlew blockTints2 · order: BlockColors.createDefault() walk order",
+  "//": "tooling.blockTints · regen: ./gradlew blockTints · order: BlockColors.createDefault() walk order",
   "format": 2,
   "source_version": "26.1",
   "tints": [

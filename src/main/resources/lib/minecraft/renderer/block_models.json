@@ -1,5 +1,5 @@
 {
-  "//": "tooling2.blockModels · regen: ./gradlew blockModels2 · order: BlockEntityRenderers.<clinit> registration order x BlockFamilyPolicies split order",
+  "//": "tooling.blockModels · regen: ./gradlew blockModels · order: BlockEntityRenderers.<clinit> registration order x BlockFamilyPolicies split order",
   "format": 2,
   "source_version": "26.1",
   "models": {

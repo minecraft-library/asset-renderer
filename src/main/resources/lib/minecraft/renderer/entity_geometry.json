@@ -1,5 +1,5 @@
 {
-  "//": "tooling2.entityModels · regen: ./gradlew entityModels2 · order: GeometryManifest registration order (walk order; append-last as a data-structure property)",
+  "//": "tooling.entityModels · regen: ./gradlew entityModels · order: GeometryManifest registration order (walk order; append-last as a data-structure property)",
   "format": 2,
   "source_version": "26.1",
   "geometries": {

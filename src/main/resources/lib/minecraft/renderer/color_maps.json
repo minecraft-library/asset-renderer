@@ -1,5 +1,5 @@
 {
-  "//": "tooling2.colorMaps · regen: ./gradlew colorMaps2 · order: ColorMapPolicies declaration order",
+  "//": "tooling.colorMaps · regen: ./gradlew colorMaps · order: ColorMapPolicies declaration order",
   "format": 2,
   "source_version": "26.1",
   "maps": [

@@ -1,5 +1,5 @@
 {
-  "//": "tooling2.blockModels · regen: ./gradlew blockModels2 · order: GeometryManifest registration order (walk order; append-last as a data-structure property)",
+  "//": "tooling.blockModels · regen: ./gradlew blockModels · order: GeometryManifest registration order (walk order; append-last as a data-structure property)",
   "format": 2,
   "source_version": "26.1",
   "geometries": {
