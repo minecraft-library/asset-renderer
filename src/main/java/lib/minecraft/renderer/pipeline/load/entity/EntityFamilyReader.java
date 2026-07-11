@@ -26,6 +26,7 @@ import lib.minecraft.renderer.asset.Entity.RotateZ;
 import lib.minecraft.renderer.asset.Entity.Scale;
 import lib.minecraft.renderer.asset.Entity.TransformOp;
 import lib.minecraft.renderer.asset.Entity.Translate;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
@@ -266,6 +267,7 @@ public final class EntityFamilyReader {
         if (babyTexture != null) stateTextures.put("baby", babyTexture);
 
         definitions.put(familyId, Entity.builder()
+            .id(ResourceId.parse(familyId))
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .boneToggles(toggles)
@@ -318,6 +320,7 @@ public final class EntityFamilyReader {
         Map<String, String> stateTextures = variantStateTextures(optionObj);
         Optional<String> textureRef = variantWildTexture(optionObj);
         return Entity.builder()
+            .id(ResourceId.parse(rowId))
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(ctx.blockOverlays())
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
             .boneToggles(toggles)

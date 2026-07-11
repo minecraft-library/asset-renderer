@@ -34,6 +34,7 @@ import java.util.Optional;
  * the data into two files lets each entity metadata row stay small while the potentially-multi-kilobyte
  * bone tree is stored exactly once.
  *
+ * @param id the entity's namespaced identifier (e.g. {@code minecraft:zombie})
  * @param model the parsed bone/cube tree (shared across all entities with the same geometry_ref)
  * @param textureRef the vanilla {@code textures/entity/} sub-path (without the {@code .png} suffix),
  *     resolved at render time via {@link RendererContext#resolveTexture(String) resolveTexture} as
@@ -68,6 +69,7 @@ import java.util.Optional;
  */
 @Builder(toBuilder = true)
 public record Entity(
+    @NotNull ResourceId id,
     @NotNull EntityModelData model,
     @NotNull Optional<String> textureRef,
     @NotNull List<OverlayLayer> overlays,
