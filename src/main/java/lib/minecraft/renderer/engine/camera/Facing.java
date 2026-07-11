@@ -13,7 +13,7 @@ import org.jetbrains.annotations.NotNull;
  * for an {@linkplain Lens.Kind#OBLIQUE oblique} lens each also flips the corresponding component of the
  * depth shear, so the mirror holds even for a front-facing oblique whose yaw reflection is a no-op. The
  * {@link #DEFAULT} identity is a bit-for-bit no-op ({@link #apply(EulerRotation)} / {@link #apply(Lens)}
- * return their argument unchanged), keeping the default render path byte-identical.
+ * return their argument unchanged).
  * <p>
  * The {@code with*} helpers derive a new facing from an existing one; they never mutate.
  *
@@ -69,7 +69,7 @@ public record Facing(boolean mirrored, boolean flipped) {
     /**
      * Reflects a pose by this facing: {@link #mirrored} reflects the yaw ({@code 360 - yaw}) and
      * {@link #flipped} negates the pitch; roll is untouched. {@link #DEFAULT} returns the argument
-     * unchanged with no arithmetic, so the default resolve path stays byte-identical.
+     * unchanged with no arithmetic.
      *
      * @param rotation the composed pose to reflect
      * @return the reflected pose, or {@code rotation} itself when this facing is the identity

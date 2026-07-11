@@ -15,8 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies {@link ColorMapLoader} against the bundled {@code color_maps.json} snapshot: the native
- * read decodes the three biome colormaps, the mapping helper guards a {@code null} row list (the
- * historical NPE fix), and an unknown {@link ColorMap.Type} is skipped with a diagnostic.
+ * read decodes the three biome colormaps, the mapping helper guards a {@code null} row list (returns
+ * empty rather than throwing), and an unknown {@link ColorMap.Type} is skipped with a diagnostic.
  */
 class ColorMapLoaderTest {
 
@@ -37,7 +37,7 @@ class ColorMapLoaderTest {
     }
 
     @Test
-    @DisplayName("toColorMaps guards a null row list (the historical null-array NPE)")
+    @DisplayName("toColorMaps guards a null row list (returns empty rather than throwing)")
     void nullRowsYieldEmpty() {
         assertEquals(0, ColorMapLoader.toColorMaps(null, diagnostics()).size());
     }

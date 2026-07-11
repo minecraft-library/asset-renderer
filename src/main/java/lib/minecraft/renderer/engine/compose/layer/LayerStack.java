@@ -13,7 +13,7 @@ import java.util.List;
  * consumer code can splice extra layers relative to a known slot with {@link #addBefore} /
  * {@link #addAfter}, or append after every slot with {@link #append}. {@link #ordered()} flattens
  * the stack into render order: by slot order first, then by insertion order for ties, so a stack
- * built only from built-in slots reproduces the renderer's historic pass sequence exactly.
+ * built only from built-in slots follows the renderer's default pass sequence.
  *
  * @param <L> the layer type held by this stack ({@link ImageLayer} or {@link GeometryLayer})
  */

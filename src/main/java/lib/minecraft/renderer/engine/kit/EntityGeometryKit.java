@@ -171,8 +171,7 @@ public class EntityGeometryKit {
          * Constructs build params compositing with the standard {@link BlendMode#NORMAL source-over}
          * blend at full opacity - the default for every base body / cutout / texture-alpha overlay.
          * Only an overlay declaring an explicit {@code blend} / {@code alpha} node uses the canonical
-         * seven-argument constructor, so every other call site stays byte-identical to the
-         * pre-blend-node pipeline.
+         * seven-argument constructor; every other call site uses this.
          *
          * @param centreAnchor model-space point that maps to the canvas centre
          * @param emissive whether every emitted triangle renders full-bright
@@ -275,9 +274,9 @@ public class EntityGeometryKit {
         // per-cube loop that drifts 1-4 ULPs vs the fluent path - see {@link Matrix4f} line
         // 313 commentary.
         // Kit emits positions in the model's native Y-up frame; the Y-down->screen flip
-        // (diag(1,-1,1)) has moved onto the entity's model->world Placement (EntityRenderer), so the
-        // kit-fit scale is now uniform. For the yaw-only parity pose the flip commutes past the model
-        // spin, so relocating it from here to the placement is compose-equivalent (measured).
+        // (diag(1,-1,1)) lives on the entity's model->world Placement (EntityRenderer), so the
+        // kit-fit scale is uniform. For the yaw-only parity pose the flip commutes past the model
+        // spin, so applying it in the placement is compose-equivalent.
         Matrix4f kitFit = Matrix4f.IDENTITY
             .scale(scale, scale, scale)
             .translate(-cx, -cy, -cz)

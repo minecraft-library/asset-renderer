@@ -129,8 +129,8 @@ public class ModelEngine {
 
     /**
      * The subject's model-to-world {@link Placement} matrix, composed between the camera pose and the
-     * caller's model transform, or {@code null} for the identity no-op ({@link Placement#IDENTITY}) so
-     * the transform chain stays byte-identical to the pre-Placement pipeline.
+     * caller's model transform, or {@code null} for the identity no-op ({@link Placement#IDENTITY}),
+     * which the transform chain skips.
      */
     private final @Nullable Matrix4f placement;
 
@@ -164,8 +164,7 @@ public class ModelEngine {
      * Constructs a model engine with a preset {@link Camera} and a subject {@link Placement}. The
      * placement is the model-to-world half of the pipeline (the subject's facing / chirality / anchor);
      * the camera is the world-to-screen half. Rasterization composes {@code pose x placement x
-     * modelTransform}. {@link Placement#IDENTITY} makes this identical to the two-arg constructor and
-     * byte-identical to the pre-Placement transform chain.
+     * modelTransform}. {@link Placement#IDENTITY} makes this identical to the two-arg constructor.
      *
      * @param context the renderer context
      * @param camera the camera (pose + lens) composed with every rasterization
@@ -181,8 +180,7 @@ public class ModelEngine {
     /**
      * Composes the camera-side transform: the camera {@link #pose} times this engine's model-to-world
      * {@link #placement} times the caller's {@code modelTransform}. When the placement is the identity
-     * no-op ({@link #placement} {@code null}) this is exactly {@code pose x modelTransform} -
-     * byte-identical to the pre-Placement chain.
+     * no-op ({@link #placement} {@code null}) this is exactly {@code pose x modelTransform}.
      *
      * @param modelTransform the caller's model-space transform (model spin / fit), applied first to a vertex
      * @return the composed model-to-screen pose
@@ -390,9 +388,9 @@ public class ModelEngine {
      *     {@code scale(fit).translate(-centre)} into the model transform ({@code null} 2D fit). Keeping
      *     the fit in 3D leaves the depth in the fitted frame, so the fixed {@link #DEPTH_EPSILON}
      *     emissive slack in {@link #depthFails} - which is <b>not</b> scale-invariant - stays
-     *     bit-for-bit, the screen-linear no-divide interpolation path is preserved, and the shipped
-     *     {@link Projection#VANILLA_ISO} render stays byte-identical. A 2D fit would match on screen but
-     *     silently shift those emissive-overlay depth tie-breaks.</li>
+     *     bit-for-bit, the screen-linear no-divide interpolation path is preserved, and the
+     *     {@link Projection#VANILLA_ISO} emissive-overlay depth tie-breaks are unaffected. A 2D fit would
+     *     match on screen but silently shift those tie-breaks.</li>
      * </ul>
      *
      * <p>A {@link FitRequest.Mode#NATIVE_SCALE} request short-circuits the measurement: the caller has
@@ -964,7 +962,7 @@ public class ModelEngine {
         RasterMath.EdgeCoefficients edges = RasterMath.EdgeCoefficients.of(s0, s1, s2);
         // Per-vertex inverse clip-w for perspective-correct interpolation. depthScale is a flat 1 for
         // parallel projections, where the perspectiveCorrect flag is false and the rasterizer keeps the
-        // byte-identical screen-linear path.
+        // screen-linear no-divide path.
         boolean perspectiveCorrect = perspective.kind() == Lens.Kind.PERSPECTIVE;
         return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal, edges,
             perspective.depthScale(p0.z()), perspective.depthScale(p1.z()), perspective.depthScale(p2.z()),

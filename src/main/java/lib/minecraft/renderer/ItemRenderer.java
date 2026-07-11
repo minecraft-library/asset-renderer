@@ -190,7 +190,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Model-space translation (block units) that aligns the rendered shield's silhouette 1:1 with
-     * the vanilla reference. The shield's silhouette is byte-identical in size to vanilla's
+     * the vanilla reference. The shield's silhouette is the same size as vanilla's
      * (270x489 px at the parity render size) but the vanilla GUI item pipeline seats the model
      * origin off-centre relative to this renderer's centre-on-origin projection; this offset is
      * {@code R^T} (the inverse {@code display.gui} rotation) applied to the measured

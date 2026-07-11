@@ -70,7 +70,7 @@ class GeometryRefClosureTest {
         JsonObject models = GSON.fromJson(Files.readString(modelsPath), JsonElement.class).getAsJsonObject();
         JsonObject geometry = GSON.fromJson(Files.readString(geometryPath), JsonElement.class).getAsJsonObject();
         assertEquals(models.get("source_version").getAsString(), geometry.get("source_version").getAsString(),
-            "source_version stamps must match (decision 14)");
+            "source_version stamps must match");
 
         Set<String> geometryKeys = geometry.getAsJsonObject("geometries").keySet();
         Set<String> referenced = new LinkedHashSet<>();

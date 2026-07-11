@@ -57,7 +57,7 @@ public record SurfaceTraits(boolean cullBackFaces, boolean emissive,
      * Constructs traits for the common case - {@link BlendMode#NORMAL source-over} composition at full
      * opacity ({@code alpha 1.0}). Only overlays carrying an explicit {@code blend} / {@code alpha}
      * JSON node use the canonical six-argument constructor; every other call site (blocks, bodies,
-     * cutout and texture-alpha overlays) is byte-identical to the pre-blend-node pipeline.
+     * cutout and texture-alpha overlays) uses this.
      *
      * @param cullBackFaces the back-face-culling flag
      * @param emissive the full-bright (skip-shading) flag

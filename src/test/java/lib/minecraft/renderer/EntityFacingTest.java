@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * mirrored / flipped entity poses (the reference harness only rendered the default view), so this
  * checks what CAN be proven without a reference image:
  * <ol>
- * <li><b>{@link Facing#DEFAULT} is a byte-identical no-op</b> - the regression guard that entity
+ * <li><b>{@link Facing#DEFAULT} is a no-op</b> - the regression guard that entity
  *     rendering is unchanged for existing callers.</li>
  * <li><b>Facing variants render present and uncropped</b> - the entity-specific risk is that facing
  *     desyncs the three projection-resolve sites (render camera / bounds / anchor) and the entity
@@ -86,7 +86,7 @@ class EntityFacingTest {
     }
 
     @Test
-    @DisplayName("facing(DEFAULT) is byte-identical to no facing")
+    @DisplayName("facing(DEFAULT) equals no facing")
     void defaultIsNoOp() {
         int[] noFacing = pixels(render(base().build()));
         int[] explicitDefault = pixels(render(base().output(baseRender().mutate().facing(Facing.DEFAULT).build()).build()));

@@ -203,9 +203,8 @@ public enum Projection {
     /**
      * Resolves this projection into a {@link Camera} (pose + lens + lighting pose). The rotation adds to
      * the base pitch / yaw / roll, so it poses the camera and its lighting together (the lens is
-     * rotation-independent) through the parity-pinned {@link Camera#fromPose} {@code rotationXYZ} path,
-     * which reproduces the legacy {@code VANILLA_*} cameras bit-for-bit; {@link EulerRotation#NONE} yields
-     * the base pose unchanged, keeping the default render path byte-identical.
+     * rotation-independent) through the parity-pinned {@link Camera#fromPose} {@code rotationXYZ} path;
+     * {@link EulerRotation#NONE} yields the base pose unchanged.
      *
      * <p>{@link #VANILLA_ISO} resolves to the plain {@code rotationXYZ(30, 225, 0)} iso pose like any
      * other display-pose member; each renderer's model-to-world facing / chirality is applied separately
@@ -225,7 +224,7 @@ public enum Projection {
      * composed pose - {@link Facing#mirrored()} mirrors the yaw, {@link Facing#flipped()} negates the
      * pitch - and, for an {@linkplain Lens.Kind#OBLIQUE oblique} lens, flips the depth-shear so the
      * mirror holds even where the yaw reflection is a no-op (a front-facing oblique). {@link Facing#DEFAULT}
-     * is a bit-for-bit no-op, so a default resolve stays byte-identical.
+     * is a bit-for-bit no-op.
      *
      * @param rotation the rotation composed onto the base pose, in degrees
      * @param facing the view-facing reflection applied after composition

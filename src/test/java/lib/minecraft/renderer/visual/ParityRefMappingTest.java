@@ -21,8 +21,8 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Coverage assertion for the entity parity sweep's variant-aware {@link ParityRefMapping} (axis-unification
- * #3): the mapping must never silently drop a subject the legacy {@code java_keys ∩ vanilla_keys}
+ * Coverage assertion for the entity parity sweep's variant-aware {@link ParityRefMapping}: the mapping
+ * must never silently drop a subject the plain {@code java_keys ∩ vanilla_keys}
  * enumeration compared, and it must ADD the variant-superset families whose only harness reference is the
  * plain base. Guards the sweep's subject enumeration so option-encoding {@code variant} does not quietly
  * shrink coverage.

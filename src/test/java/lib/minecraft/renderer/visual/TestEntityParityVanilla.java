@@ -113,7 +113,7 @@ public final class TestEntityParityVanilla {
             List<ParityRefMapping.Subject> filtered = subjects.stream()
                 .filter(s -> entityIdFilter.contains(s.refId()) || entityIdFilter.contains(s.entityId()))
                 .collect(Collectors.toCollection(ArrayList::new));
-            // Preserve the historic "render any id passed" affordance: an id that resolves to no subject
+            // Preserve the "render any id passed" affordance: an id that resolves to no subject
             // (e.g. a bare base id) renders plain against its own ref.
             for (String id : entityIdFilter)
                 if (filtered.stream().noneMatch(s -> s.refId().equals(id) || s.entityId().equals(id)))

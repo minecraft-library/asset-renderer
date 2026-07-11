@@ -238,7 +238,7 @@ public class BoneKit {
      * normalization and the entity fit / measure passes) so the scaled-grow arithmetic lives in one
      * place. The grow expands the corner box only; the {@code size}-derived UV footprint is untouched
      * ({@link EntityModelData.Cube#getGrow()}). A scalar {@code inflate} degenerates to an equal grow
-     * on all three axes, so the symmetric legacy expansion is byte-identical.
+     * on all three axes.
      *
      * @param scale the owning bone's uniform scale (vanilla {@code PartPose.scaled} /
      *     {@code MeshTransformer.scaling})

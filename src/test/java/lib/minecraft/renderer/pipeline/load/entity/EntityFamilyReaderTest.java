@@ -97,7 +97,7 @@ class EntityFamilyReaderTest {
     }
 
     @Test
-    @DisplayName("humanoid armor_type is consumed off the relocated layers armor row")
+    @DisplayName("humanoid armor_type is consumed off the layers armor row")
     void humanoidArmorFromLayersRow() {
         // armor_type lives under `layers`: the reader classifies humanoid off the layers armor row
         // (absence IS none). Skeleton/zombie are humanoid; cow/sheep are none.

@@ -158,7 +158,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Fold a selected equipment overlay's mesh into the bounds union so an inflated / protruding
         // equipment mesh (horse/nautilus/wolf armor, the llama carpet's CubeDeformation) can't crop at
         // the canvas edge. Gated on the equipment axis, so the default (unequipped) render is
-        // byte-identical (mirrors the EQUIPMENT feature's render gate).
+        // unchanged, matching the EQUIPMENT feature's render gate.
         for (Entity.EquipmentOverlay equipment : resolved.layers().equipment()) {
             if (!equipmentSelected(equipment, options.getAppearance())) continue;
             baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(equipment.model()));
@@ -219,7 +219,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // protruding equipment mesh can't crop at the canvas edge under the NATIVE_SCALE fit (which
             // sizes from these bounds, not the rendered triangles). A null texture measures the mesh's
             // geometric AABB - conservative, no equipment-texture resolution. Gated on the equipment
-            // axis, so the default (unequipped) canvas stays byte-identical.
+            // axis, so the default (unequipped) canvas is unchanged.
             for (Entity.EquipmentOverlay equipment : resolved.layers().equipment()) {
                 if (!equipmentSelected(equipment, options.getAppearance())) continue;
                 screenBounds = unionBoxes(screenBounds,
@@ -255,7 +255,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // overlays, block overlays, worn armor - are GeometryLayers that append to the SAME triangle
         // list in slot order, then rasterize together in one shared depth pass. Emission order is
         // load-bearing (depth tie-break, translucent sort, emissive depth-skip), so the slot order
-        // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
+        // is base -> overlays -> block-overlays -> armor.
         // Callers can splice their own layers via EntityOptions.layerDecorator. All layers are built
         // fit-neutral and fitted together by the single rasterizeFitted call below.
         // Assemble the appended geometry layers via the feature registry. Each feature self-gates on
@@ -318,7 +318,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * weathering (it carries a {@code texture_by: weathering} eye overlay) and a non-{@link
      * CopperWeathering#UNAFFECTED} state is chosen; empty otherwise (so the caller falls back to the
      * default {@code texture_ref}, which is the {@code UNAFFECTED} texture). Keeps the default
-     * (unweathered) render byte-identical.
+     * (unweathered) render unchanged.
      */
     private @NotNull Optional<String> selectWeatheringTexture(
         @NotNull Entity definition,
@@ -361,7 +361,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Selects the definition's state-specific texture when {@link EntityAppearance#getState() state}
      * names one it carries; empty otherwise (so the caller falls back to the default
      * {@code texture_ref}). The default {@code wild} state resolves to the same path as
-     * {@code texture_ref}, so an unset or {@code wild} state leaves the render byte-identical.
+     * {@code texture_ref}, so an unset or {@code wild} state leaves the render unchanged.
      */
     private @NotNull Optional<String> selectStateTexture(
         @NotNull Entity definition,
@@ -408,7 +408,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     Optional<String> overlayRef = resolveOverlayTextureRef(overlay, appearance, texturePrefix);
                     // A texture_by overlay whose axis resolves to no texture draws nothing - the base /
                     // "none" state (iron golem Crackiness.NONE) - so skip it, keeping the default
-                    // (unselected) render byte-identical. Overlays with a baked default (tropical fish
+                    // (unselected) render unchanged. Overlays with a baked default (tropical fish
                     // pattern's KOB) always resolve, so they are never skipped here.
                     if (overlay.textureBy().isPresent() && overlayRef.isEmpty()) continue;
                     stack.append(this.slot, sink -> {
@@ -459,7 +459,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * The horse marking (white socks / blaze / patches): a same-geometry translucent overlay of the
          * base body, textured by the selected {@link HorseMarking} and drawn over the coat. Gated on the
          * resolved definition supporting markings (the horse) and a non-{@link HorseMarking#NONE}
-         * selection, so the default (unmarked) render draws nothing and stays byte-identical. Reuses the
+         * selection, so the default (unmarked) render draws nothing. Reuses the
          * base body model - the baby mesh is baby-aware here, binding the marking's {@code _baby} texture
          * - and, like the collar, wins the coplanar depth tie over the body beneath it (last-drawn LEQUAL).
          */
@@ -604,7 +604,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * villager profession-layer trio {@code type} / {@code profession} / {@code profession_level}
      * (prefix-relative sub-paths the {@code texturePrefix} qualifies; {@code profession} and
      * {@code profession_level} resolve empty at their {@code NONE} default so the overlay is skipped).
-     * The default keeps an unselected overlay byte-identical; a selection swaps in that axis' texture.
+     * The default keeps an unselected overlay unchanged; a selection swaps in that axis' texture.
      *
      * @param overlay the overlay layer to resolve a texture ref for
      * @param appearance the axis selections to resolve against
@@ -650,7 +650,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * overlay is dye-driven ({@code wool_color} sheep wool, {@code pattern_color} tropical fish) and
      * the appearance supplies that {@link TintAxis axis}' dye, else the overlay's baked
      * {@link Entity.OverlayLayer#tintArgb() default tint}. The default keeps an
-     * unselected overlay byte-identical; a selected dye multiplies the overlay by the dye's ARGB
+     * unselected overlay unchanged; a selected dye multiplies the overlay by the dye's ARGB
      * (mirroring vanilla's {@code coloredCutoutModelRender} colour arg), exactly like the collar tint.
      */
     private static int resolveOverlayTint(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
@@ -971,9 +971,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer texture
     ) {
         Box bounds = computeUnionScreenBounds(definition, transform, modelScale, texture);
-        // Option-encoded variant coats (axis-unification #3) live on the base definition's axes.variants
-        // rather than as separate family-member rows, so union each coat's silhouette here - reproducing
-        // the id-encoded canvas union across every coat pseudo-id. Empty (a no-op) while variant is
+        // Option-encoded variant coats live on the base definition's axes.variants rather than as
+        // separate family-member rows, so union each coat's silhouette here. A no-op while variant is
         // id-encoded (each coat is a member row measured below) or the family has no variant axis.
         bounds = unionVariantSilhouettes(bounds, this.javaEntities.get(entityId), transform);
         List<String> members = EntityModelLoader.loadFamilies().getOrDefault(entityId, List.of(entityId));
@@ -996,8 +995,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Unions the screen-space silhouettes of a definition's option-encoded variant coats
      * ({@link Entity.Axes#variants()}) into {@code bounds}, each measured at its
      * own coat texture + render scale (mirroring the family-member walk). A no-op when the definition is
-     * absent or carries no variant coats (id-encoded / non-variant families), so the canvas is byte-identical
-     * there.
+     * absent or carries no variant coats (id-encoded / non-variant families).
      */
     private @NotNull Box unionVariantSilhouettes(@NotNull Box bounds, @Nullable Entity definition, @NotNull Matrix4f transform) {
         if (definition == null) return bounds;
@@ -1024,7 +1022,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Whether the appearance selects this equipment overlay's slot - mirrors the {@code EQUIPMENT}
      * feature's render gate ({@link EntityAppearance#equipmentMaterial(String)}) so the bounds union
      * folds in exactly the equipment meshes that render. A slot with no selected material (the default
-     * appearance) or an empty mesh contributes nothing, keeping the unequipped canvas byte-identical.
+     * appearance) or an empty mesh contributes nothing to the unequipped canvas.
      *
      * @param equipment the equipment overlay to test
      * @param appearance the render appearance carrying the equipment axis selection

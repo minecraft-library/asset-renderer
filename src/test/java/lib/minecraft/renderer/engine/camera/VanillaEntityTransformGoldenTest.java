@@ -31,8 +31,8 @@ import static org.hamcrest.Matchers.greaterThan;
  * its composition with the single-cube kit fixture - so accidental drift in the iso pose or the kit
  * fixture trips these assertions.
  *
- * <p>The values baked below are captured once via {@link #writeSnapshot}. Now that the split has landed,
- * {@code VANILLA_ISO} resolves to the plain {@code rotationXYZ(30, 225, 0)} iso display pose (det=+1);
+ * <p>The values baked below are captured once via {@link #writeSnapshot}. {@code VANILLA_ISO}
+ * resolves to the plain {@code rotationXYZ(30, 225, 0)} iso display pose (det=+1);
  * the entity's model-to-world facing / chirality lives on the {@code ENTITY_FLIP} {@code Placement} in
  * {@code EntityRenderer}, not the camera. A deliberate change to that pose or the kit fixture re-baselines
  * these values (regenerate via {@link #writeSnapshot}).

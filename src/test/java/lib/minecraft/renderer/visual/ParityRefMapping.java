@@ -19,7 +19,7 @@ import java.util.Set;
  * pseudo-id like {@code minecraft:cow_cold}) with the Java pipeline's entity keyset for the entity parity
  * sweep, so the sweep enumerates the SAME subjects whether {@code variant} is id-encoded (a first-class
  * render id) or option-encoded ({@code minecraft:cow} + an {@link lib.minecraft.renderer.option.EntityAppearance}
- * variant selection). This is the axis-unification #3 parity-ref mapping: without it, flipping
+ * variant selection). Without this parity-ref mapping, flipping
  * {@code variant} to option-encoded silently drops every variant family from the sweep's
  * {@code java_keys ∩ vanilla_keys} enumeration.
  *

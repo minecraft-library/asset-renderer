@@ -282,7 +282,7 @@ public class GlintKit {
      * {@link #applyGlint(PixelBuffer, PixelBuffer, GlintOptions)} that restricts the foil to the
      * pixels marked in {@code glintMask} - e.g. only the armor of a player / entity render rather
      * than the whole opaque silhouette. {@code null} applies the foil to every opaque pixel, the
-     * historic behaviour used for whole-subject items and blocks.
+     * default behaviour used for whole-subject items and blocks.
      *
      * @param base the base render
      * @param glintTexture the glint scroll texture
