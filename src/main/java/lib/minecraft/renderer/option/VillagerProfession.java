@@ -9,8 +9,8 @@ import java.util.Optional;
 /**
  * A villager (or zombie-villager) profession - the {@code VillagerProfession} registry value whose
  * clothes + hat texture the {@code VillagerProfessionLayer} draws over the biome robe. {@link #NONE}
- * (the default, an unemployed villager) draws no profession pass, so the default appearance is
- * byte-identical; each job plus {@link #NITWIT} carries a {@code <prefix>/profession/<name>} texture.
+ * (the default, an unemployed villager) draws no profession pass; each job plus {@link #NITWIT}
+ * carries a {@code <prefix>/profession/<name>} texture.
  * {@code NONE} and {@code NITWIT} draw no level badge (see {@link #drawsBadge()}), mirroring the
  * layer's per-profession badge gate. The prefix ({@code villager} / {@code zombie_villager}) is
  * supplied per-entity at render, so this enum carries only the prefix-relative sub-path.

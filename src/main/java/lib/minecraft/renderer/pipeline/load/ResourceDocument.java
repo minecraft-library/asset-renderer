@@ -18,9 +18,8 @@ import org.jetbrains.annotations.Nullable;
  * silent proceed. The parsed node is exposed through {@link #payload()} for structural reads and
  * {@link #as(Class)} for whole-document deserialisation into a typed DTO.
  *
- * <p>Reading reuses the tooling {@link JsonNode} read surface rather than a bespoke navigator; the
- * {@code pipeline -> tooling.kernel} edge is sanctioned pending relocation of the shared JSON core
- * to a neutral package.
+ * <p>Reading reuses the tooling {@link JsonNode} read surface rather than a bespoke navigator, over
+ * the {@code pipeline -> tooling.kernel} edge.
  */
 public final class ResourceDocument {
 

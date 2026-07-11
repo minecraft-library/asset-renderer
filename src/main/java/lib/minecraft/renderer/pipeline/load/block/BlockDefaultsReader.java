@@ -18,17 +18,15 @@ import java.util.Set;
 import java.util.StringJoiner;
 
 /**
- * The native reader for per-block default states, replacing
- * {@code BlockStateLoader.loadDefaultStateKeys}'s comma-joined-string parse.
+ * The reader for per-block default states.
  *
- * <p>{@code block_defaults.json} carries the structured shape (decision 24): {@code blocks{}} maps
+ * <p>{@code block_defaults.json} carries the structured shape: {@code blocks{}} maps
  * each block id to a {@code {property:"value"}} object (an empty {@code {}} means "resolved, declares
  * no properties"), and {@code unresolved[]} lists the block ids whose default state could not be
  * ASM-resolved. This reader flattens each block's structured state into the canonical
  * property-sorted {@code "prop=val,prop=val"} key the runtime consumes (empty {@code {}} to the empty
- * string), and omits every {@code unresolved} id - so its output is byte-identical to the legacy
- * comma-joined map. The empty-vs-absent distinction the legacy string form conflated is first-class
- * in the source but collapses back to the same runtime key here.
+ * string), and omits every {@code unresolved} id. The empty-vs-absent distinction is first-class in
+ * the structured source but collapses to the same runtime key here.
  */
 public final class BlockDefaultsReader {
 

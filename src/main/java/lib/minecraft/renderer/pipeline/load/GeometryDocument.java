@@ -12,8 +12,8 @@ import java.util.Map;
 
 /**
  * The single parse home turning a {@code *_geometry.json} bone-tree entry into an
- * {@link EntityModelData} - shared by the block and entity native readers (debt row 9: one bone-tree
- * schema, one parse).
+ * {@link EntityModelData} - shared by the block and entity native readers: one bone-tree
+ * schema, one parse.
  *
  * <p>The geometry dialect pairs the atlas dimensions as a {@code texture_size:[w,h]} array; the
  * runtime record keeps them as the {@code textureWidth}/{@code textureHeight} scalars, so this helper

@@ -9,8 +9,8 @@ import java.util.Locale;
  * A villager (or zombie-villager) biome type - one of the seven built-in {@code VillagerType}
  * registry values whose robe texture forms the base clothing pass the
  * {@code VillagerProfessionLayer} draws over the body. {@link #PLAINS} (the default) resolves to
- * the {@code <prefix>/type/plains} robe the layer composites at zero state, so the default
- * appearance is byte-identical; the other biomes swap in their {@code <prefix>/type/<biome>} robe.
+ * the {@code <prefix>/type/plains} robe the layer composites at zero state; the other biomes swap
+ * in their {@code <prefix>/type/<biome>} robe.
  * The prefix ({@code villager} / {@code zombie_villager}) is supplied per-entity at render, so this
  * enum carries only the prefix-relative sub-path.
  */

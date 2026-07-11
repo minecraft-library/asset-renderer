@@ -41,30 +41,24 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * The native reader for entity model definitions: the flattener inverse. Reads the family form of
+ * The reader for entity model definitions. Reads the family form of
  * {@code entity_models.json} (90 base-entity families) joined against {@code entity_geometry.json}
- * (the deduplicated bone trees) DIRECTLY into the {@link Entity} map the renderer consumes -
- * with no legacy flat-row intermediate, no eight parallel side-channel maps, and no
- * {@code CARRIED_FIELDS} lock-step.
+ * (the deduplicated bone trees) DIRECTLY into the {@link Entity} map the renderer consumes.
  *
  * <p>The geometry file is keyed by the same manifest factory coordinate the family baseline names
  * under {@code axes.age.options.adult.geometry} (e.g. {@code AdultWolfModel#createBodyLayer},
- * {@code PigModel#createBodyLayer@grow=0.5}), so a coordinate resolves DIRECTLY - the bridge's
- * {@code geometry.<stem>} legacy-id replay is a bridge fiction the native path never mints. A dangling
- * coordinate fails LOUD ({@link PipelineException}), matching the historic {@code EntityModelLoader}
- * contract.
+ * {@code PigModel#createBodyLayer@grow=0.5}), so a coordinate resolves directly. A dangling
+ * coordinate fails LOUD ({@link PipelineException}).
  *
- * <p>The one surviving concept from the flattener is <b>id-encoded variant expansion</b>: a
+ * <p>The reader's one non-trivial expansion is <b>id-encoded variant expansion</b>: a
  * {@code variant} axis flattens to {@code minecraft:<id>_<opt>} render pseudo-ids, the default option
  * carrying the family baseline and every other option pointing back at it via {@code variant_of} for the
  * family canvas-union ({@link #loadFamilies}). The family's render fields (overlays, block overlays,
  * scale, tint, bones) apply to EVERY variant row - the renderer resolves each variant row directly and
- * does not inherit through {@code variant_of}, so the baseline is copied onto each row here just as the
- * flattener copied it.
+ * does not inherit through {@code variant_of}, so the baseline is copied onto each row here.
  *
  * <p>Texture paths are reduced to the runtime {@code textures/entity/}-relative sub-path the texture
- * resolver indexes on (drop the {@code minecraft:textures/entity/} prefix + {@code .png}), matching
- * {@code EntityModelsBridge.strip} so the native render is byte-identical.
+ * resolver indexes on (drop the {@code minecraft:textures/entity/} prefix + {@code .png}).
  */
 public final class EntityFamilyReader {
 
@@ -81,8 +75,7 @@ public final class EntityFamilyReader {
      * with no deformation - so a same-geometry overlay carrying at most this much inflate is excluded
      * from canvas-sizing bounds. A tinted separate-{@code LayerDefinition} overlay that merely dedupes
      * into the base mesh (sheep wool undercoat: {@code tint_by wool_color}) is NOT stamped, so the
-     * tint gate excludes it - matching the legacy {@code EntityRuntimeJsonWriter} stamp the native
-     * read reproduces. Mirrors {@code EntityModelLoader.DEPTH_CLEARANCE_INFLATE}.
+     * tint gate excludes it.
      */
     private static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
 
@@ -133,7 +126,7 @@ public final class EntityFamilyReader {
         if (families == null) return Map.of();
 
         // Row id -> its variant_of base (null for a base / plain row) in expansion order, plus the
-        // cross-entity family_of table (keyed by the FAMILY id, as the flattener emitted it).
+        // cross-entity family_of table (keyed by the FAMILY id).
         Map<String, String> variantOf = new LinkedHashMap<>();
         Map<String, String> crossFamilies = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> entry : families.entrySet()) {
@@ -194,7 +187,7 @@ public final class EntityFamilyReader {
         @NotNull Map<String, Entity> definitions,
         @NotNull Diagnostics diagnostics
     ) {
-        // Axis unification #1: the family baseline (primary geometry + adult texture) lives under the
+        // The family baseline (primary geometry + adult texture) lives under the
         // mandatory age axis' options.adult, not at top level.
         JsonObject adult = adultOption(family);
         String baseCoord = adult.get("geometry").getAsString();
@@ -234,10 +227,10 @@ public final class EntityFamilyReader {
                 }
                 return;
             }
-            // option-encoded [axis-unification #3]: one base row minecraft:<id>, the coat resolved at render
-            // from EntityAppearance.variant. Every option is built into a sub-definition (byte-identical to
-            // the pseudo-id it replaced); the base row IS the default coat carrying the full option map so
-            // the resolver fold + family canvas union reach every coat.
+            // option-encoded variant: one base row minecraft:<id>, the coat resolved at render from
+            // EntityAppearance.variant. Every option is built into a sub-definition; the base row IS the
+            // default coat carrying the full option map so the resolver fold + family canvas union reach
+            // every coat.
             LinkedHashMap<String, Entity> coats = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> option : options.entrySet())
                 coats.put(option.getKey(), buildVariantRow(familyId, option.getValue().getAsJsonObject(), ctx, diagnostics));
@@ -395,7 +388,7 @@ public final class EntityFamilyReader {
             Optional<AppearanceGate> gate = parseOverlayGate(entry.has("when") ? entry.getAsJsonObject("when") : null, tintBy);
             // blend / alpha (default NORMAL / 1.0). `additive` -> the energy-swirl glow; `translucent` /
             // `normal` -> source-over (the slime shell's translucency lives in its texture alpha, not a
-            // blend-function difference). An un-annotated overlay renders byte-identical.
+            // blend-function difference). An un-annotated overlay keeps the NORMAL / 1.0 default.
             BlendMode blend = parseBlend(pipeline != null && pipeline.has("blend") ? pipeline.get("blend").getAsString() : null, diagnostics);
             float alpha = pipeline != null && pipeline.has("alpha") ? pipeline.get("alpha").getAsFloat() : 1f;
             out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, textureBy, blend, alpha, gate));
@@ -513,8 +506,7 @@ public final class EntityFamilyReader {
 
     /**
      * Returns the mandatory age axis' {@code options.adult} body - the family baseline (primary
-     * {@code geometry}, and for non-variant families the adult {@code texture}) that axis unification #1
-     * relocated from the former top-level {@code geometry}/{@code texture} members.
+     * {@code geometry}, and for non-variant families the adult {@code texture}).
      */
     private static @NotNull JsonObject adultOption(@NotNull JsonObject family) {
         return family.getAsJsonObject("axes").getAsJsonObject("age").getAsJsonObject("options").getAsJsonObject("adult");
@@ -572,11 +564,9 @@ public final class EntityFamilyReader {
     }
 
     /**
-     * Returns whether the family carries a {@code humanoid} armor classification row [LOCKED 3] - the
+     * Returns whether the family carries a {@code humanoid} armor classification row - the
      * {@code layers} armor row EntityLayersResolver emits off a {@code HumanoidArmorLayer} site.
      * Absence IS {@code none} (the classification is derived off the roster, not a required member).
-     * The native reader's consumption of the relocated {@code armor_type}, replacing the former
-     * flattener hard-require of a top-level member the render path dropped (debt row 7).
      */
     private static boolean humanoidArmorOf(@NotNull JsonObject family) {
         if (!family.has("layers")) return false;
@@ -694,7 +684,7 @@ public final class EntityFamilyReader {
 
     /**
      * Resolves a family / variant geometry coordinate against the parsed geometry table, failing LOUD
-     * on a dangling coordinate (matching the historic {@code EntityModelLoader} contract).
+     * on a dangling coordinate.
      */
     private static @NotNull EntityModelData resolveModel(@NotNull Map<String, EntityModelData> geometries, @NotNull String coord, @NotNull String entityId) {
         EntityModelData model = geometries.get(coord);
@@ -848,8 +838,7 @@ public final class EntityFamilyReader {
     /**
      * Reduces a full entity texture path to the {@code textures/entity/}-relative sub-path the
      * texture resolver re-qualifies as {@code minecraft:entity/<ref>} - dropping the
-     * {@code minecraft:textures/entity/} prefix and the {@code .png} suffix. Mirrors
-     * {@code EntityModelsBridge.strip} so the resolved id is byte-identical.
+     * {@code minecraft:textures/entity/} prefix and the {@code .png} suffix.
      */
     private static @NotNull String stripEntity(@NotNull String path) {
         if (!path.startsWith(TEXTURE_PREFIX) || !path.endsWith(TEXTURE_SUFFIX))

@@ -23,21 +23,19 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * The native reader for block-entity models: the two-file join of {@code block_models.json}
- * (the model catalog) and {@code block_geometry.json} (the bone trees), producing the same
- * {@link BlockModelLoader.LoadResult} the legacy inline-{@code model} parse produced.
+ * The reader for block-entity models: the two-file join of {@code block_models.json}
+ * (the model catalog) and {@code block_geometry.json} (the bone trees), producing a
+ * {@link BlockModelLoader.LoadResult}.
  *
- * <p>Reads every one of the 24 {@code models} entries natively - it does NOT replay the bridge's
- * fixed 22-entry roster, so {@code enchanting_table} and {@code lectern} (which the bridge filtered to
- * hold legacy SHA) now load through the same generic path as every other block entity. Each entry's
+ * <p>Reads every {@code models} entry through one generic path - {@code enchanting_table} and
+ * {@code lectern} included, with no per-entry roster filtering. Each entry's
  * {@code geometry} coordinate resolves into {@code block_geometry.geometries}; a dangling coordinate
  * fails LOUD ({@link PipelineException}). The nested {@code inventory} object, entry-level {@code icon}
  * open bag ({@code rotation} / {@code additive}), and full-path {@code blocks[].texture} are read
  * forward from the resource.
  *
  * <p>Texture paths are reduced to the runtime {@code minecraft:<sub-path>} form the texture resolver
- * indexes on (drop {@code textures/} + {@code .png}, keep namespace) - matching the format the bridge
- * emitted, so the native render is byte-identical.
+ * indexes on (drop {@code textures/} + {@code .png}, keep namespace).
  */
 public final class BlockModelReader {
 
@@ -169,7 +167,6 @@ public final class BlockModelReader {
     /**
      * Reduces a full asset texture path to the runtime {@code minecraft:<sub-path>} id the texture
      * resolver indexes on - dropping {@code textures/} and {@code .png}, keeping the namespace.
-     * Matches {@code BlockModelsBridge.stripTexture} so the native id is byte-identical.
      */
     private static @NotNull String stripTexture(@NotNull String path) {
         int colon = path.indexOf(':');

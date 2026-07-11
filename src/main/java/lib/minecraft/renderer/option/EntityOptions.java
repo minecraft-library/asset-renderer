@@ -56,9 +56,8 @@ public class EntityOptions implements RenderOptions {
     /**
      * The entity-specific axis selections (age, state, carried, dyed collar) as one cohesive value,
      * so this class does not accrete a loose field per axis. Empty / default {@link EntityAppearance}
-     * (the default) leaves the render byte-identical to one built without any appearance. Only
-     * consulted under the family form. Lower precedence than {@link #getTextureId() textureId} for
-     * texture resolution.
+     * (the default) has no effect on the render. Only consulted under the family form. Lower
+     * precedence than {@link #getTextureId() textureId} for texture resolution.
      */
     @lombok.Builder.Default
     private final @NotNull EntityAppearance appearance = EntityAppearance.defaults();

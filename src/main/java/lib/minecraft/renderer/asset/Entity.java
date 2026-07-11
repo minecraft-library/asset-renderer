@@ -107,8 +107,7 @@ public record Entity(
     /**
      * Whether a vanilla {@code HumanoidArmorLayer} classifies this entity - a derived view over
      * {@link #layers()} (delegating to {@link Layers#humanoidArmor()}), so no top-level component stores
-     * the classification. The successor to the former top-level {@code armor_type} member [LOCKED 3],
-     * populated by the native reader off the {@code layers} armor row.
+     * the classification. Populated by the reader off the {@code layers} armor row.
      *
      * @return {@code true} when a humanoid-armor layer classifies this entity
      */
@@ -117,9 +116,8 @@ public record Entity(
     }
 
     /**
-     * The option-axis meshes and textures a render appearance selects among (the former
-     * {@code stateTextures} / {@code babyModel} / {@code largeShape} / {@code sizeModels} /
-     * {@code sizeScales} side-channels, nested into first-class structure).
+     * The option-axis meshes and textures a render appearance selects among: {@code stateTextures},
+     * {@code babyModel}, {@code largeShape}, {@code sizeModels}, and {@code sizeScales}.
      *
      * @param stateTextures alternate base textures keyed by behavioural state (wolf
      *     {@code wild}/{@code tame}/{@code angry}) plus the {@code baby} texture, populated for
@@ -135,8 +133,8 @@ public record Entity(
      *     (salmon / slime / magma_cube); the default size is scale {@code 1.0} and absent here; empty otherwise
      * @param variants the {@code variant} axis's option-encoded coat sub-definitions keyed by option
      *     (cow {@code temperate}/{@code cold}/{@code warm}, wolf coats, cat breeds), each a fully-built
-     *     definition byte-identical to the id-encoded pseudo-id it replaces; the base definition IS the
-     *     default option's build. Empty when {@code variant} is id-encoded (each coat a first-class
+     *     definition; the base definition IS the default option's build. Empty when {@code variant} is
+     *     id-encoded (each coat a first-class
      *     pseudo-id) or the family has no variant axis. The render-time variant fold in
      *     {@link lib.minecraft.renderer.pipeline.resolve.EntityDefinitionResolver} swaps to the selected
      *     option's sub-definition, and the family canvas union measures every option's silhouette
@@ -151,9 +149,8 @@ public record Entity(
     ) {}
 
     /**
-     * The conditional decoration layers drawn over the base body (the former {@code collarTexture} /
-     * {@code equipment} / {@code markings} side-channels, nested into first-class structure), each gated
-     * at render on its appearance axis.
+     * The conditional decoration layers drawn over the base body ({@code collar}, {@code equipment},
+     * {@code markings}), each gated at render on its appearance axis.
      *
      * @param collar the dyed-collar texture drawn on the body geometry and tinted by the collar colour
      *     (wolf, cat); empty for non-collar entities
@@ -164,9 +161,8 @@ public record Entity(
      *     {@link lib.minecraft.renderer.option.HorseMarking}); the default marking draws nothing
      * @param humanoidArmor whether a vanilla {@code HumanoidArmorLayer} classifies this entity
      *     (skeletons, zombies, piglins) - the {@code armor_type: "humanoid"} classification the
-     *     {@code layers} armor row carries [LOCKED 3], read off it at load. No 26.1 render consumes it
-     *     (humanoid armor is not drawn); it is the located, first-class successor to the former
-     *     required-but-unconsumed top-level {@code armor_type} member
+     *     {@code layers} armor row carries, read off it at load. No 26.1 render consumes it (humanoid
+     *     armor is not drawn)
      */
     public record Layers(
         @NotNull Optional<String> collar,

@@ -17,9 +17,9 @@ import java.util.Set;
  * id-encoded / option-encoded string axes ({@link #getState() state}, {@link #getCarried() carried})
  * whose valid values are declared per-entity in the family JSON rather than a hard-coded enum.
  *
- * <p>Every axis is empty / default unless explicitly set, so the default appearance leaves a render
- * byte-identical to one built without any appearance at all. An axis a given entity does not support
- * is simply ignored at render (an unknown {@code state} falls back to the default texture).
+ * <p>Every axis is empty / default unless explicitly set, so the default appearance has no effect on
+ * the render. An axis a given entity does not support is simply ignored at render (an unknown
+ * {@code state} falls back to the default texture).
  */
 @Getter
 @Builder(toBuilder = true)
@@ -45,9 +45,8 @@ public class EntityAppearance {
     /**
      * Variant selector for entities whose coat / colour {@code variant} axis is option-encoded (cow
      * temperate / cold / warm, wolf coats, cat breeds, ...). Selects that option's baked mesh + coat
-     * texture in place of the family's default coat; empty (default) renders the default coat, so the
-     * default appearance is byte-identical to the id-encoded default pseudo-id. Ignored by entities with
-     * no variant axis, or while the axis is still id-encoded (each coat a first-class render id).
+     * texture in place of the family's default coat; empty (default) renders the default coat. Ignored
+     * by entities with no variant axis, or while the axis is id-encoded (each coat a first-class render id).
      */
     @lombok.Builder.Default
     private final @NotNull Optional<String> variant = Optional.empty();
@@ -72,8 +71,7 @@ public class EntityAppearance {
      * Body-size selector for entities with a {@code size} axis (pufferfish deflated / medium /
      * fully-puffed meshes). Selects one of the entity's distinct baked size meshes; empty (default)
      * keeps the entity's canonical mesh (pufferfish {@link Size#LARGE}, the fully-puffed silhouette
-     * vanilla's renderer shows for the settled reference), so the default appearance is byte-identical.
-     * Ignored by entities without a size axis.
+     * vanilla's renderer shows for the settled reference). Ignored by entities without a size axis.
      */
     @lombok.Builder.Default
     private final @NotNull Optional<Size> size = Optional.empty();
@@ -83,7 +81,7 @@ public class EntityAppearance {
      * tropical fish) and each named overlay tint ({@link TintAxis#WOOL} sheep wool,
      * {@link TintAxis#PATTERN} tropical fish pattern, {@link TintAxis#COLLAR} wolf / cat collar).
      * An axis absent from the map uses its target's baked default (the family {@code base_tint} or
-     * the overlay's {@code tint_color}), so the default appearance renders byte-identically; a
+     * the overlay's {@code tint_color}), so the default appearance is unchanged; a
      * present axis multiplies its target by the dye's {@link DyeColor#argb() ARGB}. One map rather
      * than a loose {@link Optional} field per dye axis - see {@link TintAxis}.
      */
@@ -94,7 +92,7 @@ public class EntityAppearance {
      * Tropical-fish pattern selector. When present and the resolved entity carries a
      * {@code texture_by: pattern} overlay (the tropical fish pattern), that overlay draws the
      * selected pattern's texture instead of its baked default; empty (default) renders the baked
-     * pattern ({@code KOB}), so the default appearance is byte-identical.
+     * pattern ({@code KOB}).
      */
     @lombok.Builder.Default
     private final @NotNull Optional<TropicalFishPattern> pattern = Optional.empty();
@@ -103,8 +101,7 @@ public class EntityAppearance {
      * Horse-marking selector - the white socks / blaze / patches drawn over the coat colour. When set
      * to a non-{@link HorseMarking#NONE} value and the resolved entity supports markings (the horse),
      * a same-geometry translucent overlay draws that marking's texture over the coat;
-     * {@link HorseMarking#NONE} (default) draws no marking, so the default appearance is
-     * byte-identical. Ignored by entities without a marking layer.
+     * {@link HorseMarking#NONE} (default) draws no marking. Ignored by entities without a marking layer.
      */
     @lombok.Builder.Default
     private final @NotNull HorseMarking markings = HorseMarking.NONE;
@@ -113,8 +110,7 @@ public class EntityAppearance {
      * Iron-golem crackiness (damage) selector. When set to a non-{@link IronGolemCrackiness#NONE}
      * level and the resolved entity carries a {@code texture_by: crackiness} overlay (the iron
      * golem), that overlay draws the level's crack texture over the body; {@link
-     * IronGolemCrackiness#NONE} (default) draws no cracks, so the default appearance is
-     * byte-identical. Ignored by entities without a crackiness overlay.
+     * IronGolemCrackiness#NONE} (default) draws no cracks. Ignored by entities without a crackiness overlay.
      */
     @lombok.Builder.Default
     private final @NotNull IronGolemCrackiness crackiness = IronGolemCrackiness.NONE;
@@ -123,8 +119,7 @@ public class EntityAppearance {
      * Copper-golem weathering selector. When the resolved entity supports weathering (the copper
      * golem), this swaps both the body base texture and its emissive eye overlay to the selected
      * oxidation state's textures; {@link CopperWeathering#UNAFFECTED} (default) renders the
-     * freshly-placed copper textures, so the default appearance is byte-identical. Ignored by
-     * entities without weathering.
+     * freshly-placed copper textures. Ignored by entities without weathering.
      */
     @lombok.Builder.Default
     private final @NotNull CopperWeathering weathering = CopperWeathering.UNAFFECTED;
@@ -133,8 +128,8 @@ public class EntityAppearance {
      * Villager / zombie-villager biome type - the robe texture forming the base clothing pass. When
      * the resolved entity carries a {@code texture_by: type} overlay (the villager profession layer),
      * that overlay draws the selected type's {@code <prefix>/type/<biome>} robe;
-     * {@link VillagerType#PLAINS} (default) resolves to the baked {@code type/plains} robe, so the
-     * default appearance is byte-identical. Ignored by entities without a villager profession layer.
+     * {@link VillagerType#PLAINS} (default) resolves to the baked {@code type/plains} robe. Ignored by
+     * entities without a villager profession layer.
      */
     @lombok.Builder.Default
     private final @NotNull VillagerType villagerType = VillagerType.PLAINS;
@@ -144,8 +139,7 @@ public class EntityAppearance {
      * a non-{@link VillagerProfession#NONE} value and the resolved entity carries a
      * {@code texture_by: profession} overlay, that overlay draws the profession's
      * {@code <prefix>/profession/<name>} texture; {@link VillagerProfession#NONE} (default) draws no
-     * profession pass, so the default appearance is byte-identical. Ignored by entities without a
-     * villager profession layer.
+     * profession pass. Ignored by entities without a villager profession layer.
      */
     @lombok.Builder.Default
     private final @NotNull VillagerProfession villagerProfession = VillagerProfession.NONE;
@@ -156,8 +150,8 @@ public class EntityAppearance {
      * {@link #villagerProfession profession} {@link VillagerProfession#drawsBadge() draws a badge}
      * (a real job), the resolved entity's {@code texture_by: profession_level} overlay draws that
      * tier's {@code <prefix>/profession_level/<badge>} texture; {@link VillagerLevel#NONE} (default)
-     * or a {@code NONE} / {@code NITWIT} profession draws no badge, so the default appearance is
-     * byte-identical. Ignored by entities without a villager profession layer.
+     * or a {@code NONE} / {@code NITWIT} profession draws no badge. Ignored by entities without a
+     * villager profession layer.
      */
     @lombok.Builder.Default
     private final @NotNull VillagerLevel villagerLevel = VillagerLevel.NONE;
@@ -172,8 +166,8 @@ public class EntityAppearance {
 
     /**
      * Whether the entity renders charged (lightning-struck). When {@code true} the resolved definition
-     * keeps its charged-only overlay (the creeper energy swirl); {@code false} (default) drops it, so
-     * the default render is byte-identical. Only affects entities with a charged overlay (the creeper).
+     * keeps its charged-only overlay (the creeper energy swirl); {@code false} (default) drops it. Only
+     * affects entities with a charged overlay (the creeper).
      */
     @lombok.Builder.Default
     private final boolean charged = false;

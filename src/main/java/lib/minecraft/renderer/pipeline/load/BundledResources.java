@@ -13,7 +13,7 @@ import java.util.Optional;
  *
  * <p>{@link #read(String, MissingPolicy, Diagnostics)} opens
  * {@code /lib/minecraft/renderer/<name>} under try-with-resources - closing the stream on every
- * path, fixing the historical colormap-loader leak - and applies the caller-declared
+ * path - and applies the caller-declared
  * {@link MissingPolicy} when the resource is absent. The graceful-empty vs required split is an
  * explicit per-file policy the caller declares, not an accident: {@code entity} and {@code colormap}
  * resources are {@link MissingPolicy#GRACEFUL_EMPTY} (their features are optional), while

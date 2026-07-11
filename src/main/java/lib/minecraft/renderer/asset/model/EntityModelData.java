@@ -270,7 +270,7 @@ public class EntityModelData {
          * Per-axis outward expansion, populated by {@link GeometryDocument}
          * under the synthetic {@code grow_axis} key when a {@code grow} is an {@code [x, y, z]} array
          * (an asymmetric {@code CubeDeformation}); {@code null} for the uniform {@link #inflate} scalar
-         * every 26.1 cube carries. Declared last so the all-args constructor keeps the historic
+         * every 26.1 cube carries. Declared last so the all-args constructor keeps the existing
          * eight-argument order for the deep-clone call sites. See {@link #getGrow()}.
          */
         @SerializedName("grow_axis")
@@ -278,7 +278,7 @@ public class EntityModelData {
 
         /**
          * Constructs a cube with a uniform scalar {@link #inflate} (no per-axis {@link #growAxis}) - the
-         * historic eight-argument shape every 26.1 cube and every kit fixture uses. Delegates to the
+         * existing eight-argument shape every 26.1 cube and every kit fixture uses. Delegates to the
          * all-args constructor with a {@code null} per-axis grow.
          */
         public Cube(

@@ -66,7 +66,7 @@ public class ColorMapLoader {
      * Maps the parsed colormap rows into the runtime lookup map, resolving {@code type} through
      * {@link ColorMap.Type} with an unknown value skipped-with-diagnostic and decoding each row's
      * Base64 {@code pixels}. A {@code null} row list (absent or empty {@code maps}) yields an empty
-     * map - the guard fixing the historical null-array NPE. Exposed for tests.
+     * map rather than throwing. Exposed for tests.
      *
      * @param rows the parsed colormap rows, or {@code null} when the resource omits {@code maps}
      * @param diagnostics the scope type warnings are recorded to

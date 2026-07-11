@@ -10,6 +10,6 @@
  * white-fallback policy.
  *
  * <p>The read side reuses the tooling {@code JsonNode} and {@code Diagnostics} core rather than
- * duplicating it; the shared JSON core relocates to a neutral package in a later pass.
+ * duplicating it.
  */
 package lib.minecraft.renderer.pipeline.load;

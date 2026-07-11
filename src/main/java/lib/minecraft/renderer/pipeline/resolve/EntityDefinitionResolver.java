@@ -24,11 +24,11 @@ import java.util.Set;
 /**
  * Folds an {@link EntityAppearance}'s render-axis selections into a single resolved
  * {@link Entity} the renderer iterates unconditionally, with no scattered {@code !baby}
- * gates. This is the render-time policy that used to live on {@code Entity.resolveFor} in
- * the loader - relocated to a renderer-owned home so the reader stays a pure data mapper.
+ * gates. This render-time policy lives in a renderer-owned home rather than on the definition,
+ * keeping the reader a pure data mapper.
  *
- * <p>The nine axis semantics apply in a fixed short-circuit order (byte-identical to the historic
- * fold): (1) a baby swaps in the baby mesh and DROPS overlays / block overlays / collar / equipment -
+ * <p>The nine axis semantics apply in a fixed short-circuit order: (1) a baby swaps in the baby mesh
+ * and DROPS overlays / block overlays / collar / equipment -
  * each carries adult geometry that would render adult-sized around the smaller baby body, and the
  * whole non-baby branch is skipped; else (2) sheared drops the wool overlay and charged gates the
  * swirl; (3) the sheared axis additionally activates a {@code "sheared"} bone toggle (bogged); (4)
@@ -52,11 +52,10 @@ public final class EntityDefinitionResolver {
      * @return the age / carried / sheared / shape / size / tint-resolved definition
      */
     public static @NotNull Entity resolve(@NotNull Entity base, @NotNull EntityAppearance appearance) {
-        // Variant fold (option-encoded coat / colour, axis-unification #3): a selected variant resolves
-        // against that option's fully-built sub-definition - byte-identical to the id-encoded pseudo-id it
-        // replaced - so every later axis (baby / size / tint) folds on top exactly as it did when each coat
-        // was a first-class pseudo-id. Absent, an unknown option, and the id-encoded / non-variant case
-        // (empty variants map) all keep the family default coat, so the default appearance is byte-identical.
+        // Variant fold (option-encoded coat / colour): a selected variant resolves against that option's
+        // fully-built sub-definition, so every later axis (baby / size / tint) folds on top of the coat.
+        // An absent or unknown option, and a non-variant family (empty variants map), keep the family
+        // default coat.
         Entity definition = appearance.getVariant()
             .map(coat -> base.axes().variants().getOrDefault(coat, base))
             .orElse(base);
@@ -68,9 +67,8 @@ public final class EntityDefinitionResolver {
             // Drop overlays the appearance doesn't activate: shearable overlays (the sheep wool) when
             // sheared - both the rendered geometry and its canvas-bounds contribution - and charged-only
             // overlays (the creeper energy swirl) unless the charged axis is set. A charged overlay renders
-            // only for a lightning-struck entity, so the default (uncharged) render is byte-identical. Only
-            // rebuilds the list when there is something to drop, so an entity with no shearable / charged
-            // overlay keeps its exact overlay list.
+            // only for a lightning-struck entity. The list is only rebuilt when there is something to drop,
+            // so an entity with no shearable / charged overlay keeps its exact overlay list.
             boolean hasCharged = definition.overlays().stream()
                 .anyMatch(overlay -> overlay.gate().filter(gate -> gate instanceof AppearanceGate.ChargedGate).isPresent());
             if (appearance.isSheared() || hasCharged)
@@ -81,7 +79,7 @@ public final class EntityDefinitionResolver {
             // horns hide). Guarded to the non-baby path - the baby mesh has its own bones. The sheared axis
             // additionally activates the "sheared" toggle for entities that declare one (bogged drops its
             // mushrooms); entities whose sheared handling is overlay-only (sheep wool) declare no such
-            // toggle and are left byte-identical.
+            // toggle and are left unchanged.
             Set<String> selectedToggles = appearance.getToggles();
             if (appearance.isSheared() && definition.boneToggles().containsKey("sheared")) {
                 selectedToggles = new LinkedHashSet<>(selectedToggles);
@@ -93,7 +91,7 @@ public final class EntityDefinitionResolver {
             // The shape axis (tropical fish) swaps to the large body when the selected pattern's Shape is
             // large: the large mesh, tropical_b base texture, and the pattern overlays cloned onto the
             // large geometry (the pattern axis still picks the concrete overlay texture via texture_by). A
-            // small/default pattern leaves the small body untouched, so the default render is byte-identical.
+            // small/default pattern leaves the small body untouched.
             if (definition.axes().largeShape().isPresent()
                 && appearance.getPattern().map(p -> p.shape() == TropicalFishPattern.Shape.LARGE).orElse(false)) {
                 LargeShape large = definition.axes().largeShape().get();
@@ -101,26 +99,26 @@ public final class EntityDefinitionResolver {
             }
             // The size axis (pufferfish) swaps to the selected size's distinct baked mesh. An unset size, or
             // the entity's default size (pufferfish large = the base mesh, absent from the map), leaves the
-            // base model untouched, so the default render is byte-identical.
+            // base model untouched.
             appearance.getSize().map(definition.axes().sizeModels()::get).ifPresent(builder::model);
             // The size axis (salmon / slime / magma_cube) instead multiplies rendererScale by the selected
             // size's factor. An unset / default size (scale 1.0, absent from the map) leaves rendererScale
-            // untouched, so the default render is byte-identical. A uniform scale is a visual no-op under the
+            // untouched. A uniform scale is a visual no-op under the
             // auto-fit renderer (self-similar); the factor is applied for a future absolute-scale renderer.
             appearance.getSize().map(definition.axes().sizeScales()::get)
                 .ifPresent(scale -> builder.rendererScale(definition.rendererScale() * scale));
         }
         // The base_color axis (tropical fish) overrides the family base_tint with the selected dye; absent
-        // (default) keeps the baked base_tint, so the default render is byte-identical.
+        // (default) keeps the baked base_tint.
         appearance.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
         return builder.build();
     }
 
     /**
      * Whether an overlay survives the resolve-stage gate filter: an unconditional or tint-gated overlay
-     * is kept here (a {@link AppearanceGate.TintedGate} is evaluated at render, mirroring the historic
-     * two-stage split), while a flag / charged gate that fails for this appearance drops the overlay
-     * (the sheared wool, the uncharged creeper swirl).
+     * is kept here (a {@link AppearanceGate.TintedGate} is instead evaluated at render), while a flag /
+     * charged gate that fails for this appearance drops the overlay (the sheared wool, the uncharged
+     * creeper swirl).
      *
      * @param overlay the overlay to test
      * @param appearance the render-axis selections
