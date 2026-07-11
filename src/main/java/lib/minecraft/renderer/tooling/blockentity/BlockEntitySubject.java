@@ -8,21 +8,20 @@ import java.util.List;
 /**
  * One registered block-entity type joined with its renderer - everything the per-subject
  * resolver chain needs, produced by {@link BlockEntityRegistryDiscovery} in
- * {@code BlockEntityRenderers.<clinit>} registration order (SPINE 2).
+ * {@code BlockEntityRenderers.<clinit>} registration order.
  *
- * <p>The renderer class is RETAINED here [#5] - the legacy hard-coded id-to-renderer switch
- * (ToolingBlockModels.java:220-226) dies because discovery already knows the pairing from the
- * registration walk [D49].
+ * <p>The renderer class is retained here because discovery already knows the id-to-renderer
+ * pairing from the registration walk, so no separate lookup is needed.
  *
  * @param beTypeId the namespaced block-entity type id, e.g. {@code minecraft:chest} - the
  *     {@code LDC} in {@code BlockEntityType.<clinit>}
  * @param beTypeField the {@code BlockEntityType} static field name, e.g. {@code CHEST} - the
  *     {@code PUTSTATIC} target and the join key
  * @param rendererClass the renderer class's JVM internal name, resolved from the
- *     {@code BlockEntityRenderers.<clinit>} registration lambda [D49]
+ *     {@code BlockEntityRenderers.<clinit>} registration lambda
  * @param blockFields the ordered {@code Blocks} static-field names this type's
  *     {@code validBlocks} lists (e.g. {@code CHEST}, {@code TRAPPED_CHEST}); resolved to
- *     namespaced ids at catalog time through {@code BlockRegistryIndex} [D25, D56]
+ *     namespaced ids at catalog time through {@code BlockRegistryIndex}
  */
 public record BlockEntitySubject(
     @NotNull String beTypeId,

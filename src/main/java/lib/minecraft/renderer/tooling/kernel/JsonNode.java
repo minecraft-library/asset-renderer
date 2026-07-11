@@ -19,8 +19,7 @@ import java.util.Map;
 
 /**
  * The unified tooling JSON self-builder - ONE type for building (append-as-you-go; insertion
- * order IS the byte-stability contract), null-safe reading (replacing the three legacy JSON
- * idioms), and the single write path (SPINE 5.3 / decision 36).
+ * order IS the byte-stability contract), null-safe reading, and the single write path.
  *
  * <p><b>Float-only rule</b>: every fractional number is a Java {@code float} written via
  * {@link #put(String, float)} - NO {@code double}/{@code Number} overload exists, because a
@@ -29,8 +28,8 @@ import java.util.Map;
  * strings via {@link #putHex} (Gson cannot round-trip {@code 0x80000000}-class ints).
  *
  * <p>Zero raw {@code new JsonObject()} exists anywhere in tooling flows; Gson imports are
- * legal only in the kernel and the bridge, and {@link #toGson()} is the bridge escape hatch
- * ONLY.
+ * legal only in the kernel, and {@link #toGson()} is the sole escape hatch for consumers that
+ * still need a raw Gson element.
  */
 public final class JsonNode {
 
@@ -70,9 +69,9 @@ public final class JsonNode {
     }
 
     /**
-     * A fresh resource envelope root: the {@code //} header (generator, regen task, AND the file's
-     * declared ordering source - decision 36), {@code format: 2}, and {@code source_version}
-     * derived from the session's jar options [D47].
+     * A fresh resource envelope root: the {@code //} header (generator, regen task, and the file's
+     * declared ordering source), {@code format: 2}, and {@code source_version} derived from the
+     * session's jar options.
      *
      * @param session the live session (flow name + jar version)
      * @param orderingSource the declared ordering source stamped into the header
@@ -314,9 +313,7 @@ public final class JsonNode {
 
     /**
      * Wraps an existing Gson element as a node - sanctioned ONLY for the geometry parser's
-     * output edge (its ~3000 KEPT-verbatim internal lines assemble Gson trees per decision
-     * 31; converting them would be the internal restructuring S14's byte pin exists to
-     * gate) and for the bridge's read side. Flow resolvers never wrap.
+     * output edge, which assembles Gson trees directly. Flow resolvers never wrap.
      *
      * @param element the element to wrap
      * @return the wrapping node
@@ -476,8 +473,8 @@ public final class JsonNode {
     }
 
     /**
-     * The wrapped Gson element - the bridge escape hatch ONLY (loaders consume Gson types;
-     * nothing else in tooling may unwrap a node).
+     * The wrapped Gson element - the escape hatch for loaders that consume Gson types directly;
+     * nothing else in tooling may unwrap a node.
      */
     public @NotNull JsonElement toGson() {
         return this.element;

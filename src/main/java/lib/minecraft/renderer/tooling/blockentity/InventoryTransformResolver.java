@@ -9,10 +9,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * The {@code inventory.transform} contributor (SPINE 3.3 A6 row 5): drives {@link TransformWalker}
- * on the split's renderer at its P41 entry [P41] and emits the decomposed float tuple. The three
- * raw-pose renderers (chest / bell / copper_golem_statue) have no P41 entry and emit no transform;
- * the standing sign seeds its attachment so {@code sign} and {@code wall_sign} decompose distinctly.
+ * The {@code inventory.transform} contributor: drives {@link TransformWalker} on the split's
+ * renderer at its GUI transform-building entry point and emits the decomposed float tuple. The
+ * three raw-pose renderers (chest / bell / copper_golem_statue) have no such entry point and emit
+ * no transform; the standing sign seeds its attachment so {@code sign} and {@code wall_sign}
+ * decompose distinctly.
  *
  * <p>Poison-on-unknown emits nothing rather than garbage. Results are memoised per (renderer,
  * attachment) so the family's shared splits decompose once.

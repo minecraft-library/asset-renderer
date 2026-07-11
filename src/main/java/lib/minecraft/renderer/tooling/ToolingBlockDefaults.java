@@ -11,21 +11,21 @@ import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import java.nio.file.Path;
 
 /**
- * Entry point of the {@code blockDefaults} Gradle task - the block-defaults flow (SPINE 3.4):
- * every registered block's default blockstate from a {@code registerDefaultState} bytewalk, plus
- * the in-file {@code unresolved[]} for class-resolution failures (decision 24 - the file is
- * reconstructible-from-itself, fixing the ledger-15 absent-vs-empty conflation).
+ * Entry point of the {@code blockDefaults} Gradle task - walks every registered block's default
+ * blockstate from a {@code registerDefaultState} bytewalk, plus the in-file {@code unresolved[]}
+ * for class-resolution failures, so the file is reconstructible from itself and never conflates
+ * an absent entry with an empty one.
  */
 public final class ToolingBlockDefaults {
 
-    /** The bundled resource directory (SPINE 4 registry). */
+    /** The bundled resource directory. */
     private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingBlockDefaults() {
     }
 
     /**
-     * Runs the flow. ERROR-severity diagnostics fail the run (doc-12 K3; non-zero exit);
+     * Runs the flow. ERROR-severity diagnostics fail the run (non-zero exit);
      * {@code -Dasset.tooling.strict=warn} opts WARN into the same gate.
      *
      * @param args ignored - all paths are fixed
@@ -41,7 +41,7 @@ public final class ToolingBlockDefaults {
         }
     }
 
-    /** The doc-12 K3 strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
+    /** The strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
     private static void failOnStrictGate(ToolingSession session) {
         Diagnostics diagnostics = session.diagnostics();
         boolean warnStrict = "warn".equalsIgnoreCase(System.getProperty("asset.tooling.strict", "").trim());

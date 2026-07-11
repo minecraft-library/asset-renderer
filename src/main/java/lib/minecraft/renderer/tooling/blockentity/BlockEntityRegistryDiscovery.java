@@ -19,25 +19,24 @@ import java.util.Map;
 
 /**
  * Single-pass discovery of every registered block-entity type joined with its renderer -
- * the two-{@code <clinit>} registry join (SPINE 3.3 stage 1), ported from the legacy
- * {@code SourceDiscovery.walkRegistry} + {@code BlockListDiscovery.validBlocks} onto the
- * kernel. {@code BlockEntityRenderers.<clinit>} registration order == on-disk subject order.
+ * the two-{@code <clinit>} registry join. {@code BlockEntityRenderers.<clinit>} registration
+ * order == on-disk subject order.
  *
  * <p>Two independent walks feed the join:
  * <ol>
  *   <li><b>{@code BlockEntityType.<clinit>} scan.</b> {@code LDC "<id>"} +
  *       {@code GETSTATIC Blocks.X}* + {@code PUTSTATIC BlockEntityType.<FIELD>} pairs each
- *       type field with its registry id and its ordered valid-blocks fields [D53].</li>
+ *       type field with its registry id and its ordered valid-blocks fields.</li>
  *   <li><b>{@code BlockEntityRenderers.<clinit>} scan.</b> {@code GETSTATIC BlockEntityType.X}
  *       paired with the next {@code INVOKEDYNAMIC}, resolving the lambda handle to the
- *       renderer class [D49] - the id-to-renderer pairing is EXPOSED on the subject, so the
- *       legacy hard-coded switch (ToolingBlockModels.java:220-226) dies.</li>
+ *       renderer class - the id-to-renderer pairing is EXPOSED on the subject rather than
+ *       hard-coded per caller.</li>
  * </ol>
  *
  * <p>Shared-renderer dedupe: chest / trapped_chest / ender_chest all register
  * {@code ChestRenderer}; only the first registration (chest) becomes a subject - the rest
  * share the renderer + geometry, and the chest family split (BlockFamilyPolicies) fans the
- * blocks back out at catalog time (legacy SourceDiscovery.java:257-266).
+ * blocks back out at catalog time.
  */
 public final class BlockEntityRegistryDiscovery {
 
@@ -61,8 +60,8 @@ public final class BlockEntityRegistryDiscovery {
         // Shared-renderer collapse: one subject per renderer class, at its first-registration
         // position (chest wins over trapped/ender - same geometry). The deduped types' valid
         // blocks are MERGED into the surviving subject in registration order so the catalog
-        // fans the full family back out (legacy Chest.discover unions
-        // validBlocks(CHEST)+validBlocks(TRAPPED_CHEST)+validBlocks(ENDER_CHEST)).
+        // fans the full family back out (the union of validBlocks across chest, trapped_chest,
+        // and ender_chest).
         Map<String, Pending> byRenderer = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : renderers.entrySet()) {
             String typeField = entry.getKey();

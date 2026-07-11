@@ -24,17 +24,15 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Node {@code block_overlays[]} - block-model composites on entity bodies (SPINE 3.1 row
- * 14; mooshroom mushrooms, snow-golem pumpkin, iron-golem poppy, enderman carried block).
- * The legacy engine was already fully structural and is PORTED: a roster layer qualifies
- * when its typed {@code submit} reads a {@code BlockModelRenderState}-typed field; the
- * block id resolves from the {@code $Variant}-enum {@code DEFAULT} (P13), a presence-gated
- * literal, or stays render-selectable (P17 fixed-vs-selectable semantics).
+ * Resolves the {@code block_overlays[]} array - block-model composites on entity bodies
+ * (mooshroom mushrooms, snow-golem pumpkin, iron-golem poppy, enderman carried block). A
+ * roster layer qualifies when its typed {@code submit} reads a
+ * {@code BlockModelRenderState}-typed field; the block id resolves from the
+ * {@code $Variant}-enum {@code DEFAULT}, a presence-gated literal, or stays
+ * render-selectable.
  *
- * <p>Upgrades over the legacy port: block ids resolve through the
- * {@link BlockRegistryIndex} registration walk [D25] instead of the lowercase-field-name
- * heuristic, and a {@code Z}-axis rotation is EMITTED as {@code rotate_z} (d24 - the legacy
- * silent skip dies; P14 hosts the axis-name parsing).
+ * <p>Block ids resolve through the {@link BlockRegistryIndex} registration walk, and a
+ * {@code Z}-axis rotation is emitted as {@code rotate_z}.
  */
 final class EntityBlockOverlayResolver {
 
@@ -133,7 +131,7 @@ final class EntityBlockOverlayResolver {
 
         ClassNode stateCn = this.cache.load(stateClass);
         if (stateCn != null) {
-            String variantSuffix = EntityNamingPolicies.VARIANT_DESCRIPTOR_SUFFIX.stringValue();   // P13
+            String variantSuffix = EntityNamingPolicies.VARIANT_DESCRIPTOR_SUFFIX.stringValue();
             for (FieldNode field : stateCn.fields) {
                 if (field.desc == null || !field.desc.startsWith("L") || !field.desc.endsWith(variantSuffix)) continue;
                 String variantClass = field.desc.substring(1, field.desc.length() - 1);
@@ -143,7 +141,7 @@ final class EntityBlockOverlayResolver {
 
         LiteralBlock literal = resolveLiteralBlock(blockField);
         if (literal != null)
-            // P17: a presence-gated literal is a fixed always-present decoration; a
+            // A presence-gated literal is a fixed always-present decoration; a
             // timer-gated one is a selectable held block.
             return new BlockSource(literal.blockId(),
                 literal.guarded() != EntityOverlayPolicies.PRESENCE_GATE_FIXED_WHEN_GUARDED.booleanValue());
@@ -152,8 +150,8 @@ final class EntityBlockOverlayResolver {
 
     /**
      * The {@code $Variant} enum's canonical block: its {@code <clinit>} pairs each constant
-     * with the {@code Blocks.X} it wraps; the P13 {@code DEFAULT} alias picks the canonical
-     * one, resolved to its registered id through the registry index [D25].
+     * with the {@code Blocks.X} it wraps; the {@code DEFAULT} alias picks the canonical one,
+     * resolved to its registered id through the registry index.
      */
     private @Nullable String resolveVariantDefaultBlock(@NotNull String variantClass) {
         ClassNode cn = this.cache.load(variantClass);
@@ -174,7 +172,7 @@ final class EntityBlockOverlayResolver {
             }
             if (AsmKit.isPutStatic(in, variantClass) && in instanceof FieldInsnNode put) {
                 if (EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue().equals(put.name) && pendingAlias != null)
-                    defaultConstant = pendingAlias;   // P15 anchor
+                    defaultConstant = pendingAlias;
                 else if (pendingBlocksField != null)
                     constantToBlocksField.put(put.name, pendingBlocksField);
                 pendingBlocksField = null;
@@ -193,9 +191,9 @@ final class EntityBlockOverlayResolver {
 
     /**
      * A literal {@code Blocks.X} bind in the renderer chain's {@code extractRenderState},
-     * with its P17 presence-guard classification.
+     * with its presence-guard classification.
      *
-     * @param blockId the registered block id [D25]
+     * @param blockId the registered block id
      * @param guarded whether an entity {@code ()Z} presence predicate gates the bind
      */
     private record LiteralBlock(@NotNull String blockId, boolean guarded) {}
@@ -243,7 +241,7 @@ final class EntityBlockOverlayResolver {
     }
 
     /**
-     * The P17 presence-flag shape: a parameterless boolean call on the entity parameter
+     * The presence-flag shape: a parameterless boolean call on the entity parameter
      * ({@code hasPumpkin()}) - present marks the bind guarded (fixed), absent marks it a
      * timer / runtime gate (selectable).
      */
@@ -265,8 +263,8 @@ final class EntityBlockOverlayResolver {
     /**
      * Splits the typed submit on {@code pushPose} / {@code popPose} pairs, each pair
      * yielding a carrier node {@code {attached_bone?, transforms[]}} of the recognised
-     * pose-stack ops in bytecode order. The float pseudo-stack mirrors the legacy walker
-     * (literal pushes consumed most-recent-first by each op).
+     * pose-stack ops in bytecode order. The float pseudo-stack consumes literal pushes
+     * most-recent-first for each op.
      */
     private @NotNull List<JsonNode> extractPoseBlocks(@NotNull MethodNode submit) {
         List<JsonNode> out = new ArrayList<>();
@@ -333,8 +331,8 @@ final class EntityBlockOverlayResolver {
                 float degrees = floats.removeLast();
                 String axis = findPrecedingAxisField(call);
                 if (axis == null || axis.length() < 2) continue;
-                // P14: `?P` is a positive rotation about the axis, `?N` negates the angle;
-                // a Z axis is EMITTED (d24 - the legacy silent skip dies).
+                // `?P` is a positive rotation about the axis, `?N` negates the angle; a Z
+                // axis is emitted.
                 if (axis.charAt(1) == 'N') degrees = -degrees;
                 String op = switch (axis.charAt(0)) {
                     case 'X' -> "rotate_x";
@@ -358,7 +356,7 @@ final class EntityBlockOverlayResolver {
         return out;
     }
 
-    /** The {@code Axis.<X>} field name behind a {@code rotationDegrees} call (P14 parsing). */
+    /** The {@code Axis.<X>} field name behind a {@code rotationDegrees} call. */
     private static @Nullable String findPrecedingAxisField(@NotNull MethodInsnNode call) {
         AbstractInsnNode hit = AsmKit.findPreceding(call,
             node -> AsmKit.isGetStatic(node, VanillaSourceClasses.Types.MATH_AXIS),
@@ -370,7 +368,7 @@ final class EntityBlockOverlayResolver {
     /**
      * The bone a {@code translateAndRotate} pre-applies: the most recent
      * {@code get*()->ModelPart} accessor, resolved through the model class to its
-     * {@code getChild} string, with the P16 getter-name / snake_case fallbacks.
+     * {@code getChild} string, with getter-name / snake_case fallbacks.
      */
     private @Nullable String findPrecedingBoneAccessor(@NotNull MethodInsnNode call) {
         for (AbstractInsnNode in = AsmKit.previousReal(call); in != null; in = AsmKit.previousReal(in)) {
@@ -381,7 +379,7 @@ final class EntityBlockOverlayResolver {
             String resolved = resolveAccessorBone(accessor.owner, accessor.name);
             if (resolved != null) return resolved;
             String stem = accessor.name.substring(3);
-            // P16 fallback: getter-name decapitalisation when the field trace misses.
+            // Fallback: getter-name decapitalisation when the field trace misses.
             return stem.isEmpty() ? null : Character.toLowerCase(stem.charAt(0)) + stem.substring(1);
         }
         return null;
@@ -390,8 +388,8 @@ final class EntityBlockOverlayResolver {
     /**
      * A {@code getXxx()->ModelPart} accessor resolved to the geometry bone it returns: the
      * getter's returned field, then the {@code getChild("bone")} string that field is
-     * assigned in the model {@code <init>}, with the P16 snake_case fallback for
-     * superclass-bound fields.
+     * assigned in the model {@code <init>}, with a snake_case fallback for superclass-bound
+     * fields.
      */
     private @Nullable String resolveAccessorBone(@NotNull String modelInternalName, @NotNull String accessorName) {
         ClassNode model = this.cache.load(modelInternalName);

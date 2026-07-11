@@ -15,23 +15,23 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Entry point of the {@code blockModels} Gradle task - the block-models flow, then the shared
- * geometry flow, ONE session (SPINE 3.3 / decision 12): discovery, registry walk,
- * {@code block_models.json}, {@code block_geometry.json}.
+ * Entry point of the {@code blockModels} Gradle task - runs the block-models flow, then the
+ * shared geometry flow, in one session: discovery, registry walk, {@code block_models.json},
+ * {@code block_geometry.json}.
  *
- * <p>Pure jar to JSON: the legacy merge-with-previous [X10] and whitelist [X11] are gone -
- * every registered BER emits (incl. enchanting_table / lectern), the version is derived [D47].
+ * <p>Pure jar to JSON: every registered BER emits (incl. enchanting_table / lectern), and the
+ * version is derived rather than merged with a previous run or filtered by a whitelist.
  */
 public final class ToolingBlockModels {
 
-    /** The bundled resource directory (SPINE 4 registry). */
+    /** The bundled resource directory. */
     private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingBlockModels() {
     }
 
     /**
-     * Runs the flow. ERROR-severity diagnostics fail the run (doc-12 K3; non-zero exit);
+     * Runs the flow. ERROR-severity diagnostics fail the run (non-zero exit);
      * {@code -Dasset.tooling.strict=warn} opts WARN into the same gate.
      *
      * @param args ignored - all paths are fixed
@@ -49,7 +49,7 @@ public final class ToolingBlockModels {
         }
     }
 
-    /** The doc-12 K3 strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
+    /** The strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
     private static void failOnStrictGate(ToolingSession session) {
         Diagnostics diagnostics = session.diagnostics();
         boolean warnStrict = "warn".equalsIgnoreCase(System.getProperty("asset.tooling.strict", "").trim());

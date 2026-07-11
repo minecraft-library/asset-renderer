@@ -18,8 +18,8 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Walks {@code MobEffects.<clinit>} and owns the {@code effects} node (SPINE 3.5). The three
- * legacy shape heuristics survive as declared policies (P46, their comments as provenance):
+ * Walks {@code MobEffects.<clinit>} and populates the {@code effects} node. Three shape
+ * heuristics decode the effect colour table:
  * <ol>
  *   <li>{@code POTION_EFFECT_ID_FIRST_LDC} - the first LDC string since the last {@code register}
  *       is the effect id; later strings are attribute-modifier ids;</li>
@@ -29,9 +29,9 @@ import java.util.TreeMap;
  *       trailing int, prefix-owner matched for {@code MobEffect} subclasses.</li>
  * </ol>
  *
- * <p>Record-not-drop (09 SS6): an effect whose colour was never captured (a non-standard ctor -
- * silently vanished in the legacy) emits a {@link Diagnostics#warn} rather than an in-file row
- * (SPINE 3.5). Output is sorted by effect id; colour forced fully opaque.
+ * <p>An effect whose colour was never captured (a non-standard ctor) emits a
+ * {@link Diagnostics#warn} rather than being silently dropped. Output is sorted by effect id;
+ * colour forced fully opaque.
  */
 public final class PotionColorWalk {
 

@@ -31,11 +31,11 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Pins {@link TransformWalker} against synthetic classes mirroring the EXACT 26.1 bytecode of
- * every P41 entry (verified against {@code javap -c -p} of the extracted client classes) - the
- * expected tuples are the checked-in {@code block_models.json} values, byte-for-byte. Covers
- * the eight factory shapes plus the walker's guard rails: poison-on-unknown, {@code Axis.XN}
- * polarity, and the FIELD: stop-at-PUTSTATIC capture.
+ * Pins {@link TransformWalker} against synthetic classes mirroring the exact 26.1 bytecode of
+ * each known block-entity transform site (verified against {@code javap -c -p} of the extracted
+ * client classes) - the expected tuples are the checked-in {@code block_models.json} values,
+ * byte-for-byte. Covers the eight factory shapes plus the walker's guard rails: poison-on-unknown,
+ * {@code Axis.XN} polarity, and the FIELD: stop-at-PUTSTATIC capture.
  */
 @DisplayName("TransformWalker decomposes the eight P41 shapes to the tuples")
 class TransformWalkerTest {
@@ -89,7 +89,7 @@ class TransformWalkerTest {
     }
 
     // ------------------------------------------------------------------------------------
-    // the eight P41 shapes (expected tuples = the checked-in block_models.json values)
+    // the eight block-entity transform shapes (expected tuples = the checked-in block_models.json values)
     // ------------------------------------------------------------------------------------
 
     @Test
@@ -399,7 +399,7 @@ class TransformWalkerTest {
         return cn;
     }
 
-    /** A synthetic {@code Axis.XN} rotation - vanilla has no P41 site using an N axis (yet). */
+    /** A synthetic {@code Axis.XN} rotation - vanilla has no known transform site using an N axis. */
     private static @NotNull ClassNode negatedAxisRenderer() {
         ClassNode cn = fixture("fx/NegatedAxisRenderer");
         InsnList code = method(cn, "negatedTransform", "()L" + TRANSFORMATION + ";");

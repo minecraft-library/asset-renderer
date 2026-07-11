@@ -26,19 +26,17 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Node {@code bones} - bone-visibility deltas from ONE model-hierarchy walk (SPINE 3.1
- * row 6, fixing the acknowledged legacy double walk): {@code hidden} (unconditional ctor
- * {@code visible = false} writes plus state-gated zero-state-false writes, minus renderer
- * re-enables - the Illusioner pattern) and {@code toggles} (state-gated reveals / hides:
- * chest, horns, mushrooms).
+ * Node {@code bones} - bone-visibility deltas from a single model-hierarchy walk:
+ * {@code hidden} (unconditional ctor {@code visible = false} writes plus state-gated
+ * zero-state-false writes, minus renderer re-enables - the Illusioner pattern) and
+ * {@code toggles} (state-gated reveals / hides: chest, horns, mushrooms).
  *
- * <p>Derivation upgrades vs legacy: the {@code hasChest} literal gate generalises to any
- * render-state boolean with a zero-state-false default [D37]; the {@code has} / {@code is}
- * prefix checks are retired - the {@code :Z} descriptor already types the flag [D38] (the
- * prefixes survive only in toggle NAMING, where {@code hasChest} strips to {@code chest}).
- * Toggle subtrees stay EXPANDED exactly as legacy, captured pre-hidden-strip (decision 25) -
- * the expansion runs against the parsed geometry of the family's registered request, not
- * re-read emitted JSON.
+ * <p>The {@code hasChest} literal gate generalises to any render-state boolean with a
+ * zero-state-false default; gate detection relies on the {@code :Z} descriptor to type the
+ * flag rather than a {@code has} / {@code is} name-prefix test (the prefixes survive only in
+ * toggle NAMING, where {@code hasChest} strips to {@code chest}). Toggle subtrees are
+ * expanded against the parsed geometry of the family's registered request, not re-read
+ * emitted JSON.
  */
 final class EntityBoneResolver {
 
@@ -140,7 +138,7 @@ final class EntityBoneResolver {
      *
      * @param fieldToBone model field name to geometry bone name ({@code rightChest} to {@code right_chest})
      * @param unconditionalHidden fields cleared unconditionally in a ctor
-     * @param stateGatedByFlag positive state-gated fields, grouped by flag [D37]
+     * @param stateGatedByFlag positive state-gated fields, grouped by flag
      * @param inlineGatedBones {@code getChild("<bone>")}-targeted gated bone names
      * @param negatedGatedByFlag negated-branch-gated fields, grouped by flag
      */
@@ -212,11 +210,11 @@ final class EntityBoneResolver {
 
     /**
      * Collects the three state-gate shapes from one method into the scan: a positive
-     * {@code this.<bone>.visible = state.<flag>} groups under its flag [D37]; a positive
+     * {@code this.<bone>.visible = state.<flag>} groups under its flag; a positive
      * gate on a {@code getChild(LDC)} target records the bone name (goat horns); a
      * negated-branch gate ({@code visible = !state.<flag>}, bogged) groups with the
      * branch-polarity default. The flag must be a non-model-owned {@code :Z} field read off
-     * a non-{@code this} load [D38 - no name-prefix test].
+     * a non-{@code this} load - detected by descriptor, not by name prefix.
      */
     private static void collectGates(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull HierarchyScan scan) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
@@ -345,9 +343,9 @@ final class EntityBoneResolver {
     /**
      * Expands each toggle's directly-named bones to the full subtree they root, so flipping
      * a group bone (bogged's {@code mushrooms}) takes its children with it. The parent links
-     * come from parsing the family's registered request (decision 25 - never re-read emitted
-     * JSON); leaf toggle bones root no subtree and pass through unchanged. Runs only for
-     * families that HAVE toggles, so the extra parse stays rare.
+     * come from parsing the family's registered request, never re-read emitted JSON; leaf
+     * toggle bones root no subtree and pass through unchanged. Runs only for families that
+     * have toggles, so the extra parse stays rare.
      */
     private void expandToggleSubtrees(@NotNull Map<String, Toggle> toggles) {
         GeometryRequest request = this.geometryRef.registeredRequest();
@@ -383,7 +381,7 @@ final class EntityBoneResolver {
 
     /**
      * Strips a leading {@code left_} / {@code right_} so a symmetric pair flips under one
-     * toggle ({@code left_horn} to {@code horn}) - P25,
+     * toggle ({@code left_horn} to {@code horn}); see
      * {@link EntityNamingPolicies#LEFT_RIGHT_STEMS}.
      */
     private static @NotNull String stripLeftRight(@NotNull String bone) {
@@ -395,7 +393,7 @@ final class EntityBoneResolver {
     /**
      * Derives a toggle name from a state flag: strips the {@code has} / {@code is} prefix
      * and snake_cases the stem ({@code hasChest} to {@code chest}) - naming only, never a
-     * match gate [D38].
+     * match gate.
      */
     private static @NotNull String flagToToggleName(@NotNull String flag) {
         String stem = flag.startsWith("has") ? flag.substring(3)

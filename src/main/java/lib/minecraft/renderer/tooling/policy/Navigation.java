@@ -4,8 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The result of a policy consultation - where to look, a declared fact, or nothing
- * (SPINE 5.5 / decision 7).
+ * The result of a policy consultation - where to look, a declared fact, or nothing.
  *
  * <p>{@link At} and {@link AtResource} only tell the caller WHERE to look - they re-enter the
  * SAME generic engine at the given coordinate. {@link Value} is terminal: a genuinely
@@ -32,8 +31,7 @@ public sealed interface Navigation {
     record AtResource(@NotNull String entryPath) implements Navigation {}
 
     /**
-     * A declared fact - the ONLY sanctioned hard-coding in tooling (decision 8; the SPINE
-     * 2.1 roster is the complete inventory).
+     * A declared fact - the ONLY sanctioned hard-coding in tooling.
      *
      * @param value the declared value
      * @param provenance where the fact was won and why it is trusted - MANDATORY

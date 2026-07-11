@@ -9,12 +9,12 @@ import java.util.Map;
 
 /**
  * The ordered, deduping {@link GeometryRequest} registry handed from a models walk to
- * {@code GeometryFlow} in the same session (SPINE decision 12).
+ * {@link GeometryFlow} in the same session.
  *
- * <p>The dedupe identity IS the minted key (decision 15): two requests agreeing on factory
- * coordinate + discriminators collapse onto one entry, the FIRST request retained (its
- * {@code subjectId} is the provenance stamp). Registration order is emission order -
- * append-last is a data-structure property of the backing insertion-ordered map [P5], not
+ * <p>The dedupe identity is the minted key: two requests agreeing on factory coordinate
+ * plus discriminators collapse onto one entry, with the FIRST request retained (its
+ * {@code subjectId} is the provenance stamp). Registration order is emission order - the
+ * backing insertion-ordered map preserves append order as a data-structure property, not
  * caller choreography. A key collision between two DIFFERENT factory classes (same simple
  * name in different packages) fails loudly rather than silently merging meshes.
  */

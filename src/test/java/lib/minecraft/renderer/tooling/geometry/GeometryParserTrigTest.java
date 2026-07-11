@@ -7,11 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Pins the tooling parser's nested {@code FastTrig} to vanilla {@code Mth.sin / Mth.cos}
- * bit-parity (doc-12 K10) - the table-vs-libm gap (~1.8e-5) crosses pixel rounding for
+ * bit-parity - the table-vs-libm gap (~1.8e-5) crosses pixel rounding for
  * WitherBoss-class entities, so the pin converts a silent drift into a loud failure.
- * Mirrors the legacy {@code FastTrigTest}'s two assertions with NO shared code
- * (decision-28 precedent): the expected values re-derive the table build and the index
- * math independently.
+ * The expected values re-derive the table build and the index math independently,
+ * with no shared code between the assertion and the implementation under test.
  */
 @DisplayName("tooling FastTrig bit-parity vs an independent vanilla Mth re-derivation")
 class GeometryParserTrigTest {

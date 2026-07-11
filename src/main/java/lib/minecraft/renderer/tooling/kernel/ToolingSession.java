@@ -5,11 +5,10 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The AutoCloseable run context every tooling flow lives inside - options, the sole jar
- * cache, and the diagnostics root (SPINE 5.7).
+ * cache, and the diagnostics root.
  *
  * <p>Every main starts {@code try (ToolingSession s = ToolingPipeline.openSession(...))} - no
- * flow ever sees a {@code ZipFile} or a {@code Path}. The legacy {@code zip()} fluent leak
- * has no successor.
+ * flow ever sees a {@code ZipFile} or a {@code Path}.
  *
  * @param options the pipeline options (source version, cache root)
  * @param cache the session's sole jar cache

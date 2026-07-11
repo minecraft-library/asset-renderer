@@ -17,31 +17,31 @@ import java.util.StringJoiner;
 
 /**
  * Hierarchical diagnostic sink for tooling flows - parent-to-child scopes whose paths mirror
- * the resolver tree (SPINE 5.4).
+ * the resolver tree.
  *
  * <p>Every class receiving a {@code Diagnostics} immediately takes {@link #child(String)}: the
  * walk childs per subject id, each node-resolver per node name, so scope paths read
  * {@code entityModels/minecraft:wolf/overlays}. Entries ALWAYS record (chronologically, at the
  * root); {@link Output} gates emission only - {@code NONE} for tests, {@code CONSOLE} under
- * gradle, {@code FILE} for the run log replacing the legacy dev dumps (decision 33). Failed
- * derivations call {@link #error} - never a literal fallback (decision 10).
+ * gradle, {@code FILE} for the run log. Failed derivations call {@link #error} - never a
+ * literal fallback.
  *
  * <p>Counts are SUBTREE-aggregated: {@link #count(Severity)} and {@link #failed()} cover this
  * scope and every descendant, so strict gates read the root. {@link Severity} declaration
- * order is load-bearing (ordinal-indexed counters - pack doc 04 V4).
+ * order is load-bearing (ordinal-indexed counters).
  */
 public final class Diagnostics {
 
     /** Where recorded entries are emitted. Recording itself is unconditional. */
     public enum Output { NONE, CONSOLE, FILE }
 
-    /** Entry severities, in escalation order. Declaration order is load-bearing (04 V4). */
+    /** Entry severities, in escalation order. Declaration order is load-bearing. */
     public enum Severity { INFO, WARN, ERROR }
 
     /**
      * One recorded diagnostic line.
      *
-     * @param timestamp the recording instant (doc-12 K4 - user decision)
+     * @param timestamp the recording instant
      * @param severity the entry severity
      * @param path the recording scope's path ({@code <flow>/<subject>/<node>})
      * @param message the formatted message
@@ -65,8 +65,8 @@ public final class Diagnostics {
 
     /**
      * Creates the root scope for a flow. The {@code fileTarget} is resolved by the caller
-     * ({@code ToolingPipeline.openSession} - doc-12 K1/K2: {@code Diagnostics} stays
-     * mode-blind) and is consulted only under {@link Output#FILE}.
+     * ({@code ToolingPipeline.openSession}; {@code Diagnostics} itself stays mode-blind) and
+     * is consulted only under {@link Output#FILE}.
      *
      * @param flow the flow name (the root path segment, e.g. {@code entityModels})
      * @param mode the emission mode
@@ -118,7 +118,7 @@ public final class Diagnostics {
 
     /**
      * Records an {@link Severity#ERROR} entry in this scope - the loud-failure channel for
-     * derivations that cannot complete (decision 10).
+     * derivations that cannot complete.
      *
      * @param message the format string
      * @param args the format arguments
@@ -140,7 +140,7 @@ public final class Diagnostics {
 
     /**
      * Returns whether this scope's subtree recorded at least one {@link Severity#ERROR} -
-     * the strict-gate read (doc-12 K3: ERROR fails every flow).
+     * the strict-gate read (an {@code ERROR} fails the flow).
      */
     public boolean failed() {
         return count(Severity.ERROR) > 0;

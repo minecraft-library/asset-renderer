@@ -17,17 +17,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The mechanical no-fetch contract of the policy SPI (SPINE decision 9): every
- * {@code NavigationPolicy} implementor - the flow-local {@code *Policies} enums - may declare
- * facts and coordinates but never fetch, so their sources may not import AsmKit,
- * ClassNodeCache, or any {@code org.objectweb.asm} type.
+ * The mechanical no-fetch contract of the policy SPI: every {@code NavigationPolicy}
+ * implementor - the flow-local {@code *Policies} enums - may declare facts and coordinates
+ * but never fetch, so their sources may not import AsmKit, ClassNodeCache, or any
+ * {@code org.objectweb.asm} type.
  *
- * <p>Scaffold session (S2): the scan mechanics are proven on dummy sources; the roster grows
- * one enum per flow session and anything hard-coded outside the SPINE 2.1 roster becomes a
- * failure here from phase 5 on. The doc-12 K9 extensions folded in with the entity policy
- * enums (S6): the vanilla-literal source scan (a {@code "minecraft:"} /
- * {@code "net/minecraft"} string literal outside {@code VanillaSourceClasses} and the policy
- * enums is a roster violation - the C2 stray-accretion regression gate) and the non-blank
+ * <p>The roster grows one enum per flow as new policy sources are added; anything hard-coded
+ * outside the roster becomes a failure here. Also enforced: the vanilla-literal source scan
+ * (a {@code "minecraft:"} / {@code "net/minecraft"} string literal outside
+ * {@code VanillaSourceClasses} and the policy enums is a roster violation) and the non-blank
  * provenance assert (reflective, over every policy constant's {@code provenance} field).
  */
 @DisplayName("policy purity: *Policies sources never import the fetch surface")
@@ -41,7 +39,7 @@ class PolicyPurityTest {
         "import lib.minecraft.renderer.tooling.kernel.AsmKit",
         "import lib.minecraft.renderer.tooling.kernel.ClassNodeCache");
 
-    /** String-literal fragments legal only inside the two sanctioned hard-coding homes (doc 05 SS7). */
+    /** String-literal fragments legal only inside the two sanctioned hard-coding homes. */
     private static final @NotNull List<String> VANILLA_LITERAL_MARKS = List.of("minecraft:", "net/minecraft");
 
     /** A double-quoted Java string literal (no escaped quotes exist in tooling sources). */

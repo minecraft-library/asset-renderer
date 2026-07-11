@@ -23,25 +23,25 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Node {@code layers[]} - the option-gated conditional rows (SPINE 3.1 row 15): collar,
- * markings, equipment. One roster pass; row order is roster order.
+ * Node {@code layers[]} - the option-gated conditional rows: collar, markings, equipment.
+ * One roster pass; row order is roster order.
  *
  * <ul>
  *   <li><b>Collar</b> - structural detection (a null-gated {@code DyeColor} state read in
- *       the typed submit, P6 escape hatch); the gate is TRUTHFUL [D42]:
- *       {@code when: {collar_color: "set"}} - vanilla's actual
- *       {@code collarColor != null && !isInvisible} branch - fixing the legacy
- *       {@code state=tame} divergence.</li>
- *   <li><b>Markings</b> - the enum-map shape [D11] whose axis token is the markings axis;
- *       emits {@code texture_by} plus the full {@code textures_by_value} map (d20 [D43]) -
- *       the legacy presence flag re-derived textures at render.</li>
+ *       the typed submit); the gate mirrors vanilla's actual
+ *       {@code collarColor != null && !isInvisible} branch as
+ *       {@code when: {collar_color: "set"}}, rather than approximating it from
+ *       {@code state=tame}.</li>
+ *   <li><b>Markings</b> - the enum-map shape whose axis token is the markings axis; emits
+ *       {@code texture_by} plus the full {@code textures_by_value} map so textures are
+ *       re-derived from the value at render rather than from a presence flag.</li>
  *   <li><b>Equipment</b> - {@link EntityEquipmentResolver} rows from call-site windows and
- *       bespoke layers [D34].</li>
+ *       bespoke layers.</li>
  * </ul>
  */
 final class EntityLayersResolver {
 
-    /** The markings axis name - the sole enum-map token routed to a layers row (P9 vocabulary). */
+    /** The markings axis name - the sole enum-map token routed to a layers row. */
     private static final @NotNull String MARKINGS_TOKEN = "markings";
 
     private final @NotNull ClassNodeCache cache;
@@ -78,9 +78,8 @@ final class EntityLayersResolver {
             AbstractInsnNode windowStart = lastAddLayer.getOrDefault(site.method(), site.method().instructions.getFirst());
             lastAddLayer.put(site.method(), site.addLayer());
 
-            // armor_type relocated under `layers` [LOCKED 3]: a HumanoidArmorLayer site emits the
-            // humanoid classification row here (in roster order) instead of a top-level member. The
-            // predicate is the same exact class match the former EntityArmorTypeResolver used.
+            // A HumanoidArmorLayer site emits the humanoid classification row here (in roster
+            // order), keyed by the same exact class match used to detect the armor layer type.
             if (VanillaSourceClasses.Types.HUMANOID_ARMOR_LAYER.equals(site.layerClass())) {
                 rows.add(armorRow(site));
                 continue;
@@ -119,7 +118,7 @@ final class EntityLayersResolver {
 
     /**
      * Whether a roster site's call-site window consumes an
-     * {@code EquipmentClientInfo$LayerType} static - row 13's skip predicate for
+     * {@code EquipmentClientInfo$LayerType} static - the skip predicate for
      * {@code SimpleEquipmentLayer}-style sites (the statics may precede a factory-helper
      * allocation, so the walk also scans a bounded backward window).
      */
@@ -137,9 +136,9 @@ final class EntityLayersResolver {
     }
 
     /**
-     * The collar row: the layer's clinit texture (adult - P10) rides {@code overlay.texture};
-     * the tint is render-supplied via {@code tint_by}; the [D42] truthful gate replaces the
-     * legacy {@code state=tame}.
+     * The collar row: the layer's clinit texture (adult) rides {@code overlay.texture}; the
+     * tint is render-supplied via {@code tint_by}; the gate mirrors vanilla's actual
+     * {@code collarColor != null} check rather than {@code state=tame}.
      */
     private @Nullable JsonNode resolveCollar(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
         String texture = EntityOverlayResolver.findFirstNonBabyTextureLiteral(cn);
@@ -159,7 +158,7 @@ final class EntityLayersResolver {
                 .put("tint_by", "collar_color"));
     }
 
-    /** The markings row: the full value map travels with the row (d20 [D43]). */
+    /** The markings row: the full value map travels with the row. */
     private @NotNull JsonNode resolveMarkings(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull EntityOverlayResolver.EnumMapOverlay enumMap
@@ -180,12 +179,11 @@ final class EntityLayersResolver {
     }
 
     /**
-     * The armor classification row [LOCKED 3]: humanoid armor is rendered by a vanilla
-     * {@code HumanoidArmorLayer} (SPINE 3.1 row 3), so the classification is a layer-roster fact.
-     * Relocated from the former top-level {@code armor_type} member into this {@code layers} row
-     * (carrying {@code armor_type: "humanoid"}) so the fact travels with the roster it derives from;
-     * the native reader reads it off this row and the bridge inverts it back to the legacy top-level
-     * member. A {@code none} family emits no armor row - absence IS {@code none}.
+     * The armor classification row: humanoid armor is rendered by a vanilla
+     * {@code HumanoidArmorLayer}, so the classification is a layer-roster fact. The row carries
+     * {@code armor_type: "humanoid"} so the fact travels with the roster it derives from; the
+     * native reader reads it off this row. A {@code none} family emits no armor row - absence IS
+     * {@code none}.
      */
     private @NotNull JsonNode armorRow(@NotNull EntityRendererResolver.LayerSite site) {
         this.diagnostics.info("armor row: humanoid [LOCKED 3]");

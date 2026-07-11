@@ -9,15 +9,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Node {@code axes} - the five-axis dispatcher (SPINE 3.1 row 7): runs the sub-resolvers in
- * the fixed order {@code variant}, {@code state}, {@code age}, {@code size}, {@code shape},
- * appends only non-empty sub-nodes, and returns {@code null} when all five decline. Axis
- * unification stays PARKED (doc-12 S3) - the five sub-resolvers keep it a one-class-each
- * change later.
+ * Node {@code axes} - the five-axis dispatcher: runs the sub-resolvers in the fixed order
+ * {@code variant}, {@code state}, {@code age}, {@code size}, {@code shape}, appends only
+ * non-empty sub-nodes, and returns {@code null} when all five decline.
  *
  * <p>The variant axis resolves FIRST and separately ({@link #resolveVariant()}) because the
  * family's {@code texture} member depends on it: variant-axis families carry per-option
- * textures and no top-level texture (SPINE 4.2 row 4).
+ * textures and no top-level texture.
  */
 final class EntityAxesResolver {
 
@@ -63,10 +61,10 @@ final class EntityAxesResolver {
 
     /**
      * The {@code axes} node in fixed sub-node order. Never {@code null}: the {@code age} axis is
-     * mandatory (axis unification #1 - {@code options.adult} holds the family baseline), so every
-     * family carries at least an age axis. {@link #resolveVariant()} must have run; the caller
-     * resolves the overlays FIRST (doc 06 SS3.12 - the shape option clones the family's pattern
-     * overlays onto its mesh) while the put chain keeps the on-disk order.
+     * mandatory ({@code options.adult} holds the family baseline), so every family carries at
+     * least an age axis. {@link #resolveVariant()} must have run; the caller resolves the
+     * overlays FIRST (the shape option clones the family's pattern overlays onto its mesh) while
+     * the put chain keeps the on-disk order.
      *
      * @param baseGeometry the family's resolved primary geometry key (the adult mesh), or {@code null}
      * @param adultTexture the family's resolved adult texture, or {@code null}

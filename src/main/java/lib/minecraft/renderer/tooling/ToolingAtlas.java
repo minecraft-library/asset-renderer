@@ -20,14 +20,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Entry point of the {@code atlas} Gradle task - the atlas render job (decision 35: NO flow
- * redesign, atlas is a render job over the texture pack, not a client-jar extraction). A thin
- * I/O shell around {@code Pipeline.run} + {@link AtlasRenderer#renderAtlas}: it writes the atlas
- * image ({@code atlas.png}, or {@code atlas.webp} for animated packs) plus the {@code atlas.json}
- * sidecar to the output directory (scratch {@code build/atlas/}, never a bundled resource).
+ * Entry point of the {@code atlas} Gradle task - a render job over the texture pack, not a
+ * client-jar extraction. A thin I/O shell around {@code Pipeline.run} + {@link
+ * AtlasRenderer#renderAtlas}: it writes the atlas image ({@code atlas.png}, or {@code atlas.webp}
+ * for animated packs) plus the {@code atlas.json} sidecar to the output directory (scratch
+ * {@code build/atlas/}, never a bundled resource).
  *
- * <p>The sidecar is verified through the typed {@link AtlasSidecar} on the read side only
- * (09 SS9 Q2 - {@code AtlasRenderer} still emits the raw JSON natively, no pipeline diff).
+ * <p>The sidecar is verified through the typed {@link AtlasSidecar} on the read side only;
+ * {@code AtlasRenderer} still emits the raw JSON natively.
  */
 public final class ToolingAtlas {
 

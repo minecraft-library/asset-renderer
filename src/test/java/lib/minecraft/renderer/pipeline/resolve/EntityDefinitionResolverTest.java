@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.is;
  * Exercises the {@link AppearanceGate} render conditions through {@link EntityDefinitionResolver} for
  * the non-default appearances the (default-only) parity sweep cannot reach: the creeper charged gate
  * and the sheep sheared flag gate. Pins that the resolver drops flag / charged-gated overlays that
- * fail while deferring the tint gate to the render stage (the historic two-stage split).
+ * fail while deferring the tint gate to the render stage.
  */
 @DisplayName("EntityDefinitionResolver appearance gates")
 class EntityDefinitionResolverTest {

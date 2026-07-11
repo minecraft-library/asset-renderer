@@ -42,17 +42,12 @@ import java.util.Set;
 
 /**
  * Shared ASM bytecode walker for vanilla {@code LayerDefinition.create / CubeListBuilder /
- * PartPose / addOrReplaceChild} geometry - the KEPT tooling copy of the legacy parser with
- * the edge refit ONLY (SPINE decision 31): cache-fed, {@link GeometryRequest} in,
- * {@link JsonNode} out, 3-component grow. Internals are verbatim (hard-won comments intact,
- * {@link FastTrig} stays nested); the Mode/WalkState/CallFrame rehab is staged for phase 8
- * under a byte pin. Consumed by {@code GeometryFlow} for both the entity and block flows -
- * the bytecode shape is identical; only the requests differ.
+ * PartPose / addOrReplaceChild} geometry: cache-fed, {@link GeometryRequest} in,
+ * {@link JsonNode} out, 3-component grow. Consumed by {@code GeometryFlow} for both the
+ * entity and block flows - the bytecode shape is identical; only the requests differ.
  *
- * <p>Internal JSON assembly deliberately stays on Gson types as part of the verbatim body
- * (flagged, not silent: converting ~3000 lines to JsonNode would be the internal
- * restructuring the phase-8 byte pin exists to gate); {@link JsonNode#wrap} adapts the
- * output edge.
+ * <p>Internal JSON assembly deliberately stays on Gson types rather than {@link JsonNode};
+ * {@link JsonNode#wrap} adapts the output edge.
  *
  * <p>Parses the {@code createSingleBodyLayer()} / {@code createBodyLayer()} methods of
  * model classes to extract cube definitions, UV offsets, pivot points, and texture
@@ -93,8 +88,7 @@ public final class GeometryParser {
      * Schema assembly (the {@code source} twin, {@code texture_size} pairing, overrides,
      * {@code y_axis}, {@code cull}) is {@code GeometryFlow}'s job; missing classes /
      * methods (typically a MC version bump rename) and parse failures are ERRORs on
-     * {@code diagnostics} with a {@code null} return, never a literal fallback
-     * (decision 10).
+     * {@code diagnostics} with a {@code null} return, never a literal fallback.
      *
      * @param cache the session's jar cache
      * @param request the parse to perform
@@ -156,8 +150,8 @@ public final class GeometryParser {
         // the call-site-provided inflate. The composite-overlay flow uses this for
         // {@code DROWNED_OUTER_LAYER} -> {@code DrownedModel.createBodyLayer(new
         // CubeDeformation(0.25F))}: the parser starts inside createBodyLayer where the 0.25
-        // is invisible, but the request carries it through {@code grow} (3-component -
-        // decision 24; the lossy /3 average dies).
+        // is invisible, but the request carries it through {@code grow} (3-component,
+        // keeping the per-axis values instead of collapsing them to a lossy average).
         state.defaultInflate = request.grow().clone();
         state.pendingInflate = request.grow().clone();
         // Pre-seed meshTransformerScale from the resolver-captured chain on the request.
@@ -1401,7 +1395,7 @@ public final class GeometryParser {
             // this: their {@code createBodyLayer(float)} reads the renderer's per-variant scale,
             // which our tooling-side source builder doesn't currently populate. Skip the capture
             // so the bone tree stays unscaled rather than collapsing to a flat plane; the static-
-            // field {@code DONKEY_TRANSFORMER} side (also unhandled) remains an open A5 gap.
+            // field {@code DONKEY_TRANSFORMER} side (also unhandled) remains an open gap.
             if (f == 0f) {
                 if (state.diagnostics != null && state.currentSource != null)
                     state.diagnostics.info("%s: MeshTransformer.scaling(0) skipped - synthetic source missing paramFloatValues", state.currentSource.subjectId());
@@ -1812,7 +1806,7 @@ public final class GeometryParser {
                 }
             }
             case "addBox" -> {
-                // Pop order is fully determined by the descriptor's arg types [D44]: the
+                // Pop order is fully determined by the descriptor's arg types: the
                 // String name and any CubeDeformation ref never land on numStack, so
                 // {@link #popCubeArgs} pops only the numeric args (floats via popFloat, ints /
                 // the mirror boolean via popInt) in reverse and hands them back forward-ordered.
@@ -1877,7 +1871,7 @@ public final class GeometryParser {
 
     /**
      * Pops one {@code addBox} overload's numeric args off {@link WalkState#numStack} in
-     * reverse (JVM operand order) per the descriptor's decoded arg types [D44] - {@code 'F'}
+     * reverse (JVM operand order) per the descriptor's decoded arg types - {@code 'F'}
      * via {@link #popFloatWithDiagnostics}, {@code 'I'} / {@code 'Z'} via
      * {@link #popIntWithDiagnostics}; reference args (the {@code String} name, any
      * {@code CubeDeformation}) never reach {@code numStack} so they are skipped. Returns the
@@ -1970,7 +1964,7 @@ public final class GeometryParser {
      * legacy block-entity walk (which runs with {@code LEGACY_LINEAR}) would
      * otherwise leave the inflate float on {@code numStack} and corrupt the following
      * {@code addBox}'s coordinate pops. Asymmetric {@code (FFF)} variants keep their three
-     * components (decision 24 - the legacy lossy /3 average dies here). {@code .extend}
+     * components instead of collapsing them to the legacy lossy /3 average. {@code .extend}
      * always <i>adds</i> to the current {@code pendingInflate}; a {@code <init>}
      * <i>replaces</i> it and records {@link WalkState#pendingFreshDeformationInflate} for
      * the next {@code ASTORE}.
@@ -2480,8 +2474,7 @@ public final class GeometryParser {
          * The 3-component inflate captured from the most recent {@code new CubeDeformation}
          * or {@code .extend} call; consumed by the next {@code addBox} variant and reset to
          * {@link #defaultInflate} after the cube emits. Asymmetric {@code (FFF)} variants
-         * keep their components (decision 24 - the legacy lossy /3 average dies; the bridge
-         * re-averages {@code (x + y + z) / 3f} on the emitted floats for legacy parity).
+         * keep their per-axis components rather than collapsing them to a lossy average.
          */
         float @NotNull [] pendingInflate = { 0f, 0f, 0f };
 
@@ -2570,11 +2563,11 @@ public final class GeometryParser {
 
     /**
      * Builds the JSON object for one bone from its pivot, rotation, scale, cube list, and
-     * optional parent link, in the v2 dialect (SPINE 4): {@code grow} is a scalar when
-     * uniform and {@code [x, y, z]} when asymmetric, omitted at zero; {@code mirror} is
-     * omitted at false; {@code face_uv} is deleted [X1]. A {@code scale} of exactly
-     * {@code 1f} and a {@code null} {@code parent} are omitted. The bone schema is otherwise
-     * unchanged (parent-local pivot, degrees, cumulative scale).
+     * optional parent link: {@code grow} is a scalar when uniform and {@code [x, y, z]} when
+     * asymmetric, omitted at zero; {@code mirror} is omitted at false; there is no
+     * {@code face_uv} field. A {@code scale} of exactly {@code 1f} and a {@code null}
+     * {@code parent} are omitted. The bone schema is otherwise unchanged (parent-local pivot,
+     * degrees, cumulative scale).
      * <p>
      * {@code pivot} / {@code rotation} are parent-local and {@code parent} names the owning bone
      * (or {@code null} for a root bone); the kit composes the ancestor chain at render.
@@ -2606,9 +2599,9 @@ public final class GeometryParser {
             uv.add((int) c[7]);
             cube.add("uv", uv);
 
-            // v2 emission (SPINE 4): grow scalar-or-[x,y,z] omitted at zero; mirror omitted
-            // at false; face_uv deleted [X1]. Every emitCube array is 12 slots; the length
-            // guard keeps a defensive zero default should a snapshot path shrink one.
+            // grow scalar-or-[x,y,z] omitted at zero; mirror omitted at false; there is no
+            // face_uv field. Every emitCube array is 12 slots; the length guard keeps a
+            // defensive zero default should a snapshot path shrink one.
             float gx = c.length >= 12 ? c[8] : 0f;
             float gy = c.length >= 12 ? c[9] : 0f;
             float gz = c.length >= 12 ? c[10] : 0f;
@@ -2938,8 +2931,8 @@ public final class GeometryParser {
 
 
     // ----------------------------------------------------------------------------------------
-    // Static array initializer readers - re-homed from the legacy kit as parser-private
-    // helpers (the parser is their only consumer; SPINE 5.2 deleted them from AsmKit)
+    // Static array initializer readers - parser-private helpers, since the parser is their
+    // only consumer.
     // ----------------------------------------------------------------------------------------
 
     /**
@@ -3190,7 +3183,7 @@ public final class GeometryParser {
      * unrolling a vanilla bytecode {@code INVOKESTATIC Mth.sin (D)F} / {@code Mth.cos (D)F} call so
      * the pre-baked float lands at the same bit pattern vanilla's runtime would produce.
      * Package-private (not shared) - it is a parse-time implementation detail of this walker, kept
-     * out of the general util surface; its bit-parity is pinned by {@code GeometryParserTrigTest} (doc-12 K10).
+     * out of the general util surface; its bit-parity is pinned by {@code GeometryParserTrigTest}.
      *
      * <p>Vanilla's implementation:
      * <pre>{@code

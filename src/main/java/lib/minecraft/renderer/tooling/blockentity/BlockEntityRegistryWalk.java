@@ -11,10 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The block-models registry walk (SPINE 3.3 stage 2) - the ONLY stage that touches the output
- * tree. Builds the session-wide indexes once (shared with the entity flow - decision 32),
- * loops the subjects in registry order, and fans each subject into its family splits via
- * {@link BlockGeometrySourceResolver}, appending one {@code models} entry per split id.
+ * The block-models registry walk - the ONLY stage that touches the output tree. Builds the
+ * session-wide indexes once (shared with the entity flow), loops the subjects in registry order,
+ * and fans each subject into its family splits via {@link BlockGeometrySourceResolver}, appending
+ * one {@code models} entry per split id.
  *
  * <p>The block side has no {@code family_of} analogue - no post-pass.
  */

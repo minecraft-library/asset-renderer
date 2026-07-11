@@ -24,11 +24,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The {@code inventory.transform} symbolic executor - {@code InventoryTransformDecomposer} reborn,
- * cache-fed [C12]. Interprets a renderer's GUI-{@code Transformation} factory bytecode (the P41
- * entry) into the {@code [tx, ty, tz, pitchDeg, yawDeg, rollDeg, uniformScale?]} tuple at the
- * reference pose (yaw = 0, translation x 16 mcpixel). Poison-on-unknown emits nothing rather than
- * garbage.
+ * The {@code inventory.transform} symbolic executor, cache-fed. Interprets a renderer's
+ * GUI-{@code Transformation} factory bytecode into the
+ * {@code [tx, ty, tz, pitchDeg, yawDeg, rollDeg, uniformScale?]} tuple at the reference pose
+ * (yaw = 0, translation x 16 mcpixel). Poison-on-unknown emits nothing rather than garbage.
  *
  * <p>Models a {@code PoseStack} / {@code Matrix4f} as an accumulated {@code T . R . S}
  * ({@link State}): {@code Matrix4f.translation} OVERWRITES the whole matrix, {@code translate}
@@ -43,7 +42,7 @@ import java.util.Map;
 final class TransformWalker {
 
     private static final int MAX_INLINE_DEPTH = 2;
-    /** The canonicalisation tolerance - declared as {@link BlockTransformPolicies#CANONICALISE} [P42]. */
+    /** The canonicalisation tolerance - declared as {@link BlockTransformPolicies#CANONICALISE}. */
     private static final float UNIT_EPS = BlockTransformPolicies.canonicalUnitEps();
     private static final float MCPIXEL = 16f;
 
@@ -71,7 +70,7 @@ final class TransformWalker {
      * factory is unknown / unmodellable.
      *
      * @param rendererClass the renderer's JVM internal name
-     * @param entry the P41 entry: a method name, or {@code FIELD:<field>} for a static transform
+     * @param entry a method name, or {@code FIELD:<field>} for a static transform
      * @param attachment the standing-sign attachment constant to seed ({@code WALL} / {@code FLOOR}), or {@code null}
      * @return the {@code [tx, ty, tz, pitch, yaw, roll, scale?]} tuple, or {@code null}
      */

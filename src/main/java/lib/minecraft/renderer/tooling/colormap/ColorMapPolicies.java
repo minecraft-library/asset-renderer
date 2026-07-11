@@ -8,10 +8,10 @@ import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The colormap flow's complete policy roster (SPINE 2.1: P47a) - one constant per vanilla
+ * The colormap flow's complete policy roster - one constant per vanilla
  * biome colormap (the fixed 3-PNG list). Each constant declares the jar-resource path (a
  * convention, not bytecode) and the {@code ColorMap.Type} the name maps to (the genuinely
- * undetectable part - 09 SS3.2 rows 41-42). Never fetches ({@code PolicyPurityTest}): the walk
+ * undetectable part). Never fetches ({@code PolicyPurityTest}): the walk
  * reads the bytes.
  */
 enum ColorMapPolicies implements NavigationPolicy {

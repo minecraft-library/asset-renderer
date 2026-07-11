@@ -4,9 +4,8 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The factory-coordinate geometry key grammar
- * {@code <SimpleClass>#<method>[@k=v...]} (SPINE decision 15 + the doc-12 S6 extension) -
- * the dedupe identity IS the key, collision-free by construction, greppable, killing the
- * legacy insertion-order {@code _<n>} fragility.
+ * {@code <SimpleClass>#<method>[@k=v...]} - the dedupe identity IS the key, collision-free
+ * by construction, greppable, replacing the legacy insertion-order {@code _<n>} fragility.
  *
  * <p>Discriminators appear only when set, in the declared canonical order {@code grow},
  * {@code fparam}, {@code scaled}, {@code iparam}, {@code ref}:
@@ -16,11 +15,11 @@ import org.jetbrains.annotations.NotNull;
  *   <li><b>{@code @fparam=<v>}</b> - the slot-0 float-parameter seed (donkey 0.87, mule
  *       0.92), absent at zero / no table.</li>
  *   <li><b>{@code @scaled=<f>}</b> - the external MeshTransformer scale, absent at 1.</li>
- *   <li><b>{@code @iparam=<slot>:<v>[,...]}</b> (doc-12 S6) - the bound int-parameter slots
+ *   <li><b>{@code @iparam=<slot>:<v>[,...]}</b> - the bound int-parameter slots
  *       (banner standing / wall). Non-zero slots are encoded; a bound-but-all-zero table
  *       encodes {@code 0:0} - the substitution semantics, not the table length, are the
  *       identity (an 8-slot zeroed table and a 1-slot zero table parse identically).</li>
- *   <li><b>{@code @ref=<ConstName>}</b> (doc-12 S6) - the bound enum constant (hanging-sign
+ *   <li><b>{@code @ref=<ConstName>}</b> - the bound enum constant (hanging-sign
  *       CEILING / WALL).</li>
  * </ul>
  */

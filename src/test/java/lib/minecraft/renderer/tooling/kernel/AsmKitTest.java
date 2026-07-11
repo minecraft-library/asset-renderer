@@ -28,11 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Units for the tooling {@link AsmKit} dissolvers and cache-fed hierarchy walks against the
- * {@link ClassNodeCache} surface (SPINE 5.1/5.2), over a synthesized jar of generated class
- * files - no network, no client jar.
- *
- * <p>FQN deliberately shadows the legacy {@code tooling/util/AsmKitTest} (doc-12 K11 registry
- * addition; imports stay honest per the shadow discipline).
+ * {@link ClassNodeCache} surface, over a synthesized jar of generated class files - no network,
+ * no client jar.
  */
 @DisplayName("tooling AsmKit dissolvers + hierarchy walks against the cache surface")
 class AsmKitTest {
@@ -171,8 +168,8 @@ class AsmKitTest {
         Float small = AsmKit.resolveStaticScalingFactor(cache, SCALES, "SMALL", TRANSFORMER, "scaling", TRANSFORMER_DESC);
         assertNotNull(small);
         assertEquals(1.5f, small);
-        // LARGE has an intervening LDC between scaling() and its PUTSTATIC - stricter reset
-        // resolves it null (the historical walkers' disagreement, resolved strict).
+        // LARGE has an intervening LDC between scaling() and its PUTSTATIC, so the stricter
+        // reset resolves it null.
         assertNull(AsmKit.resolveStaticScalingFactor(cache, SCALES, "LARGE", TRANSFORMER, "scaling", TRANSFORMER_DESC));
         // memo: the sibling field bound during the first walk resolves without a re-walk
         assertEquals(1.5f, AsmKit.resolveStaticScalingFactor(cache, SCALES, "SMALL", TRANSFORMER, "scaling", TRANSFORMER_DESC));

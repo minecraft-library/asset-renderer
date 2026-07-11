@@ -21,23 +21,22 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Node {@code axes.shape} - the option-encoded body-shape axis (SPINE 3.1 row 12;
- * tropical_fish small / large, 26.1's only multi-shape entity). Detection is the generic
- * multi-body-model renderer probe [D2]: the ctor references a second body mesh
- * ({@code TROPICAL_FISH_LARGE}) beyond the primary; membership + option naming are declared
- * (P37, {@link EntityAxisPolicies#SHAPE_SIZE_MEMBERSHIP}); the domain is the fixed
- * {@code [small, large]} pair (doc 06 SS3.12). The large texture is READ from the
- * renderer's {@code <clinit>} {@code LARGE_TEXTURE} static [D41] - no string surgery.
+ * Node {@code axes.shape} - the option-encoded body-shape axis (tropical_fish small / large,
+ * 26.1's only multi-shape entity). Detection is the generic multi-body-model renderer probe:
+ * the ctor references a second body mesh ({@code TROPICAL_FISH_LARGE}) beyond the primary;
+ * membership + option naming are declared via {@link EntityAxisPolicies#SHAPE_SIZE_MEMBERSHIP};
+ * the domain is the fixed {@code [small, large]} pair. The large texture is read from the
+ * renderer's {@code <clinit>} {@code LARGE_TEXTURE} static - no string surgery.
  *
- * <p>The family's pattern overlays are re-registered against the large mesh (the legacy
- * clone semantics, doc 06 SS3.12): each row's geometry swaps to the large body key and its
- * texture stem swaps from the small body's stem to the large's - both stems DERIVED
- * ([D41] + the family texture), the swap existence-probed [D28-style], so no blind string
- * surgery survives.
+ * <p>The family's pattern overlays are re-registered against the large mesh: each row's
+ * geometry swaps to the large body key and its texture stem swaps from the small body's stem
+ * to the large's - both stems derived from the {@code <clinit>} texture and the family
+ * texture, with the swap existence-probed against the jar, so no blind string surgery
+ * survives.
  */
 final class EntityShapeAxisResolver {
 
-    /** The fixed shape domain (doc 06 SS3.12; option naming = P37). */
+    /** The fixed shape domain. */
     private static final @NotNull List<String> DOMAIN = List.of("small", "large");
 
     private final @NotNull ClassNodeCache cache;
@@ -64,7 +63,7 @@ final class EntityShapeAxisResolver {
     }
 
     /**
-     * The shape node, or {@code null} when the entity is not a P37 shape member (or the
+     * The shape node, or {@code null} when the entity is not a shape-axis member (or the
      * declared membership derives no second body mesh).
      *
      * @param adultTexture the family's resolved texture (the small-stem source), or {@code null}
@@ -106,8 +105,8 @@ final class EntityShapeAxisResolver {
     }
 
     /**
-     * Clones the family's overlay rows onto the shape option (doc 06 SS3.12): the
-     * family-geometry reference swaps to the option's mesh key, a texture sharing the
+     * Clones the family's overlay rows onto the shape option: the family-geometry
+     * reference swaps to the option's mesh key, a texture sharing the
      * family texture's stem swaps to the option stem when the swapped path exists in the
      * jar; every other member copies verbatim. {@code null} when there is nothing to clone.
      */
@@ -156,7 +155,7 @@ final class EntityShapeAxisResolver {
 
     /**
      * The renderer's {@code <clinit>}-bound texture whose static field is named after the
-     * option ({@code LARGE_TEXTURE} for {@code large}) [D41], as a full namespaced path;
+     * option ({@code LARGE_TEXTURE} for {@code large}), as a full namespaced path;
      * {@code null} when no such binding exists.
      */
     private @Nullable String optionClinitTexture(@NotNull String option) {

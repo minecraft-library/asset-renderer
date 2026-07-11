@@ -22,17 +22,15 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The {@code blocks[]} node (SPINE 3.3 A6 row 8): the ordered {@code {block, texture, variant?,
- * tint?}} rows every split renders - the legacy {@code BlockListDiscovery} family dispatch reborn
- * on the kernel. Built once per subject; each split queries its rows by id.
+ * Builds the {@code blocks[]} node: the ordered {@code {block, texture, variant?, tint?}} rows
+ * every split renders. Built once per subject; each split queries its rows by id.
  *
- * <p>Block ids come from {@link BlockRegistryIndex} [D56]; the split partition follows the block
- * id family (standing vs wall, skull type). Texture bases the vanilla bytecode carries are DERIVED
+ * <p>Block ids come from {@link BlockRegistryIndex}; the split partition follows the block id
+ * family (standing vs wall, skull type). Texture bases the vanilla bytecode carries are DERIVED
  * from the owning {@code <clinit>} (chest variants, copper oxidation, skull skins, conduit / bell);
- * the fixed sheet prefixes (shulker / bed / signs / banner / decorated_pot) the legacy hard-codes
- * are declared in {@link BlockFamilyPolicies} ({@code SHEET_TEXTURE_BASES}) [D54]. The colour /
- * wood / weather / type discriminators ride the block id - identical to the legacy ctor-enum walk
- * on 26.1, without the walk.
+ * the fixed sheet prefixes (shulker / bed / signs / banner / decorated_pot) are declared in
+ * {@link BlockFamilyPolicies} ({@code SHEET_TEXTURE_BASES}). The colour / wood / weather / type
+ * discriminators ride the block id directly, without walking constructor enum arguments.
  */
 final class BlockCatalogResolver {
 
@@ -76,11 +74,11 @@ final class BlockCatalogResolver {
         return this.bySplitId.get(splitId);
     }
 
-    /** Dispatches the subject to its P33 family builder, producing split id -> block rows. */
+    /** Dispatches the subject to its family builder, producing split id -> block rows. */
     private @NotNull Map<String, JsonNode> build() {
         Map<String, List<Row>> rows = new LinkedHashMap<>();
         BlockFamilyPolicies.CatalogFamily family = BlockFamilyPolicies.catalogFamily(this.subject.localId());
-        if (family != null)                 // absent from the P33 roster (enchanting_table / lectern) = no catalog
+        if (family != null)                 // no catalog family (enchanting_table / lectern) = no catalog
             switch (family) {
                 case SHULKER_BOX -> shulker(rows);
                 case CHEST -> chest(rows);
@@ -140,7 +138,7 @@ final class BlockCatalogResolver {
         rows.put(primarySplit(), list);
     }
 
-    /** Appends {@code byColour}'s rows into {@code out} in DyeColor declaration order (legacy orderByDyeColor). */
+    /** Appends {@code byColour}'s rows into {@code out} in DyeColor declaration order. */
     private void orderByDye(@NotNull Map<String, Row> byColour, @NotNull List<Row> out) {
         for (String colour : dyeColorOrder()) {
             Row row = byColour.get(colour);
@@ -469,7 +467,7 @@ final class BlockCatalogResolver {
         return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + field.toLowerCase(Locale.ROOT);
     }
 
-    /** The chest ChestSpecialRenderer variant field a block maps to (P35 fixed binding + copper weather). */
+    /** The chest ChestSpecialRenderer variant field a block maps to (fixed binding + copper weather). */
     private static @NotNull String chestVariantField(@NotNull String blockLocal) {
         String fixed = BlockFamilyPolicies.chestVariantField(blockLocal);
         if (fixed != null) return fixed;
@@ -525,7 +523,7 @@ final class BlockCatalogResolver {
         return array;
     }
 
-    /** A texture stem in the decision-21 full asset grammar ({@code minecraft:textures/<stem>.png}). */
+    /** A texture stem in the full asset grammar ({@code minecraft:textures/<stem>.png}). */
     private static @NotNull String assetPath(@NotNull String stem) {
         return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + VanillaSourceClasses.Paths.TEXTURE_DIR
             + stem + VanillaSourceClasses.Paths.PNG_SUFFIX;

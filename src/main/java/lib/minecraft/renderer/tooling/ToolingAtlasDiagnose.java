@@ -18,8 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Entry point of the {@code diagnoseAtlas} Gradle task - the post-hoc atlas analyzer
- * (decision 35: no redesign). Reads {@code atlas.json} through the typed {@link AtlasSidecar}
+ * Entry point of the {@code diagnoseAtlas} Gradle task, a post-hoc atlas analyzer.
+ * Reads {@code atlas.json} through the typed {@link AtlasSidecar}
  * and {@code atlas.png}, slices every tile into {@code slice/<id>.png}, and writes
  * {@code missing.json} listing tiles flagged by two signals:
  * <ul>
@@ -31,7 +31,7 @@ import java.util.List;
  * <p>{@code --source-filter=<source>} (wired as {@code diagnoseAtlasTask10} with
  * {@code blockstate_only}) instead writes a mini-atlas of just that registration source's tiles.
  * Animated packs emit only {@code atlas.webp}; slice diagnostics need the raster {@code atlas.png},
- * so a webp-only run is a clean Diagnostics ERROR rather than a stack trace (09 SS9 Q3).
+ * so a webp-only run is a clean Diagnostics ERROR rather than a stack trace.
  */
 public final class ToolingAtlasDiagnose {
 

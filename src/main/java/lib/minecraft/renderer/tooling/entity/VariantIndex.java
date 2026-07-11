@@ -22,22 +22,22 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Walk-scoped index of the data-driven variant machinery, built ONCE per session (SPINE 3.1
- * stage 2): every {@code data/minecraft/<stem>_variant/*.json} table read through the cache
- * resource API (killing the legacy O(entities x zip-entries) re-scan) plus the
- * {@code <X>Variants} holder-class {@code DEFAULT} map.
+ * Walk-scoped index of the data-driven variant machinery, built once per session: every
+ * {@code data/minecraft/<stem>_variant/*.json} table read through the cache resource API
+ * (avoiding an O(entities x zip-entries) re-scan) plus the {@code <X>Variants} holder-class
+ * {@code DEFAULT} map.
  *
- * <p>{@code spawn_conditions} subtrees are retained VERBATIM as parsed nodes [D64] - the
+ * <p>{@code spawn_conditions} subtrees are retained verbatim as parsed nodes - the
  * variant axis resolver copies them into the emitted resource without reserialisation drift. Sound-variant
  * directories ({@code _sound_variant}) are runtime audio metadata, not rendering data, and
- * are skipped. Enum-map variants (horse coats [D1]) are the variant axis resolver's
+ * are skipped. Enum-map variants (horse coats) are the variant axis resolver's
  * per-subject detection, not table data - they carry no {@code data/} directory.
  */
 final class VariantIndex {
 
     /**
      * The variant holder classes' canonical-default static field name
-     * ({@code WolfVariants.DEFAULT}) - P15, {@link EntityNamingPolicies#ENUM_DEFAULT_FIELD}.
+     * ({@code WolfVariants.DEFAULT}); see {@link EntityNamingPolicies#ENUM_DEFAULT_FIELD}.
      */
     private static final @NotNull String DEFAULT_FIELD = EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue();
 
@@ -45,7 +45,7 @@ final class VariantIndex {
     private static final @NotNull String CREATE_KEY = VanillaSourceClasses.Methods.CREATE_KEY;
 
     /**
-     * The holder-class file-name suffix ({@code WolfVariants.class}) - the P20 holder stem
+     * The holder-class file-name suffix ({@code WolfVariants.class}) - the holder stem
      * convention ({@link EntityNamingPolicies#VARIANT_ENUM_CONVENTIONS}, first member).
      */
     private static final @NotNull String VARIANTS_CLASS_SUFFIX =
@@ -63,7 +63,7 @@ final class VariantIndex {
      * @param babyTextures ordered subkey-to-baby-texture-path map, empty when none declared
      * @param model the {@code model} discriminator selecting a non-default model class, or
      *     {@code null} when the default model applies
-     * @param spawnConditions the vanilla {@code spawn_conditions} subtree VERBATIM [D64], or
+     * @param spawnConditions the vanilla {@code spawn_conditions} subtree verbatim, or
      *     {@code null} when the file declares none
      */
     record Variant(

@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The registry walk (SPINE 3.1 stage 2) - the ONLY stage that touches the output tree.
+ * The registry walk - the ONLY stage that touches the output tree.
  * Builds the session-wide indexes once, loops the subjects in registry order appending one
  * family per subject, and hosts the post-pass linker hook.
  */
@@ -46,7 +46,7 @@ public final class EntityRegistryWalk {
             families.put(subject.entityId(),
                 new EntityRendererResolver(session, subject, layerDefinitions, variants, nonBaseSuffixes,
                     blocks, pipelineTraits, manifest).resolve());
-        // The family_of post-pass needs all rows (SPINE 3.1 row 16).
+        // The family_of post-pass needs all rows.
         EntityFamilyLinker.link(root, variants, session.diagnostics().child("familyOf"));
     }
 

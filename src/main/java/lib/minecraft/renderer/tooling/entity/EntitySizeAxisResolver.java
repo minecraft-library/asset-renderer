@@ -15,26 +15,26 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Node {@code axes.size} - the option-encoded size axis, two mutually-exclusive option
- * forms (the mesh-select XOR scale contract, kept - SPINE 3.1 row 11):
+ * Node {@code axes.size} - the option-encoded size axis, with two mutually-exclusive
+ * option forms (the mesh-select XOR scale contract):
  *
  * <ul>
  *   <li><b>mesh-select</b> - pufferfish small / medium meshes derived from the renderer
- *       ctor's multiple {@code ModelLayers.PUFFERFISH_*} references [D3] (big = primary);
+ *       ctor's multiple {@code ModelLayers.PUFFERFISH_*} references (big = primary);
  *       each option registers its own {@code GeometryRequest}.</li>
  *   <li><b>scale</b> - salmon 0.5 / 1.5 read off the {@code SALMON_SMALL} /
- *       {@code SALMON_LARGE} index entries' {@code MeshTransformer.scaling} factors [D4]
+ *       {@code SALMON_LARGE} index entries' {@code MeshTransformer.scaling} factors
  *       (same factory coordinate as the primary = a scale rider, never a second mesh);
- *       slime / magma_cube 2.0 / 4.0 proportional to the P1 natural-size set (scale is
- *       size-proportional per {@code SlimeRenderer.scale} at squish 0 [D5]).</li>
+ *       slime / magma_cube 2.0 / 4.0 proportional to their natural-size set (scale is
+ *       size-proportional per {@code SlimeRenderer.scale} at squish 0).</li>
  * </ul>
  *
- * <p>Membership is declared - P37 (pufferfish / salmon) and P1 (slime / magma_cube); the
+ * <p>Membership is declared per entity (pufferfish / salmon vs. slime / magma_cube); the
  * concrete meshes / factors are derived. Option names come from the candidate field's
- * suffix matched against the P28 domain ({@code PUFFERFISH_MEDIUM} to {@code medium});
- * default = the option-less domain member (P28); option members emit in domain order.
- * Carried forward: the scale axis is a visual no-op under the auto-fit renderer - wired
- * for a future absolute-scale scene renderer (legacy {@code ToolingEntityModels:509-516}).
+ * suffix matched against the size domain ({@code PUFFERFISH_MEDIUM} to {@code medium});
+ * default = the option-less domain member; option members emit in domain order. The
+ * scale axis is a visual no-op under the auto-fit renderer - it is wired for a future
+ * absolute-scale scene renderer.
  */
 final class EntitySizeAxisResolver {
 
@@ -59,8 +59,8 @@ final class EntitySizeAxisResolver {
     }
 
     /**
-     * The size node, or {@code null} when the entity is neither a P1 nor a P37 size member
-     * (or the declared membership derives no options).
+     * The size node, or {@code null} when the entity has neither a natural-size set nor a
+     * declared size-shape axis (or the declared membership derives no options).
      *
      * @return the node, or {@code null} to omit
      */
@@ -72,8 +72,8 @@ final class EntitySizeAxisResolver {
     }
 
     /**
-     * The P1 arm: scale options proportional to the natural sizes (base = the first,
-     * option-less), named into the P28 domain positionally.
+     * Builds scale options proportional to the natural sizes (base = the first,
+     * option-less), named into the size domain positionally.
      */
     private @Nullable JsonNode naturalSizeForm(@NotNull List<Integer> naturalSizes) {
         List<String> domain = EntityAxisPolicies.SIZE_DOMAIN.strings();
@@ -90,8 +90,8 @@ final class EntitySizeAxisResolver {
     }
 
     /**
-     * The P37 arm: extra body-mesh candidates from the ctor-chain triples, classified by
-     * the mesh-select XOR scale contract against the primary's factory coordinate.
+     * Extra body-mesh candidates from the ctor-chain triples, classified by the
+     * mesh-select XOR scale contract against the primary's factory coordinate.
      */
     private @Nullable JsonNode meshOrScaleForm() {
         LayerDefinitionIndex.Entry primary = this.geometryRef.resolvedEntry();
@@ -121,7 +121,7 @@ final class EntitySizeAxisResolver {
             boolean sameFactory = entry.factoryClass().equals(primary.factoryClass())
                 && entry.factoryMethod().equals(primary.factoryMethod());
             if (sameFactory) {
-                // Scale form [D4]: the same mesh under an external MeshTransformer factor.
+                // Scale form: the same mesh under an external MeshTransformer factor.
                 float scale = entry.appliedMeshTransformerScale() / primary.appliedMeshTransformerScale();
                 options.put(candidate.getKey(), JsonNode.object().put("scale", scale));
                 continue;
@@ -137,9 +137,9 @@ final class EntitySizeAxisResolver {
     }
 
     /**
-     * Assembles the node: the non-default delta options in P28 domain order, option-less default (the
-     * base mesh the family {@code geometry} already renders). The domain lives in the P28 policy, not a
-     * per-family {@code values} list (axis unification #2).
+     * Assembles the node: the non-default delta options in size-domain order, option-less default (the
+     * base mesh the family {@code geometry} already renders). The domain lives in the size-axis policy,
+     * not a per-family {@code values} list.
      */
     private static @NotNull JsonNode sizeNode(@NotNull List<String> domain, @NotNull Map<String, JsonNode> options) {
         String dflt = domain.getFirst();

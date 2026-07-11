@@ -22,15 +22,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * The geometry ref-integrity gate (SPINE decision 14): every {@code geometry} reference in
- * a models file resolves in its paired geometry file, both carry the same
- * {@code source_version} stamp, and - the doc-12 F5 reverse closure - every geometry entry
- * is referenced by at least one model ref (a registered-but-unreferenced parse means a
- * resolver registered a request and then dropped the key).
+ * The geometry ref-integrity gate: every {@code geometry} reference in a models file
+ * resolves in its paired geometry file, both carry the same {@code source_version} stamp,
+ * and - via the reverse closure - every geometry entry is referenced by at least one model
+ * ref (a registered-but-unreferenced entry means a resolver registered a request and then
+ * dropped the key).
  *
- * <p>Scaffolded at S4; ACTIVATES when the first flow writes its pair (entity at S5, block
- * at S8) - a missing pair is assumption-skipped, never a pass. {@code legacy_id} is never
- * required (the S0 spike selected the PRIMARY replay arm - 02 F3).
+ * <p>A missing pair is assumption-skipped, never a pass. {@code legacy_id} is never
+ * required.
  */
 @DisplayName("geometry ref closure: models refs resolve, versions match, no orphan geometry")
 class GeometryRefClosureTest {
@@ -53,9 +52,7 @@ class GeometryRefClosureTest {
     @Test
     @DisplayName("C5: legacy_id is never emitted in either geometry file")
     void noLegacyIdInGeometryFiles() throws IOException {
-        // The S0 spike selected the PRIMARY key-replay arm (02 F3), so the legacy_id fallback was
-        // never activated; both geometry files must carry zero occurrences. Closes bridge-retirement
-        // criterion C5 by assertion (no file edit / regen was owed).
+        // The legacy_id fallback is never activated, so both geometry files must carry zero occurrences.
         for (String name : List.of("entity_geometry.json", "block_geometry.json")) {
             Path path = RESOURCE_DIR.resolve(name);
             assumeTrue(Files.exists(path), name + " not yet emitted (activates with its flow session)");
@@ -92,7 +89,7 @@ class GeometryRefClosureTest {
     /**
      * Recursively collects every string-valued {@code geometry} / {@code baby_geometry}
      * member under {@code element} ({@code baby_geometry} is the equipment rows' captured
-     * baby mesh, doc 06 SS4.6 [D65]).
+     * baby mesh).
      */
     private static void collectGeometryRefs(@NotNull JsonElement element, @NotNull Set<String> out) {
         if (element instanceof JsonObject object) {

@@ -22,22 +22,21 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The block-models {@code geometry} authority (SPINE 3.3 row 2 + the {@code y_axis} helper,
- * row 3): enumerates a subject's family splits and registers each split's primary mesh with the
- * manifest, embedding the {@code GeometryIds} key - no parse here (parse happens in
- * {@code GeometryFlow}).
+ * The block-models {@code geometry} authority: enumerates a subject's family splits and
+ * registers each split's primary mesh with the manifest, embedding the {@code GeometryIds} key -
+ * no parse here (parse happens in {@code GeometryFlow}).
  *
- * <p>Generic detection first (decision 7): the renderer's {@code GETSTATIC ModelLayers.*}
- * references (super chain included) are looked up in the shared {@link LayerDefinitionIndex} and
- * filtered to primary factory methods. Each primary layer becomes a split - its id from
+ * <p>Generic detection first: the renderer's {@code GETSTATIC ModelLayers.*} references (super
+ * chain included) are looked up in the shared {@link LayerDefinitionIndex} and filtered to
+ * primary factory methods. Each primary layer becomes a split - its id from
  * {@link BlockFamilyPolicies} ({@code bed_head} / {@code bell_body} / the 4-way skull), or the
  * subject id for single-mesh families. The banner's four fields carry their standing/wall +
  * flag/pole {@code withStick} through the same policy. When NO primary layer resolves (signs
  * bake their meshes through a {@code WoodType.values()} stream the {@code createRoots} walk can't
  * follow), the fallback scans the renderer's own static {@code LayerDefinition}-returning primary
- * methods and applies the sign attachment / {@code withStick} splits [P39].
+ * methods and applies the sign attachment / {@code withStick} splits.
  *
- * <p>The {@code y_axis} is the pivot-band heuristic [P40]: a factory whose largest
+ * <p>The {@code y_axis} is a pivot-band heuristic: a factory whose largest
  * {@code PartPose.offset} pivot Y falls in the {@code [8, 16)} half-block band is block-space
  * authored ({@code UP}); everything else stays {@code DOWN}.
  */
@@ -100,8 +99,8 @@ final class BlockGeometrySourceResolver {
 
     /**
      * Emits the split for one resolved primary layer. A banner field carries its own
-     * {@code withStick} + split id ([P34] BANNER_FIELDS); otherwise the split id is the
-     * method-suffix mapping ([P34/P31]) or the subject id for single-mesh families.
+     * {@code withStick} + split id; otherwise the split id is the method-suffix mapping or the
+     * subject id for single-mesh families.
      */
     private void emitGenericSplit(
         @NotNull String field,
@@ -126,7 +125,7 @@ final class BlockGeometrySourceResolver {
     /**
      * The fallback: scans the renderer's own static {@code LayerDefinition}-returning primary
      * methods (the sign renderers reach their mesh through a {@code WoodType.values()} stream the
-     * {@code createRoots} walk can't follow). Sign methods fan into the [P39] attachment /
+     * {@code createRoots} walk can't follow). Sign methods fan into the attachment /
      * {@code withStick} variants; any other static primary emits a single method-named split.
      */
     private void emitFallbackSplits(@NotNull List<Split> splits, @NotNull Set<String> seenSplitIds) {
@@ -186,8 +185,8 @@ final class BlockGeometrySourceResolver {
     /**
      * The pivot-band Y-axis heuristic: {@code UP} when the factory method's largest
      * {@code PartPose.offset(x, y, z)} pivot Y falls in the declared half-block band
-     * ({@link BlockTransformPolicies#Y_AXIS_BAND} [P40] - band constants, counter-examples and
-     * provenance live there); else {@code DOWN}.
+     * ({@link BlockTransformPolicies#Y_AXIS_BAND} - band constants and counter-examples live
+     * there); else {@code DOWN}.
      */
     private @NotNull YAxis inferYAxis(@NotNull String factoryClass, @NotNull String factoryMethod) {
         ClassNode cn = this.cache.load(factoryClass);

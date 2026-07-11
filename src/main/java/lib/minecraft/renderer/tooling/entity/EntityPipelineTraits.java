@@ -23,21 +23,19 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The session-memoized render-pipeline trait classifier [D68] - factory name to
+ * The session-memoized render-pipeline trait classifier - factory name to
  * {@code RenderTypes} body to {@code RenderPipelines.<clinit>} build block to the
- * {@link Trait} set. Collapses the legacy four parallel classifier methods + two
- * process-global caches (the stale-cache hazard dies with session scoping).
+ * {@link Trait} set. Caching is scoped to the session, so a stale cache can't outlive it.
  *
  * <p>Two factory shapes resolve the pipeline reference: a direct
  * {@code GETSTATIC RenderPipelines.X} in the factory body, and a {@code Function} /
  * {@code BiFunction}-field factory whose field is bound in {@code <clinit>} by an
- * {@code invokedynamic} lambda that references the pipeline (the legacy
- * {@code lambda$static$N} first-LDC name-scan fallback is retired). An unresolvable factory
- * classifies as the empty trait set (cardinal-lit, source-over - the legacy behaviour).
+ * {@code invokedynamic} lambda that references the pipeline. An unresolvable factory
+ * classifies as the empty trait set (cardinal-lit, source-over).
  *
  * <p>Build-block boundaries in {@code RenderPipelines.<clinit>} are marked by any
  * {@code PUTSTATIC}: traits accumulate until the boundary and reset after it, so one
- * pipeline's defines never leak into the next (the legacy boundary-reset comment carried).
+ * pipeline's defines never leak into the next.
  */
 final class EntityPipelineTraits {
 
@@ -90,11 +88,10 @@ final class EntityPipelineTraits {
     /**
      * Whether any {@code RenderTypes} factory invoked from the layer hierarchy's INSTANCE
      * methods carries the trait - the layer-body probe the overlay engine's emissive / blend
-     * classification runs. The superclass walk is what dissolves the legacy creeper handler
-     * [D12] ({@code RenderTypes.energySwirl} lives in {@code EnergySwirlLayer.submit});
-     * static methods are excluded because the {@code RenderLayer} base's static cutout
-     * helpers invoke {@code RenderTypes.entityCutout} themselves and would accept every
-     * layer.
+     * classification runs. The superclass walk picks up {@code RenderTypes.energySwirl} where
+     * it lives, in {@code EnergySwirlLayer.submit}; static methods are excluded because the
+     * {@code RenderLayer} base's static cutout helpers invoke {@code RenderTypes.entityCutout}
+     * themselves and would accept every layer.
      *
      * @param layerClass the layer class's JVM internal name
      * @param trait the probed trait
@@ -117,7 +114,7 @@ final class EntityPipelineTraits {
      * The composite {@code blend} classification of a layer hierarchy: {@code "additive"}
      * when any invoked factory's pipeline blends additively, else {@code "translucent"}
      * when one blends translucent WITHOUT {@code NO_CARDINAL_LIGHTING} (the eyes pipelines
-     * are translucent full-bright and stay unannotated, matching legacy), else {@code null}
+     * are translucent full-bright and stay unannotated), else {@code null}
      * (source-over normal). Instance methods only, per {@link #layerInvokes}.
      *
      * @param layerClass the layer class's JVM internal name

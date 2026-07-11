@@ -13,23 +13,20 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Node {@code family_of} - the cross-entity grouping post-pass (SPINE 3.1 row 16;
- * mooshroom to cow, stray to skeleton). Runs AFTER the walk loop over the completed
- * {@code families} tree.
+ * Node {@code family_of} - the cross-entity grouping post-pass (mooshroom to cow, stray to
+ * skeleton). Runs AFTER the walk loop over the completed {@code families} tree.
  *
- * <p>Clustering key = shared primary {@code GeometryRequest} identity - the family's
- * embedded manifest key [D40] - killing the legacy derived-id string surgery (the
- * {@code geometry.} prefix strip, the {@code adult} / {@code baby} name strips, the
- * {@code _<n>} collision-suffix retry). The canonical root is the member whose entity id
- * matches the factory-class stem (the P21 basename-match convention applied to the REQUEST
- * coordinate, not an emitted id string); a stemless cluster is a coincidence family
- * (illager) and links nothing. A data-variant-registry base (zombie_nautilus) heads its own
- * variant family and is barred from NON-root membership - the legacy canvas rationale
- * carried - while variant bases stay eligible as roots (mooshroom to cow).
+ * <p>Clustering key = shared primary {@code GeometryRequest} identity, taken from the family's
+ * embedded manifest key rather than any derived-id string. The canonical root is the member
+ * whose entity id matches the factory-class stem, matched against the REQUEST coordinate
+ * rather than an emitted id string; a stemless cluster is a coincidence family (illager) and
+ * links nothing. A data-variant-registry base (zombie_nautilus) heads its own variant family
+ * and is barred from NON-root membership, while variant bases stay eligible as roots
+ * (mooshroom to cow).
  */
 final class EntityFamilyLinker {
 
-    /** The factory-class stem prefixes that never appear in an entity id (the legacy adult / baby strips). */
+    /** The factory-class stem prefixes that never appear in an entity id (the adult / baby name strips). */
     private static final @NotNull List<String> STEM_PREFIXES = List.of("Adult", "Baby");
 
     /** The factory-class suffix every vanilla model class carries. */
@@ -40,7 +37,7 @@ final class EntityFamilyLinker {
 
     /**
      * Appends {@code family_of} to every linked non-root family (the put lands last in the
-     * member order - the SPINE 3.1 chain's final key).
+     * member order).
      *
      * @param root the envelope root owning the completed {@code families} node
      * @param variants the data-variant index (the non-root membership bar)
@@ -95,8 +92,8 @@ final class EntityFamilyLinker {
 
     /**
      * The family's primary geometry manifest key, read from the mandatory age axis' {@code options.adult}
-     * (axis unification #1 moved the family baseline there from the former top-level {@code geometry}), or
-     * {@code null} when any node on that path is absent (an unresolvable family links nothing).
+     * (the family baseline), or {@code null} when any node on that path is absent (an unresolvable
+     * family links nothing).
      */
     private static @Nullable String primaryGeometry(@NotNull JsonNode family) {
         JsonNode axes = family.get("axes");

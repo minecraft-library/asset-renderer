@@ -28,16 +28,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Smoke tests for the tooling {@link GeometryParser} edge refit (SPINE decision 31): a
- * plain factory (wolf) and a gnarly one (ghast - MeshTransformer 4.5, seeded RandomSource
- * tentacles, string-concat bone names) must value-match the checked-in {@code entity_geometry.json}
- * entries with floats EXACT - any ULP delta is a different computation path, a finding, never noise
- * (the match-vanilla rule). Retargeted from the legacy resource to the v2 file when the tooling
- * bridge retired: a live parse must still reproduce the committed v2 bytes (a regen-drift guard). Plus
- * the manifest dedupe / key-identity contract (decision 15).
- *
- * <p>FQN in the doc-12 K11 registry addition; shadows no legacy name (the legacy parser
- * had no dedicated test).
+ * Smoke tests for the tooling {@link GeometryParser}: a plain factory (wolf) and a gnarly
+ * one (ghast - MeshTransformer 4.5, seeded RandomSource tentacles, string-concat bone names)
+ * must value-match the checked-in {@code entity_geometry.json} entries with floats EXACT -
+ * any ULP delta is a different computation path, a finding, never noise (the match-vanilla
+ * rule). A live parse must still reproduce the committed bytes exactly (a regen-drift guard).
+ * Plus the manifest dedupe / key-identity contract.
  */
 @DisplayName("tooling GeometryParser smoke: exact-float value parity vs checked-in entries")
 class GeometryParserTest {
@@ -66,7 +62,7 @@ class GeometryParserTest {
     @DisplayName("plain factory: AdultWolfModel#createBodyLayer matches its reference entry exactly")
     void wolfParsesExact() {
         // createBodyLayer(CubeDeformation) returns a MeshDefinition - texture dims come from
-        // the LayerDefinitions.createRoots call site, carried as request overrides (doc-12 S7)
+        // the LayerDefinitions.createRoots call site, carried as request overrides
         GeometryRequest request = GeometryRequest.body(
             "net/minecraft/client/model/animal/wolf/AdultWolfModel", "createBodyLayer",
             "minecraft:wolf", 64, 32, null, 1f);
@@ -109,7 +105,7 @@ class GeometryParserTest {
         assertNotEquals(key, grown);
         assertEquals(6, manifest.size());
 
-        // simple-name collision across packages fails loud (decision 10), never merges meshes
+        // simple-name collision across packages fails loud, never merges meshes
         org.junit.jupiter.api.Assertions.assertThrows(
             lib.minecraft.renderer.tooling.kernel.ToolingException.class,
             () -> manifest.register(GeometryRequest.body("other/pkg/WolfModel", "createBodyLayer", "minecraft:x", null, null, null, 1f)));
@@ -152,7 +148,7 @@ class GeometryParserTest {
                 assertExactFloats(expectedCube.getAsJsonArray("origin"), actualCube.getAsJsonArray("origin"), at + ".origin");
                 assertExactFloats(expectedCube.getAsJsonArray("size"), actualCube.getAsJsonArray("size"), at + ".size");
                 assertEquals(expectedCube.getAsJsonArray("uv").toString(), actualCube.getAsJsonArray("uv").toString(), at + ".uv");
-                // the live parse must reproduce the committed grow exactly (07 F4: bit-exact)
+                // the live parse must reproduce the committed grow exactly
                 assertEquals(growMean(expectedCube), growMean(actualCube), at + ".grow vs reference grow");
                 assertEquals(expectedCube.has("mirror") && expectedCube.get("mirror").getAsBoolean(),
                     actualCube.has("mirror") && actualCube.get("mirror").getAsBoolean(), at + ".mirror");

@@ -7,15 +7,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The atlas sidecar schema, typed (SPINE 3.7 / 09 SS5.5). Today the schema is implicit across
+ * The atlas sidecar schema, typed. The schema is otherwise implicit across
  * {@code AtlasRenderer.buildSidecarJson} (the write side) and three consumption sites in
  * {@code ToolingAtlasDiagnose} with no shared type; this record makes it one thing.
  *
- * <p>Bring-up is parse-side-only on the tooling side (09 SS9 Q2): {@link #parse} reads a
- * sidecar and {@link #toJson} writes one, but {@code AtlasRenderer} still emits the raw JSON
- * natively (making it build this record would touch a pipeline class - deferred to the pipeline
- * rewrite). Tiles are kept in grid-layout order so streaming consumers walk JSON + PNG in
- * lockstep. The {@code build/atlas/} output stays scratch - never a bundled resource (decision 35).
+ * <p>{@link #parse} reads a sidecar and {@link #toJson} writes one; {@code AtlasRenderer} still
+ * emits the raw JSON natively. Tiles are kept in grid-layout order so streaming consumers walk
+ * JSON + PNG in lockstep. The {@code build/atlas/} output stays scratch - never a bundled
+ * resource.
  *
  * @param tileSize the per-tile edge length in pixels
  * @param columns the grid column count
@@ -26,7 +25,7 @@ public record AtlasSidecar(int tileSize, int columns, int count, @NotNull List<T
 
     /**
      * One atlas tile: its id, kind / source classification, and grid + pixel coordinates. The
-     * x/y-vs-col/row redundancy is kept bridge-era (external consumers walk it, 12 §4 row 81).
+     * x/y-vs-col/row redundancy is kept because external consumers walk it.
      *
      * @param id the tile's subject id (namespaced block / item id)
      * @param kind the tile kind ({@code block} | {@code item})

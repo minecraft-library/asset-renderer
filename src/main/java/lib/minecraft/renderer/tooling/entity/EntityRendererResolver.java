@@ -22,13 +22,13 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * ONE entity, ONE pass (SPINE 3.1 stage 3) - the {@link #resolve()} put-chain IS the
- * on-disk key order, declared once, here. Each per-node resolver owns exactly one JSON node
- * and returns null to omit its key (the empty-vs-absent rule).
+ * Resolves one entity in one pass - the {@link #resolve()} put-chain IS the on-disk key
+ * order, declared once, here. Each per-node resolver owns exactly one JSON node and returns
+ * null to omit its key (the empty-vs-absent rule).
  *
- * <p>The overlays node resolves BEFORE the axes node (doc 06 SS3.12: the shape axis clones
- * the family's pattern overlays onto its large mesh), but the put chain keeps the SS2.4
- * on-disk order - axes ahead of overlays. {@code family_of} is the post-pass linker's.
+ * <p>The overlays node resolves BEFORE the axes node (the shape axis clones the family's
+ * pattern overlays onto its large mesh), but the put chain keeps the on-disk order - axes
+ * ahead of overlays. {@code family_of} is appended by the post-pass linker.
  */
 final class EntityRendererResolver {
 
@@ -57,10 +57,10 @@ final class EntityRendererResolver {
         this.subject = subject;
         this.diagnostics = session.diagnostics().child(subject.entityId());
         // ONE renderer-ctor-chain scan produces the ordered addLayer roster every
-        // layer-consuming node reads (overlays, block_overlays, layers - the latter now also
-        // carries the armor classification); a row's layer_index is its position here. No
-        // same-class dedupe - the legacy dedupe forced
-        // the warden five-pass re-walk.
+        // layer-consuming node reads (overlays, block_overlays, layers - the latter also
+        // carries the armor classification); a row's layer_index is its position here.
+        // Same-class duplicates are kept - deduping by class would force the warden's
+        // five-pass re-walk.
         this.layerRoster = scanLayerRoster(session);
         this.geometryRef = new EntityGeometryRefResolver(session.cache(), subject, layerDefinitions, manifest,
             this.diagnostics.child("geometry"));
@@ -79,20 +79,19 @@ final class EntityRendererResolver {
     }
 
     /**
-     * The family node - invocation order IS on-disk member order (SPINE 3.1, normative).
+     * Builds the family node - invocation order IS on-disk member order.
      * The variant axis resolves ahead of the adult-texture resolution (variant-axis families
-     * carry per-option textures, so no adult texture is resolved for them, SPINE 4.2 row 4);
-     * the base geometry and adult texture feed the mandatory age axis' {@code options.adult}
-     * (axis unification #1), and the overlays resolve ahead of the axes (the shape-axis clone) -
-     * the put order is unaffected.
+     * carry per-option textures, so no adult texture is resolved for them); the base geometry
+     * and adult texture feed the mandatory age axis' {@code options.adult}, and the overlays
+     * resolve ahead of the axes (the shape-axis clone) - the put order is unaffected.
      */
     @NotNull JsonNode resolve() {
-        // The primary geometry is registered FIRST (unchanged manifest order) but no longer emitted
-        // at top level: axis unification #1 moves the family baseline (base geometry + adult texture)
-        // into the mandatory age axis' options.adult (EntityAgeAxisResolver).
+        // The primary geometry is registered FIRST (manifest order) but is not emitted at
+        // top level: it moves the family baseline (base geometry + adult texture) into
+        // the mandatory age axis' options.adult (EntityAgeAxisResolver).
         String baseGeometry = this.geometryRef.resolve();                               // -> manifest key
-        // armor_type is no longer a top-level member [LOCKED 3]: EntityLayersResolver emits the
-        // humanoid classification as a `layers` row derived off the same addLayer roster.
+        // armor_type is not a top-level member: EntityLayersResolver emits the humanoid
+        // classification as a `layers` row derived off the same addLayer roster.
         JsonNode node = JsonNode.object()
             .put("renderer", this.subject.rendererClass());                             // provenance scalar (resolver-owned)
         String texturePath = this.axes.resolveVariant() == null ? this.texture.resolve() : null;
@@ -104,15 +103,14 @@ final class EntityRendererResolver {
             .putIf("overlays", overlays)
             .putIf("block_overlays", this.blockOverlays.resolve())
             .putIf("layers", this.layers.resolve());
-    }   // family_of appended by the EntityFamilyLinker post-pass (SPINE 3.1 row 16)
+    }   // family_of appended by the EntityFamilyLinker post-pass
 
     /**
      * One {@code addLayer(...)} call site in the renderer constructor chain.
-     * Private-helper shape (marked as such; not a SPINE 2 name).
      *
      * @param layerClass the added layer class's JVM internal name (the allocated class, or
      *     a factory helper's return type)
-     * @param layerIndex the row's position in the roster (d18)
+     * @param layerIndex the row's position in the roster
      * @param method the constructor holding the site (the arg-region walks re-enter it)
      * @param allocation the {@code NEW} allocating the layer, or the factory {@code INVOKE}
      *     producing it - the arg region is {@code [allocation .. addLayer]}
@@ -130,7 +128,7 @@ final class EntityRendererResolver {
      * Walks the renderer's constructor chain for {@code addLayer(...)} call sites, keeping
      * same-class duplicates. Per-class site lists are collected leaf-to-super and flattened
      * super-first: vanilla runs the super constructor (and its addLayer calls) before the
-     * subclass body, so the roster index reflects the runtime addLayer order (d18).
+     * subclass body, so the roster index reflects the runtime addLayer order.
      */
     private @NotNull List<LayerSite> scanLayerRoster(@NotNull ToolingSession session) {
         List<List<LayerSite>> perClass = new ArrayList<>();

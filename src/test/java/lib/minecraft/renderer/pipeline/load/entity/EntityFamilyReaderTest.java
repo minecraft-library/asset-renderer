@@ -23,8 +23,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * native load-contract successors for {@link EntityFamilyReader}, pinning the same invariants the
- * retired legacy load-contract tests pinned, but against the native family read of
+ * Load-contract tests for {@link EntityFamilyReader}, exercising the family read of
  * {@code entity_models.json} directly. Load-bearing canaries: the wolf
  * variant/state texture join, the baby three-source texture chain, the dyed-collar presence, the
  * option-encoded variant coat map + resolver fold, and the depth-clearance auto-skip on a
@@ -100,9 +99,8 @@ class EntityFamilyReaderTest {
     @Test
     @DisplayName("humanoid armor_type is consumed off the relocated layers armor row")
     void humanoidArmorFromLayersRow() {
-        // armor_type relocated under `layers` [LOCKED 3]: the native reader classifies humanoid off the
-        // layers armor row (absence IS none), replacing the flattener's required-but-unconsumed top-level
-        // member. Skeleton/zombie are humanoid; cow/sheep are none.
+        // armor_type lives under `layers`: the reader classifies humanoid off the layers armor row
+        // (absence IS none). Skeleton/zombie are humanoid; cow/sheep are none.
         ConcurrentMap<String, Entity> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         assertThat("skeleton is humanoid-armored", defs.get("minecraft:skeleton").humanoidArmor(), is(true));
         assertThat("zombie is humanoid-armored", defs.get("minecraft:zombie").humanoidArmor(), is(true));
@@ -111,7 +109,7 @@ class EntityFamilyReaderTest {
         assertThat("sheep is not humanoid-armored", defs.get("minecraft:sheep").humanoidArmor(), is(false));
     }
 
-    /** The option-encoded coat sub-definition for a variant family's option (axis-unification #3). */
+    /** The option-encoded coat sub-definition for a variant family's option. */
     private static Entity coat(ConcurrentMap<String, Entity> defs, String familyId, String option) {
         return defs.get(familyId).axes().variants().get(option);
     }

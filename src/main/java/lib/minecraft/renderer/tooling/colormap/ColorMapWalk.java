@@ -15,15 +15,14 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 
 /**
- * Reads the vanilla biome colormap PNGs straight from the jar and owns the {@code maps} node
- * (SPINE 3.6). Not an ASM walk - the flow that most needed the kernel: it iterates
- * {@link ColorMapPolicies} (P47a) and reads each PNG via {@link ClassNodeCache#readBytes} rather
- * than extracting the whole pack to disk.
+ * Reads the vanilla biome colormap PNGs straight from the jar and populates the {@code maps}
+ * node. Not an ASM walk - it iterates {@link ColorMapPolicies} and reads each PNG via
+ * {@link ClassNodeCache#readBytes} rather than extracting the whole pack to disk.
  *
- * <p>Kept semantics (09 SS6): <b>missing-file tolerant</b> (partial colormap sets are legal -
- * an absent PNG is a {@link Diagnostics#info} and no row), <b>decode-failure fatal</b> (a
- * present-but-corrupt PNG aborts the run). Pixel contract unchanged: 256x256 ARGB, row-major,
- * packed big-endian 4 bytes/px, base64 - round-trips {@code ColorMapLoader.asIntBuffer()}.
+ * <p><b>Missing-file tolerant</b>: partial colormap sets are legal - an absent PNG is a
+ * {@link Diagnostics#info} and no row. <b>Decode-failure fatal</b>: a present-but-corrupt PNG
+ * aborts the run. Pixel contract: 256x256 ARGB, row-major, packed big-endian 4 bytes/px, base64 -
+ * round-trips {@code ColorMapLoader.asIntBuffer()}.
  */
 public final class ColorMapWalk {
 

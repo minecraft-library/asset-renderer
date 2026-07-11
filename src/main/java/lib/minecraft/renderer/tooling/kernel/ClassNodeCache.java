@@ -17,8 +17,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * The SOLE {@link ZipFile} owner of tooling - class loads plus the jar resource API whose
- * absence caused every legacy cache bypass (SPINE decision 3).
+ * The SOLE {@link ZipFile} owner of tooling - class loads plus the jar resource API, so no
+ * caller reaches into the jar directly and bypasses the cache.
  *
  * <p>One cache instance is bound to one jar for its lifetime, opened by
  * {@code ToolingPipeline.openSession} and closed by {@code ToolingSession.close()}. No

@@ -6,17 +6,17 @@ import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The block-defaults flow's complete policy roster (SPINE 2.1: P44 only) - the one genuinely
- * undetectable default-state fact. Never fetches ({@code PolicyPurityTest}).
+ * The block-defaults flow's complete policy roster - the one genuinely undetectable
+ * default-state fact. Never fetches ({@code PolicyPurityTest}).
  */
 enum BlockStatePolicies implements NavigationPolicy {
 
     /**
-     * P44 - the any()-default of a declared-but-unset boolean property is {@code false}. NOT
+     * The any()-default of a declared-but-unset boolean property is {@code false}. NOT
      * first-possible-value: {@code BooleanProperty.VALUES = List.of(true, false)} is TRUE-first
      * (javap); the observed {@code false} comes from loop-driven {@code setValue(..., false)}
-     * shapes ({@code MultifaceBlock.getDefaultMultifaceState}) a static bytewalk cannot decode.
-     * Harness-verified (legacy ToolingBlockDefaults.java:936-940).
+     * shapes ({@code MultifaceBlock.getDefaultMultifaceState}) that a static bytewalk cannot
+     * decode. Harness-verified.
      */
     BOOLEAN_DEFAULT(
         "false",

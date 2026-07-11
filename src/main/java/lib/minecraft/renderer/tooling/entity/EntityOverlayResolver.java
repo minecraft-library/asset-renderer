@@ -34,25 +34,25 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Node {@code overlays[]} - the generic overlay engine ONLY (SPINE 3.1 row 13). The six
- * legacy per-entity handlers dissolve into structural arms: the enum-map detector [D11]
- * (crackiness), the composite gate's superclass walk [D12] + ADDITIVE probe [D13] (creeper,
- * wither), the emissive-provider arm with retain-subset detection [D21] (warden, creaking,
- * copper golem [D23]), the villager multi-pass arm [D17], the parameterized binding (stray,
- * bogged), and the bespoke-equipment default-decor arm (trader llama, via constant-boolean
- * predicate evaluation on the subject's entity class). Eyes classify by the clinit
- * texture-to-{@code RenderTypes}-factory SHAPE + pipeline traits [D20], not by name.
+ * Node {@code overlays[]} - the generic overlay engine. The per-entity handling dissolves
+ * into structural arms: the enum-map detector (crackiness), the composite gate's superclass
+ * walk plus ADDITIVE probe (creeper, wither), the emissive-provider arm with retain-subset
+ * detection (warden, creaking, copper golem), the villager multi-pass arm, the
+ * parameterized binding (stray, bogged), and the bespoke-equipment default-decor arm
+ * (trader llama, via constant-boolean predicate evaluation on the subject's entity class).
+ * Eyes classify by the clinit texture-to-{@code RenderTypes}-factory SHAPE plus pipeline
+ * traits, not by name.
  *
  * <p>Zero-state byte-identity is the load-bearing doctrine: every row's absent / default
- * option renders byte-identical to vanilla (crackiness NONE draws nothing, the uncharged
+ * option renders identically to vanilla (crackiness NONE draws nothing, the uncharged
  * creeper drops the swirl, the NONE profession drops its pass, the white sheep stays
  * untinted).
  *
  * <p>Geometry: a row whose mesh entry shares the FAMILY's factory coordinate emits the
  * family key plus a row-level {@code grow} (the real CubeDeformation - creeper 2.0, fish
- * pattern 0.008 [D16], llama decor 0.5; the 0.001 depth clearance is NEVER data, d22); a
- * distinct factory registers its own {@link GeometryRequest} with the grow baked. Collar /
- * markings / equipment / block-decoration sites are rows 14-15's and are skipped here.
+ * pattern 0.008, llama decor 0.5; the 0.001 depth clearance is never data); a distinct
+ * factory registers its own {@link GeometryRequest} with the grow baked. Collar / markings /
+ * equipment / block-decoration sites are handled elsewhere and are skipped here.
  */
 final class EntityOverlayResolver {
 
@@ -107,13 +107,13 @@ final class EntityOverlayResolver {
         for (EntityRendererResolver.LayerSite site : this.roster) {
             ClassNode cn = this.cache.load(site.layerClass());
             if (cn == null) continue;
-            // Rows 14-15's sites: collar (P6), markings-token enum maps, equipment
-            // (call-site LayerType consumers), and block-decoration layers never emit here.
+            // Collar, markings-token enum maps, equipment (call-site LayerType consumers),
+            // and block-decoration layers are handled by other resolvers and never emit here.
             if (isCollarShaped(cn)) continue;
             if (readsBlockModelRenderState(cn)) continue;
             if (EntityLayersResolver.consumesEquipmentLayerType(site)) continue;
             if (referencesEquipmentLayerType(cn)) {
-                // Bespoke equipment [D34] routes to row 15; only its DEFAULT decor (an
+                // Bespoke equipment is handled elsewhere; only its DEFAULT decor (an
                 // EquipmentAssets constant gated on a truthy entity predicate) overlays here.
                 JsonNode decor = resolveDefaultDecor(site, cn);
                 if (decor != null) rows.add(decor);
@@ -162,7 +162,7 @@ final class EntityOverlayResolver {
     }
 
     // ------------------------------------------------------------------------------------
-    // routing predicates (shared with rows 14-15)
+    // routing predicates (shared with collar / markings / equipment / block-decoration resolvers)
     // ------------------------------------------------------------------------------------
 
     /**
@@ -180,7 +180,7 @@ final class EntityOverlayResolver {
     }
 
     /**
-     * The collar shape (P6): the typed submit reads a {@code DyeColor}-typed state field
+     * The collar shape: the typed submit reads a {@code DyeColor}-typed state field
      * null-gated at the top - the option-gated {@code layers[]} row's discriminator (the
      * undercoat's WHITE-compare gate is {@code if_acmp*}, never {@code ifnull}). The read
      * may pass through a local ({@code astore; aload}) before the null branch, so the probe
@@ -205,7 +205,7 @@ final class EntityOverlayResolver {
         return false;
     }
 
-    /** Row 14's qualifier: the typed submit reads a {@code BlockModelRenderState}-typed field. */
+    /** The block-decoration qualifier: the typed submit reads a {@code BlockModelRenderState}-typed field. */
     static boolean readsBlockModelRenderState(@NotNull ClassNode cn) {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return false;
@@ -216,7 +216,7 @@ final class EntityOverlayResolver {
         return false;
     }
 
-    /** The bespoke-equipment discriminator [D34]: any method references the LayerType enum. */
+    /** The bespoke-equipment discriminator: any method references the LayerType enum. */
     static boolean referencesEquipmentLayerType(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
@@ -225,7 +225,7 @@ final class EntityOverlayResolver {
     }
 
     /**
-     * One enum-map overlay [D11]: the typed submit feeds an enum-typed state field into a
+     * One enum-map overlay: the typed submit feeds an enum-typed state field into a
      * {@code Map.get} on a static map of the class; the {@code <clinit>} binds enum
      * constants to texture literals.
      *
@@ -237,7 +237,7 @@ final class EntityOverlayResolver {
     /**
      * Detects the enum-map shape on a layer class and reads its constant-to-texture map, or
      * {@code null} when the shape is absent (also covers markings-shaped layers - the
-     * caller routes those to row 15).
+     * caller routes those to the markings resolver).
      */
     static @Nullable EnumMapOverlay findEnumMapOverlay(@NotNull ClassNodeCache cache, @NotNull ClassNode cn) {
         MethodNode submit = typedSubmit(cn);
@@ -268,7 +268,7 @@ final class EntityOverlayResolver {
     // row assembly helpers
     // ------------------------------------------------------------------------------------
 
-    /** A fresh row carrying the d18 provenance pair (member order per doc 06 SS4.4). */
+    /** A fresh row carrying its source-class and layer-index provenance pair. */
     private static @NotNull JsonNode row(@NotNull String sourceClass, int layerIndex) {
         return JsonNode.object()
             .put("source", simpleName(sourceClass))
@@ -283,8 +283,7 @@ final class EntityOverlayResolver {
     /**
      * The mesh reference of an overlay's baked {@code ModelLayers} field: the family key
      * plus a row-level grow when the entry shares the family's factory coordinate, else a
-     * freshly registered request with the grow baked (d22 - the 0.001 clearance is never
-     * data).
+     * freshly registered request with the grow baked (the 0.001 clearance is never data).
      *
      * @param key the geometry key to embed
      * @param grow the row-level grow to emit, or {@code null} when baked / absent
@@ -316,7 +315,7 @@ final class EntityOverlayResolver {
         return grow[0] == 0f && grow[1] == 0f && grow[2] == 0f ? null : grow;
     }
 
-    /** Emits {@code grow} as a scalar when uniform, a triplet when asymmetric (d24). */
+    /** Emits {@code grow} as a scalar when uniform, a triplet when asymmetric. */
     private static void putGrow(@NotNull JsonNode row, float @Nullable [] grow) {
         if (grow == null) return;
         if (grow[0] == grow[1] && grow[1] == grow[2]) row.put("grow", grow[0]);
@@ -346,7 +345,7 @@ final class EntityOverlayResolver {
         return literal.contains("%") ? null : literal;
     }
 
-    /** The P11 stem gate: a pre-built RenderType binding is an eye / glow overlay only on an eye-stem texture. */
+    /** The stem gate: a pre-built RenderType binding is an eye / glow overlay only on an eye-stem texture. */
     private static boolean hasEyeStem(@NotNull String texturePath) {
         String stem = texturePath.substring(0, texturePath.length() - ".png".length());
         for (String suffix : EntityOverlayPolicies.EYE_STEM_FIRST_LITERAL.strings())
@@ -360,14 +359,14 @@ final class EntityOverlayResolver {
     }
 
     // ------------------------------------------------------------------------------------
-    // eyes-binding arm [D20]
+    // eyes-binding arm
     // ------------------------------------------------------------------------------------
 
     /**
      * The pre-built-RenderType eye shape: the {@code <clinit>} binds a texture literal
      * flowing into a {@code RenderTypes} factory returning a {@code RenderType} - detected
-     * by SHAPE + classified by pipeline traits, never by the legacy {@code "eyes"} name
-     * match [D20]. Works unchanged on a renderer's own {@code <clinit>} (the dragon tail).
+     * by SHAPE and classified by pipeline traits, never by a class or field name match.
+     * Works unchanged on a renderer's own {@code <clinit>} (the dragon tail).
      */
     private @Nullable JsonNode resolveEyesBinding(@NotNull String sourceClass, int layerIndex, @NotNull ClassNode cn) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
@@ -406,8 +405,8 @@ final class EntityOverlayResolver {
     /**
      * The renderer-tail eyes row: the dragon-style renderer binds its eye RenderType in its
      * OWN {@code <clinit>} and dispatches from {@code submit} with no {@code addLayer}
-     * site. Runs only when no same-geometry emissive row emitted (the legacy gate), with no
-     * {@code layer_index} - the row is not in vanilla's addLayer list (empty-vs-absent).
+     * site. Runs only when no same-geometry emissive row emitted, with no {@code layer_index}
+     * - the row is not in vanilla's addLayer list (empty-vs-absent).
      */
     private @Nullable JsonNode resolveRendererTailEyes() {
         ClassNode renderer = this.cache.load(this.subject.rendererClass());
@@ -445,13 +444,13 @@ final class EntityOverlayResolver {
     }
 
     // ------------------------------------------------------------------------------------
-    // enum-map arm [D11]
+    // enum-map arm
     // ------------------------------------------------------------------------------------
 
     /**
      * The enum-map row (crackiness): no baked texture - the zero-state enum value is absent
-     * from the map, so the default draws nothing - with the full value-to-path map (d20
-     * [D43]) and a bounds skip (a zero-state-none overlay never contributes silhouette).
+     * from the map, so the default draws nothing - with the full value-to-path map and a
+     * bounds skip (a zero-state-none overlay never contributes silhouette).
      */
     private @NotNull JsonNode resolveEnumMapRow(
         @NotNull EntityRendererResolver.LayerSite site,
@@ -484,15 +483,15 @@ final class EntityOverlayResolver {
     }
 
     // ------------------------------------------------------------------------------------
-    // generic composite arm [D12, D13]
+    // generic composite arm
     // ------------------------------------------------------------------------------------
 
     /**
      * The composite gate: the ctor bakes a {@code ModelLayers} field AND the layer
      * hierarchy's instance methods establish their own render type ({@code RenderTypes}
-     * factory or the cutout-copy helper) - the superclass walk [D12] is what admits the
-     * energy-swirl subclasses the legacy gate rejected. Emits one row with the walked
-     * gates, tint, pipeline, and mesh reference.
+     * factory or the cutout-copy helper) - the superclass walk is what admits the
+     * energy-swirl subclasses a class-name-only gate would reject. Emits one row with the
+     * walked gates, tint, pipeline, and mesh reference.
      */
     private @Nullable JsonNode resolveComposite(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
         String bakedField = findCtorBakedField(cn);
@@ -522,7 +521,7 @@ final class EntityOverlayResolver {
         return node;
     }
 
-    /** The first ctor-baked non-baby {@code ModelLayers} field (P10 name filter), or {@code null}. */
+    /** The first ctor-baked non-baby {@code ModelLayers} field (name filter), or {@code null}. */
     private static @Nullable String findCtorBakedField(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods) {
             if (!AsmKit.INIT.equals(method.name)) continue;
@@ -534,14 +533,14 @@ final class EntityOverlayResolver {
                 }
                 if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER)
                     && pending != null
-                    && !pending.contains("BABY"))   // P10 naming fallback - the adult mesh carries the row
+                    && !pending.contains("BABY"))   // naming fallback - the adult mesh carries the row
                     return pending;
             }
         }
         return null;
     }
 
-    /** [D12]: any hierarchy INSTANCE method invokes a {@code RenderTypes} factory or the cutout helper. */
+    /** Whether any hierarchy INSTANCE method invokes a {@code RenderTypes} factory or the cutout helper. */
     private boolean compositeGateAccepts(@NotNull ClassNode cn) {
         boolean[] accepted = {false};
         AsmKit.walkSuperChain(this.cache, cn.name, level -> {
@@ -562,10 +561,10 @@ final class EntityOverlayResolver {
     }
 
     /**
-     * The composite row's {@code when} gate (doc 06 SS4.7): the additive energy-swirl shape
-     * is the {@code charged} boolean; a {@code DyeColor}-vs-constant compare is the
-     * {@code tinted} gate (wool undercoat); a boolean flag read branching to an early
-     * return is the {@code flag} gate when its stripped name is P9 vocabulary (sheep
+     * The composite row's {@code when} gate: the additive energy-swirl shape is the
+     * {@code charged} boolean; a {@code DyeColor}-vs-constant compare is the {@code tinted}
+     * gate (wool undercoat); a boolean flag read branching to an early return is the
+     * {@code flag} gate when its stripped name is in the axis-name vocabulary (sheep
      * {@code isSheared} - {@code isBaby} / {@code isInvisible} are universal render gates,
      * not option axes, and fall out of the vocabulary filter).
      */
@@ -602,7 +601,7 @@ final class EntityOverlayResolver {
     /**
      * The switch-dispatch texture axis: the typed submit switches over an enum-typed state
      * field selecting among several static {@code Identifier} fields (tropical fish
-     * pattern). The token is the state field name, P9-gated.
+     * pattern). The token is the state field name, gated by the axis-name vocabulary.
      */
     private @Nullable String switchDispatchTextureBy(@NotNull ClassNode cn) {
         MethodNode submit = typedSubmit(cn);
@@ -635,7 +634,7 @@ final class EntityOverlayResolver {
      * A statically resolved overlay tint plus its user-selectable axis token.
      *
      * @param argb the baked default ARGB, or the no-tint identity
-     * @param axisToken the P9 {@code tint_by} token, or {@code null} for a fixed tint
+     * @param axisToken the {@code tint_by} token, or {@code null} for a fixed tint
      */
     private record ColorSource(int argb, @Nullable String axisToken) {}
 
@@ -645,7 +644,7 @@ final class EntityOverlayResolver {
      * evaluation at the WHITE default (the wool layers); a plain int state field chases the
      * {@code extractRenderState} bind ending in {@code DyeColor.getTextureDiffuseColor()}
      * at the WHITE default (the fish pattern). Unresolvable sources keep the no-tint
-     * identity (slightly over-bright beats failing the regen - the legacy stance).
+     * identity (slightly over-bright beats failing the render entirely).
      */
     private @NotNull ColorSource extractCutoutTint(@NotNull ClassNode layerCn) {
         for (MethodNode method : layerCn.methods) {
@@ -672,7 +671,7 @@ final class EntityOverlayResolver {
         return new ColorSource(NO_TINT, null);
     }
 
-    /** The P9-gated tint axis of a color-source member name ({@code getWoolColor} to {@code wool_color}). */
+    /** The vocabulary-gated tint axis of a color-source member name ({@code getWoolColor} to {@code wool_color}). */
     private static @Nullable String tintAxisOf(@NotNull String memberName) {
         String stem = memberName.startsWith("get") ? memberName.substring(3) : memberName;
         String token = axisToken(stem);
@@ -683,8 +682,9 @@ final class EntityOverlayResolver {
      * The {@code state.get<X>Color()} evaluation: the getter's {@code ColorLerper$Type
      * .getColor(<dye field>)} chain evaluated at the field's declared WHITE default - the
      * WHITE branch literal is DERIVED from {@code ColorLerper.getModifiedColor} (the
-     * {@code if_acmpne WHITE; ldc; ireturn} arm), retiring the legacy -1644826 constant.
-     * Non-WHITE defaults are not statically folded (srgb-linear math) - no-tint identity.
+     * {@code if_acmpne WHITE; ldc; ireturn} arm) rather than hardcoded, so it tracks vanilla
+     * if the constant ever changes. Non-WHITE defaults are not statically folded
+     * (srgb-linear math) - no-tint identity.
      */
     private int resolveStateColorMethod(@NotNull MethodInsnNode stateColorCall) {
         ClassNode stateClass = this.cache.load(stateColorCall.owner);
@@ -712,7 +712,7 @@ final class EntityOverlayResolver {
      * The {@code state.<field>:I} evaluation: the renderer chain's
      * {@code extractRenderState} binds the field from
      * {@code DyeColor.getTextureDiffuseColor()}; at the zero-state WHITE dye that is the
-     * WHITE diffuse constant [D24].
+     * WHITE diffuse constant.
      */
     private int resolveStateColorField(@NotNull String fieldName) {
         boolean[] diffuseBound = {false};
@@ -815,7 +815,7 @@ final class EntityOverlayResolver {
 
     /**
      * The first {@code <clinit>} texture literal flowing through
-     * {@code withDefaultNamespace} into a non-baby {@code Identifier} field (P10 filter).
+     * {@code withDefaultNamespace} into a non-baby {@code Identifier} field.
      */
     static @Nullable String findFirstNonBabyTextureLiteral(@NotNull ClassNode cn) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
@@ -837,7 +837,7 @@ final class EntityOverlayResolver {
                 && in instanceof FieldInsnNode fi
                 && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
                 && pendingPath != null && pendingIdentifier) {
-                if (!fi.name.contains("BABY")) return pendingPath;   // P10
+                if (!fi.name.contains("BABY")) return pendingPath;
                 pendingPath = null;
                 pendingIdentifier = false;
             }
@@ -846,18 +846,17 @@ final class EntityOverlayResolver {
     }
 
     // ------------------------------------------------------------------------------------
-    // emissive-provider arm [D21, D23]
+    // emissive-provider arm
     // ------------------------------------------------------------------------------------
 
     /**
      * The provider-driven emissive layer shape (warden, creaking, copper golem): the layer
      * ctor takes two {@code Function}-typed providers (texture + render type), a functional
      * alpha hook, and a model - detected by ctor descriptor, never by class name. Per
-     * allocation: the alpha provider evaluates at the P12 frozen frame (a non-positive
-     * result drops the pass - the anti-phase spots, the creaking's glow-gated eyes); the
-     * texture provider resolves a static field or a state-driven dispatch [D23] (the
-     * weathering axis); the model argument picks same-geometry, P7 full-mesh reuse, or the
-     * retain-subset registration [D21].
+     * allocation: the alpha provider evaluates at the frozen frame (a non-positive result
+     * drops the pass - the anti-phase spots, the creaking's glow-gated eyes); the texture
+     * provider resolves a static field or a state-driven dispatch (the weathering axis); the
+     * model argument picks same-geometry, full-mesh reuse, or the retain-subset registration.
      *
      * @return the emitted rows, or {@code null} when the site is not provider-shaped
      */
@@ -927,8 +926,8 @@ final class EntityOverlayResolver {
             return List.of(node);
         }
         if (alpha >= EntityOverlayPolicies.FULL_MESH_REUSE_ALPHA_EPSILON.floatValue()) {
-            // P7: full-opacity glow reuses the FAMILY mesh - exact because the glow texture
-            // is transparent outside its retained parts (the policy's judgment, not ours).
+            // Full-opacity glow reuses the FAMILY mesh - exact because the glow texture is
+            // transparent outside its retained parts (a deliberate policy call, not a fallback).
             node.putIf("geometry", this.geometryRef.primaryKey())
                 .put("texture", texture.path())
                 .putIf("texture_by", texture.textureBy())
@@ -1015,10 +1014,10 @@ final class EntityOverlayResolver {
 
     /**
      * A resolved provider texture: the zero-state full path plus the state axis overriding
-     * it at render, when the provider dispatches on a state field [D23].
+     * it at render, when the provider dispatches on a state field.
      *
      * @param path the namespaced zero-state texture path
-     * @param textureBy the P9 axis token, or {@code null} for a fixed texture
+     * @param textureBy the axis token, or {@code null} for a fixed texture
      */
     private record ProviderTexture(@NotNull String path, @Nullable String textureBy) {}
 
@@ -1039,9 +1038,9 @@ final class EntityOverlayResolver {
                 stateField = read.name;
         }
         if (stateField == null) return null;
-        // State-driven dispatch [D23]: the axis token is the state field; the zero-state
-        // texture is the P11 first-eye-literal over the lambda's reachable classes (the
-        // data class allocates its default-state instance first).
+        // State-driven dispatch: the axis token is the state field; the zero-state texture
+        // is the first eye-stem literal over the lambda's reachable classes (the data class
+        // allocates its default-state instance first).
         String zeroState = firstEyeLiteral(owner, lambda);
         if (zeroState == null) return null;
         String token = axisToken(stateField);
@@ -1050,7 +1049,7 @@ final class EntityOverlayResolver {
         return new ProviderTexture(namespaced(zeroState), vocab ? token : null);
     }
 
-    /** The P11 pick: the first eye-stem texture literal over the lambda-reachable clinits. */
+    /** The first eye-stem texture literal over the lambda-reachable clinits. */
     private @Nullable String firstEyeLiteral(@NotNull ClassNode lambdaOwner, @NotNull MethodNode lambda) {
         LinkedHashSet<String> candidates = new LinkedHashSet<>();
         candidates.add(lambdaOwner.name);
@@ -1091,9 +1090,9 @@ final class EntityOverlayResolver {
     }
 
     /**
-     * The {@code retainExactParts} subset a factory's {@code MeshTransformer} lambda bakes
-     * [D21]: the string literals its lambda pushes before the {@code retainExactParts}
-     * call. {@code null} when the factory has no retain lambda.
+     * The {@code retainExactParts} subset a factory's {@code MeshTransformer} lambda bakes:
+     * the string literals its lambda pushes before the {@code retainExactParts} call.
+     * {@code null} when the factory has no retain lambda.
      */
     private @Nullable List<String> findRetainSubset(@NotNull LayerDefinitionIndex.Entry entry) {
         ClassNode factoryOwner = this.cache.load(entry.factoryClass());
@@ -1124,7 +1123,7 @@ final class EntityOverlayResolver {
     }
 
     /**
-     * Evaluates an alpha-provider lambda at the P12 frozen frame ({@code ageInTicks == 0},
+     * Evaluates an alpha-provider lambda at the frozen frame ({@code ageInTicks == 0},
      * state fields {@code 0}) with a small operand-stack interpreter - float constants,
      * zeroed loads / field reads, {@code fmul} / {@code fadd} / {@code fsub}, and the
      * {@code cos} / {@code sin} / {@code max} / {@code min} / {@code clamp} intrinsics. An
@@ -1189,7 +1188,7 @@ final class EntityOverlayResolver {
     }
 
     // ------------------------------------------------------------------------------------
-    // villager multi-pass arm [D17]
+    // villager multi-pass arm
     // ------------------------------------------------------------------------------------
 
     /**
@@ -1251,8 +1250,8 @@ final class EntityOverlayResolver {
 
     /**
      * The distinct category literals of the typed submit, in first-use order - the pass
-     * roster [D17]. A literal on the {@code isBaby}-true ternary arm (the {@code baby}
-     * texture directory) is a P10 age concern, not a pass category, and is excluded by its
+     * roster. A literal on the {@code isBaby}-true ternary arm (the {@code baby} texture
+     * directory) is an age concern, not a pass category, and is excluded by its
      * {@code GETFIELD isBaby; IF*; LDC} shape. Requires the self String-arg helper gate the
      * caller already applied.
      */
@@ -1419,7 +1418,7 @@ final class EntityOverlayResolver {
     // ------------------------------------------------------------------------------------
 
     /**
-     * The default-decor shape on a bespoke equipment layer [D34]: the typed submit reads a
+     * The default-decor shape on a bespoke equipment layer: the typed submit reads a
      * default {@code EquipmentAssets} constant gated on a boolean state field whose
      * populating entity predicate is constant-true for THIS subject (the
      * {@code isTraderLlama()} dispatch - llama returns false, trader llama true; both share
@@ -1443,7 +1442,7 @@ final class EntityOverlayResolver {
             if (in.getOpcode() == Opcodes.GETSTATIC && in instanceof FieldInsnNode fi
                 && VanillaSourceClasses.Types.EQUIPMENT_ASSETS.equals(fi.owner)
                 && keyRef.equals(fi.desc)
-                && !fi.name.contains("BABY")   // P10: the adult arm is the zero state
+                && !fi.name.contains("BABY")   // the adult arm is the zero state
                 && assetConstant == null)
                 assetConstant = fi.name;
         }
@@ -1468,7 +1467,7 @@ final class EntityOverlayResolver {
         node.put("texture", namespaced(VanillaSourceClasses.Paths.TEXTURES_ENTITY
             + VanillaSourceClasses.Paths.EQUIPMENT_DIR + subdir + "/" + assetId + ".png"));
         putGrow(node, mesh.grow());
-        if (EntityOverlayPolicies.DECOR_SKIP_BOUNDS.booleanValue()) node.put("skip_bounds", true);   // P8
+        if (EntityOverlayPolicies.DECOR_SKIP_BOUNDS.booleanValue()) node.put("skip_bounds", true);
         this.diagnostics.info("default decor: %s/%s (gate '%s' constant-true)", subdir, assetId, gateField);
         return node;
     }

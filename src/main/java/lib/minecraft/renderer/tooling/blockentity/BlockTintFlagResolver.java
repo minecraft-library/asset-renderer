@@ -13,13 +13,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Node {@code tinted} (SPINE 3.3 row 4) [D51]: a split is tint-bearing when its renderer's
- * hierarchy calls a dye/banner tint accessor AND the split's mesh factory is a {@code *FlagModel}
- * (the flag sub-model takes the dye; the wood-brown pole / bar does not). Session-scoped: the
- * per-renderer tint-bearing verdict is memoised.
+ * A split is tint-bearing when its renderer's hierarchy calls a dye/banner tint accessor AND
+ * the split's mesh factory is a {@code *FlagModel} (the flag sub-model takes the dye; the
+ * wood-brown pole / bar does not). The per-renderer tint-bearing verdict is memoised.
  *
  * <p>No allow-list - the only semantic judgment is "renderer calls a DyeColor / BannerPattern
- * API"; everything downstream is structural (legacy TintDiscovery.java:84, :113-117).
+ * API"; everything downstream is structural.
  */
 final class BlockTintFlagResolver {
 
@@ -44,7 +43,7 @@ final class BlockTintFlagResolver {
         return isFlagModel(factoryClass) && isRendererTintBearing(rendererClass);
     }
 
-    /** A {@code *FlagModel} mesh (banner / wall-banner flag) - the dye-taking sub-model [P43]. */
+    /** A {@code *FlagModel} mesh (banner / wall-banner flag) - the dye-taking sub-model. */
     private static boolean isFlagModel(@NotNull String factoryClass) {
         return factoryClass.endsWith(BlockFamilyPolicies.dyeTargetModelSuffix());
     }

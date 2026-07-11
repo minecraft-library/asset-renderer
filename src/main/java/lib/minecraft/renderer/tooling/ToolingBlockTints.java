@@ -11,21 +11,21 @@ import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import java.nio.file.Path;
 
 /**
- * Entry point of the {@code blockTints} Gradle task - the block-tints flow (SPINE 3.5): every
+ * Entry point of the {@code blockTints} Gradle task - the block-tints flow: every
  * default tint registration from a {@code BlockColors.createDefault()} walk, with colormap
  * targets derived from the source bodies and renderer-capability drops recorded in
- * {@code dropped[]} (decision 24).
+ * {@code dropped[]}.
  */
 public final class ToolingBlockTints {
 
-    /** The bundled resource directory (SPINE 4 registry). */
+    /** The bundled resource directory. */
     private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingBlockTints() {
     }
 
     /**
-     * Runs the flow. ERROR-severity diagnostics fail the run (doc-12 K3);
+     * Runs the flow. ERROR-severity diagnostics fail the run;
      * {@code -Dasset.tooling.strict=warn} opts WARN into the same gate.
      *
      * @param args ignored - all paths are fixed
@@ -40,7 +40,7 @@ public final class ToolingBlockTints {
         }
     }
 
-    /** The doc-12 K3 strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
+    /** The strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
     private static void failOnStrictGate(ToolingSession session) {
         Diagnostics diagnostics = session.diagnostics();
         boolean warnStrict = "warn".equalsIgnoreCase(System.getProperty("asset.tooling.strict", "").trim());

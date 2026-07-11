@@ -7,10 +7,10 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 /**
- * The {@code parts} node (SPINE 3.3 A6 row 7): the ordered sub-model composition rows
+ * The {@code parts} node: the ordered sub-model composition rows
  * {@code {model, offset?, texture?}} a base split renders alongside its own geometry (the bed
  * foot, the banner flag, the decorated-pot sides). Driven entirely by the declared
- * {@link BlockTransformPolicies#partsOf} roster [P32] - the offsets and the pot-side texture are
+ * {@link BlockTransformPolicies#partsOf} roster - the offsets and the pot-side texture are
  * declared facts, the part model ids are our split-id vocabulary.
  *
  * <p>{@code offset} stays the deliberate int channel; it is omitted when the roster carries none

@@ -22,9 +22,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Walks {@code BlockColors.createDefault()} and owns the {@code tints} + {@code dropped} nodes
- * (SPINE 3.5). The walk is a self-contained state machine over kept AsmKit primitives (09 SS9
- * flag T3): it tracks the last {@code BlockTintSources} factory call, the in-hand int literal
+ * Walks {@code BlockColors.createDefault()} and owns the {@code tints} + {@code dropped} nodes.
+ * The walk is a self-contained state machine over AsmKit primitives: it tracks the last
+ * {@code BlockTintSources} factory call, the in-hand int literal
  * for {@code constant(...)}, the composed-source ({@code List.of} arity) flag, and the pending
  * {@code GETSTATIC Blocks.X} block ids, committing at each {@code BlockColors.register}
  * INVOKEVIRTUAL. Classification is delegated to {@link TintRegistrationResolver} - the walk

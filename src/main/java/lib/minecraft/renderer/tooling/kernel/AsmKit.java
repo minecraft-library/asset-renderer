@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 
 /**
  * Shared ASM scaffolding used by every bytecode-walking tooling flow - cache-only
- * primitives with zero vanilla knowledge (SPINE 5.2). Every class-fetch entry point takes
+ * primitives with zero vanilla knowledge. Every class-fetch entry point takes
  * the session {@link ClassNodeCache}; no jar handle appears anywhere on this surface.
  *
  * <p>The kit owns these families of primitives:
@@ -38,7 +38,7 @@ import java.util.regex.Pattern;
  *   <li><b>Class-hierarchy walks</b> - {@link #walkConstructorChain walkConstructorChain},
  *       {@link #walkSuperChain walkSuperChain}, {@link #walkSuperChainUntil walkSuperChainUntil},
  *       and {@link #extendsClass extendsClass}, each stopping before
- *       {@link #OBJECT_INTERNAL java/lang/Object}, all cache-fed (decision 4).</li>
+ *       {@link #OBJECT_INTERNAL java/lang/Object}, all cache-fed.</li>
  *   <li><b>Literal decoding</b> - turn {@code ICONST_*} / {@code BIPUSH} / {@code SIPUSH} /
  *       {@code LDC} bytecode literal pushes back into boxed {@link Integer} / {@link Long} /
  *       {@link Float} / {@link Double} / {@link String} / {@link Type} values, plus the
@@ -67,7 +67,7 @@ import java.util.regex.Pattern;
  *   <li><b>Dissolvers</b> - {@link #scanPendingBindings scanPendingBindings} (the
  *       LDC-to-PUTSTATIC scanner shape behind nine-plus legacy clones) and
  *       {@link #readStaticEnumMap readStaticEnumMap} (enum-keyed map construction: coat /
- *       crackiness / markings / oxidation) absorb the duplicated walkers (SPINE decision 5).</li>
+ *       crackiness / markings / oxidation) absorb the duplicated walkers.</li>
  *   <li><b>Integer for-loop detection</b> - {@link #detectIntForLoop detectIntForLoop} matches
  *       the canonical javac {@code for (int i = INIT; i < BOUND; i += STEP)} scaffold into an
  *       {@link IntForLoop} record, with {@link #evaluateIntComparison evaluateIntComparison} for
@@ -129,7 +129,7 @@ public final class AsmKit {
     public static final @NotNull String CLINIT = "<clinit>";
 
     /**
-     * The javac-synthesised static-lambda body prefix ({@code lambda$static$N}) [D63] - a
+     * The javac-synthesised static-lambda body prefix ({@code lambda$static$N}) - a
      * stable javac naming convention, NOT a JVM-spec guarantee: a compiler change would
      * surface as missed lambda bodies in the texture / variant-coat walks, so the single
      * declaration lives here.
@@ -389,7 +389,7 @@ public final class AsmKit {
      * {@code MushroomCow$Variant.DEFAULT = RED}). Returns {@code null} when the class is
      * missing from the jar, has no {@code <clinit>}, or has no matching static field
      * initialised by the simple GETSTATIC-then-PUTSTATIC pattern. The field name is a
-     * PARAMETER supplied by the calling policy (P15) - the kit stays vanilla-blind.
+     * PARAMETER supplied by the calling policy - the kit stays vanilla-blind.
      *
      * <p>Used by texture / variant resolvers that need to recover the canonical zero-state
      * variant from an enum-typed render-state field. The match is owner-strict on both
@@ -506,8 +506,8 @@ public final class AsmKit {
     /**
      * Walks the superclass chain starting at {@code startInternalName}, stopping before
      * {@link #OBJECT_INTERNAL java/lang/Object}, and returns the first class {@code stop}
-     * accepts - the early-out form the three legacy open-coded walks shared (SPINE decision
-     * 5). Returns {@code null} when no class matches or a link is missing from the jar.
+     * accepts - the early-out form the three legacy open-coded walks shared. Returns
+     * {@code null} when no class matches or a link is missing from the jar.
      *
      * @param cache the per-session cache to consult / populate
      * @param startInternalName the class to begin the walk at
@@ -1343,7 +1343,7 @@ public final class AsmKit {
     }
 
     // ----------------------------------------------------------------------------------------
-    // Dissolvers - shared walk shapes that absorbed N duplicated scanners (SPINE decision 5)
+    // Dissolvers - shared walk shapes that absorbed N duplicated scanners
     // ----------------------------------------------------------------------------------------
 
     /**
@@ -1462,13 +1462,13 @@ public final class AsmKit {
      * {@code "scaling"} / {@code L...MeshTransformer;}). The factory is matched as
      * {@code "(F)" + fieldDesc} - a single {@code float} argument returning the field type.
      * The memo is keyed per {@link ClassNodeCache} INSTANCE and lives here in the kit so the
-     * cache stays storage-only (decision 4); it is weakly keyed so a closed session's entries
+     * cache stays storage-only; it is weakly keyed so a closed session's entries
      * vanish with its cache.
      *
      * <p>An intervening {@code LDC F} between a {@code scaling(F)} call and its {@code PUTSTATIC}
-     * clears the pending scaled value, so a stale factor never binds to a later field. (This is a
-     * defensive stance the two historical walkers disagreed on; both agree on every vanilla 26.1
-     * {@code <clinit>} - see {@code AsmKitTest} - so the stricter reset is adopted unconditionally.)
+     * clears the pending scaled value, so a stale factor never binds to a later field. This is a
+     * defensive stance: a looser reset would also satisfy every vanilla 26.1 {@code <clinit>}
+     * (see {@code AsmKitTest}), so the stricter reset is adopted unconditionally.
      *
      * @param cache the per-session cache to consult / populate (also the memo key)
      * @param owner the field's owning class internal name (memo key + {@code PUTSTATIC} owner match)
@@ -2031,7 +2031,7 @@ public final class AsmKit {
      * {@code constant(int, int)} or {@code addBox(FFFFFF)}) is encountered. When the
      * per-parser capacity is exceeded (4 for tints, 8 for potion colours, 16 for block
      * entities) the oldest entry is evicted, matching the removeFirst eviction the legacy
-     * parsers used (re-backed by {@link ArrayDeque} - SPINE 5.2). Typed pop helpers
+     * parsers used (backed by {@link ArrayDeque}). Typed pop helpers
      * ({@link #popInt()}, {@link #popFloat()}, {@link #popString()}) return {@code null}
      * when the stack is empty <i>or</i> when the top entry is not of the requested type,
      * so a caller hunting ints after a float-consuming descriptor mismatch doesn't

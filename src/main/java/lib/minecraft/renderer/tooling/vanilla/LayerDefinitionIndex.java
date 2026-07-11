@@ -21,20 +21,18 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * THE {@code LayerDefinitions.createRoots} walk, built once per session (SPINE decision 32) -
- * replaces both legacy copies (entity {@code loadLayerDefinitions} + blockentity
- * {@code walkLayerDefinitions}, the acknowledged mirror pair [D57]), keying every
+ * Walks {@code LayerDefinitions.createRoots} once per session, keying every
  * {@code ModelLayers} field to its factory coordinate plus the call-site bake arguments.
  *
- * <p>Field names are THREADED, never discarded [D57]; the donkey / mule float-slot-0
- * call-site seeding ({@code DonkeyModel.createBodyLayer(0.87f)} / mule {@code 0.92f} [D9])
- * and the two {@code MeshTransformer.scaling} consumption shapes (slot-mediated horse,
- * inline cave_spider) carry over from the legacy walk verbatim.
+ * <p>Field names are threaded through every entry, never discarded; the donkey / mule
+ * float-slot-0 call-site seeding ({@code DonkeyModel.createBodyLayer(0.87f)} / mule
+ * {@code 0.92f}) and the two {@code MeshTransformer.scaling} consumption shapes
+ * (slot-mediated horse, inline cave_spider) are captured verbatim.
  *
  * <p>Pure delegate factories ({@code INVOKESTATIC other; ARETURN} -
- * {@code AdultZombifiedPiglinModel -> AdultPiglinModel}) are unaliased HERE, at build - the
- * registration path resolves delegates by construction at every site instead of the legacy
- * 5-of-6-call-sites caller discipline (doc 07 SS2).
+ * {@code AdultZombifiedPiglinModel -> AdultPiglinModel}) are unaliased here, at build time,
+ * so entities sharing a layer factory through a no-op delegate resolve to the same
+ * geometry key by construction, at every call site.
  */
 public final class LayerDefinitionIndex {
 
@@ -53,7 +51,7 @@ public final class LayerDefinitionIndex {
     private static final @NotNull String SCALING_DESC =
         VanillaSourceClasses.Descs.of(VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF, "F");
 
-    /** Field descriptor of a {@code CubeDeformation} reference - the [D16] static-field grow shape. */
+    /** Field descriptor of a {@code CubeDeformation} reference - the static-field grow shape. */
     private static final @NotNull String CUBE_DEFORMATION_REF =
         VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.CUBE_DEFORMATION);
 
@@ -69,13 +67,13 @@ public final class LayerDefinitionIndex {
      *     or {@code null} when the factory calls {@code LayerDefinition.create} itself
      * @param texHeightOverride the matching texture height, or {@code null}
      * @param layerField the {@code ModelLayers} field name this entry resolves - threaded,
-     *     never discarded [D57]
+     *     never discarded
      * @param grow the 3-component cube inflate captured from an inline
      *     {@code new CubeDeformation(F)} at the call site or resolved from a static
-     *     deformation field's {@code <clinit>} bind [D16] ({@code {0,0,0}} = none)
+     *     deformation field's {@code <clinit>} bind ({@code {0,0,0}} = none)
      * @param floatParam the call-site {@code float} literal for a single-{@code float}
      *     factory ({@code DonkeyModel.createBodyLayer(F)} - donkey {@code 0.87f}, mule
-     *     {@code 0.92f} [D9]), seeded into the parser's slot 0; {@code null} for other arities
+     *     {@code 0.92f}), seeded into the parser's slot 0; {@code null} for other arities
      * @param appliedMeshTransformerScale the composed scale of every
      *     {@code .apply(MeshTransformer.scaling(F))} chained onto the factory result
      *     ({@code 1f} = none)
@@ -147,7 +145,7 @@ public final class LayerDefinitionIndex {
         Integer[] widthHeight = {null, null};
         // Tracks the grow of the most recent deformation on the operand stack - an inline
         // `new CubeDeformation(F); <init>` or a `GETSTATIC <field>:CubeDeformation` resolved
-        // through the owner's <clinit> bind [D16] (FISH_PATTERN_DEFORMATION, the cat
+        // through the owner's <clinit> bind (FISH_PATTERN_DEFORMATION, the cat
         // COLLAR_DEFORMATION; CubeDeformation.NONE resolves to zero). When the next factory
         // call consumes the deformation, this value rides into the Entry as its grow
         // pre-seed. Reset on each new ModelLayers field so the value can't leak across
@@ -176,8 +174,8 @@ public final class LayerDefinitionIndex {
 
             // `new CubeDeformation; dup; ldc F; invokespecial <init>(F)V`: capture the float
             // into pendingDeformationGrow so the next factory call that consumes the
-            // deformation picks it up. Matches the legacy walk's `(F`-prefix gate (the
-            // single-float ctor; the FFF ctor never appears inline in createRoots on 26.1).
+            // deformation picks it up. Only the single-float ctor appears inline in
+            // createRoots on 26.1; the FFF ctor never does.
             if (in instanceof MethodInsnNode mi
                 && opcode == Opcodes.INVOKESPECIAL
                 && AsmKit.INIT.equals(mi.name)
@@ -189,7 +187,7 @@ public final class LayerDefinitionIndex {
             }
 
             // `GETSTATIC <field>: CubeDeformation` - a static-field deformation at the call
-            // site, resolved through the owner's <clinit> bind [D16].
+            // site, resolved through the owner's <clinit> bind.
             if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
                 && CUBE_DEFORMATION_REF.equals(fi.desc)) {
                 pendingDeformationGrow = resolveDeformationField(cache, fi.owner, fi.name);
@@ -261,7 +259,7 @@ public final class LayerDefinitionIndex {
                 if (AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.LAYER_DEFINITION)
                     && !VanillaSourceClasses.Types.LAYER_DEFINITION.equals(mi.owner)) {
                     // A single-float factory (`DonkeyModel.createBodyLayer(F)`) captures the
-                    // call-site literal so the parser can substitute it via slot 0 [D9]; other
+                    // call-site literal so the parser can substitute it via slot 0; other
                     // arities leave floatParam null.
                     Float floatParam = pendingFloat != null && mi.desc.startsWith("(F)") ? pendingFloat : null;
                     pendingDirect = new Entry(mi.owner, mi.name, mi.desc, null, null,
@@ -364,7 +362,7 @@ public final class LayerDefinitionIndex {
     /**
      * Resolves a static {@code CubeDeformation} field to its 3-component grow by walking the
      * owner's {@code <clinit>} for the {@code new CubeDeformation(F|FFF); PUTSTATIC <field>}
-     * bind [D16]. Returns {@code null} when the owner or the bind is absent (treated as no
+     * bind. Returns {@code null} when the owner or the bind is absent (treated as no
      * deformation - the caller's growOf handles it).
      */
     private static float @Nullable [] resolveDeformationField(
@@ -405,9 +403,8 @@ public final class LayerDefinitionIndex {
     /**
      * Rewrites a pure-delegate factory ({@code INVOKESTATIC other; ARETURN} and nothing else)
      * to its delegate target, so entities sharing a layer factory through a no-op delegate
-     * collapse onto one geometry key by construction (doc 07 SS2 - the legacy caller
-     * discipline dies). Entries whose factory has any other instruction pass through
-     * unchanged.
+     * collapse onto one geometry key by construction. Entries whose factory has any other
+     * instruction pass through unchanged.
      */
     private static @NotNull Entry unaliasDelegate(@NotNull ClassNodeCache cache, @NotNull Entry entry) {
         ClassNode cn = cache.load(entry.factoryClass());

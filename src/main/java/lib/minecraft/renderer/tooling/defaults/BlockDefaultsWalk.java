@@ -10,11 +10,11 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * The block-defaults walk (SPINE 3.4 stage 2) - the ONLY stage that touches the output tree.
- * Loops every registered block sorted by id: a block whose class the registration walk could not
- * bind lands in {@code unresolved[]} (a WARN, the frozen-boundary blocks - stone / dirt [B4]); every
- * other block emits its decoded default object under {@code blocks} ({@code {}} when property-less -
- * the decision-24 repair distinguishing resolved-empty from walk-failed).
+ * Walks every registered block and decodes its default state, the only stage that touches the
+ * output tree. Loops every registered block sorted by id: a block whose class the registration
+ * walk could not bind lands in {@code unresolved[]} (a WARN); every other block emits its decoded
+ * default object under {@code blocks} ({@code {}} when property-less, distinguishing resolved-empty
+ * from walk-failed).
  */
 public final class BlockDefaultsWalk {
 
@@ -30,14 +30,14 @@ public final class BlockDefaultsWalk {
      * @param root the envelope root owning the {@code blocks} + {@code unresolved} nodes
      */
     public static void run(@NotNull ToolingSession session, @NotNull BlockRegistryIndex index, @NotNull JsonNode root) {
-        // blocks before unresolved (SPINE 4 order); both created upfront so unresolved is always present.
+        // blocks before unresolved; both created upfront so unresolved is always present.
         JsonNode blocks = root.child("blocks");
         JsonNode unresolved = root.childArray("unresolved");
 
         PropertyDefinitionResolver properties = new PropertyDefinitionResolver(session.cache());
         BlockDefaultStateResolver decoder = new BlockDefaultStateResolver(session.cache(), properties);
 
-        // Sort by id (the declared ordering); dedupe by id, last-writer-wins (matches the legacy TreeMap).
+        // Sort by id (the declared ordering); dedupe by id, last-writer-wins.
         Map<String, BlockRegistryIndex.Entry> byId = new TreeMap<>();
         for (BlockRegistryIndex.Entry entry : index.entries().values()) byId.put(entry.id(), entry);
 

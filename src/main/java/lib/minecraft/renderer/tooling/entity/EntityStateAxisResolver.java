@@ -9,15 +9,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
- * Node {@code axes.state} - the option-encoded state axis (SPINE 3.1 row 10; wolf
- * wild / tame / angry, the sole 26.1 family). The domain comes from the multi-asset
- * variant-JSON {@code assets} subkeys already held by {@link VariantIndex}; the node is a pure
+ * Node {@code axes.state} - the option-encoded state axis (wolf wild / tame / angry,
+ * the sole 26.1 family). The domain comes from the multi-asset variant-JSON
+ * {@code assets} subkeys already held by {@link VariantIndex}; the node is a pure
  * selector - per-state textures stay INSIDE the variant options' state-keyed {@code textures}
  * maps, so every option body is EMPTY (a state option never carries a delta body). The
- * {@code options} key-order IS the domain (axis unification #2 - no separate {@code values}
- * list).
+ * {@code options} key-order IS the domain, with no separate {@code values} list.
  *
- * <p>Default and option ordering = P22 precedence, {@code wild} first, then the remaining
+ * <p>Default and option ordering follows precedence, {@code wild} first, then the remaining
  * subkeys in table walk order ({@link EntityAxisPolicies#STATE_PRECEDENCE}).
  */
 final class EntityStateAxisResolver {

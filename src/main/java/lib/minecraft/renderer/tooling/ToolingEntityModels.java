@@ -15,20 +15,20 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Entry point of the {@code entityModels} Gradle task - the entity-models flow, then the
- * shared geometry flow, ONE session (SPINE 3.1 / decision 12): discovery, registry walk,
- * {@code entity_models.json}, {@code entity_geometry.json}.
+ * Entry point of the {@code entityModels} Gradle task - runs the entity-models flow, then the
+ * shared geometry flow, in one session: discovery, registry walk, {@code entity_models.json},
+ * {@code entity_geometry.json}.
  */
 public final class ToolingEntityModels {
 
-    /** The bundled resource directory (SPINE 4 registry). */
+    /** The bundled resource directory. */
     private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingEntityModels() {
     }
 
     /**
-     * Runs the flow. ERROR-severity diagnostics fail the run (doc-12 K3; non-zero exit);
+     * Runs the flow. ERROR-severity diagnostics fail the run (non-zero exit);
      * {@code -Dasset.tooling.strict=warn} opts WARN into the same gate.
      *
      * @param args ignored - all paths are fixed
@@ -46,7 +46,7 @@ public final class ToolingEntityModels {
         }
     }
 
-    /** The doc-12 K3 strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
+    /** The strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
     private static void failOnStrictGate(ToolingSession session) {
         Diagnostics diagnostics = session.diagnostics();
         boolean warnStrict = "warn".equalsIgnoreCase(System.getProperty("asset.tooling.strict", "").trim());

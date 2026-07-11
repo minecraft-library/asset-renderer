@@ -3,8 +3,8 @@ package lib.minecraft.renderer.tooling.atlas;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The atlas diagnose flow's complete policy roster (SPINE 2.1: P47b, minus the mis-homed
- * {@code 0.999f} alpha epsilon - 09 SS3.3 flag T1, which is entity-overlay knowledge). One
+ * The atlas diagnose flow's complete policy roster, minus the mis-homed
+ * {@code 0.999f} alpha epsilon, which is entity-overlay knowledge. One
  * empirically-tuned threshold, its tuning history carried as provenance. Not a
  * {@code NavigationPolicy}: a render/diagnose job consults a threshold, it does not navigate
  * bytecode.

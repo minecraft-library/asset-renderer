@@ -18,10 +18,10 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Decodes a block's default blockstate (SPINE 3.4): declared properties (from
+ * Decodes a block's default blockstate: declared properties (from
  * {@link PropertyDefinitionResolver}) folded with explicit {@code registerDefaultState} overrides
  * (leaf-wins across the ctor chain) and, for unset declared properties, the property's
- * {@code any()}-default. The boolean {@code any()}-default rides {@link BlockStatePolicies} (P44).
+ * {@code any()}-default. The boolean {@code any()}-default rides {@link BlockStatePolicies}.
  *
  * <p>Session-scoped: the per-property default memo lives here. Result keys are sorted
  * ({@code TreeMap}) so the emitted default object is byte-stable.
@@ -131,7 +131,7 @@ final class BlockDefaultStateResolver {
 
     /**
      * The {@code any()}-default from a property's {@code XProperty.create(...)} site, per KIND:
-     * IntegerProperty -> min; BooleanProperty -> {@code false} (P44); EnumProperty -> the first
+     * IntegerProperty -> min; BooleanProperty -> {@code false}; EnumProperty -> the first
      * allowed constant (array index-0 / Plane first-direction / first declared).
      */
     private @Nullable String defaultFromCreate(@NotNull MethodInsnNode create) {
@@ -147,7 +147,7 @@ final class BlockDefaultStateResolver {
             return min == null ? null : Integer.toString(min);
         }
         if (VanillaSourceClasses.Types.BOOLEAN_PROPERTY.equals(create.owner))
-            return BlockStatePolicies.booleanDefault();                                   // P44
+            return BlockStatePolicies.booleanDefault();
 
         // EnumProperty - the class arg is the nearest preceding class literal.
         AbstractInsnNode classNode = AsmKit.findPreceding(create, n -> AsmKit.readTypeLiteral(n) != null, op -> true);

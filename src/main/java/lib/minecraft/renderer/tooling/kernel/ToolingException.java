@@ -8,10 +8,10 @@ import org.jetbrains.annotations.Nullable;
  * Thrown when a tooling flow cannot read its inputs, a required class or member is missing
  * from the client jar, or a fatal derivation fails.
  *
- * <p>The single failure type of the tooling kernel (one error contract everywhere - SPINE
- * decision 3): jar IO, failed {@code require*} lookups, and fatal derivation errors all
- * surface as this type. Recoverable degradations go through {@code Diagnostics} instead -
- * a failed derivation that can continue records an ERROR entry rather than throwing.
+ * <p>The single failure type of the tooling kernel: jar IO, failed {@code require*} lookups,
+ * and fatal derivation errors all surface as this type. Recoverable degradations go through
+ * {@code Diagnostics} instead - a failed derivation that can continue records an ERROR entry
+ * rather than throwing.
  */
 public class ToolingException extends RuntimeException {
 

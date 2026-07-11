@@ -11,21 +11,21 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The declared GUI / inventory-transform facts (SPINE 2.1 roster P36 / P41) a bytecode walk
- * cannot settle - which renderer member builds each GUI {@code Transformation}, the per-model
- * camera-facing yaw convention, the bell no-flip exception, and the bed icon rotation. Declared
- * here with mandatory provenance; never fetches ({@code PolicyPurityTest}).
+ * The declared GUI / inventory-transform facts a bytecode walk cannot settle - which renderer
+ * member builds each GUI {@code Transformation}, the per-model camera-facing yaw convention, the
+ * bell no-flip exception, and the bed icon rotation. Declared here with mandatory provenance;
+ * never fetches ({@code PolicyPurityTest}).
  *
- * <p>Split MECHANICS stay bytecode: {@code TransformWalker} re-enters at the P41 coordinate and
- * decomposes the {@code PoseStack} chain, and {@link BlockGuiResolver} reads the item-model
- * {@code display.gui} roll for the non-transform families. This enum only supplies the entry
- * coordinates and the handful of facts the charter genuinely cannot see (why the same gui-yaw
- * maps to different inventory rotations; why the bell hangs un-flipped).
+ * <p>The mechanics stay bytecode: {@code TransformWalker} re-enters at the declared entry
+ * coordinate and decomposes the {@code PoseStack} chain, and {@link BlockGuiResolver} reads the
+ * item-model {@code display.gui} roll for the non-transform families. This enum only supplies the
+ * entry coordinates and the handful of facts that a bytecode walk genuinely cannot see (why the
+ * same gui-yaw maps to different inventory rotations; why the bell hangs un-flipped).
  */
 enum BlockTransformPolicies implements NavigationPolicy {
 
     /**
-     * P41 - the 8-renderer table naming which member builds each renderer's GUI
+     * The 8-renderer table naming which member builds each renderer's GUI
      * {@code Transformation}. A bare method name means "walk that method"; a {@code FIELD:<name>}
      * value means "walk {@code <clinit>} for the {@code PUTSTATIC} of that static
      * {@code Transformation} field". The three renderers absent here (chest, bell,
@@ -50,7 +50,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
     /**
      * The nine split ids whose inventory icon faces the GUI camera at yaw 180. NOT derivable
      * from {@code display.gui} yaw - skull and conduit both carry gui-yaw 45 yet map to 180 / 0,
-     * so it is a per-model facing convention, undetectable by charter [D58 revisited].
+     * so it is a per-model facing convention, not something a bytecode walk alone can determine.
      */
     INVENTORY_Y_ROTATION(
         Set.of(
@@ -63,7 +63,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
             + " yaw [D58 hypothesis refuted]. Every other split defaults to 0"),
 
     /**
-     * P36 - the split ids the entity flip is suppressed on. Only {@code bell_body}:
+     * The split ids the entity flip is suppressed on. Only {@code bell_body}:
      * {@code BellRenderer.submit} draws with the raw block {@code PoseStack} (no
      * {@code scale(-1, -1, 1)}), and the bell icon is a flat {@code item/generated} sprite with
      * no {@code display.gui} for the roll derivation to read - so the default-flip would be wrong.
@@ -87,7 +87,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
             + " the PlainSignBlock$Attachment.WALL branch offset in StandingSignRenderer.baseTransformation"),
 
     /**
-     * P36 - the split ids whose inventory icon renders rotated a quarter turn, and the rotation.
+     * The split ids whose inventory icon renders rotated a quarter turn, and the rotation.
      * Only the bed head (90 degrees) - a GUI presentation policy, not bytecode.
      */
     ICON_ROTATION(
@@ -98,7 +98,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
     /**
      * The split ids whose icon draws additively. Only {@code bell_body}: the bell body is drawn
      * over the block's real (non {@code builtin/entity}) blockstate model, so it composites
-     * additively [D50].
+     * additively.
      */
     ICON_ADDITIVE(
         Set.of("minecraft:bell_body"),
@@ -106,7 +106,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
             + " model - legacy ToolingBlockModels.applyPerBlockFamilyFields:427-429"),
 
     /**
-     * P32 - the sub-model composition roster: which base split renders a sub-model part, its
+     * The sub-model composition roster: which base split renders a sub-model part, its
      * split id, the render offset, and any per-part texture override. Vanilla composes these in
      * the renderer's {@code submit}; the offsets and the pot-side texture are declared (the
      * legacy walk hard-codes them as constants). The four part-only splits (bed_foot,
@@ -128,7 +128,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
             + " banner/wall_banner compose their flag sub-model with no offset - :1629-1630, :1810-1811"),
 
     /**
-     * P36 - the flip default for splits whose icon roll is unreadable (a flat sprite with no
+     * The flip default for splits whose icon roll is unreadable (a flat sprite with no
      * {@code display.gui}): flip TRUE. Consulted only when the display.gui derivation misses and
      * {@link #FLIP_SUPPRESSED} does not name the split.
      */
@@ -139,7 +139,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
             + " roll and the split is not FLIP_SUPPRESSED"),
 
     /**
-     * P40 - the pivot-Y half-block band {@code [8, 16)} marking a block-space-authored factory
+     * The pivot-Y half-block band {@code [8, 16)} marking a block-space-authored factory
      * ({@code UP}): ChestModel pivots {@code (0, 9, 1)}, BellModel {@code (8, 12, 8)}. Outside the
      * band stays {@code DOWN}: ShulkerModel's {@code y = 24} mob root, banner-flag / dragon-head
      * pure-entity meshes, and {@code offsetAndRotation} users (decorated pot).
@@ -152,7 +152,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
             + " offsetAndRotation users (decorated pot) DOWN (YAxis.java:3-15, 08 3 row 11)"),
 
     /**
-     * P42 - the canonicalisation tolerance {@code UNIT_EPS = 1e-3}: the band that snaps the
+     * The canonicalisation tolerance {@code UNIT_EPS = 1e-3}: the band that snaps the
      * shulker's {@code 0.9995} z-fight fudge to unit scale, gates the near-unity translation fold,
      * and bounds the sign-fold / rotateAround comparisons.
      */
@@ -163,7 +163,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
             + " :821-824) and the block-centred rotateAround-180 = camera-facing flip already carried by"
             + " the y_rotation (ITD :881-901)");
 
-    /** The {@code FIELD:} prefix on a P41 entry marking a static {@code Transformation} field. */
+    /** The {@code FIELD:} prefix on an entry marking a static {@code Transformation} field. */
     static final @NotNull String FIELD_ENTRY_PREFIX = "FIELD:";
 
     /**
@@ -206,7 +206,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
      * {@code inventory.transform}).
      *
      * @param rendererClass the renderer's JVM internal name
-     * @return {@code true} when the renderer is a P41 transform target
+     * @return {@code true} when the renderer is a transform target
      */
     static boolean isTransformTarget(@NotNull String rendererClass) {
         return rendererEntry(rendererClass) != null;
@@ -269,22 +269,22 @@ enum BlockTransformPolicies implements NavigationPolicy {
         return ((Set<String>) ICON_ADDITIVE.value).contains(splitId);
     }
 
-    /** The flip for splits whose icon roll is unreadable ({@code true}) [P36]. */
+    /** The flip for splits whose icon roll is unreadable ({@code true}). */
     static boolean entityFlipDefault() {
         return (Boolean) ENTITY_FLIP_DEFAULT.value;
     }
 
-    /** The inclusive lower bound of the block-space pivot-Y band [P40]. */
+    /** The inclusive lower bound of the block-space pivot-Y band. */
     static float yAxisBandMin() {
         return ((float[]) Y_AXIS_BAND.value)[0];
     }
 
-    /** The exclusive upper bound of the block-space pivot-Y band [P40]. */
+    /** The exclusive upper bound of the block-space pivot-Y band. */
     static float yAxisBandMax() {
         return ((float[]) Y_AXIS_BAND.value)[1];
     }
 
-    /** The canonicalisation tolerance ({@code UNIT_EPS}) [P42]. */
+    /** The canonicalisation tolerance ({@code UNIT_EPS}). */
     static float canonicalUnitEps() {
         return (Float) CANONICALISE.value;
     }

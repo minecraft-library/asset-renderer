@@ -10,20 +10,19 @@ import lib.minecraft.renderer.tooling.snapshot.PotionColorWalk;
 import java.nio.file.Path;
 
 /**
- * Entry point of the {@code potionColors} Gradle task - the potion-colour flow (SPINE 3.5):
- * every effect colour from a {@code MobEffects.<clinit>} walk, sorted by effect id and forced
- * fully opaque.
+ * Entry point of the {@code potionColors} Gradle task - the potion-colour flow: every effect
+ * colour from a {@code MobEffects.<clinit>} walk, sorted by effect id and forced fully opaque.
  */
 public final class ToolingPotionColors {
 
-    /** The bundled resource directory (SPINE 4 registry). */
+    /** The bundled resource directory. */
     private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingPotionColors() {
     }
 
     /**
-     * Runs the flow. ERROR-severity diagnostics fail the run (doc-12 K3);
+     * Runs the flow. ERROR-severity diagnostics fail the run;
      * {@code -Dasset.tooling.strict=warn} opts WARN into the same gate.
      *
      * @param args ignored - all paths are fixed
@@ -37,7 +36,7 @@ public final class ToolingPotionColors {
         }
     }
 
-    /** The doc-12 K3 strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
+    /** The strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
     private static void failOnStrictGate(ToolingSession session) {
         Diagnostics diagnostics = session.diagnostics();
         boolean warnStrict = "warn".equalsIgnoreCase(System.getProperty("asset.tooling.strict", "").trim());

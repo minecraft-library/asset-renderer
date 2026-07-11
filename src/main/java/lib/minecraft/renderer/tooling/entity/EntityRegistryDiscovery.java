@@ -24,9 +24,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Single-pass discovery of every living mob entity with a registered renderer - the
- * three-walk registry join (SPINE 3.1 stage 1), ported from the legacy discovery onto the
- * kernel. Registry order == on-disk family order - declared, not incidental.
+ * Single-pass discovery of every living mob entity with a registered renderer via a
+ * three-walk registry join. Registry order == on-disk family order - declared, not
+ * incidental.
  *
  * <p>Three independent walks feed the join:
  * <ol>
@@ -43,8 +43,8 @@ import java.util.Set;
  *       lambda body.</li>
  * </ol>
  *
- * <p>Mobs whose renderer registration is missing or unresolvable land as WARN diagnostics,
- * not a JSON side table (the legacy dev-dump side channel died with decision 33).
+ * <p>Mobs whose renderer registration is missing or unresolvable land as WARN diagnostics
+ * rather than a JSON side table.
  */
 public final class EntityRegistryDiscovery {
 

@@ -9,16 +9,16 @@ import java.nio.file.Path;
 import java.util.Map;
 
 /**
- * The shared geometry pipeline (SPINE 3.2 / decision 12): consumes the manifest a models
- * walk populated IN THE SAME SESSION and emits the paired geometry file - own JsonNode
- * tree, own file, recycled discovery; the cross-task ref-desync landmine dies.
+ * The shared geometry pipeline: consumes the manifest a models walk populated in the same
+ * session and emits the paired geometry file - own JsonNode tree, own file, recycled
+ * discovery, so a manifest key and its geometry entry can never desync across tasks.
  *
  * <p>Per deduped request: parse, stamp the {@code source} twin + {@code texture_size} +
  * {@code y_axis} + {@code cull}, append under the minted factory-coordinate key. Emits an
  * empty-but-valid envelope while the manifest is empty (the flow shell precedes the first
  * registering resolver). A failed parse is a Diagnostics ERROR and a skipped entry - never
- * a fallback literal (decision 10); {@code GeometryRefClosureTest} then fails on the
- * dangling reference, which is the loud path working.
+ * a fallback literal; {@code GeometryRefClosureTest} then fails on the dangling reference,
+ * which is the loud path working.
  */
 public final class GeometryFlow {
 
@@ -61,8 +61,8 @@ public final class GeometryFlow {
     }
 
     /**
-     * The structured {@code source} twin of the factory-coordinate key (decision 15): the
-     * full class coordinate plus the same discriminators the key encodes, machine-readable.
+     * The structured {@code source} twin of the factory-coordinate key: the full class
+     * coordinate plus the same discriminators the key encodes, machine-readable.
      */
     private static @NotNull JsonNode sourceTwin(@NotNull GeometryRequest request) {
         JsonNode source = JsonNode.object()

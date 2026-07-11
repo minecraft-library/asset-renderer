@@ -10,20 +10,20 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * The GUI half of the {@code inventory} node plus the {@code icon} node (SPINE 3.3 A6 row 5 / 6):
+ * The GUI half of the {@code inventory} node plus the {@code icon} node:
  * {@code inventory.y_rotation} + {@code inventory.flip} and {@code icon} {@code {rotation?, additive?}}.
  * The bytecode {@code inventory.transform} is the other contributor (InventoryTransformResolver).
  *
  * <p>{@code y_rotation} is the camera-facing convention from {@link BlockTransformPolicies}
  * (not a {@code display.gui} yaw read - the yaw does not determine it). {@code flip} is TRUE for
  * every transform-bearing family (they never consult the icon); for the three raw-pose families
- * (chest / bell / copper_golem_statue) it reads the item-model {@code display.gui} roll (180 =
- * flip [D67]) via {@link ClassNodeCache#readJson}, with the bell suppressed [D48] and a
- * flat-sprite default of TRUE. Per-renderer icon rolls are memoised.
+ * (chest / bell / copper_golem_statue) it reads the item-model {@code display.gui} roll (180 means
+ * flip) via {@link ClassNodeCache#readJson}, with the bell suppressed and a flat-sprite default of
+ * TRUE. Per-renderer icon rolls are memoised.
  */
 final class BlockGuiResolver {
 
-    /** The parent-chain depth bound the model walk follows (legacy ITD MAX_MODEL_PARENT_DEPTH:214). */
+    /** The parent-chain depth bound the model walk follows. */
     private static final int MAX_MODEL_PARENT_DEPTH = 8;
 
     private final @NotNull ClassNodeCache cache;
@@ -56,7 +56,7 @@ final class BlockGuiResolver {
         if (BlockTransformPolicies.isTransformTarget(rendererClass)) return true;
         if (BlockTransformPolicies.isFlipSuppressed(splitId)) return false;
         Float roll = displayGuiRoll(splitId);
-        if (roll == null) return BlockTransformPolicies.entityFlipDefault();   // no display.gui [P36]
+        if (roll == null) return BlockTransformPolicies.entityFlipDefault();   // no display.gui
         return Math.abs(roll - 180f) < 0.5f;
     }
 

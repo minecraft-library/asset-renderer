@@ -8,23 +8,23 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Set;
 
 /**
- * The tint / potion / glint walks' complete policy roster (SPINE 2.1: P45 + P46) - the
- * renderer-capability drops recorded in {@code dropped[]} (never silent, decision 24) and the
- * bytecode-shape judgments the three walks pattern-match on. Never fetches
- * ({@code PolicyPurityTest}): the walks do the fetching; these constants home the declared
- * facts + their hard-won provenance so every hard-coded judgment lives in one place.
+ * The tint / potion / glint walks' complete policy roster - the renderer-capability drops
+ * recorded in {@code dropped[]} (never silent) and the bytecode-shape judgments the three walks
+ * pattern-match on. Never fetches ({@code PolicyPurityTest}): the walks do the fetching; these
+ * constants home the declared facts + their hard-won provenance so every hard-coded judgment
+ * lives in one place.
  *
- * <p>Everything the audits marked DERIVABLE - tint colormap targets (from the source body's
- * {@code BiomeColors.getAverage*Color} call), stem colour (symbolic eval at age 0, D60), block
- * ids ({@code BlockRegistryIndex}) - ships as derivation with NO policy fallback and is absent
- * from this roster.
+ * <p>Everything derivable - tint colormap targets (from the source body's
+ * {@code BiomeColors.getAverage*Color} call), stem colour (symbolic eval at age 0), block ids
+ * ({@code BlockRegistryIndex}) - ships as derivation with NO policy fallback and is absent from
+ * this roster.
  */
 enum SnapshotShapePolicies implements NavigationPolicy {
 
-    // P45 - renderer-capability drops (recorded in dropped[], never silent - decision 24)
+    // renderer-capability drops (recorded in dropped[], never silent)
 
     /**
-     * P45 - the tint sources the static GUI/parity render cannot sample: their colour is
+     * The tint sources the static GUI/parity render cannot sample: their colour is
      * per-state / biome-dynamic, so the icon would show the default state anyway. Recorded as
      * {@code dropped[]} rows with reason {@code dynamic_source} rather than emitted.
      */
@@ -36,7 +36,7 @@ enum SnapshotShapePolicies implements NavigationPolicy {
             + " resolves RedStoneWireBlock.getColorForPower - power-driven, no colormap"),
 
     /**
-     * P45 - a {@code List.of(a, b, ...)} tint registration composes multiple sources
+     * A {@code List.of(a, b, ...)} tint registration composes multiple sources
      * ({@code pink_petals} = {@code [BLANK_LAYER, grass()]}); the renderer tints one source per
      * block, so the registration is recorded as {@code dropped[]} with reason
      * {@code multi_source}. The value IS the reason string.
@@ -47,7 +47,7 @@ enum SnapshotShapePolicies implements NavigationPolicy {
             + " (pink_petals [BLANK_LAYER, grass()]) - ToolingBlockTints.java:254-256"),
 
     /**
-     * P45 - {@code constant(colorInHand, colorInWorld)}: the GUI block icon uses vanilla's
+     * {@code constant(colorInHand, colorInWorld)}: the GUI block icon uses vanilla's
      * no-context in-hand colour ({@code BlockTintSource.color(state)}), which is the FIRST arg.
      * The value is the picked argument index.
      */
@@ -56,10 +56,10 @@ enum SnapshotShapePolicies implements NavigationPolicy {
         "constant(colorInHand, colorInWorld): the GUI icon uses vanilla's no-context in-hand"
             + " colour = the first arg (ToolingBlockTints.java:244-248)"),
 
-    // P46 - bytecode-shape knowledge (declared shapes with their hard-won comments)
+    // bytecode-shape knowledge (declared shapes with their hard-won comments)
 
     /**
-     * P46 - the first LDC string since the last {@code register} is the effect id; later strings
+     * The first LDC string since the last {@code register} is the effect id; later strings
      * are attribute-modifier ids ({@code "effect.speed"}). Pure shape marker.
      */
     POTION_EFFECT_ID_FIRST_LDC(
@@ -68,7 +68,7 @@ enum SnapshotShapePolicies implements NavigationPolicy {
             + " attribute-modifier ids ('effect.speed') - ToolingPotionColors.java:168-171"),
 
     /**
-     * P46 - only int literals between {@code NEW net/minecraft/world/effect/*} and its
+     * Only int literals between {@code NEW net/minecraft/world/effect/*} and its
      * {@code <init>} are colour candidates; a fresh {@code NEW} resets the int stack. Pure shape
      * marker.
      */
@@ -78,9 +78,9 @@ enum SnapshotShapePolicies implements NavigationPolicy {
             + " candidates; a fresh NEW resets the int stack - ToolingPotionColors.java:176-181"),
 
     /**
-     * P46 - the colour-carrying effect constructor is {@code (MobEffectCategory, int)V}; the
+     * The colour-carrying effect constructor is {@code (MobEffectCategory, int)V}; the
      * trailing int literal is the ARGB colour. Prefix-owner match handles {@code MobEffect}
-     * subclasses. Pure shape marker (the descriptor is composed from VSC).
+     * subclasses. Pure shape marker.
      */
     POTION_COLOR_CTOR(
         Boolean.TRUE,
@@ -88,7 +88,7 @@ enum SnapshotShapePolicies implements NavigationPolicy {
             + " ARGB colour, prefix-owner matched for subclasses - ToolingPotionColors.java:185-195"),
 
     /**
-     * P46 - {@code GETSTATIC DataComponents.ENCHANTMENT_GLINT_OVERRIDE} immediately followed by
+     * {@code GETSTATIC DataComponents.ENCHANTMENT_GLINT_OVERRIDE} immediately followed by
      * {@code iconst_1} means {@code component(..., true)} - the item is always-foil. Pure shape
      * marker.
      */
@@ -98,7 +98,7 @@ enum SnapshotShapePolicies implements NavigationPolicy {
             + " - ToolingGlintItems.java:161-166"),
 
     /**
-     * P46 - {@code PUTSTATIC Items.<field>:LItem;} terminates one registration and resets the
+     * {@code PUTSTATIC Items.<field>:LItem;} terminates one registration and resets the
      * pending glint flag so a glint set on one item never bleeds into the next. Pure shape
      * marker.
      */

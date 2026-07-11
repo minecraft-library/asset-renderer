@@ -10,20 +10,20 @@ import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import java.nio.file.Path;
 
 /**
- * Entry point of the {@code colorMaps} Gradle task - the biome-colormap flow (SPINE 3.6): the
+ * Entry point of the {@code colorMaps} Gradle task - the biome-colormap flow: the
  * three vanilla colormap PNGs read straight from the jar (no pack extraction) as base64
  * big-endian ARGB pixels.
  */
 public final class ToolingColorMaps {
 
-    /** The bundled resource directory (SPINE 4 registry). */
+    /** The bundled resource directory. */
     private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingColorMaps() {
     }
 
     /**
-     * Runs the flow. ERROR-severity diagnostics fail the run (doc-12 K3);
+     * Runs the flow. ERROR-severity diagnostics fail the run;
      * {@code -Dasset.tooling.strict=warn} opts WARN into the same gate.
      *
      * @param args ignored - all paths are fixed
@@ -37,7 +37,7 @@ public final class ToolingColorMaps {
         }
     }
 
-    /** The doc-12 K3 strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
+    /** The strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
     private static void failOnStrictGate(ToolingSession session) {
         Diagnostics diagnostics = session.diagnostics();
         boolean warnStrict = "warn".equalsIgnoreCase(System.getProperty("asset.tooling.strict", "").trim());

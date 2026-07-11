@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * One discovered living-mob entity joined with its renderer registration - everything the
  * per-entity resolver chain needs, produced by {@link EntityRegistryDiscovery} in registry
- * order (SPINE 2).
+ * order.
  *
  * @param entityId the namespaced registry id, e.g. {@code minecraft:wolf} - the on-disk
  *     family key

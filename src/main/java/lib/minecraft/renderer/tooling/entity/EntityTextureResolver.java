@@ -27,36 +27,33 @@ import java.util.Set;
 
 /**
  * Node {@code texture} - the family's primary texture as a FULL namespaced vanilla asset
- * path (SPINE 3.1 row 4; d21: {@code minecraft:textures/entity/wolf/wolf.png} - what the
- * bytecode LDCs say; the stripped {@code texture_ref} grammar is a bridge concern).
+ * path ({@code minecraft:textures/entity/wolf/wolf.png} - what the bytecode LDCs say).
  *
- * <p>The resolution cascade is the legacy engine's, kept: data-driven-variant detection
- * (hands off to the variant axis, node returns {@code null}), entityId-basename match for
- * shared renderers (piglin / piglin_brute), the all-flags-false default-path walker (bee),
- * static-dispatch chase (parrot / fox), instance-field / Type-enum walk (donkey family),
- * {@code <clinit>} literal fallbacks, and the state-field-driven variant fallback (wolf /
- * cat - texture table exists, binding unresolved).
+ * <p>The resolution cascade covers: data-driven-variant detection (hands off to the variant
+ * axis, node returns {@code null}), entityId-basename match for shared renderers (piglin /
+ * piglin_brute), the all-flags-false default-path walker (bee), static-dispatch chase
+ * (parrot / fox), instance-field / Type-enum walk (donkey family), {@code <clinit>} literal
+ * fallbacks, and the state-field-driven variant fallback (wolf / cat - texture table exists,
+ * binding unresolved).
  *
- * <p>Upgrades vs legacy: the 14-suffix {@code NON_BASE_STEM_SUFFIXES} denylist is DERIVED
- * from the live texture universe ({@link #deriveNonBaseSuffixes} - the legacy audit already
- * proved set-equality on 26.1, so the derivation is promoted to authoritative [D27]);
- * {@code %}-template literals are filtered by {@code cache.hasEntry} existence probes, not
- * the {@code contains("%")} heuristic [D28]; the legacy provenance sentinels
- * ({@code "(enum-default 'lucy')"} et al.) become typed diagnostics [X7].
+ * <p>The 14-suffix {@code NON_BASE_STEM_SUFFIXES} denylist is derived from the live texture
+ * universe ({@link #deriveNonBaseSuffixes}); {@code %}-template literals are filtered by
+ * {@code cache.hasEntry} existence probes rather than a {@code contains("%")} heuristic;
+ * unresolved bindings are reported via typed diagnostics.
  */
 final class EntityTextureResolver {
 
     /**
      * Recurrence threshold for the derived non-base-suffix set: a suffix qualifies when a
      * base + suffixed sibling pair co-exists in at least this many distinct texture
-     * directories (state overlays recur; data-variant names appear once) - P19,
+     * directories (state overlays recur; data-variant names appear once), see
      * {@link EntityNamingPolicies#SUFFIX_MIN_RECURRENCE}.
      */
     private static final int SUFFIX_MIN_RECURRENCE = EntityNamingPolicies.SUFFIX_MIN_RECURRENCE.intValue();
 
     /**
-     * The variant enums' canonical-default static field name ({@code Axolotl$Variant.DEFAULT})
-     * - P15, {@link EntityNamingPolicies#ENUM_DEFAULT_FIELD}.
+     * The variant enums' canonical-default static field name ({@code Axolotl$Variant.DEFAULT}),
+     * see {@link EntityNamingPolicies#ENUM_DEFAULT_FIELD}.
      */
     private static final @NotNull String DEFAULT_FIELD = EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue();
 
@@ -95,8 +92,8 @@ final class EntityTextureResolver {
 
         // Enum-default refinement (axolotl / rabbit): the renderer reads an enum-typed
         // state.variant whose DEFAULT names the canonical texture per the
-        // <entity>/<entity>_<default> stem convention (P24 - existence-gated so only
-        // conforming entities take it).
+        // <entity>/<entity>_<default> stem convention, existence-gated so only
+        // conforming entities take it.
         String enumDefault = resolveEnumDefaultName();
         if (enumDefault != null) {
             String localId = this.subject.localId();
@@ -144,7 +141,7 @@ final class EntityTextureResolver {
     private record Binding(@Nullable String primary, boolean variantDriven) {}
 
     // ------------------------------------------------------------------------------------
-    // the cascade (legacy resolve, kept)
+    // the resolution cascade
     // ------------------------------------------------------------------------------------
 
     private @NotNull Binding resolveBinding() {
@@ -163,7 +160,7 @@ final class EntityTextureResolver {
 
         Map<String, String> classFieldToPath = collectStaticTextureFields(resolved.declaringClass());
 
-        // EntityId-basename match [P21 convention]: a renderer shared across entities
+        // EntityId-basename match: a renderer shared across entities
         // (PiglinRenderer serves piglin + piglin_brute) branches on a render-state field; a
         // field whose path basename matches the entity id is that entity's branch.
         String entityMatched = pickFieldByEntityIdMatch(classFieldToPath);
@@ -267,8 +264,8 @@ final class EntityTextureResolver {
     /**
      * The {@code XVariant} class internal name when the method pulls its texture from a
      * data-driven variant call ({@code state.variant.modelAndTexture().asset().texturePath()}
-     * or {@code state.variant.babyTexture()}), or {@code null} otherwise. Suffix policy =
-     * P18 ({@link EntityNamingPolicies#DATA_VARIANT_SUFFIXES} - owner suffix, exact accessor,
+     * or {@code state.variant.babyTexture()}), or {@code null} otherwise. Suffix policy is
+     * {@link EntityNamingPolicies#DATA_VARIANT_SUFFIXES} (owner suffix, exact accessor,
      * accessor suffix, in declaration order).
      */
     private static @Nullable String detectDataDrivenVariant(@NotNull MethodNode method) {
@@ -585,9 +582,9 @@ final class EntityTextureResolver {
 
     /**
      * Appends the method's real texture-path literals to {@code out}. The reality test is a
-     * jar existence probe [D28] - format-string templates
-     * ({@code "textures/entity/axolotl/axolotl_%s.png"}) are not on-disk files and filter
-     * out identically to the legacy {@code contains("%")} heuristic.
+     * jar existence probe - format-string templates
+     * ({@code "textures/entity/axolotl/axolotl_%s.png"}) are not on-disk files and are
+     * filtered out accordingly.
      */
     private void collectTextureLiteralsFromMethod(@NotNull MethodNode method, @NotNull List<String> out) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
@@ -596,7 +593,7 @@ final class EntityTextureResolver {
         }
     }
 
-    /** A texture-path literal that exists as a jar entry [D28]. */
+    /** A texture-path literal that exists as a jar entry. */
     private boolean isRealTexturePath(@NotNull String literal) {
         return literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)
             && literal.endsWith(".png")
@@ -678,7 +675,7 @@ final class EntityTextureResolver {
      * Final-fallback binder for renderers whose cascade stays unresolved: collects every
      * texture literal from the renderer's own class plus one hop into any external class its
      * {@code getTextureLocation} dispatches into (copper golem's wrapper-type oxidation
-     * walk), filters non-base stems against the derived suffix set [D27], and returns the
+     * walk), filters non-base stems against the derived suffix set, and returns the
      * first base stem. Falls through to the Sheets / SpriteMapper indirection (shulker).
      * Returns the stem WITHOUT prefix / suffix, or {@code null}.
      */
@@ -714,7 +711,7 @@ final class EntityTextureResolver {
                 }
             // A state-overlay sibling of a base texture present in the SAME candidate set is not
             // the base (ender dragon: skip dragon_exploding / dragon_eyes when dragon is a
-            // candidate) - catches the non-recurring suffixes the derived set misses [D27].
+            // candidate) - catches the non-recurring suffixes the derived set misses.
             if (!nonBase && hasBaseSibling(stem, candidateStems)) nonBase = true;
             if (!nonBase) return stem;
         }
@@ -815,7 +812,7 @@ final class EntityTextureResolver {
     }
 
     // ------------------------------------------------------------------------------------
-    // derived non-base suffix set [D27]
+    // derived non-base suffix set
     // ------------------------------------------------------------------------------------
 
     /**
@@ -823,9 +820,8 @@ final class EntityTextureResolver {
      * session: a suffix {@code _X} qualifies when a {@code <prefix>.png} and
      * {@code <prefix>_X.png} sibling pair co-exists in at least
      * {@link #SUFFIX_MIN_RECURRENCE} texture directories - state overlays ({@code _eyes},
-     * {@code _exposed}) recur; data-variant names ({@code _lucy}) fall out. The legacy audit
-     * proved this derivation set-equal to the hand-maintained 14-entry list on 26.1, so it
-     * is authoritative [D27]; the INFO line is the version-bump drift surface.
+     * {@code _exposed}) recur; data-variant names ({@code _lucy}) fall out. The INFO line
+     * is the version-bump drift surface.
      *
      * @param session the live session
      * @return the derived suffix set

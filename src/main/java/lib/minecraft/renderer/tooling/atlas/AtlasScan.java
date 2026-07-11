@@ -5,10 +5,9 @@ import org.jetbrains.annotations.NotNull;
 import java.awt.image.BufferedImage;
 
 /**
- * The atlas tile-emptiness scan (SPINE 3.7) - the one consumer of {@link AtlasPolicies}
+ * The atlas tile-emptiness scan - the one consumer of {@link AtlasPolicies}
  * {@code SPARSE_CONTENT_THRESHOLD}, kept inside the atlas package so the policy stays
- * flow-local package-private (decision 8) while the {@code ToolingAtlasDiagnose} shell stays
- * thin.
+ * flow-local package-private while the {@code ToolingAtlasDiagnose} shell stays thin.
  *
  * <p>A single pass over a slice's pixels counts the opaque ones; the two flag signals and the
  * opaque ratio all derive from that one count.

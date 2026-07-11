@@ -23,21 +23,21 @@ import java.util.Map;
 
 /**
  * Resolves one committed {@code BlockColors.register(source, blocks)} into a tint target (or a
- * {@code dropped[]} reason), replacing the legacy {@code SUPPORTED_SOURCES} name map with a
- * derivation (09 SS2.1):
+ * {@code dropped[]} reason) by deriving it from the source factory's bytecode rather than a
+ * name map:
  * <ul>
  *   <li><b>colormap target</b> - resolve the source factory's returned inner class and scan its
  *       body for the {@code BiomeColors.getAverage{Grass,Foliage,DryFoliage}Color} call; the
  *       grass-family collapse ({@code grass}/{@code grassBlock}/{@code sugarCane}/
  *       {@code doubleTallGrass}) falls out of the shared {@code getAverageGrassColor} target.</li>
  *   <li><b>constant</b> - the {@code constant(colorInHand[, colorInWorld])} in-hand pick
- *       (P45 {@code TINT_CONSTANT_IN_HAND}).</li>
+ *       ({@code TINT_CONSTANT_IN_HAND}).</li>
  *   <li><b>stem</b> - symbolic evaluation of {@code ARGB.color(age*32, 255-age*8, age*4)} at
- *       {@code age=0} (freshly-placed default state = the AGE property min); the
- *       {@code 0xFF00FF00} literal dies [D60].</li>
+ *       {@code age=0} (freshly-placed default state = the AGE property min); this derives the
+ *       {@code 0xFF00FF00} result without hardcoding the literal.</li>
  *   <li><b>drop</b> - a source with no colormap target and a name in
  *       {@code SnapshotShapePolicies.dynamicSourceDrops()} is recorded as {@code dynamic_source};
- *       an unknown one is a loud {@link Diagnostics#error} (decision 10).</li>
+ *       an unknown one is a loud {@link Diagnostics#error}.</li>
  * </ul>
  */
 final class TintRegistrationResolver {
@@ -66,10 +66,10 @@ final class TintRegistrationResolver {
         }
     }
 
-    /** The {@code @age=0} provenance suffix on the stem source label (the eval-state note, 09 SS5.1). */
+    /** The {@code @age=0} provenance suffix on the stem source label (the eval-state note). */
     private static final @NotNull String STEM_LABEL = "@age=0";
 
-    /** The composed multi-source drop provenance label (09 SS5.1 sample). */
+    /** The composed multi-source drop provenance label. */
     private static final @NotNull String LIST_OF_LABEL = "List.of";
 
     /**
@@ -162,7 +162,7 @@ final class TintRegistrationResolver {
     /**
      * Symbolically evaluates the stem source's {@code color(BlockState)} body with the AGE local
      * bound to 0 (the freshly-placed default state = the AGE property min), following the terminal
-     * {@code ARGB.color} call into its own body. Yields {@code 0xFF00FF00} without the literal [D60].
+     * {@code ARGB.color} call into its own body. Yields {@code 0xFF00FF00} without hardcoding the literal.
      */
     private static @Nullable Integer evalStem(@NotNull ClassNodeCache cache, @NotNull String innerClass, @NotNull Diagnostics diagnostics) {
         ClassNode node = cache.load(innerClass);

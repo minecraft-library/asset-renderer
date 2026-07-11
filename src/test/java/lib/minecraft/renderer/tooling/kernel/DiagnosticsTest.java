@@ -15,9 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins for the tooling {@link Diagnostics} scopes (SPINE 5.4): path shapes, subtree
- * aggregation, entry timestamps (doc-12 K4), and the Output modes. FQN deliberately shadows
- * the legacy {@code tooling/DiagnosticsTest} (doc 11 flag 4 - imports stay honest).
+ * Pins for the tooling {@link Diagnostics} scopes: path shapes, subtree aggregation, entry
+ * timestamps, and the Output modes.
  */
 @DisplayName("tooling Diagnostics scopes, subtree counts, output modes")
 class DiagnosticsTest {

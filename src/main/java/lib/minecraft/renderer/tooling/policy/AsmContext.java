@@ -6,7 +6,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The frame a policy consultation sees (SPINE 5.5).
+ * The frame a policy consultation sees.
  *
  * <p>{@code anchorClass} is deliberately a STRING, not a {@code ClassNode} - a node would
  * invite instruction-walking inside the policy; purity by type starvation. {@code session}

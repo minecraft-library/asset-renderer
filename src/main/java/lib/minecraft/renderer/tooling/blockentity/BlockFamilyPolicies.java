@@ -10,11 +10,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * THE {@code navigate()} prototype (SPINE 2.1 roster P31 / P33 / P34 / P39): the declared
- * split-id facts a bytecode walk cannot see. Vanilla has ONE {@code BlockEntityType.BED},
+ * The declared split-id facts a bytecode walk cannot see. Vanilla has ONE {@code BlockEntityType.BED},
  * {@code SKULL}, {@code BANNER}, etc.; the head/foot, 4-way skull, standing/wall and flag-submodel
- * splits and their id names are OUR output convention - undetectable by charter, so declared here
- * with mandatory provenance. Never fetches ({@code PolicyPurityTest}).
+ * splits and their id names are OUR output convention - undetectable by bytecode inspection alone, so
+ * declared here with mandatory provenance. Never fetches ({@code PolicyPurityTest}).
  *
  * <p>The split MECHANICS stay bytecode ({@link BlockGeometrySourceResolver} runs generic
  * ModelLayers x {@code LayerDefinitionIndex} detection first); this enum only supplies the
@@ -24,7 +23,7 @@ import java.util.Map;
 enum BlockFamilyPolicies implements NavigationPolicy {
 
     /**
-     * P34 / P31 - the factory-method-to-split-id map. A block-entity renderer that references
+     * The factory-method-to-split-id map. A block-entity renderer that references
      * several primary layers (bed head + foot, decorated pot base + sides, the four skull
      * meshes) splits into one model per layer; the split id is keyed on
      * {@code <baseLocalId>#<factoryMethod>}. Bases without an entry keep the subject id
@@ -47,7 +46,7 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " derived from each wrapper's LayerDefinition.create tail: mob 64x32, humanoid 64x64)"),
 
     /**
-     * P39 - the sign factory-parameter table, keyed on the factory method the renderer's own
+     * The sign factory-parameter table, keyed on the factory method the renderer's own
      * static primary reach resolves to. Standing signs split on the {@code withStick} boolean
      * ({@code sign} withStick=1 / {@code wall_sign} withStick=0); hanging signs split on the
      * {@code HangingSignBlock$Attachment} enum the factory branches on ({@code CEILING} board +
@@ -67,7 +66,7 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " bytecode, the id<->constant naming is ours - legacy SourceDiscovery.emitSignSources:693-716"),
 
     /**
-     * P34 (banner) - the banner {@code ModelLayers} field to (split id, {@code withStick})
+     * The banner {@code ModelLayers} field to (split id, {@code withStick})
      * table. {@code BannerRenderer} references four fields, each resolving to
      * {@code BannerModel.createBodyLayer(Z)} / {@code BannerFlagModel.createFlagLayer(Z)} with a
      * compile-time {@code ICONST_0/1}; the field-name prefix ({@code STANDING_} / {@code WALL_})
@@ -85,7 +84,7 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " SourceDiscovery.PARAM_INT_SUFFIX:125-128 + BannerFlagModel endsWith heuristic"),
 
     /**
-     * P31 - the {@code SkullBlock$Types} to catalog split-id map. Vanilla has ONE
+     * The {@code SkullBlock$Types} to catalog split-id map. Vanilla has ONE
      * {@code BlockEntityType.SKULL}; our 4-way split groups the seven skull types by shared mesh
      * + texture dims (skeleton/wither/creeper = mob head; zombie/player = humanoid; dragon;
      * piglin ears). Keyed by the block-id type prefix ({@code skeleton_skull} -> {@code skeleton}).
@@ -104,11 +103,11 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " dragon mesh / piglin ears); vanilla registers one BlockEntityType.SKULL, the split is ours"),
 
     /**
-     * P33 - the catalog family-dispatch roster: which subjects emit a {@code blocks[]} catalog and
+     * The catalog family-dispatch roster: which subjects emit a {@code blocks[]} catalog and
      * which family builder each rides. The family SET is derivable from discovery; the
      * split/texture-source divergence per family is the declared fact. Subjects absent here
      * (enchanting_table / lectern) carry no catalog; the part-only pseudo families ride
-     * {@link BlockTransformPolicies#PART_COMPOSITION} [P32] instead.
+     * {@link BlockTransformPolicies#PART_COMPOSITION} instead.
      */
     FAMILY_ROSTER(
         Map.ofEntries(
@@ -128,7 +127,7 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " divergence is declared (07 3 row 18); part-only pseudo families ride PART_COMPOSITION [P32]"),
 
     /**
-     * P35 - the chest block-to-{@code ChestSpecialRenderer}-texture-field binding: the three fixed
+     * The chest block-to-{@code ChestSpecialRenderer}-texture-field binding: the three fixed
      * classes plus the copper composition rule ({@code COPPER_ + <WeatherState>}, {@code UNAFFECTED}
      * for the bare base, waxed sharing the unwaxed sheet). The binding is spread across vanilla's
      * special-renderer dispatch - not one walkable site.
@@ -143,7 +142,7 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " walkable site' (07 3 row 22)"),
 
     /**
-     * P43 - which of a tint-bearing renderer's meshes takes the dye: the {@code *FlagModel} factory
+     * Which of a tint-bearing renderer's meshes takes the dye: the {@code *FlagModel} factory
      * (the banner flag); the wood-brown pole / bar never tints. An escape hatch - the honest
      * derivation would need data-flow analysis of which submitted buffer receives the DyeColor.
      */
@@ -155,10 +154,9 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " (08 3 row 34); consulted by BlockTintFlagResolver"),
 
     /**
-     * D54 - the fixed sheet texture stems ({@code = Sheets.<X>} sprite prefixes) per catalog
-     * family. The legacy flow hard-codes the same values; deriving them from {@code Sheets.<clinit>}
-     * stays a post-bridge option (08 A5). Conduit is absent - its base derives from
-     * {@code ConduitRenderer.<clinit>}.
+     * The fixed sheet texture stems ({@code = Sheets.<X>} sprite prefixes) per catalog
+     * family. Deriving them from {@code Sheets.<clinit>} instead remains a future option.
+     * Conduit is absent - its base derives from {@code ConduitRenderer.<clinit>}.
      */
     SHEET_TEXTURE_BASES(
         Map.ofEntries(
@@ -176,9 +174,9 @@ enum BlockFamilyPolicies implements NavigationPolicy {
             + " 21-28); Sheets.<clinit> derivation deferred post-bridge"),
 
     /**
-     * The PLAYER skull skin stem - legacy chases {@code DefaultPlayerSkin.getDefaultSkin} through
-     * its array-index shape (SourceDiscovery :969-1046) to this stable value; declared since the
-     * chase bottoms out in a constant.
+     * The PLAYER skull skin stem - {@code DefaultPlayerSkin.getDefaultSkin} resolves through
+     * its array-index shape to this stable value; declared here since the resolution bottoms
+     * out in a constant.
      */
     PLAYER_SKULL_SKIN(
         "entity/player/slim/steve",
@@ -205,14 +203,14 @@ enum BlockFamilyPolicies implements NavigationPolicy {
      */
     record BannerVariant(@NotNull String splitId, int withStick) {}
 
-    /** A catalog-bearing family of the P33 roster - the dispatch token its builder rides. */
+    /** A catalog-bearing family of the family-dispatch roster - the dispatch token its builder rides. */
     enum CatalogFamily {
         SHULKER_BOX, CHEST, BED, SIGN, HANGING_SIGN, CONDUIT, BELL,
         DECORATED_POT, COPPER_GOLEM_STATUE, SKULL, BANNER
     }
 
     /**
-     * The P35 chest binding: the fixed block-to-field entries plus the copper field-name prefix
+     * The chest binding: the fixed block-to-field entries plus the copper field-name prefix
      * the weather composition prepends.
      *
      * @param fixedFields block local id -> {@code ChestSpecialRenderer} texture-field name
@@ -283,7 +281,7 @@ enum BlockFamilyPolicies implements NavigationPolicy {
     }
 
     /**
-     * The P33 catalog family a subject dispatches to, or {@code null} when the subject emits no
+     * The catalog family a subject dispatches to, or {@code null} when the subject emits no
      * block catalog (enchanting_table / lectern).
      *
      * @param subjectLocalId the namespace-less subject id
@@ -310,15 +308,15 @@ enum BlockFamilyPolicies implements NavigationPolicy {
         return ((ChestVariants) CHEST_VARIANT.value).copperFieldPrefix();
     }
 
-    /** The factory-class suffix marking the dye-taking mesh (the banner {@code *FlagModel}) [P43]. */
+    /** The factory-class suffix marking the dye-taking mesh (the banner {@code *FlagModel}). */
     static @NotNull String dyeTargetModelSuffix() {
         return (String) BANNER_DYE_TARGET.value;
     }
 
     /**
-     * The declared sheet texture stem for a catalog family [D54].
+     * The declared sheet texture stem for a catalog family.
      *
-     * @param family the P33 family token
+     * @param family the catalog family token
      * @return the {@code Sheets.<X>} stem
      */
     @SuppressWarnings("unchecked")

@@ -21,10 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins for the tooling {@link JsonNode} contracts (SPINE 5.3): insertion-order preservation,
- * the Float-vs-Double serialisation difference motivating the float-only rule (a permanent
- * dependency-bump tripwire - doc-12 K7), the envelope shape, and the {@code writeResource}
- * newline contract.
+ * Pins for the tooling {@link JsonNode} contracts: insertion-order preservation, the
+ * Float-vs-Double serialisation difference motivating the float-only rule (a permanent
+ * dependency-bump tripwire), the envelope shape, and the {@code writeResource} newline
+ * contract.
  */
 @DisplayName("tooling JsonNode build/read/io contracts")
 class JsonNodeTest {
@@ -49,9 +49,9 @@ class JsonNodeTest {
     @Test
     @DisplayName("Gson canary: Float and Double serialise DIFFERENTLY - the float-only motivation")
     void floatVsDoubleCanary() {
-        // The executable fact behind the float-only rule (doc-12 K7: permanent tripwire). A
-        // Gson major bump changing Number.toString routing surfaces HERE, not as a mystery
-        // BridgeParityTest failure.
+        // The executable fact behind the float-only rule (a permanent tripwire): a Gson major
+        // bump changing Number.toString routing surfaces HERE, not as a mystery parity failure
+        // downstream.
         assertEquals("0.1", COMPACT.toJson(new JsonPrimitive(0.1f)));
         assertEquals("0.10000000149011612", COMPACT.toJson(new JsonPrimitive((double) 0.1f)));
         assertEquals("0.001", COMPACT.toJson(new JsonPrimitive(0.001f)));

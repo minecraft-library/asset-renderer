@@ -21,17 +21,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * THE {@code Blocks.<clinit>} registration walk, built once per session (SPINE decision 32) -
- * the one shared block-id derivation [D25, D56] that kills the legacy split between the tint
- * walk's namespace-less {@code field.toLowerCase()} (no {@code Locale.ROOT}) and the defaults
- * flow's register-literal mapping.
+ * The {@code Blocks.<clinit>} registration walk, built once per session - the single shared
+ * block-id derivation used in place of a namespace-less {@code field.toLowerCase()} (no
+ * {@code Locale.ROOT}) derivation and a separate register-literal mapping.
  *
  * <p>Both id arms live here: the {@code register("id", ...)} string-literal form and the 26.x
  * {@code register(ResourceKey, Function, Properties)} form whose id comes from a
  * {@code GETSTATIC BlockIds.FOO} mapped back through {@code BlockIds.<clinit>}. The
  * constructor-reference adjacency guard ({@code isPendingIdSource}) and the
- * registration-helper lambda resolution ({@code registerBed}-class helpers) carry over from
- * the legacy defaults parser verbatim.
+ * registration-helper lambda resolution ({@code registerBed}-class helpers) handle both forms.
  */
 public final class BlockRegistryIndex {
 

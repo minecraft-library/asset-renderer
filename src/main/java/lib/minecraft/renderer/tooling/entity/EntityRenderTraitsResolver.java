@@ -21,23 +21,22 @@ import java.util.Map;
 
 /**
  * Node {@code render} - the render-time residues that survive the frozen-state harness,
- * grouped under one node (SPINE 3.1 row 5): {@code scale} (renderer {@code scale()} uniform
+ * grouped under one node: {@code scale} (renderer {@code scale()} uniform
  * product, slime 0.999 / wither 2.0), {@code yaw_addend} ({@code setupRotations} addend,
  * shulker +180), and {@code tint} (per-entity multiplicative base tint, tropical_fish
  * {@code 0xFFF9FFFE}). Omitted when all three are identity.
  *
- * <p>Derivation upgrades vs legacy: the {@code bodyRot} / {@code entityScale} local slots
- * are computed from the {@code setupRotations} descriptor instead of the
- * {@code BODY_ROT_SLOT=3} / {@code SCALE_SLOT=4} literals [D7]; the DyeColor-WHITE
- * extraction anchors the texture-diffuse int on the constructor descriptor's
- * int-before-{@code MapColor} position instead of literal-count position coding [D24].
+ * <p>The {@code bodyRot} / {@code entityScale} local slots are computed from the
+ * {@code setupRotations} descriptor rather than hardcoded literal slot numbers; the
+ * DyeColor-WHITE extraction anchors the texture-diffuse int on the constructor descriptor's
+ * int-before-{@code MapColor} position rather than literal-count position coding.
  */
 final class EntityRenderTraitsResolver {
 
     /**
      * Tolerance for the uniform-scale check on {@code poseStack.scale(F,F,F)} args - vanilla
      * writes literal uniform triples; drift beyond this implies a non-uniform expression
-     * treated as identity (P4, {@link EntityNamingPolicies#UNIFORM_SCALE_TOLERANCE}).
+     * treated as identity ({@link EntityNamingPolicies#UNIFORM_SCALE_TOLERANCE}).
      */
     private static final float UNIFORM_SCALE_TOLERANCE = EntityNamingPolicies.UNIFORM_SCALE_TOLERANCE.floatValue();
 
@@ -96,7 +95,7 @@ final class EntityRenderTraitsResolver {
         }
         if (setupRotations == null) return 0f;
 
-        // Slots computed from the descriptor [D7]: the first float arg is bodyRot, the
+        // Slots computed from the descriptor: the first float arg is bodyRot, the
         // second entityScale (instance method - slots start at 1).
         int bodyRotSlot = floatArgSlot(setupRotations.desc, 0);
         int scaleSlot = floatArgSlot(setupRotations.desc, 1);
@@ -246,7 +245,7 @@ final class EntityRenderTraitsResolver {
      * The per-entity multiplicative base tint (vanilla {@code getModelTint}) for renderers
      * reading a {@code DyeColor} state field - sole 26.1 hit: tropical_fish, whose zero-state
      * {@code getBaseColor()} is {@code DyeColor.WHITE}; the WHITE texture-diffuse constant is
-     * walked out of {@code DyeColor.<clinit>} [D24]. {@code NO_TINT} when the renderer never
+     * walked out of {@code DyeColor.<clinit>}. {@code NO_TINT} when the renderer never
      * calls {@code getTextureDiffuseColor}.
      */
     private int resolveBaseTint(@NotNull ClassNode cn) {
@@ -259,7 +258,7 @@ final class EntityRenderTraitsResolver {
 
     /**
      * Walks {@code DyeColor.<clinit>}'s first allocation (WHITE - enum declaration order) for
-     * its texture-diffuse constructor argument, anchored on the descriptor [D24]: the
+     * its texture-diffuse constructor argument, anchored on the descriptor: the
      * constructor's {@code int} parameter directly preceding the {@code MapColor} parameter
      * is the texture-diffuse colour, so the value is the last int literal pushed before the
      * {@code MapColor} GETSTATIC. Alpha {@code 0xFF} is prepended to match the ARGB tint

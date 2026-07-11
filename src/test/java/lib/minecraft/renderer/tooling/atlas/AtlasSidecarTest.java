@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Pins the {@link AtlasSidecar} typed schema: {@code parse(toJson(x)) == x} (record structural
- * equality) and the concrete JSON shape / member order against a mini fixture (09 SS8).
+ * equality) and the concrete JSON shape / member order against a mini fixture.
  */
 @DisplayName("AtlasSidecar: typed sidecar round-trips and pins the schema shape")
 class AtlasSidecarTest {

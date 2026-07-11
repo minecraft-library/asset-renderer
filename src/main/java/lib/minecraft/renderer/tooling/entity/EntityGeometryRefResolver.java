@@ -26,11 +26,10 @@ import java.util.Map;
 
 /**
  * Node {@code geometry} - resolves THE primary body mesh, registers its
- * {@link GeometryRequest} with the manifest, and emits the factory-coordinate key
- * (SPINE 3.1 row 2). Pure registration, no parsing here.
+ * {@link GeometryRequest} with the manifest, and emits the factory-coordinate key.
+ * Pure registration, no parsing here.
  *
- * <p>The primary-layer pick is <b>dataflow, not name heuristics</b> [D35] - retiring the
- * legacy 7-suffix denylist: the primary layer is the one whose {@code bakeLayer} result
+ * <p>The primary-layer pick is <b>dataflow, not name heuristics</b>: the primary layer is the one whose {@code bakeLayer} result
  * flows into the renderer's model constructor, matched as the first
  * {@code <layer source>; INVOKEVIRTUAL Context.bakeLayer; INVOKESPECIAL <model>.<init>}
  * triple in the renderer constructor chain (adult models are constructed before baby /
@@ -44,7 +43,7 @@ import java.util.Map;
  * <p>When no triple resolves, the ordered lambda references are tried directly (the lambda
  * body constructs the model in vanilla arg order, so its first indexed field is the adult
  * mesh) - a degraded pick recorded at INFO. Entity request constants ({@code YAxis.DOWN},
- * no inventory rotation, {@code null} refParam - P3) are baked into
+ * no inventory rotation, {@code null} refParam) are baked into
  * {@link GeometryRequest#body}. Delegate unaliasing already happened at index build.
  */
 final class EntityGeometryRefResolver {
@@ -67,12 +66,12 @@ final class EntityGeometryRefResolver {
     /** Every resolved bake triple in walk order, cached by {@link #resolve} for the axis resolvers. */
     private final @NotNull List<String> tripleSites = new ArrayList<>();
 
-    /** The multi-model constructor consumptions, cached by {@link #resolve} for the age axis [D36]. */
+    /** The multi-model constructor consumptions, cached by {@link #resolve} for the age axis. */
     private final @NotNull List<ModelConsumer> consumers = new ArrayList<>();
 
     /**
      * One constructor invocation consuming two or more baked models - the shape the age
-     * axis anchors its isBaby dataflow on [D36] ({@code AgeableMobRenderer.<init>}'s
+     * axis anchors its isBaby dataflow on ({@code AgeableMobRenderer.<init>}'s
      * adult + baby pair, {@code AdultAndBabyModelPair.<init>}). Private-helper shape.
      *
      * @param owner the consuming constructor's owning class internal name
@@ -168,14 +167,14 @@ final class EntityGeometryRefResolver {
 
     /**
      * The multi-model constructor consumptions in walk order (cached by {@link #resolve}) -
-     * the age resolver's isBaby-dataflow anchors [D36].
+     * the age resolver's isBaby-dataflow anchors.
      */
     @NotNull List<ModelConsumer> modelConsumers() {
         return this.consumers;
     }
 
     // ------------------------------------------------------------------------------------
-    // primary pick [D35]
+    // primary pick
     // ------------------------------------------------------------------------------------
 
     private @Nullable String pickPrimaryLayerField() {
@@ -228,8 +227,8 @@ final class EntityGeometryRefResolver {
      * this one delegates into resolve their location parameters against), the resolved
      * field of every {@code <source>; bakeLayer; <model>.<init>} triple to {@code sites},
      * and every {@code <init>} invocation whose descriptor takes two or more model-class
-     * arguments to the consumer cache with the freshest triples feeding it [D36].
-     * The model gate is the P29 package test ({@code net/minecraft/client/model/}, never
+     * arguments to the consumer cache with the freshest triples feeding it.
+     * The model gate is a package test ({@code net/minecraft/client/model/}, never
      * {@code geom/}) applied to the {@code <init>} owner consuming the baked part.
      */
     private void collectBakedModelLayers(
@@ -305,7 +304,7 @@ final class EntityGeometryRefResolver {
         return out;
     }
 
-    /** The P29 positive package gate: a model class, never a geometry primitive. */
+    /** The positive package gate: a model class, never a geometry primitive. */
     private static boolean isModelClass(@NotNull String internalName) {
         return internalName.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_ROOT)
             && !internalName.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_GEOM_ROOT);

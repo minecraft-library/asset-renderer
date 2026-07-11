@@ -4,31 +4,29 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * One geometry parse to perform - the reworked legacy {@code blockentity/Source} (SPINE
- * 2.10): a factory coordinate plus the parameter-substitution hooks that let the parser
- * evaluate a branch-parameterised factory at one concrete variant.
+ * One geometry parse to perform: a factory coordinate plus the parameter-substitution hooks
+ * that let the parser evaluate a branch-parameterised factory at one concrete variant.
  *
- * <p>Deltas vs the legacy record: the class coordinate is a JVM internal name, never a zip
- * entry path [X15]; the inflate pre-seed is the 3-component {@code grow} (the lossy /3
- * scalar average dies - decision 24); {@code subjectId} is provenance (the first requesting
- * subject, powering diagnostics + the {@code source} twin), not an output key - keys are
- * minted by the manifest; the legacy {@code inventoryYRotation} is gone (GUI facts are
- * block-models data, not geometry). Texture-dimension overrides ride as components per
- * doc-12 S7 (the skull-wrapper unwrap stamps {@code texture_size} through them).
+ * <p>The class coordinate is a JVM internal name, never a zip entry path; the inflate
+ * pre-seed is the 3-component {@code grow} (a lossy scalar average would lose per-axis
+ * detail); {@code subjectId} is provenance (the first requesting subject, powering
+ * diagnostics + the {@code source} twin), not an output key - keys are minted by the
+ * manifest. Texture-dimension overrides ride as components so the skull-wrapper unwrap can
+ * stamp {@code texture_size} through them.
  *
- * @param factoryClass the factory class's JVM internal name [X15]
+ * @param factoryClass the factory class's JVM internal name
  * @param factoryMethod the factory method to parse
  * @param subjectId the first requesting subject (provenance - {@code minecraft:wolf})
  * @param yAxis the Y axis convention used by the source bytecode
  * @param texWidthOverride overrides the texture width when the parsed method does not call
- *     {@code LayerDefinition.create} itself (doc-12 S7), or {@code null} to read bytecode
- * @param texHeightOverride overrides the texture height (doc-12 S7), or {@code null}
+ *     {@code LayerDefinition.create} itself, or {@code null} to read bytecode
+ * @param texHeightOverride overrides the texture height, or {@code null}
  * @param paramIntValues int values to substitute for parameter slots when evaluating
  *     branches inside the parsed method, or {@code null} to disable
  * @param paramFloatValues float values to substitute for {@code FLOAD} parameter slots when
  *     evaluating arithmetic - {@code null} disables float substitution AND arithmetic
- *     evaluation entirely (the legacy literal-stack-only walk); when non-null, {@code FLOAD
- *     slot} pushes the substituted value when in range, otherwise the non-literal marker
+ *     evaluation entirely (the literal-stack-only walk); when non-null, {@code FLOAD slot}
+ *     pushes the substituted value when in range, otherwise the non-literal marker
  * @param grow the 3-component {@code CubeDeformation} pre-seed the parser enters the walk
  *     with, so a factory receiving its inflate as an argument still emits grown cubes
  *     ({@code {0,0,0}} = none)
@@ -67,9 +65,9 @@ public record GeometryRequest(
     public record RefParam(int slot, @NotNull String ownerInternal, @NotNull String value) {}
 
     // ------------------------------------------------------------------------------------
-    // static factories - the absorbed EntitySourceFactory recipes (SPINE 2.10). Every
-    // entity recipe shares YAxis.DOWN and a null refParam; they differ only in the int
-    // table, the float-param seeding, the grow source, and the MeshTransformer scale.
+    // static factories - one per entity recipe shape. Every entity recipe shares
+    // YAxis.DOWN and a null refParam; they differ only in the int table, the float-param
+    // seeding, the grow source, and the MeshTransformer scale.
     // ------------------------------------------------------------------------------------
 
     /**
@@ -191,7 +189,7 @@ public record GeometryRequest(
      * the entity recipes it carries an explicit {@code yAxis} (the pivot-band heuristic emits
      * {@code UP} for block-space-authored meshes) and leaves float substitution DISABLED
      * ({@code paramFloatValues == null} - block factories never take a body-scale float, so the
-     * legacy literal-stack-only walk applies), while the int-parameter table (banner / sign
+     * literal-stack-only walk applies), while the int-parameter table (banner / sign
      * {@code withStick}) and the reference-parameter binding (hanging-sign attachment enum)
      * drive the branch evaluation that splits one factory into its variants.
      *

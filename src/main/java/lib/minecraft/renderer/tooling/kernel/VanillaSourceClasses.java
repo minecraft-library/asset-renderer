@@ -3,21 +3,20 @@ package lib.minecraft.renderer.tooling.kernel;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * THE only home for vanilla class / ASM / member-name strings in tooling (SPINE decision 6) -
- * one class, nested static groups, populated per flow session as each stray literal migrates
- * in.
+ * The only home for vanilla class / ASM / member-name strings in tooling - one class, nested
+ * static groups.
  *
- * <p>Stays elsewhere BY DESIGN: JVM/JDK-spec constants in {@link AsmKit} [C8], FastTrig
- * constants nested in the geometry parser [C10], the JOML/math surface in the transform
- * walker [C12] - none are vanilla names. Entity- and block-specific constants that are
- * DERIVABLE do not live here either - they are derivations or SPINE 2.1 policy rows.
+ * <p>Stays elsewhere by design: JVM/JDK-spec constants in {@link AsmKit}, FastTrig constants
+ * nested in the geometry parser, the JOML/math surface in the transform walker - none are
+ * vanilla names. Entity- and block-specific constants that are derivable do not live here
+ * either - they are derivations or policy rows.
  */
 public final class VanillaSourceClasses {
 
     private VanillaSourceClasses() {
     }
 
-    /** Vanilla class internal names + compositional package roots [C1] + migrated strays [C2]. */
+    /** Vanilla class internal names and compositional package roots. */
     public static final class Types {
 
         private Types() {
@@ -26,10 +25,10 @@ public final class VanillaSourceClasses {
         /** The vanilla package root - the class-listing prefix jar-wide scans anchor on. */
         public static final @NotNull String MINECRAFT_ROOT = "net/minecraft/";
 
-        /** The model package root - the P29 invokestatic-follow gate's positive side. */
+        /** The model package root - the invokestatic-follow gate's positive side. */
         public static final @NotNull String CLIENT_MODEL_ROOT = MINECRAFT_ROOT + "client/model/";
 
-        /** The geometry-primitive package root - the P29 gate's negative side (never followed). */
+        /** The geometry-primitive package root - the invokestatic-follow gate's negative side (never followed). */
         public static final @NotNull String CLIENT_MODEL_GEOM_ROOT = CLIENT_MODEL_ROOT + "geom/";
 
         private static final @NotNull String MODEL_BUILDERS_ROOT = CLIENT_MODEL_GEOM_ROOT + "builders/";
@@ -100,7 +99,7 @@ public final class VanillaSourceClasses {
         /** {@code BlendFunction} - the blend-mode enum ({@code TRANSLUCENT} / {@code ADDITIVE} constants). */
         public static final @NotNull String BLEND_FUNCTION = "com/mojang/blaze3d/pipeline/BlendFunction";
 
-        /** {@code EquipmentClientInfo$LayerType} - the equipment texture-subdir enum ({@code <clinit>} id LDCs [D33]). */
+        /** {@code EquipmentClientInfo$LayerType} - the equipment texture-subdir enum ({@code <clinit>} id LDCs). */
         public static final @NotNull String EQUIPMENT_LAYER_TYPE = "net/minecraft/client/resources/model/EquipmentClientInfo$LayerType";
 
         /** {@code EquipmentAssets} - the static holder of equipment-asset keys ({@code TRADER_LLAMA}, ...). */
@@ -118,10 +117,10 @@ public final class VanillaSourceClasses {
         /** {@code com.mojang.math.Axis} - the rotation-axis constants block-overlay transforms route through. */
         public static final @NotNull String MATH_AXIS = "com/mojang/math/Axis";
 
-        /** {@code LivingEntityRenderState} - the bridge-overload parameter type on renderer state methods. */
+        /** {@code LivingEntityRenderState} - the parameter type on renderer state methods. */
         public static final @NotNull String LIVING_ENTITY_RENDER_STATE = "net/minecraft/client/renderer/entity/state/LivingEntityRenderState";
 
-        /** {@code EntityRenderState} - the bridge-overload parameter type on layer {@code submit} methods. */
+        /** {@code EntityRenderState} - the parameter type on layer {@code submit} methods. */
         public static final @NotNull String ENTITY_RENDER_STATE = "net/minecraft/client/renderer/entity/state/EntityRenderState";
 
         /** {@code PoseStack} - the render-transform stack the {@code scale} override chains on. */
@@ -130,10 +129,10 @@ public final class VanillaSourceClasses {
         /** {@code DyeColor} - the dye enum whose WHITE diffuse colour backs the base-tint derivation. */
         public static final @NotNull String DYE_COLOR = "net/minecraft/world/item/DyeColor";
 
-        /** {@code BannerPattern} - the patterned-tint accessor owner (the block {@code tinted} signal [D51]). */
+        /** {@code BannerPattern} - the patterned-tint accessor owner (the block {@code tinted} signal). */
         public static final @NotNull String BANNER_PATTERN = "net/minecraft/world/level/block/entity/BannerPattern";
 
-        /** {@code BannerPatternLayers} - any method returning it flags a patterned-tint pipeline [D51]. */
+        /** {@code BannerPatternLayers} - any method returning it flags a patterned-tint pipeline. */
         public static final @NotNull String BANNER_PATTERN_LAYERS = "net/minecraft/world/level/block/entity/BannerPatternLayers";
 
         /** {@code ModelPart} - the entity model bone primitive (its {@code visible:Z} field gates bones). */
@@ -172,10 +171,10 @@ public final class VanillaSourceClasses {
         /** {@code Blocks} - the block registry class ({@code <clinit>} register walk). */
         public static final @NotNull String BLOCKS = "net/minecraft/world/level/block/Blocks";
 
-        /** {@code BlockEntityType} - the block-entity registry class ({@code <clinit>} id + validBlocks walk [D53]). */
+        /** {@code BlockEntityType} - the block-entity registry class ({@code <clinit>} id + validBlocks walk). */
         public static final @NotNull String BLOCK_ENTITY_TYPE = "net/minecraft/world/level/block/entity/BlockEntityType";
 
-        /** {@code BlockEntityRenderers} - the block-entity-renderer registry ({@code <clinit>} type-to-renderer walk [D49]). */
+        /** {@code BlockEntityRenderers} - the block-entity-renderer registry ({@code <clinit>} type-to-renderer walk). */
         public static final @NotNull String BLOCK_ENTITY_RENDERERS = "net/minecraft/client/renderer/blockentity/BlockEntityRenderers";
 
         /** {@code HangingSignBlock$Attachment} - the enum the hanging-sign factory branches on (refParam CEILING / CEILING_MIDDLE / WALL). */
@@ -196,7 +195,7 @@ public final class VanillaSourceClasses {
         /** {@code IntegerProperty} - the {@code create(name, min, max)} default reads the min. */
         public static final @NotNull String INTEGER_PROPERTY = STATE_PROPERTIES_PACKAGE + "IntegerProperty";
 
-        /** {@code BooleanProperty} - the declared-but-unset any()-default is {@code false} (P44). */
+        /** {@code BooleanProperty} - the declared-but-unset any()-default is {@code false}. */
         public static final @NotNull String BOOLEAN_PROPERTY = STATE_PROPERTIES_PACKAGE + "BooleanProperty";
 
         /** {@code EnumProperty} - the {@code create} overloads (class / class+array / class+predicate). */
@@ -241,7 +240,7 @@ public final class VanillaSourceClasses {
         /** {@code BiomeColors} - the biome-average colour helper the tint-source bodies call, deriving the colormap target. */
         public static final @NotNull String BIOME_COLORS = "net/minecraft/client/renderer/BiomeColors";
 
-        /** {@code ARGB} - the colour-packing helper the stem tint body terminates in ({@code color(r,g,b)}) [D60]. */
+        /** {@code ARGB} - the colour-packing helper the stem tint body terminates in ({@code color(r,g,b)}). */
         public static final @NotNull String ARGB = "net/minecraft/util/ARGB";
 
         /** {@code BlockState} - the tint-source {@code color(BlockState)} parameter (its {@code getValue} feeds the stem eval). */
@@ -267,7 +266,7 @@ public final class VanillaSourceClasses {
 
     }
 
-    /** Member-name pattern grammar [C3]: createRoots, addBox, texOffs, scaling, ... */
+    /** Member-name pattern grammar: createRoots, addBox, texOffs, scaling, ... */
     public static final class Methods {
 
         private Methods() {
@@ -351,13 +350,13 @@ public final class VanillaSourceClasses {
         /** {@code EntityRenderer.extractRenderState} - the state-population hook (block / gate binds). */
         public static final @NotNull String EXTRACT_RENDER_STATE = "extractRenderState";
 
-        /** {@code PartDefinition.retainExactParts} - the subset-mesh transformer (warden spots, creaking eyes) [D21]. */
+        /** {@code PartDefinition.retainExactParts} - the subset-mesh transformer (warden spots, creaking eyes). */
         public static final @NotNull String RETAIN_EXACT_PARTS = "retainExactParts";
 
         /** {@code ColorLerper$Type.getColor(DyeColor)} - the dyed-overlay tint accessor. */
         public static final @NotNull String GET_COLOR = "getColor";
 
-        /** {@code ColorLerper.getModifiedColor(DyeColor, F)} - the WHITE-branch tint literal source [D-row 24]. */
+        /** {@code ColorLerper.getModifiedColor(DyeColor, F)} - the WHITE-branch tint literal source. */
         public static final @NotNull String GET_MODIFIED_COLOR = "getModifiedColor";
 
         /** {@code PoseStack.pushPose} - the block-overlay transform-block opener. */
@@ -387,7 +386,7 @@ public final class VanillaSourceClasses {
         /** {@code BlockTintSources.constant} - the constant-colour tint-source factory (the in-hand pick source). */
         public static final @NotNull String CONSTANT = "constant";
 
-        /** {@code BlockTintSources.stem} - the age-driven stem tint-source factory (its body is symbolically evaluated at age 0) [D60]. */
+        /** {@code BlockTintSources.stem} - the age-driven stem tint-source factory (its body is symbolically evaluated at age 0). */
         public static final @NotNull String STEM = "stem";
 
         /** {@code BlockTintSource.color} / {@code ARGB.color} - the tint colour body + the packing helper the stem eval walks into. */
@@ -413,7 +412,7 @@ public final class VanillaSourceClasses {
         private Fields() {
         }
 
-        /** {@code LivingEntityRenderState.isBaby} - the age-selection flag every baby-model dispatch reads [D36]. */
+        /** {@code LivingEntityRenderState.isBaby} - the age-selection flag every baby-model dispatch reads. */
         public static final @NotNull String IS_BABY = "isBaby";
 
         /** {@code <X>RenderState.variant} - the enum-typed variant field on 26.1 render-state classes. */
@@ -424,7 +423,7 @@ public final class VanillaSourceClasses {
 
     }
 
-    /** Descriptor composer [C4] - no hand-assembled descriptors survive anywhere. */
+    /** Descriptor composer - no hand-assembled descriptors survive anywhere. */
     public static final class Descs {
 
         private Descs() {
@@ -467,7 +466,7 @@ public final class VanillaSourceClasses {
 
     }
 
-    /** Jar resource-path grammar [C5]: textures/entity/, data/minecraft/, equipment/, colormap/. */
+    /** Jar resource-path grammar: textures/entity/, data/minecraft/, equipment/, colormap/. */
     public static final class Paths {
 
         private Paths() {
@@ -488,7 +487,7 @@ public final class VanillaSourceClasses {
         /** The data-driven variant-table directory suffix ({@code data/minecraft/<stem>_variant/}). */
         public static final @NotNull String VARIANT_DIR_SUFFIX = "_variant";
 
-        /** The equipment-texture subtree under {@link #TEXTURES_ENTITY} ({@code equipment/<subdir>/<material>.png}) [D15]. */
+        /** The equipment-texture subtree under {@link #TEXTURES_ENTITY} ({@code equipment/<subdir>/<material>.png}). */
         public static final @NotNull String EQUIPMENT_DIR = "equipment/";
 
         /** The item-model-definition directory ({@code assets/minecraft/items/<id>.json}) - the display.gui walk root. */
@@ -500,10 +499,10 @@ public final class VanillaSourceClasses {
         /** The {@code .json} resource suffix the resource walks append. */
         public static final @NotNull String JSON_SUFFIX = ".json";
 
-        /** The texture-tree jar prefix the decision-21 full asset grammar carries ({@code textures/<stem>.png}). */
+        /** The texture-tree jar prefix the full asset grammar carries ({@code textures/<stem>.png}). */
         public static final @NotNull String TEXTURE_DIR = "textures/";
 
-        /** The {@code .png} texture suffix of the decision-21 full asset grammar. */
+        /** The {@code .png} texture suffix of the full asset grammar. */
         public static final @NotNull String PNG_SUFFIX = ".png";
 
         /** The biome-colormap directory ({@code assets/minecraft/textures/colormap/}) the colormap policies anchor their PNGs on. */
@@ -511,7 +510,7 @@ public final class VanillaSourceClasses {
 
     }
 
-    /** Vanilla data-schema keys [C6]: asset_id, spawn_conditions, minecraft:select, display.gui. */
+    /** Vanilla data-schema keys: asset_id, spawn_conditions, minecraft:select, display.gui. */
     public static final class DataKeys {
 
         private DataKeys() {
@@ -532,10 +531,10 @@ public final class VanillaSourceClasses {
         /** Variant JSON - the model discriminator ({@code "cold"} selects {@code ColdCowModel}). */
         public static final @NotNull String MODEL = "model";
 
-        /** Variant JSON - the runtime spawn-selection rules, carried VERBATIM into the emitted resource [D64]. */
+        /** Variant JSON - the runtime spawn-selection rules, carried verbatim into the emitted resource. */
         public static final @NotNull String SPAWN_CONDITIONS = "spawn_conditions";
 
-        /** Spawn-condition entry - the gate sub-object whose absence marks an unconditional variant [D30]. */
+        /** Spawn-condition entry - the gate sub-object whose absence marks an unconditional variant. */
         public static final @NotNull String CONDITION = "condition";
 
         /** Item-model / model JSON - the component / sub-object discriminator key. */
@@ -565,12 +564,12 @@ public final class VanillaSourceClasses {
         /** Model JSON {@code display} - the inventory-icon transform ({@code rotation}/{@code translation}/{@code scale}). */
         public static final @NotNull String GUI = "gui";
 
-        /** Model JSON {@code display.gui} - the {@code [pitch, yaw, roll]} rotation triple; roll 180 = flip [D67]. */
+        /** Model JSON {@code display.gui} - the {@code [pitch, yaw, roll]} rotation triple; roll 180 = flip. */
         public static final @NotNull String ROTATION = "rotation";
 
     }
 
-    /** Shader defines [C7]: NO_CARDINAL_LIGHTING, TRANSLUCENT, withShaderDefine. */
+    /** Shader defines: NO_CARDINAL_LIGHTING, TRANSLUCENT, withShaderDefine. */
     public static final class Defines {
 
         private Defines() {

@@ -20,16 +20,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The equipment side of the {@code layers[]} node (SPINE 3.1 row 15) - one row per
- * saddle / body-armor layer a renderer attaches. Candidates come from the roster site's
- * call-site window (a {@code LayerType} static opening the candidate, the following
- * {@code ModelLayers} statics carrying the adult and - captured, not dropped [D65] - baby
- * meshes) or from a bespoke layer's own class internals [D34] (wolf armor, llama decor -
- * retiring the legacy allowlist).
+ * The equipment side of the {@code layers[]} node - one row per saddle / body-armor layer
+ * a renderer attaches. Candidates come from the roster site's call-site window (a
+ * {@code LayerType} static opening the candidate, the following {@code ModelLayers} statics
+ * carrying the adult and baby meshes) or from a bespoke layer's own class internals (wolf
+ * armor, llama decor).
  *
- * <p>Upgrades: the texture subdir reads the {@code EquipmentClientInfo$LayerType.<clinit>}
- * id literal [D33] (retiring the lowercase-name convention); sole-PNG subdirs derive their
- * default material from the jar listing [D32]; multi-material subdirs consult P23.
+ * <p>The texture subdir reads the {@code EquipmentClientInfo$LayerType.<clinit>} id literal;
+ * sole-PNG subdirs derive their default material from the jar listing; multi-material subdirs
+ * consult {@link EntityOverlayPolicies#defaultMaterialFor}.
  */
 final class EntityEquipmentResolver {
 
@@ -56,7 +55,7 @@ final class EntityEquipmentResolver {
     /**
      * The equipment row of a call-site candidate: the window's {@code LayerType} static
      * names the subdir, the following {@code ModelLayers} statics the adult (first) and
-     * baby (second, [D65]) meshes.
+     * baby (second) meshes.
      *
      * @param site the roster site the row belongs to
      * @param windowStart the first instruction of the site's call-site window
@@ -82,7 +81,7 @@ final class EntityEquipmentResolver {
     }
 
     /**
-     * The equipment row of a bespoke layer [D34]: the class's own first {@code LayerType} +
+     * The equipment row of a bespoke layer: the class's own first {@code LayerType} +
      * {@code ModelLayers} references (wolf armor, llama decor).
      *
      * @param site the roster site the row belongs to
@@ -98,7 +97,7 @@ final class EntityEquipmentResolver {
                 if (layerType == null && VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE.equals(fi.owner))
                     layerType = fi.name;
                 else if (meshField == null && VanillaSourceClasses.Types.MODEL_LAYERS.equals(fi.owner)
-                    && !fi.name.contains("BABY"))   // P10: the adult mesh carries the row
+                    && !fi.name.contains("BABY"))   // the first non-baby field is the adult mesh
                     meshField = fi.name;
             }
         if (layerType == null || meshField == null) return null;
@@ -106,10 +105,10 @@ final class EntityEquipmentResolver {
     }
 
     /**
-     * Assembles one {@code layers[]} row (doc 06 SS4.6): {@code id} is the slot, the gate
-     * is {@code when: {equipment: <slot>}}, and the overlay body carries the registered
-     * adult mesh, the {@code equipment/<subdir>/<material>} template [D15], the derived /
-     * declared default material [D32, P23], and the captured baby mesh [D65].
+     * Assembles one {@code layers[]} row: {@code id} is the slot, the gate is
+     * {@code when: {equipment: <slot>}}, and the overlay body carries the registered
+     * adult mesh, the {@code equipment/<subdir>/<material>} template, the derived or
+     * declared default material, and the captured baby mesh.
      */
     private @Nullable JsonNode buildRow(
         @NotNull EntityRendererResolver.LayerSite site,
@@ -122,9 +121,9 @@ final class EntityEquipmentResolver {
             this.diagnostics.warn("LayerType.%s has no <clinit> id literal [D33] - equipment row dropped", layerTypeConstant);
             return null;
         }
-        // The layers-row slot vocabulary is {saddle, body} (doc 06 SS4.6); mob-equipment
-        // subdirs follow the <mob>_<slot> id grammar. A LayerType outside it (wings,
-        // humanoid armor) is player-style runtime equipment, never a static-pose row.
+        // The layers-row slot vocabulary is {saddle, body}; mob-equipment subdirs follow
+        // the <mob>_<slot> id grammar. A LayerType outside it (wings, humanoid armor) is
+        // player-style runtime equipment, never a static-pose row.
         String slot = subdir.endsWith("_saddle") ? "saddle" : subdir.endsWith("_body") ? "body" : null;
         if (slot == null) {
             this.diagnostics.info("LayerType id '%s' outside the mob-equipment slot grammar - no row", subdir);
@@ -141,7 +140,7 @@ final class EntityEquipmentResolver {
             .put("default_material", defaultMaterial(subdir));
         if (babyField != null) {
             String babyKey = registerMesh(babyField);
-            if (babyKey != null) overlay.put("baby_geometry", babyKey);   // [D65]
+            if (babyKey != null) overlay.put("baby_geometry", babyKey);
         }
         this.diagnostics.info("equipment row '%s' (%s) meshes adult=%s baby=%s", slot, subdir, adultField, babyField);
         return JsonNode.object()
@@ -164,10 +163,10 @@ final class EntityEquipmentResolver {
 
     /**
      * The default material: the sole material's basename when the subdir holds exactly one
-     * [D32] (saddle, the wolf's armadillo scute), else the P23 declared pick. An
-     * {@code _overlay} companion is a dyeable material's tint layer
-     * ({@code armadillo_scute_overlay}, {@code leather_overlay}), never a material of its
-     * own.
+     * (saddle, the wolf's armadillo scute), else the declared pick from
+     * {@link EntityOverlayPolicies#defaultMaterialFor}. An {@code _overlay} companion is a
+     * dyeable material's tint layer ({@code armadillo_scute_overlay}, {@code leather_overlay}),
+     * never a material of its own.
      */
     private @NotNull String defaultMaterial(@NotNull String subdir) {
         String dir = VanillaSourceClasses.Paths.ASSETS_ROOT + VanillaSourceClasses.Paths.TEXTURES_ENTITY
@@ -181,12 +180,12 @@ final class EntityEquipmentResolver {
             this.diagnostics.info("default material '%s' via sole-material listing [D32]", materials.getFirst());
             return materials.getFirst();
         }
-        return EntityOverlayPolicies.defaultMaterialFor(subdir);   // P23
+        return EntityOverlayPolicies.defaultMaterialFor(subdir);
     }
 
     /**
      * The equipment texture subdir of a {@code LayerType} constant - its {@code <clinit>}
-     * id literal [D33] (the last string paired with the constant's {@code PUTSTATIC}).
+     * id literal (the last string paired with the constant's {@code PUTSTATIC}).
      *
      * @param cache the class cache
      * @param constant the {@code EquipmentClientInfo$LayerType} constant name

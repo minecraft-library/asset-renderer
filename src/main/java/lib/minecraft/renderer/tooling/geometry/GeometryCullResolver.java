@@ -12,9 +12,9 @@ import org.objectweb.asm.tree.MethodNode;
 /**
  * The per-geometry back-face-culling flag - whether a model class wires vanilla's
  * {@code RenderTypes.entityCutoutCull} render type instead of the no-cull default
- * ({@code entityCutout}). Cull is per-geometry data (SPINE 2 geometry/): the flow stamps
- * {@code cull} at emit, never mutating parsed JSON post-hoc. The runtime kit reads it to
- * cull zero-thickness plane cubes - a culled plane shows only its camera-facing side (the
+ * ({@code entityCutout}). Cull is per-geometry data: the flow stamps {@code cull} at
+ * emit, never mutating parsed JSON post-hoc. The runtime kit reads it to cull
+ * zero-thickness plane cubes - a culled plane shows only its camera-facing side (the
  * bat ear's pink inner face) rather than drawing both coincident sides and letting the
  * LEQUAL depth tie-break pick the away side.
  */

@@ -17,9 +17,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * The three directive-4 golden pins (IMPLEMENTATION_PLAN 14.2): the 26.1 byte-moving set for the kit
- * adoptions is EMPTY (Fact C), so each adoption is schema-forward capacity guarded by a pin that turns
- * a future non-empty slot into a LOUD, LOOK-gated event rather than a silent mis-bake.
+ * Golden pins for the kit adoptions: the 26.1 byte-moving set is empty, so each adoption is
+ * schema-forward capacity guarded by a pin that turns a future non-empty slot into a loud,
+ * look-gated event rather than a silent mis-bake.
  *
  * <ul>
  *   <li><b>grow[3]</b> - no 26.1 cube carries an {@code [x, y, z]} array grow (all scalar), so the

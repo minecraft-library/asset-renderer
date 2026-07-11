@@ -19,23 +19,21 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 /**
- * Node {@code axes.age} - the adult / baby option axis (SPINE 3.1 row 9). The baby mesh is
- * picked by DATAFLOW from the renderer's {@code state.isBaby} branch [D36], retiring the
- * legacy {@code endsWith("_BABY")} field-name pick: the geometry-ref walk's multi-model
- * constructor consumptions ({@code AgeableMobRenderer.<init>}'s adult + baby pair, cow's
- * {@code AdultAndBabyModelPair}) are verified to select on {@code isBaby} - either the
- * consumer chain reads the flag itself ({@code AgeableMobRenderer.submit}) or the renderer
- * feeds it into a boolean-selecting call on the consumer ({@code pair.getModel(isBaby)}) -
- * and the LAST model argument is the baby (the vanilla adult-first constructor convention,
- * javap-pinned on both consumer shapes). The P10 {@code _BABY} field-suffix fallback runs
- * only on a dataflow miss, at INFO.
+ * Node {@code axes.age} - the adult / baby option axis. The baby mesh is picked by dataflow
+ * from the renderer's {@code state.isBaby} branch rather than by an {@code endsWith("_BABY")}
+ * field-name pick: the geometry-ref walk's multi-model constructor consumptions
+ * ({@code AgeableMobRenderer.<init>}'s adult + baby pair, cow's {@code AdultAndBabyModelPair})
+ * are verified to select on {@code isBaby} - either the consumer chain reads the flag itself
+ * ({@code AgeableMobRenderer.submit}) or the renderer feeds it into a boolean-selecting call
+ * on the consumer ({@code pair.getModel(isBaby)}) - and the LAST model argument is the baby
+ * (the vanilla adult-first constructor convention, javap-pinned on both consumer shapes). A
+ * {@code _BABY} field-suffix fallback runs only when the dataflow pick misses, at INFO.
  *
- * <p>Same-model-class factories skip [D10] - NautilusModel bakes adult and baby from the
- * same class and the collision suffix would shift the adult's id (legacy comment
- * {@code ToolingEntityModels.java:370-375} carried). Baby texture chain: variant families
- * carry per-option {@code baby_texture} instead (node emits geometry only); plain families
- * take the renderer's isBaby-branch texture literal, then the {@code <adult>_baby} sibling
- * existence-probed [D26] (P10 declared fallback).
+ * <p>Same-model-class factories are skipped - NautilusModel bakes adult and baby from the
+ * same class and the collision suffix would shift the adult's id. Baby texture chain: variant
+ * families carry per-option {@code baby_texture} instead (node emits geometry only); plain
+ * families take the renderer's isBaby-branch texture literal, then the {@code <adult>_baby}
+ * sibling existence-probed as a declared fallback.
  */
 final class EntityAgeAxisResolver {
 
@@ -66,11 +64,10 @@ final class EntityAgeAxisResolver {
     }
 
     /**
-     * The mandatory age node (axis unification #1): {@code options.adult} carries the family
-     * baseline - the base {@code geometry} and, for non-variant families, the adult
-     * {@code texture} - and {@code options.baby} is added only when a dedicated baby mesh
-     * resolves. Every family emits an age axis; the {@code options} key-order IS the domain (no
-     * {@code values} list, #2).
+     * The mandatory age node: {@code options.adult} carries the family baseline - the base
+     * {@code geometry} and, for non-variant families, the adult {@code texture} - and
+     * {@code options.baby} is added only when a dedicated baby mesh resolves. Every family
+     * emits an age axis; the {@code options} key-order IS the domain (no {@code values} list).
      *
      * @param baseGeometry the family's resolved primary geometry key (the adult mesh), or
      *     {@code null} on an unresolvable family (mirrors the former top-level {@code putIf})
@@ -93,7 +90,7 @@ final class EntityAgeAxisResolver {
 
     /**
      * The {@code options.baby} delta body, or {@code null} when no dedicated baby mesh resolves
-     * (the baby field is unindexed, or the baby bakes from the adult model class [D10]).
+     * (the baby field is unindexed, or the baby bakes from the adult model class).
      */
     private @Nullable JsonNode resolveBaby(@Nullable String adultTexture, boolean variantFamily) {
         String babyField = pickBabyLayerField();
@@ -105,8 +102,8 @@ final class EntityAgeAxisResolver {
         }
         LayerDefinitionIndex.Entry primary = this.geometryRef.resolvedEntry();
         // Skip babies baked from the SAME model class as the adult (nautilus:
-        // NautilusModel#createBabyBodyLayer vs #createBodyLayer) [D10] - their geometry ids
-        // derive the same class-based stem and the collision suffix would shift the adult's.
+        // NautilusModel#createBabyBodyLayer vs #createBodyLayer) - their geometry ids derive
+        // the same class-based stem and the collision suffix would shift the adult's.
         if (primary != null && primary.factoryClass().equals(babyEntry.factoryClass())) {
             this.diagnostics.info("baby layer ModelLayers.%s shares the adult model class - baby option skipped [D10]", babyField);
             return null;
@@ -124,7 +121,7 @@ final class EntityAgeAxisResolver {
     }
 
     // ------------------------------------------------------------------------------------
-    // baby mesh pick [D36]
+    // baby mesh pick
     // ------------------------------------------------------------------------------------
 
     private @Nullable String pickBabyLayerField() {
@@ -132,7 +129,7 @@ final class EntityAgeAxisResolver {
             if (!selectsOnIsBaby(consumer.owner())) continue;
             return consumer.tripleFields().getLast();
         }
-        // P10 declared naming fallback: the first _BABY-suffixed triple in the ctor chain.
+        // Declared naming fallback: the first _BABY-suffixed triple in the ctor chain.
         for (String field : this.geometryRef.tripleSites())
             if (field.endsWith("_BABY") && this.layerDefinitions.get(field) != null) {
                 this.diagnostics.info("baby layer ModelLayers.%s via P10 field-suffix fallback (isBaby dataflow missed)", field);
@@ -204,7 +201,7 @@ final class EntityAgeAxisResolver {
             return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + branchLiteral;
         }
         if (adultTexture == null) return null;
-        // <adult>_baby sibling, existence-probed [D26] - the P10 declared naming fallback.
+        // <adult>_baby sibling, existence-probed as the declared naming fallback.
         String prefixed = adultTexture.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length());
         String candidate = prefixed.substring(0, prefixed.length() - ".png".length()) + "_baby.png";
         if (!this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + candidate)) return null;

@@ -27,15 +27,14 @@ import java.util.function.Function;
 
 /**
  * Resolves which blockstate properties a block declares (the five {@code createBlockStateDefinition}
- * shapes) and each property's serialised name (SPINE 3.4). Session-scoped: the property-name and
+ * shapes) and each property's serialised name. Session-scoped: the property-name and
  * enum-name memos live here, keyed per class read (the {@link ClassNodeCache} already collapses the
  * class-read half).
  *
- * <p>The legacy defaults parser's three copy-pasted class-graph BFS walkers
- * ({@code findPutStaticNode} / {@code resolveMethodReturnedProperty} / {@code findAccessorMapField})
- * collapse here to ONE probe-parameterised {@link #bfsClassGraph} (doc-08 flag 4 - a private
- * helper, promoted to AsmKit only if a second flow needs it). The over-broad legacy
- * {@code "Property;"} suffix is tightened to the properties-package prefix.
+ * <p>The three class-graph BFS walkers ({@code findPutStaticNode} / {@code resolveMethodReturnedProperty} /
+ * {@code findAccessorMapField}) collapse to ONE probe-parameterised {@link #bfsClassGraph} (a private
+ * helper, promoted to AsmKit only if a second flow needs it). The {@code "Property;"} suffix match
+ * is tightened to the properties-package prefix to avoid over-broad matches.
  */
 final class PropertyDefinitionResolver {
 
@@ -277,7 +276,7 @@ final class PropertyDefinitionResolver {
 
     /**
      * BFS over a class's super + interface graph (most-derived first), returning the first non-null
-     * probe result - the collapsed form of the legacy three copy-pasted walkers (doc-08 flag 4).
+     * probe result.
      */
     private <T> @Nullable T bfsClassGraph(@NotNull String start, @NotNull Function<ClassNode, T> probe) {
         Deque<String> queue = new ArrayDeque<>();

@@ -10,20 +10,20 @@ import lib.minecraft.renderer.tooling.snapshot.GlintItemsWalk;
 import java.nio.file.Path;
 
 /**
- * Entry point of the {@code glintItems} Gradle task - the always-glinted item flow (SPINE 3.5):
+ * Entry point of the {@code glintItems} Gradle task - the always-glinted item flow:
  * every item whose {@code Items} registration sets {@code ENCHANTMENT_GLINT_OVERRIDE = true},
  * from an {@code Items.<clinit>} walk, as sorted namespaced ids.
  */
 public final class ToolingGlintItems {
 
-    /** The bundled resource directory (SPINE 4 registry). */
+    /** The bundled resource directory. */
     private static final Path RESOURCE_DIR = Path.of("src", "main", "resources", "lib", "minecraft", "renderer");
 
     private ToolingGlintItems() {
     }
 
     /**
-     * Runs the flow. ERROR-severity diagnostics fail the run (doc-12 K3);
+     * Runs the flow. ERROR-severity diagnostics fail the run;
      * {@code -Dasset.tooling.strict=warn} opts WARN into the same gate.
      *
      * @param args ignored - all paths are fixed
@@ -37,7 +37,7 @@ public final class ToolingGlintItems {
         }
     }
 
-    /** The doc-12 K3 strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
+    /** The strict gate: ERROR always fails; {@code strict=warn} adds WARN. */
     private static void failOnStrictGate(ToolingSession session) {
         Diagnostics diagnostics = session.diagnostics();
         boolean warnStrict = "warn".equalsIgnoreCase(System.getProperty("asset.tooling.strict", "").trim());

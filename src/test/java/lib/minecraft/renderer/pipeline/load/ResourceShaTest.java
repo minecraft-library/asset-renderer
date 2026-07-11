@@ -27,11 +27,9 @@ import static org.hamcrest.Matchers.is;
  * colormap, entity, and potion / glint tables ({@code color_maps}, {@code entity_geometry},
  * {@code entity_models}, {@code potion_colors}, {@code glint_items}).
  * <p>
- * This is the pipeline-side successor to the retired legacy {@code JsonResourceShaTest}: the
- * byte-stability gate transferred from the eight legacy files to the nine v2 files in the same change
- * that retired the tooling bridge ({@code block_geometry} gains its own byte-lock, which it lacked
- * legacy-side where geometry was inlined into {@code block_models}). It now guards CONSUMER inputs -
- * the v2 resources the native readers read - rather than legacy tooling output.
+ * It guards the resources that the native readers consume directly. {@code block_geometry} carries
+ * its own byte-lock, separate from {@code block_models}, since it holds the geometry rather than
+ * having it inlined.
  * <p>
  * Each file is hashed in canonical form (Gson-parsed then compactly re-serialized, so whitespace
  * and line-ending drift does not break the check) and compared against its committed

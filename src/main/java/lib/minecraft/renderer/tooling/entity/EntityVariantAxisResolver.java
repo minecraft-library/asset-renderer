@@ -26,33 +26,32 @@ import java.util.Map;
 import java.util.TreeSet;
 
 /**
- * Node {@code axes.variant} - the option-encoded variant axis (SPINE 3.1 row 8; {@code id_encoded:
- * false} [axis-unification #3]): each coat is a render-time {@code EntityAppearance.variant} selection
- * over one base id, not a first-class {@code <id>_<opt>} pseudo-id. Two source arms, tried in order:
+ * Node {@code axes.variant} - the option-encoded variant axis (the axis is
+ * {@code id_encoded: false}): each coat is a render-time {@code EntityAppearance.variant}
+ * selection over one base id, not a first-class {@code <id>_<opt>} pseudo-id. Two source
+ * arms, tried in order:
  *
  * <ul>
  *   <li><b>Data-driven tables</b> - the {@code data/minecraft/<stem>_variant/} JSONs already
  *       held by {@link VariantIndex} (cow / pig / chicken / frog / wolf / cat /
- *       zombie_nautilus). Per-option {@code spawn_conditions} are carried VERBATIM [D64];
+ *       zombie_nautilus). Per-option {@code spawn_conditions} are carried verbatim;
  *       {@code model}-discriminator options register their own {@code GeometryRequest} via
  *       the {@code ModelType}-to-{@code ModelLayers} bytecode pairing that beats naming
- *       (zombie_nautilus {@code WARM} to {@code ZOMBIE_NAUTILUS_CORAL} - legacy
- *       {@code EntityVariantResolver.java:360-382}, comment carried).</li>
- *   <li><b>Enum-map {@code <clinit>} coats</b> - GENERIC [D1], dissolving the legacy horse
- *       fixed-entity injection: any renderer holding a static {@code Map} field keyed by an
- *       enum (from the field's generic signature) whose construction pairs keys with
- *       {@code textures/entity/} literals qualifies - horse / mooshroom / llama / panda /
- *       rabbit, plus axolotl through the {@code %s}-template arm [D66] (options enumerated
- *       from the enum constants, paths formatted and existence-probed [D28]). Texture paths
- *       come from the map construction, never naming reconstruction [D6]; fox stays
- *       excluded (its field is {@code EnumMap}-typed and state-keyed, not a coat table).</li>
+ *       (zombie_nautilus {@code WARM} resolves to {@code ZOMBIE_NAUTILUS_CORAL}).</li>
+ *   <li><b>Enum-map {@code <clinit>} coats</b> - any renderer holding a static {@code Map}
+ *       field keyed by an enum (from the field's generic signature) whose construction pairs
+ *       keys with {@code textures/entity/} literals qualifies - horse / mooshroom / llama /
+ *       panda / rabbit, plus axolotl through the {@code %s}-template arm (options enumerated
+ *       from the enum constants, paths formatted and existence-probed). Texture paths come
+ *       from the map construction, never naming reconstruction; fox stays excluded (its
+ *       field is {@code EnumMap}-typed and state-keyed, not a coat table).</li>
  * </ul>
  *
  * <p>Variant ids come from the enum {@code <clinit>} id LDCs ({@code StringRepresentable}),
- * not {@code toLowerCase} [D31]. Defaults: data arm = holder {@code DEFAULT} [P15] then the
- * alphabetical-unconditional spawn-conditions derivation [D30] with the P27 tiebreak;
- * enum-map arm = enum {@code DEFAULT} constant [P15] (mooshroom's lambda puts BROWN first
- * but vanilla defaults RED) then the first walked key [D1].
+ * not {@code toLowerCase}. Defaults: data arm = holder {@code DEFAULT} then the
+ * alphabetical-unconditional spawn-conditions derivation with a tiebreak; enum-map arm =
+ * enum {@code DEFAULT} constant (mooshroom's lambda puts BROWN first but vanilla defaults
+ * RED) then the first walked key.
  */
 final class EntityVariantAxisResolver {
 
@@ -129,9 +128,9 @@ final class EntityVariantAxisResolver {
     /**
      * The alphabetically-first variant id whose {@code spawn_conditions} entries are all
      * unconditional (each carries no {@code condition} sub-object) - vanilla's fresh-spawn
-     * zero-state selection [D30], tiebreak = P27 (consulted:
-     * {@link EntityAxisPolicies#ALPHA_FIRST_UNCONDITIONAL_TIEBREAK}). Conditions are read
-     * from the retained table [D64] - no jar re-scan.
+     * zero-state selection, tiebreak per
+     * {@link EntityAxisPolicies#ALPHA_FIRST_UNCONDITIONAL_TIEBREAK}. Conditions are read
+     * from the retained table - no jar re-scan.
      */
     private static @Nullable String alphaFirstUnconditional(@NotNull List<VariantIndex.Variant> table) {
         TreeSet<String> unconditional = new TreeSet<>();
@@ -149,9 +148,9 @@ final class EntityVariantAxisResolver {
     }
 
     /**
-     * The state-keyed textures node: the P22-precedent key first (single-asset
-     * {@code primary} folds onto the legacy {@code wild} key - d17), then the remaining
-     * state keys in table walk order, values as full namespaced paths (d21).
+     * The state-keyed textures node: the precedent key first (single-asset {@code primary}
+     * folds onto the legacy {@code wild} key), then the remaining state keys in table walk
+     * order, values as full namespaced paths.
      */
     private static @NotNull JsonNode texturesNode(@NotNull Map<String, String> textures) {
         JsonNode node = JsonNode.object();
@@ -172,7 +171,7 @@ final class EntityVariantAxisResolver {
     }
 
     /**
-     * The P22 precedence pick over a state-keyed texture map: {@code wild}, then
+     * The precedence pick over a state-keyed texture map: {@code wild}, then
      * {@code primary}, then the first entry ({@code null} on an empty map).
      */
     static @Nullable String pickByStatePrecedence(@NotNull Map<String, String> textures) {
@@ -184,7 +183,7 @@ final class EntityVariantAxisResolver {
         return null;
     }
 
-    /** Prefixes the vanilla namespace onto a jar-relative texture path (d21), null-tolerant. */
+    /** Prefixes the vanilla namespace onto a jar-relative texture path, null-tolerant. */
     private static @Nullable String fullPath(@Nullable String texturePath) {
         return texturePath == null ? null : VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + texturePath;
     }
@@ -200,8 +199,8 @@ final class EntityVariantAxisResolver {
     ) {
         if (variant.model() == null) return null;
         // Prefer the bytecode-derived ModelType -> ModelLayers pairing over the
-        // <MODEL>_<STEM> naming convention (P20 fallback): cow's WARM -> WARM_COW matches
-        // the convention, zombie_nautilus's WARM -> ZOMBIE_NAUTILUS_CORAL does not.
+        // <MODEL>_<STEM> naming convention: cow's WARM -> WARM_COW matches the
+        // convention, zombie_nautilus's WARM -> ZOMBIE_NAUTILUS_CORAL does not.
         String layerField = modelTypeLayers.get(variant.model().toUpperCase(Locale.ROOT));
         if (layerField == null) {
             layerField = (variant.model() + "_" + this.subject.localId()).toUpperCase(Locale.ROOT);
@@ -251,7 +250,7 @@ final class EntityVariantAxisResolver {
     }
 
     // ------------------------------------------------------------------------------------
-    // enum-map arm [D1]
+    // enum-map arm
     // ------------------------------------------------------------------------------------
 
     private @Nullable JsonNode resolveEnumMap() {
@@ -296,9 +295,9 @@ final class EntityVariantAxisResolver {
 
     /**
      * The enum key classes of the renderer's static {@code java.util.Map}-typed fields, in
-     * declaration order - the D1 detection gate. The declared-type test deliberately
-     * excludes {@code EnumMap}-typed fields (fox's state-keyed
-     * {@code TEXTURES_BY_VARIANT} - per-state textures, not a coat table).
+     * declaration order. The declared-type test deliberately excludes {@code EnumMap}-typed
+     * fields (fox's state-keyed {@code TEXTURES_BY_VARIANT} - per-state textures, not a coat
+     * table).
      */
     private @NotNull LinkedHashSet<String> enumKeyedMapFieldEnums(@NotNull ClassNode cn) {
         String mapDesc = "Ljava/util/Map;";
@@ -322,11 +321,11 @@ final class EntityVariantAxisResolver {
     }
 
     /**
-     * Walks the renderer's {@code <clinit>} plus its {@code lambda$static$*} bodies [D63]
+     * Walks the renderer's {@code <clinit>} plus its {@code lambda$static$*} bodies,
      * pairing each {@code GETSTATIC <enum>.<CONST>} with the texture literals that follow
-     * it. Literal-less tables fall through to the {@code %s}-template arm [D66]: options
-     * are enumerated from the enum constants, paths formatted per constant id and
-     * existence-probed [D28]. Returns {@code null} when neither arm yields textures.
+     * it. Literal-less tables fall through to the {@code %s}-template arm: options are
+     * enumerated from the enum constants, paths formatted per constant id and
+     * existence-probed. Returns {@code null} when neither arm yields textures.
      */
     private @Nullable CoatTable walkCoatTable(@NotNull ClassNode cn, @NotNull String enumInternal) {
         Map<String, List<String>> byConstant = new LinkedHashMap<>();
@@ -363,7 +362,7 @@ final class EntityVariantAxisResolver {
     }
 
     /**
-     * The [D66] template arm: one option per enum constant (declaration order, the
+     * The template arm: one option per enum constant (declaration order, the
      * {@code DEFAULT} alias filtered by its missing {@code ACC_ENUM} flag), adult / baby
      * paths formatted from the collected templates (adult = the first template whose stem
      * is not {@code _baby}-suffixed) and existence-probed; a constant whose adult texture
@@ -403,9 +402,9 @@ final class EntityVariantAxisResolver {
     }
 
     /**
-     * The serialized-id map of a {@code StringRepresentable} variant enum [D31]: per
-     * constant allocation in the {@code <clinit>}, the first string LDC is the synthetic
-     * constant name and the second is the serialized id ({@code DARK_BROWN} carries
+     * The serialized-id map of a {@code StringRepresentable} variant enum: per constant
+     * allocation in the {@code <clinit>}, the first string LDC is the synthetic constant
+     * name and the second is the serialized id ({@code DARK_BROWN} carries
      * {@code "dark_brown"}).
      */
     private @NotNull Map<String, String> enumSerializedIds(@NotNull String enumInternal) {
@@ -432,7 +431,7 @@ final class EntityVariantAxisResolver {
         return out;
     }
 
-    /** A constant's serialized id [D31], falling back to the lowercase constant name at INFO. */
+    /** A constant's serialized id, falling back to the lowercase constant name at INFO. */
     private @NotNull String variantId(@NotNull String constantName, @NotNull Map<String, String> ids) {
         String id = ids.get(constantName);
         if (id != null) return id;

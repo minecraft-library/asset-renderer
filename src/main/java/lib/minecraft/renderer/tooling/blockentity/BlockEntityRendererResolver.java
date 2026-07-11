@@ -4,10 +4,10 @@ import lib.minecraft.renderer.tooling.kernel.JsonNode;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * ONE split id, ONE pass (SPINE 3.3 stage 3) - the {@link #resolve()} put-chain IS the on-disk
- * key order, declared once, here. The chain follows the SPINE 4 sample (normative, doc-12
- * P1 / 02 F1): {@code renderer} (provenance scalar) FIRST, then {@code geometry}, {@code y_axis},
- * {@code tinted}, {@code inventory}, {@code icon}, {@code parts}, {@code blocks}.
+ * Resolves one split id in one pass - the {@link #resolve()} put-chain IS the on-disk
+ * key order, declared once, here: {@code renderer} (provenance scalar) FIRST, then
+ * {@code geometry}, {@code y_axis}, {@code tinted}, {@code inventory}, {@code icon},
+ * {@code parts}, {@code blocks}.
  */
 final class BlockEntityRendererResolver {
 
@@ -35,19 +35,19 @@ final class BlockEntityRendererResolver {
     }
 
     /**
-     * The model node - invocation order IS on-disk member order (SPINE 4, normative).
+     * The model node - invocation order IS on-disk member order.
      *
      * @return the model entry
      */
     @NotNull JsonNode resolve() {
         return JsonNode.object()
-            .put("renderer", this.subject.rendererClass())          // provenance scalar (bridge + diagnostics)
+            .put("renderer", this.subject.rendererClass())          // provenance scalar, used for diagnostics
             .put("geometry", this.split.geometryKey())              // -> block_geometry manifest key
-            .put("y_axis", this.split.yAxis().name())               // pivot-band heuristic [P40]
-            .put("tinted", this.tint.isTinted(this.subject.rendererClass(), this.split.factoryClass()))  // [D51]
+            .put("y_axis", this.split.yAxis().name())               // pivot-band heuristic
+            .put("tinted", this.tint.isTinted(this.subject.rendererClass(), this.split.factoryClass()))
             .put("inventory", inventory())                          // { y_rotation, flip, transform? }
             .putIf("icon", this.gui.icon(this.split.splitId()))     // { rotation?, additive? }
-            .putIf("parts", BlockPartsResolver.resolve(this.split.splitId()))  // [P32] sub-model composition
+            .putIf("parts", BlockPartsResolver.resolve(this.split.splitId()))  // sub-model composition
             .putIf("blocks", this.catalog.blocks(this.split.splitId()));  // ordered {block, texture, variant?, tint?}
     }
 
