@@ -6,11 +6,11 @@ import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.BlockOverlayLayer;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.BoneToggle;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.EntityDefinition;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.LargeShape;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.OverlayLayer;
+import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
+import lib.minecraft.renderer.asset.Entity.BoneToggle;
+import lib.minecraft.renderer.asset.Entity.LargeShape;
+import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,8 +23,8 @@ import java.util.Set;
 
 /**
  * Folds an {@link EntityAppearance}'s render-axis selections into a single resolved
- * {@link EntityDefinition} the renderer iterates unconditionally, with no scattered {@code !baby}
- * gates. This is the render-time policy that used to live on {@code EntityDefinition.resolveFor} in
+ * {@link Entity} the renderer iterates unconditionally, with no scattered {@code !baby}
+ * gates. This is the render-time policy that used to live on {@code Entity.resolveFor} in
  * the loader - relocated to a renderer-owned home so the reader stays a pure v2 -&gt; data mapper.
  *
  * <p>The nine axis semantics apply in a fixed short-circuit order (byte-identical to the historic
@@ -51,19 +51,19 @@ public final class EntityDefinitionResolver {
      * @param appearance the axis selections to resolve against
      * @return the age / carried / sheared / shape / size / tint-resolved definition
      */
-    public static @NotNull EntityDefinition resolve(@NotNull EntityDefinition base, @NotNull EntityAppearance appearance) {
+    public static @NotNull Entity resolve(@NotNull Entity base, @NotNull EntityAppearance appearance) {
         // Variant fold (option-encoded coat / colour, axis-unification #3): a selected variant resolves
         // against that option's fully-built sub-definition - byte-identical to the id-encoded pseudo-id it
         // replaced - so every later axis (baby / size / tint) folds on top exactly as it did when each coat
         // was a first-class pseudo-id. Absent, an unknown option, and the id-encoded / non-variant case
         // (empty variants map) all keep the family default coat, so the default appearance is byte-identical.
-        EntityDefinition definition = appearance.getVariant()
+        Entity definition = appearance.getVariant()
             .map(coat -> base.axes().variants().getOrDefault(coat, base))
             .orElse(base);
-        EntityDefinition.EntityDefinitionBuilder builder = definition.toBuilder();
+        Entity.EntityBuilder builder = definition.toBuilder();
         if (appearance.isBaby() && definition.axes().babyModel().isPresent()) {
             builder.model(definition.axes().babyModel().get()).overlays(List.of()).blockOverlays(List.of())
-                .layers(new EntityDefinition.Layers(Optional.empty(), List.of(), definition.layers().markings(), definition.layers().humanoidArmor(), definition.layers().markingTextures()));
+                .layers(new Entity.Layers(Optional.empty(), List.of(), definition.layers().markings(), definition.layers().humanoidArmor(), definition.layers().markingTextures()));
         } else {
             // Drop overlays the appearance doesn't activate: shearable overlays (the sheep wool) when
             // sheared - both the rendered geometry and its canvas-bounds contribution - and charged-only
@@ -140,7 +140,7 @@ public final class EntityDefinitionResolver {
      * only when a block is selected, with its block id replaced by that selection. The default (empty)
      * appearance therefore renders the fixed decorations and no selectable held block.
      */
-    private static @NotNull List<BlockOverlayLayer> resolveBlockOverlays(@NotNull EntityDefinition definition, @NotNull EntityAppearance appearance) {
+    private static @NotNull List<BlockOverlayLayer> resolveBlockOverlays(@NotNull Entity definition, @NotNull EntityAppearance appearance) {
         if (definition.blockOverlays().isEmpty()) return definition.blockOverlays();
         Optional<String> selected = appearance.selectedCarriedBlock();
         boolean dropsFixed = appearance.dropsCarried();
@@ -161,7 +161,7 @@ public final class EntityDefinitionResolver {
      * parents are already present, so the kit resolves them by name; the rebuilt model grows / shrinks
      * the canvas bounds automatically.
      */
-    private static @Nullable EntityModelData applyBoneToggles(@NotNull EntityDefinition definition, @NotNull Set<String> toggles) {
+    private static @Nullable EntityModelData applyBoneToggles(@NotNull Entity definition, @NotNull Set<String> toggles) {
         if (toggles.isEmpty() || definition.boneToggles().isEmpty()) return null;
         LinkedHashMap<String, EntityModelData.Bone> bones = null;
         for (String toggle : toggles) {

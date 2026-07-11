@@ -4,8 +4,8 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.load.entity.EntityFamilyReader;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.EntityDefinition;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.OverlayLayer;
+import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -25,13 +25,13 @@ import static org.hamcrest.Matchers.is;
 @DisplayName("EntityDefinitionResolver appearance gates")
 class EntityDefinitionResolverTest {
 
-    private static final @NotNull ConcurrentMap<String, EntityDefinition> DEFS =
+    private static final @NotNull ConcurrentMap<String, Entity> DEFS =
         EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
 
     @Test
     @DisplayName("charged gate: the creeper energy swirl renders only when charged")
     void chargedGate() {
-        EntityDefinition creeper = DEFS.get("minecraft:creeper");
+        Entity creeper = DEFS.get("minecraft:creeper");
         assertThat("default (uncharged) drops the charged swirl",
             EntityDefinitionResolver.resolve(creeper, EntityAppearance.builder().build()).overlays().isEmpty(), is(true));
         assertThat("charged keeps the swirl",
@@ -41,7 +41,7 @@ class EntityDefinitionResolverTest {
     @Test
     @DisplayName("flag gate: shearing drops the wool layer but keeps the tint-gated undercoat")
     void shearedFlagGate() {
-        EntityDefinition sheep = DEFS.get("minecraft:sheep");
+        Entity sheep = DEFS.get("minecraft:sheep");
         assertThat("default keeps both wool overlays",
             EntityDefinitionResolver.resolve(sheep, EntityAppearance.builder().build()).overlays().size(), is(2));
 

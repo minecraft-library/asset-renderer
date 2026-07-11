@@ -14,19 +14,18 @@ import lib.minecraft.renderer.pipeline.load.ArgbHex;
 import lib.minecraft.renderer.pipeline.load.V2Document;
 import lib.minecraft.renderer.pipeline.load.V2Geometry;
 import lib.minecraft.renderer.pipeline.load.V2Resources;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.BlockOverlayLayer;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.BoneToggle;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.EntityDefinition;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.EquipmentOverlay;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.LargeShape;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.OverlayLayer;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.RotateX;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.RotateY;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.RotateZ;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.Scale;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.TransformOp;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.Translate;
+import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
+import lib.minecraft.renderer.asset.Entity.BoneToggle;
+import lib.minecraft.renderer.asset.Entity.EquipmentOverlay;
+import lib.minecraft.renderer.asset.Entity.LargeShape;
+import lib.minecraft.renderer.asset.Entity.OverlayLayer;
+import lib.minecraft.renderer.asset.Entity.RotateX;
+import lib.minecraft.renderer.asset.Entity.RotateY;
+import lib.minecraft.renderer.asset.Entity.RotateZ;
+import lib.minecraft.renderer.asset.Entity.Scale;
+import lib.minecraft.renderer.asset.Entity.TransformOp;
+import lib.minecraft.renderer.asset.Entity.Translate;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
@@ -44,7 +43,7 @@ import java.util.Set;
 /**
  * The native v2 reader for entity model definitions: the flattener inverse. Reads the family form of
  * {@code v2/entity_models.json} (90 base-entity families) joined against {@code v2/entity_geometry.json}
- * (the deduplicated bone trees) DIRECTLY into the {@link EntityDefinition} map the renderer consumes -
+ * (the deduplicated bone trees) DIRECTLY into the {@link Entity} map the renderer consumes -
  * with no legacy flat-row intermediate, no eight parallel side-channel maps, and no
  * {@code CARRIED_FIELDS} lock-step.
  *
@@ -99,7 +98,7 @@ public final class EntityFamilyReader {
      * @throws PipelineException if a resource is malformed, or an entity references a geometry
      *     coordinate absent from the geometry file
      */
-    public static @NotNull ConcurrentMap<String, EntityDefinition> load(@NotNull Diagnostics diagnostics) {
+    public static @NotNull ConcurrentMap<String, Entity> load(@NotNull Diagnostics diagnostics) {
         Optional<V2Document> geometryDoc = V2Resources.read(GEOMETRY_RESOURCE, V2Resources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
         Optional<V2Document> modelsDoc = V2Resources.read(MODELS_RESOURCE, V2Resources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
         if (geometryDoc.isEmpty() || modelsDoc.isEmpty()) return Concurrent.newMap();
@@ -109,7 +108,7 @@ public final class EntityFamilyReader {
         JsonObject families = familiesOf(modelsDoc.get());
         if (families == null) return Concurrent.newMap();
 
-        LinkedHashMap<String, EntityDefinition> definitions = new LinkedHashMap<>();
+        LinkedHashMap<String, Entity> definitions = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> entry : families.entrySet()) {
             if (!entry.getValue().isJsonObject()) continue;
             readFamily(entry.getKey(), entry.getValue().getAsJsonObject(), geometries, definitions, diagnostics);
@@ -185,14 +184,14 @@ public final class EntityFamilyReader {
     // ------------------------------------------------------------------------------------
 
     /**
-     * Reads one v2 family into one (plain) or many (id-encoded variant) {@link EntityDefinition} rows,
+     * Reads one v2 family into one (plain) or many (id-encoded variant) {@link Entity} rows,
      * adding each to {@code definitions}.
      */
     private static void readFamily(
         @NotNull String familyId,
         @NotNull JsonObject family,
         @NotNull Map<String, EntityModelData> geometries,
-        @NotNull Map<String, EntityDefinition> definitions,
+        @NotNull Map<String, Entity> definitions,
         @NotNull Diagnostics diagnostics
     ) {
         // Axis unification #1: the family baseline (primary geometry + adult texture) lives under the
@@ -240,13 +239,13 @@ public final class EntityFamilyReader {
             // from EntityAppearance.variant. Every option is built into a sub-definition (byte-identical to
             // the pseudo-id it replaced); the base row IS the default coat carrying the full option map so
             // the resolver fold + family canvas union reach every coat.
-            LinkedHashMap<String, EntityDefinition> coats = new LinkedHashMap<>();
+            LinkedHashMap<String, Entity> coats = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> option : options.entrySet())
                 coats.put(option.getKey(), buildVariantRow(familyId, option.getValue().getAsJsonObject(), ctx, diagnostics));
-            EntityDefinition base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
-            EntityDefinition.Axes baseAxes = base.axes();
+            Entity base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
+            Entity.Axes baseAxes = base.axes();
             definitions.put(familyId, base.toBuilder()
-                .axes(new EntityDefinition.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.largeShape(),
+                .axes(new Entity.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.largeShape(),
                     baseAxes.sizeModels(), baseAxes.sizeScales(), Map.copyOf(coats)))
                 .build());
             return;
@@ -266,13 +265,13 @@ public final class EntityFamilyReader {
         String babyTexture = babyTextureOf(family);
         if (babyTexture != null) stateTextures.put("baby", babyTexture);
 
-        definitions.put(familyId, EntityDefinition.builder()
+        definitions.put(familyId, Entity.builder()
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .boneToggles(toggles)
-            .axes(new EntityDefinition.Axes(stateTextures, babyModel,
+            .axes(new Entity.Axes(stateTextures, babyModel,
                 buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries), buildSizeScales(family), Map.of()))
-            .layers(new EntityDefinition.Layers(collarTexture, equipment, markings, humanoidArmor, markingTextures))
+            .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor, markingTextures))
             .build());
     }
 
@@ -299,13 +298,13 @@ public final class EntityFamilyReader {
     ) {}
 
     /**
-     * Builds one variant option's {@link EntityDefinition}: the option's geometry (its own coordinate when
+     * Builds one variant option's {@link Entity}: the option's geometry (its own coordinate when
      * it overrides the family mesh, else the base coordinate) with the family's bone toggles, hidden-bone
      * strip, and overlays materialised on it, plus the option's {@code wild} coat texture and per-state
      * textures. The built definition carries an empty {@code axes.variants} - it is a leaf coat, whether it
      * lands under an id-encoded pseudo-id or in an option-encoded family's coat map.
      */
-    private static @NotNull EntityDefinition buildVariantRow(
+    private static @NotNull Entity buildVariantRow(
         @NotNull String rowId,
         @NotNull JsonObject optionObj,
         @NotNull VariantContext ctx,
@@ -318,12 +317,12 @@ public final class EntityFamilyReader {
         List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), rowCoord, model, rowId, diagnostics);
         Map<String, String> stateTextures = variantStateTextures(optionObj);
         Optional<String> textureRef = variantWildTexture(optionObj);
-        return EntityDefinition.builder()
+        return Entity.builder()
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(ctx.blockOverlays())
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
             .boneToggles(toggles)
-            .axes(new EntityDefinition.Axes(stateTextures, ctx.babyModel(), Optional.empty(), Map.of(), Map.of(), Map.of()))
-            .layers(new EntityDefinition.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor(), ctx.markingTextures()))
+            .axes(new Entity.Axes(stateTextures, ctx.babyModel(), Optional.empty(), Map.of(), Map.of(), Map.of()))
+            .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor(), ctx.markingTextures()))
             .build();
     }
 

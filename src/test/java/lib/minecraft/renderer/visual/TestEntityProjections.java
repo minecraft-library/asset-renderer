@@ -10,6 +10,7 @@ import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lombok.experimental.UtilityClass;
@@ -70,7 +71,7 @@ public final class TestEntityProjections {
             throw ex;
         }
         PipelineRendererContext context = PipelineRendererContext.of(result);
-        ConcurrentMap<String, EntityModelLoader.EntityDefinition> javaEntities = EntityModelLoader.load();
+        ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
             System.err.println("entity_models.json / entity_geometry.json not present - run entityModelsJava first");
             return;

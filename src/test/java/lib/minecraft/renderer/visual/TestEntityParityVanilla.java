@@ -9,6 +9,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lombok.experimental.UtilityClass;
@@ -92,7 +93,7 @@ public final class TestEntityParityVanilla {
         }
 
         PipelineRendererContext context = PipelineRendererContext.of(result);
-        ConcurrentMap<String, EntityModelLoader.EntityDefinition> javaEntities = EntityModelLoader.load();
+        ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
             System.err.println("entity_models.json missing - run :asset-renderer:entityModelsJava first");
             return;

@@ -7,6 +7,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -82,7 +83,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Passed in directly rather than queried through {@code context.findEntity()} so visual tests
      * can swap in custom fixtures.
      */
-    private final @NotNull Map<String, EntityModelLoader.EntityDefinition> javaEntities;
+    private final @NotNull Map<String, Entity> javaEntities;
 
     /**
      * The entity's model-to-world facing - the humanoid {@code R_Y(180)} yaw flip (same as the player's,
@@ -119,14 +120,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (options.getEntityId().isEmpty())
             return FrameCompositor.emptyFrame();
 
-        EntityModelLoader.EntityDefinition definition = this.javaEntities.get(options.getEntityId().get());
+        Entity definition = this.javaEntities.get(options.getEntityId().get());
         if (definition == null)
             return FrameCompositor.emptyFrame();
 
         // Fold the age / carried policy into a single resolved definition up front, so every
         // downstream site (texture, ortho bounds, geometry contributors) reads it unconditionally
         // with no scattered !baby gates. The resolve is a no-op for a non-baby, non-carried appearance.
-        EntityModelLoader.EntityDefinition resolved = EntityDefinitionResolver.resolve(definition, options.getAppearance());
+        Entity resolved = EntityDefinitionResolver.resolve(definition, options.getAppearance());
         EntityModelData model = resolved.model();
 
         Optional<PixelBuffer> texture = resolveEntityTexture(resolved, options);
@@ -143,7 +144,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // its own transform chain after entity-fit normalization, so its bounds aren't included
         // here - only model-overlay (cube tree) geometries that share the entity's frame.
         Box baseBounds = EntityGeometryKit.computeBounds(model);
-        for (EntityModelLoader.OverlayLayer overlay : resolved.overlays()) {
+        for (Entity.OverlayLayer overlay : resolved.overlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
             Box overlayBounds = EntityGeometryKit.computeBounds(overlay.model());
             baseBounds = new Box(
@@ -159,7 +160,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // equipment mesh (horse/nautilus/wolf armor, the llama carpet's CubeDeformation) can't crop at
         // the canvas edge. Gated on the equipment axis, so the default (unequipped) render is
         // byte-identical (mirrors the EQUIPMENT feature's render gate).
-        for (EntityModelLoader.EquipmentOverlay equipment : resolved.layers().equipment()) {
+        for (Entity.EquipmentOverlay equipment : resolved.layers().equipment()) {
             if (!equipmentSelected(equipment, options.getAppearance())) continue;
             baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(equipment.model()));
         }
@@ -220,7 +221,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // sizes from these bounds, not the rendered triangles). A null texture measures the mesh's
             // geometric AABB - conservative, no equipment-texture resolution. Gated on the equipment
             // axis, so the default (unequipped) canvas stays byte-identical.
-            for (EntityModelLoader.EquipmentOverlay equipment : resolved.layers().equipment()) {
+            for (Entity.EquipmentOverlay equipment : resolved.layers().equipment()) {
                 if (!equipmentSelected(equipment, options.getAppearance())) continue;
                 screenBounds = unionBoxes(screenBounds,
                     EntityGeometryKit.computeScreenBounds(equipment.model(), renderOrient, modelScale, null));
@@ -294,13 +295,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * present - looked up against the Java atlas via the pack stack) &gt; the {@code <variant>_baby}
      * texture when the resolved definition renders the baby mesh &gt; an
      * {@link EntityAppearance#getState() state} selection matching one of the definition's
-     * {@link EntityModelLoader.EntityDefinition#stateTextures() state textures} (wolf
+     * {@link Entity#stateTextures() state textures} (wolf
      * {@code tame}/{@code angry}) &gt; the entity's own
-     * {@link EntityModelLoader.EntityDefinition#textureRef() texture_ref}. Each family-form ref is
+     * {@link Entity#textureRef() texture_ref}. Each family-form ref is
      * resolved against the vanilla pack at {@code minecraft:entity/<ref>} via {@link #resolveEntityRef}.
      */
     private @NotNull Optional<PixelBuffer> resolveEntityTexture(
-        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull Entity definition,
         @NotNull EntityOptions options
     ) {
         if (options.getTextureId().isPresent())
@@ -321,7 +322,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * (unweathered) render byte-identical.
      */
     private @NotNull Optional<String> selectWeatheringTexture(
-        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull Entity definition,
         @NotNull EntityAppearance appearance
     ) {
         if (appearance.getWeathering() == CopperWeathering.UNAFFECTED) return Optional.empty();
@@ -344,12 +345,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * The baby texture when the resolved definition renders the baby mesh - the baby mesh has its
      * own UV layout, so it binds the matching {@code <variant>_baby} texture carried in
-     * {@link EntityModelLoader.EntityDefinition#stateTextures() stateTextures} under {@code "baby"}.
+     * {@link Entity#stateTextures() stateTextures} under {@code "baby"}.
      * Empty when the render is not a baby, the entity has no baby mesh, or no baby texture is
      * present (so the caller falls through to the state / default texture).
      */
     private @NotNull Optional<PixelBuffer> babyTexture(
-        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull Entity definition,
         @NotNull EntityAppearance appearance
     ) {
         if (!appearance.isBaby() || definition.axes().babyModel().isEmpty())
@@ -364,7 +365,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@code texture_ref}, so an unset or {@code wild} state leaves the render byte-identical.
      */
     private @NotNull Optional<String> selectStateTexture(
-        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull Entity definition,
         @NotNull EntityAppearance appearance
     ) {
         return appearance.getState().map(definition.axes().stateTextures()::get);
@@ -399,7 +400,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 // profession_level) so one shared VillagerType / VillagerProfession / VillagerLevel enum
                 // serves both entities.
                 String texturePrefix = texturePrefix(ctx.definition());
-                for (EntityModelLoader.OverlayLayer overlay : ctx.definition().overlays()) {
+                for (Entity.OverlayLayer overlay : ctx.definition().overlays()) {
                     // A tint-gated overlay (sheep wool undercoat) only renders once its tint_by colour
                     // is selected; skip it for the default (untinted) entity so the default is unchanged.
                     if (overlay.gate().filter(gate -> gate instanceof AppearanceGate.TintedGate).isPresent()
@@ -501,7 +502,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 EntityAppearance appearance = ctx.options().getAppearance();
-                for (EntityModelLoader.EquipmentOverlay equipment : ctx.definition().layers().equipment()) {
+                for (Entity.EquipmentOverlay equipment : ctx.definition().layers().equipment()) {
                     Optional<String> material = appearance.equipmentMaterial(equipment.slot());
                     if (material.isEmpty()) continue;
                     String textureRef = equipment.textureFor(material.get());
@@ -530,7 +531,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 EntityModelData model = ctx.model();
                 Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(
                     ctx.modelAnchor(), ctx.ndcScale() * ctx.modelScale());
-                for (EntityModelLoader.BlockOverlayLayer blockOverlay : ctx.definition().blockOverlays())
+                for (Entity.BlockOverlayLayer blockOverlay : ctx.definition().blockOverlays())
                     stack.append(this.slot, sink ->
                         sink.addAll(buildBlockOverlayTriangles(ctx.context(), blockOverlay, model, entityFit)));
             }
@@ -567,7 +568,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * The per-render inputs an {@link EntityFeature} needs, bundling the feature-dispatch data with the
      * shared geometry-build frame the layers rasterize in: the age / carried-resolved
-     * {@link EntityModelLoader.EntityDefinition definition}, the {@link EntityOptions} (appearance +
+     * {@link Entity definition}, the {@link EntityOptions} (appearance +
      * armor pieces), the primary {@link EntityModelData model} (adult or baby), and the base body build
      * result whose bone bounds the armor feature consumes, plus the resolved base texture, model anchor,
      * NDC + model scale, {@link Textures} service, and {@link RendererContext}. The scene-frame fields
@@ -586,7 +587,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param context the renderer context for overlay-texture and block lookups
      */
     private record FeatureContext(
-        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull Entity definition,
         @NotNull EntityOptions options,
         @NotNull EntityModelData model,
         @NotNull EntityGeometryKit.BuildResult buildResult,
@@ -601,7 +602,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * The effective texture ref for a model overlay: the {@code texture_by} axis selection when the
      * overlay is axis-driven and the appearance supplies it, else the overlay's baked
-     * {@link EntityModelLoader.OverlayLayer#textureRef() default texture} (empty = reuse the base
+     * {@link Entity.OverlayLayer#textureRef() default texture} (empty = reuse the base
      * entity texture). Axes: {@code pattern} (tropical fish, baked default {@code KOB}),
      * {@code crackiness} (iron golem, empty at {@code NONE} so the overlay is skipped),
      * {@code weathering} (copper-golem eyes, always resolves to the state's eye texture), and the
@@ -616,7 +617,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *     prepended to the villager profession-layer axes' prefix-relative sub-paths
      * @return the effective texture ref, or empty when the overlay's axis resolves to nothing
      */
-    private static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance, @NotNull String texturePrefix) {
+    private static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance, @NotNull String texturePrefix) {
         if (overlay.textureBy().filter("pattern"::equals).isPresent())
             return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(overlay::textureRef);
         if (overlay.textureBy().filter("crackiness"::equals).isPresent())
@@ -642,7 +643,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param definition the resolved entity definition
      * @return the texture prefix, or the empty string when no texture ref is present
      */
-    private static @NotNull String texturePrefix(@NotNull EntityModelLoader.EntityDefinition definition) {
+    private static @NotNull String texturePrefix(@NotNull Entity definition) {
         return definition.textureRef().map(ref -> {
             int slash = ref.indexOf('/');
             return slash < 0 ? ref : ref.substring(0, slash);
@@ -653,11 +654,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * The effective multiplicative tint for a model overlay: the {@code tint_by} axis colour when the
      * overlay is dye-driven ({@code wool_color} sheep wool, {@code pattern_color} tropical fish) and
      * the appearance supplies that {@link TintAxis axis}' dye, else the overlay's baked
-     * {@link EntityModelLoader.OverlayLayer#tintArgb() default tint}. The default keeps an
+     * {@link Entity.OverlayLayer#tintArgb() default tint}. The default keeps an
      * unselected overlay byte-identical; a selected dye multiplies the overlay by the dye's ARGB
      * (mirroring vanilla's {@code coloredCutoutModelRender} colour arg), exactly like the collar tint.
      */
-    private static int resolveOverlayTint(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
+    private static int resolveOverlayTint(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
         return selectedOverlayTint(overlay, appearance).map(DyeColor::argb).orElse(overlay.tintArgb());
     }
 
@@ -665,7 +666,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * The dye selected for the overlay's {@code tint_by} axis, or empty when the overlay is untinted
      * or the appearance leaves that axis at its default.
      */
-    private static @NotNull Optional<DyeColor> selectedOverlayTint(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
+    private static @NotNull Optional<DyeColor> selectedOverlayTint(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
         return overlay.tintBy().flatMap(TintAxis::ofToken).flatMap(appearance::tint);
     }
 
@@ -673,12 +674,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Whether the appearance supplies the overlay's {@code tint_by} axis colour. Drives both the tint
      * override and the {@code requires_tint} render gate (the sheep wool undercoat).
      */
-    private static boolean hasSelectedTint(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
+    private static boolean hasSelectedTint(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
         return selectedOverlayTint(overlay, appearance).isPresent();
     }
 
     /**
-     * Builds the rasterizer-ready triangles for one {@link EntityModelLoader.BlockOverlayLayer}.
+     * Builds the rasterizer-ready triangles for one {@link Entity.BlockOverlayLayer}.
      * Composes the overlay's transform chain (in vanilla block units) with the optional bone
      * anchor (whose pivot+rotation comes from the entity geometry, divided by 16 to convert from
      * pixel-units to block-units), then converts back to entity pixel-units (x16) and applies
@@ -698,7 +699,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildBlockOverlayTriangles(
         @NotNull RendererContext context,
-        @NotNull EntityModelLoader.BlockOverlayLayer overlay,
+        @NotNull Entity.BlockOverlayLayer overlay,
         @NotNull EntityModelData model,
         @NotNull Matrix4f entityFit
     ) {
@@ -731,13 +732,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // ancestor chain, not just the attached bone's own local pivot / rotation.
         Matrix4f blockUnitChain = Matrix4f.IDENTITY;
 
-        for (EntityModelLoader.TransformOp op : overlay.transforms()) {
+        for (Entity.TransformOp op : overlay.transforms()) {
             blockUnitChain = switch (op) {
-                case EntityModelLoader.Translate t -> blockUnitChain.translate(t.x(), t.y(), t.z());
-                case EntityModelLoader.RotateY r -> blockUnitChain.rotateY((float) Math.toRadians(r.degrees()));
-                case EntityModelLoader.RotateX r -> blockUnitChain.rotateX((float) Math.toRadians(r.degrees()));
-                case EntityModelLoader.RotateZ r -> blockUnitChain.rotateZ((float) Math.toRadians(r.degrees()));
-                case EntityModelLoader.Scale s -> blockUnitChain.scale(s.x(), s.y(), s.z());
+                case Entity.Translate t -> blockUnitChain.translate(t.x(), t.y(), t.z());
+                case Entity.RotateY r -> blockUnitChain.rotateY((float) Math.toRadians(r.degrees()));
+                case Entity.RotateX r -> blockUnitChain.rotateX((float) Math.toRadians(r.degrees()));
+                case Entity.RotateZ r -> blockUnitChain.rotateZ((float) Math.toRadians(r.degrees()));
+                case Entity.Scale s -> blockUnitChain.scale(s.x(), s.y(), s.z());
             };
         }
 
@@ -833,7 +834,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private @NotNull Box computeScreenBoundsFor(
         @NotNull BoundsScope scope,
         @NotNull String entityId,
-        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull Entity definition,
         @NotNull Matrix4f transform,
         float modelScale,
         @NotNull PixelBuffer texture
@@ -915,14 +916,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * block-model layers in its family-fit pre-pass, so both canvases fit the overlay uncropped.
      */
     private @NotNull Box computeUnionScreenBounds(
-        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull Entity definition,
         @NotNull Matrix4f transform,
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
         Box bounds = EntityGeometryKit.computeScreenBounds(definition.model(), transform, modelScale, texture);
         RendererDebug.baseBounds(bounds);
-        for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
+        for (Entity.OverlayLayer overlay : definition.overlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
             // Overlays flagged skipBounds (LlamaDecorLayer-style equipment-driven overlays) still
             // render but don't contribute to bounds, mirroring the vanilla harness's
@@ -938,7 +939,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // orientation.
         if (!definition.blockOverlays().isEmpty()) {
             Matrix4f fitNeutral = EntityGeometryKit.buildEntityFitMatrix(Vector3f.ZERO, modelScale);
-            for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays()) {
+            for (Entity.BlockOverlayLayer blockOverlay : definition.blockOverlays()) {
                 ConcurrentList<VisibleTriangle> tris = buildBlockOverlayTriangles(this.context, blockOverlay, definition.model(), fitNeutral);
                 Box boBounds = EntityGeometryKit.computeBlockOverlayScreenBounds(tris, transform);
                 bounds = unionBoxes(bounds, boBounds);
@@ -957,7 +958,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * member to share the same canvas dimensions, scale, and anchor.
      * <p>
      * Per-member: load the variant's own definition + default texture (NOT the current render's
-     * options-override texture), apply the variant's {@link EntityModelLoader.EntityDefinition#rendererScale rendererScale} model
+     * options-override texture), apply the variant's {@link Entity#rendererScale rendererScale} model
      * scale, run {@code computeUnionScreenBounds}, union the result. Family members whose
      * texture / definition can't be resolved (missing PNG, unloaded variant) are skipped - the
      * union degrades to the available members rather than throwing.
@@ -969,7 +970,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull Box computeFamilyUnionScreenBounds(
         @NotNull String entityId,
-        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull Entity definition,
         @NotNull Matrix4f transform,
         float modelScale,
         @NotNull PixelBuffer texture
@@ -984,7 +985,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
             if (memberId.equals(entityId)) continue;
-            EntityModelLoader.EntityDefinition memberDef = this.javaEntities.get(memberId);
+            Entity memberDef = this.javaEntities.get(memberId);
             if (memberDef == null || memberDef.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> memberTexture = resolveFamilyMemberTexture(memberDef);
             if (memberTexture.isEmpty()) continue;
@@ -998,14 +999,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
      * Unions the screen-space silhouettes of a definition's option-encoded variant coats
-     * ({@link EntityModelLoader.EntityDefinition.Axes#variants()}) into {@code bounds}, each measured at its
+     * ({@link Entity.Axes#variants()}) into {@code bounds}, each measured at its
      * own coat texture + render scale (mirroring the family-member walk). A no-op when the definition is
      * absent or carries no variant coats (id-encoded / non-variant families), so the canvas is byte-identical
      * there.
      */
-    private @NotNull Box unionVariantSilhouettes(@NotNull Box bounds, @Nullable EntityModelLoader.EntityDefinition definition, @NotNull Matrix4f transform) {
+    private @NotNull Box unionVariantSilhouettes(@NotNull Box bounds, @Nullable Entity definition, @NotNull Matrix4f transform) {
         if (definition == null) return bounds;
-        for (EntityModelLoader.EntityDefinition coat : definition.axes().variants().values()) {
+        for (Entity coat : definition.axes().variants().values()) {
             if (coat.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> coatTexture = resolveFamilyMemberTexture(coat);
             if (coatTexture.isEmpty()) continue;
@@ -1019,7 +1020,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@link #resolveEntityTexture} this ignores {@code options.textureId} (family-fit measures
      * each variant's OWN bound, not the current-render texture override).
      */
-    private @NotNull Optional<PixelBuffer> resolveFamilyMemberTexture(@NotNull EntityModelLoader.EntityDefinition definition) {
+    private @NotNull Optional<PixelBuffer> resolveFamilyMemberTexture(@NotNull Entity definition) {
         if (definition.textureRef().isEmpty()) return Optional.empty();
         return resolveEntityRef(definition.textureRef().get());
     }
@@ -1035,7 +1036,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @return {@code true} when the overlay's slot is selected and its mesh is non-empty
      */
     private static boolean equipmentSelected(
-        @NotNull EntityModelLoader.EquipmentOverlay equipment,
+        @NotNull Entity.EquipmentOverlay equipment,
         @NotNull EntityAppearance appearance
     ) {
         return appearance.equipmentMaterial(equipment.slot()).isPresent()
