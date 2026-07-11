@@ -1,19 +1,12 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.ArgbHex;
 import lib.minecraft.renderer.pipeline.load.V2Document;
 import lib.minecraft.renderer.pipeline.load.V2Resources;
 import lib.minecraft.renderer.tooling.ToolingPotionColors;
-import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -32,8 +25,7 @@ import java.util.List;
  * <p>
  * Colours are stored as {@code 0x}-prefixed hex strings in the JSON because Gson cannot round-trip
  * {@code 0xFF000000}-class signed integers literally; the native read decodes them through
- * {@link ArgbHex}. Under {@code -Dasset.tooling2.bridge} the legacy-shaped tree is parsed the legacy
- * way instead, kept as the rollback floor until the bridge is retired.
+ * {@link ArgbHex}.
  */
 @UtilityClass
 public class PotionColorLoader {
@@ -44,20 +36,12 @@ public class PotionColorLoader {
     private static final @NotNull String RESOURCE_NAME = "potion_colors.json";
 
     /**
-     * Shared Gson configured with the project defaults, used by the bridge-path parse.
-     */
-    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
-
-    /**
-     * Loads the bundled effect colour table, natively from v2 or - under
-     * {@code -Dasset.tooling2.bridge} - from the materialized legacy-shaped tree.
+     * Loads the bundled effect colour table natively from v2.
      *
      * @return a map of namespaced effect id to ARGB colour
      * @throws PipelineException if the classpath resource is missing or malformed
      */
     public static @NotNull ConcurrentMap<String, Integer> load() {
-        if (LegacyBridge.active())
-            return parse(GSON.toJson(LegacyBridge.materialize(RESOURCE_NAME).toGson()));
         return loadNative(Diagnostics.root("potionColors", Diagnostics.Output.CONSOLE, null));
     }
 
@@ -75,47 +59,6 @@ public class PotionColorLoader {
         for (V2Effect effect : document.as(V2PotionColors.class).effects())
             colors.put(effect.effect(), ArgbHex.parse(effect.color(), diagnostics));
         return Concurrent.adoptMap(colors).toUnmodifiable();
-    }
-
-    /**
-     * Parses a legacy {@code potion_colors.json}-shaped string into the colour map - the bridge
-     * (flag-on) path. Each entry's {@code color} is a {@code 0x}-prefixed hex string decoded via
-     * {@link Integer#parseUnsignedInt(String, int)}. A missing {@code effects} array yields an empty
-     * map. Exposed for tests.
-     *
-     * @param json the JSON text to parse
-     * @return a map of namespaced effect id to ARGB colour
-     * @throws PipelineException if the JSON is malformed or a colour fails to parse
-     */
-    static @NotNull ConcurrentMap<String, Integer> parse(@NotNull String json) {
-        HashMap<String, Integer> colors = new HashMap<>();
-        try {
-            JsonObject root = GSON.fromJson(json, JsonObject.class);
-            JsonArray effects = root.getAsJsonArray("effects");
-            if (effects == null) return Concurrent.adoptMap(colors);
-
-            for (JsonElement element : effects) {
-                JsonObject entry = element.getAsJsonObject();
-                String effectId = entry.get("effect").getAsString();
-                String hex = entry.get("color").getAsString();
-                int argb = Integer.parseUnsignedInt(stripHexPrefix(hex), 16);
-                colors.put(effectId, argb);
-            }
-        } catch (JsonSyntaxException | IllegalStateException | NumberFormatException ex) {
-            throw new PipelineException(ex, "Malformed '%s' resource", RESOURCE_NAME);
-        }
-        return Concurrent.adoptMap(colors).toUnmodifiable();
-    }
-
-    /**
-     * Strips a leading {@code 0x} or {@code 0X} prefix from a hex string, leaving already-bare
-     * strings untouched so {@link Integer#parseUnsignedInt(String, int)} can consume the digits.
-     *
-     * @param hex the colour string, with or without a {@code 0x} prefix
-     * @return the prefix-free hex digits
-     */
-    private static @NotNull String stripHexPrefix(@NotNull String hex) {
-        return hex.startsWith("0x") || hex.startsWith("0X") ? hex.substring(2) : hex;
     }
 
     /** The v2 {@code potion_colors.json} payload: the ordered effect-colour rows. */

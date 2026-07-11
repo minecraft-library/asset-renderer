@@ -1,18 +1,11 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentSet;
-import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.V2Document;
 import lib.minecraft.renderer.pipeline.load.V2Resources;
 import lib.minecraft.renderer.tooling.ToolingGlintItems;
-import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -31,9 +24,7 @@ import java.util.List;
  * run the {@code glintItems2} Gradle task; the runtime pipeline never invokes the ASM walker directly.
  * <p>
  * Membership gates the automatic foil sheen at render time: an item in this set renders with the
- * enchantment glint even when its render options carry no explicit enchantment flag. Under
- * {@code -Dasset.tooling2.bridge} the legacy-shaped tree is parsed instead, kept as the rollback
- * floor until the bridge is retired.
+ * enchantment glint even when its render options carry no explicit enchantment flag.
  */
 @UtilityClass
 public class GlintItemsLoader {
@@ -44,20 +35,12 @@ public class GlintItemsLoader {
     private static final @NotNull String RESOURCE_NAME = "glint_items.json";
 
     /**
-     * Shared Gson configured with the project defaults, used by the bridge-path parse.
-     */
-    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
-
-    /**
-     * Loads the bundled always-glinted item set, natively from v2 or - under
-     * {@code -Dasset.tooling2.bridge} - from the materialized legacy-shaped tree.
+     * Loads the bundled always-glinted item set natively from v2.
      *
      * @return the set of namespaced item ids that carry an always-on glint override, unmodifiable
      * @throws PipelineException if the classpath resource is missing or malformed
      */
     public static @NotNull ConcurrentSet<String> load() {
-        if (LegacyBridge.active())
-            return parse(GSON.toJson(LegacyBridge.materialize(RESOURCE_NAME).toGson()));
         return loadNative(Diagnostics.root("glintItems", Diagnostics.Output.CONSOLE, null));
     }
 
@@ -72,29 +55,6 @@ public class GlintItemsLoader {
     static @NotNull ConcurrentSet<String> loadNative(@NotNull Diagnostics diagnostics) {
         V2Document document = V2Resources.read(RESOURCE_NAME, V2Resources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         HashSet<String> ids = new HashSet<>(document.as(V2GlintItems.class).items());
-        return Concurrent.adoptSet(ids).toUnmodifiable();
-    }
-
-    /**
-     * Parses a legacy {@code glint_items.json}-shaped string into the id set - the bridge (flag-on)
-     * path. A missing {@code items} array yields an empty set. Exposed for tests.
-     *
-     * @param json the JSON text to parse
-     * @return the set of namespaced item ids, unmodifiable
-     * @throws PipelineException if the JSON is malformed
-     */
-    static @NotNull ConcurrentSet<String> parse(@NotNull String json) {
-        HashSet<String> ids = new HashSet<>();
-        try {
-            JsonObject root = GSON.fromJson(json, JsonObject.class);
-            JsonArray items = root.getAsJsonArray("items");
-            if (items == null) return Concurrent.adoptSet(ids).toUnmodifiable();
-
-            for (JsonElement element : items)
-                ids.add(element.getAsString());
-        } catch (JsonSyntaxException | IllegalStateException ex) {
-            throw new PipelineException(ex, "Malformed '%s' resource", RESOURCE_NAME);
-        }
         return Concurrent.adoptSet(ids).toUnmodifiable();
     }
 

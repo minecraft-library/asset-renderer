@@ -24,8 +24,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * v2-native load-contract successors for {@link EntityFamilyReader}, pinning the same invariants the
- * bridge-era {@code EntityFamilyFlattenerTest} / {@code EntityFamilyModelLoadTest} pin, but against the
- * native family read of {@code v2/entity_models.json} directly. Load-bearing canaries: the wolf
+ * retired legacy load-contract tests pinned, but against the native family read of
+ * {@code v2/entity_models.json} directly. Load-bearing canaries: the wolf
  * variant/state texture join, the baby three-source texture chain, the dyed-collar presence, the
  * option-encoded variant coat map + resolver fold, and the depth-clearance auto-skip on a
  * base-mesh-inheriting overlay.

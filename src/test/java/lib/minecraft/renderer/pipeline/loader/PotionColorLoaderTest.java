@@ -10,10 +10,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link PotionColorLoader} against the bundled {@code /lib/minecraft/renderer/potion_colors.json}
- * snapshot. Spot-checks a handful of representative effect colours so regressions in either the
- * ASM tooling or the JSON loader get caught early, without depending on the full 30+ entry list
- * matching byte-for-byte.
+ * Verifies {@link PotionColorLoader} against the bundled {@code v2/potion_colors.json} snapshot.
+ * Spot-checks a handful of representative effect colours so regressions in either the ASM tooling or
+ * the JSON loader get caught early, without depending on the full 30+ entry list matching
+ * byte-for-byte.
  */
 class PotionColorLoaderTest {
 
@@ -50,22 +50,6 @@ class PotionColorLoaderTest {
             int alpha = (argb >>> 24) & 0xFF;
             assertThat(effectId + " alpha", alpha, is(0xFF));
         });
-    }
-
-    @Test
-    @DisplayName("parse() accepts a minimal JSON fixture")
-    void parseAcceptsMinimalJson() {
-        String json = "{\"effects\":[{\"effect\":\"minecraft:speed\",\"color\":\"0xFF33EBFF\"}]}";
-        ConcurrentMap<String, Integer> colors = PotionColorLoader.parse(json);
-        assertThat(colors.get("minecraft:speed"), is(equalTo(0xFF33EBFF)));
-    }
-
-    @Test
-    @DisplayName("parse() returns empty when the effects array is absent")
-    void parseHandlesMissingArray() {
-        String json = "{\"source_version\":\"26.1\"}";
-        ConcurrentMap<String, Integer> colors = PotionColorLoader.parse(json);
-        assertThat(colors.size(), is(0));
     }
 
 }

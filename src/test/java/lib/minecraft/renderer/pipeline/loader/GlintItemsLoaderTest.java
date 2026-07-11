@@ -8,10 +8,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link GlintItemsLoader} against the bundled {@code /lib/minecraft/renderer/glint_items.json}
- * snapshot. The vanilla MC 26.1 set is the seven intrinsically-foil items; the test pins those ids
- * and a couple of non-glint negatives so regressions in either the ASM tooling or the JSON loader
- * get caught early.
+ * Verifies {@link GlintItemsLoader} against the bundled {@code v2/glint_items.json} snapshot. The
+ * vanilla MC 26.1 set is the seven intrinsically-foil items; the test pins those ids and a couple of
+ * non-glint negatives so regressions in either the ASM tooling or the JSON loader get caught early.
  */
 class GlintItemsLoaderTest {
 
@@ -36,23 +35,6 @@ class GlintItemsLoaderTest {
         assertThat(ids.contains("minecraft:stick"), is(false));
         assertThat(ids.contains("minecraft:diamond_sword"), is(false));
         assertThat(ids.contains("minecraft:golden_apple"), is(false));
-    }
-
-    @Test
-    @DisplayName("parse() accepts a minimal JSON fixture")
-    void parseAcceptsMinimalJson() {
-        String json = "{\"items\":[\"minecraft:nether_star\"]}";
-        ConcurrentSet<String> ids = GlintItemsLoader.parse(json);
-        assertThat(ids.size(), is(1));
-        assertThat(ids.contains("minecraft:nether_star"), is(true));
-    }
-
-    @Test
-    @DisplayName("parse() returns empty when the items array is absent")
-    void parseHandlesMissingArray() {
-        String json = "{\"source_version\":\"26.1\"}";
-        ConcurrentSet<String> ids = GlintItemsLoader.parse(json);
-        assertThat(ids.size(), is(0));
     }
 
 }

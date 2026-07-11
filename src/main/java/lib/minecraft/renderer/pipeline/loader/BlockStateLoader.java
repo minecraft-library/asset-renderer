@@ -15,7 +15,6 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.block.BlockDefaultsReader;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
-import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -55,8 +54,6 @@ import java.util.stream.Stream;
 public class BlockStateLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
-
-    private static final @NotNull String DEFAULTS_RESOURCE_PATH = "/lib/minecraft/renderer/block_defaults.json";
 
     /**
      * Loads all blockstate JSON files and returns both variant and multipart data.
@@ -121,21 +118,7 @@ public class BlockStateLoader {
      * @throws PipelineException if the resource is missing or cannot be parsed
      */
     private static @NotNull ConcurrentMap<String, String> loadDefaultStateKeys() {
-        // Flag-off reads the structured v2 block_defaults natively. Under -Dasset.tooling2.bridge the
-        // legacy comma-joined-string shape is materialized and parsed, kept as the rollback floor
-        // until the bridge is retired.
-        if (!LegacyBridge.active())
-            return BlockDefaultsReader.load(Diagnostics.root("blockDefaults", Diagnostics.Output.CONSOLE, null));
-
-        JsonObject root = LegacyBridge.materialize("block_defaults.json").toGson().getAsJsonObject();
-        if (root == null || !root.has("blocks"))
-            throw new PipelineException("Vanilla block-defaults resource '%s' has no 'blocks' object", DEFAULTS_RESOURCE_PATH);
-
-        HashMap<String, String> defaults = new HashMap<>();
-        JsonObject blocks = root.getAsJsonObject("blocks");
-        for (String blockId : blocks.keySet())
-            defaults.put(blockId, blocks.get(blockId).getAsString());
-        return Concurrent.adoptMap(defaults).toUnmodifiable();
+        return BlockDefaultsReader.load(Diagnostics.root("blockDefaults", Diagnostics.Output.CONSOLE, null));
     }
 
     /**

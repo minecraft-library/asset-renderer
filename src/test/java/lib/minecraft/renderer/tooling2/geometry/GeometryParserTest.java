@@ -30,28 +30,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Smoke tests for the tooling2 {@link GeometryParser} edge refit (SPINE decision 31): a
  * plain factory (wolf) and a gnarly one (ghast - MeshTransformer 4.5, seeded RandomSource
- * tentacles, string-concat bone names) must value-match the checked-in legacy
- * {@code entity_geometry.json} entries with floats EXACT - any ULP delta is a different
- * computation path, a finding, never noise (10-bridge SS7; the match-vanilla rule). Plus
+ * tentacles, string-concat bone names) must value-match the checked-in {@code v2/entity_geometry.json}
+ * entries with floats EXACT - any ULP delta is a different computation path, a finding, never noise
+ * (the match-vanilla rule). Retargeted from the legacy resource to the v2 file when the tooling2
+ * bridge retired: a live parse must still reproduce the committed v2 bytes (a regen-drift guard). Plus
  * the manifest dedupe / key-identity contract (decision 15).
  *
  * <p>FQN in the doc-12 K11 registry addition; shadows no legacy name (the legacy parser
  * had no dedicated test).
  */
-@DisplayName("tooling2 GeometryParser smoke: exact-float value parity vs checked-in legacy entries")
+@DisplayName("tooling2 GeometryParser smoke: exact-float value parity vs checked-in v2 entries")
 class GeometryParserTest {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     private static ClassNodeCache cache;
-    private static JsonObject legacyGeometries;
+    private static JsonObject v2Geometries;
 
     @BeforeAll
     static void open() {
         cache = ClassNodeCache.open(Pipeline.downloadJarToCache(PipelineOptions.defaults()));
-        legacyGeometries = GSON.fromJson(new InputStreamReader(
+        v2Geometries = GSON.fromJson(new InputStreamReader(
                 Objects.requireNonNull(GeometryParserTest.class.getResourceAsStream(
-                    "/lib/minecraft/renderer/entity_geometry.json")), StandardCharsets.UTF_8),
+                    "/lib/minecraft/renderer/v2/entity_geometry.json")), StandardCharsets.UTF_8),
                 JsonElement.class)
             .getAsJsonObject().getAsJsonObject("geometries");
     }
@@ -62,25 +63,25 @@ class GeometryParserTest {
     }
 
     @Test
-    @DisplayName("plain factory: AdultWolfModel#createBodyLayer matches geometry.adultwolf exactly")
+    @DisplayName("plain factory: AdultWolfModel#createBodyLayer matches its v2 entry exactly")
     void wolfParsesExact() {
         // createBodyLayer(CubeDeformation) returns a MeshDefinition - texture dims come from
         // the LayerDefinitions.createRoots call site, carried as request overrides (doc-12 S7)
         GeometryRequest request = GeometryRequest.body(
             "net/minecraft/client/model/animal/wolf/AdultWolfModel", "createBodyLayer",
             "minecraft:wolf", 64, 32, null, 1f);
-        assertParsesExactly(request, "geometry.adultwolf");
+        assertParsesExactly(request, "AdultWolfModel#createBodyLayer");
     }
 
     @Test
-    @DisplayName("gnarly factory: GhastModel#createBodyLayer (MT 4.5, seeded random) matches geometry.ghast exactly")
+    @DisplayName("gnarly factory: GhastModel#createBodyLayer (MT 4.5, seeded random) matches its v2 entry exactly")
     void ghastParsesExact() {
         // the 4.5 MeshTransformer is INLINE in the factory body - the walk captures it and
         // applyMeshTransformerScaling folds it; the request carries no external scale
         GeometryRequest request = GeometryRequest.body(
             "net/minecraft/client/model/monster/ghast/GhastModel", "createBodyLayer",
             "minecraft:ghast", null, null, null, 1f);
-        assertParsesExactly(request, "geometry.ghast");
+        assertParsesExactly(request, "GhastModel#createBodyLayer");
     }
 
     @Test
@@ -116,25 +117,26 @@ class GeometryParserTest {
 
     // ------------------------------------------------------------------------------------
 
-    private static void assertParsesExactly(@NotNull GeometryRequest request, @NotNull String legacyKey) {
-        JsonObject legacy = legacyGeometries.getAsJsonObject(legacyKey);
-        assertNotNull(legacy, legacyKey + " missing from the checked-in legacy resource");
+    private static void assertParsesExactly(@NotNull GeometryRequest request, @NotNull String key) {
+        JsonObject reference = v2Geometries.getAsJsonObject(key);
+        assertNotNull(reference, key + " missing from the checked-in v2 resource");
         JsonNode parsedNode = GeometryParser.parse(cache, request,
             Diagnostics.root("geometryParserTest", Diagnostics.Output.NONE, null));
         assertNotNull(parsedNode, request.subjectId() + " parse returned null");
         JsonObject parsed = parsedNode.toGson().getAsJsonObject();
 
-        // effective dims mirror GeometryFlow's rule: request overrides win over the parse
+        // effective dims mirror GeometryFlow's rule: request overrides win over the parse. The v2
+        // reference pairs the atlas dims as a texture_size[w,h] array (the parser emits scalars).
         int textureWidth = request.texWidthOverride() != null ? request.texWidthOverride() : parsed.get("textureWidth").getAsInt();
         int textureHeight = request.texHeightOverride() != null ? request.texHeightOverride() : parsed.get("textureHeight").getAsInt();
-        assertEquals(legacy.get("textureWidth").getAsInt(), textureWidth, "textureWidth");
-        assertEquals(legacy.get("textureHeight").getAsInt(), textureHeight, "textureHeight");
+        assertEquals(reference.getAsJsonArray("texture_size").get(0).getAsInt(), textureWidth, "textureWidth");
+        assertEquals(reference.getAsJsonArray("texture_size").get(1).getAsInt(), textureHeight, "textureHeight");
 
-        JsonObject legacyBones = legacy.getAsJsonObject("bones");
+        JsonObject referenceBones = reference.getAsJsonObject("bones");
         JsonObject parsedBones = parsed.getAsJsonObject("bones");
-        assertEquals(legacyBones.keySet(), parsedBones.keySet(), "bone name set");
-        for (String bone : legacyBones.keySet()) {
-            JsonObject expected = legacyBones.getAsJsonObject(bone);
+        assertEquals(referenceBones.keySet(), parsedBones.keySet(), "bone name set");
+        for (String bone : referenceBones.keySet()) {
+            JsonObject expected = referenceBones.getAsJsonObject(bone);
             JsonObject actual = parsedBones.getAsJsonObject(bone);
             assertExactFloats(expected.getAsJsonArray("pivot"), actual.getAsJsonArray("pivot"), bone + ".pivot");
             assertExactFloats(expected.getAsJsonArray("rotation"), actual.getAsJsonArray("rotation"), bone + ".rotation");
@@ -150,15 +152,16 @@ class GeometryParserTest {
                 assertExactFloats(expectedCube.getAsJsonArray("origin"), actualCube.getAsJsonArray("origin"), at + ".origin");
                 assertExactFloats(expectedCube.getAsJsonArray("size"), actualCube.getAsJsonArray("size"), at + ".size");
                 assertEquals(expectedCube.getAsJsonArray("uv").toString(), actualCube.getAsJsonArray("uv").toString(), at + ".uv");
-                // legacy scalar inflate == the capture-time mean of the v2 grow (07 F4: bit-exact)
-                assertEquals(expectedCube.get("inflate").getAsFloat(), growMean(actualCube), at + ".grow mean vs legacy inflate");
-                assertEquals(expectedCube.get("mirror").getAsBoolean(), actualCube.has("mirror") && actualCube.get("mirror").getAsBoolean(), at + ".mirror");
+                // the live parse must reproduce the committed v2 grow exactly (07 F4: bit-exact)
+                assertEquals(growMean(expectedCube), growMean(actualCube), at + ".grow vs v2 grow");
+                assertEquals(expectedCube.has("mirror") && expectedCube.get("mirror").getAsBoolean(),
+                    actualCube.has("mirror") && actualCube.get("mirror").getAsBoolean(), at + ".mirror");
                 assertTrue(!actualCube.has("face_uv"), at + ": face_uv deleted in v2 [X1]");
             }
         }
     }
 
-    /** The v2 cube's grow mean in the bridge's exact expression: {@code (x + y + z) / 3f}. */
+    /** The cube's grow as a scalar mean: {@code (x + y + z) / 3f} for an [x,y,z] array, else the scalar (0 when absent). */
     private static float growMean(@NotNull JsonObject cube) {
         JsonElement grow = cube.get("grow");
         if (grow == null) return 0f;

@@ -92,10 +92,6 @@ class PolicyPurityTest {
             sources.filter(path -> path.getFileName().toString().endsWith(".java"))
                 .filter(path -> !path.getFileName().toString().equals("VanillaSourceClasses.java"))
                 .filter(path -> !path.getFileName().toString().endsWith("Policies.java"))
-                // The bridge is the sanctioned legacy-facing layer (10-bridge SS4.1): its
-                // LegacyOrder + converters legitimately hold legacy ids/keys/headers quarantined
-                // for deletion with the bridge, not derivable flow facts the K9 gate guards.
-                .filter(path -> !path.toString().replace('\\', '/').contains("/tooling2/bridge/"))
                 .forEach(path -> {
                     try {
                         int lineNumber = 0;

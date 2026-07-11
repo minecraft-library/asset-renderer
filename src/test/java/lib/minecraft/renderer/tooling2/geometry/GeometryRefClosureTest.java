@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,6 +48,20 @@ class GeometryRefClosureTest {
     @DisplayName("block pair: block_models.json refs close over block_geometry.json")
     void blockPairCloses() throws IOException {
         assertPairCloses("block_models.json", "models", "block_geometry.json");
+    }
+
+    @Test
+    @DisplayName("C5: legacy_id is never emitted in either v2 geometry file")
+    void noLegacyIdInGeometryFiles() throws IOException {
+        // The S0 spike selected the PRIMARY key-replay arm (02 F3), so the legacy_id fallback was
+        // never activated; both v2 geometry files must carry zero occurrences. Closes bridge-retirement
+        // criterion C5 by assertion (no file edit / regen was owed).
+        for (String name : List.of("entity_geometry.json", "block_geometry.json")) {
+            Path path = V2.resolve(name);
+            assumeTrue(Files.exists(path), name + " not yet emitted (activates with its flow session)");
+            assertTrue(!Files.readString(path).contains("legacy_id"),
+                name + " must not contain legacy_id (C5: the PRIMARY key-replay arm was selected)");
+        }
     }
 
     private static void assertPairCloses(@NotNull String modelsName, @NotNull String payloadKey, @NotNull String geometryName) throws IOException {

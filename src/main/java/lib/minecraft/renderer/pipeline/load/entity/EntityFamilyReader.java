@@ -82,8 +82,8 @@ public final class EntityFamilyReader {
      * with no deformation - so a same-geometry overlay carrying at most this much inflate is excluded
      * from canvas-sizing bounds. A tinted separate-{@code LayerDefinition} overlay that merely dedupes
      * into the base mesh (sheep wool undercoat: {@code tint_by wool_color}) is NOT stamped, so the
-     * tint gate excludes it - matching the legacy {@code EntityRuntimeJsonWriter} stamp the bridge
-     * replays. Mirrors {@link EntityModelLoader#DEPTH_CLEARANCE_INFLATE}.
+     * tint gate excludes it - matching the legacy {@code EntityRuntimeJsonWriter} stamp the native
+     * read reproduces. Mirrors {@code EntityModelLoader.DEPTH_CLEARANCE_INFLATE}.
      */
     private static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
 

@@ -1,14 +1,11 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.pipeline.load.V2Document;
 import lib.minecraft.renderer.pipeline.load.V2Resources;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
-import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -27,8 +24,7 @@ import java.util.Optional;
  * {@code .Parser}, which reads the vanilla colormap PNGs and encodes their raw ARGB pixels as Base64.
  * This loader decodes the pixels at runtime so the renderer can sample biome tint colors without the
  * original PNG files. Each row is keyed by its {@link ColorMap.Type} and given a synthetic
- * {@code vanilla:<type>} id. Under {@code -Dasset.tooling2.bridge} the legacy-shaped tree is parsed
- * instead, kept as the rollback floor until the bridge is retired.
+ * {@code vanilla:<type>} id.
  *
  * @see ColorMap
  */
@@ -41,16 +37,13 @@ public class ColorMapLoader {
     private static final @NotNull String RESOURCE_NAME = "color_maps.json";
 
     /**
-     * Loads all colormaps, natively from v2 or - under {@code -Dasset.tooling2.bridge} - from the
-     * materialized legacy-shaped tree, indexed by their {@link ColorMap.Type}. Returns an empty map
-     * when the resource is absent from the classpath.
+     * Loads all colormaps natively from v2, indexed by their {@link ColorMap.Type}. Returns an empty
+     * map when the resource is absent from the classpath.
      *
      * @return the colormap entities keyed by type, wrapped unmodifiable so downstream reads bypass
      *     the read lock
      */
     public static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> load() {
-        if (LegacyBridge.active())
-            return parseLegacy(LegacyBridge.materialize(RESOURCE_NAME).toGson().getAsJsonObject());
         return loadNative(Diagnostics.root("colorMaps", Diagnostics.Output.CONSOLE, null));
     }
 
@@ -92,27 +85,6 @@ public class ColorMapLoader {
                 continue;
             }
             byte[] pixels = Base64.getDecoder().decode(row.pixels());
-            String id = "vanilla:" + type.name().toLowerCase();
-            colorMaps.put(type, new ColorMap(id, "vanilla", type, pixels));
-        }
-        return Concurrent.adoptMap(colorMaps).toUnmodifiable();
-    }
-
-    /**
-     * Parses the legacy-shaped colormap tree - the bridge (flag-on) path, which keys the row array
-     * {@code color_maps} rather than the native {@code maps}.
-     *
-     * @param root the legacy-shaped colormap object
-     * @return the colormap entities keyed by type, wrapped unmodifiable
-     */
-    static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> parseLegacy(@NotNull JsonObject root) {
-        JsonArray entries = root.getAsJsonArray("color_maps");
-        HashMap<ColorMap.Type, ColorMap> colorMaps = new HashMap<>(entries.size());
-        for (int i = 0; i < entries.size(); i++) {
-            JsonObject entry = entries.get(i).getAsJsonObject();
-            ColorMap.Type type = ColorMap.Type.valueOf(entry.get("type").getAsString());
-            byte[] pixels = Base64.getDecoder().decode(entry.get("pixels").getAsString());
-
             String id = "vanilla:" + type.name().toLowerCase();
             colorMaps.put(type, new ColorMap(id, "vanilla", type, pixels));
         }

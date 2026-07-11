@@ -1,8 +1,5 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
@@ -11,7 +8,6 @@ import lib.minecraft.renderer.pipeline.load.ArgbHex;
 import lib.minecraft.renderer.pipeline.load.V2Document;
 import lib.minecraft.renderer.pipeline.load.V2Resources;
 import lib.minecraft.renderer.tooling.ToolingBlockTints;
-import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -34,8 +30,7 @@ import java.util.Optional;
  * <p>
  * Constants are stored as {@code 0x}-prefixed hex strings in the JSON because Gson cannot round-trip
  * {@code 0x80000000}-class signed integers literally; the native read decodes them through
- * {@link ArgbHex}. Under {@code -Dasset.tooling2.bridge} the legacy-shaped tree is parsed the legacy
- * way instead, kept as the rollback floor until the bridge is retired.
+ * {@link ArgbHex}.
  *
  * @see Block.Tint
  */
@@ -49,16 +44,13 @@ public class BlockTintsLoader {
 
     /**
      * Loads the bundled vanilla tint table into a map of block id to {@link Block.Tint}, natively
-     * from v2 or - under {@code -Dasset.tooling2.bridge} - from the materialized legacy-shaped tree.
-     * Iteration order mirrors the on-disk JSON.
+     * from v2. Iteration order mirrors the on-disk JSON.
      *
      * @return a map keyed by namespaced block id, wrapped unmodifiable
      * @throws PipelineException if the resource is missing, has no {@code tints} array, or cannot be
      *     parsed
      */
     public static @NotNull ConcurrentMap<String, Block.Tint> load() {
-        if (LegacyBridge.active())
-            return parseLegacy(LegacyBridge.materialize(RESOURCE_NAME).toGson().getAsJsonObject());
         return loadNative(Diagnostics.root("blockTints", Diagnostics.Output.CONSOLE, null));
     }
 
@@ -102,33 +94,6 @@ public class BlockTintsLoader {
                 ? Optional.empty()
                 : Optional.of(ArgbHex.parse(row.constant(), diagnostics));
             tints.put(row.block(), new Block.Tint(target, constant));
-        }
-        return Concurrent.adoptLinkedMap(tints).toUnmodifiable();
-    }
-
-    /**
-     * Parses the legacy-shaped tint tree - the bridge (flag-on) path. Resolves {@code target}
-     * through {@link Block.TintTarget#valueOf} and decodes {@code constant} through
-     * {@link Integer#parseUnsignedInt(String, int)}.
-     *
-     * @param root the legacy-shaped tint object
-     * @return a map keyed by namespaced block id, wrapped unmodifiable
-     * @throws PipelineException if the object has no {@code tints} array
-     */
-    static @NotNull ConcurrentMap<String, Block.Tint> parseLegacy(@Nullable JsonObject root) {
-        if (root == null || !root.has("tints"))
-            throw new PipelineException("Vanilla tints resource '%s' has no 'tints' array", RESOURCE_NAME);
-
-        LinkedHashMap<String, Block.Tint> tints = new LinkedHashMap<>();
-        JsonArray entries = root.getAsJsonArray("tints");
-        for (JsonElement element : entries) {
-            JsonObject entry = element.getAsJsonObject();
-            String blockId = entry.get("block").getAsString();
-            Block.TintTarget target = Block.TintTarget.valueOf(entry.get("target").getAsString());
-            Optional<Integer> constant = entry.has("constant")
-                ? Optional.of(Integer.parseUnsignedInt(entry.get("constant").getAsString().substring(2), 16))
-                : Optional.empty();
-            tints.put(blockId, new Block.Tint(target, constant));
         }
         return Concurrent.adoptLinkedMap(tints).toUnmodifiable();
     }
