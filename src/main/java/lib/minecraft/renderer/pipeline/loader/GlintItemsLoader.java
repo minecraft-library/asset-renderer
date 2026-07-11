@@ -5,7 +5,7 @@ import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.V2Document;
 import lib.minecraft.renderer.pipeline.load.V2Resources;
-import lib.minecraft.renderer.tooling.ToolingGlintItems;
+import lib.minecraft.renderer.tooling2.ToolingGlintItems;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

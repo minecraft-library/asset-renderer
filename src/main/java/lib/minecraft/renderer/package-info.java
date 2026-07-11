@@ -21,7 +21,7 @@
  *       and the vanilla {@code display.gui} pose chain.</li>
  *   <li>{@link lib.minecraft.renderer.EntityRenderer EntityRenderer} - mob entities driven by the Java pipeline
  *       ({@code entity_models.json} / {@code entity_geometry.json}, produced by
- *       {@link lib.minecraft.renderer.tooling.ToolingEntityModels ToolingEntityModels}). The largest renderer in
+ *       {@link lib.minecraft.renderer.tooling2.ToolingEntityModels ToolingEntityModels}). The largest renderer in
  *       the module by surface area - covers procedural loops, overlays, glints, equipment,
  *       and the per-face lighting frame that drives vanilla parity.</li>
  *   <li>{@link lib.minecraft.renderer.FluidRenderer FluidRenderer} - water / lava in isometric 3D (sloped

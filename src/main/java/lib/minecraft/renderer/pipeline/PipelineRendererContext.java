@@ -27,7 +27,6 @@ import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemIndexLoader;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
-import lib.minecraft.renderer.tooling.ToolingColorMaps;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -51,7 +50,7 @@ import java.util.Optional;
  * unmodifiable indexes and serves lookups.
  * <p>
  * Biome colormaps and per-block tint targets are wired through to render time by
- * {@code ToolingColorMaps.Parser} and {@link BlockTintsLoader}; the lazy {@code textureCache} is
+ * {@code ColorMapLoader} and {@link BlockTintsLoader}; the lazy {@code textureCache} is
  * the only mutable map on the context.
  */
 @RequiredArgsConstructor

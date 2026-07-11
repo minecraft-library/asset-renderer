@@ -5,7 +5,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.pipeline.load.V2Document;
 import lib.minecraft.renderer.pipeline.load.V2Resources;
-import lib.minecraft.renderer.tooling.ToolingColorMaps;
+import lib.minecraft.renderer.tooling2.ToolingColorMaps;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

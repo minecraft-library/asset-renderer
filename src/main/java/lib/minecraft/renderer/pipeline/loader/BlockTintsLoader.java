@@ -7,7 +7,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.ArgbHex;
 import lib.minecraft.renderer.pipeline.load.V2Document;
 import lib.minecraft.renderer.pipeline.load.V2Resources;
-import lib.minecraft.renderer.tooling.ToolingBlockTints;
+import lib.minecraft.renderer.tooling2.ToolingBlockTints;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
