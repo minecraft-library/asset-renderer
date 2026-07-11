@@ -27,7 +27,7 @@ import lib.minecraft.renderer.asset.Entity.TransformOp;
 import lib.minecraft.renderer.asset.Entity.Translate;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.option.AppearanceGate;
-import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

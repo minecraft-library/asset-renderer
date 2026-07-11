@@ -19,7 +19,7 @@ import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
-import lib.minecraft.renderer.tooling2.ToolingEntityModels;
+import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

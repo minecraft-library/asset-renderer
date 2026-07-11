@@ -2,7 +2,7 @@ package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -15,7 +15,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.block.BlockDefaultsReader;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
-import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.UtilityClass;

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.is;
  * <p>
  * This is the pipeline-side successor to the retired legacy {@code JsonResourceShaTest}: the
  * byte-stability gate transferred from the eight legacy files to the nine v2 files in the same change
- * that retired the tooling2 bridge ({@code block_geometry} gains its own byte-lock, which it lacked
+ * that retired the tooling bridge ({@code block_geometry} gains its own byte-lock, which it lacked
  * legacy-side where geometry was inlined into {@code block_models}). It now guards CONSUMER inputs -
  * the v2 resources the native readers read - rather than legacy tooling output.
  * <p>

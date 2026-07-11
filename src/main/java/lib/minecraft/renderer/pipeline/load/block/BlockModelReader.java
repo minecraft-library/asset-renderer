@@ -14,7 +14,7 @@ import lib.minecraft.renderer.pipeline.load.V2Document;
 import lib.minecraft.renderer.pipeline.load.V2Geometry;
 import lib.minecraft.renderer.pipeline.load.V2Resources;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
-import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

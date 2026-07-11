@@ -3,7 +3,7 @@ package lib.minecraft.renderer.pipeline.load.block;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
-import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

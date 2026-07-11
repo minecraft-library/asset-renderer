@@ -3,9 +3,9 @@ package lib.minecraft.renderer.pipeline.load;
 import com.google.gson.Gson;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling2.kernel.JsonNode;
-import lib.minecraft.renderer.tooling2.kernel.ToolingException;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,8 +18,8 @@ import org.jetbrains.annotations.Nullable;
  * silent proceed. The parsed node is exposed through {@link #payload()} for structural reads and
  * {@link #as(Class)} for whole-document deserialisation into a typed DTO.
  *
- * <p>Reading reuses the tooling2 {@link JsonNode} read surface rather than a bespoke navigator; the
- * {@code pipeline -> tooling2.kernel} edge is sanctioned pending relocation of the shared JSON core
+ * <p>Reading reuses the tooling {@link JsonNode} read surface rather than a bespoke navigator; the
+ * {@code pipeline -> tooling.kernel} edge is sanctioned pending relocation of the shared JSON core
  * to a neutral package.
  */
 public final class V2Document {
@@ -84,7 +84,7 @@ public final class V2Document {
         return GSON.fromJson(payload.toGson(), type);
     }
 
-    /** The validated payload node, carrying the tooling2 {@link JsonNode} read surface. */
+    /** The validated payload node, carrying the tooling {@link JsonNode} read surface. */
     public @NotNull JsonNode payload() {
         return this.payload;
     }

@@ -9,7 +9,7 @@
  * {@link lib.minecraft.renderer.pipeline.load.ArgbHex} is the one ARGB hex parser with the one
  * white-fallback policy.
  *
- * <p>The read side reuses the tooling2 {@code JsonNode} and {@code Diagnostics} core rather than
+ * <p>The read side reuses the tooling {@code JsonNode} and {@code Diagnostics} core rather than
  * duplicating it; the shared JSON core relocates to a neutral package in a later pass.
  */
 package lib.minecraft.renderer.pipeline.load;

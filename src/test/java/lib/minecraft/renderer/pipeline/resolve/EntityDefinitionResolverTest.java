@@ -6,7 +6,7 @@ import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.load.entity.EntityFamilyReader;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
-import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

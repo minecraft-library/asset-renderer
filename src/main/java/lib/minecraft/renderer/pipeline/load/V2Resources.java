@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline.load;
 
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -49,7 +49,7 @@ public final class V2Resources {
         try (InputStream stream = V2Resources.class.getResourceAsStream(V2_DIR + name)) {
             if (stream == null) {
                 if (policy == MissingPolicy.REQUIRED)
-                    throw new PipelineException("Classpath resource '%s' not found - run its tooling2 Gradle task to generate it", name);
+                    throw new PipelineException("Classpath resource '%s' not found - run its tooling Gradle task to generate it", name);
                 return Optional.empty();
             }
             return Optional.of(V2Document.open(stream.readAllBytes(), diagnostics.child(name)));
