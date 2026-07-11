@@ -95,11 +95,14 @@ class PipelineRendererContextTest {
             "{\"animation\":{\"frametime\":4,\"interpolate\":true,\"frames\":[0,1,2,{\"index\":3,\"time\":8}]}}"
         );
 
-        // Tiny 4x4 grass colormap with a recognisable corner pixel so the colormap loader has
-        // something to parse and the context test can verify pass-through.
-        BufferedImage grassMap = new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB);
+        // Vanilla-shaped 256x256 colormaps for all three biome types so the stack-resolved
+        // ColorMapLoader (D10 re-point) finds them like any other texture. A recognisable grass
+        // corner pixel makes the pass-through visible; foliage / dry_foliage stay blank.
+        BufferedImage grassMap = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
         grassMap.setRGB(0, 0, 0xFF7FB238);
         ImageIO.write(grassMap, "PNG", colormapDir.resolve("grass.png").toFile());
+        ImageIO.write(new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB), "PNG", colormapDir.resolve("foliage.png").toFile());
+        ImageIO.write(new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB), "PNG", colormapDir.resolve("dry_foliage.png").toFile());
 
         // Assemble a real vanilla ResourcePack over the fixture directory and scan it into the
         // texture index with the real TextureIndexer / ColorMapLoader, keeping the test honest about
@@ -115,7 +118,7 @@ class PipelineRendererContextTest {
             Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
         PackStack stack = PackStack.of(Concurrent.newList(vanillaPack))
             .withTextureIndex(TextureIndexer.index(PackStack.of(Concurrent.newList(vanillaPack))));
-        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
+        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
         ConcurrentMap<String, Block.Tint> blockTints = Concurrent.newMap();
         blockTints.put("minecraft:grass_block", new Block.Tint(Block.TintTarget.GRASS, Optional.empty()));
         blockTints.put("minecraft:oak_leaves", new Block.Tint(Block.TintTarget.FOLIAGE, Optional.empty()));

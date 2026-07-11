@@ -126,7 +126,7 @@ public class Pipeline {
         ConcurrentMap<String, ModelData> blockModels = ModelResolver.loadBlockModels(combinedRoots);
         ConcurrentMap<String, ModelData> itemModels = ModelResolver.loadItemModels(combinedRoots);
 
-        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
+        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(combinedRoots, blockModels);
         ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(combinedRoots);

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline;
 
 
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
@@ -16,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -182,6 +185,28 @@ class PipelineIntegrationTest {
         var leafLitter = tints.get("minecraft:leaf_litter");
         assertThat(leafLitter, is(notNullValue()));
         assertThat(leafLitter.target(), equalTo(Block.TintTarget.DRY_FOLIAGE));
+    }
+
+    @Test
+    @DisplayName("stack-resolved colormaps byte-match the bundled color_maps.json LUT (D10)")
+    void colormapsByteMatchBundledLut() {
+        // The p0 byte-parity probe (parity-baseline/p0-capture.md, pin item 1): sha256 of the raw
+        // big-endian ARGB bytes of each bundled colormap. The D10 re-point resolves vanilla's own
+        // extracted PNG through the stack and must decode to the identical bytes.
+        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.GRASS).pixels()),
+            equalTo("99ac9a2db44c6ed14da168bad2f66001535fd8b6290a2255bc8aa251d16afcc4"));
+        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.FOLIAGE).pixels()),
+            equalTo("64c43c6b59f7da4ae1c8f56a332c6e21a6d0789dd0272c2cc32c809bc2e0da50"));
+        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.DRY_FOLIAGE).pixels()),
+            equalTo("04fe97199d0400e161c1413077735b8dff765d86999890d76953681bee86708f"));
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
 }
