@@ -160,24 +160,19 @@ public record Entity(
      * @param equipment the saddle / body-armor overlays rendered when the {@code equipment} axis selects
      *     their slot; empty for entities with no equipment layer
      * @param markings whether the entity supports the horse {@code markings} axis (a same-geometry
-     *     translucent overlay over the coat); the default marking draws nothing
+     *     translucent overlay over the coat, textured by the selected
+     *     {@link lib.minecraft.renderer.option.HorseMarking}); the default marking draws nothing
      * @param humanoidArmor whether a vanilla {@code HumanoidArmorLayer} classifies this entity
      *     (skeletons, zombies, piglins) - the {@code armor_type: "humanoid"} classification the v2
      *     {@code layers} armor row carries [LOCKED 3], read off it at load. No 26.1 render consumes it
      *     (humanoid armor is not drawn); it is the located, first-class successor to the former
      *     required-but-unconsumed top-level {@code armor_type} member
-     * @param markingTextures the horse {@code markings} axis value-name -&gt; overlay texture sub-path
-     *     table, read from the v2 {@code layers} markings row's {@code textures_by_value} (dir 4c) and
-     *     load-validated equal to the {@link lib.minecraft.renderer.option.HorseMarking} enum table (the
-     *     enum survives as a value-name validator); empty for the legacy flag-on path, which strips
-     *     {@code textures_by_value} and falls back to the enum
      */
     public record Layers(
         @NotNull Optional<String> collar,
         @NotNull List<EquipmentOverlay> equipment,
         boolean markings,
-        boolean humanoidArmor,
-        @NotNull Map<String, String> markingTextures
+        boolean humanoidArmor
     ) {}
 
     /**

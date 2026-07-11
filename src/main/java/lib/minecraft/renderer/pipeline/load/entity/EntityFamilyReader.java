@@ -8,7 +8,6 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.pipeline.load.ArgbHex;
 import lib.minecraft.renderer.pipeline.load.V2Document;
@@ -217,7 +216,6 @@ public final class EntityFamilyReader {
         List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId, diagnostics);
         boolean markings = markingsOf(family);
         boolean humanoidArmor = humanoidArmorOf(family);
-        Map<String, String> markingTextures = markingTexturesOf(family, familyId);
         String babyCoord = babyGeometryOf(family);
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyCoord));
 
@@ -227,7 +225,7 @@ public final class EntityFamilyReader {
             String defaultOption = variant.get("default").getAsString();
             JsonObject options = variant.getAsJsonObject("options");
             VariantContext ctx = new VariantContext(baseCoord, geometries, hiddenBones, boneToggleSpecs, familyOverlays,
-                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, collarTexture, equipment, markings, humanoidArmor, markingTextures);
+                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, collarTexture, equipment, markings, humanoidArmor);
             if (idEncoded) {
                 // id-encoded: each coat is a first-class render pseudo-id minecraft:<id>_<opt>.
                 for (Map.Entry<String, JsonElement> option : options.entrySet()) {
@@ -273,7 +271,7 @@ public final class EntityFamilyReader {
             .boneToggles(toggles)
             .axes(new Entity.Axes(stateTextures, babyModel,
                 buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries), buildSizeScales(family), Map.of()))
-            .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor, markingTextures))
+            .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
             .build());
     }
 
@@ -295,8 +293,7 @@ public final class EntityFamilyReader {
         @NotNull Optional<String> collarTexture,
         @NotNull List<EquipmentOverlay> equipment,
         boolean markings,
-        boolean humanoidArmor,
-        @NotNull Map<String, String> markingTextures
+        boolean humanoidArmor
     ) {}
 
     /**
@@ -325,7 +322,7 @@ public final class EntityFamilyReader {
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
             .boneToggles(toggles)
             .axes(new Entity.Axes(stateTextures, ctx.babyModel(), Optional.empty(), Map.of(), Map.of(), Map.of()))
-            .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor(), ctx.markingTextures()))
+            .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor()))
             .build();
     }
 
@@ -588,44 +585,6 @@ public final class EntityFamilyReader {
             if (layer.has("armor_type") && "humanoid".equals(layer.get("armor_type").getAsString())) return true;
         }
         return false;
-    }
-
-    /**
-     * Reads the {@code markings} layer's {@code textures_by_value} into a value-name -&gt; stripped
-     * texture-ref table (dir 4c): the enum-map layer's value→texture table now comes from the v2 JSON
-     * instead of the {@link HorseMarking} enum constants. The table is load-validated equal to the enum
-     * table ({@link #validateMarkingTable}), so the enum survives only as a value-name validator and the
-     * render is byte-identical. Empty when the family has no markings row (every non-horse family).
-     */
-    private static @NotNull Map<String, String> markingTexturesOf(@NotNull JsonObject family, @NotNull String entityId) {
-        if (!family.has("layers")) return Map.of();
-        for (JsonElement element : family.getAsJsonArray("layers")) {
-            JsonObject layer = element.getAsJsonObject();
-            if (!layer.has("id") || !"markings".equals(layer.get("id").getAsString()) || !layer.has("overlay")) continue;
-            JsonObject overlay = layer.getAsJsonObject("overlay");
-            if (!overlay.has("textures_by_value")) return Map.of();
-            Map<String, String> table = new LinkedHashMap<>();
-            for (Map.Entry<String, JsonElement> entry : overlay.getAsJsonObject("textures_by_value").entrySet())
-                table.put(entry.getKey().toLowerCase(Locale.ROOT), stripEntity(entry.getValue().getAsString()));
-            validateMarkingTable(table, entityId);
-            return Map.copyOf(table);
-        }
-        return Map.of();
-    }
-
-    /**
-     * Golden pin (dir 4c): the JSON {@code textures_by_value} markings table MUST equal the
-     * {@link HorseMarking} enum's value-name→texture table (every non-{@code NONE} marking), so switching
-     * the render source to the JSON table is byte-identical - a drift is a loud load-time throw, not a
-     * silent divergent texture.
-     */
-    private static void validateMarkingTable(@NotNull Map<String, String> table, @NotNull String entityId) {
-        Map<String, String> enumTable = new LinkedHashMap<>();
-        for (HorseMarking marking : HorseMarking.values())
-            marking.overlayTexture().ifPresent(ref -> enumTable.put(marking.name().toLowerCase(Locale.ROOT), ref));
-        if (!table.equals(enumTable))
-            throw new PipelineException("entity '%s' markings textures_by_value %s does not match the HorseMarking enum table %s",
-                entityId, table, enumTable);
     }
 
     /**

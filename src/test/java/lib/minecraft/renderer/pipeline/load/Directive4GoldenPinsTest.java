@@ -3,7 +3,6 @@ package lib.minecraft.renderer.pipeline.load;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import lib.minecraft.renderer.option.HorseMarking;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -28,16 +26,12 @@ import static org.hamcrest.Matchers.is;
  *       per-axis capacity degenerates to the uniform path on every real cube.</li>
  *   <li><b>rotate_z</b> - no v2 row emits a {@code rotate_z} transform, so the sealed
  *       {@code TransformOp} arm is vocabulary-only.</li>
- *   <li><b>textures_by_value</b> - the horse markings JSON table equals the {@link HorseMarking} enum
- *       table, so sourcing the render from the JSON table is byte-identical.</li>
  * </ul>
  */
 @DisplayName("directive-4 golden pins (Fact C: byte-moving set empty in 26.1)")
 class Directive4GoldenPinsTest {
 
     private static final @NotNull String V2 = "/lib/minecraft/renderer/v2/";
-    private static final @NotNull String TEXTURE_PREFIX = "minecraft:textures/entity/";
-    private static final @NotNull String TEXTURE_SUFFIX = ".png";
 
     @Test
     @DisplayName("grow[3]: no v2 geometry cube carries an [x,y,z] array grow (all scalar)")
@@ -63,24 +57,6 @@ class Directive4GoldenPinsTest {
         }
     }
 
-    @Test
-    @DisplayName("textures_by_value: the horse markings JSON table equals the HorseMarking enum table")
-    void markingTableEqualsEnum() {
-        JsonObject horse = read("entity_models.json").getAsJsonObject("families").getAsJsonObject("minecraft:horse");
-        Map<String, String> jsonTable = new LinkedHashMap<>();
-        for (JsonElement layer : horse.getAsJsonArray("layers")) {
-            JsonObject object = layer.getAsJsonObject();
-            if (!"markings".equals(object.get("id").getAsString())) continue;
-            for (Map.Entry<String, JsonElement> entry : object.getAsJsonObject("overlay").getAsJsonObject("textures_by_value").entrySet())
-                jsonTable.put(entry.getKey(), strip(entry.getValue().getAsString()));
-        }
-        Map<String, String> enumTable = new LinkedHashMap<>();
-        for (HorseMarking marking : HorseMarking.values())
-            marking.overlayTexture().ifPresent(ref -> enumTable.put(marking.name().toLowerCase(java.util.Locale.ROOT), ref));
-        assertThat("horse carries a markings table", jsonTable.isEmpty(), is(false));
-        assertThat(jsonTable, equalTo(enumTable));
-    }
-
     private static void assertAllGrowsScalar(@NotNull String resource) {
         JsonObject geometries = read(resource).getAsJsonObject("geometries");
         for (Map.Entry<String, JsonElement> geometry : geometries.entrySet()) {
@@ -102,10 +78,6 @@ class Directive4GoldenPinsTest {
 
     private static @NotNull org.hamcrest.Matcher<String> not(@NotNull String value) {
         return org.hamcrest.Matchers.not(equalTo(value));
-    }
-
-    private static @NotNull String strip(@NotNull String path) {
-        return path.substring(TEXTURE_PREFIX.length(), path.length() - TEXTURE_SUFFIX.length());
     }
 
     private static @NotNull JsonObject read(@NotNull String name) {

@@ -51,7 +51,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -470,13 +469,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 if (!ctx.definition().layers().markings()) return;
                 EntityAppearance appearance = ctx.options().getAppearance();
                 HorseMarking marking = appearance.getMarkings();
-                // dir 4c: the marking texture comes from the load-validated v2 textures_by_value table
-                // (enum-equal by construction) when present; the flag-on path strips it, so fall back to
-                // the HorseMarking enum. NONE has no table entry / enum ref, so it draws nothing.
-                Map<String, String> table = ctx.definition().layers().markingTextures();
-                Optional<String> markingRef = table.isEmpty()
-                    ? marking.overlayTexture()
-                    : Optional.ofNullable(table.get(marking.name().toLowerCase(Locale.ROOT)));
+                // The marking texture comes from the HorseMarking enum - horse markings are a fixed
+                // vanilla set. NONE has no ref, so it draws nothing.
+                Optional<String> markingRef = marking.overlayTexture();
                 if (markingRef.isEmpty()) return;
                 String ref = appearance.isBaby() ? markingRef.get() + "_baby" : markingRef.get();
                 EntityModelData model = ctx.model();
