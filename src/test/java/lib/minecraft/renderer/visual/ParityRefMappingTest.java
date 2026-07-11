@@ -49,10 +49,14 @@ final class ParityRefMappingTest {
         List<ParityRefMapping.Subject> subjects = mapping.resolve(javaKeys, vanillaKeys);
         Set<String> comparedRefs = subjects.stream().map(ParityRefMapping.Subject::refId).collect(Collectors.toCollection(TreeSet::new));
 
-        // 1. No coverage regression: every legacy-intersection subject stays compared.
+        // 1. No coverage regression: every legacy-intersection subject stays covered - either compared, or
+        //    deduplicated with its coat compared under a per-variant ref (a base id that intersects a plain
+        //    ref, e.g. mooshroom, once option-encoding makes the base a first-class key). Union so the
+        //    guarantee holds in both id-encoding states.
         Set<String> legacy = ParityRefMapping.legacyIntersection(javaKeys, vanillaKeys);
-        assertThat("no legacy-compared subject silently dropped",
-            comparedRefs.containsAll(legacy), is(true));
+        Set<String> covered = new TreeSet<>(comparedRefs);
+        covered.addAll(mapping.deduplicated(vanillaKeys));
+        assertThat("no legacy-compared subject silently dropped", covered.containsAll(legacy), is(true));
 
         // 2. The variant-superset families (plain-ref-only) are now compared via their default coat.
         for (String superset : ParityRefMapping.SUPERSET_FAMILIES)
