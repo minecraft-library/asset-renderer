@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.resolve;
 
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;

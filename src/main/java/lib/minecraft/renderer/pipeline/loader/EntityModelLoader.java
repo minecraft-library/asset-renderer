@@ -8,7 +8,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.load.entity.EntityFamilyReader;
-import lib.minecraft.renderer.pipeline.resolve.AppearanceGate;
+import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import lombok.Builder;

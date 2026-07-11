@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline.resolve;
 
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.load.entity.EntityFamilyReader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.EntityDefinition;

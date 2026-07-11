@@ -1,7 +1,5 @@
-package lib.minecraft.renderer.pipeline.resolve;
+package lib.minecraft.renderer.option;
 
-import lib.minecraft.renderer.option.EntityAppearance;
-import lib.minecraft.renderer.option.TintAxis;
 import org.jetbrains.annotations.NotNull;
 
 /**

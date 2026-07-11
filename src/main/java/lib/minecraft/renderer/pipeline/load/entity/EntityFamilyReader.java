@@ -27,7 +27,7 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.RotateZ;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.Scale;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.TransformOp;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader.Translate;
-import lib.minecraft.renderer.pipeline.resolve.AppearanceGate;
+import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.tooling2.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
