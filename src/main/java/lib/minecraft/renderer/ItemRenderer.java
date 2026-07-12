@@ -38,6 +38,7 @@ import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
+import lib.minecraft.renderer.pipeline.pack.item.SpecialKinds;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
 import lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
@@ -144,6 +145,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         ItemModelWalker.Resolution resolution = context.findItemTree(options.getItemId())
             .map(tree -> ItemModelWalker.resolve(tree, modelContext))
             .orElse(null);
+        // A special leaf maps onto an existing hardcoded / block-entity render path (parse-and-hold);
+        // an unknown special kind is diagnosed and dropped (05-models.md §3.4). Either way the baked
+        // item - already served by its own path - is returned.
+        if (resolution != null && resolution.modelId().isEmpty() && resolution.special().isPresent()) {
+            SpecialKinds.resolveOrDrop(resolution.special().get());
+            return baked;
+        }
         String modelId = cit.model().map(ResourceId::id)
             .orElseGet(() -> resolution != null ? resolution.modelId().orElse(null) : null);
         if (modelId == null) return baked;

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
+import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -42,6 +44,30 @@ public record SpecialTransform(
      */
     public boolean isIdentity() {
         return this.equals(IDENTITY);
+    }
+
+    /**
+     * Composes the vanilla {@code T . Rleft . S . Rright} decomposition into this codebase's row-form
+     * ({@code v_row x M}) matrix. The fluent method sequence mirrors the equivalent vanilla
+     * {@code PoseStack} call order ({@code translate; mulPose(left); scale; mulPose(right)}) - the same
+     * pattern the item {@code display} transform uses ({@code ItemRenderer.Held3D.resolveDisplayTransform}
+     * builds {@code scale; rotate; translate}) - which is the transpose the {@code v_row x M} convention
+     * requires (CLAUDE.md JOML section). Applied as a model-space pre-transform ahead of the render
+     * placement in the special-kind path (05-models.md §5.3).
+     *
+     * @return the composed model-space pre-transform matrix
+     */
+    public @NotNull Matrix4f toMatrix() {
+        return Matrix4f.IDENTITY
+            .translate(this.translation[0], this.translation[1], this.translation[2])
+            .rotate(quaternion(this.leftRotation))
+            .scale(this.scale[0], this.scale[1], this.scale[2])
+            .rotate(quaternion(this.rightRotation));
+    }
+
+    /** Builds a {@link Quaternionf} from a {@code [x, y, z, w]} component array. */
+    private static @NotNull Quaternionf quaternion(float @NotNull [] q) {
+        return new Quaternionf(q[0], q[1], q[2], q[3]);
     }
 
     @Override

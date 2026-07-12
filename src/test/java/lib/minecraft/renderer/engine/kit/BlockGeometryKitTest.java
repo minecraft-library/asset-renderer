@@ -8,6 +8,8 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -164,6 +166,52 @@ class BlockGeometryKitTest {
             faces.add(cardinal(t.normal()));
         }
         assertThat("all six cardinal faces present", faces.size(), equalTo(6));
+    }
+
+    @Test
+    @DisplayName("light_emission 15 forces every face full-bright (Shading.DISABLED), even shade:true")
+    void lightEmission15_forcesFullBright() throws ReflectiveOperationException {
+        ConcurrentList<VisibleTriangle> triangles = cubeWithEmission(true, 15);
+        for (VisibleTriangle t : triangles)
+            assertThat(t.shading(), equalTo(Shading.DISABLED));
+    }
+
+    @Test
+    @DisplayName("intermediate light_emission raises the shade floor to emission/15")
+    void lightEmissionIntermediate_raisesShadeFloor() throws ReflectiveOperationException {
+        // 12/15 = 0.8 exceeds the darker cardinal shades (down 0.5, sides 0.6/0.8) but not the top's
+        // 1.0, so max(inventory, 0.8) is the assertion on every face.
+        ConcurrentList<VisibleTriangle> triangles = cubeWithEmission(true, 12);
+        for (VisibleTriangle t : triangles)
+            assertThat(t.shading(), equalTo(Math.max(Lighting.inventory(t.normal()), 12f / 15f)));
+    }
+
+    @Test
+    @DisplayName("light_emission 0 leaves the inventory cardinal shade untouched (byte-neutral baseline)")
+    void lightEmissionZero_isBaseline() throws ReflectiveOperationException {
+        ConcurrentList<VisibleTriangle> triangles = cubeWithEmission(true, 0);
+        for (VisibleTriangle t : triangles)
+            assertThat(t.shading(), equalTo(Lighting.inventory(t.normal())));
+    }
+
+    @Test
+    @DisplayName("a shade:false element stays full-bright regardless of light_emission")
+    void shadeFalse_staysDisabled() throws ReflectiveOperationException {
+        ConcurrentList<VisibleTriangle> triangles = cubeWithEmission(false, 0);
+        for (VisibleTriangle t : triangles)
+            assertThat(t.shading(), equalTo(Shading.DISABLED));
+    }
+
+    /** Builds a full unit cube with a given {@code shade} flag and {@code light_emission} level. */
+    private static ConcurrentList<VisibleTriangle> cubeWithEmission(boolean shade, int emission) throws ReflectiveOperationException {
+        ModelElement element = new ModelElement();
+        setField(element, "shade", shade);
+        setField(element, "lightEmission", emission);
+        for (String dir : new String[]{ "down", "up", "north", "south", "west", "east" })
+            element.getFaces().put(dir, face("#all"));
+        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
+        faceTextures.put("#all", texture1x1());
+        return BlockGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
     }
 
     // --- fixtures ---

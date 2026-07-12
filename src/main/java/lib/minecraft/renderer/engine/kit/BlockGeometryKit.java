@@ -48,6 +48,13 @@ public class BlockGeometryKit {
      */
     public static final float VANILLA_PIXEL_UNITS_PER_BLOCK = 16f;
 
+    /**
+     * Maximum {@code light_emission} level (vanilla's {@code 0-15} block-light scale). An element at
+     * this level renders full-bright, joining the {@code shade: false} class ({@link Shading#DISABLED});
+     * intermediate values scale linearly against it as the icon shade floor.
+     */
+    private static final int FULL_LIGHT_EMISSION = 15;
+
 
     /**
      * Builds a list of 12 triangles (2 per face) describing a unit cube centered at the origin
@@ -225,7 +232,7 @@ public class BlockGeometryKit {
                         corners[0], corners[1], corners[2], corners[3],
                         uv[0], uv[1], uv[2], uv[3],
                         texture, tintArgb, normal,
-                        !isPlaneCube, translucent, true, false);
+                        !isPlaneCube, translucent, true, 0, false);
                 }
             }
         }
@@ -462,6 +469,7 @@ public class BlockGeometryKit {
                     !twoSided,
                     translucent,
                     element.isShade(),
+                    element.getLightEmission(),
                     false
                 );
             }
@@ -611,7 +619,7 @@ public class BlockGeometryKit {
         addQuad(out,
             topLeft, bottomLeft, bottomRight, topRight,
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            texture, tintArgb, normal, true, false, true, glinted);
+            texture, tintArgb, normal, true, false, true, 0, glinted);
     }
 
     /**
@@ -631,6 +639,9 @@ public class BlockGeometryKit {
      * @param translucent whether the face samples partial-alpha texels and must sort back-to-front
      * @param directionalLight whether the face receives {@code ITEMS_3D} shading, or full-bright when
      *     {@code false} (a {@code "shade": false} element)
+     * @param lightEmission the element's {@code light_emission} level {@code 0-15}: {@code 15} forces
+     *     full-bright ({@link Shading#DISABLED}); an intermediate value raises the baked shade floor to
+     *     {@code emission / 15} (05-models.md §5.3 fold); {@code 0} leaves the shade untouched
      * @param glinted whether the face is worn-armor geometry receiving the enchantment foil
      */
     private static void addQuad(
@@ -649,11 +660,22 @@ public class BlockGeometryKit {
         boolean cullBackFaces,
         boolean translucent,
         boolean directionalLight,
+        int lightEmission,
         boolean glinted
     ) {
         // Shade baked per triangle (see the javadoc): inventory cardinal shade, or full-bright
-        // DISABLED for a "shade": false element.
-        float shading = directionalLight ? Lighting.inventory(normal) : Shading.DISABLED;
+        // DISABLED for a "shade": false element. light_emission folds on top (05-models.md §5.3):
+        // 15 joins the full-bright DISABLED class; an intermediate value raises the shade floor to
+        // emission/15. (On vanilla the only emissive elements are ALSO shade:false, so this is a
+        // no-op there - it only bites resource-pack models with a non-15 or shade:true emission.)
+        float shading;
+        if (lightEmission >= FULL_LIGHT_EMISSION || !directionalLight) {
+            shading = Shading.DISABLED;
+        } else if (lightEmission > 0) {
+            shading = Math.max(Lighting.inventory(normal), lightEmission / (float) FULL_LIGHT_EMISSION);
+        } else {
+            shading = Lighting.inventory(normal);
+        }
         SurfaceTraits traits = new SurfaceTraits(cullBackFaces, false, translucent, glinted);
         out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, traits, null));
         out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, traits, null));
