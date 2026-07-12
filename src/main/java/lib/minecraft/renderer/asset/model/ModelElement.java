@@ -54,10 +54,10 @@ public class ModelElement {
     private boolean shade = true;
 
     /**
-     * The element's block light level {@code 0-15} (vanilla {@code light_emission}, 24w33a+). A
-     * value of {@code 15} joins the {@code shade: false} full-bright class (coincident on every
-     * vanilla emissive model - eyeblossom's {@code cross_emissive}); intermediate values raise the
-     * icon shade floor to {@code emission / 15} (5.3 fold). Defaults to {@code 0} (no emission).
+     * The element's block light level {@code 0-15} (vanilla {@code light_emission}, 24w33a+). Raises
+     * the rendered shade floor to {@code emission / 15}, full-bright at {@code 15} (05-models.md §5.3
+     * fold). Vanilla's only emissive elements ({@code cross_emissive}) are also {@code shade: false},
+     * which is already full-bright, so the fold is a no-op on vanilla. Defaults to {@code 0}.
      */
     @SerializedName("light_emission")
     private int lightEmission = 0;

@@ -2,7 +2,6 @@ package lib.minecraft.renderer.pipeline.pack.item;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -104,10 +103,11 @@ public class ItemModelTreeLoader {
             return Optional.of(Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
         } catch (IOException ex) {
             throw new PipelineException(ex, "Failed to read item definition '%s'", p);
-        } catch (JsonSyntaxException ex) {
+        } catch (RuntimeException ex) {
             // Resource packs sometimes ship deeply nested or otherwise malformed item definitions
-            // (e.g. Hypixel+ player_head.json with 255+ levels of conditional nesting). Skip the
-            // entry so the merge falls back to a lower-priority pack's version of this id.
+            // (e.g. Hypixel+ player_head.json with 255+ levels of conditional nesting, or a semantically
+            // malformed field Gson accepts but a typed read rejects). Skip the entry so the merge falls
+            // back to a lower-priority pack's version of this id rather than aborting the whole load.
             System.err.printf("Skipping malformed item definition '%s': %s%n", p, ex.getMessage());
             return Optional.empty();
         }

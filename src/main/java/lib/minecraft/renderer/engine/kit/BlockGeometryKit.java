@@ -49,9 +49,11 @@ public class BlockGeometryKit {
     public static final float VANILLA_PIXEL_UNITS_PER_BLOCK = 16f;
 
     /**
-     * Maximum {@code light_emission} level (vanilla's {@code 0-15} block-light scale). An element at
-     * this level renders full-bright, joining the {@code shade: false} class ({@link Shading#DISABLED});
-     * intermediate values scale linearly against it as the icon shade floor.
+     * Maximum {@code light_emission} level (vanilla's {@code 0-15} block-light scale). This level
+     * raises the baked shade floor to {@code 1.0} (full-bright); intermediate values scale linearly
+     * ({@code emission / 15}). The floor survives on the no-relight Held3D item path; the block-icon
+     * path recomputes shade per-normal ({@link Shading#relightForItems3d}) and so drops the floor - a
+     * documented Held3D-only effect for intermediate emission.
      */
     private static final int FULL_LIGHT_EMISSION = 15;
 
@@ -639,9 +641,10 @@ public class BlockGeometryKit {
      * @param translucent whether the face samples partial-alpha texels and must sort back-to-front
      * @param directionalLight whether the face receives {@code ITEMS_3D} shading, or full-bright when
      *     {@code false} (a {@code "shade": false} element)
-     * @param lightEmission the element's {@code light_emission} level {@code 0-15}: {@code 15} forces
-     *     full-bright ({@link Shading#DISABLED}); an intermediate value raises the baked shade floor to
-     *     {@code emission / 15} (05-models.md §5.3 fold); {@code 0} leaves the shade untouched
+     * @param lightEmission the element's {@code light_emission} level {@code 0-15}: raises the baked
+     *     shade floor to {@code emission / 15} (05-models.md §5.3 fold), full-bright at {@code 15};
+     *     {@code 0} leaves the shade untouched. The floor is a real {@code [0,1]} scalar (not the
+     *     {@link Shading#DISABLED} sentinel, which renders black on the un-relit Held3D path)
      * @param glinted whether the face is worn-armor geometry receiving the enchantment foil
      */
     private static void addQuad(
@@ -664,15 +667,19 @@ public class BlockGeometryKit {
         boolean glinted
     ) {
         // Shade baked per triangle (see the javadoc): inventory cardinal shade, or full-bright
-        // DISABLED for a "shade": false element. light_emission folds on top (05-models.md §5.3):
-        // 15 joins the full-bright DISABLED class; an intermediate value raises the shade floor to
-        // emission/15. (On vanilla the only emissive elements are ALSO shade:false, so this is a
-        // no-op there - it only bites resource-pack models with a non-15 or shade:true emission.)
+        // DISABLED for a "shade": false element. light_emission folds on top (05-models.md §5.3) by
+        // raising the shade FLOOR to emission/15 (capped at 1.0 for the full 15) - NOT by mapping to
+        // the DISABLED sentinel, which renders BLACK on the no-relight Held3D item path (apply(-1)).
+        // So an emissive shade:true face bakes a real [0,1] scalar that renders full-bright on Held3D
+        // and, on the block-icon path, is recomputed by Shading.relightForItems3d (the floor is a
+        // documented Held3D-side effect there). Vanilla's only emissive elements are shade:false, so
+        // they take the DISABLED branch below unchanged - the fold is a no-op on vanilla.
         float shading;
-        if (lightEmission >= FULL_LIGHT_EMISSION || !directionalLight) {
+        if (!directionalLight) {
             shading = Shading.DISABLED;
         } else if (lightEmission > 0) {
-            shading = Math.max(Lighting.inventory(normal), lightEmission / (float) FULL_LIGHT_EMISSION);
+            float emissionFloor = Math.min(lightEmission, FULL_LIGHT_EMISSION) / (float) FULL_LIGHT_EMISSION;
+            shading = Math.max(Lighting.inventory(normal), emissionFloor);
         } else {
             shading = Lighting.inventory(normal);
         }

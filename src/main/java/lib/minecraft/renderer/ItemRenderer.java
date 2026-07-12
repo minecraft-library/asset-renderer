@@ -1,5 +1,6 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
@@ -8,6 +9,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
@@ -50,6 +52,7 @@ import lib.minecraft.text.font.MinecraftFont;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -152,13 +155,28 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             SpecialKinds.resolveOrDrop(resolution.special().get());
             return baked;
         }
+        // CIT whole-model override wins over the tree-resolved model (03 join-after-eval).
+        boolean fromCit = cit.model().isPresent();
         String modelId = cit.model().map(ResourceId::id)
             .orElseGet(() -> resolution != null ? resolution.modelId().orElse(null) : null);
         if (modelId == null) return baked;
 
-        Item target = context.findItem(ResourceId.ofModelId(modelId).id()).orElse(baked);
+        // Resolve the model id to its ModelData by FULL id (collision-free - a basename collapse would
+        // map minecraft:optifine/cit/diamond_sword onto the vanilla diamond_sword). A CIT override that
+        // is not a resolvable item model (e.g. an optifine/cit/ path outside models/item/) misses and
+        // is diagnosed rather than silently rendering the wrong model.
+        Optional<ModelData> model = context.findItemModel(modelId);
+        if (model.isEmpty()) {
+            if (fromCit)
+                System.err.printf("CIT model override '%s' for item '%s' is not a resolvable item model - rendering the base item%n",
+                    modelId, options.getItemId());
+            return baked;
+        }
+
+        ModelData resolved = model.get();
         List<LayerTint> tints = resolution != null ? resolution.tints() : baked.tints();
-        return new Item(baked.id(), target.model(), target.textures(), baked.maxDurability(), tints, baked.alwaysGlinted());
+        return new Item(baked.id(), resolved, Concurrent.adoptMap(new HashMap<>(resolved.getTextures())),
+            baked.maxDurability(), tints, baked.alwaysGlinted());
     }
 
     /**

@@ -77,6 +77,22 @@ class TextureSynthesizerTest {
         assertThat(TextureSynthesizer.EMPTY.synthesize(ResourceId.parse(SYNTH_ID), RESOLVER).isEmpty(), is(true));
     }
 
+    @Test
+    @DisplayName("a self-referential source aborts to empty instead of recursing to StackOverflow")
+    @SuppressWarnings("unchecked")
+    void cyclicSourceDoesNotStackOverflow() {
+        // A source whose material palette IS the synth id it produces - resolving the material re-enters
+        // synthesis through the miss-seam-style resolver. The registry-key input guard must break it.
+        TextureSynthesizer synth = new TextureSynthesizer(List.of(
+            new PalettedPermutationSource(PALETTE_KEY, Map.of("amethyst", SYNTH_ID), List.of(BASE))));
+        Function<String, Optional<PixelBuffer>>[] recursive = new Function[1];
+        recursive[0] = ref -> {
+            PixelBuffer real = TEXTURES.get(ref);
+            return real != null ? Optional.of(real) : synth.synthesize(ResourceId.parse(ref), recursive[0]);
+        };
+        assertThat(synth.synthesize(ResourceId.parse(SYNTH_ID), recursive[0]).isEmpty(), is(true));
+    }
+
     private static void assertPixelsEqual(PixelBuffer actual, PixelBuffer expected) {
         assertThat("width", actual.width(), is(expected.width()));
         assertThat("height", actual.height(), is(expected.height()));

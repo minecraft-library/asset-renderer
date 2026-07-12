@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -169,11 +170,13 @@ class BlockGeometryKitTest {
     }
 
     @Test
-    @DisplayName("light_emission 15 forces every face full-bright (Shading.DISABLED), even shade:true")
-    void lightEmission15_forcesFullBright() throws ReflectiveOperationException {
+    @DisplayName("light_emission 15 (shade:true) bakes a full-bright 1.0 floor, NOT the black-rendering DISABLED sentinel")
+    void lightEmission15_bakesFullBrightFloor() throws ReflectiveOperationException {
         ConcurrentList<VisibleTriangle> triangles = cubeWithEmission(true, 15);
-        for (VisibleTriangle t : triangles)
-            assertThat(t.shading(), equalTo(Shading.DISABLED));
+        for (VisibleTriangle t : triangles) {
+            assertThat("not the DISABLED sentinel (renders black on un-relit Held3D)", t.shading(), not(equalTo(Shading.DISABLED)));
+            assertThat("full-bright floor", t.shading(), equalTo(Math.max(Lighting.inventory(t.normal()), 1f)));
+        }
     }
 
     @Test

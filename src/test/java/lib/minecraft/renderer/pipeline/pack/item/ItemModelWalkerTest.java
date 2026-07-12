@@ -136,6 +136,40 @@ class ItemModelWalkerTest {
     }
 
     @Nested
+    @DisplayName("malformed numeric fields degrade instead of crashing")
+    class MalformedInputs {
+
+        @Test
+        @DisplayName("a quoted non-numeric tint value degrades to white, not a NumberFormatException")
+        void quotedTintValueDegrades() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/x\","
+                + "\"tints\":[{\"type\":\"minecraft:dye\",\"default\":\"#ffffff\"}]}}");
+            assertThat(r.tints(), contains(instanceOf(LayerTint.Dye.class)));
+            assertThat(((LayerTint.Dye) r.tints().getFirst()).defaultColor(), is(0xFFFFFFFF));
+        }
+
+        @Test
+        @DisplayName("a non-numeric range_dispatch threshold degrades to 0 instead of crashing")
+        void nonNumericThresholdDegrades() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:time\",\"scale\":64.0,"
+                + "\"entries\":[{\"threshold\":\"min\",\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/f0\"}}],"
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/fb\"}}}");
+            // threshold parses to 0 (default); scaled value 0 >= 0 -> entry f0, not a crash.
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/f0"));
+        }
+
+        @Test
+        @DisplayName("a malformed transformation array degrades to identity instead of crashing")
+        void malformedTransformDegrades() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:special\",\"base\":\"minecraft:item/x\","
+                + "\"model\":{\"type\":\"minecraft:bed\"},"
+                + "\"transformation\":{\"translation\":[\"a\",1,2],\"scale\":[1,1,1],"
+                + "\"left_rotation\":[0,0,0,1],\"right_rotation\":[0,0,0,1]}}}");
+            assertThat(r.special().orElseThrow().transform().translation(), is(SpecialTransform.IDENTITY.translation()));
+        }
+    }
+
+    @Nested
     @DisplayName("neutral defaults (parity contract)")
     class NeutralDefaults {
 

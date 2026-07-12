@@ -68,6 +68,13 @@ public final class TextureSynthesizer {
         PixelBuffer cached = this.cache.get(id.id());
         if (cached != null) return Optional.of(cached);
 
+        // A synthesis input that is itself a registered synth id would re-enter synthesis through the
+        // resolver (which consults this synthesizer on a miss) with no termination - a self- or
+        // cyclically-referential atlas source. Real inputs are always concrete PNGs (never synth ids),
+        // so refuse to resolve a registry-key input and abort cleanly to empty.
+        if (isSynthId(entry.base()) || isSynthId(entry.paletteKey()) || isSynthId(entry.materialId()))
+            return Optional.empty();
+
         Optional<PixelBuffer> base = resolver.apply(entry.base());
         Optional<PixelBuffer> palette = resolver.apply(entry.paletteKey());
         Optional<PixelBuffer> material = resolver.apply(entry.materialId());
@@ -76,6 +83,11 @@ public final class TextureSynthesizer {
         PixelBuffer permuted = TrimKit.permute(base.get(), palette.get(), material.get());
         this.cache.put(id.id(), permuted);
         return Optional.of(permuted);
+    }
+
+    /** Whether an input id is itself a registered synthetic id (a cyclic-source guard). */
+    private boolean isSynthId(@NotNull String id) {
+        return this.registry.containsKey(id);
     }
 
     /** Prepends the {@code minecraft:} default namespace to a bare id so registry keys are fully qualified. */

@@ -12,6 +12,7 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
@@ -152,6 +153,19 @@ public interface RendererContext {
      * @return the item's dispatch tree, or empty when the item has no definition file
      */
     default @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+        return Optional.empty();
+    }
+
+    /**
+     * Looks up a parsed item {@link ModelData} by its FULL model id (e.g. {@code minecraft:item/bow_pulling_0}),
+     * for the render path to materialise a tree-resolved or CIT-overridden model without collapsing
+     * the id to a basename (which would collide across directories). The default returns empty so test
+     * stubs and the neutral render path fall back to the pipeline-baked item.
+     *
+     * @param modelId the full namespaced model id
+     * @return the parsed item model, or empty when no item model has that id
+     */
+    default @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
         return Optional.empty();
     }
 

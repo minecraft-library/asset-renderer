@@ -160,11 +160,16 @@ public class ItemModelParser {
     /**
      * Reads an RGB tint colour from {@code tint[key]} and forces opaque alpha. Masks to 24 bits and
      * OR-s {@code 0xFF000000} so every source normalises to the ARGB the multiply-tint blend expects.
-     * Defaults to white when the key is absent.
+     * Defaults to white when the key is absent or non-numeric (a pack author writing the colour as a
+     * quoted hex string {@code "#ffffff"} degrades to white rather than aborting the whole load).
      */
     private static int toArgb(@NotNull JsonObject tint, @NotNull String key) {
         if (!tint.has(key) || !tint.get(key).isJsonPrimitive()) return 0xFFFFFFFF;
-        return 0xFF000000 | (tint.get(key).getAsInt() & 0xFFFFFF);
+        try {
+            return 0xFF000000 | (tint.get(key).getAsInt() & 0xFFFFFF);
+        } catch (NumberFormatException ex) {
+            return 0xFFFFFFFF;
+        }
     }
 
     /** Parses {@code object[key]} as a child node, or {@link ItemModelNode.Empty} when absent / not an object. */
@@ -179,14 +184,25 @@ public class ItemModelParser {
     }
 
     private static float floatValue(@NotNull JsonObject object, @NotNull String key, float fallback) {
-        return object.has(key) && object.get(key).isJsonPrimitive() ? object.get(key).getAsFloat() : fallback;
+        if (!object.has(key) || !object.get(key).isJsonPrimitive()) return fallback;
+        try {
+            return object.get(key).getAsFloat();
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
     }
 
     private static float @NotNull [] floatArray(@NotNull JsonObject object, @NotNull String key, float @NotNull [] fallback) {
         if (!object.has(key) || !object.get(key).isJsonArray()) return fallback.clone();
         JsonArray array = object.getAsJsonArray(key);
         float[] out = new float[array.size()];
-        for (int i = 0; i < array.size(); i++) out[i] = array.get(i).getAsFloat();
+        try {
+            for (int i = 0; i < array.size(); i++) out[i] = array.get(i).getAsFloat();
+        } catch (RuntimeException ex) {
+            // A non-numeric or nested element (getAsFloat throws NumberFormatException /
+            // UnsupportedOperationException / IllegalStateException): fall back to the default array.
+            return fallback.clone();
+        }
         return out;
     }
 

@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
 import lib.minecraft.renderer.pipeline.loader.BlockIndexLoader;
@@ -67,6 +68,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Block> blockIndex;
     private final @NotNull ConcurrentMap<String, Item> itemIndex;
     private final @NotNull ConcurrentMap<String, ItemModelTree> itemTrees;
+    private final @NotNull ConcurrentMap<String, ModelData> itemModels;
     private final @NotNull ConcurrentMap<String, Entity> entityIndex;
     private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
     private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
@@ -109,6 +111,7 @@ public final class PipelineRendererContext implements RendererContext {
             blockIndex,
             itemIndex,
             result.getItemTrees(),
+            result.getItemModels(),
             entityIndex,
             result.getColorMaps(),
             result.getBlockTags(),
@@ -205,6 +208,12 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
         return this.itemTrees.getOptional(id);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
+        return this.itemModels.getOptional(modelId);
     }
 
     /** {@inheritDoc} */
