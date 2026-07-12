@@ -116,7 +116,7 @@ public class TrimKit {
      * @param materialPalette the material colour strip (RGB, same width as the key)
      * @return the permuted ARGB overlay
      */
-    static @NotNull PixelBuffer permute(
+    public static @NotNull PixelBuffer permute(
         @NotNull PixelBuffer baseTrim,
         @NotNull PixelBuffer paletteKey,
         @NotNull PixelBuffer materialPalette

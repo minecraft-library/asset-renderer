@@ -54,6 +54,12 @@ public class VanillaSourcePaths {
     public static final @NotNull String ITEMS_SUBDIR = "items";
 
     /**
+     * Relative subpath (under {@code assets/<namespace>/}) of the atlas source subtree
+     * ({@code atlases/}), whose {@code paletted_permutations} entries drive texture synthesis.
+     */
+    public static final @NotNull String ATLASES_SUBDIR = "atlases";
+
+    /**
      * Model kind segment for block model ids ({@code <namespace>:block/...}).
      */
     public static final @NotNull String BLOCK_KIND = "block";

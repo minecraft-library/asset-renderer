@@ -14,11 +14,13 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
 import lib.minecraft.renderer.pipeline.loader.BlockIndexLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemIndexLoader;
+import lib.minecraft.renderer.pipeline.loader.PalettedPermutationLoader;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.pipeline.pack.PackId;
@@ -72,6 +74,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntities;
     private final @NotNull RuleSet rules;
+    private final @NotNull TextureSynthesizer synthesizer;
 
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
 
@@ -99,6 +102,7 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, Block> blockIndex = BlockIndexLoader.load(result, blockEntities, beResult.variants());
         ConcurrentMap<String, Item> itemIndex = ItemIndexLoader.load(result, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = loadEntityIndex();
+        TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(result.getStack()));
 
         return new PipelineRendererContext(
             result.getStack(),
@@ -111,7 +115,8 @@ public final class PipelineRendererContext implements RendererContext {
             result.getPotionEffectColors(),
             result.getBannerPatterns(),
             blockEntities,
-            result.getRules()
+            result.getRules(),
+            synthesizer
         );
     }
 
@@ -147,7 +152,11 @@ public final class PipelineRendererContext implements RendererContext {
             PixelBuffer cached = this.textureCache.get(new CacheKey(indexed.get().pack(), id));
             if (cached != null) return Optional.of(cached);
         }
-        return decode(this.stack.resolve(id));
+        // Synthesis sits BEHIND resolution: only a stack miss consults the paletted-permutation
+        // registry (05-models.md §6), so no present-texture path changes. On vanilla the registry
+        // holds only the trim atlas, whose references the item renderer serves before resolution, so
+        // this .or() never fires - byte-neutral.
+        return decode(this.stack.resolve(id)).or(() -> this.synthesizer.synthesize(id, this::resolveTexture));
     }
 
     /** {@inheritDoc} */
