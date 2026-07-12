@@ -32,6 +32,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.slot.ItemSlot;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
@@ -305,14 +306,16 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * @param context the renderer context for texture resolution
      * @param buffer the output buffer (the freshly created GUI buffer the shared tail consumes)
      * @param options the render options (unused beyond the buffer for the plain shield)
+     * @param tick the animation tick the shield base texture is sampled at
      */
     static void renderShield3D(
         @NotNull RendererContext context,
         @NotNull PixelBuffer buffer,
-        @NotNull ItemOptions options
+        @NotNull ItemOptions options,
+        int tick
     ) {
         ModelEngine engine = new ModelEngine(context, Camera.fromPose(SHIELD_GUI_ROTATION, SHIELD_PERSPECTIVE));
-        PixelBuffer texture = engine.textures().resolveTexture(SHIELD_NOPATTERN_TEXTURE_ID);
+        PixelBuffer texture = engine.textures().resolveTextureAtTick(SHIELD_NOPATTERN_TEXTURE_ID, tick);
         ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture);
         triangles = ShieldKit.relightShield(triangles, SHIELD_GUI_ROTATION);
 
@@ -373,12 +376,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull ModelEngine engine,
         @NotNull Item item,
         @NotNull ItemOptions options,
-        @NotNull CitResult cit
+        @NotNull CitResult cit,
+        int tick
     ) {
         String layer0Ref = cit.textureFor("layer0").map(ResourceId::id).orElse(item.textures().get("layer0"));
         if (layer0Ref == null || layer0Ref.isBlank())
             throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.id().id());
-        PixelBuffer base = engine.textures().resolveTexture(layer0Ref);
+        PixelBuffer base = engine.textures().resolveTextureAtTick(layer0Ref, tick);
         PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
 
         int layerIndex = 0;
@@ -386,7 +390,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
             String textureRef = cit.textureFor(layerKey).map(ResourceId::id).orElse(item.textures().get(layerKey));
             if (textureRef == null || textureRef.isBlank()) break;
-            PixelBuffer layer = engine.textures().resolveTexture(textureRef);
+            PixelBuffer layer = engine.textures().resolveTextureAtTick(textureRef, tick);
             int color = resolveLayerTint(context, item, layerIndex, options);
             // ColorMath.tint returns a multiplied copy (alpha preserved); blit composites it
             // source-over so layer0 lands cleanly even when the composite is still empty.
@@ -448,7 +452,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull PixelBuffer buffer,
         @NotNull Item item,
         @NotNull ItemOptions options,
-        @NotNull CitResult cit
+        @NotNull CitResult cit,
+        int tick
     ) {
         int size = options.getOutput().getCanvasSize();
         // The CIT walk ran once per render (shared with the glint decision); each layer resolves against
@@ -464,7 +469,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 TrimKit.resolveFromTextureRef(engine, textureRef)
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
             } else {
-                PixelBuffer layer = engine.resolveTexture(textureRef);
+                PixelBuffer layer = engine.resolveTextureAtTick(textureRef, tick);
                 int color = resolveLayerTint(context, item, layerIndex, options);
                 // ColorMath.tint multiplies each texel by the colour (preserving alpha) and returns
                 // a fresh buffer, then blitScaled composites it over the prior layers - unlike
@@ -498,38 +503,47 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             // One CIT walk per render, shared by the layer stack (texture overrides) and the glint tail
             // (its GlintPolicy). The empty-context vanilla path yields CitResult.NONE, so both stay
-            // vanilla-identical.
+            // vanilla-identical. CIT + glint are tick-independent; only per-layer texture resolution is
+            // tick-aware, so the LayerContext is captured once and buildGuiLayers re-runs per frame with
+            // the frame's tick.
             CitResult cit = engine.textures().resolveCit(options);
+            LayerContext ctx = new LayerContext(this.context, engine.textures(), item, options, cit);
 
             // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
             // trim, damage-bar, and stack-count decorations) so callers can splice their own passes in
             // via ItemOptions.layerDecorator, folded into Finalize's target. The terminal glint is the
             // finalisation step, not a layer, because it expands the buffer into one or many frames.
-            // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in.
-            LayerContext ctx = new LayerContext(this.context, engine.textures(), item, options, cit);
-            return Finalize.render(
-                Finalize.FinalizeSpec.staticFrame(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, options.getOutput().isAntiAlias())
-                    .withGlint(itemGlint(engine.textures(), item, options, cit.glint()), false),
-                (target, mask, tick) -> Layers.foldInto(buildGuiLayers(ctx), options.getLayerDecorator(), target));
+            // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in. Vanilla
+            // ships zero item sidecars, so frameCount defaults to 1 and every layer resolves at tick 0 -
+            // byte-identical; a pack opting in with frameCount > 1 plays the flipbook per frame.
+            AnimationOptions anim = options.getAnimation();
+            int size = options.getOutput().getCanvasSize();
+            Finalize.FinalizeSpec spec = (anim.getFrameCount() > 1
+                ? Finalize.FinalizeSpec.tickStrip(size, size, 1, options.getOutput().isAntiAlias(), anim)
+                : Finalize.FinalizeSpec.staticFrame(size, size, 1, options.getOutput().isAntiAlias()))
+                .withGlint(itemGlint(engine.textures(), item, options, cit.glint()), false);
+            return Finalize.render(spec,
+                (target, mask, tick) -> Layers.foldInto(buildGuiLayers(ctx, tick), options.getLayerDecorator(), target));
         }
 
         /**
          * Builds the default GUI icon layer stack in vanilla pass order: a base sprite/banner/shield
          * layer, then the conditional trim, damage-bar, and stack-count decorations. Each layer is the
-         * verbatim pass that previously ran inline in {@link #render}, capturing the render {@code ctx}.
+         * verbatim pass that previously ran inline in {@link #render}, capturing the render {@code ctx}
+         * and the frame {@code tick} (so the base layer resolves its textures at that tick).
          */
-        private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull LayerContext ctx) {
+        private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull LayerContext ctx, int tick) {
             ItemOptions options = ctx.options();
             LayerStack<ImageLayer> stack = new LayerStack<>();
 
             if (options.getItemId().equals(SHIELD_ITEM_ID))
-                stack.append(ItemSlot.BASE, frame -> renderShield3D(ctx.context(), frame, options));
+                stack.append(ItemSlot.BASE, frame -> renderShield3D(ctx.context(), frame, options, tick));
             else if (isBannerOrShield(options.getItemId()))
                 stack.append(ItemSlot.BASE, frame ->
                     renderBannerOrShield(ctx.textures(), frame, options.getItemId(), options));
             else
                 stack.append(ItemSlot.BASE, frame ->
-                    renderStandardLayers(ctx.context(), ctx.textures(), frame, ctx.item(), options, ctx.cit()));
+                    renderStandardLayers(ctx.context(), ctx.textures(), frame, ctx.item(), options, ctx.cit(), tick));
 
             if (options.getDecoration().getTrimSlot().isPresent() && options.getDecoration().getTrimColor().isPresent())
                 stack.append(ItemSlot.TRIM, frame ->
@@ -599,59 +613,75 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // Identity-pose camera carrying only the projection's lens: the held-item pose lives
             // entirely in the model's display transform (applied as the modelTransform below), so the
             // camera pose stays identity and only the rotation-independent lens comes from resolve().
-            ModelEngine engine = new ModelEngine(this.context,
-                Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).lens()));
+            Camera camera = Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).lens());
             int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
 
-            // One CIT walk per render, shared by the flat-slab layer composite and the glint tail.
-            CitResult cit = engine.textures().resolveCit(options);
-
-            ConcurrentList<VisibleTriangle> triangles;
-            if (isBannerOrShield(options.getItemId())) {
-                triangles = buildBannerOrShield3D(engine, options.getItemId(), options);
-            } else if (!item.model().getElements().isEmpty()) {
-                // Element-based path - held block items and any custom item whose model JSON
-                // supplies 'elements'. The element bounds and face bindings are fully resolved
-                // at pipeline time.
-                Map<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item);
-                triangles = BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint);
-            } else {
-                // Flat sprite fallback - composite the (tinted) layer stack into one texture and
-                // render it as a thin Z-axis slab. composeTintedLayers folds in each layer's
-                // LayerTint (leather dye, potion colour, firework colour) and the caller's
-                // tintColor, so the held view carries the same colour as the GUI icon. Degenerate
-                // cases (no elements AND no layer0) throw inside composeTintedLayers.
-                PixelBuffer texture = composeTintedLayers(this.context, engine, item, options, cit);
-                triangles = BlockGeometryKit.buildBoxTriangles(
-                    new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
-                    new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-                    SixFaces.uniform(texture),
-                    ColorMath.WHITE
-                );
-            }
-
+            // One CIT walk per render, shared by the flat-slab layer composite and the glint tail; both
+            // are tick-independent. Only the per-tick texture bake needs the tick, so the geometry build
+            // moves INSIDE the Finalize callback (fluid pattern) and the ModelEngine is rebuilt per frame
+            // for thread-safe parallel strip baking. Vanilla ships no item sidecars, so a default render
+            // (frameCount = 1) resolves at tick 0 - byte-identical.
+            Textures textures = new Textures(this.context);
+            CitResult cit = textures.resolveCit(options);
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
+
+            AnimationOptions anim = options.getAnimation();
+            int size = options.getOutput().getCanvasSize();
             int ssaa = Math.max(1, options.getOutput().getSupersample());
-            return Finalize.render(
-                Finalize.FinalizeSpec.staticFrame(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias())
-                    .withGlint(itemGlint(engine.textures(), item, options, cit.glint()), false),
-                (target, mask, tick) -> engine.rasterize(triangles, target, displayTransform));
+            Finalize.FinalizeSpec spec = (anim.getFrameCount() > 1
+                ? Finalize.FinalizeSpec.tickStrip(size, size, ssaa, options.getOutput().isAntiAlias(), anim)
+                : Finalize.FinalizeSpec.staticFrame(size, size, ssaa, options.getOutput().isAntiAlias()))
+                .withGlint(itemGlint(textures, item, options, cit.glint()), false);
+            return Finalize.render(spec, (target, mask, tick) -> {
+                ModelEngine engine = new ModelEngine(this.context, camera);
+                engine.rasterize(buildTrianglesAtTick(engine, item, options, cit, tint, tick), target, displayTransform);
+            });
+        }
+
+        /**
+         * Builds the held-item triangles at animation {@code tick}: banner / shield via the pattern
+         * composite, an element-model item's cubes with its face textures sampled at {@code tick}
+         * (held block items and any custom item whose model JSON supplies {@code elements}), or a
+         * flat-sprite item's thin Z-slab carrying its (tinted) {@code layer0..N} composite resolved at
+         * {@code tick}. {@link #composeTintedLayers} folds in each layer's {@code LayerTint} (leather
+         * dye, potion colour, firework colour) and the caller's {@code tintColor} so the held view
+         * carries the same colour as the GUI icon (degenerate no-elements-and-no-layer0 cases throw
+         * inside it). Called once per frame from the {@link Finalize} callback so an animated pack
+         * texture rebuilds per frame.
+         */
+        private @NotNull ConcurrentList<VisibleTriangle> buildTrianglesAtTick(
+            @NotNull ModelEngine engine, @NotNull Item item, @NotNull ItemOptions options, @NotNull CitResult cit, int tint, int tick
+        ) {
+            if (isBannerOrShield(options.getItemId()))
+                return buildBannerOrShield3D(engine, options.getItemId(), options);
+            if (!item.model().getElements().isEmpty()) {
+                Map<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item, tick);
+                return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint);
+            }
+            PixelBuffer texture = composeTintedLayers(this.context, engine, item, options, cit, tick);
+            return BlockGeometryKit.buildBoxTriangles(
+                new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
+                new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
+                SixFaces.uniform(texture),
+                ColorMath.WHITE
+            );
         }
 
         /**
          * Walks the item model's element face texture references, dereferences {@code #var}
          * chains against the model's texture bindings, and loads each unique resolved id into a
-         * {@link PixelBuffer}. The returned map is keyed by the original face reference string
-         * (including any leading {@code #}), which matches what
+         * {@link PixelBuffer} sampled at animation {@code tick}. The returned map is keyed by the
+         * original face reference string (including any leading {@code #}), which matches what
          * {@link BlockGeometryKit#buildFromElements} expects.
          */
         private static @NotNull Map<String, PixelBuffer> loadFaceTextures(
             @NotNull ModelEngine engine,
-            @NotNull Item item
+            @NotNull Item item,
+            int tick
         ) {
             return Textures.loadElementFaceTextures(
                 item.model().getElements(), item.model().getTextures(),
-                id -> Optional.of(engine.textures().resolveTexture(id)));
+                id -> Optional.of(engine.textures().resolveTextureAtTick(id, tick)));
         }
 
         /**

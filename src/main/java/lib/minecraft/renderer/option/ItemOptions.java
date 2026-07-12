@@ -9,6 +9,7 @@ import lib.minecraft.renderer.engine.kit.BannerKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.option.slot.ItemSlot;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
@@ -114,6 +115,17 @@ public class ItemOptions implements RenderOptions {
     /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
+
+    /**
+     * Texture-animation timeline for animated item textures (a resource-pack concern - vanilla 26.1
+     * ships zero {@code textures/item} sidecars). Defaults to a single static frame
+     * ({@link AnimationOptions#defaults()}); item resolution is tick-aware unconditionally
+     * (04-animation §4.2, decision 10), so an animated pack texture shows frame 0 when static instead
+     * of the squashed raw strip, and plays its flipbook when the caller opts in with
+     * {@code frameCount > 1}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull AnimationOptions animation = AnimationOptions.defaults();
 
     /**
      * Render-time item context used by CIT matching, the damage bar, and the stack-count overlay.
