@@ -7,6 +7,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.raster.GlintMask;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,6 +31,14 @@ public final class Finalize {
 
     /** Output frame rate for worn-armor glint, matching every vanilla armor render site. */
     private static final int ARMOR_GLINT_FPS = 30;
+
+    /**
+     * Milliseconds in one vanilla tick - the constant every texture-animated subject folds into its
+     * per-frame playback delay ({@code ticksPerFrame * MILLIS_PER_TICK}) and the tick-to-wall-clock
+     * bridge glint composition uses ({@code tick * MILLIS_PER_TICK}, 04-animation §5). Hoisted from
+     * the former per-renderer copies so no call site hand-writes {@code 50}.
+     */
+    public static final int MILLIS_PER_TICK = 50;
 
     /**
      * Draws one frame into a target buffer at a given animation tick, optionally recording a glint
@@ -132,12 +141,50 @@ public final class Finalize {
             return new FinalizeSpec(width, height, ssaa, antiAlias, false, 1, 0, 1, 0, null);
         }
 
-        /** An animation-strip spec: {@code frameCount} frames sampled from {@code startTick}. */
+        /**
+         * An animation-strip spec: {@code frameCount} frames sampled from {@code startTick}. The
+         * general low-level factory behind the three documented timing modes (04-animation §1.3);
+         * the {@code delayMs} the caller supplies is what distinguishes them:
+         * <ul>
+         * <li><b>(a) tick strip</b> - texture animation (fluid, and every block / item / entity
+         *     subject): {@code delayMs = ticksPerFrame * }{@link Finalize#MILLIS_PER_TICK}, so the
+         *     output clock resamples the texture clock at a fixed tick cadence. Built through
+         *     {@link #tickStrip} so no call site hand-writes the constant.</li>
+         * <li><b>(b) sim-tick + fixed delay</b> - portal parallax: {@code ticksPerFrame} advances a
+         *     continuous shader sim while {@code delayMs} stays a fixed {@code 50}, deliberately
+         *     decoupling sim speed from playback speed.</li>
+         * <li><b>(c) fps-derived ms</b> - the enchantment-glint tail: frame {@code n} plays for
+         *     {@code delayMs = max(1, round(1000 / fps))}; owned by {@link Glint}, not this factory.</li>
+         * </ul>
+         */
         public static @NotNull FinalizeSpec animated(
             int width, int height, int ssaa, boolean antiAlias,
             int frameCount, int startTick, int ticksPerFrame, int delayMs
         ) {
             return new FinalizeSpec(width, height, ssaa, antiAlias, false, frameCount, startTick, ticksPerFrame, delayMs, null);
+        }
+
+        /**
+         * The mode-(a) tick-strip factory (04-animation §1.3, decision D1): binds an
+         * {@link AnimationOptions} timeline to {@link #animated} with the mode-(a) delay
+         * ({@code ticksPerFrame * }{@link Finalize#MILLIS_PER_TICK}) folded in once, so every
+         * texture-animated subject (fluid, block, item, entity) shares one delay derivation and
+         * cannot drift. A {@code frameCount = 1} timeline (the static default) produces the same
+         * single-frame spec {@link #staticFrame} would, sampled at {@code startTick}.
+         *
+         * @param width the output canvas width
+         * @param height the output canvas height
+         * @param ssaa the supersampling factor; {@code 1} means no supersampling
+         * @param antiAlias whether to apply FXAA before downscaling
+         * @param animation the caller's animation timeline (start tick, frame count, ticks per frame)
+         * @return the tick-strip spec
+         */
+        public static @NotNull FinalizeSpec tickStrip(
+            int width, int height, int ssaa, boolean antiAlias, @NotNull AnimationOptions animation
+        ) {
+            return animated(width, height, ssaa, antiAlias, animation.getFrameCount(),
+                animation.getStartTick(), animation.getTicksPerFrame(),
+                animation.getTicksPerFrame() * MILLIS_PER_TICK);
         }
 
         /** Returns a copy carrying the given glint tail and mask-recording flag. */

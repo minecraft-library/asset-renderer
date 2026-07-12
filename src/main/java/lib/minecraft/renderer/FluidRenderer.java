@@ -56,12 +56,6 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
     /** Namespaced flow-frame texture id for lava (side / sloped-top texture). */
     static final @NotNull String LAVA_FLOW_TEXTURE_ID = "minecraft:block/lava_flow";
 
-    /**
-     * Duration of one vanilla tick in milliseconds - used to convert {@code ticksPerFrame} into a
-     * per-frame animation delay.
-     */
-    private static final int MILLIS_PER_TICK = 50;
-
     /** Sub-renderer for the full 3D isometric cube path ({@link FluidOptions.Type#ISOMETRIC_3D}). */
     private final @NotNull Isometric3D isometric3D;
     /** Sub-renderer for the flat still-face path ({@link FluidOptions.Type#FLUID_FACE_2D}). */
@@ -156,9 +150,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // once would freeze the animation on frame 0's textures).
             int ssaa = Math.max(1, options.getOutput().getSupersample());
             return Finalize.render(
-                Finalize.FinalizeSpec.animated(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias(),
-                    options.getAnimation().getFrameCount(), options.getAnimation().getStartTick(), options.getAnimation().getTicksPerFrame(),
-                    options.getAnimation().getTicksPerFrame() * MILLIS_PER_TICK),
+                Finalize.FinalizeSpec.tickStrip(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias(),
+                    options.getAnimation()),
                 (target, mask, tick) -> rasterizeFrame(options, tick, target));
         }
 
@@ -208,9 +201,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // Each tick constructs its own RasterEngine, so Finalize bakes frames in parallel. Flat 2D
             // blit: no supersample / FXAA (ssaa = 1, antiAlias = false).
             return Finalize.render(
-                Finalize.FinalizeSpec.animated(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,
-                    options.getAnimation().getFrameCount(), options.getAnimation().getStartTick(), options.getAnimation().getTicksPerFrame(),
-                    options.getAnimation().getTicksPerFrame() * MILLIS_PER_TICK),
+                Finalize.FinalizeSpec.tickStrip(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,
+                    options.getAnimation()),
                 (target, mask, tick) -> rasterizeFrame(options, tick, target));
         }
 
