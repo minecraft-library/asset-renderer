@@ -8,6 +8,7 @@ import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.option.slot.BlockSlot;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lombok.AccessLevel;
@@ -89,6 +90,16 @@ public class BlockOptions implements RenderOptions {
     /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
+
+    /**
+     * Texture-animation timeline for the block's flipbook faces (water, fire, prismarine,
+     * sea_lantern, magma). Defaults to a single static frame ({@link AnimationOptions#defaults()}),
+     * so every face resolves at tick 0 exactly as before; a caller opting in with
+     * {@code frameCount > 1} plays the flipbook, rebuilding geometry per frame. Only consulted by the
+     * 3D isometric path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull AnimationOptions animation = AnimationOptions.defaults();
 
     /**
      * Whether the renderer should compose a {@link Block.Entity}'s
