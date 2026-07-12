@@ -310,6 +310,13 @@ tasks {
         classpath = sourceSets["test"].runtimeClasspath
     }
 
+    register<JavaExec>("menuRender") {
+        description = "Renders the vanilla-style chest chrome menus (SkyBlock crafting + vanilla crafting) to cache/visual/menu-render/ for visual inspection."
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestMenuRender")
+        classpath = sourceSets["test"].runtimeClasspath
+    }
+
     register<JavaExec>("stackCountBadge") {
         description = "Renders ItemStackKit.drawStackCount over a grey backdrop at several sizes. Use -Plabel=<tag> to write to cache/visual/stack-count-badge/<tag>/ or -Pdiff=A,B to pixel-diff two labels."
         group = "visual"

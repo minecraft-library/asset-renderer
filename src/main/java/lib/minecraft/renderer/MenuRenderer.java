@@ -14,8 +14,10 @@ import lib.minecraft.renderer.engine.compose.FramePlacement;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
+import lib.minecraft.renderer.engine.kit.NineSliceKit;
 import lib.minecraft.renderer.engine.kit.TextKit;
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.MenuOptions;
@@ -28,6 +30,7 @@ import lib.minecraft.text.font.MinecraftFontMetrics;
 import lib.minecraft.text.font.MinecraftGraphics;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 
@@ -115,6 +118,19 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * Interior fill colour of the vanilla anvil rename textbox.
      */
     static final int ANVIL_TEXTBOX_BEIGE = 0xFFE5D4AC;
+
+    /**
+     * The vanilla inventory slot-cell sprite id ({@code textures/gui/sprites/container/slot.png}) - the
+     * real 18x18 sunken slot texture blitted per slot in place of the former hand-drawn bevels.
+     */
+    static final @NotNull String SLOT_SPRITE_ID = "minecraft:gui/sprites/container/slot";
+
+    /**
+     * The slot sprite's scaling: {@code stretch} (the vanilla slot ships no {@code gui.scaling} mcmeta,
+     * so it inherits the spec default), stretched to each slot rect via {@link NineSliceKit}.
+     */
+    private static final @NotNull MCMeta.GuiScaling SLOT_SCALING = new MCMeta.GuiScaling(
+        MCMeta.GuiScaling.Type.STRETCH, -1, -1, new MCMeta.GuiScaling.Border(0, 0, 0, 0), false);
 
     /**
      * Shared renderer for the flat-grid {@code PLAYER}/{@code CHEST}/{@code CUSTOM}/{@code SLOT} types.
@@ -340,22 +356,24 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Draws a programmatic vanilla-style Minecraft chest GUI chrome onto the buffer. Outer
-     * border uses a raised 2-pixel bevel (light highlight on top/left, dark shadow on
-     * bottom/right); each slot uses an inverted sunken bevel so the interior appears inset.
-     * Colors match the classic Minecraft inventory palette ({@code 0xFFC6C6C6} background,
-     * {@code 0xFF8B8B8B} slot fill, white highlights, dark-gray shadows).
+     * Draws a vanilla-style Minecraft chest GUI chrome onto the buffer. The outer border uses a raised
+     * 2-pixel bevel (light highlight on top/left, dark shadow on bottom/right) and the title band the
+     * classic inventory palette ({@code 0xFFC6C6C6} background, white highlights, dark-gray shadows);
+     * each slot cell is blitted from the vanilla {@code container/slot} sprite via {@link NineSliceKit}
+     * in place of the former hand-drawn bevels.
+     *
+     * @param chrome the chrome buffer to draw onto
+     * @param rows the slot-grid row count
+     * @param cols the slot-grid column count
+     * @param slotSprite the resolved vanilla slot sprite, or {@code null} to leave slots as bare panel
      */
-    static void drawVanillaChestChrome(@NotNull PixelBuffer chrome, int rows, int cols) {
+    static void drawVanillaChestChrome(@NotNull PixelBuffer chrome, int rows, int cols, @Nullable PixelBuffer slotSprite) {
         int w = chrome.width();
         int h = chrome.height();
 
         final int background = 0xFFC6C6C6;
         final int borderHighlight = CHROME_BORDER_HIGHLIGHT;
         final int borderShadow = CHROME_BORDER_SHADOW;
-        final int slotFill = 0xFF8B8B8B;
-        final int slotShadow = 0xFF373737;
-        final int slotHighlight = CHROME_BORDER_HIGHLIGHT;
         final int titleBand = 0xFFB4B4B4;
         final int borderThickness = 2;
 
@@ -375,16 +393,38 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             for (int col = 0; col < cols; col++) {
                 int sx = INSET + col * SLOT_SIZE;
                 int sy = INSET + TITLE_HEIGHT + row * SLOT_SIZE;
-                int sw = SLOT_SIZE - 2;
-                int sh = SLOT_SIZE - 2;
-
-                chrome.fillRect(sx, sy, sw, sh, slotFill);
-                chrome.fillRect(sx, sy, sw, 1, slotShadow);
-                chrome.fillRect(sx, sy, 1, sh, slotShadow);
-                chrome.fillRect(sx, sy + sh - 1, sw, 1, slotHighlight);
-                chrome.fillRect(sx + sw - 1, sy, 1, sh, slotHighlight);
+                drawSlotCell(chrome, sx, sy, SLOT_SIZE - 2, SLOT_SIZE - 2, slotSprite);
             }
         }
+    }
+
+    /**
+     * Blits one inventory slot cell into the given rect from the vanilla {@code container/slot} sprite
+     * via {@link NineSliceKit} (stretched to the rect). A {@code null} sprite - the slot texture
+     * unresolved - draws nothing, leaving the panel background showing (missing textures drop, no
+     * procedural fallback).
+     *
+     * @param chrome the chrome buffer to draw onto
+     * @param x the slot rect x origin
+     * @param y the slot rect y origin
+     * @param w the slot rect width
+     * @param h the slot rect height
+     * @param slotSprite the resolved slot sprite, or {@code null} to draw nothing
+     */
+    static void drawSlotCell(@NotNull PixelBuffer chrome, int x, int y, int w, int h, @Nullable PixelBuffer slotSprite) {
+        if (slotSprite == null) return;
+        NineSliceKit.draw(chrome, slotSprite, SLOT_SCALING, x, y, w, h, MinecraftFont.MC_PIXEL_SCALE, 1.0f);
+    }
+
+    /**
+     * Resolves the vanilla {@code container/slot} sprite through the pack stack (a grayscale texture,
+     * decoded gamma-safe), or {@code null} when no pack supplies it.
+     *
+     * @param context the renderer context resolving the slot texture
+     * @return the decoded slot sprite, or {@code null} when unresolved
+     */
+    static @Nullable PixelBuffer resolveSlotSprite(@NotNull RendererContext context) {
+        return context.resolveTexture(SLOT_SPRITE_ID).orElse(null);
     }
 
     /**
@@ -481,20 +521,19 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Draws a single sunken slot inset (matching the {@link #drawVanillaChestChrome} slot
-     * style) at the given pixel position. Used by layouts that want to place slot cells
-     * outside the regular grid that {@code drawVanillaChestChrome} fills, e.g. the vanilla
-     * anvil slot row below the rename textbox.
+     * Draws a single slot cell (matching the {@link #drawVanillaChestChrome} slot style) at the given
+     * pixel position from the vanilla {@code container/slot} sprite. Used by layouts that place slot
+     * cells outside the regular grid, e.g. the vanilla anvil slot row below the rename textbox.
+     *
+     * @param chrome the chrome buffer to draw onto
+     * @param x the slot rect x origin
+     * @param y the slot rect y origin
+     * @param w the slot rect width
+     * @param h the slot rect height
+     * @param slotSprite the resolved slot sprite, or {@code null} to draw nothing
      */
-    static void drawSlotInset(@NotNull PixelBuffer chrome, int x, int y, int w, int h) {
-        final int slotFill = 0xFF8B8B8B;
-        final int slotShadow = 0xFF373737;
-        final int slotHighlight = CHROME_BORDER_HIGHLIGHT;
-        chrome.fillRect(x, y, w, h, slotFill);
-        chrome.fillRect(x, y, w, 1, slotShadow);
-        chrome.fillRect(x, y, 1, h, slotShadow);
-        chrome.fillRect(x, y + h - 1, w, 1, slotHighlight);
-        chrome.fillRect(x + w - 1, y, 1, h, slotHighlight);
+    static void drawSlotInset(@NotNull PixelBuffer chrome, int x, int y, int w, int h, @Nullable PixelBuffer slotSprite) {
+        drawSlotCell(chrome, x, y, w, h, slotSprite);
     }
 
     /**
@@ -779,8 +818,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             int canvasW = COLS * SLOT_SIZE + 2 * INSET;
             int canvasH = ROWS * SLOT_SIZE + 2 * INSET + TITLE_HEIGHT;
 
+            PixelBuffer slotSprite = resolveSlotSprite(this.context);
             PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
-            drawVanillaChestChrome(chrome, ROWS, COLS);
+            drawVanillaChestChrome(chrome, ROWS, COLS, slotSprite);
             drawSlotBackground(chrome, 3, 0, 0xFFC6C6C6);
             drawSlotBackground(chrome, 3, 2, 0xFFC6C6C6);
             drawCraftArrowInSlot(chrome, 3, 1);
@@ -849,8 +889,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             int xpLabelHeight = options.getXpCost() > 0 ? XP_LABEL_HEIGHT : 0;
             int canvasH = TITLE_HEIGHT + TEXTBOX_HEIGHT + SLOT_SIZE + 2 * INSET + xpLabelHeight;
 
+            PixelBuffer slotSprite = resolveSlotSprite(this.context);
             PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
-            drawVanillaChestChrome(chrome, 0, COLS);
+            drawVanillaChestChrome(chrome, 0, COLS, slotSprite);
             drawHammer(chrome, INSET + 4, (TITLE_HEIGHT - 16) / 2 + 2, 16, 16, CHROME_BORDER_HIGHLIGHT);
 
             int textboxX = INSET + SLOT_SIZE / 2;
@@ -862,7 +903,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             int slotRowY = INSET + TITLE_HEIGHT + TEXTBOX_HEIGHT;
             for (int col : SLOT_COLS) {
                 int sx = INSET + col * SLOT_SIZE;
-                drawSlotInset(chrome, sx, slotRowY, SLOT_SIZE - 2, SLOT_SIZE - 2);
+                drawSlotInset(chrome, sx, slotRowY, SLOT_SIZE - 2, SLOT_SIZE - 2, slotSprite);
             }
 
             drawPlusInSlot(chrome, 1, slotRowY);
@@ -934,8 +975,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             int canvasW = SKYBLOCK_CHEST_COLS * SLOT_SIZE + 2 * INSET;
             int canvasH = SKYBLOCK_CHEST_ROWS * SLOT_SIZE + 2 * INSET + TITLE_HEIGHT;
 
+            PixelBuffer slotSprite = resolveSlotSprite(this.context);
             PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
-            drawVanillaChestChrome(chrome, SKYBLOCK_CHEST_ROWS, SKYBLOCK_CHEST_COLS);
+            drawVanillaChestChrome(chrome, SKYBLOCK_CHEST_ROWS, SKYBLOCK_CHEST_COLS, slotSprite);
             drawCraftArrowInSlot(chrome, ARROW_SLOT % SKYBLOCK_CHEST_COLS, ARROW_SLOT / SKYBLOCK_CHEST_COLS);
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
 
@@ -1009,8 +1051,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             int canvasW = SKYBLOCK_CHEST_COLS * SLOT_SIZE + 2 * INSET;
             int canvasH = SKYBLOCK_CHEST_ROWS * SLOT_SIZE + 2 * INSET + TITLE_HEIGHT;
 
+            PixelBuffer slotSprite = resolveSlotSprite(this.context);
             PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
-            drawVanillaChestChrome(chrome, SKYBLOCK_CHEST_ROWS, SKYBLOCK_CHEST_COLS);
+            drawVanillaChestChrome(chrome, SKYBLOCK_CHEST_ROWS, SKYBLOCK_CHEST_COLS, slotSprite);
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
