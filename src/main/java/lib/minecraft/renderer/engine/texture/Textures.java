@@ -13,8 +13,9 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.asset.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
+import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.option.ItemOptions;
 import lombok.Getter;
@@ -272,27 +273,20 @@ public class Textures {
     }
 
     /**
-     * Resolves the {@code layer0} texture id for an item, consulting any matching CIT rule via
-     * {@link RendererContext#resolveItemTextureOverride(ItemContext)} before falling back to the
-     * model's bound layer0. Returns {@code null} when the item supplies no layer0 binding and no
-     * CIT rule matches; callers raise their own error in that case.
-     * <p>
-     * The {@link ItemContext#EMPTY} sentinel short-circuits the override lookup so callers that
-     * never populate {@link ItemOptions#getContext()} pay zero rule-walk cost. CIT in vanilla
-     * Optifine semantics replaces only {@code layer0}; {@code layer1+} overlays (potion liquid,
-     * leather armor overlay, leather helmet pattern) pass through unchanged via
-     * {@link Item#textures()} and don't go through this helper.
+     * Resolves the Custom Item Texture effect for this render, or {@link CitResult#NONE} when the
+     * caller supplied no item context. The {@link ItemContext#EMPTY} sentinel short-circuits the rule
+     * walk so vanilla callers pay zero cost; a real context walks the merged CIT rules once via
+     * {@link RendererContext#resolveItemTextureOverride(ItemContext)}, and the caller resolves each
+     * layer against the result with {@link CitResult#textureFor(String)} - one walk per render rather
+     * than one per layer.
      *
-     * @param item the item DTO
      * @param options the per-render options carrying the optional {@link ItemContext}
-     * @return the namespaced layer0 texture id, or {@code null} when none is bound
+     * @return the CIT effect, or {@link CitResult#NONE} when the context is empty
      */
-    public String resolveLayer0(@NotNull Item item, @NotNull ItemOptions options) {
-        if (options.getContext() != ItemContext.EMPTY) {
-            Optional<String> override = this.context.resolveItemTextureOverride(options.getContext());
-            if (override.isPresent()) return override.get();
-        }
-        return item.textures().get("layer0");
+    public @NotNull CitResult resolveCit(@NotNull ItemOptions options) {
+        return options.getContext() == ItemContext.EMPTY
+            ? CitResult.NONE
+            : this.context.resolveItemTextureOverride(options.getContext());
     }
 
     /**

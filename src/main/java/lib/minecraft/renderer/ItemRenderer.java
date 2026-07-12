@@ -7,10 +7,10 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
-import lib.minecraft.renderer.asset.rule.ItemContext;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -34,6 +34,8 @@ import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.slot.ItemSlot;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
+import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
+import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -359,7 +361,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull Item item,
         @NotNull ItemOptions options
     ) {
-        String layer0Ref = engine.textures().resolveLayer0(item, options);
+        CitResult cit = engine.textures().resolveCit(options);
+        String layer0Ref = cit.textureFor("layer0").map(ResourceId::id).orElse(item.textures().get("layer0"));
         if (layer0Ref == null || layer0Ref.isBlank())
             throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.id().id());
         PixelBuffer base = engine.textures().resolveTexture(layer0Ref);
@@ -367,7 +370,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         int layerIndex = 0;
         while (true) {
-            String textureRef = layerIndex == 0 ? layer0Ref : item.textures().get(LAYER_TEXTURE_PREFIX + layerIndex);
+            String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
+            String textureRef = cit.textureFor(layerKey).map(ResourceId::id).orElse(item.textures().get(layerKey));
             if (textureRef == null || textureRef.isBlank()) break;
             PixelBuffer layer = engine.textures().resolveTexture(textureRef);
             int color = resolveLayerTint(context, item, layerIndex, options);
@@ -433,15 +437,14 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull ItemOptions options
     ) {
         int size = options.getOutput().getCanvasSize();
+        // Walk the CIT rules once; each layer resolves against the result (layer0 -> texture, layerN ->
+        // texture.<name>), falling back to the model-bound id. The empty-context vanilla path yields
+        // CitResult.NONE, so every layer passes through unchanged.
+        CitResult cit = engine.resolveCit(options);
         int layerIndex = 0;
         while (true) {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
-            // CIT replaces only layer0; layer1+ pass through unchanged. resolveLayer0 returns the
-            // model-bound id when no rule matches or the context is empty, matching the existing
-            // textures-map lookup.
-            String textureRef = layerIndex == 0
-                ? engine.resolveLayer0(item, options)
-                : item.textures().get(layerKey);
+            String textureRef = cit.textureFor(layerKey).map(ResourceId::id).orElse(item.textures().get(layerKey));
             if (textureRef == null || textureRef.isBlank()) break;
 
             if (TrimKit.isTrimTexture(textureRef)) {

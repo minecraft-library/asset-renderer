@@ -14,9 +14,6 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.asset.rule.CtmMethod;
-import lib.minecraft.renderer.asset.rule.CtmResolution;
-import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
 import lib.minecraft.renderer.pipeline.pack.Capability;
@@ -27,6 +24,7 @@ import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -193,7 +191,7 @@ class PipelineRendererContextTest {
             colorMaps, blockTints, blockModels, itemModels,
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), itemTints, glintItems,
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
-            Concurrent.newMap(), Concurrent.newList(), Concurrent.newList(),
+            RuleSet.empty(PackId.VANILLA),
             Concurrent.newMap()
         );
         context = PipelineRendererContext.of(result);
@@ -329,53 +327,6 @@ class PipelineRendererContextTest {
         assertThat(vanilla.isPresent(), is(true));
         assertThat(vanilla.get().roots().isEmpty(), is(false));
         assertThat(context.findPack(new PackId("nonexistent")).isPresent(), is(false));
-    }
-
-    @Test
-    @DisplayName("resolveCtm walks rules in sort order and returns the first applicable resolution")
-    void resolveCtmReturnsFirstApplicableRule() {
-        // Two rules: the first applies to a different block, the second matches our query.
-        // resolveCtm walks in declaration order (which mirrors weight-descending sort upstream)
-        // and returns the second's resolution.
-        CtmRule miss = new CtmRule(
-            "miss.properties", 10, CtmMethod.FIXED,
-            Concurrent.newList("minecraft:cobblestone"),
-            Concurrent.newList(),
-            Concurrent.newList("pack:block/cobblestone_custom"),
-            Concurrent.newList(),
-            java.util.EnumSet.of(CtmRule.Face.ALL)
-        );
-        CtmRule hit = new CtmRule(
-            "hit.properties", 5, CtmMethod.FIXED,
-            Concurrent.newList("minecraft:stone"),
-            Concurrent.newList(),
-            Concurrent.newList("pack:block/stone_custom"),
-            Concurrent.newList(),
-            java.util.EnumSet.of(CtmRule.Face.ALL)
-        );
-
-        Pipeline.Result resultWithCtm = new Pipeline.Result(
-            packRoot,
-            result.getStack(),
-            result.getColorMaps(), result.getBlockTints(),
-            result.getBlockModels(), result.getItemModels(),
-            result.getBlockVariants(), result.getBlockMultiparts(),
-            result.getItemDefinitions(), result.getItemTints(), result.getGlintItems(), result.getBlockTags(),
-            result.getPotionEffectColors(), result.getBannerPatterns(),
-            result.getColorOverrides(), result.getCitRules(),
-            Concurrent.newList(miss, hit),
-            result.getBlockDefaultStateKeys()
-        );
-        PipelineRendererContext ctx = PipelineRendererContext.of(resultWithCtm);
-
-        Optional<CtmResolution> resolution = ctx.resolveCtm("minecraft:stone", "minecraft:block/stone", CtmRule.Face.UP);
-        assertThat(resolution.isPresent(), is(true));
-        assertThat(resolution.get().textureId(), equalTo("pack:block/stone_custom"));
-        assertThat(resolution.get().overlayTextureId().isPresent(), is(false));
-
-        // Block id with no matching rule returns empty.
-        Optional<CtmResolution> miss2 = ctx.resolveCtm("minecraft:gravel", "minecraft:block/gravel", CtmRule.Face.UP);
-        assertThat(miss2.isPresent(), is(false));
     }
 
     @Test

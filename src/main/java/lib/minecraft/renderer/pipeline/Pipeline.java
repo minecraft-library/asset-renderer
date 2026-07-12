@@ -24,18 +24,13 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.asset.rule.CitRule;
-import lib.minecraft.renderer.asset.rule.ColorProperties;
-import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.loader.BannerPatternLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockStateLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTagLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
-import lib.minecraft.renderer.pipeline.loader.CitLoader;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
-import lib.minecraft.renderer.pipeline.loader.CtmLoader;
 import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemDefinitionLoader;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
@@ -46,6 +41,7 @@ import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.Getter;
@@ -61,9 +57,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -104,8 +98,8 @@ public class Pipeline {
      * Runs the full extraction flow for the given options: downloads and caches the client jar,
      * extracts the vanilla asset tree, resolves the vanilla plus user pack stack, then fans out to
      * every domain loader (models, blockstates, textures, colormaps, tags, banner patterns, potion
-     * colours) and OptiFine rule collector (CIT, CTM, colour overrides), returning everything as a
-     * single {@link Result}.
+     * colours) and merges the pack rule layer ({@link RuleSet#merge(PackStack)} - CIT, CTM, colour
+     * overrides, {@code useGlint}), returning everything as a single {@link Result}.
      *
      * @param options the pipeline options
      * @return the parsed asset result
@@ -136,13 +130,11 @@ public class Pipeline {
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
         ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(combinedRoots);
 
-        ConcurrentMap<String, Integer> colorOverrides = collectColorOverrides(combinedRoots);
-        ConcurrentList<CitRule> citRules = collectCitRules(combinedRoots);
-        ConcurrentList<CtmRule> ctmRules = collectCtmRules(combinedRoots);
+        RuleSet rules = RuleSet.merge(stack);
 
         return new Result(packRoot, stack, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, itemTints, glintItems, blockTags,
-            potionEffectColors, bannerPatterns, colorOverrides, citRules, ctmRules, blockStateResult.getDefaultStateKeys());
+            potionEffectColors, bannerPatterns, rules, blockStateResult.getDefaultStateKeys());
     }
 
     /**
@@ -168,55 +160,6 @@ public class Pipeline {
     /** Drops the trailing path separator an overlay-root prefix carries so {@link Path#resolve} yields a clean directory. */
     private static @NotNull String trimSlash(@NotNull String prefix) {
         return prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
-    }
-
-    /**
-     * Walks every asset root in ascending-priority order, calling
-     * {@link ColorProperties#loadFrom(Path)} per root and merging overrides with later-wins
-     * semantics. Roots that ship no {@code optifine/color.properties} or
-     * {@code mcpatcher/color.properties} contribute zero entries.
-     */
-    private static @NotNull ConcurrentMap<String, Integer> collectColorOverrides(@NotNull ConcurrentList<Path> combinedRoots) {
-        HashMap<String, Integer> merged = new HashMap<>();
-
-        for (Path root : combinedRoots)
-            merged.putAll(ColorProperties.loadFrom(root).overrides());
-
-        return Concurrent.adoptMap(merged).toUnmodifiable();
-    }
-
-    /**
-     * Walks every asset root in ascending-priority order, calling
-     * {@link CitLoader#load(Path)} per root and concatenating the resulting rules. The combined
-     * list is sorted by descending weight so the highest-priority rules appear first; ties
-     * preserve their declaration order, which means later-priority roots naturally win on
-     * weight-tied collisions.
-     */
-    private static @NotNull ConcurrentList<CitRule> collectCitRules(@NotNull ConcurrentList<Path> combinedRoots) {
-        ArrayList<CitRule> rules = new ArrayList<>();
-
-        for (Path root : combinedRoots)
-            rules.addAll(CitLoader.load(root));
-
-        rules.sort(Comparator.comparingInt(CitRule::weight).reversed());
-        return Concurrent.adoptList(rules).toUnmodifiable();
-    }
-
-    /**
-     * Walks every asset root in ascending-priority order, calling
-     * {@link CtmLoader#load(Path)} per root and concatenating the resulting rules. The combined
-     * list is sorted by descending weight so the highest-priority rules appear first; ties
-     * preserve their declaration order, which means later-priority roots naturally win on
-     * weight-tied collisions.
-     */
-    private static @NotNull ConcurrentList<CtmRule> collectCtmRules(@NotNull ConcurrentList<Path> combinedRoots) {
-        ArrayList<CtmRule> rules = new ArrayList<>();
-
-        for (Path root : combinedRoots)
-            rules.addAll(CtmLoader.load(root));
-
-        rules.sort(Comparator.comparingInt(CtmRule::weight).reversed());
-        return Concurrent.adoptList(rules).toUnmodifiable();
     }
 
     /**
@@ -511,27 +454,12 @@ public class Pipeline {
         private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
 
         /**
-         * Pack-supplied colour overrides keyed by raw {@code optifine/color.properties} or
-         * {@code mcpatcher/color.properties} property name (e.g. {@code grass.plains},
-         * {@code redstone.0}). Higher-priority packs win on key collisions via the per-pack
-         * later-wins merge in {@link #collectColorOverrides}.
+         * The merged pack rule payload - CIT rules (walked first-match-wins at render), CTM rules
+         * (parse-and-store; CTM renders nothing), per-key colour overrides, and the global
+         * {@code useGlint} - folded across the pack stack by {@link RuleSet#merge(PackStack)}. Empty of
+         * rules for a vanilla-only stack, which ships no {@code optifine/} tree.
          */
-        private final @NotNull ConcurrentMap<String, Integer> colorOverrides;
-
-        /**
-         * Custom Item Texture rules parsed from every pack's
-         * {@code optifine/cit/**} and {@code mcpatcher/cit/**} subtrees, sorted by descending
-         * weight so the highest-priority rules appear first.
-         */
-        private final @NotNull ConcurrentList<CitRule> citRules;
-
-        /**
-         * Connected Textures rules parsed from every pack's
-         * {@code optifine/ctm/**} and {@code mcpatcher/ctm/**} subtrees, sorted by descending
-         * weight. Currently consumable via the renderer context's {@code resolveCtm} for tooling
-         * and external callers; the renderer itself doesn't yet apply them.
-         */
-        private final @NotNull ConcurrentList<CtmRule> ctmRules;
+        private final @NotNull RuleSet rules;
 
         /**
          * Per-block canonical default-state key, from the bundled {@code block_defaults.json}

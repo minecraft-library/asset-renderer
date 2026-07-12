@@ -12,11 +12,9 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.rule.CitMatcher;
-import lib.minecraft.renderer.asset.rule.CtmResolution;
-import lib.minecraft.renderer.asset.rule.CtmRule;
-import lib.minecraft.renderer.asset.rule.ItemContext;
 import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
+import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import org.jetbrains.annotations.NotNull;
 
@@ -187,45 +185,22 @@ public interface RendererContext {
     }
 
     /**
-     * Resolves a Connected Textures rule for the given block face, walking the parsed
-     * {@code optifine/ctm/**} and {@code mcpatcher/ctm/**} rule list in descending weight order
-     * and returning the first rule whose {@code appliesTo} predicate accepts the
-     * {@code (blockId, baseTextureId, face)} triple.
-     * <p>
-     * Non-neighbor methods (FIXED, RANDOM, REPEAT, OVERLAY, OVERLAY_FIXED) resolve fully via
-     * {@code CtmMatcher.resolve}. Neighbor-based methods currently fall back to {@code tiles[0]}
-     * when called through this entry point - resolving them properly requires a pre-computed
-     * {@code NeighborPattern} which the single-block renderer doesn't yet supply. The
-     * {@code BlockRenderer} hot path also doesn't yet consult this method, so no actual texture
-     * substitution happens in render output today; the data is available for tooling and
-     * external consumers.
+     * Resolves the highest-precedence Custom Item Texture effect for a render-time
+     * {@link ItemContext}, walking the merged CIT rule list first-match-wins and returning the effect
+     * the winning rule applies (03-rules §2). The return widened from HEAD's single texture id to a
+     * {@link CitResult} carrying the {@code layer0} texture, named sub-texture replacements, a model
+     * override, and the glint policy. The default returns {@link CitResult#NONE} so test stubs need not
+     * override it.
      *
-     * @param blockId the block id, e.g. {@code "minecraft:stone_bricks"}
-     * @param baseTextureId the vanilla base texture id for the face, e.g. {@code "minecraft:block/stone_bricks"}
-     * @param face the face being rendered
-     * @return the resolution, or empty when no rule matches
-     */
-    default @NotNull Optional<CtmResolution> resolveCtm(
-        @NotNull String blockId,
-        @NotNull String baseTextureId,
-        @NotNull CtmRule.Face face
-    ) {
-        return Optional.empty();
-    }
-
-    /**
-     * Resolves the highest-priority Custom Item Texture override for a render-time
-     * {@link ItemContext ItemContext}, walking the parsed
-     * {@code optifine/cit/**} and {@code mcpatcher/cit/**} rule list in descending weight order
-     * and returning the first rule whose
-     * {@link CitMatcher} predicate accepts the context. The
-     * default returns empty so test stubs do not need to override it.
+     * <p>Connected Textures (CTM) has no render seam: it renders nothing (locked decision 4), so the
+     * merged CTM rules are parse-and-store only, with zero render-path callers (see
+     * {@code CtmNeighborResolver}).
      *
      * @param context the per-render item context (item id + NBT + enchantments + display name)
-     * @return the namespaced output texture id, or empty when no rule matches
+     * @return the CIT effect, or {@link CitResult#NONE} when no rule matches
      */
-    default @NotNull Optional<String> resolveItemTextureOverride(@NotNull ItemContext context) {
-        return Optional.empty();
+    default @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
+        return CitResult.NONE;
     }
 
     /**

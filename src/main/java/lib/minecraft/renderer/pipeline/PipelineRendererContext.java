@@ -13,12 +13,6 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.rule.CitMatcher;
-import lib.minecraft.renderer.asset.rule.CitRule;
-import lib.minecraft.renderer.asset.rule.CtmMatcher;
-import lib.minecraft.renderer.asset.rule.CtmResolution;
-import lib.minecraft.renderer.asset.rule.CtmRule;
-import lib.minecraft.renderer.asset.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.pipeline.loader.BlockIndexLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
@@ -31,6 +25,11 @@ import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
+import lib.minecraft.renderer.pipeline.pack.rule.CitRule;
+import lib.minecraft.renderer.pipeline.pack.rule.CitType;
+import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
+import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -68,9 +67,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntities;
-    private final @NotNull ConcurrentMap<String, Integer> colorOverrides;
-    private final @NotNull ConcurrentList<CitRule> citRules;
-    private final @NotNull ConcurrentList<CtmRule> ctmRules;
+    private final @NotNull RuleSet rules;
 
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
 
@@ -109,9 +106,7 @@ public final class PipelineRendererContext implements RendererContext {
             result.getPotionEffectColors(),
             result.getBannerPatterns(),
             blockEntities,
-            result.getColorOverrides(),
-            result.getCitRules(),
-            result.getCtmRules()
+            result.getRules()
         );
     }
 
@@ -280,44 +275,22 @@ public final class PipelineRendererContext implements RendererContext {
     /** {@inheritDoc} */
     @Override
     public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
-        return this.colorOverrides.getOptional(key);
+        return this.rules.colors().get(key);
     }
 
     /**
      * {@inheritDoc}
      * <p>
-     * Walks the weight-sorted CIT rule list and returns the first rule whose
-     * {@link CitMatcher} predicate accepts the context.
+     * Walks the merged CIT rule list first-match-wins, skipping non-{@link CitType#ITEM} rules (only
+     * item rules retexture icons), and returns the winning rule's effect as a {@link CitResult}.
      */
     @Override
-    public @NotNull Optional<String> resolveItemTextureOverride(@NotNull ItemContext context) {
-        for (CitRule rule : this.citRules) {
-            if (CitMatcher.match(rule, context))
-                return Optional.of(rule.outputTextureId());
+    public @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
+        for (CitRule rule : this.rules.citRules()) {
+            if (rule.type() != CitType.ITEM) continue;
+            if (rule.matches(context)) return CitResult.of(rule.output());
         }
-
-        return Optional.empty();
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Walks the weight-sorted CTM rule list and returns the first matching rule's resolution
-     * (skipping rules that match on {@code appliesTo} but produce no {@link CtmResolution}).
-     */
-    @Override
-    public @NotNull Optional<CtmResolution> resolveCtm(
-        @NotNull String blockId,
-        @NotNull String baseTextureId,
-        @NotNull CtmRule.Face face
-    ) {
-        for (CtmRule rule : this.ctmRules) {
-            if (!rule.appliesTo(blockId, baseTextureId, face)) continue;
-            Optional<CtmResolution> resolution = CtmMatcher.resolve(rule, blockId, baseTextureId);
-            if (resolution.isPresent()) return resolution;
-        }
-
-        return Optional.empty();
+        return CitResult.NONE;
     }
 
     /**
