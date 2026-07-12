@@ -35,6 +35,7 @@ import lib.minecraft.renderer.option.slot.ItemSlot;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
+import lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -121,13 +122,25 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     /**
      * Builds the item enchantment-glint tail for {@link Finalize}, deriving the glint flag
      * ({@code glintOverride}, else the item's always-glinted flag or {@code enchanted}) the GUI and
-     * held-item paths share.
+     * held-item paths share, then applying the CIT-derived {@link GlintPolicy} (03-rules §7): a
+     * {@link GlintPolicy.Suppressed} decision forces no glint ({@code useGlint=false}); a
+     * {@link GlintPolicy.Replaced} decision swaps the glint texture id (a matched
+     * {@code type=enchantment} rule) while leaving whether the item glints to its own flag; a
+     * {@link GlintPolicy.Default} decision is vanilla behaviour. Application stays here in the compose
+     * tail - doc 04 owns the glint x animation precedence.
      */
     static @NotNull Finalize.Glint itemGlint(
-        @NotNull Textures textures, @NotNull Item item, @NotNull ItemOptions options
+        @NotNull Textures textures, @NotNull Item item, @NotNull ItemOptions options, @NotNull GlintPolicy glint
     ) {
         boolean glinted = options.getGlintOverride().orElse(item.alwaysGlinted() || options.isEnchanted());
-        return Finalize.Glint.item(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond());
+        return switch (glint) {
+            case GlintPolicy.Suppressed ignored ->
+                Finalize.Glint.item(textures::tryResolveTexture, false, options.isAnimateGlint(), options.getFramesPerSecond());
+            case GlintPolicy.Replaced replaced ->
+                Finalize.Glint.itemReplaced(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond(), replaced.texture().id());
+            case GlintPolicy.Default ignored ->
+                Finalize.Glint.item(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond());
+        };
     }
 
     /**
@@ -359,9 +372,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull RendererContext context,
         @NotNull ModelEngine engine,
         @NotNull Item item,
-        @NotNull ItemOptions options
+        @NotNull ItemOptions options,
+        @NotNull CitResult cit
     ) {
-        CitResult cit = engine.textures().resolveCit(options);
         String layer0Ref = cit.textureFor("layer0").map(ResourceId::id).orElse(item.textures().get("layer0"));
         if (layer0Ref == null || layer0Ref.isBlank())
             throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.id().id());
@@ -434,13 +447,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull Textures engine,
         @NotNull PixelBuffer buffer,
         @NotNull Item item,
-        @NotNull ItemOptions options
+        @NotNull ItemOptions options,
+        @NotNull CitResult cit
     ) {
         int size = options.getOutput().getCanvasSize();
-        // Walk the CIT rules once; each layer resolves against the result (layer0 -> texture, layerN ->
-        // texture.<name>), falling back to the model-bound id. The empty-context vanilla path yields
-        // CitResult.NONE, so every layer passes through unchanged.
-        CitResult cit = engine.resolveCit(options);
+        // The CIT walk ran once per render (shared with the glint decision); each layer resolves against
+        // the result (layer0 -> texture, layerN -> texture.<name>), falling back to the model-bound id.
+        // The empty-context vanilla path yields CitResult.NONE, so every layer passes through unchanged.
         int layerIndex = 0;
         while (true) {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
@@ -483,15 +496,20 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             Item item = requireItem(this.context, options.getItemId());
             RasterEngine engine = new RasterEngine(this.context);
 
+            // One CIT walk per render, shared by the layer stack (texture overrides) and the glint tail
+            // (its GlintPolicy). The empty-context vanilla path yields CitResult.NONE, so both stay
+            // vanilla-identical.
+            CitResult cit = engine.textures().resolveCit(options);
+
             // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
             // trim, damage-bar, and stack-count decorations) so callers can splice their own passes in
             // via ItemOptions.layerDecorator, folded into Finalize's target. The terminal glint is the
             // finalisation step, not a layer, because it expands the buffer into one or many frames.
             // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in.
-            LayerContext ctx = new LayerContext(this.context, engine.textures(), item, options);
+            LayerContext ctx = new LayerContext(this.context, engine.textures(), item, options, cit);
             return Finalize.render(
                 Finalize.FinalizeSpec.staticFrame(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, options.getOutput().isAntiAlias())
-                    .withGlint(itemGlint(engine.textures(), item, options), false),
+                    .withGlint(itemGlint(engine.textures(), item, options, cit.glint()), false),
                 (target, mask, tick) -> Layers.foldInto(buildGuiLayers(ctx), options.getLayerDecorator(), target));
         }
 
@@ -511,7 +529,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     renderBannerOrShield(ctx.textures(), frame, options.getItemId(), options));
             else
                 stack.append(ItemSlot.BASE, frame ->
-                    renderStandardLayers(ctx.context(), ctx.textures(), frame, ctx.item(), options));
+                    renderStandardLayers(ctx.context(), ctx.textures(), frame, ctx.item(), options, ctx.cit()));
 
             if (options.getDecoration().getTrimSlot().isPresent() && options.getDecoration().getTrimColor().isPresent())
                 stack.append(ItemSlot.TRIM, frame ->
@@ -537,12 +555,14 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * @param textures texture-resolution service for layer texture lookups
          * @param item resolved item definition being rendered
          * @param options caller-supplied item render options
+         * @param cit the render's single CIT walk result, shared by every base-layer pass
          */
         private record LayerContext(
             @NotNull RendererContext context,
             @NotNull Textures textures,
             @NotNull Item item,
-            @NotNull ItemOptions options
+            @NotNull ItemOptions options,
+            @NotNull CitResult cit
         ) { }
 
     }
@@ -583,6 +603,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).lens()));
             int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
 
+            // One CIT walk per render, shared by the flat-slab layer composite and the glint tail.
+            CitResult cit = engine.textures().resolveCit(options);
+
             ConcurrentList<VisibleTriangle> triangles;
             if (isBannerOrShield(options.getItemId())) {
                 triangles = buildBannerOrShield3D(engine, options.getItemId(), options);
@@ -598,7 +621,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 // LayerTint (leather dye, potion colour, firework colour) and the caller's
                 // tintColor, so the held view carries the same colour as the GUI icon. Degenerate
                 // cases (no elements AND no layer0) throw inside composeTintedLayers.
-                PixelBuffer texture = composeTintedLayers(this.context, engine, item, options);
+                PixelBuffer texture = composeTintedLayers(this.context, engine, item, options, cit);
                 triangles = BlockGeometryKit.buildBoxTriangles(
                     new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
                     new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
@@ -611,7 +634,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             int ssaa = Math.max(1, options.getOutput().getSupersample());
             return Finalize.render(
                 Finalize.FinalizeSpec.staticFrame(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias())
-                    .withGlint(itemGlint(engine.textures(), item, options), false),
+                    .withGlint(itemGlint(engine.textures(), item, options, cit.glint()), false),
                 (target, mask, tick) -> engine.rasterize(triangles, target, displayTransform));
         }
 

@@ -1,11 +1,19 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.pack.FormatRange.FormatVersion;
 import lib.minecraft.renderer.pipeline.pack.PackIdDeriver.Assignment;
+import lib.minecraft.renderer.pipeline.pack.rule.CatharsisConfig;
+import lib.minecraft.renderer.pipeline.pack.rule.CatharsisOverlays;
+import lib.minecraft.renderer.pipeline.pack.rule.CatharsisTarget;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -32,6 +40,9 @@ import java.util.TreeSet;
  */
 public final class PackAcquisition {
 
+    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
+    private static final @NotNull String CONFIG_CATHARSIS = "config.catharsis.json";
+
     private PackAcquisition() {}
 
     /**
@@ -44,7 +55,8 @@ public final class PackAcquisition {
      * @throws PipelineException if a source is unreadable or a pack's metadata is malformed
      */
     public static @NotNull PackStack acquire(@NotNull List<Path> userSources, @NotNull Path cacheRoot, @NotNull Path vanillaPackRoot) {
-        ResourcePack vanilla = vanillaPack(vanillaPackRoot);
+        String minecraftVersion = minecraftVersion(vanillaPackRoot);
+        ResourcePack vanilla = vanillaPack(vanillaPackRoot, minecraftVersion);
         FormatVersion target = rendererTarget(vanilla);
 
         List<PackContainer> containers = new ArrayList<>();
@@ -59,25 +71,26 @@ public final class PackAcquisition {
         List<ResourcePack> packs = new ArrayList<>();
         packs.add(vanilla);
         for (int i = 0; i < userSources.size(); i++)
-            packs.add(userPack(userSources.get(i), containers.get(i), assignments.get(i), cacheRoot, target));
+            packs.add(userPack(userSources.get(i), containers.get(i), assignments.get(i), cacheRoot, target, minecraftVersion));
 
         return PackStack.of(Concurrent.adoptList(packs).toUnmodifiable());
     }
 
     /** Builds the vanilla base pack from its already-extracted tree (in place, no materialization). */
-    private static @NotNull ResourcePack vanillaPack(@NotNull Path vanillaPackRoot) {
+    private static @NotNull ResourcePack vanillaPack(@NotNull Path vanillaPackRoot, @NotNull String minecraftVersion) {
         if (!Files.isDirectory(vanillaPackRoot))
             throw new PipelineException("Vanilla pack root '%s' does not exist or is not a directory", vanillaPackRoot);
         PackContainer container = new PackContainer.Directory(vanillaPackRoot);
         MCMeta meta = readMeta(container, PackId.VANILLA);
-        ConcurrentList<PackRoot> roots = resolveRoots(vanillaPackRoot, meta, rendererTargetFrom(meta));
-        return new ResourcePack(PackId.VANILLA, container, meta, roots,
-            namespaces(vanillaPackRoot, roots), detectCapabilities(container, meta));
+        Set<Capability> capabilities = detectCapabilities(container, meta);
+        ConcurrentList<PackRoot> roots = resolveRoots(vanillaPackRoot, container, meta, rendererTargetFrom(meta), minecraftVersion, capabilities);
+        return new ResourcePack(PackId.VANILLA, container, meta, roots, namespaces(vanillaPackRoot, roots), capabilities);
     }
 
     /** Materializes one user pack and assembles its {@link ResourcePack}. */
     private static @NotNull ResourcePack userPack(@NotNull Path source, @NotNull PackContainer container,
-                                                  @NotNull Assignment assignment, @NotNull Path cacheRoot, @NotNull FormatVersion target) {
+                                                  @NotNull Assignment assignment, @NotNull Path cacheRoot,
+                                                  @NotNull FormatVersion target, @NotNull String minecraftVersion) {
         PackId id = assignment.id();
         long sourceMtime = lastModified(source);
         Path root = materialize(container, source, id, cacheRoot, sourceMtime);
@@ -85,8 +98,9 @@ public final class PackAcquisition {
 
         PackContainer materialized = new PackContainer.Directory(root);
         MCMeta meta = readMeta(materialized, id);
-        ConcurrentList<PackRoot> roots = resolveRoots(root, meta, target);
-        return new ResourcePack(id, materialized, meta, roots, namespaces(root, roots), detectCapabilities(container, meta));
+        Set<Capability> capabilities = detectCapabilities(container, meta);
+        ConcurrentList<PackRoot> roots = resolveRoots(root, materialized, meta, target, minecraftVersion, capabilities);
+        return new ResourcePack(id, materialized, meta, roots, namespaces(root, roots), capabilities);
     }
 
     /**
@@ -159,8 +173,17 @@ public final class PackAcquisition {
         }
     }
 
-    /** Resolves the active roots: base first, then every overlay whose format range contains the target and whose directory exists. */
-    private static @NotNull ConcurrentList<PackRoot> resolveRoots(@NotNull Path packRoot, @NotNull MCMeta meta, @NotNull FormatVersion target) {
+    /**
+     * Resolves the active roots: base first, then every vanilla {@code overlays.entries} overlay whose
+     * format range contains the target, then - for a pack carrying {@link Capability#CATHARSIS_CONVENTIONS}
+     * - every Catharsis {@code fabric:overlays} entry whose condition holds under the pack's config
+     * defaults (03-rules §6.1). Each active overlay's directory must exist. Both overlay families stack
+     * over the root in list order (later wins), the vanilla {@code CompositePackResources} semantics 02
+     * already applies.
+     */
+    private static @NotNull ConcurrentList<PackRoot> resolveRoots(@NotNull Path packRoot, @NotNull PackContainer container,
+                                                                  @NotNull MCMeta meta, @NotNull FormatVersion target,
+                                                                  @NotNull String minecraftVersion, @NotNull Set<Capability> capabilities) {
         ArrayList<PackRoot> roots = new ArrayList<>();
         roots.add(PackRoot.BASE);
         meta.pack().ifPresent(pack -> {
@@ -169,7 +192,56 @@ public final class PackAcquisition {
                 if (Files.isDirectory(packRoot.resolve(overlay.directory()))) roots.add(PackRoot.overlay(overlay.directory()));
             }
         });
+        if (capabilities.contains(Capability.CATHARSIS_CONVENTIONS))
+            addCatharsisOverlays(packRoot, container, target, minecraftVersion, roots);
         return Concurrent.adoptList(roots).toUnmodifiable();
+    }
+
+    /**
+     * Appends the active Catharsis {@code fabric:overlays} roots. Parses the pack mcmeta for the
+     * {@code fabric:overlays} entries, loads the config defaults (root {@code config.catharsis.json}
+     * overriding any mcmeta {@code catharsis:pack/v1.config}), and evaluates each entry's condition
+     * against them and the renderer target. Any parse failure degrades to no Catharsis overlays rather
+     * than failing acquisition.
+     */
+    private static void addCatharsisOverlays(@NotNull Path packRoot, @NotNull PackContainer container,
+                                             @NotNull FormatVersion target, @NotNull String minecraftVersion, @NotNull List<PackRoot> roots) {
+        // Catharsis overlay evaluation runs over untrusted pack input during acquisition; any failure
+        // (malformed JSON slipping a type guard, an illegal overlay directory string throwing
+        // InvalidPathException on resolve, ...) must degrade to no Catharsis overlays, never break the
+        // acquisition of this or any other pack (03-rules §6.1: overlays inert, never error).
+        try {
+            Optional<JsonObject> mcmeta = readJsonObject(container, "pack.mcmeta");
+            if (mcmeta.isEmpty()) return;
+            CatharsisConfig config = CatharsisOverlays.loadConfig(readJson(container, CONFIG_CATHARSIS), mcmeta.get());
+            CatharsisTarget catharsisTarget = new CatharsisTarget(target.major(), minecraftVersion);
+            for (String directory : CatharsisOverlays.activeOverlayDirectories(mcmeta.get(), config, catharsisTarget))
+                if (Files.isDirectory(packRoot.resolve(directory))) roots.add(PackRoot.overlay(directory));
+        } catch (RuntimeException ex) {
+            System.err.printf("Pack at '%s': skipping Catharsis overlays after an evaluation error: %s%n", packRoot, ex);
+        }
+    }
+
+    /** Reads and parses a container entry as a JSON object, empty when absent or malformed (Catharsis never errors). */
+    private static @NotNull Optional<JsonObject> readJsonObject(@NotNull PackContainer container, @NotNull String path) {
+        return readJson(container, path).filter(JsonElement::isJsonObject).map(JsonElement::getAsJsonObject);
+    }
+
+    /** Reads and parses a container entry as a JSON element, empty when absent or malformed. */
+    private static @NotNull Optional<JsonElement> readJson(@NotNull PackContainer container, @NotNull String path) {
+        return container.bytes(path).flatMap(bytes -> {
+            try {
+                return Optional.ofNullable(GSON.fromJson(new String(bytes, StandardCharsets.UTF_8), JsonElement.class));
+            } catch (JsonSyntaxException ex) {
+                return Optional.empty();
+            }
+        });
+    }
+
+    /** The renderer's target Minecraft version - the vanilla pack root's directory name ({@code <cache>/vanilla/<version>}). */
+    private static @NotNull String minecraftVersion(@NotNull Path vanillaPackRoot) {
+        Path name = vanillaPackRoot.getFileName();
+        return name == null ? "" : name.toString();
     }
 
     /** The namespaces (directories under {@code assets/}) across a pack's active roots. */
@@ -187,21 +259,45 @@ public final class PackAcquisition {
         return Set.copyOf(namespaces);
     }
 
-    /** Detects the capabilities a container carries from the 03 §1 signal table (path checks over the container). */
+    /**
+     * Detects the capabilities a container carries from the 03 §1 signal table. VANILLA_CORE and
+     * OPTIFINE_RULES are path signals; CATHARSIS_CONVENTIONS has four independently-sufficient signals -
+     * two on-disk paths ({@code config.catharsis.json}, {@code assets/skyblock/items/}) and two mcmeta
+     * sections ({@code catharsis:pack/v1}, a {@code fabric:overlays} entry with a {@code catharsis:*}
+     * condition). MCMeta's typed parse does not retain the Catharsis / Fabric sections, so the mcmeta
+     * signals are read from the raw JSON (degrade-safe - a malformed mcmeta simply contributes no signal).
+     */
     private static @NotNull Set<Capability> detectCapabilities(@NotNull PackContainer container, @NotNull MCMeta meta) {
         LinkedHashSet<Capability> capabilities = new LinkedHashSet<>();
         if (container.entries("").anyMatch(p -> p.startsWith("assets/") || p.contains("/assets/")))
             capabilities.add(Capability.VANILLA_CORE);
         if (container.entries("").anyMatch(p -> p.contains("/optifine/") || p.contains("/mcpatcher/")))
             capabilities.add(Capability.OPTIFINE_RULES);
-        if (container.entries("").anyMatch(PackAcquisition::isCatharsisSignal))
+        if (container.entries("").anyMatch(PackAcquisition::isCatharsisPathSignal)
+            || readJsonObject(container, "pack.mcmeta").filter(PackAcquisition::hasCatharsisMcmetaSignal).isPresent())
             capabilities.add(Capability.CATHARSIS_CONVENTIONS);
         return Set.copyOf(capabilities);
     }
 
-    private static boolean isCatharsisSignal(@NotNull String path) {
+    private static boolean isCatharsisPathSignal(@NotNull String path) {
         // The full-segment form avoids matching a pack's own <ns>_skyblock/items tree (e.g. hypixel_skyblock).
         return path.endsWith("config.catharsis.json") || path.contains("assets/skyblock/items/");
+    }
+
+    /** Whether the pack mcmeta carries a {@code catharsis:pack/v1} section or a {@code fabric:overlays} entry gated on a {@code catharsis:*} condition. */
+    private static boolean hasCatharsisMcmetaSignal(@NotNull JsonObject mcmetaRoot) {
+        if (mcmetaRoot.keySet().stream().anyMatch(key -> key.startsWith("catharsis:pack"))) return true;
+        if (!mcmetaRoot.has("fabric:overlays") || !mcmetaRoot.get("fabric:overlays").isJsonObject()) return false;
+        JsonObject overlays = mcmetaRoot.getAsJsonObject("fabric:overlays");
+        if (!overlays.has("entries") || !overlays.get("entries").isJsonArray()) return false;
+        for (JsonElement entryElement : overlays.getAsJsonArray("entries")) {
+            if (!entryElement.isJsonObject()) continue;
+            JsonObject entry = entryElement.getAsJsonObject();
+            if (!entry.has("condition") || !entry.get("condition").isJsonObject()) continue;
+            JsonElement condition = entry.getAsJsonObject("condition").get("condition");
+            if (condition != null && condition.isJsonPrimitive() && condition.getAsString().startsWith("catharsis:")) return true;
+        }
+        return false;
     }
 
     /** The renderer-target format for overlay activation: the game's current format, taken from the vanilla pack's declared floor. */

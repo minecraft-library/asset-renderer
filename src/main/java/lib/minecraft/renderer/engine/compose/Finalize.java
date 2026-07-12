@@ -92,6 +92,18 @@ public final class Finalize {
             return new Glint(resolver, enchanted, animate, GlintKit.GlintOptions.itemDefault(framesPerSecond));
         }
 
+        /**
+         * Whole-item glint whose texture an OptiFine {@code type=enchantment} CIT rule replaced - the
+         * item preset with only the glint texture id swapped, everything else (scroll, scale, loop)
+         * unchanged (03-rules §7). Falls back to no glint at compose time when the replacement texture
+         * resolves to nothing, exactly like the default preset.
+         */
+        public static @NotNull Glint itemReplaced(
+            @NotNull TextureResolver resolver, boolean enchanted, boolean animate, int framesPerSecond, @NotNull String glintTextureId
+        ) {
+            return new Glint(resolver, enchanted, animate, GlintKit.GlintOptions.itemDefault(framesPerSecond).withTexture(glintTextureId));
+        }
+
     }
 
     /**

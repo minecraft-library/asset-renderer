@@ -9,13 +9,16 @@ import org.jetbrains.annotations.NotNull;
  * the finalize stage, which stays the sole applier so doc 04 keeps ownership of glint x animation.
  *
  * <p>The evaluation that chooses {@link Suppressed} / {@link Replaced} (matched {@code type=enchantment}
- * rules, the global {@code useGlint=false} toggle) lands in sub-commit 3c; the CIT walk emits
- * {@link #DEFAULT} until then.
+ * rules, the global {@code useGlint=false} toggle) lives in {@link GlintEvaluator} (sub-commit 3c); the
+ * result rides {@link CitResult} and the item renderer translates it into a {@code Finalize.Glint}.
  */
 public sealed interface GlintPolicy permits GlintPolicy.Default, GlintPolicy.Suppressed, GlintPolicy.Replaced {
 
     /** The shared vanilla-behaviour policy. */
     @NotNull GlintPolicy DEFAULT = new Default();
+
+    /** The shared glint-suppressed policy - a merged {@code useGlint=false} with no matching enchantment rule. */
+    @NotNull GlintPolicy SUPPRESSED = new Suppressed();
 
     /** Vanilla glint behaviour - the item glints when its own flags say so. */
     record Default() implements GlintPolicy {}

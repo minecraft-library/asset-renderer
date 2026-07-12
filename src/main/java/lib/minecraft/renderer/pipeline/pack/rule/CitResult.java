@@ -33,14 +33,27 @@ public record CitResult(
         Optional.empty(), Concurrent.newMap(), Optional.empty(), GlintPolicy.DEFAULT);
 
     /**
-     * Builds a result from a matched rule's declared output, defaulting the glint until 3c wires the
-     * enchantment / {@code useGlint} evaluation.
+     * Builds a result from a matched rule's declared output with the given glint decision - the
+     * {@link GlintEvaluator} decides the policy once per render and the item walk grafts it onto the
+     * winning output (03-rules §7).
      *
      * @param output the matched rule's output
+     * @param glint the render's glint decision
      * @return the render-time result
      */
-    public static @NotNull CitResult of(@NotNull CitOutput output) {
-        return new CitResult(output.texture(), output.subTextures(), output.model(), GlintPolicy.DEFAULT);
+    public static @NotNull CitResult of(@NotNull CitOutput output, @NotNull GlintPolicy glint) {
+        return new CitResult(output.texture(), output.subTextures(), output.model(), glint);
+    }
+
+    /**
+     * Returns a copy carrying the given glint decision - used when the render matched no item rule but
+     * a {@code type=enchantment} rule or {@code useGlint=false} still changed the glint (03-rules §7).
+     *
+     * @param glint the glint decision to carry
+     * @return the same overrides with the glint decision replaced
+     */
+    public @NotNull CitResult withGlint(@NotNull GlintPolicy glint) {
+        return new CitResult(this.texture, this.subTextures, this.model, glint);
     }
 
     /**

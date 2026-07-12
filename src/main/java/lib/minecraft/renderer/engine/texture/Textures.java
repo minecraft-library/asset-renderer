@@ -273,20 +273,22 @@ public class Textures {
     }
 
     /**
-     * Resolves the Custom Item Texture effect for this render, or {@link CitResult#NONE} when the
-     * caller supplied no item context. The {@link ItemContext#EMPTY} sentinel short-circuits the rule
-     * walk so vanilla callers pay zero cost; a real context walks the merged CIT rules once via
-     * {@link RendererContext#resolveItemTextureOverride(ItemContext)}, and the caller resolves each
-     * layer against the result with {@link CitResult#textureFor(String)} - one walk per render rather
-     * than one per layer.
+     * Resolves the Custom Item Texture effect for this render - one walk of the merged CIT rules via
+     * {@link RendererContext#resolveItemTextureOverride(ItemContext)}, whose result the caller resolves
+     * each layer against with {@link CitResult#textureFor(String)} (one walk per render, not per layer).
+     *
+     * <p>The walk runs even for the {@link ItemContext#EMPTY} default: the item-texture override never
+     * fires there (no rule's item list contains the empty id), but the glint decision is
+     * context-independent for the global {@code useGlint=false} toggle and item-list-less
+     * {@code type=enchantment} rules (03-rules §7), so it must ride through to the compose terminal even
+     * for a plainly-enchanted icon that carries no item NBT. A vanilla stack (no rules, no
+     * {@code useGlint}) still yields {@link CitResult#NONE}, so the empty-context path stays byte-identical.
      *
      * @param options the per-render options carrying the optional {@link ItemContext}
-     * @return the CIT effect, or {@link CitResult#NONE} when the context is empty
+     * @return the CIT effect, or {@link CitResult#NONE} when nothing matches and the glint is default
      */
     public @NotNull CitResult resolveCit(@NotNull ItemOptions options) {
-        return options.getContext() == ItemContext.EMPTY
-            ? CitResult.NONE
-            : this.context.resolveItemTextureOverride(options.getContext());
+        return this.context.resolveItemTextureOverride(options.getContext());
     }
 
     /**

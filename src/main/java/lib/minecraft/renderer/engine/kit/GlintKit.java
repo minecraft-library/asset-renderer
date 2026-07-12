@@ -238,6 +238,20 @@ public class GlintKit {
         }
 
         /**
+         * Returns a copy of this preset that samples a different glint texture - the effect of an
+         * OptiFine {@code type=enchantment} CIT rule, which replaces only the glint texture id and
+         * leaves the scroll / scale / loop parameters untouched (03-rules §7,
+         * {@link lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy.Replaced}).
+         *
+         * @param glintTextureId the replacement glint texture id
+         * @return a copy sampling {@code glintTextureId}
+         */
+        public @NotNull GlintOptions withTexture(@NotNull String glintTextureId) {
+            return new GlintOptions(this.framesPerSecond, this.totalFrames, glintTextureId, this.textureScale,
+                this.atlasSampled, this.uLoopMillis, this.vLoopMillis, this.tintArgb);
+        }
+
+        /**
          * Default entity-held item glint preset at the given frame rate. Uses the item texture
          * but with {@link #ENTITY_ITEM_SCALE} instead of {@link #ITEM_SCALE}, matching vanilla's
          * {@code ENTITY_GLINT} render type.

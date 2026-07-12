@@ -28,6 +28,8 @@ import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
 import lib.minecraft.renderer.pipeline.pack.rule.CitRule;
 import lib.minecraft.renderer.pipeline.pack.rule.CitType;
+import lib.minecraft.renderer.pipeline.pack.rule.GlintEvaluator;
+import lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import lombok.RequiredArgsConstructor;
@@ -281,16 +283,21 @@ public final class PipelineRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * Walks the merged CIT rule list first-match-wins, skipping non-{@link CitType#ITEM} rules (only
-     * item rules retexture icons), and returns the winning rule's effect as a {@link CitResult}.
+     * Resolves the glint decision once via {@link GlintEvaluator} (the highest-precedence matching
+     * {@code type=enchantment} rule, else the merged {@code useGlint} toggle), then walks the merged CIT
+     * rule list first-match-wins, skipping non-{@link CitType#ITEM} rules (only item rules retexture
+     * icons), and grafts the glint onto the winning rule's effect. When no item rule matches the glint
+     * still rides through - so {@code useGlint=false} and enchantment glint replacements apply even to an
+     * un-retextured icon.
      */
     @Override
     public @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
+        GlintPolicy glint = GlintEvaluator.evaluate(this.rules, context);
         for (CitRule rule : this.rules.citRules()) {
             if (rule.type() != CitType.ITEM) continue;
-            if (rule.matches(context)) return CitResult.of(rule.output());
+            if (rule.matches(context)) return CitResult.of(rule.output(), glint);
         }
-        return CitResult.NONE;
+        return glint == GlintPolicy.DEFAULT ? CitResult.NONE : CitResult.NONE.withGlint(glint);
     }
 
     /**

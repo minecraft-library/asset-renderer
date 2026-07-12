@@ -47,7 +47,9 @@ public record CitRule(
      * Whether this rule applies to a render-time item context. Checks run cheapest-first (id, then
      * the scalar range filters, then the NBT walks) so the common no-match path exits early. A
      * {@link Hand#OFF} rule never matches because GUI rendering is always the main hand
-     * (07-optifine §7.1).
+     * (07-optifine §7.1). An empty {@link #items} list matches any item - the parser rejects that for
+     * {@link CitType#ITEM} rules, but a {@code type=enchantment} glint rule may legitimately carry no
+     * item filter and then applies to every item bearing the matched enchantment (07-optifine §2.1).
      *
      * @param context the per-render item context
      * @return {@code true} when every condition holds
@@ -55,7 +57,7 @@ public record CitRule(
     public boolean matches(@NotNull ItemContext context) {
         if (this.hand == Hand.OFF) return false;
 
-        if (this.items.stream().noneMatch(item -> item.id().equals(context.itemId()))) return false;
+        if (!this.items.isEmpty() && this.items.stream().noneMatch(item -> item.id().equals(context.itemId()))) return false;
 
         if (this.damage.isPresent() && !this.damage.get().matches(context.damage(), context.maxDamage())) return false;
 
