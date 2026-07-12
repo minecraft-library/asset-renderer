@@ -23,8 +23,11 @@ import java.util.Optional;
  * geometry coordinate, block id) - the per-block-id granularity that lets a pack replace one chest
  * without shipping the whole ~180-block snapshot. A higher-priority pack's entry wins on key
  * collision. Every file is validated through {@link ResourceDocument#open} (the internal format-2
- * envelope), so a format mismatch or malformed payload rejects LOUDLY with pack attribution rather
- * than silently degrading: the channel is a deliberate opt-in feature file, not bulk pack content.
+ * envelope), so a format mismatch or unparseable payload rejects LOUDLY with pack attribution rather
+ * than silently degrading: the channel is a deliberate opt-in feature file, not bulk pack content. A
+ * structurally-broken entry that passes the envelope (e.g. a model missing its geometry coordinate, a
+ * default-state whose property value is not a scalar) is rejected by the reader with entry / model-id
+ * attribution.
  *
  * <p>The three accumulators are the OVERLAY over the classpath base: {@link BlockModelReader} and
  * {@link BlockDefaultsReader} read their bundled snapshot first, then apply these per-entry. A

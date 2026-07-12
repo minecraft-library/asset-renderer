@@ -75,7 +75,7 @@ public class ItemModelTreeLoader {
                     for (String namespace : pack.namespaces()) {
                         Path itemModelsDir = dir.root().resolve(root.prefix())
                             .resolve(VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.MODELS_ITEM_SUBDIR));
-                        scanLegacyOverrides(itemModelsDir, namespace, pack.id()).forEach(merged::put);
+                        mergeLegacyOverrides(itemModelsDir, namespace, pack.id(), merged);
                     }
         }
         return Concurrent.adoptMap(merged).toUnmodifiable();
@@ -115,7 +115,10 @@ public class ItemModelTreeLoader {
             ItemModelNode root = ItemModelParser.parse(json.getAsJsonObject("model"));
             return Optional.of(Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
         } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to read item definition '%s'", p);
+            // A non-UTF-8 / truncated item definition throws MalformedInputException (an IOException);
+            // skip it like a malformed one so one bad file degrades to a lower pack rather than aborting.
+            System.err.printf("Skipping unreadable item definition '%s': %s%n", p, ex.getMessage());
+            return Optional.empty();
         } catch (RuntimeException ex) {
             // Resource packs sometimes ship deeply nested or otherwise malformed item definitions
             // (e.g. Hypixel+ player_head.json with 255+ levels of conditional nesting, or a semantically
@@ -128,12 +131,19 @@ public class ItemModelTreeLoader {
 
     /**
      * Scans one {@code (root x namespace)} {@code models/item} directory for legacy {@code overrides}
-     * arrays, mapping each into a synthesised {@link ItemModelTree} keyed by the derived item id
-     * ({@code minecraft:diamond_sword}). A file with no {@code overrides} array yields nothing; a
-     * malformed file is skipped (logged) so it degrades to a lower pack rather than aborting the load.
+     * arrays, merging each synthesised {@link ItemModelTree} into {@code merged} keyed by the derived
+     * item id ({@code minecraft:diamond_sword}). A file with no {@code overrides} array yields nothing;
+     * a malformed / unreadable file is skipped (logged) so it degrades to a lower pack rather than
+     * aborting the load.
+     *
+     * <p>The synthesised tree's fallback is the item's EXISTING accumulated tree (its native
+     * items-tree from a lower pack, else a plain {@code Model(<ns>:item/<stem>)}), so the neutral
+     * render and the native tree's tints survive under the override. A native tree that is a plain
+     * block-item model reference is left untouched (the legacy override is dropped with a diagnostic)
+     * so the block-item inventory projection {@code deriveBlockItemModels} keys on is preserved.
      */
-    private static @NotNull Map<String, ItemModelTree> scanLegacyOverrides(@NotNull Path itemModelsDir, @NotNull String namespace, @NotNull PackId packId) {
-        if (!Files.isDirectory(itemModelsDir)) return Map.of();
+    private static void mergeLegacyOverrides(@NotNull Path itemModelsDir, @NotNull String namespace, @NotNull PackId packId, @NotNull Map<String, ItemModelTree> merged) {
+        if (!Files.isDirectory(itemModelsDir)) return;
 
         List<Path> files;
         try (Stream<Path> stream = Files.walk(itemModelsDir)) {
@@ -142,38 +152,53 @@ public class ItemModelTreeLoader {
             throw new PipelineException(ex, "Failed to scan legacy item overrides in '%s'", itemModelsDir);
         }
 
-        HashMap<String, ItemModelTree> mapped = new HashMap<>();
         for (Path p : files)
-            parseLegacyOverride(p, itemModelsDir, namespace, packId).ifPresent(e -> mapped.put(e.getKey(), e.getValue()));
-        return mapped;
+            parseLegacyOverride(p, itemModelsDir, namespace, packId, merged)
+                .ifPresent(entry -> merged.put(entry.getKey(), entry.getValue()));
     }
 
     /**
      * Parses one {@code models/item/*.json} file's {@code overrides} array into an
      * {@code itemId -> }{@link ItemModelTree} entry, or empty when the file carries no mappable
-     * {@code overrides}. The item id is the path relative to {@code itemModelsDir} sans {@code .json}
-     * under the owning {@code <namespace>:}; the tree's base fallback is the file's own
-     * {@code <namespace>:item/<stem>} model. Malformed JSON is skipped (logged), matching the native
-     * scan's skip-not-abort contract.
+     * {@code overrides} or the id's existing tree is a block-item projection to preserve. The item id
+     * is the path relative to {@code itemModelsDir} sans {@code .json} under the owning
+     * {@code <namespace>:}; the tree's fallback is the existing accumulated tree's root (else the
+     * file's own {@code <namespace>:item/<stem>} model). Malformed or unreadable files are skipped
+     * (logged), matching the native scan's skip-not-abort contract.
      */
     private static @NotNull Optional<Map.Entry<String, ItemModelTree>> parseLegacyOverride(
-        @NotNull Path p, @NotNull Path itemModelsDir, @NotNull String namespace, @NotNull PackId packId
+        @NotNull Path p, @NotNull Path itemModelsDir, @NotNull String namespace, @NotNull PackId packId, @NotNull Map<String, ItemModelTree> merged
     ) {
         String relative = itemModelsDir.relativize(p).toString().replace('\\', '/');
         if (!relative.endsWith(".json")) return Optional.empty();
         String stem = relative.substring(0, relative.length() - ".json".length());
         String itemId = VanillaSourcePaths.namespacePrefix(namespace) + stem;
-        String baseRef = VanillaSourcePaths.modelIdPrefix(namespace, VanillaSourcePaths.ITEM_KIND) + stem;
+
+        // Preserve a native block-item inventory projection: deriveBlockItemModels keys on a
+        // root-plain block-model tree, which a dispatch-rooted legacy override would shadow. A legacy
+        // custom_model_data override on a block item is unusual; drop it (diagnosed) rather than break
+        // the item's default inventory model.
+        ItemModelTree existing = merged.get(itemId);
+        if (existing != null && existing.root() instanceof ItemModelNode.Model model && VanillaSourcePaths.isBlockModelRef(model.model())) {
+            System.err.printf("Pack '%s' item '%s': legacy overrides ignored to preserve its block-item inventory model%n", packId, itemId);
+            return Optional.empty();
+        }
+        ItemModelNode fallback = existing != null
+            ? existing.root()
+            : new ItemModelNode.Model(VanillaSourcePaths.modelIdPrefix(namespace, VanillaSourcePaths.ITEM_KIND) + stem, List.of());
 
         try {
             JsonObject json = GSON.fromJson(Files.readString(p), JsonObject.class);
             if (json == null || !json.has("overrides") || !json.get("overrides").isJsonArray()) return Optional.empty();
             JsonArray overrides = json.getAsJsonArray("overrides");
             if (overrides.isEmpty()) return Optional.empty();
-            return LegacyOverrideMapper.map(itemId, baseRef, overrides, packId)
+            return LegacyOverrideMapper.map(itemId, overrides, packId, fallback)
                 .map(root -> Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
         } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to read legacy item model '%s'", p);
+            // A non-UTF-8 / truncated file throws MalformedInputException (an IOException, NOT a
+            // JsonSyntaxException); skip it like a malformed one rather than aborting the whole load.
+            System.err.printf("Skipping unreadable legacy item model '%s': %s%n", p, ex.getMessage());
+            return Optional.empty();
         } catch (RuntimeException ex) {
             System.err.printf("Skipping malformed legacy item model '%s': %s%n", p, ex.getMessage());
             return Optional.empty();

@@ -118,6 +118,47 @@ class BlockRendererOverridesTest {
         assertThat(defaults.get("minecraft:conduit"), is("facing=east"));
     }
 
+    @Test
+    @DisplayName("a structurally-broken model override (no geometry) fails with a clear model-id message, not a bare NPE")
+    void missingGeometryRejectsClearly() {
+        JsonObject entry = new JsonObject();
+        com.google.gson.JsonArray blocks = new com.google.gson.JsonArray();
+        JsonObject block = new JsonObject();
+        block.addProperty("block", "minecraft:foo");
+        block.addProperty("texture", "minecraft:textures/x.png");
+        blocks.add(block);
+        entry.add("blocks", blocks); // deliberately no "geometry" key
+        JsonObject models = new JsonObject();
+        models.add("minecraft:foo", entry);
+
+        var overrides = new BlockRendererOverrides(models, new JsonObject(), new JsonObject());
+        lib.minecraft.renderer.exception.PipelineException ex = org.junit.jupiter.api.Assertions.assertThrows(
+            lib.minecraft.renderer.exception.PipelineException.class, () -> BlockModelReader.load(NONE, overrides));
+        assertThat(ex.getMessage().contains("minecraft:foo"), is(true));
+        assertThat(ex.getMessage().toLowerCase().contains("geometry"), is(true));
+    }
+
+    @Test
+    @DisplayName("a non-object block_defaults override entry is warned + ignored, not silently dropped")
+    void nonObjectDefaultsEntryWarned() {
+        JsonObject blocks = new JsonObject();
+        blocks.addProperty("minecraft:conduit", "facing=east"); // flat string, not {property:value}
+        var overrides = new BlockRendererOverrides(new JsonObject(), new JsonObject(), blocks);
+
+        java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+        java.io.PrintStream original = System.err;
+        dev.simplified.collection.ConcurrentMap<String, String> defaults;
+        try {
+            System.setErr(new java.io.PrintStream(buffer, true, java.nio.charset.StandardCharsets.UTF_8));
+            defaults = BlockDefaultsReader.load(NONE, overrides);
+        } finally {
+            System.setErr(original);
+        }
+        assertThat(buffer.toString(java.nio.charset.StandardCharsets.UTF_8).contains("minecraft:conduit"), is(true));
+        // The classpath default is untouched (the malformed override was ignored, not applied).
+        assertThat(defaults.get("minecraft:conduit"), is(not("facing=east")));
+    }
+
     private static JsonObject mark(String value) {
         JsonObject object = new JsonObject();
         object.addProperty("mark", value);

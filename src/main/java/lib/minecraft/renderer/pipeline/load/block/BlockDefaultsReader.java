@@ -73,10 +73,15 @@ public final class BlockDefaultsReader {
 
         JsonObject blocks = root.getAsJsonObject("blocks").deepCopy();
         // Overlay the pack override channel per block id (later-wins) and resolve each overridden id -
-        // a pack supplying a default state removes any classpath "unresolved" mark for it.
+        // a pack supplying a default state removes any classpath "unresolved" mark for it. A non-object
+        // entry (e.g. the author wrote the flat "facing=east" runtime form instead of {"facing":"east"})
+        // is skipped with a warning rather than silently dropped.
         JsonObject defaultOverrides = overrides.defaults();
         for (String blockId : defaultOverrides.keySet()) {
-            if (!defaultOverrides.get(blockId).isJsonObject()) continue;
+            if (!defaultOverrides.get(blockId).isJsonObject()) {
+                System.err.printf("renderer/block_defaults.json override for '%s' is not a {property:value} object; ignored%n", blockId);
+                continue;
+            }
             blocks.add(blockId, defaultOverrides.get(blockId));
             unresolved.remove(blockId);
         }
@@ -84,24 +89,32 @@ public final class BlockDefaultsReader {
         HashMap<String, String> defaults = new HashMap<>();
         for (String blockId : blocks.keySet()) {
             if (unresolved.contains(blockId)) continue;
-            defaults.put(blockId, joinProperties(blocks.getAsJsonObject(blockId)));
+            defaults.put(blockId, joinProperties(blockId, blocks.getAsJsonObject(blockId)));
         }
         return Concurrent.adoptMap(defaults).toUnmodifiable();
     }
 
     /**
      * Joins a structured default-state object into the legacy {@code prop=val,prop=val} key,
-     * property-name-sorted; an empty object joins to the empty string.
+     * property-name-sorted; an empty object joins to the empty string. A property whose value is not a
+     * primitive (a malformed pack override entry) fails with a clear block-attributed message rather
+     * than a raw {@code IllegalStateException}.
      *
+     * @param blockId the block id the state belongs to, for error attribution
      * @param state the structured {@code {property:value}} default state
      * @return the comma-joined property key
+     * @throws PipelineException if a property value is not a JSON primitive
      */
-    private static @NotNull String joinProperties(@NotNull JsonObject state) {
+    private static @NotNull String joinProperties(@NotNull String blockId, @NotNull JsonObject state) {
         List<String> properties = new ArrayList<>(state.keySet());
         properties.sort(null);
         StringJoiner joiner = new StringJoiner(",");
-        for (String property : properties)
-            joiner.add(property + "=" + state.get(property).getAsString());
+        for (String property : properties) {
+            JsonElement value = state.get(property);
+            if (!value.isJsonPrimitive())
+                throw new PipelineException("Block-defaults override for '%s' property '%s' is not a scalar value", blockId, property);
+            joiner.add(property + "=" + value.getAsString());
+        }
         return joiner.toString();
     }
 }

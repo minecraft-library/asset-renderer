@@ -18,6 +18,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -126,6 +127,27 @@ class LegacyOverrideMapperTest {
     }
 
     @Test
+    @DisplayName("two overrides with the same threshold honour last-declared (last-satisfied)")
+    void equalThresholdLastWins() {
+        JsonArray overrides = overrides(
+            "{\"predicate\":{\"custom_model_data\":5},\"model\":\"item/first\"}",
+            "{\"predicate\":{\"custom_model_data\":5},\"model\":\"item/second\"}");
+        ItemModelNode root = map(overrides).orElseThrow();
+        assertThat("last-declared override at an equal threshold wins", resolveAt(root, 5f), is("minecraft:item/second"));
+    }
+
+    @Test
+    @DisplayName("the caller-supplied fallback is the tree's default branch (preserves the native tree)")
+    void fallbackIsTheDefaultBranch() {
+        JsonArray overrides = overrides("{\"predicate\":{\"custom_model_data\":1},\"model\":\"item/cmd1\"}");
+        // A stand-in native tree carrying a distinct model - the mapper must fall back to it, not to BASE_REF.
+        ItemModelNode nativeTree = new ItemModelNode.Model("minecraft:item/native_default", List.of());
+        ItemModelNode root = LegacyOverrideMapper.map(ITEM_ID, overrides, PACK, nativeTree).orElseThrow();
+        assertThat("neutral context falls back to the native tree", resolveAt(root, null), is("minecraft:item/native_default"));
+        assertThat("cmd=1 still selects the override frame", resolveAt(root, 1f), is("minecraft:item/cmd1"));
+    }
+
+    @Test
     @DisplayName("a file with no mappable overrides synthesises no tree")
     void noMappableOverridesYieldsEmpty() {
         JsonArray overrides = overrides("{\"predicate\":{\"lefthanded\":1},\"model\":\"item/x\"}");
@@ -144,7 +166,7 @@ class LegacyOverrideMapperTest {
     }
 
     private static Optional<ItemModelNode> map(JsonArray overrides) {
-        return LegacyOverrideMapper.map(ITEM_ID, BASE_REF, overrides, PACK);
+        return LegacyOverrideMapper.map(ITEM_ID, overrides, PACK, new ItemModelNode.Model(BASE_REF, List.of()));
     }
 
     private static String resolveAt(ItemModelNode root, Float customModelData) {

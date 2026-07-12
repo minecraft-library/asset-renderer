@@ -138,6 +138,10 @@ public final class BlockModelReader {
      * {@code inventory}, {@code tinted}).
      */
     private static Block.Entity.BoneModel buildBoneModel(@NotNull String modelId, @NotNull JsonObject model, @NotNull JsonObject geometries) {
+        // A block-bearing model entry must name a geometry coordinate; a pack renderer/block_models.json
+        // override that omits it fails clearly (model-id attributed) rather than raising a bare NPE.
+        if (!model.has("geometry") || !model.get("geometry").isJsonPrimitive())
+            throw new PipelineException("Block model '%s' has no 'geometry' coordinate", modelId);
         String coordinate = model.get("geometry").getAsString();
         JsonObject geometry = geometries.getAsJsonObject(coordinate);
         if (geometry == null)

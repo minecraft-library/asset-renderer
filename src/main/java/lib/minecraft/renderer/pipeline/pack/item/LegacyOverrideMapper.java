@@ -87,17 +87,22 @@ public class LegacyOverrideMapper {
     /**
      * Maps one item model's {@code overrides} array onto an items-tree root node.
      *
+     * <p>The {@code fallback} is the branch the tree resolves to when no override matches - the
+     * caller supplies the item's EXISTING tree root (its native items-tree, or a plain
+     * {@code Model(<ns>:item/<name>)} when none), so the neutral / default render is unchanged and the
+     * native tree's tints and structure survive under the override (05-models.md §7). Only a matching
+     * caller value (e.g. {@code custom_model_data}) selects an override frame.
+     *
      * @param itemId the owning item id (e.g. {@code minecraft:diamond_sword}), for diagnostics and ref
      *     namespace normalisation
-     * @param baseModelRef the base model ref the tree falls back to when no override matches (the item's
-     *     own {@code models/item/<name>.json}, e.g. {@code minecraft:item/diamond_sword})
      * @param overrides the raw {@code overrides} array
      * @param packId the owning pack id, for diagnostics
+     * @param fallback the node the synthesised tree falls back to when no override matches
      * @return the synthesised root node, or empty when no override entry mapped (the item renders from
-     *     its base model as before)
+     *     its fallback as before)
      */
     public static @NotNull Optional<ItemModelNode> map(
-        @NotNull String itemId, @NotNull String baseModelRef, @NotNull JsonArray overrides, @NotNull PackId packId
+        @NotNull String itemId, @NotNull JsonArray overrides, @NotNull PackId packId, @NotNull ItemModelNode fallback
     ) {
         String namespace = itemId.contains(":") ? itemId.substring(0, itemId.indexOf(':')) : "minecraft";
 
@@ -117,7 +122,7 @@ public class LegacyOverrideMapper {
         // checked first, reproducing vanilla last-satisfied-wins. Single-group files (the norm) resolve
         // to a flat range_dispatch (ungated) or one condition wrapping a range_dispatch (gated) -
         // byte-matching Mojang's 1.21.4 structure.
-        ItemModelNode result = new ItemModelNode.Model(baseModelRef, List.of());
+        ItemModelNode result = fallback;
         for (Map.Entry<TreeMap<String, Boolean>, List<MappedOverride>> group : groups.entrySet()) {
             ItemModelNode inner = buildGroupNode(group.getValue(), result);
             result = group.getKey().isEmpty() ? inner : wrapGates(group.getKey(), inner, result);
