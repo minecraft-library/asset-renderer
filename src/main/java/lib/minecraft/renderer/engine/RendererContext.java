@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
@@ -140,6 +141,19 @@ public interface RendererContext {
      * @return the item DTO, or empty if unknown
      */
     @NotNull Optional<Item> findItem(@NotNull String id);
+
+    /**
+     * Looks up the parsed item-definition dispatch tree for an item id (05-models.md §3), for the
+     * render path to re-evaluate against a caller-supplied non-neutral {@code ItemModelContext} (trim
+     * material, dye, clock time). The default returns empty so test stubs and the neutral render path
+     * fall back to the pipeline-baked item.
+     *
+     * @param id the item id
+     * @return the item's dispatch tree, or empty when the item has no definition file
+     */
+    default @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+        return Optional.empty();
+    }
 
     /**
      * Looks up the ARGB display colour for a potion effect, used by potion-bottle and tipped-arrow

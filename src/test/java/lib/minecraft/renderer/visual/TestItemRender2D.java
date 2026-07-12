@@ -7,6 +7,7 @@ import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
 import dev.simplified.image.ImageData;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -88,6 +89,7 @@ public final class TestItemRender2D {
             ItemOptions options = ItemOptions.builder()
                 .itemId(itemId)
                 .type(type)
+                .itemModel(callerItemModel())
                 .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(size).supersample(supersample).antiAlias(antiAlias).build())
                 .build();
 
@@ -103,6 +105,24 @@ public final class TestItemRender2D {
                 ex.printStackTrace(System.err);
             }
         }
+    }
+
+    /**
+     * Builds the item-definition evaluation context from the optional {@code asset.item.*} system
+     * properties, so the caller-option rung-2 spot checks can be driven without a rebuild:
+     * {@code -Dasset.item.usingItem=true} (bow pulled), {@code -Dasset.item.trimMaterial=minecraft:gold}
+     * (leather trim case), {@code -Dasset.item.time=0.5} (clock frame). Absent properties leave the
+     * neutral {@link ItemModelContext#gui()} default, so the byte-parity sweep is unaffected.
+     */
+    private static ItemModelContext callerItemModel() {
+        boolean usingItem = Boolean.parseBoolean(System.getProperty("asset.item.usingItem", "false"));
+        boolean broken = Boolean.parseBoolean(System.getProperty("asset.item.broken", "false"));
+        String trimMaterial = System.getProperty("asset.item.trimMaterial");
+        float time = Float.parseFloat(System.getProperty("asset.item.time", "0"));
+        float compassAngle = Float.parseFloat(System.getProperty("asset.item.compassAngle", "0"));
+        ItemModelContext neutral = ItemModelContext.gui();
+        return new ItemModelContext(neutral.displayContext(), usingItem, broken, trimMaterial,
+            null, time, compassAngle, null, null);
     }
 
 }

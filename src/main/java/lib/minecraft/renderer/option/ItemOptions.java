@@ -12,6 +12,7 @@ import lib.minecraft.renderer.option.slot.ItemSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -133,6 +134,15 @@ public class ItemOptions implements RenderOptions {
      */
     @lombok.Builder.Default
     private final @NotNull ItemContext context = ItemContext.EMPTY;
+
+    /**
+     * The item-definition evaluation context - the {@code items/*.json} dispatch-tree inputs (trim
+     * material, dye colour, clock time, compass angle) resolved at render time (05-models.md §3.3).
+     * Defaults to the neutral {@link ItemModelContext#gui()}, under which the render reuses the
+     * pipeline-baked item byte-for-byte; a caller supplying non-neutral options re-walks the tree.
+     */
+    @lombok.Builder.Default
+    private final @NotNull ItemModelContext itemModel = ItemModelContext.gui();
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).

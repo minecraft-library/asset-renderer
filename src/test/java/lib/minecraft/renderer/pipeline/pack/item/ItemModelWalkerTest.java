@@ -1,0 +1,190 @@
+package lib.minecraft.renderer.pipeline.pack.item;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import lib.minecraft.renderer.asset.Item.LayerTint;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+
+/**
+ * Per-node-type evaluation of {@link ItemModelWalker} against {@link ItemModelContext}, plus the
+ * neutral-default resolutions the parity contract rests on (bow unpulled, leather_boots fallback+dye,
+ * clock frame 0, compass neutral frame) and the unknown-property fallback-branch degradation.
+ */
+@DisplayName("ItemModelWalker node evaluation")
+class ItemModelWalkerTest {
+
+    private static ItemModelNode parse(String json) {
+        JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+        return ItemModelParser.parse(root.getAsJsonObject("model"));
+    }
+
+    private static ItemModelWalker.Resolution resolveNeutral(String json) {
+        return ItemModelWalker.resolve(parse(json), ItemModelContext.gui());
+    }
+
+    @Nested
+    @DisplayName("per node type")
+    class PerNodeType {
+
+        @Test
+        @DisplayName("model leaf resolves to its ref")
+        void modelLeaf() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/diamond_sword\"}}");
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/diamond_sword"));
+        }
+
+        @Test
+        @DisplayName("condition takes on_false for a neutral (unknown/false) property")
+        void conditionOnFalse() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:using_item\","
+                + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/on\"},"
+                + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/off\"}}}");
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/off"));
+        }
+
+        @Test
+        @DisplayName("condition takes on_true when the property is true")
+        void conditionOnTrue() {
+            ItemModelContext using = new ItemModelContext("gui", true, false, null, null, 0f, 0f, null, null);
+            var r = ItemModelWalker.resolve(parse("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:using_item\","
+                + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/on\"},"
+                + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/off\"}}}"), using);
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/on"));
+        }
+
+        @Test
+        @DisplayName("select matches display_context=gui, else fallback for an unevaluable property")
+        void selectCaseAndFallback() {
+            var gui = resolveNeutral("{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:display_context\","
+                + "\"cases\":[{\"when\":\"gui\",\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/flat\"}}],"
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/held\"}}}");
+            assertThat("gui case matched", gui.modelId().orElseThrow(), is("minecraft:item/flat"));
+
+            var trim = resolveNeutral("{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\","
+                + "\"cases\":[{\"when\":\"minecraft:iron\",\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/iron_trim\"}}],"
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}");
+            assertThat("absent trim_material -> fallback", trim.modelId().orElseThrow(), is("minecraft:item/plain"));
+        }
+
+        @Test
+        @DisplayName("select honours a matching when-array and a caller trim override")
+        void selectWhenArrayAndOverride() {
+            ItemModelContext iron = new ItemModelContext("gui", false, false, "minecraft:iron", null, 0f, 0f, null, null);
+            var r = ItemModelWalker.resolve(parse("{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\","
+                + "\"cases\":[{\"when\":[\"minecraft:gold\",\"minecraft:iron\"],\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/iron_trim\"}}],"
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}"), iron);
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/iron_trim"));
+        }
+
+        @Test
+        @DisplayName("range_dispatch picks the highest threshold <= scaled value, else fallback")
+        void rangeDispatch() {
+            String tree = "{\"model\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:time\",\"scale\":64.0,"
+                + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/f0\"}},"
+                + "{\"threshold\":0.5,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/f1\"}}],"
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/fb\"}}}";
+            assertThat("time=0 -> frame 0", resolveNeutral(tree).modelId().orElseThrow(), is("minecraft:item/f0"));
+
+            ItemModelContext half = new ItemModelContext("gui", false, false, null, null, 0.5f, 0f, null, null);
+            assertThat("time=0.5 (scaled 32 >= 0.5) -> frame 1",
+                ItemModelWalker.resolve(parse(tree), half).modelId().orElseThrow(), is("minecraft:item/f1"));
+        }
+
+        @Test
+        @DisplayName("range_dispatch with all thresholds above the scaled value takes the fallback")
+        void rangeDispatchFallback() {
+            String tree = "{\"model\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:time\",\"scale\":1.0,"
+                + "\"entries\":[{\"threshold\":5.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/f5\"}}],"
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/fb\"}}}";
+            assertThat(resolveNeutral(tree).modelId().orElseThrow(), is("minecraft:item/fb"));
+        }
+
+        @Test
+        @DisplayName("composite resolves to its first non-empty child")
+        void composite() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:composite\",\"models\":["
+                + "{\"type\":\"minecraft:bundle/selected_item\"},"
+                + "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/first\"}]}}");
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/first"));
+        }
+
+        @Test
+        @DisplayName("an unknown node type renders nothing (no fallback)")
+        void unknownNode() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:mystery_future_node\"}}");
+            assertThat(r.isEmpty(), is(true));
+        }
+
+        @Test
+        @DisplayName("special resolves to a special leaf carrying kind + base + transform")
+        void specialLeaf() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:special\",\"base\":\"minecraft:item/template_skull\","
+                + "\"model\":{\"type\":\"minecraft:player_head\"},"
+                + "\"transformation\":{\"left_rotation\":[1,0,0,0],\"right_rotation\":[0,0,0,1],\"scale\":[1,1,1],\"translation\":[0.5,0,0.5]}}}");
+            ItemModelNode.Special special = r.special().orElseThrow();
+            assertThat(special.kind(), is("minecraft:player_head"));
+            assertThat(special.base(), is("minecraft:item/template_skull"));
+            assertThat(special.transform().translation(), is(new float[]{0.5f, 0f, 0.5f}));
+        }
+    }
+
+    @Nested
+    @DisplayName("neutral defaults (parity contract)")
+    class NeutralDefaults {
+
+        @Test
+        @DisplayName("bow -> on_false -> item/bow (unpulled)")
+        void bow() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:using_item\","
+                + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/bow\"},"
+                + "\"on_true\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:use_duration\",\"scale\":0.05,"
+                + "\"entries\":[{\"threshold\":0.65,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/bow_pulling_1\"}}],"
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/bow_pulling_0\"}}}}");
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/bow"));
+        }
+
+        @Test
+        @DisplayName("leather_boots -> fallback + dye tint")
+        void leatherBoots() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\","
+                + "\"cases\":[{\"when\":\"minecraft:iron\",\"model\":{\"type\":\"minecraft:model\","
+                + "\"model\":\"minecraft:item/leather_boots_iron_trim\",\"tints\":[{\"type\":\"minecraft:dye\",\"default\":-6265536}]}}],"
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/leather_boots\","
+                + "\"tints\":[{\"type\":\"minecraft:dye\",\"default\":-6265536}]}}}");
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/leather_boots"));
+            assertThat(r.tints(), contains(instanceOf(LayerTint.Dye.class)));
+        }
+
+        @Test
+        @DisplayName("clock -> context_dimension fallback -> time 0 -> clock_00")
+        void clock() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:context_dimension\","
+                + "\"cases\":[{\"when\":\"minecraft:overworld\",\"model\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:time\",\"scale\":64.0,"
+                + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/clock_00\"}},"
+                + "{\"threshold\":0.5,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/clock_01\"}}]}}],"
+                + "\"fallback\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:time\",\"scale\":64.0,"
+                + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/clock_00\"}}]}}}");
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/clock_00"));
+        }
+
+        @Test
+        @DisplayName("compass -> has_component false -> on_false range_dispatch -> compass_16")
+        void compass() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:has_component\","
+                + "\"component\":\"minecraft:lodestone_tracker\","
+                + "\"on_false\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:compass\",\"scale\":32.0,\"target\":\"spawn\","
+                + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/compass_16\"}}]},"
+                + "\"on_true\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:compass\",\"scale\":32.0,\"target\":\"lodestone\","
+                + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/compass_00\"}}]}}}");
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/compass_16"));
+        }
+    }
+
+}

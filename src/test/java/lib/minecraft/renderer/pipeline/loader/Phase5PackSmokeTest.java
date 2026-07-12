@@ -6,6 +6,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -62,8 +63,9 @@ class Phase5PackSmokeTest {
         Path itemsDir = hypixel.resolve("assets/" + NS + "/items");
         assertThat("hypixel_skyblock item-def files present", countJson(itemsDir), greaterThan(900L));
 
-        // The phase-5 block-item projection is item-model-only for this pack -> zero block items.
-        ConcurrentMap<String, String> blockItemDefs = ItemDefinitionLoader.load(stack);
+        // The block-item projection is item-model-only for this pack -> zero block items.
+        ConcurrentMap<String, String> blockItemDefs =
+            ItemModelTreeLoader.deriveBlockItemModels(ItemModelTreeLoader.load(stack));
         long hypixelBlockItems = blockItemDefs.keySet().stream().filter(id -> id.startsWith(NS + ":")).count();
         assertThat("hypixel ships no block items (all item-model refs)", hypixelBlockItems, is(0L));
     }

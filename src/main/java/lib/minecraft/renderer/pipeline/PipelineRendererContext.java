@@ -23,6 +23,7 @@ import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
@@ -63,6 +64,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull PackStack stack;
     private final @NotNull ConcurrentMap<String, Block> blockIndex;
     private final @NotNull ConcurrentMap<String, Item> itemIndex;
+    private final @NotNull ConcurrentMap<String, ItemModelTree> itemTrees;
     private final @NotNull ConcurrentMap<String, Entity> entityIndex;
     private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
     private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
@@ -102,6 +104,7 @@ public final class PipelineRendererContext implements RendererContext {
             result.getStack(),
             blockIndex,
             itemIndex,
+            result.getItemTrees(),
             entityIndex,
             result.getColorMaps(),
             result.getBlockTags(),
@@ -187,6 +190,12 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<Item> findItem(@NotNull String id) {
         return this.itemIndex.getOptional(id);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+        return this.itemTrees.getOptional(id);
     }
 
     /** {@inheritDoc} */

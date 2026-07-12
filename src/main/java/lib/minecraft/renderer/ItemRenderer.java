@@ -35,6 +35,9 @@ import lib.minecraft.renderer.option.slot.ItemSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
 import lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
@@ -118,6 +121,36 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     static @NotNull Item requireItem(@NotNull RendererContext context, @NotNull String itemId) {
         return context.findItem(itemId)
             .orElseThrow(() -> new RenderException("No item registered for id '%s'", itemId));
+    }
+
+    /**
+     * Resolves the effective item to render, applying the caller's {@link ItemModelContext} and the
+     * CIT model override on top of the pipeline-baked item.
+     * <p>
+     * The neutral {@link ItemModelContext#gui()} context with no CIT model override takes the fast
+     * path - the pipeline-baked item verbatim, byte-identical to a pre-tree render. Otherwise the
+     * item's dispatch tree is re-walked against the caller context (05-models.md §3.3), then a
+     * present {@code cit.model()} replaces the resolved model id (the OptiFine override-the-final-model
+     * join, 03-rules §2); the resolved model id is materialised back into an {@link Item} by reusing
+     * the already-built index entry for that model (its geometry + textures), carrying the walked
+     * branch's tints. Falls back to the baked item when the tree is absent or the branch resolves to
+     * nothing.
+     */
+    static @NotNull Item resolveRenderItem(@NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit) {
+        Item baked = requireItem(context, options.getItemId());
+        ItemModelContext modelContext = options.getItemModel();
+        if (modelContext.isNeutral() && cit.model().isEmpty()) return baked;
+
+        ItemModelWalker.Resolution resolution = context.findItemTree(options.getItemId())
+            .map(tree -> ItemModelWalker.resolve(tree, modelContext))
+            .orElse(null);
+        String modelId = cit.model().map(ResourceId::id)
+            .orElseGet(() -> resolution != null ? resolution.modelId().orElse(null) : null);
+        if (modelId == null) return baked;
+
+        Item target = context.findItem(ResourceId.ofModelId(modelId).id()).orElse(baked);
+        List<LayerTint> tints = resolution != null ? resolution.tints() : baked.tints();
+        return new Item(baked.id(), target.model(), target.textures(), baked.maxDurability(), tints, baked.alwaysGlinted());
     }
 
     /**
@@ -498,7 +531,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
-            Item item = requireItem(this.context, options.getItemId());
             RasterEngine engine = new RasterEngine(this.context);
 
             // One CIT walk per render, shared by the layer stack (texture overrides) and the glint tail
@@ -507,6 +539,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // tick-aware, so the LayerContext is captured once and buildGuiLayers re-runs per frame with
             // the frame's tick.
             CitResult cit = engine.textures().resolveCit(options);
+            // Resolve the item AFTER the CIT walk so a CIT model override can replace the tree-resolved
+            // model (03-rules join-after-eval); the neutral context + no override yields the baked item.
+            Item item = resolveRenderItem(this.context, options, cit);
             LayerContext ctx = new LayerContext(this.context, engine.textures(), item, options, cit);
 
             // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
@@ -609,8 +644,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
-            Item item = requireItem(this.context, options.getItemId());
-
             // Identity-pose camera carrying only the projection's lens: the held-item pose lives
             // entirely in the model's display transform (applied as the modelTransform below), so the
             // camera pose stays identity and only the rotation-independent lens comes from resolve().
@@ -624,6 +657,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // (frameCount = 1) resolves at tick 0 - byte-identical.
             Textures textures = new Textures(this.context);
             CitResult cit = textures.resolveCit(options);
+            Item item = resolveRenderItem(this.context, options, cit);
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
 
             // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static

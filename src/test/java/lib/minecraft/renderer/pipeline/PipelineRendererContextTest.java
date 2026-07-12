@@ -189,7 +189,7 @@ class PipelineRendererContextTest {
             packRoot,
             stack,
             colorMaps, blockTints, blockModels, itemModels,
-            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), itemTints, glintItems,
+            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), itemTints, Concurrent.newMap(), glintItems,
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             RuleSet.empty(PackId.VANILLA),
             Concurrent.newMap()

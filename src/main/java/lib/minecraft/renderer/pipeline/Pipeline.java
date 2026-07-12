@@ -30,9 +30,10 @@ import lib.minecraft.renderer.pipeline.loader.BlockTagLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
-import lib.minecraft.renderer.pipeline.loader.ItemDefinitionLoader;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
@@ -116,8 +117,9 @@ public class Pipeline {
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(stack, blockModels);
-        ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(stack);
-        ConcurrentMap<String, List<LayerTint>> itemTints = ItemDefinitionLoader.loadTints(stack);
+        ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
+        ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
+        ConcurrentMap<String, List<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
         ConcurrentSet<String> glintItems = GlintItemsLoader.load();
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(stack);
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
@@ -126,7 +128,7 @@ public class Pipeline {
         RuleSet rules = RuleSet.merge(stack);
 
         return new Result(packRoot, stack, colorMaps, blockTints, blockModels, itemModels,
-            blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, itemTints, glintItems, blockTags,
+            blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, itemTints, itemTrees, glintItems, blockTags,
             potionEffectColors, bannerPatterns, rules, blockStateResult.getDefaultStateKeys());
     }
 
@@ -396,6 +398,14 @@ public class Pipeline {
          * tints. Read at item-index build time and attached to each {@link lib.minecraft.renderer.asset.Item}.
          */
         private final @NotNull ConcurrentMap<String, List<LayerTint>> itemTints;
+
+        /**
+         * Item id to its parsed {@link ItemModelTree dispatch tree}, from
+         * {@code assets/<ns>/items/*.json}. The full selection tree (05-models.md §3) the block-item
+         * and tint projections above are derived from at pipeline time, and the render path re-walks
+         * for caller-supplied non-neutral {@code ItemModelContext} options.
+         */
+        private final @NotNull ConcurrentMap<String, ItemModelTree> itemTrees;
 
         /**
          * Namespaced ids of items vanilla registers with {@code enchantment_glint_override = true}
