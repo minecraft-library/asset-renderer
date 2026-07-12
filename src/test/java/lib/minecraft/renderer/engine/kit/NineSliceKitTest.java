@@ -177,6 +177,27 @@ class NineSliceKitTest {
     }
 
     @Test
+    @DisplayName("degenerate far border keeps the sprite's outermost edge, not its inner pixels")
+    void degenerateFarBorderKeepsOuterEdge() {
+        // 20x20 sprite: leftmost column blue, rightmost column red, else gray. border 9 all sides.
+        // Blitted into a 10px destination at pxScale 1, near+far (18) exceeds 10, so both borders clamp
+        // to 5. The near edge must show column 0 (blue) and the far edge column 19 (red) - the sprite's
+        // OUTERMOST columns, not the inner border pixels a mis-anchored far slice would read.
+        int[] px = new int[20 * 20];
+        for (int y = 0; y < 20; y++)
+            for (int x = 0; x < 20; x++)
+                px[y * 20 + x] = x == 0 ? 0xFF0000FF : x == 19 ? 0xFFFF0000 : 0xFF808080;
+        PixelBuffer sprite = PixelBuffer.of(px, 20, 20);
+        MCMeta.GuiScaling gui = new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(9, 9, 9, 9), false);
+        PixelBuffer dest = PixelBuffer.create(10, 10);
+
+        NineSliceKit.draw(dest, sprite, gui, 0, 0, 10, 10, 1, 1.0f);
+
+        assertThat("near edge is the outermost near column", dest.getPixel(0, 5), is(0xFF0000FF));
+        assertThat("far edge is the outermost far column", dest.getPixel(9, 5), is(0xFFFF0000));
+    }
+
+    @Test
     @DisplayName("degenerate rect clamps borders so slices never overlap or overrun")
     void degenerateRectClamps() {
         int[] px = new int[20 * 20];

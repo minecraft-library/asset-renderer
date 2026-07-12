@@ -9,6 +9,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.StringTag;
+import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
@@ -59,8 +60,12 @@ class TooltipStyleTest {
     private static final MCMeta.GuiScaling FRAME_SCALING = new MCMeta.GuiScaling(
         MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(10, 10, 10, 10), true);
 
-    /** A minimal renderer context that resolves only the textures + scalings it was seeded with. */
-    private record StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta.GuiScaling> scalings) implements RendererContext {
+    /** A minimal renderer context that resolves only the textures + scalings + animations it was seeded with. */
+    private record StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta.GuiScaling> scalings,
+                               Map<String, AnimationData> animations) implements RendererContext {
+        private StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta.GuiScaling> scalings) {
+            this(textures, scalings, Map.of());
+        }
         @Override public Optional<ResourcePack> findPack(PackId id) { return Optional.empty(); }
         @Override public Optional<Block> findBlock(String id) { return Optional.empty(); }
         @Override public Optional<ColorMap> findColorMap(ColorMap.Type type) { return Optional.empty(); }
@@ -68,6 +73,7 @@ class TooltipStyleTest {
         @Override public Optional<Item> findItem(String id) { return Optional.empty(); }
         @Override public Optional<PixelBuffer> resolveTexture(String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }
         @Override public Optional<MCMeta.GuiScaling> findGuiScaling(String textureId) { return Optional.ofNullable(this.scalings.get(textureId)); }
+        @Override public Optional<AnimationData> findAnimation(String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
     }
 
     private static PixelBuffer solid(int argb) {
@@ -136,6 +142,30 @@ class TooltipStyleTest {
 
         assertTrue(resolved.isPresent(), "default pair resolves");
         assertThat(resolved.get().backgroundId(), is(new ResourceId("minecraft", "gui/sprites/tooltip/background")));
+    }
+
+    @Test
+    @DisplayName("resolve flattens an animated chrome sprite to its tick-0 frame")
+    void resolveFlattensAnimatedSprite() {
+        // A 4x8 background flipbook: top 4x4 frame red, bottom 4x4 frame blue, with a 2-frame sidecar.
+        // resolve must pin to frame 0 (top 4x4 red), not hand NineSliceKit the whole strip (06 §1.6).
+        int[] px = new int[4 * 8];
+        for (int i = 0; i < 4 * 4; i++) px[i] = 0xFFFF0000;
+        for (int i = 4 * 4; i < 4 * 8; i++) px[i] = 0xFF0000FF;
+        PixelBuffer strip = PixelBuffer.of(px, 4, 8);
+        Map<String, PixelBuffer> tex = new HashMap<>();
+        tex.put("minecraft:gui/sprites/tooltip/background", strip);
+        tex.put("minecraft:gui/sprites/tooltip/frame", solid(0xFF445566));
+        Map<String, AnimationData> anims = new HashMap<>();
+        anims.put("minecraft:gui/sprites/tooltip/background", new AnimationData(1, false, Concurrent.newList(), -1, -1));
+
+        Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolve(
+            new StubContext(tex, new HashMap<>(), anims), null);
+
+        assertTrue(resolved.isPresent(), "pair resolves");
+        PixelBuffer bg = resolved.get().background();
+        assertThat("flattened to one frame height", bg.height(), is(4));
+        assertThat("frame 0 pixel is red", bg.getPixel(0, 0), is(0xFFFF0000));
     }
 
     @Test

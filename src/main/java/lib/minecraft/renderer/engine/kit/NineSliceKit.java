@@ -102,50 +102,42 @@ public class NineSliceKit {
                 MCMeta.GuiScaling.Border b = scaling.border();
                 int nearBorder = horizontal ? b.left() : b.top();
                 int farBorder = horizontal ? b.right() : b.bottom();
-                int[] extents = borderExtents(nearBorder, farBorder, destSize, pxScale);
+                // Clamp each border independently to half the destination (in sprite px) so the two
+                // borders never overlap - mirroring the vanilla client's min(border, dim/2) per side.
+                int half = destSize / (2 * pxScale);
+                int clampedNear = Math.min(nearBorder, half);
+                int clampedFar = Math.min(farBorder, half);
                 for (int local = 0; local < destSize; local++)
-                    map[local] = nineSlice(local, destSize, nearBorder, farBorder, extents[0], extents[1], spriteSize, pxScale, scaling.stretchInner());
+                    map[local] = nineSlice(local, destSize, clampedNear, clampedFar, spriteSize, pxScale, scaling.stretchInner());
             }
         }
         return map;
     }
 
     /**
-     * The output-px extents of the near/far border slices, shrunk proportionally when they would
-     * otherwise overlap (a destination narrower than {@code (near + far) * pxScale}), so the center
-     * collapses to nothing rather than the slices crossing.
+     * Maps one destination-local coordinate onto its sprite coordinate for a nine-slice axis: the near
+     * border reads the sprite's outermost near columns unscaled by {@code pxScale}, the far border its
+     * outermost far columns (anchored on the CLAMPED far extent, so a shrunk far slice keeps the sprite
+     * edge rather than sliding inward), and the center obeys {@code stretch_inner} (stretch the inner
+     * slice, else tile it from the slice's top-left).
      */
-    private static int[] borderExtents(int nearBorder, int farBorder, int destSize, int pxScale) {
-        int near = nearBorder * pxScale;
-        int far = farBorder * pxScale;
-        if (near + far > destSize) {
-            int total = near + far;
-            near = total == 0 ? 0 : destSize * near / total;
-            far = destSize - near;
-        }
-        return new int[]{near, far};
-    }
-
-    /**
-     * Maps one destination-local coordinate onto its sprite coordinate for a nine-slice axis: the
-     * near/far border slices scale unscaled by {@code pxScale}; the center obeys {@code stretch_inner}
-     * (stretch the inner slice, else tile it from the slice's top-left).
-     */
-    private static int nineSlice(int local, int destSize, int nearBorder, int farBorder,
-                                 int nearPx, int farPx, int spriteSize, int pxScale, boolean stretchInner) {
+    private static int nineSlice(int local, int destSize, int clampedNear, int clampedFar,
+                                 int spriteSize, int pxScale, boolean stretchInner) {
+        int nearPx = clampedNear * pxScale;
+        int farPx = clampedFar * pxScale;
         if (local < nearPx)
             return Math.clamp(local / pxScale, 0, spriteSize - 1);
         if (local >= destSize - farPx) {
             int off = local - (destSize - farPx);
-            return Math.clamp(spriteSize - farBorder + off / pxScale, 0, spriteSize - 1);
+            return Math.clamp(spriteSize - clampedFar + off / pxScale, 0, spriteSize - 1);
         }
-        int centerSprite = spriteSize - nearBorder - farBorder;
+        int centerSprite = spriteSize - clampedNear - clampedFar;
         int centerDest = destSize - nearPx - farPx;
-        if (centerSprite <= 0 || centerDest <= 0) return Math.clamp(nearBorder, 0, spriteSize - 1);
+        if (centerSprite <= 0 || centerDest <= 0) return Math.clamp(clampedNear, 0, spriteSize - 1);
         int off = local - nearPx;
         if (stretchInner)
-            return Math.clamp(nearBorder + nearest(off, centerDest, centerSprite), 0, spriteSize - 1);
-        return Math.clamp(nearBorder + (off / pxScale) % centerSprite, 0, spriteSize - 1);
+            return Math.clamp(clampedNear + nearest(off, centerDest, centerSprite), 0, spriteSize - 1);
+        return Math.clamp(clampedNear + (off / pxScale) % centerSprite, 0, spriteSize - 1);
     }
 
     /** Pixel-centered nearest-neighbor sample of {@code srcSize} texels across {@code destSize} output px. */

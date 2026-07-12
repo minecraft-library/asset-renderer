@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
+import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.engine.kit.NineSliceKit;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.TextOptions;
@@ -266,8 +267,17 @@ public interface TooltipChrome {
                 return Optional.empty();
             }
             return Optional.of(new ChromeSprites(
-                backgroundId, background.get(), context.findGuiScaling(backgroundId.id()).orElse(STRETCH_DEFAULT),
-                frameId, frame.get(), context.findGuiScaling(frameId.id()).orElse(STRETCH_DEFAULT)));
+                backgroundId, flattenAnimated(context, backgroundId, background.get()), context.findGuiScaling(backgroundId.id()).orElse(STRETCH_DEFAULT),
+                frameId, flattenAnimated(context, frameId, frame.get()), context.findGuiScaling(frameId.id()).orElse(STRETCH_DEFAULT)));
+        }
+
+        /**
+         * Flattens an animated chrome sprite to its tick-0 frame (06 §1.6 / ledger #8): a pack shipping
+         * an animated tooltip sprite pins to frame 0 rather than nine-slicing the whole flipbook strip. A
+         * sprite with no animation sidecar is returned unchanged (byte-neutral - vanilla ships none).
+         */
+        private static @NotNull PixelBuffer flattenAnimated(@NotNull RendererContext context, @NotNull ResourceId id, @NotNull PixelBuffer buffer) {
+            return context.findAnimation(id.id()).map(anim -> AnimationKit.sampleFrame(buffer, anim, 0)).orElse(buffer);
         }
 
         /**
