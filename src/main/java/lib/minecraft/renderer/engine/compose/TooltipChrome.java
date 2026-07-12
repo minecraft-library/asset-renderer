@@ -2,6 +2,9 @@ package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.StringTag;
+import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
@@ -11,6 +14,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.TextOptions;
 import lib.minecraft.renderer.option.slot.TextSlot;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -264,6 +268,38 @@ public interface TooltipChrome {
             return Optional.of(new ChromeSprites(
                 backgroundId, background.get(), context.findGuiScaling(backgroundId.id()).orElse(STRETCH_DEFAULT),
                 frameId, frame.get(), context.findGuiScaling(frameId.id()).orElse(STRETCH_DEFAULT)));
+        }
+
+        /**
+         * Resolves the sprite pair for an item, reading its {@code minecraft:tooltip_style} component off
+         * the render-time {@link ItemContext} and feeding the style key into {@link #resolve}. An item
+         * carrying no style resolves the default pair; an item carrying a style whose sprites are missing
+         * DROPs (empty + diagnostic, decision 14). Pack-content-gated - vanilla items ship no
+         * {@code tooltip_style} in the default render paths, so this returns the default pair for them.
+         *
+         * @param context the renderer context resolving textures + sidecars through the pack stack
+         * @param item the render-time item context carrying the component surface
+         * @return the resolved sprite pair, or empty when the item's style sprites are missing
+         */
+        public static @NotNull Optional<ChromeSprites> resolveForItem(@NotNull RendererContext context, @NotNull ItemContext item) {
+            return resolve(context, styleOf(item).orElse(null));
+        }
+
+        /**
+         * Reads an item's {@code minecraft:tooltip_style} component from the phase-3 components surface
+         * ({@code effectiveNbt -> components -> minecraft:tooltip_style}), returning the style key as a
+         * resource id. Empty when the component is absent, not a string, or blank.
+         *
+         * @param item the render-time item context
+         * @return the tooltip style key, or empty when the item declares none
+         */
+        public static @NotNull Optional<ResourceId> styleOf(@NotNull ItemContext item) {
+            Tag<?> componentsTag = item.effectiveNbt().get("components");
+            if (!(componentsTag instanceof CompoundTag components)) return Optional.empty();
+            Tag<?> styleTag = components.get("minecraft:tooltip_style");
+            if (!(styleTag instanceof StringTag style)) return Optional.empty();
+            String value = style.getValue();
+            return value.isBlank() ? Optional.empty() : Optional.of(ResourceId.parse(value));
         }
 
         /**
