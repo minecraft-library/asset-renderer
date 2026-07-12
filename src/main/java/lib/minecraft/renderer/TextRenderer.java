@@ -6,6 +6,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.TooltipChrome;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -20,39 +21,22 @@ import lib.minecraft.text.font.MinecraftGraphics;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Renders styled Minecraft text in one of two modes: item-style lore tooltips with a purple
- * bordered background, or plain chat text on a transparent canvas.
+ * Renders styled Minecraft text in one of two modes: item-style lore tooltips with a bordered
+ * background, or plain chat text on a transparent canvas.
  * <p>
- * Tooltip colors match the vanilla palette used by every client from 1.8.9 through 26.1:
- * background {@code 0xF0100010}, border gradient {@code 0x505000FF} (top) to
- * {@code 0x5028007F} (bottom). The background and border alphas are independently
- * configurable via {@link TextOptions#getBackgroundAlpha()} and
- * {@link TextOptions#getBorderAlpha()}.
+ * The LORE background and border are contributed by the {@linkplain TextOptions#getChrome() tooltip
+ * chrome}: {@link TooltipChrome.Vanilla#PROCEDURAL} draws the legacy vanilla palette (background
+ * {@code 0xF0100010}, gradient border {@code 0x505000FF} to {@code 0x5028007F}) with the
+ * caller-configurable {@link TextOptions#getBackgroundAlpha()} / {@link TextOptions#getBorderAlpha()}
+ * alphas; {@link TooltipChrome.Vanilla#SPRITE} nine-slices the pack's {@code tooltip/background} and
+ * {@code tooltip/frame} sprites (resolved by the caller into {@link TextOptions#getChromeSprites()}).
+ * The renderer owns only the glyph rows and the canvas sizing.
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
  * fresh {@link TextKit} obfuscation substitution.
  */
 public final class TextRenderer implements Renderer<TextOptions> {
-
-    /**
-     * Vanilla tooltip background RGB component - identical across 1.8.9 through 26.1. The
-     * full ARGB is {@code 0xF0100010}; the alpha {@code 0xF0} (240) is applied from
-     * {@link TextOptions#getBackgroundAlpha()} at composite time so callers can override it.
-     */
-    private static final int VANILLA_TOOLTIP_BG_RGB = 0x100010;
-
-    /**
-     * Vanilla tooltip border gradient top RGB component. Full ARGB is {@code 0x505000FF};
-     * alpha {@code 0x50} (80) is applied from {@link TextOptions#getBorderAlpha()}.
-     */
-    private static final int VANILLA_TOOLTIP_BORDER_TOP_RGB = 0x5000FF;
-
-    /**
-     * Vanilla tooltip border gradient bottom RGB component. Full ARGB is {@code 0x5028007F};
-     * alpha {@code 0x50} (80) is applied from {@link TextOptions#getBorderAlpha()}.
-     */
-    private static final int VANILLA_TOOLTIP_BORDER_BOTTOM_RGB = 0x28007F;
 
     /**
      * Distance between consecutive text baselines in mcPixels. Vanilla tooltip rendering
@@ -79,7 +63,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
 
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
         boolean animated = hasObfuscation(options.getLines());
-        int padMcPx = isLore ? options.getPadding() : 0;
+        int padMcPx = isLore ? options.getChrome().paddingMcPx(options) : 0;
         int loreGapMcPx = isLore && options.getLines().size() > 1 ? LORE_GAP_MCPX : 0;
         int canvasWMcPx = measureWidthMcPixels(options) + padMcPx * 2;
 
@@ -122,21 +106,20 @@ public final class TextRenderer implements Renderer<TextOptions> {
         long frameSeed
     ) {
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
-        int padMcPx = isLore ? options.getPadding() : 0;
+        int padMcPx = isLore ? options.getChrome().paddingMcPx(options) : 0;
 
         int w = canvasWMcPx * MinecraftFont.MC_PIXEL_SCALE;
         int h = canvasHMcPx * MinecraftFont.MC_PIXEL_SCALE;
         PixelBuffer buffer = PixelBuffer.create(w, h);
 
-        // Compose the frame as an ordered ImageLayer stack: tooltip background + border (LORE only),
-        // then the glyph rows. Callers can splice passes via TextOptions.layerDecorator. The
-        // obfuscation animation stays the renderer's per-frame loop - the TEXT layer captures the seed.
+        // Compose the frame as an ordered ImageLayer stack: the tooltip chrome contributes the
+        // background + border (LORE only), then the renderer appends the glyph rows. Callers can splice
+        // passes via TextOptions.layerDecorator. The obfuscation animation stays the renderer's per-frame
+        // loop - the TEXT layer captures the seed.
         LayerStack<ImageLayer> stack = new LayerStack<>();
         if (isLore) {
-            int bgArgb = (Math.clamp(options.getBackgroundAlpha(), 0, 255) << 24) | VANILLA_TOOLTIP_BG_RGB;
-            int borderAlpha = Math.clamp(options.getBorderAlpha(), 0, 255);
-            stack.append(TextSlot.BACKGROUND, frame -> frame.fill(bgArgb));
-            stack.append(TextSlot.BORDER, frame -> drawGradientBorder(frame, w, h, borderAlpha));
+            TooltipChrome.ChromeBox box = new TooltipChrome.ChromeBox(w, h, MinecraftFont.MC_PIXEL_SCALE);
+            options.getChrome().contribute(stack, box, options.getChromeSprites(), options);
         }
         stack.append(TextSlot.TEXT, frame -> {
             MinecraftGraphics g = new MinecraftGraphics(frame);
@@ -154,75 +137,6 @@ public final class TextRenderer implements Renderer<TextOptions> {
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         frames.add(buffer);
         return frames;
-    }
-
-    /**
-     * Draws the vanilla tooltip border - a 1-{@code mcPixel}-thick frame inset 1 {@code mcPixel}
-     * from the canvas edge, filled with a vertical gradient from {@link #VANILLA_TOOLTIP_BORDER_TOP_RGB} at the
-     * top row to {@link #VANILLA_TOOLTIP_BORDER_BOTTOM_RGB} at the bottom row. Horizontal edges receive the
-     * endpoint colors; the interpolation interior runs along the vertical edges.
-     *
-     * @param buffer the output buffer to draw onto
-     * @param w the buffer width in output pixels
-     * @param h the buffer height in output pixels
-     * @param alpha the border alpha channel in {@code [0, 255]}
-     */
-    private static void drawGradientBorder(@NotNull PixelBuffer buffer, int w, int h, int alpha) {
-        int inset = MinecraftFont.MC_PIXEL_SCALE;   // border is inset 1 mcPixel from edge
-        int stroke = MinecraftFont.MC_PIXEL_SCALE;  // border stroke is 1 mcPixel thick
-        int topY0 = inset;
-        int topY1 = inset + stroke;
-        int botY0 = h - inset - stroke;
-        int botY1 = h - inset;
-        int leftX0 = inset;
-        int leftX1 = inset + stroke;
-        int rightX0 = w - inset - stroke;
-        int rightX1 = w - inset;
-
-        int innerTop = topY1;
-        int innerBottom = botY0;
-        int innerSpan = Math.max(1, innerBottom - 1 - innerTop); // rows in gradient interior
-
-        // Top stroke - solid top color
-        int topArgb = (alpha << 24) | VANILLA_TOOLTIP_BORDER_TOP_RGB;
-        for (int y = topY0; y < topY1; y++)
-            for (int x = leftX0; x < rightX1; x++)
-                buffer.setPixel(x, y, topArgb);
-
-        // Bottom stroke - solid bottom color
-        int botArgb = (alpha << 24) | VANILLA_TOOLTIP_BORDER_BOTTOM_RGB;
-        for (int y = botY0; y < botY1; y++)
-            for (int x = leftX0; x < rightX1; x++)
-                buffer.setPixel(x, y, botArgb);
-
-        // Left and right vertical edges - interpolate between top and bottom colors
-        for (int y = innerTop; y < innerBottom; y++) {
-            int argb = lerpArgb(topArgb, botArgb, y - innerTop, innerSpan);
-            for (int x = leftX0; x < leftX1; x++)
-                buffer.setPixel(x, y, argb);
-            for (int x = rightX0; x < rightX1; x++)
-                buffer.setPixel(x, y, argb);
-        }
-    }
-
-    /**
-     * Linearly interpolates between two packed ARGB colors in straight (non-premultiplied)
-     * space. Returns {@code from} when {@code t == 0} and {@code to} when {@code t == steps}.
-     */
-    private static int lerpArgb(int from, int to, int t, int steps) {
-        int a = lerp(ColorMath.alpha(from), ColorMath.alpha(to), t, steps);
-        int r = lerp(ColorMath.red(from), ColorMath.red(to), t, steps);
-        int g = lerp(ColorMath.green(from), ColorMath.green(to), t, steps);
-        int b = lerp(ColorMath.blue(from), ColorMath.blue(to), t, steps);
-        return ColorMath.pack(a, r, g, b);
-    }
-
-    /**
-     * Linearly interpolates a single 8-bit colour channel. Returns {@code from} at {@code t == 0}
-     * and {@code to} at {@code t == steps}.
-     */
-    private static int lerp(int from, int to, int t, int steps) {
-        return from + ((to - from) * t) / steps;
     }
 
     /**
