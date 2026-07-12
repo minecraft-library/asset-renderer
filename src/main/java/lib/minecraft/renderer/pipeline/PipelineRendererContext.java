@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
+import lib.minecraft.renderer.pipeline.load.block.BlockEntityShadowDiagnostics;
 import lib.minecraft.renderer.pipeline.loader.BlockIndexLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
@@ -41,7 +42,9 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The production {@link RendererContext} implementation, built once at bootstrap from a single
@@ -99,8 +102,9 @@ public final class PipelineRendererContext implements RendererContext {
      * @return a new context scoped to the given result
      */
     public static @NotNull PipelineRendererContext of(@NotNull Pipeline.Result result) {
-        BlockModelLoader.LoadResult beResult = BlockModelLoader.load();
+        BlockModelLoader.LoadResult beResult = BlockModelLoader.load(result.getStack());
         ConcurrentMap<String, Block.Entity> blockEntities = beResult.models();
+        reportBlockEntityShadows(result.getStack(), beResult);
         ConcurrentMap<String, Block> blockIndex = BlockIndexLoader.load(result, blockEntities, beResult.variants());
         ConcurrentMap<String, Item> itemIndex = ItemIndexLoader.load(result, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = loadEntityIndex();
@@ -132,6 +136,18 @@ public final class PipelineRendererContext implements RendererContext {
      */
     private static @NotNull ConcurrentMap<String, Entity> loadEntityIndex() {
         return EntityModelLoader.load();
+    }
+
+    /**
+     * Runs the shadowed-model diagnostic (05-models.md §4.2) over the block-entity-backed id set - the
+     * primary block-entity models unioned with their state-conditional variants - so a non-vanilla pack
+     * shipping a vanilla-form model / blockstate for a code-rendered block entity is named rather than
+     * silently ignored. Byte-neutral: a vanilla-only stack emits nothing.
+     */
+    private static void reportBlockEntityShadows(@NotNull PackStack stack, @NotNull BlockModelLoader.LoadResult beResult) {
+        Set<String> beBackedIds = new HashSet<>(beResult.models().keySet());
+        beBackedIds.addAll(beResult.variants().keySet());
+        BlockEntityShadowDiagnostics.report(stack, beBackedIds);
     }
 
     /** {@inheritDoc} */

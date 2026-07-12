@@ -35,7 +35,8 @@ public final class BlockDefaultsReader {
     private BlockDefaultsReader() {}
 
     /**
-     * Reads the per-block default-state key map natively from {@code block_defaults.json}.
+     * Reads the per-block default-state key map natively from {@code block_defaults.json}, with no pack
+     * override channel applied.
      *
      * @param diagnostics the scope envelope warnings are recorded to
      * @return block id to its canonical default-state key (e.g. {@code "facing=north,lit=false"}),
@@ -43,6 +44,24 @@ public final class BlockDefaultsReader {
      * @throws PipelineException if the resource is missing or has no {@code blocks} object
      */
     public static @NotNull ConcurrentMap<String, String> load(@NotNull Diagnostics diagnostics) {
+        return load(diagnostics, BlockRendererOverrides.EMPTY);
+    }
+
+    /**
+     * Reads the per-block default-state key map from {@code block_defaults.json}, then overlays the
+     * pack-supplied {@code renderer/block_defaults.json} override channel (05-models.md §4.3): each
+     * pack {@code blocks} entry replaces the classpath default state of the same id and resolves it (so
+     * a pack can change a default state key that a vanilla-format pack cannot). This is the only way
+     * any pack can override an ASM-derived default state.
+     *
+     * @param diagnostics the scope envelope warnings are recorded to
+     * @param overrides the gathered pack override channel; {@link BlockRendererOverrides#EMPTY} for a
+     *     vanilla-only stack, which leaves the result byte-identical to the classpath snapshot
+     * @return block id to its canonical default-state key, wrapped unmodifiable; {@code unresolved} ids
+     *     are absent unless a pack override resolves them
+     * @throws PipelineException if the resource is missing or has no {@code blocks} object
+     */
+    public static @NotNull ConcurrentMap<String, String> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
         ResourceDocument document = BundledResources.read(RESOURCE_NAME, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         JsonObject root = document.payload().toGson().getAsJsonObject();
         if (!root.has("blocks"))
@@ -52,7 +71,16 @@ public final class BlockDefaultsReader {
         if (root.has("unresolved"))
             for (JsonElement element : root.getAsJsonArray("unresolved")) unresolved.add(element.getAsString());
 
-        JsonObject blocks = root.getAsJsonObject("blocks");
+        JsonObject blocks = root.getAsJsonObject("blocks").deepCopy();
+        // Overlay the pack override channel per block id (later-wins) and resolve each overridden id -
+        // a pack supplying a default state removes any classpath "unresolved" mark for it.
+        JsonObject defaultOverrides = overrides.defaults();
+        for (String blockId : defaultOverrides.keySet()) {
+            if (!defaultOverrides.get(blockId).isJsonObject()) continue;
+            blocks.add(blockId, defaultOverrides.get(blockId));
+            unresolved.remove(blockId);
+        }
+
         HashMap<String, String> defaults = new HashMap<>();
         for (String blockId : blocks.keySet()) {
             if (unresolved.contains(blockId)) continue;
