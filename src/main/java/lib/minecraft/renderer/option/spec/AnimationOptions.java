@@ -39,6 +39,19 @@ public class AnimationOptions {
     private final float loopFadeBridgePct = 0.2f;
 
     /**
+     * Opt-in {@code AUTO} timeline derivation (04-animation §3, decision D2): when {@code true}, a
+     * subject that cannot know a sensible {@link #frameCount} / {@link #ticksPerFrame} for its textures
+     * probes its resolved {@code .mcmeta} sidecars once at {@link #startTick} and derives the timeline
+     * (LCM loop capped at 200 ticks, GCD cadence) via
+     * {@link lib.minecraft.renderer.engine.compose.AnimationTimeline#deriveUniform}, then renders that
+     * ordinary explicit timeline. Default {@code false} leaves the caller's explicit values untouched;
+     * a subject with no animated texture degrades to a single static frame, so requesting it costs
+     * nothing on a static subject. The parity floor is preserved mechanically - the default is static.
+     */
+    @lombok.Builder.Default
+    private final boolean deriveTimeline = false;
+
+    /**
      * Opens a builder seeded from this instance's current values, for deriving a variant with a
      * few fields changed.
      *

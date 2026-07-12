@@ -249,6 +249,15 @@ tasks {
         args = if (blockId != null) listOf(blockId, renderSize, ssaa) else listOf()
     }
 
+    register<JavaExec>("blockFlipbook") {
+        description = "Renders the vanilla animated-texture blocks (fire/magma/prismarine/sea_lantern/water) with animation opted in (deriveTimeline AUTO) to cache/visual/block-flipbook/ as GIFs - the phase-4 flipbook LOOK gate. -PrenderSize=256"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestBlockFlipbook")
+        classpath = sourceSets["test"].runtimeClasspath
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
+        args = listOf(renderSize)
+    }
+
     register<JavaExec>("projectionSmoke") {
         description = "Renders a block under every GraphicalProjection + facing to cache/visual/projection-smoke/. -PblockId=minecraft:tnt -PrenderSize=512"
         group = "visual"

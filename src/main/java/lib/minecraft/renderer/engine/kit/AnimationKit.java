@@ -5,6 +5,8 @@ import lib.minecraft.renderer.asset.AnimationData;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Arrays;
+
 /**
  * Plays back a vanilla {@code .mcmeta} texture animation against a vertically stacked strip.
  * <p>
@@ -106,6 +108,51 @@ public class AnimationKit {
         PixelBuffer next = extractFrame(strip, indices[nextEntry], frameWidth, frameHeight);
         float alpha = (effectiveTick - accumulated) / (float) durations[currentEntry];
         return PixelBuffer.lerp(current, next, alpha);
+    }
+
+    /**
+     * The per-entry tick durations of an animation's playback sequence - the array
+     * {@link #sampleFrame} accumulates against internally, exposed for timeline derivation
+     * (04-animation §3). When the animation declares no explicit {@code frames} list, the strip's
+     * implicit frames {@code 0..frameCount-1} each last {@link AnimationData#frametime() frametime}
+     * (floored at 1); otherwise each {@link AnimationData.FrameEntry} contributes its {@code time}
+     * ticks, or {@code frametime} when the entry declares no positive override. Mirrors the durations
+     * computation in {@link #sampleFrame} - keep the two in sync.
+     *
+     * @param frameCount the strip's implicit frame count (strip height / frame height), used only
+     *     when the animation has no explicit {@code frames} list
+     * @param animation the parsed {@code .mcmeta} metadata
+     * @return the per-entry durations in ticks; empty when the implicit-frame path has zero frames
+     */
+    public static int @NotNull [] entryDurations(int frameCount, @NotNull AnimationData animation) {
+        int defaultTicks = Math.max(1, animation.frametime());
+        if (animation.frames().isEmpty()) {
+            int[] durations = new int[Math.max(0, frameCount)];
+            Arrays.fill(durations, defaultTicks);
+            return durations;
+        }
+        int size = animation.frames().size();
+        int[] durations = new int[size];
+        for (int i = 0; i < size; i++) {
+            AnimationData.FrameEntry entry = animation.frames().get(i);
+            durations[i] = entry.time() > 0 ? entry.time() : defaultTicks;
+        }
+        return durations;
+    }
+
+    /**
+     * The total loop length of an animation in ticks - the sum of its {@link #entryDurations per-entry
+     * durations}, i.e. the tick at which the playback sequence wraps. Zero when the animation has no
+     * playable frames.
+     *
+     * @param frameCount the strip's implicit frame count (see {@link #entryDurations})
+     * @param animation the parsed {@code .mcmeta} metadata
+     * @return the loop length in ticks
+     */
+    public static int loopTicks(int frameCount, @NotNull AnimationData animation) {
+        int total = 0;
+        for (int d : entryDurations(frameCount, animation)) total += d;
+        return total;
     }
 
     /**

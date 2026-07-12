@@ -12,7 +12,9 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.function.IntUnaryOperator;
 import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 
@@ -23,8 +25,15 @@ import java.util.stream.IntStream;
  * former {@code FinalizeStage} + {@code AnimationStage} + {@code GlintStage} - the differences between
  * renderers become a {@link FinalizeSpec} data value.
  * <p>
- * Glint and tick-driven animation are mutually exclusive at every call site (a glinted render bakes one
- * frame; an animated render carries no glint), so the two frame-multiplying tails never compose.
+ * Glint and tick-driven animation compose by precedence rather than exclusion (04-animation §5): the
+ * <b>animation owns the frame axis</b> and glint is a per-frame post-stamp on the baked strip. A static
+ * render ({@code frameCount <= 1}) with glint bakes one frame and applies the fps-paced glint scroll
+ * ({@link #applyGlint}); an animated render ({@code frameCount > 1}) with glint bakes the strip and
+ * stamps each frame with the glint whose wall-clock schedule is DERIVED from the tick clock
+ * ({@code glintTime = tick * }{@link #MILLIS_PER_TICK}{@code  * }{@link GlintKit#MAX_ENCHANTMENT_GLINT_SPEED_MILLIS}),
+ * so the foil stays phase-aligned with the live client. The animation never multiplies frames for the
+ * glint; when the loop is short relative to glint's period the foil visibly jumps at the loop seam, the
+ * same accepted truncation as the 2 s glint loop. Frame count = the animation's; delays = the animation's.
  */
 @UtilityClass
 public final class Finalize {
@@ -220,11 +229,18 @@ public final class Finalize {
 
     /**
      * Bakes {@code spec.frameCount()} frames in parallel, applies {@code framePostProcess} to the full
-     * baked list, then wraps the result into an animation strip at {@code spec.delayMs()}. The
-     * post-processor is the seam for renderers whose frames are NOT independent: a seamless-loop
-     * crossfade that blends each frame against a later one and trims the extra bridge frames, say. A
-     * plain strip passes {@link UnaryOperator#identity()} - which is exactly what {@link #render} does
-     * for {@code frameCount > 1}. Glint never applies to a strip.
+     * baked list, composes a per-frame enchantment glint when the spec carries one, then wraps the
+     * result into an animation strip at {@code spec.delayMs()}. The post-processor is the seam for
+     * renderers whose frames are NOT independent: a seamless-loop crossfade that blends each frame
+     * against a later one and trims the extra bridge frames, say. A plain strip passes
+     * {@link UnaryOperator#identity()} - which is exactly what {@link #render} does for
+     * {@code frameCount > 1}.
+     * <p>
+     * Glint × animation (04-animation §5): the animation owns the frame axis; if the spec carries an
+     * enchanted {@link Glint}, each frame is post-stamped with a scrolled foil whose glint time derives
+     * from that frame's tick ({@code tick_f = startTick + f * ticksPerFrame}). Glint composition assumes
+     * {@code framePostProcess} preserves frame count and order (the identity case, which every glint
+     * caller uses); the portal's trimming post-processor never carries a glint.
      *
      * @param spec the terminal recipe; {@code frameCount} frames are baked from {@code startTick},
      *        {@code ticksPerFrame} apart
@@ -237,17 +253,118 @@ public final class Finalize {
         @NotNull FrameRasterizer raster,
         @NotNull UnaryOperator<ConcurrentList<PixelBuffer>> framePostProcess
     ) {
-        // Frame-parallel bake: each frame is independent; mapToObj().toList() preserves encounter
-        // order so the strip stays tick-ordered for GIF/WebP playback.
-        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        frames.addAll(
-            IntStream.range(0, spec.frameCount())
-                .parallel()
-                .mapToObj(f -> rasterizeAndPost(spec, raster, spec.startTick() + f * spec.ticksPerFrame()).buffer())
-                .toList()
-        );
+        // Frame-parallel bake keeping each frame's (optional) glint mask; mapToObj().toList() preserves
+        // encounter order so the strip stays tick-ordered for GIF/WebP playback.
+        List<Finished> baked = IntStream.range(0, spec.frameCount())
+            .parallel()
+            .mapToObj(f -> rasterizeAndPost(spec, raster, spec.startTick() + f * spec.ticksPerFrame()))
+            .toList();
 
-        return FrameCompositor.wrapFrames(framePostProcess.apply(frames), spec.delayMs());
+        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
+        for (Finished finished : baked) frames.add(finished.buffer());
+        frames = framePostProcess.apply(frames);
+
+        // Frame f's tick, or - for a non-scrolling glint (animateGlint=false) - startTick every frame.
+        stampAnimatedGlint(spec, baked, frames,
+            f -> spec.glint() != null && spec.glint().animate() ? spec.startTick() + f * spec.ticksPerFrame() : spec.startTick());
+
+        return FrameCompositor.wrapFrames(frames, spec.delayMs());
+    }
+
+    /**
+     * Schedule-driven variable-delay strip (04-animation §6): bakes one frame per entry of
+     * {@code sampleTicks} (each frame drawn at its own absolute tick), composes the per-frame glint as
+     * {@link #renderStrip} does, then wraps the frames with per-frame {@code frameDelaysMs}. This is the
+     * change-point export a subject's merged animation timeline produces - one output frame per DISTINCT
+     * texture state, each held for its authored duration - so a single-texture subject (fire's reordered
+     * frames list) round-trips its {@code .mcmeta} timeline exactly rather than resampling at a uniform
+     * cadence. Purely additive: {@link #render}/{@link #renderStrip} keep their uniform semantics.
+     *
+     * @param spec the terminal recipe (its {@code frameCount}/{@code startTick}/{@code ticksPerFrame}/
+     *        {@code delayMs} are ignored; the schedule drives frame count and timing, the glint rides)
+     * @param sampleTicks the absolute tick each output frame is drawn at, in playback order
+     * @param frameDelaysMs the playback duration of each frame in milliseconds, parallel to {@code sampleTicks}
+     * @param raster draws each frame at its scheduled tick
+     * @return the finished variable-delay strip
+     * @throws IllegalArgumentException if the two arrays differ in length or are empty
+     */
+    public static @NotNull ImageData renderSchedule(
+        @NotNull FinalizeSpec spec,
+        long @NotNull [] sampleTicks,
+        int @NotNull [] frameDelaysMs,
+        @NotNull FrameRasterizer raster
+    ) {
+        if (sampleTicks.length != frameDelaysMs.length)
+            throw new IllegalArgumentException("sampleTicks (%d) and frameDelaysMs (%d) must be the same length"
+                .formatted(sampleTicks.length, frameDelaysMs.length));
+        if (sampleTicks.length == 0)
+            throw new IllegalArgumentException("renderSchedule needs at least one sample tick");
+
+        List<Finished> baked = IntStream.range(0, sampleTicks.length)
+            .parallel()
+            .mapToObj(f -> rasterizeAndPost(spec, raster, (int) sampleTicks[f]))
+            .toList();
+
+        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
+        for (Finished finished : baked) frames.add(finished.buffer());
+
+        stampAnimatedGlint(spec, baked, frames,
+            f -> spec.glint() != null && spec.glint().animate() ? (int) sampleTicks[f] : (int) sampleTicks[0]);
+
+        return FrameCompositor.wrapFrames(frames, frameDelaysMs);
+    }
+
+    /**
+     * Composes the enchantment glint onto a baked strip in place (a no-op unless the spec carries an
+     * enchanted glint whose texture resolves). The animation owns the frame axis; each frame is
+     * post-stamped with a scrolled foil at the glint time derived from that frame's tick
+     * ({@code tickForFrame}): {@code glintTime = tick * }{@link #MILLIS_PER_TICK}{@code  * }{@link
+     * GlintKit#MAX_ENCHANTMENT_GLINT_SPEED_MILLIS} - the wall-clock instant the tick represents,
+     * converted to a glint time exactly as {@link GlintKit#applyGlint} does for its fps-paced schedule
+     * (which is why the {@code * 8.0} speed factor is applied HERE, not inside
+     * {@link GlintKit#applyGlintAtTimes} which takes already-post-{@code glintSpeed} millis). The
+     * per-frame {@link GlintMask} recorded during the bake confines the foil (armor), or is {@code null}
+     * for a whole-icon glint (items).
+     */
+    private static void stampAnimatedGlint(
+        @NotNull FinalizeSpec spec,
+        @NotNull List<Finished> baked,
+        @NotNull ConcurrentList<PixelBuffer> frames,
+        @NotNull IntUnaryOperator tickForFrame
+    ) {
+        Glint glint = spec.glint();
+        if (glint == null || !glint.enchanted()) return;
+
+        Optional<PixelBuffer> glintTexture = glint.resolver().resolve(glint.preset().glintTextureId());
+        if (glintTexture.isEmpty()) return;
+
+        for (int f = 0; f < frames.size(); f++) {
+            long glintTime = glintTimeForTick(tickForFrame.applyAsInt(f));
+            GlintMask mask = f < baked.size() ? baked.get(f).mask() : null;
+            PixelBuffer stamped = GlintKit.applyGlintAtTimes(
+                frames.get(f), glintTexture.get(), new long[]{glintTime}, glint.preset(), null, mask).getFirst();
+            frames.set(f, stamped);
+        }
+    }
+
+    /**
+     * Converts an animation {@code tick} to the glint time {@link GlintKit#applyGlintAtTimes} expects
+     * (04-animation §5, the §1.2 clock bridge). The tick's wall-clock instant is
+     * {@code tick * }{@link #MILLIS_PER_TICK}{@code  ms}; the value {@code GlintKit} consumes is
+     * "vanilla post-{@code glintSpeed} millis", i.e. the wall-clock instant times
+     * {@link GlintKit#MAX_ENCHANTMENT_GLINT_SPEED_MILLIS} - EXACTLY how
+     * {@link GlintKit#applyGlint} builds its own fps-paced schedule
+     * ({@code frameIndex * millisPerFrame * MAX_ENCHANTMENT_GLINT_SPEED_MILLIS}). The {@code * 8.0}
+     * speed factor therefore folds in HERE, not inside {@code applyGlintAtTimes}, so an animated glint
+     * scrolls at the same rate as a static-frame glint and stays phase-aligned with the live client.
+     * Both vanilla glint loop periods (110 000 / 30 000 ms) are multiples of this quantum, so a
+     * tick-derived schedule sweeps the full glint cycle without phase drift.
+     *
+     * @param tick the animation tick a frame is drawn at
+     * @return the glint time in vanilla post-{@code glintSpeed} milliseconds
+     */
+    static long glintTimeForTick(int tick) {
+        return Math.round((double) tick * MILLIS_PER_TICK * GlintKit.MAX_ENCHANTMENT_GLINT_SPEED_MILLIS);
     }
 
     /**

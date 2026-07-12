@@ -10,17 +10,22 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.model.ModelElement;
+import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.compose.AnimationTimeline;
 import lib.minecraft.renderer.engine.compose.Finalize;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
+import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
@@ -39,7 +44,9 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -199,7 +206,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick(), so a caller-supplied non-zero startTick is honored
             // (staticFrame would hardcode tick 0). Default (startTick=0, frameCount=1) is byte-identical.
+            // AUTO opt-in (04-animation §3): deriveTimeline probes the block's animated face textures once
+            // and derives frameCount/ticksPerFrame, so a caller need not know the flipbook cadence.
             AnimationOptions anim = options.getAnimation();
+            if (anim.isDeriveTimeline())
+                anim = deriveBlockTimeline(block, anim);
             int size = options.getOutput().getCanvasSize();
             int ssaa = Math.max(1, options.getOutput().getSupersample());
             Finalize.FinalizeSpec spec = Finalize.FinalizeSpec.tickStrip(size, size, ssaa, options.getOutput().isAntiAlias(), anim);
@@ -207,6 +218,76 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 new ModelEngine(this.context, resolved).rasterize(
                     buildRelitTriangles(tick, block, be, effectiveVariant, tint, untintedTint, guiRotation, options),
                     target));
+        }
+
+        /**
+         * Derives the block's animation timeline (04-animation §3, decision D2) when the caller opts in
+         * to {@link AnimationOptions#isDeriveTimeline()}: collects every animated face texture the block
+         * can render, folds their loop lengths + cadences into a single {@link AnimationTimeline.Uniform}
+         * (LCM loop capped at 200 ticks, GCD cadence), and returns the caller's options with the derived
+         * {@code frameCount} / {@code ticksPerFrame} substituted ({@code deriveTimeline} cleared so the
+         * result is an ordinary explicit timeline). A block with no animated texture derives to a single
+         * static frame, so opting in on a stone block costs nothing.
+         */
+        private @NotNull AnimationOptions deriveBlockTimeline(@NotNull Block block, @NotNull AnimationOptions anim) {
+            AnimationTimeline.Uniform derived = AnimationTimeline.deriveUniform(collectAnimatedSources(block));
+            return anim.mutate()
+                .deriveTimeline(false)
+                .frameCount(derived.frameCount())
+                .ticksPerFrame(derived.ticksPerFrame())
+                .build();
+        }
+
+        /**
+         * Collects every distinct animated face texture the block can render into
+         * {@link AnimationTimeline.Source}s: the block-entity mesh texture, the primary element model,
+         * and every blockstate-variant / multipart-apply element model. Over-inclusive across variants
+         * (a per-variant animated face is folded even when that variant is not the effective one), which
+         * only ever lengthens the derived loop - correct for a timeline union and cheap. Sidecar-less
+         * textures are skipped, so a fully-static block yields no sources.
+         */
+        private @NotNull List<AnimationTimeline.Source> collectAnimatedSources(@NotNull Block block) {
+            ConcurrentMap<String, Boolean> seen = Concurrent.newMap();
+            List<AnimationTimeline.Source> sources = new ArrayList<>();
+            block.entity().ifPresent(be -> addAnimatedSource(be.textureId(), seen, sources));
+            collectAnimatedFromModel(block.model(), seen, sources);
+            for (Block.Variant variant : block.variants().values())
+                if (variant.geometry() instanceof Block.ElementGeometry(ModelData model))
+                    collectAnimatedFromModel(model, seen, sources);
+            block.multipart().ifPresent(multipart -> {
+                for (Block.Multipart.Part part : multipart.parts())
+                    if (part.apply().geometry() instanceof Block.ElementGeometry(ModelData model))
+                        collectAnimatedFromModel(model, seen, sources);
+            });
+            return sources;
+        }
+
+        /** Adds every distinct concrete animated face-texture id of a model to {@code sources}. */
+        private void collectAnimatedFromModel(@NotNull ModelData model, @NotNull ConcurrentMap<String, Boolean> seen, @NotNull List<AnimationTimeline.Source> sources) {
+            for (ModelElement element : model.getElements())
+                for (ModelFace face : element.getFaces().values()) {
+                    String ref = face.getTexture();
+                    if (ref.isBlank()) continue;
+                    String id = Textures.resolveTextureReference(ref, model.getTextures());
+                    if (id.startsWith("#")) continue;
+                    addAnimatedSource(id, seen, sources);
+                }
+        }
+
+        /**
+         * Resolves one texture id and, when it carries an {@code .mcmeta} animation sidecar not yet
+         * seen, adds a {@link AnimationTimeline.Source} carrying the strip's implicit frame count (strip
+         * height / frame height) and the parsed animation. A sidecar-less or unresolvable id is skipped.
+         */
+        private void addAnimatedSource(@NotNull String id, @NotNull ConcurrentMap<String, Boolean> seen, @NotNull List<AnimationTimeline.Source> sources) {
+            if (seen.putIfAbsent(id, Boolean.TRUE) != null) return;
+            Optional<AnimationData> animation = this.context.findAnimation(id);
+            if (animation.isEmpty()) return;
+            Optional<PixelBuffer> strip = this.context.resolveTexture(id);
+            if (strip.isEmpty()) return;
+            int frameHeight = AnimationKit.frameHeight(strip.get(), animation.get());
+            int frameCount = frameHeight > 0 ? strip.get().height() / frameHeight : 0;
+            sources.add(new AnimationTimeline.Source(frameCount, animation.get()));
         }
 
         /**
