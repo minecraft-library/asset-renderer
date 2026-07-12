@@ -5,12 +5,16 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.pipeline.pack.PackRoot;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
@@ -24,12 +28,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A loader that reads MC 26.1 item definition files from {@code assets/minecraft/items/} and
- * extracts the block model reference for each block item.
+ * A loader that reads MC 26.1 item definition files from every pack's {@code assets/<namespace>/items/}
+ * subtree and extracts the block model reference for each block item.
  * <p>
  * Vanilla uses these files to determine which block model to render when a block appears as an
  * item (inventory, held item, dropped item). Many blocks have an inventory-specific model that
@@ -38,13 +43,17 @@ import org.jetbrains.annotations.Nullable;
  * {@code template_piston} (which places the head on the north face for in-world placement).
  * <p>
  * Only entries with {@code model.type == "minecraft:model"} and a {@code model.model} reference
- * starting with {@code "minecraft:block/"} are included. Non-block items (sprites, special
- * renderers) are skipped.
+ * that is a block model ({@link VanillaSourcePaths#isBlockModelRef}, namespace-agnostic so a pack's
+ * {@code <ns>:block/...} ref carries across) are included. Non-block items (sprites, special
+ * renderers) are skipped. The full item-definition dispatch tree is unconsumed here - the item-tree
+ * walker lands in a later phase; this loader remains the block-item projection.
  * <p>
- * The second entry point, {@link #loadTints(ConcurrentList)}, reads the same item definition files
- * for their {@code model.tints[]} array - the per-layer {@link LayerTint} rules (dye / potion /
- * firework / constant colours) the renderer multiplies into each {@code layerN} sprite. Both
- * scans merge across asset roots in priority order (lowest first, highest last).
+ * The second entry point, {@link #loadTints(PackStack)}, reads the same item definition files for
+ * their {@code model.tints[]} array - the per-layer {@link LayerTint} rules (dye / potion / firework
+ * / constant colours) the renderer multiplies into each {@code layerN} sprite. Both scans merge over
+ * the pack stack ascending (higher priority winning), with each pack's {@code filter.block} erasing
+ * matching lower-pack ids and item ids namespace-qualified to their owning namespace. A vanilla-only
+ * stack scans exactly {@code assets/minecraft/items} and merges identically to the former walk.
  *
  * @see ModelResolver
  * @see PipelineRendererContext
@@ -55,38 +64,26 @@ public class ItemDefinitionLoader {
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
-     * Loads item definitions from {@code packRoot/assets/minecraft/items/} and returns a map
-     * from item id ({@code "minecraft:piston"}) to block model id
-     * ({@code "minecraft:block/piston_inventory"}).
+     * Loads item definitions across the whole pack stack and returns a map from item id
+     * ({@code "minecraft:piston"}) to block model id ({@code "minecraft:block/piston_inventory"}).
+     * Packs are visited ascending; before each pack's rows merge in, its {@code filter.block}
+     * patterns erase matching accumulated ids, then every {@code (root x namespace)} items subtree it
+     * owns is scanned. Per item id, a higher pack's definition fully replaces lower packs'.
      *
-     * @param packRoot the pack root directory
+     * @param stack the resolved pack stack
      * @return the item-to-block-model mapping for block items
      */
-    public static @NotNull ConcurrentMap<String, String> load(@NotNull Path packRoot) {
-        return load(Concurrent.newList(packRoot));
-    }
-
-    /**
-     * Loads item definitions from every asset root in priority order (lowest first, highest
-     * last). Per item id, a higher root's definition fully replaces lower roots'.
-     *
-     * @param assetRoots the ordered asset roots
-     * @return the item-to-block-model mapping for block items
-     */
-    public static @NotNull ConcurrentMap<String, String> load(@NotNull ConcurrentList<Path> assetRoots) {
+    public static @NotNull ConcurrentMap<String, String> load(@NotNull PackStack stack) {
         HashMap<String, String> merged = new HashMap<>();
-        for (Path root : assetRoots)
-            merged.putAll(scanRoot(root));
+        forEachItemsDir(stack, merged, (itemsDir, namespace) -> merged.putAll(scanRoot(itemsDir, namespace)));
         return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 
     /**
-     * Scans one asset root's {@code assets/minecraft/items/} subtree and returns the item-id ->
-     * block-model-id map for every block item it carries. Returns an empty map when the items
-     * subtree is absent.
+     * Scans one {@code (root x namespace)} items directory and returns the item-id -> block-model-id
+     * map for every block item it carries. Returns an empty map when the items subtree is absent.
      */
-    private static @NotNull ConcurrentMap<String, String> scanRoot(@NotNull Path packRoot) {
-        Path itemsDir = packRoot.resolve(VanillaSourcePaths.ITEMS_DIR);
+    private static @NotNull ConcurrentMap<String, String> scanRoot(@NotNull Path itemsDir, @NotNull String namespace) {
         if (!Files.isDirectory(itemsDir)) return Concurrent.newMap();
 
         // Two-phase walk: enumerate item definition JSON paths serially, then parallelise
@@ -103,7 +100,7 @@ public class ItemDefinitionLoader {
         }
 
         return files.parallelStream()
-            .map(p -> parseItemDef(p, itemsDir))
+            .map(p -> parseItemDef(p, itemsDir, namespace))
             .flatMap(Optional::stream)
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
@@ -111,21 +108,22 @@ public class ItemDefinitionLoader {
     /**
      * Parses one item definition file into an {@code itemId -> blockModelId} entry, or {@code null}
      * when the file is not a block item ({@code model.type != "minecraft:model"}, no
-     * {@code model.model} reference, or a reference that does not start with
-     * {@link VanillaSourcePaths#MODEL_BLOCK_ID_PREFIX}). The item id is derived from the path
-     * relative to {@code itemsDir} with the {@code .json} suffix stripped and the
-     * {@code minecraft:} namespace prepended. Malformed JSON is skipped (logged) so a bad entry in
-     * one pack falls back to a lower-priority pack's version.
+     * {@code model.model} reference, or a reference that is not a block model per
+     * {@link VanillaSourcePaths#isBlockModelRef}). The item id is derived from the path relative to
+     * {@code itemsDir} with the {@code .json} suffix stripped and the owning {@code <namespace>:}
+     * prepended. Malformed JSON is skipped (logged) so a bad entry in one pack falls back to a
+     * lower-priority pack's version.
      *
      * @param p the item definition file
      * @param itemsDir the {@code items/} directory the id is relativised against
+     * @param namespace the owning namespace, prepended to the derived item id
      * @return the item-to-block-model entry, or empty for non-block or malformed entries
      * @throws PipelineException when the file cannot be read
      */
-    private static @NotNull Optional<Map.Entry<String, String>> parseItemDef(@NotNull Path p, @NotNull Path itemsDir) {
+    private static @NotNull Optional<Map.Entry<String, String>> parseItemDef(@NotNull Path p, @NotNull Path itemsDir, @NotNull String namespace) {
         String relative = itemsDir.relativize(p).toString().replace('\\', '/');
         if (!relative.endsWith(".json")) return Optional.empty();
-        String itemId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
+        String itemId = VanillaSourcePaths.namespacePrefix(namespace) + relative.substring(0, relative.length() - ".json".length());
 
         try {
             String content = Files.readString(p);
@@ -138,7 +136,7 @@ public class ItemDefinitionLoader {
             if (!"minecraft:model".equals(model.get("type").getAsString())) return Optional.empty();
 
             String modelRef = model.get("model").getAsString();
-            return modelRef.startsWith(VanillaSourcePaths.MODEL_BLOCK_ID_PREFIX)
+            return VanillaSourcePaths.isBlockModelRef(modelRef)
                 ? Optional.of(Map.entry(itemId, modelRef))
                 : Optional.empty();
         } catch (IOException ex) {
@@ -153,29 +151,52 @@ public class ItemDefinitionLoader {
     }
 
     /**
-     * Loads the per-layer {@link LayerTint tint} list for every item from every asset root in
-     * priority order (lowest first, highest last). The {@code tints[]} array index is the layer's
-     * {@code tintindex}; vanilla multiplies each resolved colour into the matching {@code layerN}
-     * sprite. Items with no tints (the vast majority) are absent from the map.
+     * Iterates every pack's {@code (root x namespace)} items directory in ascending priority,
+     * applying each pack's {@code filter.block} to {@code filterTarget} before its own directories
+     * are visited. The single shared walk both {@link #load(PackStack)} and
+     * {@link #loadTints(PackStack)} route through.
      *
-     * @param assetRoots the ordered asset roots
+     * @param stack the resolved pack stack
+     * @param filterTarget the accumulating merge map whose keys a pack's {@code filter.block} erases
+     * @param consumer receives each items directory and its owning namespace
+     */
+    private static void forEachItemsDir(@NotNull PackStack stack, @NotNull Map<String, ?> filterTarget, @NotNull BiConsumer<Path, String> consumer) {
+        for (ResourcePack pack : stack.ascending()) {
+            pack.meta().pack().ifPresent(section -> filterTarget.keySet().removeIf(id -> section.hides(ResourceId.parse(id))));
+            if (!(pack.container() instanceof PackContainer.Directory dir)) continue;
+
+            for (PackRoot root : pack.roots())
+                for (String namespace : pack.namespaces()) {
+                    Path itemsDir = dir.root().resolve(root.prefix()).resolve(VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.ITEMS_SUBDIR));
+                    consumer.accept(itemsDir, namespace);
+                }
+        }
+    }
+
+    /**
+     * Loads the per-layer {@link LayerTint tint} list for every item across the whole pack stack.
+     * Packs are visited ascending; before each pack's rows merge in, its {@code filter.block}
+     * patterns erase matching accumulated ids, then every {@code (root x namespace)} items subtree it
+     * owns is scanned. The {@code tints[]} array index is the layer's {@code tintindex}; vanilla
+     * multiplies each resolved colour into the matching {@code layerN} sprite. Items with no tints
+     * (the vast majority) are absent from the map.
+     *
+     * @param stack the resolved pack stack
      * @return the item-id -&gt; per-layer tint list mapping for every tinted item
      */
-    public static @NotNull ConcurrentMap<String, List<LayerTint>> loadTints(@NotNull ConcurrentList<Path> assetRoots) {
+    public static @NotNull ConcurrentMap<String, List<LayerTint>> loadTints(@NotNull PackStack stack) {
         HashMap<String, List<LayerTint>> merged = new HashMap<>();
-        for (Path root : assetRoots)
-            merged.putAll(scanRootTints(root));
+        forEachItemsDir(stack, merged, (itemsDir, namespace) -> merged.putAll(scanRootTints(itemsDir, namespace)));
         return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 
     /**
-     * Scans one asset root's {@code assets/minecraft/items/} subtree and returns the item-id ->
-     * per-layer {@link LayerTint} list map for every tinted item it carries. Same two-phase
-     * serial-walk / parallel-parse strategy as {@link #scanRoot(Path)}. Returns an empty map when
-     * the items subtree is absent.
+     * Scans one {@code (root x namespace)} items directory and returns the item-id -> per-layer
+     * {@link LayerTint} list map for every tinted item it carries. Same two-phase serial-walk /
+     * parallel-parse strategy as {@link #scanRoot(Path, String)}. Returns an empty map when the items
+     * subtree is absent.
      */
-    private static @NotNull ConcurrentMap<String, List<LayerTint>> scanRootTints(@NotNull Path packRoot) {
-        Path itemsDir = packRoot.resolve(VanillaSourcePaths.ITEMS_DIR);
+    private static @NotNull ConcurrentMap<String, List<LayerTint>> scanRootTints(@NotNull Path itemsDir, @NotNull String namespace) {
         if (!Files.isDirectory(itemsDir)) return Concurrent.newMap();
 
         List<Path> files;
@@ -189,7 +210,7 @@ public class ItemDefinitionLoader {
         }
 
         return files.parallelStream()
-            .map(p -> parseItemTints(p, itemsDir))
+            .map(p -> parseItemTints(p, itemsDir, namespace))
             .flatMap(Optional::stream)
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
@@ -204,13 +225,14 @@ public class ItemDefinitionLoader {
      *
      * @param p the item definition file
      * @param itemsDir the {@code items/} directory the id is relativised against
+     * @param namespace the owning namespace, prepended to the derived item id
      * @return the item-to-tint-list entry, or empty when the item declares no tints
      * @throws PipelineException when the file cannot be read
      */
-    private static @NotNull Optional<Map.Entry<String, List<LayerTint>>> parseItemTints(@NotNull Path p, @NotNull Path itemsDir) {
+    private static @NotNull Optional<Map.Entry<String, List<LayerTint>>> parseItemTints(@NotNull Path p, @NotNull Path itemsDir, @NotNull String namespace) {
         String relative = itemsDir.relativize(p).toString().replace('\\', '/');
         if (!relative.endsWith(".json")) return Optional.empty();
-        String itemId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
+        String itemId = VanillaSourcePaths.namespacePrefix(namespace) + relative.substring(0, relative.length() - ".json".length());
 
         try {
             JsonObject json = GSON.fromJson(Files.readString(p), JsonObject.class);

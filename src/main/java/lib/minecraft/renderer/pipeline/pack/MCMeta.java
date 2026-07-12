@@ -216,7 +216,21 @@ public record MCMeta(
         @NotNull Description description,
         @NotNull ConcurrentList<Overlay> overlays,
         @NotNull ConcurrentList<Filter> filters
-    ) {}
+    ) {
+
+        /**
+         * Whether any of this pack's {@code filter.block} patterns hides a resource id - the shared
+         * predicate every pack-stack loader consults to erase lower-pack rows before merging its own.
+         * The vanilla synthesised mcmeta declares no filters, so a vanilla-only stack hides nothing.
+         *
+         * @param id the resource id to test
+         * @return {@code true} when a filter hides the id
+         */
+        public boolean hides(@NotNull ResourceId id) {
+            return this.filters.stream().anyMatch(filter -> filter.matches(id));
+        }
+
+    }
 
     /**
      * One {@code overlays.entries[*]} entry.
@@ -232,7 +246,30 @@ public record MCMeta(
      * @param namespace the namespace regex, if declared
      * @param path the path regex, if declared
      */
-    public record Filter(@NotNull Optional<Pattern> namespace, @NotNull Optional<Pattern> path) {}
+    public record Filter(@NotNull Optional<Pattern> namespace, @NotNull Optional<Pattern> path) {
+
+        /**
+         * Whether this filter hides a resource id - every declared pattern matches (namespace regex
+         * against the id namespace, path regex against the id name). A filter that declares neither
+         * pattern hides nothing.
+         * <p>
+         * Matching is unanchored substring ({@link java.util.regex.Matcher#find}), mirroring the
+         * vanilla client's {@code ResourceFilterSection}, whose {@code IdentifierPattern} builds its
+         * predicates through {@link java.util.regex.Pattern#asPredicate} (defined as
+         * {@code s -> matcher(s).find()}). An anchored full match would hide fewer resources than
+         * vanilla for the same authored pattern.
+         *
+         * @param id the resource id to test
+         * @return {@code true} when this filter hides the id
+         */
+        public boolean matches(@NotNull ResourceId id) {
+            if (this.namespace.isEmpty() && this.path.isEmpty()) return false;
+            boolean namespaceOk = this.namespace.map(pattern -> pattern.matcher(id.namespace()).find()).orElse(true);
+            boolean pathOk = this.path.map(pattern -> pattern.matcher(id.name()).find()).orElse(true);
+            return namespaceOk && pathOk;
+        }
+
+    }
 
     /**
      * A pack description, normalizing the string and text-component encodings.

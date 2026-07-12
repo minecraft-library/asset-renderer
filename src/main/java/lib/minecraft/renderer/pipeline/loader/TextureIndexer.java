@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 
@@ -57,23 +56,12 @@ public class TextureIndexer {
         return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 
-    /** Erases every accumulated row a pack's {@code filter.block} patterns hide before the pack's own rows merge in. */
+    /**
+     * Erases every accumulated row a pack's {@code filter.block} patterns hide before the pack's own
+     * rows merge in, through the shared {@link MCMeta.Pack#hides(ResourceId)} predicate.
+     */
     private static void applyFilters(@NotNull Map<ResourceId, IndexedTexture> merged, @NotNull ResourcePack pack) {
-        List<MCMeta.Filter> filters = pack.meta().pack().map(MCMeta.Pack::filters).orElse(null);
-        if (filters == null || filters.isEmpty()) return;
-        merged.keySet().removeIf(id -> filters.stream().anyMatch(filter -> hides(filter, id)));
-    }
-
-    /** Whether a filter hides an id: every declared pattern matches (namespace against namespace, path against name). */
-    private static boolean hides(@NotNull MCMeta.Filter filter, @NotNull ResourceId id) {
-        if (filter.namespace().isEmpty() && filter.path().isEmpty()) return false;
-        boolean namespaceOk = filter.namespace().map(pattern -> matches(pattern, id.namespace())).orElse(true);
-        boolean pathOk = filter.path().map(pattern -> matches(pattern, id.name())).orElse(true);
-        return namespaceOk && pathOk;
-    }
-
-    private static boolean matches(@NotNull Pattern pattern, @NotNull String value) {
-        return pattern.matcher(value).matches();
+        pack.meta().pack().ifPresent(section -> merged.keySet().removeIf(section::hides));
     }
 
     /** Scans one pack across every root (base first, overlays after) and namespace, later roots winning. */

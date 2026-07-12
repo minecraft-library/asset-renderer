@@ -10,8 +10,6 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.client.Client;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
@@ -37,10 +35,7 @@ import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
-import lib.minecraft.renderer.pipeline.pack.PackContainer;
-import lib.minecraft.renderer.pipeline.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
@@ -56,7 +51,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.zip.ZipEntry;
@@ -115,51 +109,25 @@ public class Pipeline {
         PackStack acquired = PackAcquisition.acquire(userSources, options.getCacheRoot().toPath(), packRoot);
         ConcurrentMap<ResourceId, IndexedTexture> textures = TextureIndexer.index(acquired);
         PackStack stack = acquired.withTextureIndex(textures);
-        ConcurrentList<Path> combinedRoots = combinedRoots(stack);
 
-        ConcurrentMap<String, ModelData> blockModels = ModelResolver.loadBlockModels(combinedRoots);
-        ConcurrentMap<String, ModelData> itemModels = ModelResolver.loadItemModels(combinedRoots);
+        ConcurrentMap<String, ModelData> blockModels = ModelResolver.loadBlockModels(stack);
+        ConcurrentMap<String, ModelData> itemModels = ModelResolver.loadItemModels(stack);
 
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
-        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(combinedRoots, blockModels);
-        ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(combinedRoots);
-        ConcurrentMap<String, List<LayerTint>> itemTints = ItemDefinitionLoader.loadTints(combinedRoots);
+        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(stack, blockModels);
+        ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(stack);
+        ConcurrentMap<String, List<LayerTint>> itemTints = ItemDefinitionLoader.loadTints(stack);
         ConcurrentSet<String> glintItems = GlintItemsLoader.load();
-        ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(combinedRoots);
+        ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(stack);
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
-        ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(combinedRoots);
+        ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(stack);
 
         RuleSet rules = RuleSet.merge(stack);
 
         return new Result(packRoot, stack, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, itemTints, glintItems, blockTags,
             potionEffectColors, bannerPatterns, rules, blockStateResult.getDefaultStateKeys());
-    }
-
-    /**
-     * Flattens the resolved stack into the ascending-priority asset-root list downstream loaders and
-     * collectors consume - every pack's active roots (base first, matched overlays after) as absolute
-     * directories, packs in ascending priority so later roots win. Pack attribution of these roots (for
-     * {@code filter.block} on the non-texture kinds) lands in a later phase; the texture index already
-     * carries it. After acquisition every pack is a materialized {@link PackContainer.Directory}.
-     *
-     * @param stack the resolved pack stack
-     * @return the flattened asset roots in ascending-priority order
-     */
-    private static @NotNull ConcurrentList<Path> combinedRoots(@NotNull PackStack stack) {
-        ArrayList<Path> roots = new ArrayList<>();
-        for (ResourcePack pack : stack.ascending()) {
-            if (!(pack.container() instanceof PackContainer.Directory dir)) continue;
-            for (PackRoot root : pack.roots())
-                roots.add(root.isBase() ? dir.root() : dir.root().resolve(trimSlash(root.prefix())));
-        }
-        return Concurrent.adoptList(roots).toUnmodifiable();
-    }
-
-    /** Drops the trailing path separator an overlay-root prefix carries so {@link Path#resolve} yields a clean directory. */
-    private static @NotNull String trimSlash(@NotNull String prefix) {
-        return prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
     }
 
     /**

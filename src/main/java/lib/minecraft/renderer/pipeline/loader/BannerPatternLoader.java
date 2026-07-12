@@ -3,10 +3,13 @@ package lib.minecraft.renderer.pipeline.loader;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.BannerPattern;
+import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.pipeline.pack.PackRoot;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -50,20 +53,27 @@ public class BannerPatternLoader {
      * @return a map of pattern id to pattern descriptor
      */
     public static @NotNull ConcurrentMap<String, BannerPattern> load(@NotNull Path packRoot) {
-        return load(Concurrent.newList(packRoot));
+        HashMap<String, BannerPattern> merged = new HashMap<>();
+        scanRoot(packRoot, merged);
+        return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 
     /**
-     * Loads banner pattern definitions from every asset root in priority order. Per pattern id,
-     * a higher root replaces lower roots' definition.
+     * Loads banner pattern definitions across the whole pack stack. Packs are visited ascending,
+     * each over its base and overlay roots; per pattern id, a higher root replaces lower roots'
+     * definition. A vanilla-only stack scans exactly the vanilla root and merges identically to the
+     * former walk.
      *
-     * @param assetRoots the ordered asset roots
+     * @param stack the resolved pack stack
      * @return a map of pattern id to pattern descriptor
      */
-    public static @NotNull ConcurrentMap<String, BannerPattern> load(@NotNull ConcurrentList<Path> assetRoots) {
+    public static @NotNull ConcurrentMap<String, BannerPattern> load(@NotNull PackStack stack) {
         HashMap<String, BannerPattern> merged = new HashMap<>();
-        for (Path root : assetRoots)
-            scanRoot(root, merged);
+        for (ResourcePack pack : stack.ascending()) {
+            if (!(pack.container() instanceof PackContainer.Directory dir)) continue;
+            for (PackRoot root : pack.roots())
+                scanRoot(dir.root().resolve(root.prefix()), merged);
+        }
         return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 

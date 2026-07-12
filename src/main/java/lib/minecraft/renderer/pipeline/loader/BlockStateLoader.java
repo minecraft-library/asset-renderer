@@ -6,13 +6,17 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.block.BlockDefaultsReader;
+import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.pipeline.pack.PackRoot;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -33,8 +37,8 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
- * A loader that reads blockstate JSON files from {@code assets/minecraft/blockstates/} and
- * produces both variant-based and multipart-based blockstate data.
+ * A loader that reads blockstate JSON files from every pack's {@code assets/<namespace>/blockstates/}
+ * subtree and produces both variant-based and multipart-based blockstate data.
  * <p>
  * Minecraft defines two blockstate formats. The {@code "variants"} format maps block property
  * combinations (e.g. {@code "facing=north,half=bottom"}) to a single {@link Block.Variant}
@@ -43,8 +47,18 @@ import java.util.stream.Stream;
  * {@code "when"} condition matches the block's properties. Both formats are parsed into their
  * respective data structures and returned together as a {@link LoadResult}.
  * <p>
- * When a variant or multipart {@code "apply"} value is an array (weighted random selection),
- * only the first entry is used - the renderer does not support random model selection.
+ * <b>Weighted arrays - first entry (normative, both sites).</b> When a {@code "variants"} value or a
+ * multipart part's {@code "apply"} value is an array (a weighted-random set), only the FIRST entry is
+ * used. This is a parity requirement, not a simplification: the vanilla-reference harness forces
+ * {@code FirstVariantRandomSource.nextInt -> 0}, so every ground-truth icon renders the first array
+ * entry. Both array sites therefore share one deterministic rule (see {@link #parseVariants} and
+ * {@link #parseMultipart}).
+ * <p>
+ * The merge runs over the {@link PackStack} effective file set: packs ascending, each pack's
+ * {@code filter.block} erasing matching lower-pack ids before its own subtrees merge in, and a
+ * higher pack's blockstate fully replacing (variants&harr;multipart included) any lower pack's for
+ * the same id - matching the vanilla client's per-file topmost-pack-wins semantics. A vanilla-only
+ * stack scans exactly {@code assets/minecraft/blockstates} and merges identically to the former walk.
  *
  * @see Block.Variant
  * @see Block.Multipart
@@ -56,22 +70,12 @@ public class BlockStateLoader {
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
-     * Loads all blockstate JSON files and returns both variant and multipart data.
-     *
-     * @param packRoot the pack root directory
-     * @param blockModels the parsed model set, keyed by full model id, used to bake each variant's
-     *     resolved {@link ModelData}
-     * @return the parsed blockstate data
-     */
-    public static @NotNull LoadResult load(@NotNull Path packRoot, @NotNull ConcurrentMap<String, ModelData> blockModels) {
-        return load(Concurrent.newList(packRoot), blockModels);
-    }
-
-    /**
-     * Loads blockstate JSON files from every asset root in priority order (lowest first, highest
-     * last). Per block id, a higher root's blockstate fully replaces any lower root's variants
-     * or multipart - matches Minecraft, which loads exactly one blockstate file per id from the
-     * topmost matching pack.
+     * Loads blockstate JSON files across the whole pack stack. Packs are visited ascending; before
+     * each pack's rows merge in, its {@code filter.block} patterns erase matching accumulated ids
+     * from both the variant and multipart maps, then every {@code (root x namespace)} blockstate
+     * subtree it owns is scanned. Per block id, a higher pack's blockstate fully replaces any lower
+     * pack's variants or multipart - matching Minecraft, which loads exactly one blockstate file per
+     * id from the topmost matching pack.
      * <p>
      * Each parsed {@link Block.Variant} carries its resolved {@link ModelData}, baked in from
      * {@code blockModels} at parse time so a variant reaches its geometry through its owning
@@ -79,15 +83,28 @@ public class BlockStateLoader {
      * {@code block_defaults.json} snapshot is read here too, supplying each block's canonical
      * default-state key.
      *
-     * @param assetRoots the ordered asset roots
+     * @param stack the resolved pack stack
      * @param blockModels the parsed model set, keyed by full model id
      * @return the parsed blockstate data
      */
-    public static @NotNull LoadResult load(@NotNull ConcurrentList<Path> assetRoots, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+    public static @NotNull LoadResult load(@NotNull PackStack stack, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         HashMap<String, ConcurrentMap<String, Block.Variant>> variants = new HashMap<>();
         HashMap<String, Block.Multipart> multiparts = new HashMap<>();
-        for (Path root : assetRoots)
-            mergeRoot(root, blockModels, variants, multiparts);
+
+        for (ResourcePack pack : stack.ascending()) {
+            pack.meta().pack().ifPresent(section -> {
+                variants.keySet().removeIf(id -> section.hides(ResourceId.parse(id)));
+                multiparts.keySet().removeIf(id -> section.hides(ResourceId.parse(id)));
+            });
+            if (!(pack.container() instanceof PackContainer.Directory dir)) continue;
+
+            for (PackRoot root : pack.roots())
+                for (String namespace : pack.namespaces()) {
+                    Path blockstatesDir = dir.root().resolve(root.prefix()).resolve(VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.BLOCKSTATES_SUBDIR));
+                    mergeDir(blockstatesDir, namespace, blockModels, variants, multiparts);
+                }
+        }
+
         return new LoadResult(
             Concurrent.adoptMap(variants).toUnmodifiable(),
             Concurrent.adoptMap(multiparts).toUnmodifiable(),
@@ -122,18 +139,19 @@ public class BlockStateLoader {
     }
 
     /**
-     * Scans one asset root and merges its parsed blockstate entries into the running per-id
-     * variant / multipart maps. A higher root's variant entry deletes any earlier multipart entry
-     * for the same id (and vice versa) - this preserves "exactly one blockstate file wins" even
-     * when packs convert a block from variants to multipart or back.
+     * Scans one {@code (root x namespace)} blockstate directory and merges its parsed entries into
+     * the running per-id variant / multipart maps. A higher root's variant entry deletes any earlier
+     * multipart entry for the same id (and vice versa) - this preserves "exactly one blockstate file
+     * wins" even when packs convert a block from variants to multipart or back. No-op when the
+     * directory is absent (a pack simply lacks that namespace's blockstates).
      */
-    private static void mergeRoot(
-        @NotNull Path packRoot,
+    private static void mergeDir(
+        @NotNull Path blockstatesDir,
+        @NotNull String namespace,
         @NotNull ConcurrentMap<String, ModelData> blockModels,
         @NotNull HashMap<String, ConcurrentMap<String, Block.Variant>> variants,
         @NotNull HashMap<String, Block.Multipart> multiparts
     ) {
-        Path blockstatesDir = packRoot.resolve(VanillaSourcePaths.BLOCKSTATES_DIR);
         if (!Files.isDirectory(blockstatesDir)) return;
 
         // Two-phase walk: serial path enumeration, then parallel JSON parse per file. Per-file
@@ -149,7 +167,7 @@ public class BlockStateLoader {
         }
 
         List<Parsed> parsedAll = files.parallelStream()
-            .map(file -> parseBlockstateFile(file, blockModels))
+            .map(file -> parseBlockstateFile(file, namespace, blockModels))
             .flatMap(Optional::stream)
             .toList();
 
@@ -160,26 +178,35 @@ public class BlockStateLoader {
             } else if (p.multipart != null) {
                 multiparts.put(p.blockId, p.multipart);
                 variants.remove(p.blockId);
+            } else {
+                // A valid but non-renderable higher-pack file still shadows the lower pack's entry -
+                // vanilla presents only the topmost file, so its presence must erase the lower rows.
+                variants.remove(p.blockId);
+                multiparts.remove(p.blockId);
             }
         }
     }
 
     /**
      * Parses one blockstate JSON file into a {@link Parsed} record. The block id is the file name
-     * with its {@code .json} suffix stripped and the {@link VanillaSourcePaths#MINECRAFT_NAMESPACE}
-     * prefix prepended. A {@code "variants"} object yields the variant branch, a {@code "multipart"}
-     * array the multipart branch; each is returned only when non-empty. Files that are neither, that
-     * parse to a blank object, or that fail to read / parse resolve to {@code null} and are dropped
-     * by the caller.
+     * with its {@code .json} suffix stripped and the {@code <namespace>:} prefix prepended (the
+     * owning namespace, so a pack's {@code assets/<ns>/blockstates} keys are namespace-qualified).
+     * A {@code "variants"} object yields the variant branch, a {@code "multipart"} array the
+     * multipart branch, each only when non-empty. A file that parses to valid JSON but yields no
+     * renderable definition (neither key, or empty variants/multipart) returns a <em>shadowing</em>
+     * {@link Parsed} carrying neither branch, so a higher pack's presence still erases the lower
+     * pack's entry (vanilla topmost-file-wins). Only a null root or a read / parse failure resolves
+     * to empty - falling back to a lower pack's copy, the deliberate malformed-file behaviour.
      *
      * @param file the blockstate JSON file
+     * @param namespace the owning namespace, prepended to the derived block id
      * @param blockModels the parsed model set used to bake each variant's resolved {@link ModelData}
-     * @return the parsed variant or multipart data, or empty when the file yields neither
+     * @return the parsed variant / multipart / shadow record, or empty on a null or malformed file
      */
-    private static @NotNull Optional<Parsed> parseBlockstateFile(@NotNull Path file, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+    private static @NotNull Optional<Parsed> parseBlockstateFile(@NotNull Path file, @NotNull String namespace, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         String fileName = file.getFileName().toString();
         String blockName = fileName.substring(0, fileName.length() - 5);
-        String blockId = VanillaSourcePaths.MINECRAFT_NAMESPACE + blockName;
+        String blockId = VanillaSourcePaths.namespacePrefix(namespace) + blockName;
 
         try {
             String json = Files.readString(file);
@@ -188,24 +215,27 @@ public class BlockStateLoader {
 
             if (root.has("variants")) {
                 ConcurrentMap<String, Block.Variant> parsed = parseVariants(root.getAsJsonObject("variants"), blockModels);
-                return parsed.isEmpty() ? Optional.empty() : Optional.of(new Parsed(blockId, parsed, null));
+                if (!parsed.isEmpty()) return Optional.of(new Parsed(blockId, parsed, null));
             } else if (root.has("multipart")) {
                 Block.Multipart parsed = parseMultipart(root.getAsJsonArray("multipart"), blockModels);
-                return parsed.parts().isEmpty() ? Optional.empty() : Optional.of(new Parsed(blockId, null, parsed));
+                if (!parsed.parts().isEmpty()) return Optional.of(new Parsed(blockId, null, parsed));
             }
+            // Valid JSON, nothing renderable: shadow the lower pack's entry (whole-file replace).
+            return Optional.of(new Parsed(blockId, null, null));
         } catch (IOException | JsonSyntaxException ex) {
-            // Skip malformed blockstate files
+            // Malformed / unreadable: fall back to a lower pack's copy (no shadow).
+            return Optional.empty();
         }
-        return Optional.empty();
     }
 
     /**
-     * One parsed blockstate file, carrying exactly one of {@code variants} or {@code multipart}
-     * (the other is {@code null}) so the merge pass can route it to the matching per-id map.
+     * One parsed blockstate file, carrying at most one of {@code variants} or {@code multipart} so
+     * the merge pass can route it to the matching per-id map. Both {@code null} is a shadow record:
+     * a valid but non-renderable file that must still erase the lower pack's rows for its block id.
      *
      * @param blockId the namespaced block id derived from the file name
-     * @param variants the parsed variant map, or {@code null} when the file is multipart
-     * @param multipart the parsed multipart block, or {@code null} when the file is variant-based
+     * @param variants the parsed variant map, or {@code null} when the file is multipart or a shadow
+     * @param multipart the parsed multipart block, or {@code null} when the file is variant-based or a shadow
      */
     private record Parsed(@NotNull String blockId, @Nullable ConcurrentMap<String, Block.Variant> variants, @Nullable Block.Multipart multipart) {}
 
@@ -245,9 +275,11 @@ public class BlockStateLoader {
     /**
      * Parses a {@code "multipart"} array into a {@link Block.Multipart}. Each element carries an
      * optional {@code "when"} condition object (retained verbatim for runtime property matching) and
-     * an {@code "apply"} value - a single variant object or a weighted-random array of them, the
-     * first entry taken. Non-object elements and entries with no {@code "apply"} or an empty
-     * {@code "apply"} array are skipped.
+     * an {@code "apply"} value - a single variant object or a weighted-random array of them. When the
+     * {@code "apply"} value is an array, the FIRST entry is taken, the same normative first-entry rule
+     * {@link #parseVariants} applies to weighted {@code "variants"} arrays (harness
+     * {@code FirstVariantRandomSource -> 0} parity). Non-object elements and entries with no
+     * {@code "apply"} or an empty {@code "apply"} array are skipped.
      *
      * @param parts the blockstate {@code "multipart"} array
      * @param blockModels the parsed model set used to bake each part's resolved {@link ModelData}

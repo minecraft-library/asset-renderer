@@ -5,11 +5,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.pipeline.pack.PackRoot;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -42,29 +45,22 @@ public class BlockTagLoader {
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
-     * Loads and resolves all block tags from the given pack root.
+     * Loads and resolves block tags across the whole pack stack. Packs are visited ascending, each
+     * over its base and overlay roots; raw {@code data/minecraft/tags/block} values merge later-wins
+     * per tag id, and the recursive resolution pass runs once on the merged map so a tag definition
+     * supplied by a higher pack still resolves through references that live only in vanilla. A
+     * vanilla-only stack scans exactly the vanilla root and merges identically to the former walk.
      *
-     * @param packRoot the extracted pack root directory
+     * @param stack the resolved pack stack
      * @return a map of tag id to resolved tag entity
      */
-    public static @NotNull ConcurrentMap<String, BlockTag> load(@NotNull Path packRoot) {
-        return load(Concurrent.newList(packRoot));
-    }
-
-    /**
-     * Loads and resolves block tags from every asset root in priority order. Raw tag values
-     * merge later-wins per tag id; the recursive resolution pass runs once on the merged map so
-     * a tag definition supplied by a higher pack still resolves through references that live
-     * only in vanilla.
-     *
-     * @param assetRoots the ordered asset roots
-     * @return a map of tag id to resolved tag entity
-     */
-    public static @NotNull ConcurrentMap<String, BlockTag> load(@NotNull ConcurrentList<Path> assetRoots) {
+    public static @NotNull ConcurrentMap<String, BlockTag> load(@NotNull PackStack stack) {
         HashMap<String, List<String>> merged = new HashMap<>();
-        for (Path root : assetRoots) {
-            for (Map.Entry<String, List<String>> entry : scanRawTags(root).entrySet())
-                merged.put(entry.getKey(), entry.getValue());
+        for (ResourcePack pack : stack.ascending()) {
+            if (!(pack.container() instanceof PackContainer.Directory dir)) continue;
+            for (PackRoot root : pack.roots())
+                for (Map.Entry<String, List<String>> entry : scanRawTags(dir.root().resolve(root.prefix())).entrySet())
+                    merged.put(entry.getKey(), entry.getValue());
         }
 
         HashMap<String, BlockTag> result = new HashMap<>(merged.size());
