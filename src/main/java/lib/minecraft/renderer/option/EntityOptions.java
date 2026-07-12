@@ -4,6 +4,7 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.EntitySlot;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.ArmorOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lombok.AccessLevel;
@@ -121,6 +122,17 @@ public class EntityOptions implements RenderOptions {
     /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
+
+    /**
+     * Texture-animation timeline for animated entity textures. Defaults to a single static frame
+     * ({@link AnimationOptions#defaults()}); entity texture resolution is tick-aware (04-animation
+     * §4.3, decision 9 - frame-0-at-default), so a sidecar-carrying entity texture samples frame 0
+     * when static instead of baking the raw vertical strip into the geometry, and plays its flipbook
+     * when the caller opts in with {@code frameCount > 1}. Sidecar-less entity textures (the whole
+     * vanilla roster) resolve unchanged, so the default render is byte-identical.
+     */
+    @lombok.Builder.Default
+    private final @NotNull AnimationOptions animation = AnimationOptions.defaults();
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).

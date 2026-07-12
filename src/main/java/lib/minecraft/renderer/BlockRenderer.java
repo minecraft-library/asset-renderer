@@ -196,12 +196,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // frame at tick 0: the same five tick-0 face resolutions as before, byte-identical. The
             // ModelEngine is (re)built per frame so parallel strip baking stays thread-safe (the fluid
             // reference does the same).
+            // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
+            // frame sampled at anim.getStartTick(), so a caller-supplied non-zero startTick is honored
+            // (staticFrame would hardcode tick 0). Default (startTick=0, frameCount=1) is byte-identical.
             AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
             int ssaa = Math.max(1, options.getOutput().getSupersample());
-            Finalize.FinalizeSpec spec = anim.getFrameCount() > 1
-                ? Finalize.FinalizeSpec.tickStrip(size, size, ssaa, options.getOutput().isAntiAlias(), anim)
-                : Finalize.FinalizeSpec.staticFrame(size, size, ssaa, options.getOutput().isAntiAlias());
+            Finalize.FinalizeSpec spec = Finalize.FinalizeSpec.tickStrip(size, size, ssaa, options.getOutput().isAntiAlias(), anim);
             return Finalize.render(spec, (target, mask, tick) ->
                 new ModelEngine(this.context, resolved).rasterize(
                     buildRelitTriangles(tick, block, be, effectiveVariant, tint, untintedTint, guiRotation, options),

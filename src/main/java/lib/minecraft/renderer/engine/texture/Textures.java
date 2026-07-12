@@ -144,6 +144,22 @@ public class Textures {
     }
 
     /**
+     * Resolves an entity texture ref at a specific animation tick - the frame-flattening counterpart
+     * of {@link #resolveEntityTexture(String)}, wrapping {@link #tryResolveTextureAtTick} with the
+     * {@code minecraft:entity/} prefix. A sidecar-less entity texture (every vanilla entity) returns
+     * its buffer unchanged, so {@code tick 0} is byte-identical to the raw lookup; a sidecar-carrying
+     * texture samples the frame for {@code tick} (04-animation §4.3 - frame-0-at-default when static).
+     *
+     * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
+     *     {@code .png} suffix)
+     * @param tick the current animation tick (free-running, signed)
+     * @return the resolved frame, or empty when the pack has no match
+     */
+    public @NotNull Optional<PixelBuffer> resolveEntityTextureAtTick(@NotNull String ref, int tick) {
+        return tryResolveTextureAtTick("minecraft:entity/" + ref, tick);
+    }
+
+    /**
      * Returns the parsed {@code .mcmeta} animation sidecar for the given texture, if any. Wraps
      * {@link RendererContext#findAnimation(String)}.
      *

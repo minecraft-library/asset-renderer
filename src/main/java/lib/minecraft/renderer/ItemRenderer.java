@@ -516,11 +516,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in. Vanilla
             // ships zero item sidecars, so frameCount defaults to 1 and every layer resolves at tick 0 -
             // byte-identical; a pack opting in with frameCount > 1 plays the flipbook per frame.
+            // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
+            // frame sampled at anim.getStartTick() (staticFrame would hardcode tick 0). Default
+            // (startTick=0, frameCount=1) is byte-identical.
             AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
-            Finalize.FinalizeSpec spec = (anim.getFrameCount() > 1
-                ? Finalize.FinalizeSpec.tickStrip(size, size, 1, options.getOutput().isAntiAlias(), anim)
-                : Finalize.FinalizeSpec.staticFrame(size, size, 1, options.getOutput().isAntiAlias()))
+            Finalize.FinalizeSpec spec = Finalize.FinalizeSpec.tickStrip(size, size, 1, options.getOutput().isAntiAlias(), anim)
                 .withGlint(itemGlint(engine.textures(), item, options, cit.glint()), false);
             return Finalize.render(spec,
                 (target, mask, tick) -> Layers.foldInto(buildGuiLayers(ctx, tick), options.getLayerDecorator(), target));
@@ -625,12 +626,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             CitResult cit = textures.resolveCit(options);
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
 
+            // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
+            // frame sampled at anim.getStartTick() (staticFrame would hardcode tick 0). Default
+            // (startTick=0, frameCount=1) is byte-identical.
             AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
             int ssaa = Math.max(1, options.getOutput().getSupersample());
-            Finalize.FinalizeSpec spec = (anim.getFrameCount() > 1
-                ? Finalize.FinalizeSpec.tickStrip(size, size, ssaa, options.getOutput().isAntiAlias(), anim)
-                : Finalize.FinalizeSpec.staticFrame(size, size, ssaa, options.getOutput().isAntiAlias()))
+            Finalize.FinalizeSpec spec = Finalize.FinalizeSpec.tickStrip(size, size, ssaa, options.getOutput().isAntiAlias(), anim)
                 .withGlint(itemGlint(textures, item, options, cit.glint()), false);
             return Finalize.render(spec, (target, mask, tick) -> {
                 ModelEngine engine = new ModelEngine(this.context, camera);
