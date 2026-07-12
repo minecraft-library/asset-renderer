@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
@@ -62,6 +63,20 @@ public interface RendererContext {
      * @return the animation metadata, or empty when the texture has no sidecar
      */
     default @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
+        return Optional.empty();
+    }
+
+    /**
+     * Looks up the parsed {@code gui.scaling} sidecar for a GUI-sprite texture, if any - the
+     * nine-slice / tile / stretch metadata {@link lib.minecraft.renderer.engine.kit.NineSliceKit}
+     * consumes for tooltip and menu chrome. The default returns empty so non-pack contexts do not need
+     * to override it; the production context forwards the texture's index-row sidecar's
+     * {@code gui.scaling} section.
+     *
+     * @param textureId the namespaced GUI-sprite texture id
+     * @return the scaling metadata, or empty when the texture has no {@code gui.scaling} sidecar
+     */
+    default @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
         return Optional.empty();
     }
 

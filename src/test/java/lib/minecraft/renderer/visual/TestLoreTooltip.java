@@ -1,7 +1,12 @@
 package lib.minecraft.renderer.visual;
 
 import lib.minecraft.renderer.TextRenderer;
+import lib.minecraft.renderer.engine.compose.TooltipChrome;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.TextOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.text.LineSegment;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -18,12 +23,16 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 
 /**
  * Diagnostic task that renders a pair of Hypixel SkyBlock-style lore tooltips end to end through
- * {@link TextRenderer}, so the gradient border, background alpha, stat rows, obfuscated footer, and
- * codec wrapping can all be eyeballed against real content. This is a <b>functional / visual</b>
- * tool ("does it render") - there is no parity gate.
+ * {@link TextRenderer}, so the sprite-backed nine-slice chrome (notched background corners, open
+ * gradient-ring corners, 80-row stretched gradient, padding 4), stat rows, obfuscated footer, and
+ * codec wrapping can all be eyeballed against real content. The chrome resolves the vanilla
+ * {@code tooltip/background} + {@code tooltip/frame} sprites through a real pack-stack context
+ * ({@link TooltipChrome.Vanilla#SPRITE}). This is a <b>functional / visual</b> tool ("does it
+ * render") - there is no parity gate.
  * <p>
  * Two tooltips render: an {@link #ACCESSORY_LEGACY accessory} (static, one PNG) and a
  * {@link #WEAPON_LEGACY weapon} whose obfuscated last line makes {@link TextRenderer} emit an
@@ -83,13 +92,31 @@ public final class TestLoreTooltip {
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
 
+        // Build a renderer context so the sprite-backed tooltip chrome can resolve the vanilla
+        // tooltip/background + tooltip/frame nine-slice sprites through the pack stack (06 §1.3-1.6).
+        Pipeline.Result result;
+        try {
+            result = Pipeline.run(PipelineOptions.defaults());
+        } catch (PipelineException ex) {
+            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.exit(1);
+            return;
+        }
+        PipelineRendererContext context = PipelineRendererContext.of(result);
+        Optional<TooltipChrome.ChromeSprites> chrome = TooltipChrome.ChromeSprites.resolve(context, null);
+        if (chrome.isEmpty()) {
+            System.err.println("Default tooltip chrome sprites did not resolve; aborting");
+            System.exit(1);
+            return;
+        }
+
         // Accessory is static - writes a single PNG.
-        renderStatic("accessory", ACCESSORY_LEGACY);
+        renderStatic("accessory", ACCESSORY_LEGACY, chrome.get());
 
         // Weapon carries obfuscated text on its last line, so the renderer produces an
         // animated frame sequence. Emit both GIF and WebP side by side so format-level
         // palette handling and codec wrapping can be A/B compared from a single run.
-        renderAnimated("weapon", WEAPON_LEGACY);
+        renderAnimated("weapon", WEAPON_LEGACY, chrome.get());
 
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
     }
@@ -99,9 +126,10 @@ public final class TestLoreTooltip {
      *
      * @param slug output filename stem under {@link #OUTPUT_DIR}
      * @param legacy ampersand-coded legacy string parsed into {@link LineSegment} tooltip lines
+     * @param sprites the resolved sprite chrome pair
      * @throws IOException if the PNG cannot be written
      */
-    private static void renderStatic(@NotNull String slug, @NotNull String legacy) throws IOException {
+    private static void renderStatic(@NotNull String slug, @NotNull String legacy, @NotNull TooltipChrome.ChromeSprites sprites) throws IOException {
         ConcurrentList<LineSegment> lines = LineSegment.fromLegacy(legacy, '&');
         TextRenderer renderer = new TextRenderer();
         ImageFactory imageFactory = new ImageFactory();
@@ -109,6 +137,8 @@ public final class TestLoreTooltip {
         TextOptions options = TextOptions.builder()
             .style(TextOptions.Style.LORE)
             .lines(lines)
+            .chrome(TooltipChrome.Vanilla.SPRITE)
+            .chromeSprites(Optional.of(sprites))
             .build();
 
         long t0 = System.nanoTime();
@@ -130,9 +160,10 @@ public final class TestLoreTooltip {
      *
      * @param slug output filename stem under {@link #OUTPUT_DIR}
      * @param legacy ampersand-coded legacy string parsed into {@link LineSegment} tooltip lines
+     * @param sprites the resolved sprite chrome pair
      * @throws IOException if any output file cannot be written
      */
-    private static void renderAnimated(@NotNull String slug, @NotNull String legacy) throws IOException {
+    private static void renderAnimated(@NotNull String slug, @NotNull String legacy, @NotNull TooltipChrome.ChromeSprites sprites) throws IOException {
         ConcurrentList<LineSegment> lines = LineSegment.fromLegacy(legacy, '&');
         TextRenderer renderer = new TextRenderer();
         ImageFactory imageFactory = new ImageFactory();
@@ -140,6 +171,8 @@ public final class TestLoreTooltip {
         TextOptions options = TextOptions.builder()
             .style(TextOptions.Style.LORE)
             .lines(lines)
+            .chrome(TooltipChrome.Vanilla.SPRITE)
+            .chromeSprites(Optional.of(sprites))
             .build();
 
         long t0 = System.nanoTime();

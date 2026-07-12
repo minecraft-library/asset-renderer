@@ -252,6 +252,19 @@ public final class PipelineRendererContext implements RendererContext {
             .map(PipelineRendererContext::toAnimationData);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
+     * captured {@code .mcmeta} {@code gui.scaling} section is forwarded.
+     */
+    @Override
+    public @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
+        return this.stack.indexed(ResourceId.parse(textureId))
+            .flatMap(IndexedTexture::meta)
+            .flatMap(MCMeta::gui);
+    }
+
     /** Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationData} the renderer consumes. */
     private static @NotNull AnimationData toAnimationData(@NotNull MCMeta.Animation animation) {
         ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();

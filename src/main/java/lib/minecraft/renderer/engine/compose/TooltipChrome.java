@@ -3,6 +3,7 @@ package lib.minecraft.renderer.engine.compose;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.NineSliceKit;
@@ -12,6 +13,7 @@ import lib.minecraft.renderer.option.slot.TextSlot;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 
@@ -222,6 +224,56 @@ public interface TooltipChrome {
     record ChromeSprites(@NotNull ResourceId backgroundId, @NotNull PixelBuffer background,
                          @NotNull MCMeta.GuiScaling backgroundScaling,
                          @NotNull ResourceId frameId, @NotNull PixelBuffer frame,
-                         @NotNull MCMeta.GuiScaling frameScaling) {}
+                         @NotNull MCMeta.GuiScaling frameScaling) {
+
+        /**
+         * The {@code gui.scaling} a pack-overridden sprite without an mcmeta inherits - the spec default
+         * of {@code stretch}, NOT vanilla's nine_slice (the sidecar travels with the winning texture).
+         */
+        private static final @NotNull MCMeta.GuiScaling STRETCH_DEFAULT = new MCMeta.GuiScaling(
+            MCMeta.GuiScaling.Type.STRETCH, -1, -1, new MCMeta.GuiScaling.Border(0, 0, 0, 0), false);
+
+        /**
+         * Resolves the tooltip sprite pair for an optional style key through the pack stack, pairing each
+         * decoded sprite with its {@code gui.scaling} sidecar (the sidecar travels with the winning
+         * texture; a sprite shipped without one inherits {@code stretch}).
+         *
+         * <p>A {@code null} style resolves the default {@code minecraft:tooltip/background} +
+         * {@code tooltip/frame} pair; a style {@code ns:path} resolves the per-item
+         * {@code ns:tooltip/<path>_background} + {@code _frame} pair (the {@code minecraft:tooltip_style}
+         * component, 24w36a). When either sprite is unresolved the pair DROPS - empty with a loud
+         * diagnostic and no fallback to the default pair (decision 14; deviates from the client, which
+         * falls back, because a headless render with an explicit style key is an authored input).
+         *
+         * @param context the renderer context resolving textures + sidecars through the pack stack
+         * @param style the tooltip style key, or {@code null} for the default pair
+         * @return the resolved sprite pair, or empty when either sprite is missing
+         */
+        public static @NotNull Optional<ChromeSprites> resolve(@NotNull RendererContext context, @Nullable ResourceId style) {
+            ResourceId backgroundId = spriteId(style, "background");
+            ResourceId frameId = spriteId(style, "frame");
+            Optional<PixelBuffer> background = context.resolveTexture(backgroundId.id());
+            Optional<PixelBuffer> frame = context.resolveTexture(frameId.id());
+            if (background.isEmpty() || frame.isEmpty()) {
+                System.err.printf("Tooltip chrome: %s sprite pair unresolved (%s%s / %s%s); dropping chrome, no fallback%n",
+                    style == null ? "default" : "style '" + style + "'",
+                    backgroundId, background.isEmpty() ? " MISSING" : "",
+                    frameId, frame.isEmpty() ? " MISSING" : "");
+                return Optional.empty();
+            }
+            return Optional.of(new ChromeSprites(
+                backgroundId, background.get(), context.findGuiScaling(backgroundId.id()).orElse(STRETCH_DEFAULT),
+                frameId, frame.get(), context.findGuiScaling(frameId.id()).orElse(STRETCH_DEFAULT)));
+        }
+
+        /**
+         * Builds a tooltip sprite texture id: the default {@code minecraft:gui/sprites/tooltip/<part>} for
+         * a null style, else {@code <ns>:gui/sprites/tooltip/<path>_<part>} for a style {@code ns:path}.
+         */
+        private static @NotNull ResourceId spriteId(@Nullable ResourceId style, @NotNull String part) {
+            if (style == null) return new ResourceId(ResourceId.DEFAULT_NAMESPACE, "gui/sprites/tooltip/" + part);
+            return new ResourceId(style.namespace(), "gui/sprites/tooltip/" + style.name() + "_" + part);
+        }
+    }
 
 }
