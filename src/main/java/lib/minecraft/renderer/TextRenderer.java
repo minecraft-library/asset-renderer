@@ -207,7 +207,13 @@ public final class TextRenderer implements Renderer<TextOptions> {
             loopTicks = loopTicks == 0 ? obfuscationLoopTicks : lcm(loopTicks, obfuscationLoopTicks);
         }
 
-        int frameCount = Math.max(1, (int) (loopTicks / ticksPerFrame));
+        // Size the loop to the smallest tick span that is BOTH a whole number of scroll cycles
+        // (a multiple of loopTicks) AND an integer number of frames (a multiple of ticksPerFrame),
+        // so the wrap frame lands exactly on phase 0: lcm(loopTicks, ticksPerFrame). At the 20 fps
+        // default (ticksPerFrame 1) this equals loopTicks, unchanged. Without the ticksPerFrame
+        // factor a coarser frame cadence (fps < tick rate) would truncate mid-cycle and seam.
+        long spanTicks = lcm(loopTicks, ticksPerFrame);
+        int frameCount = Math.max(1, (int) (spanTicks / ticksPerFrame));
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
         int maxFrames = Math.max(1, (int) (MAX_LOOP_MS / delayMs));
         return Math.min(frameCount, maxFrames);
