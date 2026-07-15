@@ -3,12 +3,12 @@ package lib.minecraft.renderer.pipeline.pack.rule;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The subject an OptiFine CIT rule retextures - the {@code type=} key (07-optifine §2.1).
+ * The subject an OptiFine CIT rule retextures - the {@code type=} key.
  *
  * <p>Only {@link #ITEM} rules enter the item-icon resolution walk; {@link #ENCHANTMENT} feeds the
- * glint policy (03-rules §7) and {@link #ARMOR} / {@link #ELYTRA} are parse-and-hold until pack-aware
- * equipment rendering lands (D3.7). An absent or unrecognised {@code type} defaults to {@link #ITEM},
- * matching OptiFine.
+ * glint policy and {@link #ARMOR} / {@link #ELYTRA} are parse-and-hold until pack-aware equipment
+ * rendering lands. An absent or unrecognised {@code type} defaults to {@link #ITEM}, matching
+ * OptiFine.
  */
 public enum CitType {
 

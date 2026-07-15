@@ -14,7 +14,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Lazily generates paletted-permutation sprites on a texture-resolution miss (05-models.md §6). Sits
+ * Lazily generates paletted-permutation sprites on a texture-resolution miss. Sits
  * BEHIND {@code resolveTexture} - only ids no pack supplies reach it - so no existing resolve path
  * changes. A registry built from the merged {@code atlases/*.json}
  * {@link PalettedPermutationSource sources} maps each synthetic id {@code <base>_<permutation>} to its

@@ -109,7 +109,7 @@ public final class TestItemRender2D {
 
     /**
      * Builds the item-definition evaluation context from the optional {@code asset.item.*} system
-     * properties, so the caller-option rung-2 spot checks can be driven without a rebuild:
+     * properties, so the caller-option spot checks can be driven without a rebuild:
      * {@code -Dasset.item.usingItem=true} (bow pulled), {@code -Dasset.item.trimMaterial=minecraft:gold}
      * (leather trim case), {@code -Dasset.item.time=0.5} (clock frame). Absent properties leave the
      * neutral {@link ItemModelContext#gui()} default, so the byte-parity sweep is unaffected.

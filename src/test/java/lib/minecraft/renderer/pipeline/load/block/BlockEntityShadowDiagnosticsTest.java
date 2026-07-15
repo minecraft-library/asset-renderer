@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Exercises the shadowed-model diagnostic (05-models.md §4.2): a non-vanilla pack shipping a
+ * Exercises the shadowed-model diagnostic: a non-vanilla pack shipping a
  * vanilla-form {@code models/block/<id>.json} or {@code blockstates/<id>.json} for a block-entity-backed
  * id is named and pointed at the override channel, while the vanilla pack and non-block-entity ids stay
  * silent (byte-neutral - the pass emits only stderr).

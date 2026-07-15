@@ -240,8 +240,8 @@ public class GlintKit {
         /**
          * Returns a copy of this preset that samples a different glint texture - the effect of an
          * OptiFine {@code type=enchantment} CIT rule, which replaces only the glint texture id and
-         * leaves the scroll / scale / loop parameters untouched (03-rules §7,
-         * {@link lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy.Replaced}).
+         * leaves the scroll / scale / loop parameters untouched
+         * ({@link lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy.Replaced}).
          *
          * @param glintTextureId the replacement glint texture id
          * @return a copy sampling {@code glintTextureId}

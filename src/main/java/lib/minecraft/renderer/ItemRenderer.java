@@ -133,9 +133,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * <p>
      * The neutral {@link ItemModelContext#gui()} context with no CIT model override takes the fast
      * path - the pipeline-baked item verbatim, byte-identical to a pre-tree render. Otherwise the
-     * item's dispatch tree is re-walked against the caller context (05-models.md §3.3), then a
+     * item's dispatch tree is re-walked against the caller context, then a
      * present {@code cit.model()} replaces the resolved model id (the OptiFine override-the-final-model
-     * join, 03-rules §2); the resolved model id is materialised back into an {@link Item} by reusing
+     * join); the resolved model id is materialised back into an {@link Item} by reusing
      * the already-built index entry for that model (its geometry + textures), carrying the walked
      * branch's tints. Falls back to the baked item when the tree is absent or the branch resolves to
      * nothing.
@@ -149,13 +149,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             .map(tree -> ItemModelWalker.resolve(tree, modelContext))
             .orElse(null);
         // A special leaf maps onto an existing hardcoded / block-entity render path (parse-and-hold);
-        // an unknown special kind is diagnosed and dropped (05-models.md §3.4). Either way the baked
+        // an unknown special kind is diagnosed and dropped. Either way the baked
         // item - already served by its own path - is returned.
         if (resolution != null && resolution.modelId().isEmpty() && resolution.special().isPresent()) {
             SpecialKinds.resolveOrDrop(resolution.special().get());
             return baked;
         }
-        // CIT whole-model override wins over the tree-resolved model (03 join-after-eval).
+        // CIT whole-model override wins over the tree-resolved model.
         boolean fromCit = cit.model().isPresent();
         String modelId = cit.model().map(ResourceId::id)
             .orElseGet(() -> resolution != null ? resolution.modelId().orElse(null) : null);
@@ -182,12 +182,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     /**
      * Builds the item enchantment-glint tail for {@link Finalize}, deriving the glint flag
      * ({@code glintOverride}, else the item's always-glinted flag or {@code enchanted}) the GUI and
-     * held-item paths share, then applying the CIT-derived {@link GlintPolicy} (03-rules §7): a
+     * held-item paths share, then applying the CIT-derived {@link GlintPolicy}: a
      * {@link GlintPolicy.Suppressed} decision forces no glint ({@code useGlint=false}); a
      * {@link GlintPolicy.Replaced} decision swaps the glint texture id (a matched
      * {@code type=enchantment} rule) while leaving whether the item glints to its own flag; a
      * {@link GlintPolicy.Default} decision is vanilla behaviour. Application stays here in the compose
-     * tail - doc 04 owns the glint x animation precedence.
+     * tail.
      */
     static @NotNull Finalize.Glint itemGlint(
         @NotNull Textures textures, @NotNull Item item, @NotNull ItemOptions options, @NotNull GlintPolicy glint
@@ -566,7 +566,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // the frame's tick.
             CitResult cit = engine.textures().resolveCit(options);
             // Resolve the item AFTER the CIT walk so a CIT model override can replace the tree-resolved
-            // model (03-rules join-after-eval); the neutral context + no override yields the baked item.
+            // model; the neutral context + no override yields the baked item.
             Item item = resolveRenderItem(this.context, options, cit);
             LayerContext ctx = new LayerContext(this.context, engine.textures(), item, options, cit);
 

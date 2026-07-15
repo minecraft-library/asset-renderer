@@ -9,8 +9,8 @@ import lib.minecraft.nbt.tag.Tag;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Value normalization + typed comparison for NBT rule literals - the three nbt-factory gaps
- * (08-siblings §8-10): scalar-literal parsing, SNBT boolean coercion, and cross-type numeric
+ * Value normalization + typed comparison for NBT rule literals - the three nbt-factory gaps:
+ * scalar-literal parsing, SNBT boolean coercion, and cross-type numeric
  * equality. All rule-side; item-side tags come from binary NBT where these are already resolved.
  */
 final class NbtValues {

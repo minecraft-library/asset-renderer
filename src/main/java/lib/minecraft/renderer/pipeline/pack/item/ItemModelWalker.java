@@ -9,15 +9,15 @@ import java.util.Optional;
 
 /**
  * Evaluates a parsed {@link ItemModelNode} tree against an {@link ItemModelContext}, resolving the
- * single branch that renders (05-models.md §3.3). One structural pass: a {@code condition} takes the
+ * single branch that renders. One structural pass: a {@code condition} takes the
  * branch its boolean property selects (unknown &rarr; {@code on_false}); a {@code select} takes the
  * first case whose key matches the context (no match or unevaluable property &rarr; {@code fallback});
  * a {@code range_dispatch} takes the highest threshold {@code <=} the scaled value (none &rarr;
  * {@code fallback}); a {@code composite} takes its first non-empty child (concatenation of multiple
- * leaves is a later rung); a {@code model} / {@code special} is a leaf.
+ * leaves is deferred); a {@code model} / {@code special} is a leaf.
  *
- * <p>The neutral {@link ItemModelContext#gui()} context resolves every vanilla tree to the branch the
- * former loader's fallback-descent reached, so the derived model id and tint list are byte-identical.
+ * <p>The neutral {@link ItemModelContext#gui()} context resolves every vanilla tree to its fallback
+ * branch, giving the derived model id and tint list.
  */
 @UtilityClass
 public class ItemModelWalker {

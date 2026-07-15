@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies the Catharsis overlay-activation evaluator (03-rules §6.1): {@code catharsis:config} against
+ * Verifies the Catharsis overlay-activation evaluator: {@code catharsis:config} against
  * boolean and dropdown defaults, {@code catharsis:version} against the pack format and Minecraft
  * version, unknown-namespace degradation to false, the {@code config.catharsis.json}-overrides-mcmeta
  * precedence, and {@link CatharsisOverlays#activeOverlayDirectories} over a {@code fabric:overlays} block.

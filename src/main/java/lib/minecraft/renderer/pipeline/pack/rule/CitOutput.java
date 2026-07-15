@@ -9,15 +9,14 @@ import java.util.Optional;
 
 /**
  * The output side of a {@link CitRule} - the {@code texture} / {@code texture.<name>} /
- * {@code model} / {@code model.<name>} replacements a match applies (03-rules §3.1). All four are
- * resolved to pack-relative {@link ResourceId}s at parse time so the matcher never re-derives paths
- * (07-optifine defect #7). The sub-model map is parse-and-hold - model overrides join model
- * resolution (doc 05) later.
+ * {@code model} / {@code model.<name>} replacements a match applies. All four are
+ * resolved to pack-relative {@link ResourceId}s at parse time so the matcher never re-derives paths.
+ * The sub-model map is parse-and-hold - model overrides join model resolution later.
  *
  * @param texture the {@code layer0} replacement, absent when the rule overrides only a model
  * @param subTextures the {@code texture.<name>} replacements keyed by sub-texture name
  * @param model the whole-model override, absent when the rule overrides only textures
- * @param subModels the {@code model.<name>} overrides keyed by sub-model name, held for doc 05
+ * @param subModels the {@code model.<name>} overrides keyed by sub-model name, held for later model resolution
  */
 public record CitOutput(
     @NotNull Optional<ResourceId> texture,

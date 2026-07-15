@@ -22,7 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Phase-4 pre-registered LOOK gate: renders the vanilla animated-texture blocks with the animation
+ * LOOK gate: renders the vanilla animated-texture blocks with the animation
  * opted in ({@link AnimationOptions#isDeriveTimeline() deriveTimeline}, the {@code AUTO} path) so each
  * flipbook plays, dumping an animated GIF per block to {@code cache/visual/block-flipbook/}. Diagnostic
  * only ("does the flipbook play"); there is no parity gate here (block defaults stay static/byte-identical
@@ -30,7 +30,7 @@ import java.nio.file.Path;
  * AUTO derivation finds no animated texture (e.g. {@code minecraft:water}, whose animation lives on the
  * fluid renderer, not the block model).
  *
- * <p>The phase-4 brief names {@code water / fire / prismarine / sea_lantern / magma} - those are
+ * <p>{@code water / fire / prismarine / sea_lantern / magma} are
  * animated TEXTURE stems, not block ids. {@code minecraft:water} is a fluid (its flipbook is covered by
  * {@code TestFluidRenderer}'s {@code water_animated_iso}) and {@code minecraft:fire} is not in the block
  * index (a non-item block), so this gate renders the block-index members carrying those animated

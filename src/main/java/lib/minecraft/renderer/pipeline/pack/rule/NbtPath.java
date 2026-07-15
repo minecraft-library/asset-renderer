@@ -14,7 +14,7 @@ import java.util.stream.Stream;
 
 /**
  * An OptiFine CIT {@code nbt.<path>} selector - the list/wildcard/count-aware walker nbt-factory's
- * compound-only {@code getPath} cannot express (08-siblings §8). A path is a sequence of steps; the
+ * compound-only {@code getPath} cannot express. A path is a sequence of steps; the
  * walk fans out over wildcards, so {@link #walk} yields every leaf a path reaches.
  *
  * @param steps the ordered path steps

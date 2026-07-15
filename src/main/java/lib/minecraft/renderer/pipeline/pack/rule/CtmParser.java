@@ -16,12 +16,11 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 
 /**
- * Parses one OptiFine / MCPatcher CTM {@code .properties} file into a {@link CtmRule}, built against
- * the 07-optifine defect table (03-rules §5). Fully typed and validated at parse yet never evaluated:
- * CTM renders nothing (locked decision 4). Ranges unroll ({@code 0-46} to 47 tiles, defect #1),
- * {@code faces=top} maps to the {@code TOP} face never ALL (defect #4), and a per-method tile-count
- * mismatch rejects the rule fail-closed (D3.3). Filename inference gives {@code block_<name>.properties}
- * a block target and {@code <name>.properties} a tile target (defect #8).
+ * Parses one OptiFine / MCPatcher CTM {@code .properties} file into a {@link CtmRule}. Fully typed and
+ * validated at parse yet never evaluated: CTM renders nothing. Ranges unroll ({@code 0-46} to 47
+ * tiles), {@code faces=top} maps to the {@code TOP} face never ALL, and a per-method tile-count
+ * mismatch rejects the rule fail-closed. Filename inference gives {@code block_<name>.properties} a
+ * block target and {@code <name>.properties} a tile target.
  */
 @UtilityClass
 public class CtmParser {
@@ -87,7 +86,7 @@ public class CtmParser {
         String matchBlocks = props.getProperty("matchBlocks");
         if (matchBlocks != null && !matchBlocks.isBlank()) return new CtmTarget.Blocks(parseBlockMatches(matchBlocks));
 
-        // Filename inference (defect #8): block_<name> -> block target, else tile target.
+        // Filename inference: block_<name> -> block target, else tile target.
         if (basename.startsWith("block_"))
             return new CtmTarget.Blocks(Concurrent.newList(new BlockMatch(new ResourceId(MINECRAFT, basename.substring("block_".length())), Concurrent.newMap())));
         return new CtmTarget.Tiles(Concurrent.newList(basename));
@@ -155,7 +154,7 @@ public class CtmParser {
         return Concurrent.adoptList(tiles).toUnmodifiable();
     }
 
-    /** Unrolls a {@code a-b} numeric range into per-index {@link TileRef.Texture} entries (defect #1). */
+    /** Unrolls a {@code a-b} numeric range into per-index {@link TileRef.Texture} entries. */
     private static void expandRange(@NotNull String token, @NotNull String propsDir, @NotNull List<TileRef> out) {
         int dash = token.indexOf('-');
         int from = Integer.parseInt(token.substring(0, dash));

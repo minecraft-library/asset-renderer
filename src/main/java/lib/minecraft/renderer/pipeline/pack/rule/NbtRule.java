@@ -8,8 +8,7 @@ import java.util.List;
 
 /**
  * One CIT {@code nbt.<path>=<predicate>} condition: a path, the value test its reached leaves must
- * satisfy, and the OptiFine {@code !} negation flag (which HEAD treated as a literal character,
- * 07-optifine defect #9).
+ * satisfy, and the OptiFine {@code !} negation flag.
  *
  * @param path the selector
  * @param predicate the value test

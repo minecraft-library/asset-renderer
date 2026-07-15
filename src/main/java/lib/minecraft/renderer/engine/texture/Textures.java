@@ -148,7 +148,7 @@ public class Textures {
      * of {@link #resolveEntityTexture(String)}, wrapping {@link #tryResolveTextureAtTick} with the
      * {@code minecraft:entity/} prefix. A sidecar-less entity texture (every vanilla entity) returns
      * its buffer unchanged, so {@code tick 0} is byte-identical to the raw lookup; a sidecar-carrying
-     * texture samples the frame for {@code tick} (04-animation §4.3 - frame-0-at-default when static).
+     * texture samples the frame for {@code tick} (frame-0-at-default when static).
      *
      * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
      *     {@code .png} suffix)
@@ -296,7 +296,7 @@ public class Textures {
      * <p>The walk runs even for the {@link ItemContext#EMPTY} default: the item-texture override never
      * fires there (no rule's item list contains the empty id), but the glint decision is
      * context-independent for the global {@code useGlint=false} toggle and item-list-less
-     * {@code type=enchantment} rules (03-rules §7), so it must ride through to the compose terminal even
+     * {@code type=enchantment} rules, so it must ride through to the compose terminal even
      * for a plainly-enchanted icon that carries no item NBT. A vanilla stack (no rules, no
      * {@code useGlint}) still yields {@link CitResult#NONE}, so the empty-context path stays byte-identical.
      *

@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies {@link ColorMapLoader}'s D10 re-point: colormaps resolve through the pack stack like any
+ * Verifies {@link ColorMapLoader}: colormaps resolve through the pack stack like any
  * texture, and each PNG decodes to row-major big-endian ARGB bytes - bit-identical to the bundled
  * {@code color_maps.json} snapshot generation.
  */

@@ -75,7 +75,7 @@ public class GradientKit {
     /**
      * Sums the advance widths of {@code text} in output px walking CODEPOINTS (surrogate-safe),
      * matching the glyph the draw loop actually blits rather than
-     * {@code MinecraftFontMetrics.stringWidth}'s UTF-16 code-unit walk (06 §2.3).
+     * {@code MinecraftFontMetrics.stringWidth}'s UTF-16 code-unit walk.
      */
     static int measureCodepoints(@NotNull String text, @NotNull MinecraftFont font) {
         int width = 0;
@@ -88,8 +88,8 @@ public class GradientKit {
 
     /**
      * Per-letter path: each glyph samples ONE color at its advance-span center; two-phase (all
-     * shadows, then all mains) so adjacent glyph bitmaps overlap as in the solid path (06 §2.5-2.6).
-     * Decorations follow the gradient, colored per glyph (06 §2.9).
+     * shadows, then all mains) so adjacent glyph bitmaps overlap as in the solid path.
+     * Decorations follow the gradient, colored per glyph.
      */
     private static void drawPerLetter(
         @NotNull PixelBuffer target,
@@ -154,14 +154,14 @@ public class GradientKit {
 
     /**
      * Per-pixel path: uniform bands of {@link GradientSpec#bandPx()} output px over the segment,
-     * each glyph pixel tinted by {@link #sample(GradientSpec, float)} at its band center (06 §2.5).
+     * each glyph pixel tinted by {@link #sample(GradientSpec, float)} at its band center.
      * This is the white-glyph-multiply identity realized directly - each glyph pixel's alpha mask is
      * tinted by its band color and {@code NORMAL}-blended onto the frame, confining the multiply to
      * the glyph mask so neighbours, descenders' background, and chrome are never touched (the same
      * guarantee a per-segment scratch gives, without a transparent intermediate that
-     * {@code BlendMode.NORMAL} would premultiply). Bands slant by the shear (06 §2.8); the shadow
+     * {@code BlendMode.NORMAL} would premultiply). Bands slant by the shear; the shadow
      * pass is split out and samples the MAIN letterform position (offset by {@code +delta}) so shadow
-     * bands sit exactly under main bands (06 §2.6).
+     * bands sit exactly under main bands.
      */
     private static void drawPerPixel(
         @NotNull PixelBuffer target,
@@ -181,9 +181,9 @@ public class GradientKit {
         float shear = resolveShear(spec, segment.isItalic());
         int[] codepoints = text.codePoints().toArray();
 
-        // Band rgb at an absolute frame pixel, relative to the MAIN letterform (06 §2.5/§2.8).
+        // Band rgb at an absolute frame pixel, relative to the MAIN letterform.
         PixelColor main = (px, py) -> bandColor(spec, px - baseX, baselineY - py, shear, bandPx, segWidthOut, tick);
-        // Shadow samples the main position (offset back by -delta), then darkens (06 §2.6).
+        // Shadow samples the main position (offset back by -delta), then darkens.
         PixelColor shadow = (px, py) -> shadowRgb(main.at(px - delta, py - delta));
 
         // Shadow pass (offset +delta), then main pass.
@@ -205,7 +205,7 @@ public class GradientKit {
 
     /**
      * The banded, sheared, scroll-adjusted rgb for a pixel at column {@code xRel} output px from the
-     * segment start and {@code heightAboveBaseline} output px above the baseline (06 §2.5-2.8).
+     * segment start and {@code heightAboveBaseline} output px above the baseline.
      */
     private static int bandColor(@NotNull GradientSpec spec, int xRel, int heightAboveBaseline, float shear, int bandPx, int segWidthOut, long tick) {
         float center = bandCenterT(xRel, heightAboveBaseline, shear, bandPx, segWidthOut);
@@ -215,7 +215,7 @@ public class GradientKit {
     /**
      * The band-center position {@code t} for a pixel: shears the column
      * ({@code x' = xRel - shear*(yBase - y)}), takes the band {@code floor(x'/bandPx)}, and returns
-     * its center {@code ((band + 0.5)*bandPx)/segWidth} (06 §2.5/§2.8). Not yet scroll-adjusted or
+     * its center {@code ((band + 0.5)*bandPx)/segWidth}. Not yet scroll-adjusted or
      * clamped - {@link #scrolledT} and {@link #sample} finish the mapping.
      *
      * @param xRel the pixel column in output px from the segment start
@@ -260,7 +260,7 @@ public class GradientKit {
 
     /**
      * Draws a glyph's strikethrough / underline bars, each pixel tinted by {@code color} so
-     * decorations follow the per-pixel gradient (06 §2.9).
+     * decorations follow the per-pixel gradient.
      */
     private static void fillDecorationsMasked(@NotNull PixelBuffer target, @NotNull ColorSegment segment, int cursorX, int baselineY, int advanceOut, @NotNull PixelColor color) {
         int scale = MinecraftFont.MC_PIXEL_SCALE;
@@ -296,7 +296,7 @@ public class GradientKit {
      * Evaluates the gradient at normalized position {@code t}. Straight sRGB channel interpolation
      * for {@link GradientSpec.Mode#START_END START_END} / {@link GradientSpec.Mode#RANGE RANGE} /
      * {@link GradientSpec.Mode#SPECIFIC SPECIFIC} (flat-clamped outside the pinned span), HSV hue
-     * sweep for {@link GradientSpec.Mode#RAINBOW RAINBOW} (06 §2.4). Returns a 24-bit rgb.
+     * sweep for {@link GradientSpec.Mode#RAINBOW RAINBOW}. Returns a 24-bit rgb.
      *
      * @param spec the gradient spec
      * @param t the normalized position
@@ -350,7 +350,7 @@ public class GradientKit {
 
     /**
      * The scroll phase in {@code [0,1)} for the absolute {@code tick}: {@code floorMod(tick,
-     * cycleTicks) / cycleTicks} (06 §2.7). Phase derives from the absolute tick (glint precedent),
+     * cycleTicks) / cycleTicks}. Phase derives from the absolute tick (glint precedent),
      * not the frame index, so gradients baked with the same start tick animate in phase.
      *
      * @param tick the absolute animation tick
@@ -363,7 +363,7 @@ public class GradientKit {
 
     /**
      * Slides {@code t} by the scroll phase: {@code wrap(t - dir * phase)} with {@code LEFT = +1},
-     * {@code RIGHT = -1} (06 §2.7). A {@code null} scroll returns {@code t} unchanged (the sampler
+     * {@code RIGHT = -1}. A {@code null} scroll returns {@code t} unchanged (the sampler
      * flat-clamps it).
      *
      * @param t the base position
@@ -380,7 +380,7 @@ public class GradientKit {
     /**
      * The band slant for a spec: the spec's explicit {@link GradientSpec#shear()}, or - when it is
      * the {@link GradientSpec#AUTO_SHEAR auto sentinel} - {@link MinecraftFont#ITALIC_SHEAR} for an
-     * italic segment, else {@code 0} (06 §2.8).
+     * italic segment, else {@code 0}.
      *
      * @param spec the gradient spec
      * @param italic whether the owning segment is italic

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Exercises the block-entity geometry override channel (05-models.md §4.3): {@link BlockRendererOverrides}
+ * Exercises the block-entity geometry override channel: {@link BlockRendererOverrides}
  * gathering pack-root {@code renderer/*.json} files through the format-2 envelope with per-entry
  * later-wins, and {@link BlockModelReader} / {@link BlockDefaultsReader} overlaying them onto the
  * classpath snapshot. Uses {@code minecraft:conduit} (a clean single-block block entity) as the

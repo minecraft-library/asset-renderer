@@ -21,11 +21,10 @@ import java.util.stream.IntStream;
 /**
  * The single terminal pipeline for the rasterizing renderers: draw each frame, run the shared
  * supersample / FXAA / downscale tail, then either scroll an enchantment glint or bake an animation
- * strip, and wrap the result into {@link ImageData}. Replaces the ad-hoc, per-renderer nesting of the
- * former {@code FinalizeStage} + {@code AnimationStage} + {@code GlintStage} - the differences between
+ * strip, and wrap the result into {@link ImageData}. The differences between
  * renderers become a {@link FinalizeSpec} data value.
  * <p>
- * Glint and tick-driven animation compose by precedence rather than exclusion (04-animation §5): the
+ * Glint and tick-driven animation compose by precedence rather than exclusion: the
  * <b>animation owns the frame axis</b> and glint is a per-frame post-stamp on the baked strip. A static
  * render ({@code frameCount <= 1}) with glint bakes one frame and applies the fps-paced glint scroll
  * ({@link #applyGlint}); an animated render ({@code frameCount > 1}) with glint bakes the strip and
@@ -44,8 +43,8 @@ public final class Finalize {
     /**
      * Milliseconds in one vanilla tick - the constant every texture-animated subject folds into its
      * per-frame playback delay ({@code ticksPerFrame * MILLIS_PER_TICK}) and the tick-to-wall-clock
-     * bridge glint composition uses ({@code tick * MILLIS_PER_TICK}, 04-animation §5). Hoisted from
-     * the former per-renderer copies so no call site hand-writes {@code 50}.
+     * bridge glint composition uses ({@code tick * MILLIS_PER_TICK}). Centralised so no call site
+     * hand-writes {@code 50}.
      */
     public static final int MILLIS_PER_TICK = 50;
 
@@ -113,7 +112,7 @@ public final class Finalize {
         /**
          * Whole-item glint whose texture an OptiFine {@code type=enchantment} CIT rule replaced - the
          * item preset with only the glint texture id swapped, everything else (scroll, scale, loop)
-         * unchanged (03-rules §7). Falls back to no glint at compose time when the replacement texture
+         * unchanged. Falls back to no glint at compose time when the replacement texture
          * resolves to nothing, exactly like the default preset.
          */
         public static @NotNull Glint itemReplaced(
@@ -152,7 +151,7 @@ public final class Finalize {
 
         /**
          * An animation-strip spec: {@code frameCount} frames sampled from {@code startTick}. The
-         * general low-level factory behind the three documented timing modes (04-animation §1.3);
+         * general low-level factory behind the three documented timing modes;
          * the {@code delayMs} the caller supplies is what distinguishes them:
          * <ul>
          * <li><b>(a) tick strip</b> - texture animation (fluid, and every block / item / entity
@@ -174,7 +173,7 @@ public final class Finalize {
         }
 
         /**
-         * The mode-(a) tick-strip factory (04-animation §1.3, decision D1): binds an
+         * The mode-(a) tick-strip factory: binds an
          * {@link AnimationOptions} timeline to {@link #animated} with the mode-(a) delay
          * ({@code ticksPerFrame * }{@link Finalize#MILLIS_PER_TICK}) folded in once, so every
          * texture-animated subject (fluid, block, item, entity) shares one delay derivation and
@@ -236,7 +235,7 @@ public final class Finalize {
      * {@link UnaryOperator#identity()} - which is exactly what {@link #render} does for
      * {@code frameCount > 1}.
      * <p>
-     * Glint × animation (04-animation §5): the animation owns the frame axis; if the spec carries an
+     * Glint × animation: the animation owns the frame axis; if the spec carries an
      * enchanted {@link Glint}, each frame is post-stamped with a scrolled foil whose glint time derives
      * from that frame's tick ({@code tick_f = startTick + f * ticksPerFrame}). Glint composition assumes
      * {@code framePostProcess} preserves frame count and order (the identity case, which every glint
@@ -272,7 +271,7 @@ public final class Finalize {
     }
 
     /**
-     * Schedule-driven variable-delay strip (04-animation §6): bakes one frame per entry of
+     * Schedule-driven variable-delay strip: bakes one frame per entry of
      * {@code sampleTicks} (each frame drawn at its own absolute tick), composes the per-frame glint as
      * {@link #renderStrip} does, then wraps the frames with per-frame {@code frameDelaysMs}. This is the
      * change-point export a subject's merged animation timeline produces - one output frame per DISTINCT
@@ -348,8 +347,8 @@ public final class Finalize {
     }
 
     /**
-     * Converts an animation {@code tick} to the glint time {@link GlintKit#applyGlintAtTimes} expects
-     * (04-animation §5, the §1.2 clock bridge). The tick's wall-clock instant is
+     * Converts an animation {@code tick} to the glint time {@link GlintKit#applyGlintAtTimes} expects.
+     * The tick's wall-clock instant is
      * {@code tick * }{@link #MILLIS_PER_TICK}{@code  ms}; the value {@code GlintKit} consumes is
      * "vanilla post-{@code glintSpeed} millis", i.e. the wall-clock instant times
      * {@link GlintKit#MAX_ENCHANTMENT_GLINT_SPEED_MILLIS} - EXACTLY how

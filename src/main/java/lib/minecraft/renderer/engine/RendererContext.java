@@ -159,7 +159,7 @@ public interface RendererContext {
     @NotNull Optional<Item> findItem(@NotNull String id);
 
     /**
-     * Looks up the parsed item-definition dispatch tree for an item id (05-models.md §3), for the
+     * Looks up the parsed item-definition dispatch tree for an item id, for the
      * render path to re-evaluate against a caller-supplied non-neutral {@code ItemModelContext} (trim
      * material, dye, clock time). The default returns empty so test stubs and the neutral render path
      * fall back to the pipeline-baked item.
@@ -230,12 +230,11 @@ public interface RendererContext {
     /**
      * Resolves the highest-precedence Custom Item Texture effect for a render-time
      * {@link ItemContext}, walking the merged CIT rule list first-match-wins and returning the effect
-     * the winning rule applies (03-rules §2). The return widened from HEAD's single texture id to a
-     * {@link CitResult} carrying the {@code layer0} texture, named sub-texture replacements, a model
-     * override, and the glint policy. The default returns {@link CitResult#NONE} so test stubs need not
-     * override it.
+     * the winning rule applies. The result is a {@link CitResult} carrying the {@code layer0} texture,
+     * named sub-texture replacements, a model override, and the glint policy. The default returns
+     * {@link CitResult#NONE} so test stubs need not override it.
      *
-     * <p>Connected Textures (CTM) has no render seam: it renders nothing (locked decision 4), so the
+     * <p>Connected Textures (CTM) has no render seam: it renders nothing, so the
      * merged CTM rules are parse-and-store only, with zero render-path callers (see
      * {@code CtmNeighborResolver}).
      *

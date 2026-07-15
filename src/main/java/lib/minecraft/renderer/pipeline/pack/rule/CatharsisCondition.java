@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * One parsed {@code fabric:overlays} activation condition (03-rules §6.1, 06-catharsis §6). Catharsis
+ * One parsed {@code fabric:overlays} activation condition. Catharsis
  * gates most of its content behind overlay entries carrying a {@code catharsis:config} or
  * {@code catharsis:version} condition; a headless renderer evaluates them against the option
  * {@link CatharsisConfig defaults} and its {@link CatharsisTarget}. Any condition whose namespace the
@@ -52,7 +52,7 @@ public sealed interface CatharsisCondition permits CatharsisCondition.Config, Ca
 
     /**
      * A {@code catharsis:config} condition: the overlay activates when the named config option holds
-     * the requested value under the declared defaults (03-rules §6.1). The {@code pack} field names the
+     * the requested value under the declared defaults. The {@code pack} field names the
      * option's owning pack; a headless single-pack evaluation resolves it against the loaded config
      * regardless, so it is retained for fidelity but not gated on.
      *
@@ -71,7 +71,7 @@ public sealed interface CatharsisCondition permits CatharsisCondition.Config, Ca
     }
 
     /**
-     * A {@code catharsis:version} condition tested against the renderer target (03-rules §6.1). A
+     * A {@code catharsis:version} condition tested against the renderer target. A
      * {@link VersionKind#PACK_FORMAT} kind checks the target pack format against an inclusive
      * {@code packFormatRange}; a {@link VersionKind#MINECRAFT} kind checks the target Minecraft version
      * against a comparator predicate ({@code >=}, {@code <=}, {@code >}, {@code <}, {@code =}, or a bare
@@ -101,7 +101,7 @@ public sealed interface CatharsisCondition permits CatharsisCondition.Config, Ca
 
     /**
      * A condition whose namespace the renderer does not model - it evaluates {@code false} so the
-     * overlay stays inert (03-rules §6.1).
+     * overlay stays inert.
      *
      * @param condition the raw {@code condition} field, kept for diagnostics
      */

@@ -49,7 +49,7 @@ public class BlockTagLoader {
      * over its base and overlay roots; raw {@code data/minecraft/tags/block} values merge later-wins
      * per tag id, and the recursive resolution pass runs once on the merged map so a tag definition
      * supplied by a higher pack still resolves through references that live only in vanilla. A
-     * vanilla-only stack scans exactly the vanilla root and merges identically to the former walk.
+     * vanilla-only stack scans exactly the vanilla root.
      *
      * @param stack the resolved pack stack
      * @return a map of tag id to resolved tag entity

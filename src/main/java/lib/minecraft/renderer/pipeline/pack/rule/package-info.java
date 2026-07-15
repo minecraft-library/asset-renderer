@@ -1,7 +1,6 @@
 /**
  * The pack rule layer - OptiFine CIT / CTM parsing and evaluation, NBT conditionals,
- * {@code color.properties}, and the Catharsis conventions - built against the HEAD
- * {@code asset.rule} loader defects (research/07-optifine.md) and consuming
+ * {@code color.properties}, and the Catharsis conventions - consuming
  * {@link lib.minecraft.renderer.pipeline.pack pack}'s pinned types
  * ({@link lib.minecraft.renderer.pipeline.pack.PackStack PackStack},
  * {@link lib.minecraft.renderer.pipeline.pack.PackId PackId}) without redefining them.
@@ -17,8 +16,8 @@
  * NbtRule} joins a path, a predicate, and the {@code !} negation flag.
  *
  * <p><b>Parity.</b> Vanilla ships no {@code optifine/} tree, so every rule-layer behavior is inert
- * with only vanilla loaded - the byte-parity contract holds without gating (03-rules.md parity
- * ledger). CIT / CTM rule records, {@code RuleSet} stack merge, {@code GlintPolicy}, and the
+ * with only vanilla loaded - the byte-parity contract holds without gating. CIT / CTM rule records,
+ * {@code RuleSet} stack merge, {@code GlintPolicy}, and the
  * Catharsis condition evaluator land alongside this NBT foundation.
  */
 package lib.minecraft.renderer.pipeline.pack.rule;

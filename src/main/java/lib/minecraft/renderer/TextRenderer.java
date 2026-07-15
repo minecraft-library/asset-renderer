@@ -59,7 +59,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
     /**
      * Upper bound on an animated gradient's loop duration in milliseconds, mirroring
      * {@code FrameCompositor.MAX_LOOP_MS}. Beyond it the loop is truncated and a scroll seam is
-     * accepted (06 §2.7) - the same policy the frame compositors apply to LCM-merged loops.
+     * accepted - the same policy the frame compositors apply to LCM-merged loops.
      */
     private static final long MAX_LOOP_MS = 10_000L;
 
@@ -165,7 +165,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
 
     /**
      * Returns whether any segment carries a scrolling gradient, which - like obfuscation - promotes
-     * the render to an animated multi-frame output (06 §2.7).
+     * the render to an animated multi-frame output.
      */
     private static boolean hasAnimatedGradient(@NotNull ConcurrentList<LineSegment> lines) {
         for (LineSegment line : lines) {
@@ -188,7 +188,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * caller's {@link TextOptions#getFrameCount() frameCount} (byte-identical to the pre-gradient
      * behaviour); a scrolling gradient sizes the loop to a whole number of cycles - the LCM of every
      * scroll's {@code cycleTicks} (and the obfuscation loop, when combined), converted to frames and
-     * capped at {@link #MAX_LOOP_MS} (06 §2.7).
+     * capped at {@link #MAX_LOOP_MS}.
      */
     private static int animationFrameCount(@NotNull TextOptions options, int ticksPerFrame) {
         if (!hasAnimatedGradient(options.getLines()))

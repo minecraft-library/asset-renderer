@@ -6,14 +6,13 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * One texture-index row: the successor of the former {@code asset.Texture}, attributed to the pack
- * that supplied the winning PNG and carrying the whole {@code .png.mcmeta} sidecar (not just the
- * animation section) so every downstream consumer reads a texture's metadata without a second lookup.
+ * One texture-index row, attributed to the pack that supplied the winning PNG and carrying the whole
+ * {@code .png.mcmeta} sidecar (not just the animation section) so every downstream consumer reads a
+ * texture's metadata without a second lookup.
  *
  * <p>{@link #relativePath} is the container path of the PNG with the owning root's prefix stripped
  * ({@code assets/<namespace>/textures/<path>.png}), so any of the owning pack's roots can re-prefix it
- * during resolution and the last existing copy wins - the same base-then-overlay precedence the former
- * scanner produced.
+ * during resolution and the last existing copy wins under base-then-overlay precedence.
  *
  * @param id the namespaced texture id ({@code minecraft:block/stone})
  * @param pack the id of the pack whose root registered this row

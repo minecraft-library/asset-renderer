@@ -35,8 +35,8 @@ import static org.hamcrest.Matchers.is;
  * and line-ending drift does not break the check) and compared against its committed
  * {@code *.sha256} fixture. Any change - intentional (MC version bump, tooling change) or
  * accidental (a regression in the generator) - forces a review. This is byte-stability only, NOT a
- * parity or value-parity gate (a file can be byte-stable and wrong; the render sweeps and the
- * value-parity ledger catch that).
+ * parity or value-parity gate (a file can be byte-stable and wrong; the render sweeps
+ * catch that).
  * <p>
  * Regeneration workflow: regenerate the JSON via the matching {@code ./gradlew} {@code <task>}
  * tooling task, re-run this test, read the printed actual SHA-256, paste it into the matching fixture

@@ -3,8 +3,8 @@ package lib.minecraft.renderer.pipeline.pack.rule;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The renderer's evaluation target for a {@code catharsis:version} overlay condition (03-rules §6.1) -
- * the pack format and Minecraft version an overlay's {@code PACK_FORMAT} / {@code MINECRAFT} predicate
+ * The renderer's evaluation target for a {@code catharsis:version} overlay condition - the pack
+ * format and Minecraft version an overlay's {@code PACK_FORMAT} / {@code MINECRAFT} predicate
  * is tested against.
  *
  * @param packFormat the renderer's target pack format major number

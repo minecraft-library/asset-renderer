@@ -16,7 +16,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins {@link TextRenderer}'s scrolling-gradient loop sizing (06 §2.7): the frame count covers a
+ * Pins {@link TextRenderer}'s scrolling-gradient loop sizing: the frame count covers a
  * whole number of scroll cycles AND lands the wrap frame on phase 0 - {@code lcm(cycleTicks,
  * ticksPerFrame) / ticksPerFrame} - so the animation loops without a mid-cycle seam even when the
  * frame cadence is coarser than the tick rate ({@code fps < 20}).

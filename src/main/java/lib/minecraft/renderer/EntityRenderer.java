@@ -131,8 +131,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Entity resolved = EntityDefinitionResolver.resolve(definition, options.getAppearance());
         EntityModelData model = resolved.model();
 
-        // Resolve the base texture at the timeline's start tick (04-animation §4.3, decision 9 -
-        // frame-0-at-default): frame 0 of a sidecar-carrying entity texture, or the raw strip for a
+        // Resolve the base texture at the timeline's start tick: frame 0 of a sidecar-carrying
+        // entity texture, or the raw strip for a
         // sidecar-less texture (every vanilla entity, so byte-identical on the vanilla roster). This
         // start-tick texture drives the missing-texture early-out and canvas sizing; the per-frame
         // render re-resolves inside the rasterizer callback so an opted-in animated texture rebuilds.
@@ -252,7 +252,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             fitRequest = FitRequest.autoFill(Math.max(1e-3f, (canvasSize - 2f * padding) / (float) canvasSize));
         }
 
-        // Per-frame geometry build (04-animation §4.3): the base body plus its model-overlay /
+        // Per-frame geometry build: the base body plus its model-overlay /
         // block-overlay / armor feature layers, with every entity / overlay / carried-block texture
         // resolved at the frame's tick. Emission order is load-bearing (depth tie-break, translucent
         // sort, emissive depth-skip), so the slot order stays base -> overlays -> collar -> block
@@ -310,7 +310,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Canvas-sizing tradeoff (opt-in animated textures): the orthographic canvas + NATIVE_SCALE
         // silhouette are measured ONCE from the startTick frame's alpha-tight bounds, but frames render
         // at per-tick textures. A flipbook whose later frames paint opaque texels outside frame 0's
-        // silhouette can crop at the fixed canvas edge (D9 sizes at frame 0). Geometry-driven bounds are
+        // silhouette can crop at the fixed canvas edge. Geometry-driven bounds are
         // frame-invariant, so this only bites texture-alpha-driven silhouette growth; vanilla never
         // triggers it (no animated entity texture). Callers needing an uncropped fat-later-frame render
         // can pad via canvasSize/padding or the perspective path (which auto-fills per frame).
@@ -380,7 +380,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Resolves a family-form entity texture ref at animation {@code tick} - the tick-aware counterpart
      * of {@link #resolveEntityRef(String)} used by the per-frame render path. A sidecar-less ref (the
      * whole vanilla roster) resolves byte-identically to the raw lookup; a sidecar-carrying ref samples
-     * the frame for {@code tick} (04-animation §4.3).
+     * the frame for {@code tick}.
      *
      * @param ref the entity texture sub-path (without {@code minecraft:entity/} or {@code .png})
      * @param tick the animation tick to sample

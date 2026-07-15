@@ -43,9 +43,9 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Step-4 {@code minecraft:tooltip_style} wiring tests: reads the component off an {@link ItemContext}
- * through the phase-3 components surface, feeds the style key into {@link TooltipChrome.ChromeSprites}
- * resolution, and renders a styled fixture end to end. Missing style sprites DROP (decision 14); a
+ * {@code minecraft:tooltip_style} wiring tests: reads the component off an {@link ItemContext}
+ * through the components surface, feeds the style key into {@link TooltipChrome.ChromeSprites}
+ * resolution, and renders a styled fixture end to end. Missing style sprites DROP; a
  * vanilla item with no style resolves the default pair (pack-content-gated).
  */
 @ExtendWith(MinecraftFontsExtension.class)
@@ -124,7 +124,7 @@ class TooltipStyleTest {
     @Test
     @DisplayName("resolveForItem DROPs (empty) when the styled sprites are missing")
     void resolveForItemMissingStyleDrops() {
-        // stub supplies nothing -> the styled pair is unresolved -> DROP + diagnostic, no fallback (decision 14).
+        // stub supplies nothing -> the styled pair is unresolved -> DROP + diagnostic, no fallback.
         Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolveForItem(
             new StubContext(new HashMap<>(), new HashMap<>()), itemWithStyle("hypixel_skyblock:missing"));
         assertThat(resolved, is(Optional.empty()));
@@ -148,7 +148,7 @@ class TooltipStyleTest {
     @DisplayName("resolve flattens an animated chrome sprite to its tick-0 frame")
     void resolveFlattensAnimatedSprite() {
         // A 4x8 background flipbook: top 4x4 frame red, bottom 4x4 frame blue, with a 2-frame sidecar.
-        // resolve must pin to frame 0 (top 4x4 red), not hand NineSliceKit the whole strip (06 §1.6).
+        // resolve must pin to frame 0 (top 4x4 red), not hand NineSliceKit the whole strip.
         int[] px = new int[4 * 8];
         for (int i = 0; i < 4 * 4; i++) px[i] = 0xFFFF0000;
         for (int i = 4 * 4; i < 4 * 8; i++) px[i] = 0xFF0000FF;
@@ -196,7 +196,7 @@ class TooltipStyleTest {
         // The gold-recoloured ring drove the render: ring top carries alpha 0x50 with the gold rgb.
         assertThat("styled gold ring", buf.getPixel(buf.width() / 2, 2), is(0x50FFAA00));
 
-        // Persist the fixture outside cache/visual (not a parity capture) for the pre-registered LOOK.
+        // Persist the fixture outside cache/visual (not a parity capture) for the LOOK.
         try {
             Files.createDirectories(LOOK_DIR);
             new ImageFactory().toFile(image, ImageFormat.PNG, LOOK_DIR.resolve("styled_fixture.png").toFile());

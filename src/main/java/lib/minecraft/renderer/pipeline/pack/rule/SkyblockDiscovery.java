@@ -13,15 +13,15 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Discovers the SkyBlock item-model-definition documents a Catharsis pack ships (03-rules §6.2,
- * 06-catharsis §7) - the {@code assets/skyblock/items/<id>.json} files (and the shared-base-item
+ * Discovers the SkyBlock item-model-definition documents a Catharsis pack ships - the
+ * {@code assets/skyblock/items/<id>.json} files (and the shared-base-item
  * sub-identifier directories {@code attributes/ enchantments/ pets/ potions/ runes/}). Each is a plain
  * vanilla item-model definition addressed under the synthetic {@code skyblock} namespace.
  *
- * <p><b>Discovery only</b> (this sub-commit): the walk is capability-gated on
+ * <p><b>Discovery only</b>: the walk is capability-gated on
  * {@link Capability#CATHARSIS_CONVENTIONS} and returns the discovered ids; nothing renders them. The
  * selection-tree walker that CONSUMES these (degrading unresolvable {@code catharsis:*} predicates to
- * their {@code fallback} branch) lands with phase 6's item-definition tree support - a vanilla-only
+ * their {@code fallback} branch) lives in the item-definition tree support - a vanilla-only
  * renderer never reaches this code, so it stays inert.
  */
 @UtilityClass

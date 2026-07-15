@@ -19,13 +19,13 @@ import java.util.Locale;
 
 /**
  * A loader that resolves the three biome colormaps ({@code textures/colormap/{grass,foliage,dry_foliage}.png})
- * through the pack stack like any other texture, so a user pack's colormap override wins over vanilla's
- * (D10 hybrid). The bytecode-derived snapshots (tints, potion colours, glint, block-entity geometry)
+ * through the pack stack like any other texture, so a user pack's colormap override wins over vanilla's.
+ * The bytecode-derived snapshots (tints, potion colours, glint, block-entity geometry)
  * stay bundled; only the colormaps - which ARE standard pack assets - join the stack.
  * <p>
  * Each PNG is decoded via {@link BufferedImage#getRGB} then packed big-endian, exactly as the bundled
  * {@code color_maps.json} snapshot was generated ({@code ToolingColorMaps}), so a vanilla-only stack
- * decodes byte-identical pixels to that snapshot (the D10 parity contract) - and NOT via the texture
+ * decodes byte-identical pixels to that snapshot - and NOT via the texture
  * decode path, whose grayscale-gamma bypass would diverge.
  *
  * @see ColorMap
@@ -35,7 +35,7 @@ public class ColorMapLoader {
 
     /**
      * Resolves every colormap the stack supplies, indexed by its {@link ColorMap.Type}. A type whose
-     * PNG no pack supplies is skipped (graceful), matching the prior missing-resource tolerance.
+     * PNG no pack supplies is skipped (graceful).
      *
      * @param stack the resolved pack stack carrying the texture index
      * @return the colormap entities keyed by type, wrapped unmodifiable so downstream reads bypass the

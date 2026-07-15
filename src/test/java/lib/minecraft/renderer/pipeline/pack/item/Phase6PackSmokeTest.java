@@ -20,11 +20,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Smoke test proving the phase-6 item-tree walker consumes the on-disk hypixel-skyblock pack's
- * {@code hypixel_skyblock}-namespace item-definition trees (05-models.md §3, decision 11) - what
- * phase 5 left on the scanned path but unparsed. A known skyblock id resolves through the walker to
- * its model leaf under the neutral context, which is the Catharsis degradation contract for the
- * skyblock trees that branch. Tagged slow because it reads the gitignored pack cache; skips when
+ * Smoke test proving the item-tree walker consumes the on-disk hypixel-skyblock pack's
+ * {@code hypixel_skyblock}-namespace item-definition trees. A known skyblock id resolves through the
+ * walker to its model leaf under the neutral context, which is the Catharsis degradation contract for
+ * the skyblock trees that branch. Tagged slow because it reads the gitignored pack cache; skips when
  * absent.
  */
 @Tag("slow")

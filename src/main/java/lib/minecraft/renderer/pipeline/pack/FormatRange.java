@@ -7,8 +7,8 @@ import lib.minecraft.renderer.exception.PipelineException;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * One normalized encoding of the three pack-format generations, absorbing the older sealed
- * {@code FormatSpec}. Every vanilla format declaration - the legacy {@code pack_format} int, the
+ * One normalized encoding of the three pack-format generations. Every vanilla format declaration -
+ * the legacy {@code pack_format} int, the
  * {@code supported_formats} int / {@code [min,max]} / {@code {min_inclusive,max_inclusive}} forms,
  * and the modern {@code min_format} / {@code max_format} int / {@code [major,minor]} pair - collapses
  * to an inclusive {@link FormatVersion} span so callers test a single {@link #contains} predicate.

@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Set;
 
 /**
- * The shadowed-model diagnostic (05-models.md §4.2): warns when a non-vanilla pack ships a vanilla-form
+ * The shadowed-model diagnostic: warns when a non-vanilla pack ships a vanilla-form
  * {@code models/block/<id>.json} or {@code blockstates/<id>.json} for a block-entity-backed id (chests,
  * beds, banners, signs, skulls, shulkers, conduit, decorated_pot, copper_golem_statue, ...).
  *

@@ -112,8 +112,8 @@ public class AnimationKit {
 
     /**
      * The per-entry tick durations of an animation's playback sequence - the array
-     * {@link #sampleFrame} accumulates against internally, exposed for timeline derivation
-     * (04-animation §3). When the animation declares no explicit {@code frames} list, the strip's
+     * {@link #sampleFrame} accumulates against internally, exposed for timeline derivation.
+     * When the animation declares no explicit {@code frames} list, the strip's
      * implicit frames {@code 0..frameCount-1} each last {@link AnimationData#frametime() frametime}
      * (floored at 1); otherwise each {@link AnimationData.FrameEntry} contributes its {@code time}
      * ticks, or {@code frametime} when the entry declares no positive override. Mirrors the durations

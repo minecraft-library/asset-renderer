@@ -61,8 +61,7 @@ public class BannerPatternLoader {
     /**
      * Loads banner pattern definitions across the whole pack stack. Packs are visited ascending,
      * each over its base and overlay roots; per pattern id, a higher root replaces lower roots'
-     * definition. A vanilla-only stack scans exactly the vanilla root and merges identically to the
-     * former walk.
+     * definition. A vanilla-only stack scans exactly the vanilla root.
      *
      * @param stack the resolved pack stack
      * @return a map of pattern id to pattern descriptor

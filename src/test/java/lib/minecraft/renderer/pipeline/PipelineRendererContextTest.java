@@ -94,7 +94,7 @@ class PipelineRendererContextTest {
         );
 
         // Vanilla-shaped 256x256 colormaps for all three biome types so the stack-resolved
-        // ColorMapLoader (D10 re-point) finds them like any other texture. A recognisable grass
+        // ColorMapLoader finds them like any other texture. A recognisable grass
         // corner pixel makes the pass-through visible; foliage / dry_foliage stay blank.
         BufferedImage grassMap = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
         grassMap.setRGB(0, 0, 0xFF7FB238);

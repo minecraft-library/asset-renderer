@@ -15,10 +15,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link CitParser} - the four-form texture path resolution (03-rules §3.2 incl. the filename
- * default), the fail-closed parse polarity (D3.3), and each 07-optifine §3.4 defect counter as a
- * regression. With only vanilla loaded the whole rule layer is inert, so these fixtures are the sole
- * exercise of the CIT grammar.
+ * Verifies {@link CitParser} - the four-form texture path resolution (incl. the filename default),
+ * the fail-closed parse polarity, and each parse edge case as a regression. With only vanilla loaded
+ * the whole rule layer is inert, so these fixtures are the sole exercise of the CIT grammar.
  */
 class CitParserTest {
 
@@ -26,7 +25,7 @@ class CitParserTest {
     private static final @NotNull String PROPS_DIR = "optifine/cit/swords";
     private static final @NotNull String CIT_ROOT = "optifine/cit";
 
-    // --- §3.2 four-form path resolution -------------------------------------------------------
+    // --- four-form path resolution -------------------------------------------------------
 
     @Test
     @DisplayName("absent texture resolves to the <basename>.png filename default next to the props file")
@@ -74,7 +73,7 @@ class CitParserTest {
         assertThat(rule.output().texture().get().id(), equalTo("minecraft:optifine/cit/swords/excalibur"));
     }
 
-    // --- §3.4 defect counters -----------------------------------------------------------------
+    // --- parse edge cases -----------------------------------------------------------------
 
     @Test
     @DisplayName("#5 damage is a value/range list with % and mask, not a single range")
@@ -157,7 +156,7 @@ class CitParserTest {
         assertThat(pathString(legacy.nbtRules().getFirst().path()), equalTo("components/minecraft:custom_name"));
     }
 
-    // --- §3.3 fail-closed ---------------------------------------------------------------------
+    // --- fail-closed ---------------------------------------------------------------------
 
     @Test
     @DisplayName("an unparseable damage rejects the whole rule (fail-closed)")
@@ -183,7 +182,7 @@ class CitParserTest {
         assertThat(parse(props("texture", "blade")).isPresent(), is(false));
     }
 
-    // --- D3.8 potion synthesis ----------------------------------------------------------------
+    // --- potion synthesis ----------------------------------------------------------------
 
     @Test
     @DisplayName("a potion shortcut synthesises a rule on the splash_potion item matching the effect")

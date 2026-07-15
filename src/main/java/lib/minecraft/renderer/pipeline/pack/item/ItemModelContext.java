@@ -9,16 +9,14 @@ import java.util.Optional;
  * The immutable evaluation context an item-definition tree is walked against
  * ({@link ItemModelWalker}) - a fixed set of neutral GUI defaults plus the handful of caller
  * overrides an icon renderer can honestly supply (trim material, dye colour, clock time, compass
- * angle), mirroring how {@code EntityOptions} carries {@code state}/{@code collarColor}/{@code age}
- * (05-models.md §3.3).
+ * angle), mirroring how {@code EntityOptions} carries {@code state}/{@code collarColor}/{@code age}.
  *
  * <p>Every dispatch property a vanilla tree branches on resolves through one of three accessors -
  * {@link #conditionValue(String)} (booleans), {@link #selectValue(String)} (case keys),
  * {@link #rangeValue(String)} (numeric thresholds). A property this context has no value for is
  * <b>unevaluable</b>: the walker takes the {@code on_false} / no-case-match / {@code fallback}
  * branch, which is the Catharsis degradation contract. The default {@link #gui()} context leaves
- * every override neutral, so it resolves each vanilla tree to the exact branch the former
- * fallback-descent reached - byte-identical output.
+ * every override neutral, so it resolves each vanilla tree to its fallback branch.
  *
  * @param displayContext the {@code minecraft:display_context} case key; {@code "gui"} for icons
  * @param usingItem the {@code minecraft:using_item} flag; {@code false} renders bow unpulled (today's output)
@@ -28,7 +26,7 @@ import java.util.Optional;
  * @param time the {@code minecraft:time} range input; {@code 0} selects clock frame 0
  * @param compassAngle the {@code minecraft:compass} range input; {@code 0} selects the neutral compass frame
  * @param customModelData the {@code custom_model_data} range input, or {@code null} to fall back on every such dispatch
- * @param components the render-time NBT component tree (nbt-factory {@code CompoundTag}); rung-3 owns matching, parse-and-hold here
+ * @param components the render-time NBT component tree (nbt-factory {@code CompoundTag}); parsed and held here, component matching not yet evaluated
  */
 public record ItemModelContext(
     @NotNull String displayContext,
@@ -47,8 +45,7 @@ public record ItemModelContext(
 
     /**
      * The neutral GUI context: {@code display_context = gui} and every caller override left at its
-     * default so each vanilla tree resolves to its fallback branch, byte-identical to the former
-     * loader's output.
+     * default so each vanilla tree resolves to its fallback branch.
      *
      * @return the neutral GUI evaluation context
      */

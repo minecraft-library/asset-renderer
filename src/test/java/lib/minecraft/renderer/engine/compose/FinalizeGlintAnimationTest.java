@@ -17,12 +17,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * End-to-end coverage for glint × animation composition (04-animation §5) - the path no vanilla render
+ * End-to-end coverage for glint × animation composition - the path no vanilla render
  * exercises (vanilla ships no animated-and-enchanted subject), reachable only when a caller opts a
  * glinted subject into {@code frameCount > 1}. Drives {@link Finalize#renderStrip} with an enchanted
  * {@link Finalize.Glint} over a flat opaque base and asserts the result is a multi-frame
  * {@link AnimatedImageData} whose frames DIFFER - i.e. the foil is stamped per frame at the
- * tick-derived glint schedule rather than dropped (the pre-lift behaviour) or frozen.
+ * tick-derived glint schedule rather than dropped or frozen.
  */
 class FinalizeGlintAnimationTest {
 
@@ -71,7 +71,7 @@ class FinalizeGlintAnimationTest {
         assertThat(result, is(instanceOf(AnimatedImageData.class)));
         AnimatedImageData animated = (AnimatedImageData) result;
         assertThat(animated.getFrames().size(), is(4));
-        // The foil scrolls: successive frames must differ (the exclusion-lift, not a frozen glint).
+        // The foil scrolls: successive frames must differ (not a frozen glint).
         PixelBuffer f0 = animated.getFrames().get(0).pixels();
         PixelBuffer f2 = animated.getFrames().get(2).pixels();
         assertThat(differingPixels(f0, f2), greaterThan(0));

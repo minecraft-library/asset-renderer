@@ -29,16 +29,15 @@ import java.util.stream.Stream;
 
 /**
  * Reads MC 26.1 item-definition dispatch trees from every pack's {@code assets/<namespace>/items/}
- * subtree, parsing each into an immutable {@link ItemModelTree} (05-models.md §3). The successor to
- * the former {@code ItemDefinitionLoader}: a single scan yields the parsed trees, from which the
- * two projections the pipeline needs are derived by walking each tree against the neutral
+ * subtree, parsing each into an immutable {@link ItemModelTree}. A single scan yields the parsed
+ * trees, from which the two projections the pipeline needs are derived by walking each tree against
+ * the neutral
  * {@link ItemModelContext#gui()} context - {@link #deriveBlockItemModels(Map)} (the block-item
  * inventory-model map {@code BlockIndexLoader} consumes) and {@link #deriveTints(Map)} (the per-layer
  * tint list {@code ItemIndexLoader} attaches).
  *
- * <p>Both projections are byte-identical to the former loader on vanilla: the block-item map is the
- * root-plain-model-block-ref set (a dispatch-rooted item is never a block-item override), and the
- * neutral walk reaches the same tint-carrying branch the former fallback-descent did. Packs merge
+ * <p>The block-item map is the root-plain-model-block-ref set (a dispatch-rooted item is never a
+ * block-item override), and the neutral walk reaches the tint-carrying branch. Packs merge
  * ascending (higher priority winning); each pack's {@code filter.block} erases matching accumulated
  * ids before it merges; item ids are namespace-qualified to their owning namespace.
  */
@@ -68,8 +67,8 @@ public class ItemModelTreeLoader {
                 }
 
             // A pre-format-46 pack ships no items/*.json trees; its models/item/*.json `overrides`
-            // arrays map onto the same tree form (05-models.md §7) so the walker serves them like a
-            // native items file. Runs only for a legacy pack, so a vanilla / modern stack is untouched.
+            // arrays map onto the same tree form so the walker serves them like a native items file.
+            // Runs only for a legacy pack, so a vanilla / modern stack is untouched.
             if (LegacyOverrideMapper.isLegacyPack(pack))
                 for (PackRoot root : pack.roots())
                     for (String namespace : pack.namespaces()) {
@@ -210,7 +209,7 @@ public class ItemModelTreeLoader {
      * trees - the block-item projection {@code BlockIndexLoader} consumes to swap a block's in-world
      * model for its inventory model (e.g. {@code piston -> block/piston_inventory}). Only a
      * root-plain-{@code model} node whose ref is a block model qualifies; a dispatch-rooted item
-     * (beehive, bee_nest) is never a block-item override (byte-identical to the former root-only scan).
+     * (beehive, bee_nest) is never a block-item override.
      *
      * @param trees the merged item-definition trees
      * @return the item-to-block-model mapping for block items
@@ -227,8 +226,7 @@ public class ItemModelTreeLoader {
     /**
      * Derives the per-layer tint map ({@code itemId -> tints}) from the parsed trees by walking each
      * against the neutral {@link ItemModelContext#gui()} context, so tints come from the branch the
-     * icon actually renders (05-models.md §3.3). Items whose rendered branch declares no tints are
-     * absent (byte-identical to the former fallback-descent on vanilla).
+     * icon actually renders. Items whose rendered branch declares no tints are absent.
      *
      * @param trees the merged item-definition trees
      * @return the item-to-tint-list mapping for tinted items

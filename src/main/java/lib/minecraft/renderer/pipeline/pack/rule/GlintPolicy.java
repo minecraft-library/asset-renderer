@@ -5,11 +5,11 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The glint decision a CIT rule walk produces for one render - rules DECIDE, the compose terminal
- * APPLIES (D3.9, 03-rules §7). The decision rides on {@link CitResult} through the item options into
- * the finalize stage, which stays the sole applier so doc 04 keeps ownership of glint x animation.
+ * APPLIES. The decision rides on {@link CitResult} through the item options into
+ * the finalize stage, which stays the sole applier of glint x animation.
  *
  * <p>The evaluation that chooses {@link Suppressed} / {@link Replaced} (matched {@code type=enchantment}
- * rules, the global {@code useGlint=false} toggle) lives in {@link GlintEvaluator} (sub-commit 3c); the
+ * rules, the global {@code useGlint=false} toggle) lives in {@link GlintEvaluator}; the
  * result rides {@link CitResult} and the item renderer translates it into a {@code Finalize.Glint}.
  */
 public sealed interface GlintPolicy permits GlintPolicy.Default, GlintPolicy.Suppressed, GlintPolicy.Replaced {

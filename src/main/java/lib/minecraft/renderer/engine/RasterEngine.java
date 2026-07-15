@@ -2,8 +2,6 @@ package lib.minecraft.renderer.engine;
 
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.MenuRenderer;
-import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.engine.texture.Textures;
 import org.jetbrains.annotations.NotNull;
 
@@ -12,15 +10,10 @@ import org.jetbrains.annotations.NotNull;
  * without going through the {@link ModelEngine} triangle rasterizer.
  *
  * <p>Holds a {@link Textures} so every 2D renderer gets pack-aware texture resolution
- * (via {@link #textures()}) alongside its allocation and blit helpers. Used by:
- * <ul>
- *   <li>{@link MenuRenderer MenuRenderer} - inventory chrome and slot
- *       backgrounds.</li>
- *   <li>{@link TextRenderer TextRenderer} - tooltip backgrounds and
- *       borders.</li>
- *   <li>2D sub-renderers like {@code FluidRenderer.FluidFace2D} and
- *       {@code PortalRenderer.PortalFace2D}.</li>
- * </ul>
+ * (via {@link #textures()}) alongside its allocation and blit helpers. Used by the 2D
+ * sub-renderer paths - the block and item icon layers, the player overlay compositor, and
+ * {@code FluidRenderer.FluidFace2D} / {@code PortalRenderer.PortalFace2D}. Tooltip and menu
+ * chrome do not go through it: they draw straight into their own pixel buffers.
  *
  * <p>Two helper families:
  * <ul>

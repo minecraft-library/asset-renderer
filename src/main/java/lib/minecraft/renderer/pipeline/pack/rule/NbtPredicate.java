@@ -12,8 +12,7 @@ import java.util.regex.Pattern;
  * The value test of a CIT {@code nbt.<path>} rule, applied to the leaves an {@link NbtPath} reaches.
  * A rule matches when ANY reached leaf satisfies the predicate (OptiFine's wildcard = "any"), except
  * {@link Exists}, which tests presence of the whole leaf set. The variants are the OptiFine grammar's
- * first-class prefixes ({@code pattern:}/{@code regex:}/{@code range:}/{@code exists:}/{@code raw:}),
- * which HEAD fell through to exact-match (07-optifine defect #9).
+ * first-class prefixes ({@code pattern:}/{@code regex:}/{@code range:}/{@code exists:}/{@code raw:}).
  */
 public sealed interface NbtPredicate {
 

@@ -6,13 +6,13 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * Computes the {@link GlintPolicy} for one item render from the merged rule set (03-rules §7, D3.9) -
- * rules DECIDE, the compose terminal APPLIES. The two pack inputs that touch glint are matched
+ * Computes the {@link GlintPolicy} for one item render from the merged rule set - rules DECIDE, the
+ * compose terminal APPLIES. The two pack inputs that touch glint are matched
  * {@code type=enchantment} CIT rules (a single-texture glint replacement) and the global
  * {@code useGlint=false} toggle; this evaluator folds them into one decision the item renderer threads
  * into the finalize stage.
  *
- * <p>Precedence (03-rules §7): the highest-precedence matching {@code type=enchantment} rule wins with
+ * <p>Precedence: the highest-precedence matching {@code type=enchantment} rule wins with
  * {@link GlintPolicy.Replaced}; else a merged {@code useGlint == false} yields {@link GlintPolicy#SUPPRESSED};
  * else {@link GlintPolicy#DEFAULT}. The enchantment walk reuses the same merged, weight-ordered
  * {@link RuleSet#citRules()} list, so "highest-precedence" is first-match in that order.

@@ -8,7 +8,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins the glint × animation schedule bridge (04-animation §5): the wall-clock instant of an
+ * Pins the glint × animation schedule bridge: the wall-clock instant of an
  * animation tick, converted to the glint time {@link GlintKit#applyGlintAtTimes} consumes.
  * <p>
  * The load-bearing invariant is the {@code * 8.0} speed factor. {@code applyGlintAtTimes} takes
@@ -48,7 +48,7 @@ class FinalizeGlintScheduleTest {
     @Test
     @DisplayName("both glint loop periods are multiples of the tick wall quantum -> clean sweep")
     void loopPeriodsSweepCleanly() {
-        // The design's phase-alignment claim: 110000 / 30000 ms loops are multiples of 50 ms/tick, so
+        // Phase-alignment: 110000 / 30000 ms loops are multiples of 50 ms/tick, so
         // tick-derived glint times visit distinct phases and complete the loop without drift.
         assertThat(GlintKit.VANILLA_U_LOOP_MILLIS % Finalize.MILLIS_PER_TICK, is(0L));
         assertThat(GlintKit.VANILLA_V_LOOP_MILLIS % Finalize.MILLIS_PER_TICK, is(0L));

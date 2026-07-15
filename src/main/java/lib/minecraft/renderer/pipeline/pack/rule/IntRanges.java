@@ -10,8 +10,7 @@ import java.util.List;
 /**
  * A list of {@link IntRange}s - the OptiFine grammar's list-of-values-or-ranges form
  * ({@code damage=1,3,5-7}, {@code enchantmentLevels=1-3 5}). A value matches when any entry contains
- * it. Replaces HEAD's single {@code Optional<IntRange>}, which silently swallowed lists and the
- * {@code %} modifier (07-optifine defect #5).
+ * it.
  *
  * @param entries the range entries, in declaration order
  */

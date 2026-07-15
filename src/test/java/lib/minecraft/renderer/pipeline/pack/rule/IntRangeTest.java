@@ -8,9 +8,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link IntRange#parse} across the OptiFine range grammar (07-optifine §2.2), especially the
- * bracketed-negative forms HEAD could not parse ({@code (-25)}, {@code (-10)-10}) - which previously
- * threw {@code NumberFormatException} and dropped the whole rule.
+ * Verifies {@link IntRange#parse} across the OptiFine range grammar, especially the bracketed-negative
+ * forms ({@code (-25)}, {@code (-10)-10}).
  */
 class IntRangeTest {
 

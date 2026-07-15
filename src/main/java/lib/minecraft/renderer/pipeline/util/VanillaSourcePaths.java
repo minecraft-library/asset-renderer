@@ -70,8 +70,7 @@ public class VanillaSourcePaths {
     public static final @NotNull String ITEM_KIND = "item";
 
     /**
-     * The {@code assets/<namespace>/<subdir>} directory for a pack namespace - the multi-namespace
-     * generalization of the former {@code assets/minecraft/}-hardcoded loader roots.
+     * The {@code assets/<namespace>/<subdir>} directory for a pack namespace.
      *
      * @param namespace the pack namespace (e.g. {@code minecraft}, {@code hypixel_skyblock})
      * @param subdir the relative subtree (e.g. {@link #MODELS_BLOCK_SUBDIR})

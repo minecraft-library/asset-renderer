@@ -11,7 +11,7 @@ import java.util.TreeSet;
 
 /**
  * Derives an output-clock animation timeline from a subject's resolved {@code .mcmeta} sidecars
- * (04-animation §3, decision D2 - the {@code AUTO} feeder). A subject that opts in to
+ * (the {@code AUTO} feeder). A subject that opts in to
  * {@code AnimationOptions.deriveTimeline} cannot generally know a sensible {@code frameCount} /
  * {@code ticksPerFrame} for its textures (a block may composite a 32-frame 2-tick water face and a
  * 300-frametime prismarine face); this helper probes each animated texture's loop length + entry

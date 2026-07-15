@@ -10,8 +10,8 @@ import java.util.Set;
  * One logical resource pack in the stack: its identity, byte access, parsed metadata, active roots,
  * namespaces, and detected capabilities.
  *
- * <p>Replaces the former {@code TexturePack}. The stack is vanilla at priority 0 then user packs
- * ascending, higher winning - the same ordering every downstream merge assumes. After acquisition
+ * <p>The stack is vanilla at priority 0 then user packs ascending, higher winning - the same
+ * ordering every downstream merge assumes. After acquisition
  * the container is always a materialized {@link PackContainer.Directory} (zip and {@code .cats}
  * sources extract to the same tree shape), so the render hot path never touches an archive.
  *

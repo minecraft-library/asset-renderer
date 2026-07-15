@@ -17,14 +17,13 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * A pack's parsed rule payload, at two granularities (03-rules §2): one per {@link ResourcePack} (built
+ * A pack's parsed rule payload, at two granularities: one per {@link ResourcePack} (built
  * by {@link RuleScanner}) and one MERGED view the stack owns, built once at pipeline time by
- * {@link #merge(PackStack)} and consumed by every render. The merge replaces HEAD's three
- * {@code Pipeline.collectCitRules} / {@code collectCtmRules} / {@code collectColorOverrides} walks.
+ * {@link #merge(PackStack)} and consumed by every render.
  *
- * <p>Merge order: CIT rules by weight DESC, then FILENAME (D3.2 - the platform-deterministic tie-break
- * that replaced HEAD's walk order), then higher-priority pack; CTM rules partitioned tile-target
- * before block-target (07-optifine §5) then the same key; {@code color.properties} merged per-KEY with
+ * <p>Merge order: CIT rules by weight DESC, then FILENAME (a platform-deterministic tie-break), then
+ * higher-priority pack; CTM rules partitioned tile-target
+ * before block-target then the same key; {@code color.properties} merged per-KEY with
  * the highest-priority pack winning each key; {@code useGlint} taken from the highest pack shipping it.
  *
  * @param pack the owning pack, or {@link PackId#VANILLA} nominally for a merged view

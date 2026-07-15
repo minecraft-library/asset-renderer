@@ -55,8 +55,8 @@ public class ModelElement {
 
     /**
      * The element's block light level {@code 0-15} (vanilla {@code light_emission}, 24w33a+). Raises
-     * the rendered shade floor to {@code emission / 15}, full-bright at {@code 15} (05-models.md §5.3
-     * fold). Vanilla's only emissive elements ({@code cross_emissive}) are also {@code shade: false},
+     * the rendered shade floor to {@code emission / 15}, full-bright at {@code 15}. Vanilla's only
+     * emissive elements ({@code cross_emissive}) are also {@code shade: false},
      * which is already full-bright, so the fold is a no-op on vanilla. Defaults to {@code 0}.
      */
     @SerializedName("light_emission")

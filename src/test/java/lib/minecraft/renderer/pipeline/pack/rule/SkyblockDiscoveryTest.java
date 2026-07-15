@@ -24,10 +24,10 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link SkyblockDiscovery} (03-rules §6.2): the capability gate (a non-Catharsis pack
+ * Verifies {@link SkyblockDiscovery}: the capability gate (a non-Catharsis pack
  * discovers nothing) and the {@code assets/skyblock/items/**.json} walk including the shared-base
  * sub-identifier directories, addressed under the synthetic {@code skyblock} namespace. Discovery only -
- * nothing renders these until phase 6.
+ * nothing renders these.
  */
 class SkyblockDiscoveryTest {
 

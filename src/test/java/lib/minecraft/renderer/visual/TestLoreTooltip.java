@@ -95,7 +95,7 @@ public final class TestLoreTooltip {
         Files.createDirectories(OUTPUT_DIR);
 
         // Build a renderer context so the sprite-backed tooltip chrome can resolve the vanilla
-        // tooltip/background + tooltip/frame nine-slice sprites through the pack stack (06 §1.3-1.6).
+        // tooltip/background + tooltip/frame nine-slice sprites through the pack stack.
         Pipeline.Result result;
         try {
             result = Pipeline.run(PipelineOptions.defaults());
@@ -330,7 +330,7 @@ public final class TestLoreTooltip {
 
     /**
      * Two scrolling per-pixel gradients at {@code cycleTicks 40}. Both repeat the first color as the
-     * last stop so the sweep loops without a seam (06 §2.7).
+     * last stop so the sweep loops without a seam.
      *
      * @return the gradient sample lines
      */

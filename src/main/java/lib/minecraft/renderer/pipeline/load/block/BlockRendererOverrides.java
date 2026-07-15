@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * The block-entity geometry override channel (05-models.md §4.3): the merged {@code renderer/*.json}
+ * The block-entity geometry override channel: the merged {@code renderer/*.json}
  * files each pack may ship at its ROOT (outside {@code assets/}, mirroring the classpath layout
  * {@code lib/minecraft/renderer/} so a vanilla client ignores them) to deliberately replace
  * classpath-bundled block-entity geometry.

@@ -28,10 +28,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Regression coverage for the phase-7 review's confirmed findings: a legacy {@code overrides} pack must
- * NOT clobber the native items-tree's tints (05-models.md §7) or a block-item's inventory projection,
- * and the legacy scan must not touch a modern (format &gt;= 46) pack. Exercises
- * {@link ItemModelTreeLoader#load} end-to-end over a vanilla-native + legacy-override stack.
+ * Regression coverage: a legacy {@code overrides} pack must NOT clobber the native items-tree's tints
+ * or a block-item's inventory projection, and the legacy scan must not touch a modern
+ * (format &gt;= 46) pack. Exercises {@link ItemModelTreeLoader#load} end-to-end over a vanilla-native
+ * + legacy-override stack.
  */
 @DisplayName("Phase 7 legacy override merge preserves native tree tints + block-item projection")
 class Phase7LegacyMergeTest {

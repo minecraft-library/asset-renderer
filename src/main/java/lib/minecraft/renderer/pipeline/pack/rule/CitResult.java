@@ -8,18 +8,18 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * The effect of the highest-precedence matching CIT rule on one item render (03-rules §2) - the
- * widened return of the {@code resolveItemTextureOverride} seam (from HEAD's {@code Optional<String>}).
+ * The effect of the highest-precedence matching CIT rule on one item render - the return of the
+ * {@code resolveItemTextureOverride} seam.
  *
  * <p>A match swaps the {@code layer0} {@link #texture} before decode, swaps named {@link #subTextures}
- * per {@code texture.<name>}, and re-enters model resolution with {@link #model} (doc 05 owns the join).
- * The {@link #glint} decision rides through to the compose terminal (03-rules §7). {@link #NONE} is the
- * no-match result: every override empty and glint left at {@link GlintPolicy#DEFAULT}.
+ * per {@code texture.<name>}, and re-enters model resolution with {@link #model}. The {@link #glint}
+ * decision rides through to the compose terminal. {@link #NONE} is the no-match result: every override
+ * empty and glint left at {@link GlintPolicy#DEFAULT}.
  *
  * @param texture the {@code layer0} replacement, absent when no rule matched or the match overrode only a model
  * @param subTextures the {@code texture.<name>} replacements keyed by sub-texture name
  * @param model the model override, absent when no rule matched or the match overrode only textures
- * @param glint the glint decision (a {@link GlintPolicy#DEFAULT} placeholder until sub-commit 3c)
+ * @param glint the glint decision
  */
 public record CitResult(
     @NotNull Optional<ResourceId> texture,
@@ -35,7 +35,7 @@ public record CitResult(
     /**
      * Builds a result from a matched rule's declared output with the given glint decision - the
      * {@link GlintEvaluator} decides the policy once per render and the item walk grafts it onto the
-     * winning output (03-rules §7).
+     * winning output.
      *
      * @param output the matched rule's output
      * @param glint the render's glint decision
@@ -47,7 +47,7 @@ public record CitResult(
 
     /**
      * Returns a copy carrying the given glint decision - used when the render matched no item rule but
-     * a {@code type=enchantment} rule or {@code useGlint=false} still changed the glint (03-rules §7).
+     * a {@code type=enchantment} rule or {@code useGlint=false} still changed the glint.
      *
      * @param glint the glint decision to carry
      * @return the same overrides with the glint decision replaced

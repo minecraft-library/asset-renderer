@@ -9,11 +9,10 @@ import java.util.Optional;
 
 /**
  * The OptiFine CIT enchantment filter - the {@code enchantments=} id list and the {@code levels=}
- * range list, replacing HEAD's invented {@code id=range} pairs (07-optifine defect #2). Matching has
- * the grammar's two modes (07-optifine §2.1): with {@link #ids} present the item must carry AT LEAST
- * ONE listed enchantment (OptiFine's "any of these" list) and (when {@link #levels} is present) that
- * matched enchantment's level must fall in range; with {@link #ids} empty the levels match the TOTAL
- * level sum across every enchantment, and an empty spec matches any enchantment.
+ * range list. Matching has the grammar's two modes: with {@link #ids} present the item must carry AT
+ * LEAST ONE listed enchantment (OptiFine's "any of these" list) and (when {@link #levels} is present)
+ * that matched enchantment's level must fall in range; with {@link #ids} empty the levels match the
+ * TOTAL level sum across every enchantment, and an empty spec matches any enchantment.
  *
  * <p>The list is ANY, not ALL: the canonical idiom {@code enchantments=sharpness smite} pairs
  * mutually-exclusive vanilla enchantments (an item holds at most one), so an all-must-be-present read

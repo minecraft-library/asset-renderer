@@ -139,7 +139,7 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
-     * Runs the shadowed-model diagnostic (05-models.md §4.2) over the block-entity-backed id set - the
+     * Runs the shadowed-model diagnostic over the block-entity-backed id set - the
      * primary block-entity models unioned with their state-conditional variants - so a non-vanilla pack
      * shipping a vanilla-form model / blockstate for a code-rendered block entity is named rather than
      * silently ignored. Byte-neutral: a vanilla-only stack emits nothing.
@@ -172,7 +172,7 @@ public final class PipelineRendererContext implements RendererContext {
             if (cached != null) return Optional.of(cached);
         }
         // Synthesis sits BEHIND resolution: only a stack miss consults the paletted-permutation
-        // registry (05-models.md §6), so no present-texture path changes. On vanilla the registry
+        // registry, so no present-texture path changes. On vanilla the registry
         // holds only the trim atlas, whose references the item renderer serves before resolution, so
         // this .or() never fires - byte-neutral.
         return decode(this.stack.resolve(id)).or(() -> this.synthesizer.synthesize(id, this::resolveTexture));

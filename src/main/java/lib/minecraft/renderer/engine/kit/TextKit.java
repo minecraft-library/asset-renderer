@@ -90,7 +90,7 @@ public class TextKit {
 
     /**
      * Draws all segments in a {@link LineSegment}, threading an animation {@code tick} alongside the
-     * obfuscation {@code frameSeed} so gradient segments can scroll (06 §2.7). Returns the total
+     * obfuscation {@code frameSeed} so gradient segments can scroll. Returns the total
      * advance in mcPixels.
      *
      * @param g the graphics owning the buffer and sampling factor

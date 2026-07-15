@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * One node of a parsed {@code items/*.json} dispatch tree (05-models.md §3). The sealed hierarchy
+ * One node of a parsed {@code items/*.json} dispatch tree. The sealed hierarchy
  * mirrors the 26.1 node vocabulary: a {@link Model} leaf, the {@link Condition} / {@link Select} /
  * {@link RangeDispatch} dispatch nodes, {@link Composite} concatenation, a {@link Special}
  * hardcoded-render leaf, the {@link Bundle} selected-item slot marker, and an {@link Empty} sentinel
@@ -24,7 +24,7 @@ public sealed interface ItemModelNode
 
     /**
      * A {@code minecraft:model} leaf - a resolved model reference plus the per-layer tints declared
-     * on this branch (05-models.md §3.3: tints ride the branch actually rendered).
+     * on this branch (tints ride the branch actually rendered).
      *
      * @param model the namespaced model id (e.g. {@code minecraft:item/bow})
      * @param tints the per-layer tint rules, index {@code N} applying to {@code layerN}; empty when untinted
@@ -34,7 +34,7 @@ public sealed interface ItemModelNode
     /**
      * A {@code minecraft:condition} node - a boolean property selecting {@link #onTrue} or
      * {@link #onFalse}. The optional {@link #component} names the NBT component a
-     * {@code has_component} condition tests (rung-3, parse-and-hold).
+     * {@code has_component} condition tests (parse-and-hold; component matching not yet evaluated).
      *
      * @param property the dispatch property id
      * @param component the tested component id, or empty string when absent
@@ -100,8 +100,8 @@ public sealed interface ItemModelNode
     }
 
     /**
-     * A {@code minecraft:composite} node - all children evaluated and their output concatenated
-     * (05-models.md §3.3). The walker's primary-leaf resolution takes the first child that yields a
+     * A {@code minecraft:composite} node - all children evaluated and their output concatenated.
+     * The walker's primary-leaf resolution takes the first child that yields a
      * model or special leaf.
      *
      * @param models the child nodes, in paint order
@@ -110,8 +110,8 @@ public sealed interface ItemModelNode
 
     /**
      * A {@code minecraft:special} leaf - a hardcoded render kind ({@code bed}, {@code shield},
-     * {@code player_head}, {@code copper_golem_statue}, ...) that maps onto an existing render path
-     * (05-models.md §3.4), carrying the {@code base} item model, the kind's inline fields, and the
+     * {@code player_head}, {@code copper_golem_statue}, ...) that maps onto an existing render path,
+     * carrying the {@code base} item model, the kind's inline fields, and the
      * {@link SpecialTransform}. Unknown kinds are diagnosed and dropped by the walker.
      *
      * @param kind the special kind (the inner {@code model.type}, e.g. {@code minecraft:bed})
@@ -132,7 +132,7 @@ public sealed interface ItemModelNode
 
     /**
      * The empty sentinel - an absent branch or an unknown node type. Renders nothing; there is no
-     * fallback (spine §4.5 no-fallback invariant).
+     * fallback.
      */
     record Empty() implements ItemModelNode {
 

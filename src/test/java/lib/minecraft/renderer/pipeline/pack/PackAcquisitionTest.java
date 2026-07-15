@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Verifies {@link PackAcquisition} over synthetic directory packs: renderer-target overlay activation
- * (decision 1 - match the game format, not the pack's own), namespace discovery across active roots,
+ * (match the game format, not the pack's own), namespace discovery across active roots,
  * capability detection, and the provenance sidecar. A directory source materializes in place, so no
  * extraction is exercised here (the real-pack integration test covers that).
  */

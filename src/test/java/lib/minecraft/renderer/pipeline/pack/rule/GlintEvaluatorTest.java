@@ -17,8 +17,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link GlintEvaluator} - the CIT glint decision (03-rules §7, D3.9): the highest-precedence
- * matching {@code type=enchantment} rule wins with {@link GlintPolicy.Replaced}, else a merged
+ * Verifies {@link GlintEvaluator} - the CIT glint decision: the highest-precedence matching
+ * {@code type=enchantment} rule wins with {@link GlintPolicy.Replaced}, else a merged
  * {@code useGlint == false} suppresses, else the default vanilla glint. Also pins the
  * empty-{@code items} match that a {@code type=enchantment} glint rule relies on.
  */

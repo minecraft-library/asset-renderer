@@ -6,7 +6,7 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The per-file diagnostic surface for rejected rules (D3.3, 03-rules §3.3) - a fail-closed rule
+ * The per-file diagnostic surface for rejected rules - a fail-closed rule
  * degrades to vanilla output, but never silently: the pack, file, key, and value that caused the
  * rejection are named so a pack author can see why a rule did not load. Logs to {@code System.err},
  * matching the pack layer's ambiguity logging.

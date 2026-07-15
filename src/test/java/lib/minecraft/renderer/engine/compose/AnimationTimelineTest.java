@@ -13,7 +13,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Coverage for {@link AnimationTimeline}'s AUTO derivation (04-animation §3 / §6, decision D2) against
+ * Coverage for {@link AnimationTimeline}'s AUTO derivation against
  * the real vanilla 26.1 {@code .mcmeta} shapes: the reordered {@code fire_0} frames list, the
  * {@code water_still} bare frametime, the interpolating {@code magma} / {@code prismarine} loops (the
  * latter over the 200-tick cap), and multi-texture LCM/GCD reconciliation. Verifies both the uniform

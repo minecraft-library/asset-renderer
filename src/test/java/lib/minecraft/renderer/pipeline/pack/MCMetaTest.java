@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Verifies {@link MCMeta} - the umbrella parser over every {@code .mcmeta} section. Covers the five
  * on-disk pack.mcmeta shapes (defrosted, hypixel-skyblock, both {@code .cats} decoys, vanilla synth)
- * as parse fixtures, the 02 §3.3 tolerance rows (absent pack_format, int/array format bounds,
+ * as parse fixtures, the format-tolerance rows (absent pack_format, int/array format bounds,
  * coexisting generations, string/component/§ descriptions, tab indentation), and each sidecar section
  * (animation, texture, gui.scaling, villager) plus overlay/filter parsing.
  */

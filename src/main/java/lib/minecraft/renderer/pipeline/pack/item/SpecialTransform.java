@@ -8,7 +8,7 @@ import java.util.Arrays;
 
 /**
  * A {@code special}-node {@code transformation} - vanilla's {@code com.mojang.math.Transformation}
- * decomposition ({@code items/player_head.json} et al., 05-models.md §5.3), applied
+ * decomposition ({@code items/player_head.json} et al.), applied
  * {@code T . Rleft . S . Rright} as a model-space pre-transform ahead of the render placement.
  * Identity when the node declares no transformation.
  *
@@ -53,7 +53,7 @@ public record SpecialTransform(
      * pattern the item {@code display} transform uses ({@code ItemRenderer.Held3D.resolveDisplayTransform}
      * builds {@code scale; rotate; translate}) - which is the transpose the {@code v_row x M} convention
      * requires (CLAUDE.md JOML section). Applied as a model-space pre-transform ahead of the render
-     * placement in the special-kind path (05-models.md §5.3).
+     * placement in the special-kind path.
      *
      * @return the composed model-space pre-transform matrix
      */

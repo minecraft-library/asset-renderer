@@ -11,7 +11,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Verifies the {@link ItemContext} reshape (D3.4) - the {@link ItemContext.Builder} synthesises a
+ * Verifies {@link ItemContext} display-name synthesis - the {@link ItemContext.Builder} synthesises a
  * minimal NBT compound from the display-name scalar (at {@code components.minecraft:custom_name}) so a
  * display-name CIT rule keeps matching a caller that supplied no explicit NBT.
  */

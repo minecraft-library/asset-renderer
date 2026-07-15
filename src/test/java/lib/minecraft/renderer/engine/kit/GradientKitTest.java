@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * Pins {@link GradientKit}'s pure color evaluator (sRGB piecewise / HSV rainbow, per-mode position
  * handling), the scroll phase / shear math, the surrogate-safe advance measurement, and the
- * per-letter advance-center draw (06 §2.2-2.8).
+ * per-letter advance-center draw.
  */
 class GradientKitTest {
 

@@ -195,7 +195,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // the harness {@code .variant} sidecar the parity test used to consume.
             String effectiveVariant = options.getVariant().isEmpty() ? block.defaultStateKey() : options.getVariant();
 
-            // Per-frame rebuild (04-animation D3): variant resolution, face-texture resolution,
+            // Per-frame rebuild: variant resolution, face-texture resolution,
             // geometry assembly, and the inventory relight ALL run inside the rasterizer callback at
             // the frame's tick, so an animated block face (water / fire / prismarine / sea_lantern /
             // magma) rebuilds its flipbook geometry per frame - the proven fluid pattern; capturing the
@@ -206,7 +206,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick(), so a caller-supplied non-zero startTick is honored
             // (staticFrame would hardcode tick 0). Default (startTick=0, frameCount=1) is byte-identical.
-            // AUTO opt-in (04-animation §3): deriveTimeline probes the block's animated face textures once
+            // AUTO opt-in: deriveTimeline probes the block's animated face textures once
             // and derives frameCount/ticksPerFrame, so a caller need not know the flipbook cadence.
             AnimationOptions anim = options.getAnimation();
             if (anim.isDeriveTimeline())
@@ -221,7 +221,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         }
 
         /**
-         * Derives the block's animation timeline (04-animation §3, decision D2) when the caller opts in
+         * Derives the block's animation timeline when the caller opts in
          * to {@link AnimationOptions#isDeriveTimeline()}: collects every animated face texture the block
          * can render, folds their loop lengths + cadences into a single {@link AnimationTimeline.Uniform}
          * (LCM loop capped at 200 ticks, GCD cadence), and returns the caller's options with the derived

@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Exercises the legacy {@code overrides} tolerate-and-map (05-models.md §7): the mechanical 1.21.4
+ * Exercises the legacy {@code overrides} tolerate-and-map: the mechanical 1.21.4
  * translation of pre-format-46 {@code models/item} {@code overrides} onto the items-tree node
  * vocabulary, the {@link LegacyOverrideMapper#isLegacyPack} format gate, threshold-order preservation,
  * and the unmapped-predicate skip-with-diagnostic contract.

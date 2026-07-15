@@ -39,7 +39,7 @@ public class AnimationOptions {
     private final float loopFadeBridgePct = 0.2f;
 
     /**
-     * Opt-in {@code AUTO} timeline derivation (04-animation §3, decision D2): when {@code true}, a
+     * Opt-in {@code AUTO} timeline derivation: when {@code true}, a
      * subject that cannot know a sensible {@link #frameCount} / {@link #ticksPerFrame} for its textures
      * probes its resolved {@code .mcmeta} sidecars once at {@link #startTick} and derives the timeline
      * (LCM loop capped at 200 ticks, GCD cadence) via

@@ -28,9 +28,9 @@ import java.util.stream.Stream;
 /**
  * Collects the {@code minecraft:paletted_permutations} entries from every pack's
  * {@code assets/<ns>/atlases/*.json} into an ordered {@link PalettedPermutationSource} list for the
- * {@code TextureSynthesizer} (05-models.md §6). Atlas {@code sources} lists <b>concatenate</b> across
+ * {@code TextureSynthesizer}. Atlas {@code sources} lists <b>concatenate</b> across
  * packs ascending (vanilla atlas semantics - additive, not replace; the one concatenation-merge file
- * kind in this rebuild), so a higher pack extends the synthesizable set without dropping the vanilla
+ * kind), so a higher pack extends the synthesizable set without dropping the vanilla
  * trim overlays.
  *
  * <p>Vanilla ships the trim overlays in {@code atlases/items.json} (helmet / chestplate / leggings /

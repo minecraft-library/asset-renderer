@@ -9,13 +9,12 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * A parsed OptiFine / MCPatcher Custom Item Texture rule (03-rules §3.1) - the successor to HEAD's
- * {@code asset.rule.CitRule}, rebuilt against the 07-optifine defect table.
+ * A parsed OptiFine / MCPatcher Custom Item Texture rule.
  *
- * <p>Every condition is ANDed (07-optifine §2.1): {@link #matches} returns {@code true} only when the
- * item id, damage, stack size, enchantments, hand, and every {@link NbtRule} all hold. The parser is
- * fail-closed (D3.3) - an unparseable condition rejects the whole rule rather than silently dropping
- * a filter, so a rule that loads is a rule whose every condition is known.
+ * <p>Every condition is ANDed: {@link #matches} returns {@code true} only when the item id, damage,
+ * stack size, enchantments, hand, and every {@link NbtRule} all hold. The parser is fail-closed - an
+ * unparseable condition rejects the whole rule rather than silently dropping a filter, so a rule that
+ * loads is a rule whose every condition is known.
  *
  * @param id the pack-relative {@code .properties} path - identity and the weight-tie sort key
  * @param pack the owning pack
@@ -46,10 +45,10 @@ public record CitRule(
     /**
      * Whether this rule applies to a render-time item context. Checks run cheapest-first (id, then
      * the scalar range filters, then the NBT walks) so the common no-match path exits early. A
-     * {@link Hand#OFF} rule never matches because GUI rendering is always the main hand
-     * (07-optifine §7.1). An empty {@link #items} list matches any item - the parser rejects that for
-     * {@link CitType#ITEM} rules, but a {@code type=enchantment} glint rule may legitimately carry no
-     * item filter and then applies to every item bearing the matched enchantment (07-optifine §2.1).
+     * {@link Hand#OFF} rule never matches because GUI rendering is always the main hand. An empty
+     * {@link #items} list matches any item - the parser rejects that for {@link CitType#ITEM} rules,
+     * but a {@code type=enchantment} glint rule may legitimately carry no item filter and then applies
+     * to every item bearing the matched enchantment.
      *
      * @param context the per-render item context
      * @return {@code true} when every condition holds
@@ -76,7 +75,7 @@ public record CitRule(
 
     /**
      * The source {@code .properties} filename - the last path segment of {@link #id} - used as the
-     * deterministic weight-tie sort key (D3.2, replacing HEAD's walk-order tie-break).
+     * deterministic weight-tie sort key.
      *
      * @return the source filename
      */

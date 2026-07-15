@@ -32,14 +32,13 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * End-to-end smoke test proving phase 7's two pack-content-gated features work through the acquisition
- * stack: the {@code renderer/*.json} block-entity override channel (05-models.md §4.3) and the legacy
- * {@code overrides} tolerate-and-map (05-models.md §7). A synthesised fixture pack ships a
- * conduit-geometry override, a shadowed {@code chest} model, and a legacy {@code custom_model_data}
- * override; the test acquires it over the cached vanilla pack and asserts each feature resolves - the
- * legacy tree rendering the override frame under a caller-supplied {@code customModelData} (the
- * resolution proof, matching the phase-6 smoke precedent). Tagged slow because it reads the gitignored
- * vanilla cache; skips when absent.
+ * End-to-end smoke test proving two pack-content-gated features work through the acquisition
+ * stack: the {@code renderer/*.json} block-entity override channel and the legacy
+ * {@code overrides} tolerate-and-map. A synthesised fixture pack ships a conduit-geometry override, a
+ * shadowed {@code chest} model, and a legacy {@code custom_model_data} override; the test acquires it
+ * over the cached vanilla pack and asserts each feature resolves - the legacy tree rendering the
+ * override frame under a caller-supplied {@code customModelData} (the resolution proof). Tagged slow
+ * because it reads the gitignored vanilla cache; skips when absent.
  */
 @Tag("slow")
 @DisplayName("Phase 7 override-channel + legacy-mapper pack smoke")

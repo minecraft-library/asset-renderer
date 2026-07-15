@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Verifies {@link FormatRange} - the one normalization of all three pack-format generations. Covers
  * every row of the tolerance table: legacy {@code pack_format}, the three {@code supported_formats}
  * encodings, the modern int and {@code [major,minor]} {@code min_format}/{@code max_format} forms,
- * the D5 minor-widened bare-int max, newest-generation-wins when keys coexist, and inclusive
+ * the minor-widened bare-int max, newest-generation-wins when keys coexist, and inclusive
  * containment.
  */
 @DisplayName("FormatRange three-generation normalization")

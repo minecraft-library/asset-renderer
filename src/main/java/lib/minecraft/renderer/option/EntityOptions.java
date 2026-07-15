@@ -125,8 +125,8 @@ public class EntityOptions implements RenderOptions {
 
     /**
      * Texture-animation timeline for animated entity textures. Defaults to a single static frame
-     * ({@link AnimationOptions#defaults()}); entity texture resolution is tick-aware (04-animation
-     * §4.3, decision 9 - frame-0-at-default), so a sidecar-carrying entity texture samples frame 0
+     * ({@link AnimationOptions#defaults()}); entity texture resolution is tick-aware, so a
+     * sidecar-carrying entity texture samples frame 0
      * when static instead of baking the raw vertical strip into the geometry, and plays its flipbook
      * when the caller opts in with {@code frameCount > 1}. Sidecar-less entity textures (the whole
      * vanilla roster) resolve unchanged, so the default render is byte-identical.

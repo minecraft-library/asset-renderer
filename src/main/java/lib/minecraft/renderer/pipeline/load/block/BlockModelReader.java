@@ -60,7 +60,7 @@ public final class BlockModelReader {
 
     /**
      * Reads the block-entity model catalog from the bundled classpath snapshot, then overlays the
-     * pack-supplied {@code renderer/*.json} override channel (05-models.md §4.3) per top-level entry:
+     * pack-supplied {@code renderer/*.json} override channel per top-level entry:
      * a pack {@code models} entry replaces the classpath model of the same id, and a pack
      * {@code geometries} entry replaces the classpath bone tree at the same coordinate. An overridden
      * id still renders through {@link lib.minecraft.renderer.engine.kit.BlockGeometryKit#buildFromBones}

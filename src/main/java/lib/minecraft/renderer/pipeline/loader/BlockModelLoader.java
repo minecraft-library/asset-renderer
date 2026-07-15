@@ -64,7 +64,7 @@ public class BlockModelLoader {
 
     /**
      * Loads block-entity geometry from the classpath snapshot with the pack {@code renderer/*.json}
-     * override channel applied (05-models.md §4.3). Gathers each pack's block-entity geometry overrides
+     * override channel applied. Gathers each pack's block-entity geometry overrides
      * and overlays them per block-entity model id / geometry coordinate; a vanilla-only stack ships
      * none, so the result is byte-identical to {@link #load()}.
      *

@@ -120,8 +120,8 @@ public class ItemOptions implements RenderOptions {
     /**
      * Texture-animation timeline for animated item textures (a resource-pack concern - vanilla 26.1
      * ships zero {@code textures/item} sidecars). Defaults to a single static frame
-     * ({@link AnimationOptions#defaults()}); item resolution is tick-aware unconditionally
-     * (04-animation §4.2, decision 10), so an animated pack texture shows frame 0 when static instead
+     * ({@link AnimationOptions#defaults()}); item resolution is tick-aware unconditionally, so an
+     * animated pack texture shows frame 0 when static instead
      * of the squashed raw strip, and plays its flipbook when the caller opts in with
      * {@code frameCount > 1}.
      */
@@ -137,7 +137,7 @@ public class ItemOptions implements RenderOptions {
 
     /**
      * The item-definition evaluation context - the {@code items/*.json} dispatch-tree inputs (trim
-     * material, dye colour, clock time, compass angle) resolved at render time (05-models.md §3.3).
+     * material, dye colour, clock time, compass angle) resolved at render time.
      * Defaults to the neutral {@link ItemModelContext#gui()}, under which the render reuses the
      * pipeline-baked item byte-for-byte; a caller supplying non-neutral options re-walks the tree.
      */

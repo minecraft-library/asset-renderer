@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Verifies {@link RuleSet#merge(PackStack)} over on-disk Directory packs - the deterministic CIT
- * order (weight DESC, then FILENAME, then higher-priority pack - D3.2, replacing HEAD's walk order),
- * the CTM tile-before-block partition, and the per-key highest-pack-wins colour merge (03-rules §2).
+ * order (weight DESC, then FILENAME, then higher-priority pack), the CTM tile-before-block partition,
+ * and the per-key highest-pack-wins colour merge.
  */
 class RuleSetMergeTest {
 

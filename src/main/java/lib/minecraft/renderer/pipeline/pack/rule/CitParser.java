@@ -14,12 +14,11 @@ import java.util.Optional;
 import java.util.Properties;
 
 /**
- * Parses one OptiFine / MCPatcher CIT {@code .properties} file into a {@link CitRule}, built against
- * the 07-optifine defect table (03-rules §3). Fail-closed (D3.3): any condition that fails to parse
- * throws a {@link RuleRejection} which rejects the whole rule with a diagnostic, so a swallowed number
- * format can never delete a filter and over-match. Resolves all four texture / model path forms
- * (03-rules §3.2 - the filename default, bare names, {@code ./}-relative, and {@code assets/minecraft/}
- * relative) at parse so the matcher never re-derives paths.
+ * Parses one OptiFine / MCPatcher CIT {@code .properties} file into a {@link CitRule}. Fail-closed:
+ * any condition that fails to parse throws a {@link RuleRejection} which rejects the whole rule with
+ * a diagnostic, so a swallowed number format can never delete a filter and over-match. Resolves all
+ * four texture / model path forms (the filename default, bare names, {@code ./}-relative, and
+ * {@code assets/minecraft/} relative) at parse so the matcher never re-derives paths.
  */
 @UtilityClass
 public class CitParser {
@@ -76,7 +75,7 @@ public class CitParser {
     }
 
     /**
-     * Synthesises a CIT rule for an {@code optifine/cit/potion/} filename-convention texture (D3.8) -
+     * Synthesises a CIT rule for an {@code optifine/cit/potion/} filename-convention texture -
      * one rule per discovered PNG, matching the potion item whose {@code potion_contents} names the
      * effect, so the single matcher path covers the shortcut.
      *
@@ -251,7 +250,7 @@ public class CitParser {
     }
 
     /**
-     * Resolves a CIT {@code texture} value across the four OptiFine forms (03-rules §3.2). Package
+     * Resolves a CIT {@code texture} value across the four OptiFine forms. Package
      * private so the four-form fixture pins each branch directly.
      *
      * @param written the raw texture value, or {@code null} for the filename-default form

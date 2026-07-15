@@ -351,8 +351,7 @@ public class Pipeline {
         /**
          * The resolved pack stack (vanilla at priority 0, user packs ascending) carrying the scanned
          * texture index. Owns the resolution rule the renderer consults through
-         * {@link PipelineRendererContext}; replaces the former vanilla-pack / id-keyed-map / texture-map
-         * projections.
+         * {@link PipelineRendererContext}.
          */
         private final @NotNull PackStack stack;
 
@@ -401,7 +400,7 @@ public class Pipeline {
 
         /**
          * Item id to its parsed {@link ItemModelTree dispatch tree}, from
-         * {@code assets/<ns>/items/*.json}. The full selection tree (05-models.md §3) the block-item
+         * {@code assets/<ns>/items/*.json}. The full selection tree the block-item
          * and tint projections above are derived from at pipeline time, and the render path re-walks
          * for caller-supplied non-neutral {@code ItemModelContext} options.
          */

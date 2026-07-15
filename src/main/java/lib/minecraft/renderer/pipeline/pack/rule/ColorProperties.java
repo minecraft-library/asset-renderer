@@ -16,10 +16,9 @@ import java.util.Properties;
 
 /**
  * A pack's {@code optifine/color.properties} (or {@code mcpatcher/} twin) - the parsed key-to-ARGB
- * override map (03-rules §8). The redesign keeps HEAD's parse-all-store-all model and forgiving hex
- * parser (the one HEAD rule class whose shape was already right) and adds the index-DTO
- * {@link #id} / {@link #pack}, typed accessors for the render-relevant families, and (via
- * {@link RuleSet}) a per-key stack merge in place of whole-file concatenation.
+ * override map. It uses a parse-all-store-all model with a forgiving hex parser, carries the
+ * index-DTO {@link #id} / {@link #pack}, provides typed accessors for the render-relevant families,
+ * and (via {@link RuleSet}) merges per-key across the pack stack.
  *
  * <p>Two families are live today through {@code RendererContext.findColorOverride}: the biome-tint pack
  * keys ({@code grass.*} / {@code foliage.*} / {@code water.*}) and {@code redstone.<power>}. The rest

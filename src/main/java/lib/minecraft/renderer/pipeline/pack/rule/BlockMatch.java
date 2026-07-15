@@ -7,7 +7,7 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * One {@code matchBlocks} entry of a CTM rule - a block id plus its optional block-state property
- * filters (07-optifine §3), the {@code minecraft:oak_stairs:facing=east,west:half=bottom} grammar.
+ * filters, the {@code minecraft:oak_stairs:facing=east,west:half=bottom} grammar.
  * Evaluable headlessly (the renderer knows its rendered state), though CTM renders nothing today.
  *
  * @param block the block id, {@code minecraft:}-defaulted

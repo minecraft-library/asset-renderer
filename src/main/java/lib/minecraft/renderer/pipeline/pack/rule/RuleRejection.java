@@ -4,7 +4,7 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Internal control-flow signal a rule parser throws when a condition fails to parse - the fail-closed
- * polarity (D3.3, 03-rules §3.3): an unparseable condition rejects the WHOLE rule rather than silently
+ * polarity: an unparseable condition rejects the WHOLE rule rather than silently
  * dropping a filter and over-matching. Caught at the top of each parse, logged via
  * {@link RuleDiagnostics}, and turned into a skipped rule. Never escapes the rule layer.
  */

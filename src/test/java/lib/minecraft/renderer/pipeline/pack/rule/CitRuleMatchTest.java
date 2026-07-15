@@ -13,9 +13,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link CitRule#matches} end-to-end from parsed rules: item-id membership, percentage damage
- * (03-rules §3.1), the two enchantment modes, the stack-size filter, and the {@code hand=off}
- * never-matches rule (07-optifine §7.1 - GUI rendering is the main hand).
+ * Verifies {@link CitRule#matches} end-to-end from parsed rules: item-id membership, percentage damage,
+ * the two enchantment modes, the stack-size filter, and the {@code hand=off} never-matches rule
+ * (GUI rendering is the main hand).
  */
 class CitRuleMatchTest {
 

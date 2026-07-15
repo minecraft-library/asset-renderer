@@ -7,9 +7,9 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * The parse-and-store tier of a CTM rule (03-rules §5.1) - keys the rebuild keeps typed and
- * round-trippable but never evaluates, because CTM renders nothing (locked decision 4). Holding them
- * keeps the rule store honest for future tooling without wiring a resolution path.
+ * The parse-and-store tier of a CTM rule - keys kept typed and round-trippable but never evaluated,
+ * because CTM renders nothing. Holding them keeps the rule store honest for future tooling without
+ * wiring a resolution path.
  *
  * @param compactReplacements the {@code ctm.<i>=} compact tile replacements, keyed by index
  * @param innerSeams the {@code innerSeams} flag

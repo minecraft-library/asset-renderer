@@ -204,7 +204,7 @@ public final class PackStack {
         return Optional.empty();
     }
 
-    /** Walks the owning pack's roots base-first, keeping the last existing copy - the former resolve walk, unchanged. */
+    /** Walks the owning pack's roots base-first, keeping the last existing copy. */
     private @NotNull Optional<ResolvedTexture> locate(@NotNull IndexedTexture row) {
         ResourcePack pack = this.byId.get(row.pack());
         if (pack == null || !(pack.container() instanceof PackContainer.Directory dir)) return Optional.empty();

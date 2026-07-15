@@ -6,7 +6,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * What a CTM rule matches against - vanilla tile textures ({@code matchTiles}) or block ids
  * ({@code matchBlocks}). The two are a partition: the stack merge checks every tile-target rule
- * before any block-target rule (07-optifine §5).
+ * before any block-target rule.
  */
 public sealed interface CtmTarget permits CtmTarget.Tiles, CtmTarget.Blocks {
 

@@ -96,7 +96,7 @@ public class ItemIndexLoader {
      * a renderable model but carry no same-named {@code models/item/*.json} - {@code clock} (root
      * {@code select(context_dimension) -> range_dispatch(time)} &rarr; {@code clock_00}), {@code compass}
      * (root {@code condition(lodestone_tracker) -> range_dispatch(compass)} &rarr; {@code compass_16}),
-     * and similar predicate-frame items (05-models.md §3.6). Each is materialised from the neutral
+     * and similar predicate-frame items. Each is materialised from the neutral
      * ({@link ItemModelContext#gui()}) resolution's backing model - the already-built, already-filtered
      * frame item ({@code clock_00}/{@code compass_16}/...) - so no blank tiles slip in.
      * <p>

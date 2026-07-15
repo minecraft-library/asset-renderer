@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Smoke test proving the phase-5 multi-namespace loaders reach the on-disk hypixel-skyblock pack's
+ * Smoke test proving the multi-namespace loaders reach the on-disk hypixel-skyblock pack's
  * {@code hypixel_skyblock} namespace - its ~1171 item models index by qualified id and its ~985
  * item-definition files are on the scanned path. No render assertions: the full item-definition
  * trees stay unconsumed until the item-tree walker lands in a later phase, so the block-item

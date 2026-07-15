@@ -20,9 +20,9 @@ import java.util.Optional;
 import java.util.Properties;
 
 /**
- * Scans one {@link ResourcePack} into its per-pack {@link RuleSet} - the successor to HEAD's
- * {@code CitLoader} / {@code CtmLoader} / per-root {@code color.properties} walks. Capability-gated
- * (03-rules §1): a pack without {@link Capability#OPTIFINE_RULES} returns
+ * Scans one {@link ResourcePack} into its per-pack {@link RuleSet}, folding the pack's
+ * OptiFine / MCPatcher CIT and CTM trees and its per-root {@code color.properties} into one payload.
+ * Capability-gated: a pack without {@link Capability#OPTIFINE_RULES} returns
  * {@link RuleSet#empty(PackId)} without touching disk, so a vanilla-only stack scans to nothing and
  * the whole rule layer stays inert. Walks the pack's active roots (base first, overlays after) so an
  * overlay's rules win within the pack.
@@ -91,7 +91,7 @@ public class RuleScanner {
             });
     }
 
-    /** Synthesises a rule for an {@code optifine/cit/potion/<variant>/<effect>.png} shortcut texture (D3.8). */
+    /** Synthesises a rule for an {@code optifine/cit/potion/<variant>/<effect>.png} shortcut texture. */
     private static @NotNull Optional<CitRule> synthesisePotion(@NotNull String rel, @NotNull PackId pack) {
         int potionIndex = rel.indexOf(POTION_DIR);
         if (potionIndex < 0) return Optional.empty();

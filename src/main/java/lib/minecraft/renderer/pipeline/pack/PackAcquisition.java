@@ -34,7 +34,7 @@ import java.util.TreeSet;
  * provenance sidecar (directory sources stay in place), resolve overlay roots against the
  * renderer-target format, detect capabilities, and assemble the stack with vanilla at priority 0.
  *
- * <p>Materialization is extract-to-directory (locked decision 7): after acquisition every pack is a
+ * <p>Materialization is extract-to-directory: after acquisition every pack is a
  * plain {@link PackContainer.Directory}, so the render path never reads an archive. Re-extraction is
  * skipped when the provenance records the same source mtime and heuristic version.
  */
@@ -177,8 +177,8 @@ public final class PackAcquisition {
      * Resolves the active roots: base first, then every vanilla {@code overlays.entries} overlay whose
      * format range contains the target, then - for a pack carrying {@link Capability#CATHARSIS_CONVENTIONS}
      * - every Catharsis {@code fabric:overlays} entry whose condition holds under the pack's config
-     * defaults (03-rules §6.1). Each active overlay's directory must exist. Both overlay families stack
-     * over the root in list order (later wins), the vanilla {@code CompositePackResources} semantics 02
+     * defaults. Each active overlay's directory must exist. Both overlay families stack
+     * over the root in list order (later wins), the vanilla {@code CompositePackResources} semantics
      * already applies.
      */
     private static @NotNull ConcurrentList<PackRoot> resolveRoots(@NotNull Path packRoot, @NotNull PackContainer container,
@@ -209,7 +209,7 @@ public final class PackAcquisition {
         // Catharsis overlay evaluation runs over untrusted pack input during acquisition; any failure
         // (malformed JSON slipping a type guard, an illegal overlay directory string throwing
         // InvalidPathException on resolve, ...) must degrade to no Catharsis overlays, never break the
-        // acquisition of this or any other pack (03-rules §6.1: overlays inert, never error).
+        // acquisition of this or any other pack (overlays inert, never error).
         try {
             Optional<JsonObject> mcmeta = readJsonObject(container, "pack.mcmeta");
             if (mcmeta.isEmpty()) return;
@@ -260,7 +260,7 @@ public final class PackAcquisition {
     }
 
     /**
-     * Detects the capabilities a container carries from the 03 §1 signal table. VANILLA_CORE and
+     * Detects the capabilities a container carries. VANILLA_CORE and
      * OPTIFINE_RULES are path signals; CATHARSIS_CONVENTIONS has four independently-sufficient signals -
      * two on-disk paths ({@code config.catharsis.json}, {@code assets/skyblock/items/}) and two mcmeta
      * sections ({@code catharsis:pack/v1}, a {@code fabric:overlays} entry with a {@code catharsis:*}

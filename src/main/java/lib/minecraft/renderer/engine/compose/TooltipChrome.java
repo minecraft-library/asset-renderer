@@ -247,7 +247,7 @@ public interface TooltipChrome {
          * {@code tooltip/frame} pair; a style {@code ns:path} resolves the per-item
          * {@code ns:tooltip/<path>_background} + {@code _frame} pair (the {@code minecraft:tooltip_style}
          * component, 24w36a). When either sprite is unresolved the pair DROPS - empty with a loud
-         * diagnostic and no fallback to the default pair (decision 14; deviates from the client, which
+         * diagnostic and no fallback to the default pair (deviates from the client, which
          * falls back, because a headless render with an explicit style key is an authored input).
          *
          * @param context the renderer context resolving textures + sidecars through the pack stack
@@ -272,7 +272,7 @@ public interface TooltipChrome {
         }
 
         /**
-         * Flattens an animated chrome sprite to its tick-0 frame (06 §1.6 / ledger #8): a pack shipping
+         * Flattens an animated chrome sprite to its tick-0 frame: a pack shipping
          * an animated tooltip sprite pins to frame 0 rather than nine-slicing the whole flipbook strip. A
          * sprite with no animation sidecar is returned unchanged (byte-neutral - vanilla ships none).
          */
@@ -284,7 +284,7 @@ public interface TooltipChrome {
          * Resolves the sprite pair for an item, reading its {@code minecraft:tooltip_style} component off
          * the render-time {@link ItemContext} and feeding the style key into {@link #resolve}. An item
          * carrying no style resolves the default pair; an item carrying a style whose sprites are missing
-         * DROPs (empty + diagnostic, decision 14). Pack-content-gated - vanilla items ship no
+         * DROPs (empty + diagnostic). Pack-content-gated - vanilla items ship no
          * {@code tooltip_style} in the default render paths, so this returns the default pair for them.
          *
          * @param context the renderer context resolving textures + sidecars through the pack stack
@@ -296,7 +296,7 @@ public interface TooltipChrome {
         }
 
         /**
-         * Reads an item's {@code minecraft:tooltip_style} component from the phase-3 components surface
+         * Reads an item's {@code minecraft:tooltip_style} component from the components surface
          * ({@code effectiveNbt -> components -> minecraft:tooltip_style}), returning the style key as a
          * resource id. Empty when the component is absent, not a string, or blank.
          *

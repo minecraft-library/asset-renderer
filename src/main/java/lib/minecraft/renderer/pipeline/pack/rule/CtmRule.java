@@ -8,11 +8,10 @@ import org.jetbrains.annotations.NotNull;
 import java.util.EnumSet;
 
 /**
- * A parsed OptiFine / MCPatcher Connected Textures rule (03-rules §5.2) - the successor to HEAD's
- * {@code asset.rule.CtmRule}, rebuilt against the 07-optifine defect table. Fully typed and validated
- * at parse (range-expanded tiles, correct {@code top} / {@code bottom} face names, per-method tile-count
- * check), yet never evaluated: CTM renders nothing (locked decision 4), so this is a parse-and-store
- * record whose store has zero render-path callers (see {@link CtmNeighborResolver}).
+ * A parsed OptiFine / MCPatcher Connected Textures rule. Fully typed and validated at parse
+ * (range-expanded tiles, correct {@code top} / {@code bottom} face names, per-method tile-count
+ * check), yet never evaluated: CTM renders nothing, so this is a parse-and-store record whose store
+ * has zero render-path callers (see {@link CtmNeighborResolver}).
  *
  * @param id the source {@code .properties} path - ordering and weight-tie key
  * @param pack the owning pack
@@ -36,7 +35,7 @@ public record CtmRule(
 
     /**
      * The source {@code .properties} filename - the last path segment of {@link #id} - used as the
-     * deterministic weight-tie sort key (03-rules §2).
+     * deterministic weight-tie sort key.
      *
      * @return the source filename
      */

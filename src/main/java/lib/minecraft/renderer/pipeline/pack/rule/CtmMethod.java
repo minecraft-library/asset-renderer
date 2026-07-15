@@ -5,11 +5,10 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * The OptiFine / MCPatcher Connected Textures method (07-optifine §3) - all fifteen grammar constants,
- * with the {@code overlay_*} family first-class rather than folded to an {@code UNSUPPORTED} sentinel
- * (07-optifine defect #6). CTM renders nothing in this headless renderer (locked decision 4), so a
- * method is parse-and-store only; the constant exists to validate tile counts and pin the no-neighbor
- * table on {@link CtmNeighborResolver}.
+ * The OptiFine / MCPatcher Connected Textures method - all fifteen grammar constants, with the
+ * {@code overlay_*} family first-class. CTM renders nothing in this headless renderer, so a method is
+ * parse-and-store only; the constant exists to validate tile counts and pin the no-neighbor table on
+ * {@link CtmNeighborResolver}.
  */
 public enum CtmMethod {
 
@@ -46,7 +45,7 @@ public enum CtmMethod {
 
     /**
      * Parses a {@code method=} value. Returns empty for an unrecognised token so the CTM parser can
-     * reject the whole rule (fail-closed, D3.3) instead of falling back to a base-replacing method.
+     * reject the whole rule (fail-closed) instead of falling back to a base-replacing method.
      *
      * @param raw the raw method value
      * @return the parsed method, or empty when unrecognised
@@ -73,7 +72,7 @@ public enum CtmMethod {
     }
 
     /**
-     * The tile count this method's grammar requires (07-optifine §5), for the fail-closed per-method
+     * The tile count this method's grammar requires, for the fail-closed per-method
      * validation. Methods with no fixed count ({@link #RANDOM}, {@link #OVERLAY_RANDOM}, {@link #OVERLAY})
      * return {@code -1} - the parser then requires at least one tile.
      *

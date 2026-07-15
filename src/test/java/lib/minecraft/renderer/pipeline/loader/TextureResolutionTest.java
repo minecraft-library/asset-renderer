@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Exercises the multi-namespace texture index and the {@link PackStack} resolution rule: cross-pack
- * priority, within-pack overlay precedence, the same-pack sidecar binding (D4), {@code filter.block}
- * erasure (D11), and the namespace-first / pack-restricted dispatch (D2).
+ * priority, within-pack overlay precedence, the same-pack sidecar binding, {@code filter.block}
+ * erasure, and the namespace-first / pack-restricted dispatch.
  */
 @DisplayName("Texture index + resolution rule")
 class TextureResolutionTest {
@@ -53,7 +53,7 @@ class TextureResolutionTest {
         sidecar(van.resolve("assets/minecraft/textures/block/dirt.png.mcmeta"), 3);
         ResourcePack vanilla = pack(PackId.VANILLA, van, Set.of("minecraft"), Concurrent.newList(PackRoot.BASE));
 
-        // hypixel-skyblock: overrides block/stone (NO sidecar - drops vanilla's animation, D4),
+        // hypixel-skyblock: overrides block/stone (NO sidecar - drops vanilla's animation),
         // adds hypixel_skyblock:item/sword, and ships block/grass in base + overlay (overlay wins).
         Path hyp = tmp.resolve("hyp");
         png(hyp.resolve("assets/minecraft/textures/block/stone.png"), 32, 32);

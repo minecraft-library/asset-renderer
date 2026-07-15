@@ -91,7 +91,7 @@ class ModelResolverTest {
         PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft"))));
         ModelData glass = ModelResolver.loadBlockModels(stack).get("minecraft:block/glass");
 
-        // The render-path string map is byte-identical to the former flatten.
+        // The render-path string map keeps the flattened sprite form.
         assertThat(glass.getTextures().get("all"), is("minecraft:block/glass"));
         assertThat(glass.getTextures().get("plain"), is("minecraft:block/stone"));
         // The flag is retained on the side channel, keyed by the same variable name; string entries are absent.

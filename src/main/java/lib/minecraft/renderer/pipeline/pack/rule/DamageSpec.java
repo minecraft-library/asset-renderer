@@ -4,9 +4,8 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The OptiFine CIT {@code damage=} filter - a list of accepted values or ranges, plus the two grammar
- * modifiers HEAD silently dropped (07-optifine defect #5): the trailing {@code %} that reads the
- * damage as a percentage of the item's max durability, and {@code damageMask} which ANDs the raw
- * damage before the range comparison.
+ * modifiers: the trailing {@code %} that reads the damage as a percentage of the item's max
+ * durability, and {@code damageMask} which ANDs the raw damage before the range comparison.
  *
  * @param ranges the accepted damage values / ranges
  * @param percent whether the damage is compared as a percentage of max durability

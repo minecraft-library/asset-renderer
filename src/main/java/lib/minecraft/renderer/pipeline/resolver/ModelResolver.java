@@ -50,8 +50,7 @@ import java.util.stream.Stream;
  * per-file resolution against the effective set followed by baking. The merge is
  * <em>attributed</em>: every winning file carries its origin {@link ResourcePack}, so a non-vanilla
  * winner that trips {@link Models#rendersNothing} (or fails to parse) is diagnosed by pack name
- * rather than vanishing silently. A vanilla-only stack scans exactly {@code assets/minecraft/} and
- * merges identically to the former single-root walk.
+ * rather than vanishing silently. A vanilla-only stack scans exactly {@code assets/minecraft/}.
  *
  * @see ModelData
  * @see PackStack
@@ -258,9 +257,9 @@ public class ModelResolver {
     }
 
     /**
-     * Flattens object-valued texture entries to their {@code sprite} string in place (byte-identical
-     * to the former {@code normalizeTextureEntries}: the render path consumes the string map) and
-     * returns the retained {@link ModelTexture} objects for the flags it would otherwise discard.
+     * Flattens object-valued texture entries to their {@code sprite} string in place (the render path
+     * consumes the string map) and returns the retained {@link ModelTexture} objects for the flags it
+     * would otherwise discard.
      * MC 26.1 uses {@code {"force_translucent": true, "sprite": "minecraft:block/glass"}} for
      * translucent blocks; the sprite string stays the sole render input, the flag is retained on the
      * side channel. Runs once on the fully-merged object, so every model - including a parent-less

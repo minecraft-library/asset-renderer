@@ -19,18 +19,18 @@ import java.util.TreeMap;
 
 /**
  * Tolerate-and-maps a pre-format-46 {@code models/item/*.json} {@code overrides} array onto the 26.1
- * items-tree node vocabulary (05-models.md §7). Legacy {@code overrides} are vanilla-dead (0 files in
+ * items-tree node vocabulary. Legacy {@code overrides} are vanilla-dead (0 files in
  * 26.1) but ubiquitous in pre-1.21.4 CIT packs; today Gson silently discards the array. This mapper
  * synthesises the same mechanical translation Mojang shipped in 1.21.4, so a legacy pack's overrides
- * flow through the phase-6 {@link ItemModelWalker} like a native items file - legacy packs get rung-2
- * behaviour for free once the caller supplies the dispatch value.
+ * flow through the {@link ItemModelWalker} like a native items file - legacy packs get the same
+ * caller-driven dispatch for free once the caller supplies the dispatch value.
  *
  * <p>Gated on the pack's own declared {@link FormatRange} max strictly below {@value #LEGACY_MAX_MAJOR}
- * (a plain 02-type comparison, not an 03 capability): only a legacy pack maps. Predicate order maps to
+ * (a plain format comparison, not a capability check): only a legacy pack maps. Predicate order maps to
  * threshold order - vanilla overrides match the LAST satisfied predicate, which the walker reproduces
  * by picking the highest threshold {@code <=} the value. Any predicate outside {@link #GATES} /
  * {@link #RANGES} is a per-file diagnostic naming the pack + predicate, and that override entry is
- * skipped (never silent-dropped, spine §3.2) while the rest of the file still maps.
+ * skipped (never silent-dropped) while the rest of the file still maps.
  */
 @UtilityClass
 public class LegacyOverrideMapper {
@@ -90,7 +90,7 @@ public class LegacyOverrideMapper {
      * <p>The {@code fallback} is the branch the tree resolves to when no override matches - the
      * caller supplies the item's EXISTING tree root (its native items-tree, or a plain
      * {@code Model(<ns>:item/<name>)} when none), so the neutral / default render is unchanged and the
-     * native tree's tints and structure survive under the override (05-models.md §7). Only a matching
+     * native tree's tints and structure survive under the override. Only a matching
      * caller value (e.g. {@code custom_model_data}) selects an override frame.
      *
      * @param itemId the owning item id (e.g. {@code minecraft:diamond_sword}), for diagnostics and ref

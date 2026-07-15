@@ -11,7 +11,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Pins the {@link SpecialKinds} classifier: every vanilla 26.1 special kind is renderable (maps onto
  * an existing dispatcher), while an unrecognised kind is dropped - the no-fallback contract for
- * special nodes (05-models.md §3.4).
+ * special nodes.
  */
 @DisplayName("SpecialKinds classification")
 class SpecialKindsTest {

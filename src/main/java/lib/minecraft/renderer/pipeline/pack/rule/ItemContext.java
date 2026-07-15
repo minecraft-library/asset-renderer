@@ -12,11 +12,10 @@ import java.util.Optional;
 
 /**
  * The per-render item context the item renderer passes down so the pack rule layer can decide whether
- * any CIT rule applies to the current invocation (03-rules §4.3, D3.4).
+ * any CIT rule applies to the current invocation.
  *
- * <p>The NBT is carried as a real {@link CompoundTag} tree - the successor to HEAD's pre-flattened
- * {@code Map<String, String>}, which could express neither list indices, wildcards, nor {@code count}
- * and erased tag types. Scalar conveniences ({@link #itemId}, {@link #damage}, {@link #maxDamage},
+ * <p>The NBT is carried as a real {@link CompoundTag} tree, which preserves list indices, wildcards,
+ * {@code count}, and tag types. Scalar conveniences ({@link #itemId}, {@link #damage}, {@link #maxDamage},
  * {@link #stackCount}, {@link #displayName}, {@link #enchantments}, {@link #potionEffects}) stay for
  * the non-NBT conditions. When a caller supplies no NBT the {@link Builder} synthesises a minimal
  * compound from the display name (under {@code components.minecraft:custom_name}), so display-name
@@ -92,7 +91,7 @@ public record ItemContext(
 
     /**
      * A mutable builder for {@link ItemContext}. Supports eager binary-NBT ingestion
-     * ({@link #nbtBase64} / {@link #nbt(byte[])}, D3.5 - Hypixel item payloads are base64 gzipped
+     * ({@link #nbtBase64} / {@link #nbt(byte[])} - Hypixel item payloads are base64 gzipped
      * binary NBT) and, when no NBT is supplied, synthesises a minimal compound from the scalars at
      * {@link #build}.
      */

@@ -26,15 +26,14 @@ import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 
 /**
- * Scans a {@link PackStack} into the texture index the renderer resolves against - the successor of
- * the former {@code TexturePackLoader}. Every pack is scanned across every namespace under
- * {@code assets/<ns>/textures/**} (generalizing the former {@code minecraft}-only walk), the whole
+ * Scans a {@link PackStack} into the texture index the renderer resolves against. Every pack is
+ * scanned across every namespace under {@code assets/<ns>/textures/**}, the whole
  * {@code .png.mcmeta} sidecar is captured on each row, and packs merge ascending with higher priority
  * winning. Before a pack's rows merge in, its {@code filter.block} patterns erase matching rows from
  * every lower pack.
  *
  * <p>For a vanilla-only stack the extracted tree carries only the {@code minecraft} namespace, so the
- * multi-namespace walk yields exactly the ids the former scanner produced - the index is byte-identical.
+ * multi-namespace walk yields exactly the {@code minecraft}-qualified ids and the index is stable.
  *
  * @see IndexedTexture
  */
@@ -119,7 +118,7 @@ public class TextureIndexer {
         return new IndexedTexture(id, packId, relativePath, width, height, readSidecar(png, id));
     }
 
-    /** Reads the whole {@code <file>.png.mcmeta} sidecar next to a PNG, bound to the same pack+root (D4). */
+    /** Reads the whole {@code <file>.png.mcmeta} sidecar next to a PNG, bound to the same pack+root. */
     private static @NotNull Optional<MCMeta> readSidecar(@NotNull Path png, @NotNull ResourceId id) {
         Path sidecar = png.resolveSibling(png.getFileName() + ".mcmeta");
         if (!Files.isRegularFile(sidecar)) return Optional.empty();

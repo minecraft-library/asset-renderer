@@ -92,7 +92,7 @@ public class FrameCompositor {
 
     /**
      * Wraps a list of rendered frames as an {@link ImageData} instance where each frame carries its OWN
-     * playback delay (04-animation §6) - the variable-cadence counterpart of
+     * playback delay - the variable-cadence counterpart of
      * {@link #wrapFrames(ConcurrentList, int)}. A single-frame list becomes a {@link StaticImageData};
      * multi-frame lists become an {@link AnimatedImageData} stamping {@code frameDelaysMs[i]} on frame
      * {@code i}. Lets a subject export one output frame per distinct texture state (fire's authored,

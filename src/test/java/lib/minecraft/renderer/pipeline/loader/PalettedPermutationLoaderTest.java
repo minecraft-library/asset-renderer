@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Exercises {@link PalettedPermutationLoader}: parsing a {@code paletted_permutations} atlas source,
- * and the concatenate-across-packs-ascending merge (05-models.md §6 - the one concatenation-merge file
+ * and the concatenate-across-packs-ascending merge (the one concatenation-merge file
  * kind), where a higher pack's sources are appended after the vanilla ones rather than replacing them.
  */
 @DisplayName("PalettedPermutationLoader atlas sources")

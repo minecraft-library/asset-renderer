@@ -642,7 +642,7 @@ public class BlockGeometryKit {
      * @param directionalLight whether the face receives {@code ITEMS_3D} shading, or full-bright when
      *     {@code false} (a {@code "shade": false} element)
      * @param lightEmission the element's {@code light_emission} level {@code 0-15}: raises the baked
-     *     shade floor to {@code emission / 15} (05-models.md §5.3 fold), full-bright at {@code 15};
+     *     shade floor to {@code emission / 15}, full-bright at {@code 15};
      *     {@code 0} leaves the shade untouched. The floor is a real {@code [0,1]} scalar (not the
      *     {@link Shading#DISABLED} sentinel, which renders black on the un-relit Held3D path)
      * @param glinted whether the face is worn-armor geometry receiving the enchantment foil
@@ -667,7 +667,7 @@ public class BlockGeometryKit {
         boolean glinted
     ) {
         // Shade baked per triangle (see the javadoc): inventory cardinal shade, or full-bright
-        // DISABLED for a "shade": false element. light_emission folds on top (05-models.md §5.3) by
+        // DISABLED for a "shade": false element. light_emission folds on top by
         // raising the shade FLOOR to emission/15 (capped at 1.0 for the full 15) - NOT by mapping to
         // the DISABLED sentinel, which renders BLACK on the no-relight Held3D item path (apply(-1)).
         // So an emissive shade:true face bakes a real [0,1] scalar that renders full-bright on Held3D

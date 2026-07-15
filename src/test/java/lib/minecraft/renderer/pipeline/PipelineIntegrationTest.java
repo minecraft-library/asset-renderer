@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.*;
  * {@code asset-renderer/cache/it} and complete in seconds.
  * <p>
  * The cache root is deliberately stable (not a temporary directory) so the extracted client jar
- * survives across sessions - the renderer grep tasks in this session depend on having the
+ * survives across sessions - offline vanilla-source lookups depend on having the
  * extracted 26.1 source available on disk after the test runs. {@code .gitignore} already excludes
  * {@code asset-renderer/cache/}, so nothing leaks into commits.
  */
@@ -190,8 +190,8 @@ class PipelineIntegrationTest {
     @Test
     @DisplayName("stack-resolved colormaps byte-match the bundled color_maps.json LUT (D10)")
     void colormapsByteMatchBundledLut() {
-        // The p0 byte-parity probe (parity-baseline/p0-capture.md, pin item 1): sha256 of the raw
-        // big-endian ARGB bytes of each bundled colormap. The D10 re-point resolves vanilla's own
+        // The byte-parity probe: sha256 of the raw
+        // big-endian ARGB bytes of each bundled colormap. The re-point resolves vanilla's own
         // extracted PNG through the stack and must decode to the identical bytes.
         assertThat(sha256(result.getColorMaps().get(ColorMap.Type.GRASS).pixels()),
             equalTo("99ac9a2db44c6ed14da168bad2f66001535fd8b6290a2255bc8aa251d16afcc4"));

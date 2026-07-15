@@ -7,7 +7,7 @@ import java.util.Map;
 
 /**
  * One {@code minecraft:paletted_permutations} entry from an {@code atlases/*.json} source list
- * (05-models.md §6) - the data a {@link TextureSynthesizer} needs to generate a permuted sprite that
+ * - the data a {@link TextureSynthesizer} needs to generate a permuted sprite that
  * ships as no PNG (armor-trim item overlays, decorated-pot patterns). Vanilla stitches these at atlas
  * build time; a per-texture renderer instead synthesises each on a resolution miss.
  *

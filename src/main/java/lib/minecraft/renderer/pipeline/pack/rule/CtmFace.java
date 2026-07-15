@@ -6,9 +6,8 @@ import java.util.EnumSet;
 import java.util.Optional;
 
 /**
- * The face a CTM rule targets, named by the OptiFine {@code faces=} grammar (07-optifine §3) - never
- * a renderer {@code UP} / {@code DOWN} enum, which is what let HEAD invert {@code faces=top} to ALL
- * (07-optifine defect #4). The {@code sides} and {@code all} aliases expand at parse.
+ * The face a CTM rule targets, named by the OptiFine {@code faces=} grammar - never a renderer
+ * {@code UP} / {@code DOWN} enum. The {@code sides} and {@code all} aliases expand at parse.
  */
 public enum CtmFace {
 
@@ -31,7 +30,7 @@ public enum CtmFace {
     /**
      * Parses a {@code faces=} value into the exact face set. An absent or blank value defaults to all
      * six faces; {@code sides} expands to N/S/E/W and {@code all} to all six; an unknown token returns
-     * empty so the CTM parser can reject the rule (fail-closed, D3.3) rather than falling back to ALL.
+     * empty so the CTM parser can reject the rule (fail-closed) rather than falling back to ALL.
      *
      * @param raw the raw {@code faces} value, or {@code null} when the key is absent
      * @return the resolved face set, or empty when a token is unrecognised

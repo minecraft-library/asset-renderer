@@ -28,7 +28,7 @@ public record IntRange(int min, int max) {
      * Parses an OptiFine-style range token: a single integer ({@code "5"}, or {@code "-5"} for a
      * negative), a closed range ({@code "5-10"}), or an open-max range ({@code "5-"}), with either
      * bound optionally parenthesised to disambiguate a negative ({@code "(-25)"}, {@code "(-10)-10"},
-     * {@code "(-10)-(-5)"}) - the grammar HEAD could not parse (07-optifine §2.2). The separator dash
+     * {@code "(-10)-(-5)"}). The separator dash
      * is the one at paren-depth zero that is not a leading sign, so {@code "-5"} reads as the value
      * {@code -5} and {@code "(-10)"} as the value {@code -10}, not open ranges.
      *

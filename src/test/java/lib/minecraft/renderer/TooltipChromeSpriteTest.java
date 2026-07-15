@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Sprite-flip corner / canvas probes for {@link TooltipChrome.Vanilla#SPRITE}: renders a LORE tooltip
- * with the real 26.1 tooltip sprites and pins the pre-registered visual delta (notched background
+ * with the real 26.1 tooltip sprites and pins the intended visual delta (notched background
  * corners, open ring corners, ring inset 1 mcPixel, padding 4 canvas shrink) plus the alpha-override
  * multiplier redefinition and the missing-sprites guard. The {@link TextRendererTest} PROCEDURAL probes
  * stay unchanged as the byte-stability pin; these are the additive sprite-path expectations.

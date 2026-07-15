@@ -14,14 +14,14 @@ import java.util.Map;
 
 /**
  * Parses the {@code model} object of an {@code items/*.json} definition into an immutable
- * {@link ItemModelNode} tree (05-models.md §3). Depth-capped against pathological pack nesting;
+ * {@link ItemModelNode} tree. Depth-capped against pathological pack nesting;
  * unknown node types and absent branches become {@link ItemModelNode.Empty}, so the walker never
  * dereferences a missing child.
  *
- * <p>Tint parsing is lifted verbatim from the former {@code ItemDefinitionLoader}: {@code dye} /
- * {@code potion} / {@code firework} / {@code constant} map to their {@link LayerTint} variants, and
- * every dynamic source this renderer cannot resolve ({@code grass}, {@code map_color},
- * {@code custom_model_data}, ...) becomes a white {@link LayerTint.Constant} so it renders untinted.
+ * <p>Tint parsing maps {@code dye} / {@code potion} / {@code firework} / {@code constant} to their
+ * {@link LayerTint} variants, and every dynamic source this renderer cannot resolve ({@code grass},
+ * {@code map_color}, {@code custom_model_data}, ...) becomes a white {@link LayerTint.Constant} so
+ * it renders untinted.
  */
 @UtilityClass
 public class ItemModelParser {

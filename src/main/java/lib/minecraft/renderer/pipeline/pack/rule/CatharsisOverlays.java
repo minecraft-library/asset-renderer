@@ -11,15 +11,15 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Resolves which Catharsis {@code fabric:overlays} an offline renderer activates (03-rules §6.1,
- * 06-catharsis §6). Catharsis piggybacks on Fabric's overlay system: the pack mcmeta carries a
+ * Resolves which Catharsis {@code fabric:overlays} an offline renderer activates. Catharsis
+ * piggybacks on Fabric's overlay system: the pack mcmeta carries a
  * {@code fabric:overlays.entries} array, each entry pairing an overlay {@code directory} with a
  * {@link CatharsisCondition condition}. With no user config store the baseline is each option's
  * declared default, so this evaluates every entry's condition against the {@link CatharsisConfig}
  * defaults and the {@link CatharsisTarget}, returning the active directories in entry order (later
- * entries stack on top - vanilla {@code CompositePackResources} order, which 02 already applies).
+ * entries stack on top - vanilla {@code CompositePackResources} order).
  *
- * <p>Owning only the evaluator (03-rules §6.1): 02 stacks the returned directories over the pack root
+ * <p>Owning only the evaluator: the pack layer stacks the returned directories over the pack root
  * exactly as it stacks vanilla format-gated overlays.
  */
 @UtilityClass
@@ -57,7 +57,7 @@ public class CatharsisOverlays {
 
     /**
      * Resolves the config-option defaults for a pack: the root {@code config.catharsis.json} fully
-     * overrides any {@code catharsis:pack/v1.config} in the mcmeta (06-catharsis §6, treated as full
+     * overrides any {@code catharsis:pack/v1.config} in the mcmeta (treated as full
      * replacement - the merge-vs-replace detail is untested upstream). Empty when neither is present.
      *
      * @param configFile the parsed {@code config.catharsis.json} JSON, if the pack ships one

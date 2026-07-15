@@ -16,10 +16,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link CtmParser} - range expansion (defect #1), correct {@code top} / {@code bottom} face
- * mapping (defect #4), per-method fail-closed tile-count validation, filename inference (defect #8),
- * and {@code matchBlocks} state-filter parsing (03-rules §5). CTM renders nothing, so these fixtures
- * are the sole exercise of the CTM grammar.
+ * Verifies {@link CtmParser} - range expansion, correct {@code top} / {@code bottom} face mapping,
+ * per-method fail-closed tile-count validation, filename inference, and {@code matchBlocks}
+ * state-filter parsing. CTM renders nothing, so these fixtures are the sole exercise of the CTM
+ * grammar.
  */
 class CtmParserTest {
 

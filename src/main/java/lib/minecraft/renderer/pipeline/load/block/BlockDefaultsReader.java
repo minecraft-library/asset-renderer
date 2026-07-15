@@ -49,7 +49,7 @@ public final class BlockDefaultsReader {
 
     /**
      * Reads the per-block default-state key map from {@code block_defaults.json}, then overlays the
-     * pack-supplied {@code renderer/block_defaults.json} override channel (05-models.md §4.3): each
+     * pack-supplied {@code renderer/block_defaults.json} override channel: each
      * pack {@code blocks} entry replaces the classpath default state of the same id and resolves it (so
      * a pack can change a default state key that a vanilla-format pack cannot). This is the only way
      * any pack can override an ASM-derived default state.
