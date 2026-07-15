@@ -1,0 +1,307 @@
+package lib.minecraft.renderer.engine.kit;
+
+import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.text.ColorSegment;
+import lib.minecraft.text.GradientSpec;
+import lib.minecraft.text.font.MinecraftFont;
+import lib.minecraft.text.font.MinecraftFont.GlyphData;
+import lib.minecraft.text.font.MinecraftGraphics;
+import lombok.experimental.UtilityClass;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
+
+/**
+ * Static gradient-text rendering utilities - the compose-side realization of {@link GradientSpec}
+ * (06 half 2). Splits into a pure color-evaluation core (unit-testable) and per-segment draw paths
+ * driven by the {@link #PER_LETTER per-letter} vs per-pixel fidelity lever.
+ * <p>
+ * The color evaluator {@link #sample(GradientSpec, float)} maps a normalized position {@code t}
+ * along the segment to an rgb; {@link #scrolledT} slides {@code t} by the scroll phase derived from
+ * the absolute animation tick, and {@link #resolveShear} yields the band slant. Glyphs render as
+ * the white-glyph-multiply identity: each glyph pixel's alpha mask is tinted by the sampled color
+ * and {@code NORMAL}-blended, exactly as {@code MinecraftGraphics.blitGlyph} does for a solid tint -
+ * so a degenerate single-color gradient matches the solid path pixel for pixel.
+ *
+ * @see GradientSpec
+ * @see TextKit
+ */
+@UtilityClass
+public class GradientKit {
+
+    /**
+     * Per-channel low-bit-clear + right-shift-2 vanilla shadow formula {@code (rgb & 0xFCFCFC) >> 2}.
+     */
+    private static final int SHADOW_RGB_MASK = 0xFCFCFC;
+
+    // --- entry ---
+
+    /**
+     * Draws a gradient segment's (already obfuscation-substituted) {@code text} at the given mcPixel
+     * origin and returns its advance in mcPixels. Routes to the per-letter or per-pixel path by
+     * {@link GradientSpec#bandPx()}.
+     *
+     * @param g the graphics whose target buffer receives the glyphs
+     * @param segment the styled segment (supplies font style + decorations + italic)
+     * @param spec the gradient spec
+     * @param text the segment text after obfuscation substitution
+     * @param xMcPx the segment start cursor X in mcPixels
+     * @param yMcPx the baseline Y in mcPixels
+     * @param tick the absolute animation tick driving scroll phase
+     * @return the advance width in mcPixels
+     */
+    public static int drawSegment(
+        @NotNull MinecraftGraphics g,
+        @NotNull ColorSegment segment,
+        @NotNull GradientSpec spec,
+        @NotNull String text,
+        int xMcPx, int yMcPx,
+        long tick
+    ) {
+        MinecraftFont font = MinecraftFont.of(segment.fontStyle());
+        int segWidthOut = measureCodepoints(text, font);
+        if (segWidthOut <= 0) return 0;
+
+        drawPerLetter(g.target(), segment, spec, font, text, segWidthOut, xMcPx, yMcPx, tick);
+        return segWidthOut / MinecraftFont.MC_PIXEL_SCALE;
+    }
+
+    /**
+     * Sums the advance widths of {@code text} in output px walking CODEPOINTS (surrogate-safe),
+     * matching the glyph the draw loop actually blits rather than
+     * {@code MinecraftFontMetrics.stringWidth}'s UTF-16 code-unit walk (06 §2.3).
+     */
+    static int measureCodepoints(@NotNull String text, @NotNull MinecraftFont font) {
+        int width = 0;
+        for (int cp : text.codePoints().toArray())
+            width += font.glyph(cp).advanceWidth();
+        return width;
+    }
+
+    // --- per-letter fidelity (bandPx == 0) ---
+
+    /**
+     * Per-letter path: each glyph samples ONE color at its advance-span center; two-phase (all
+     * shadows, then all mains) so adjacent glyph bitmaps overlap as in the solid path (06 §2.5-2.6).
+     * Decorations follow the gradient, colored per glyph (06 §2.9).
+     */
+    private static void drawPerLetter(
+        @NotNull PixelBuffer target,
+        @NotNull ColorSegment segment,
+        @NotNull GradientSpec spec,
+        @NotNull MinecraftFont font,
+        @NotNull String text,
+        int segWidthOut,
+        int xMcPx, int yMcPx,
+        long tick
+    ) {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        int baseX = xMcPx * scale;
+        int baseY = yMcPx * scale;
+        int shadowOff = TextKit.SHADOW_OFFSET_MCPX * scale;
+        int[] codepoints = text.codePoints().toArray();
+
+        // Shadow pass (offset +1,+1 mcPx), darkened per-glyph color.
+        int cursor = 0;
+        for (int cp : codepoints) {
+            GlyphData glyph = font.glyph(cp);
+            int rgb = shadowRgb(sample(spec, letterT(cursor, glyph.advanceWidth(), segWidthOut, spec, tick)));
+            blitGlyphTinted(target, glyph, baseX + shadowOff + cursor, baseY + shadowOff, rgb);
+            drawDecorations(target, segment, baseX + shadowOff + cursor, baseY + shadowOff, glyph.advanceWidth(), rgb);
+            cursor += glyph.advanceWidth();
+        }
+
+        // Main pass.
+        cursor = 0;
+        for (int cp : codepoints) {
+            GlyphData glyph = font.glyph(cp);
+            int rgb = sample(spec, letterT(cursor, glyph.advanceWidth(), segWidthOut, spec, tick));
+            blitGlyphTinted(target, glyph, baseX + cursor, baseY, rgb);
+            drawDecorations(target, segment, baseX + cursor, baseY, glyph.advanceWidth(), rgb);
+            cursor += glyph.advanceWidth();
+        }
+    }
+
+    /**
+     * The advance-center position for a glyph, scroll-adjusted: {@code t = (cursor + adv/2) /
+     * segWidth}, then slid by the scroll phase.
+     */
+    private static float letterT(int cursorOut, int advanceOut, int segWidthOut, @NotNull GradientSpec spec, long tick) {
+        float center = (cursorOut + advanceOut / 2f) / segWidthOut;
+        return scrolledT(center, spec.scroll(), tick);
+    }
+
+    /**
+     * Draws the strikethrough / underline bars for one glyph's advance span in {@code rgb}, so
+     * decorations follow the gradient per letter.
+     */
+    private static void drawDecorations(@NotNull PixelBuffer target, @NotNull ColorSegment segment, int cursorX, int baselineY, int advanceOut, int rgb) {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        int argb = 0xFF000000 | (rgb & 0xFFFFFF);
+        if (segment.isStrikethrough())
+            fillClamped(target, cursorX, baselineY + TextKit.STRIKETHROUGH_OFFSET_MCPX * scale, advanceOut, TextKit.STRIKETHROUGH_THICKNESS_MCPX * scale, argb);
+        if (segment.isUnderlined())
+            fillClamped(target, cursorX, baselineY + TextKit.UNDERLINE_OFFSET_MCPX * scale, advanceOut, TextKit.UNDERLINE_THICKNESS_MCPX * scale, argb);
+    }
+
+    // --- pure color evaluation (unit-tested) ---
+
+    /**
+     * Evaluates the gradient at normalized position {@code t}. Straight sRGB channel interpolation
+     * for {@link GradientSpec.Mode#START_END START_END} / {@link GradientSpec.Mode#RANGE RANGE} /
+     * {@link GradientSpec.Mode#SPECIFIC SPECIFIC} (flat-clamped outside the pinned span), HSV hue
+     * sweep for {@link GradientSpec.Mode#RAINBOW RAINBOW} (06 §2.4). Returns a 24-bit rgb.
+     *
+     * @param spec the gradient spec
+     * @param t the normalized position
+     * @return the sampled 24-bit rgb
+     */
+    public static int sample(@NotNull GradientSpec spec, float t) {
+        return switch (spec.mode()) {
+            case START_END, RANGE, SPECIFIC -> piecewise(spec.stops(), t);
+            case RAINBOW -> ColorMath.hsvToArgb(frac(t * spec.hueCycles()) * 360f, 1f, 1f) & 0xFFFFFF;
+        };
+    }
+
+    /**
+     * Piecewise-linear sRGB interpolation across sorted stops, flat-clamped outside the span (a
+     * {@code t} before the first stop returns the first color, after the last returns the last).
+     */
+    private static int piecewise(@NotNull List<GradientSpec.Stop> stops, float t) {
+        GradientSpec.Stop first = stops.getFirst();
+        if (t <= first.position()) return first.rgb() & 0xFFFFFF;
+        GradientSpec.Stop last = stops.getLast();
+        if (t >= last.position()) return last.rgb() & 0xFFFFFF;
+
+        for (int i = 1; i < stops.size(); i++) {
+            GradientSpec.Stop upper = stops.get(i);
+            if (t <= upper.position()) {
+                GradientSpec.Stop lower = stops.get(i - 1);
+                float span = upper.position() - lower.position();
+                float local = span <= 0f ? 0f : (t - lower.position()) / span;
+                return lerpRgb(lower.rgb(), upper.rgb(), local);
+            }
+        }
+        return last.rgb() & 0xFFFFFF;
+    }
+
+    /**
+     * Straight (non-premultiplied) sRGB channel interpolation between two 24-bit colors, rounding
+     * each channel like the project's other lerps ({@code TextRenderer.lerpArgb},
+     * {@code PixelBuffer.lerp}).
+     *
+     * @param from the color at {@code t == 0}
+     * @param to the color at {@code t == 1}
+     * @param t the interpolation fraction
+     * @return the interpolated 24-bit rgb
+     */
+    public static int lerpRgb(int from, int to, float t) {
+        int r = Math.round(ColorMath.red(from) + (ColorMath.red(to) - ColorMath.red(from)) * t);
+        int g = Math.round(ColorMath.green(from) + (ColorMath.green(to) - ColorMath.green(from)) * t);
+        int b = Math.round(ColorMath.blue(from) + (ColorMath.blue(to) - ColorMath.blue(from)) * t);
+        return (r << 16) | (g << 8) | b;
+    }
+
+    /**
+     * The scroll phase in {@code [0,1)} for the absolute {@code tick}: {@code floorMod(tick,
+     * cycleTicks) / cycleTicks} (06 §2.7). Phase derives from the absolute tick (glint precedent),
+     * not the frame index, so gradients baked with the same start tick animate in phase.
+     *
+     * @param tick the absolute animation tick
+     * @param cycleTicks ticks per full slide
+     * @return the phase in {@code [0,1)}
+     */
+    public static float phase(long tick, int cycleTicks) {
+        return Math.floorMod(tick, cycleTicks) / (float) cycleTicks;
+    }
+
+    /**
+     * Slides {@code t} by the scroll phase: {@code wrap(t - dir * phase)} with {@code LEFT = +1},
+     * {@code RIGHT = -1} (06 §2.7). A {@code null} scroll returns {@code t} unchanged (the sampler
+     * flat-clamps it).
+     *
+     * @param t the base position
+     * @param scroll the scroll animation, or {@code null} for static
+     * @param tick the absolute animation tick
+     * @return the scrolled position
+     */
+    public static float scrolledT(float t, @Nullable GradientSpec.Scroll scroll, long tick) {
+        if (scroll == null) return t;
+        float direction = scroll.direction() == GradientSpec.Scroll.Direction.LEFT ? 1f : -1f;
+        return frac(t - direction * phase(tick, scroll.cycleTicks()));
+    }
+
+    /**
+     * The band slant for a spec: the spec's explicit {@link GradientSpec#shear()}, or - when it is
+     * the {@link GradientSpec#AUTO_SHEAR auto sentinel} - {@link MinecraftFont#ITALIC_SHEAR} for an
+     * italic segment, else {@code 0} (06 §2.8).
+     *
+     * @param spec the gradient spec
+     * @param italic whether the owning segment is italic
+     * @return the shear as dx per +1 py above baseline
+     */
+    public static float resolveShear(@NotNull GradientSpec spec, boolean italic) {
+        if (!Float.isNaN(spec.shear())) return spec.shear();
+        return italic ? MinecraftFont.ITALIC_SHEAR : 0f;
+    }
+
+    /**
+     * The cyclic fractional part of {@code x} in {@code [0,1)}.
+     */
+    static float frac(float x) {
+        return x - (float) Math.floor(x);
+    }
+
+    // --- glyph blit (mirrors MinecraftGraphics.blitGlyph with an explicit per-glyph tint) ---
+
+    /**
+     * Blits a glyph's alpha mask tinted by {@code rgb}, {@code NORMAL}-blended onto {@code target} -
+     * the same per-pixel pack + blend {@code MinecraftGraphics.blitGlyph} performs for a solid tint,
+     * clamped to the target bounds. Assumes a zero graphics translate (tooltip / menu buffers are
+     * drawn at their origin).
+     */
+    static void blitGlyphTinted(@NotNull PixelBuffer target, @NotNull GlyphData glyph, int cursorX, int cursorY, int rgb) {
+        PixelBuffer bitmap = glyph.bitmap();
+        int gx = cursorX + glyph.bearingX();
+        int gy = cursorY + glyph.bearingY();
+        int tw = target.width();
+        int th = target.height();
+        int tintR = ColorMath.red(rgb);
+        int tintG = ColorMath.green(rgb);
+        int tintB = ColorMath.blue(rgb);
+
+        for (int by = 0; by < bitmap.height(); by++) {
+            int py = gy + by;
+            if (py < 0 || py >= th) continue;
+            for (int bx = 0; bx < bitmap.width(); bx++) {
+                int alpha = ColorMath.alpha(bitmap.getPixel(bx, by));
+                if (alpha == 0) continue;
+                int px = gx + bx;
+                if (px < 0 || px >= tw) continue;
+                int tinted = ColorMath.pack(alpha, tintR, tintG, tintB);
+                target.setPixel(px, py, ColorMath.blend(tinted, target.getPixel(px, py), BlendMode.NORMAL));
+            }
+        }
+    }
+
+    /**
+     * Fills a rect clamped to the target bounds (decoration bars are already in output px).
+     */
+    private static void fillClamped(@NotNull PixelBuffer target, int x, int y, int w, int h, int argb) {
+        int x0 = Math.max(0, x);
+        int y0 = Math.max(0, y);
+        int x1 = Math.min(target.width(), x + w);
+        int y1 = Math.min(target.height(), y + h);
+        for (int py = y0; py < y1; py++)
+            for (int px = x0; px < x1; px++)
+                target.setPixel(px, py, ColorMath.blend(argb, target.getPixel(px, py), BlendMode.NORMAL));
+    }
+
+    private static int shadowRgb(int rgb) {
+        return (rgb & SHADOW_RGB_MASK) >> 2;
+    }
+
+}

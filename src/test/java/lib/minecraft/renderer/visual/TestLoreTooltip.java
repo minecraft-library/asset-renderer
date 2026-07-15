@@ -7,6 +7,8 @@ import lib.minecraft.renderer.option.TextOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.text.ColorSegment;
+import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -117,6 +119,10 @@ public final class TestLoreTooltip {
         // animated frame sequence. Emit both GIF and WebP side by side so format-level
         // palette handling and codec wrapping can be A/B compared from a single run.
         renderAnimated("weapon", WEAPON_LEGACY, chrome.get());
+
+        // Gradient text (06 half 2) - opt-in per-segment GradientSpec. Per-letter fidelity
+        // (bandPx 0): one flat color per glyph at its advance-span center, all four modes.
+        renderGradient("gradient_perletter", gradientPerLetterLines(), chrome.get());
 
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
     }
@@ -258,6 +264,76 @@ public final class TestLoreTooltip {
             slug, gifOut.getName().replace(".gif", ".{gif,webp,webp-lossy}"),
             gifMs, webpMs, webpLossyMs, renderMs, w, h, frameCount);
         System.out.println("    webp-lossy motionSearchThreads sweep:" + mvThreadTable);
+    }
+
+    /**
+     * The four gradient modes at per-letter fidelity (bandPx 0), one mode per tooltip line.
+     *
+     * @return the gradient sample lines
+     */
+    private static ConcurrentList<LineSegment> gradientPerLetterLines() {
+        ConcurrentList<LineSegment> lines = Concurrent.newList();
+        lines.add(gradientLine("Start to End", GradientSpec.builder(GradientSpec.Mode.START_END)
+            .addStop(0xFF5555).addStop(0x5555FF).build(), false));
+        lines.add(gradientLine("Fire Range Sweep", GradientSpec.builder(GradientSpec.Mode.RANGE)
+            .addStop(0xFF0000).addStop(0xFFAA00).addStop(0xFFFF00).build(), false));
+        lines.add(gradientLine("Specific Stops", GradientSpec.builder(GradientSpec.Mode.SPECIFIC)
+            .addStop(0x55FF55, 0.0f).addStop(0xFFFFFF, 0.5f).addStop(0x55FFFF, 1.0f).build(), false));
+        lines.add(gradientLine("Rainbow Legendary", GradientSpec.builder(GradientSpec.Mode.RAINBOW)
+            .hueCycles(1f).build(), false));
+        return lines;
+    }
+
+    /**
+     * Wraps one gradient-carrying {@link ColorSegment} as a single-segment tooltip line.
+     *
+     * @param text the line text
+     * @param spec the gradient spec
+     * @param italic whether the segment is italic (drives auto shear on the per-pixel path)
+     * @return the line
+     */
+    private static LineSegment gradientLine(@NotNull String text, @NotNull GradientSpec spec, boolean italic) {
+        return LineSegment.builder()
+            .withSegments(ColorSegment.builder().withText(text).withGradient(spec).isItalic(italic).build())
+            .build();
+    }
+
+    /**
+     * Renders pre-built gradient tooltip lines. Static gradients write a PNG; a scrolling gradient
+     * promotes the render to a frame sequence, written as a GIF (black-flattened, like the weapon).
+     *
+     * @param slug output filename stem under {@link #OUTPUT_DIR}
+     * @param lines the tooltip lines (may carry per-segment gradients)
+     * @param sprites the resolved sprite chrome pair
+     * @throws IOException if the output cannot be written
+     */
+    private static void renderGradient(@NotNull String slug, @NotNull ConcurrentList<LineSegment> lines, @NotNull TooltipChrome.ChromeSprites sprites) throws IOException {
+        TextRenderer renderer = new TextRenderer();
+        ImageFactory imageFactory = new ImageFactory();
+
+        TextOptions options = TextOptions.builder()
+            .style(TextOptions.Style.LORE)
+            .lines(lines)
+            .chrome(TooltipChrome.Vanilla.SPRITE)
+            .chromeSprites(Optional.of(sprites))
+            .build();
+
+        ImageData image = renderer.render(options);
+        int w = image.getFrames().getFirst().pixels().width();
+        int h = image.getFrames().getFirst().pixels().height();
+        int frameCount = image.getFrames().size();
+
+        String name;
+        if (image.isAnimated()) {
+            File out = OUTPUT_DIR.resolve(slug + ".gif").toFile();
+            imageFactory.toFile(image, ImageFormat.GIF, out, GifWriteOptions.builder().withBackgroundRgb(0x000000).build());
+            name = out.getName();
+        } else {
+            File out = OUTPUT_DIR.resolve(slug + ".png").toFile();
+            imageFactory.toFile(image, ImageFormat.PNG, out);
+            name = out.getName();
+        }
+        System.out.printf("  %s -> %s (%dx%d, %d frame(s))%n", slug, name, w, h, frameCount);
     }
 
     /**

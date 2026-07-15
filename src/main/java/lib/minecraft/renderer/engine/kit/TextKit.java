@@ -33,29 +33,29 @@ public class TextKit {
      * {@code y + 3.5..y + 4.5} 1-mcPixel-tall rect when combined with
      * {@link #STRIKETHROUGH_THICKNESS_MCPX}.
      */
-    private static final int STRIKETHROUGH_OFFSET_MCPX = -4;
+    static final int STRIKETHROUGH_OFFSET_MCPX = -4;
 
     /**
      * Underline top-edge offset from baseline, in mcPixels. Matches vanilla's
      * {@code y + 8..y + 9} 1-mcPixel-tall rect when combined with
      * {@link #UNDERLINE_THICKNESS_MCPX}.
      */
-    private static final int UNDERLINE_OFFSET_MCPX = 1;
+    static final int UNDERLINE_OFFSET_MCPX = 1;
 
     /**
      * Strikethrough bar thickness in mcPixels.
      */
-    private static final int STRIKETHROUGH_THICKNESS_MCPX = 1;
+    static final int STRIKETHROUGH_THICKNESS_MCPX = 1;
 
     /**
      * Underline bar thickness in mcPixels.
      */
-    private static final int UNDERLINE_THICKNESS_MCPX = 1;
+    static final int UNDERLINE_THICKNESS_MCPX = 1;
 
     /**
      * Drop-shadow displacement in mcPixels - one mcPixel right and one mcPixel down.
      */
-    private static final int SHADOW_OFFSET_MCPX = 1;
+    static final int SHADOW_OFFSET_MCPX = 1;
 
     /**
      * Divisor applied to each RGB channel to produce vanilla's ~25%-brightness drop shadow.
@@ -85,10 +85,35 @@ public class TextKit {
         int defaultArgb,
         long frameSeed
     ) {
+        return drawLine(g, line, xMcPx, yMcPx, defaultArgb, frameSeed, frameSeed);
+    }
+
+    /**
+     * Draws all segments in a {@link LineSegment}, threading an animation {@code tick} alongside the
+     * obfuscation {@code frameSeed} so gradient segments can scroll (06 §2.7). Returns the total
+     * advance in mcPixels.
+     *
+     * @param g the graphics owning the buffer and sampling factor
+     * @param line the line of styled segments to render
+     * @param xMcPx the starting cursor X in mcPixels
+     * @param yMcPx the baseline Y in mcPixels
+     * @param defaultArgb the fallback color for segments without an explicit color
+     * @param frameSeed the animation frame seed for obfuscation substitution
+     * @param tick the absolute animation tick driving gradient scroll phase
+     * @return the total advance width of the rendered line in mcPixels
+     */
+    public static int drawLine(
+        @NotNull MinecraftGraphics g,
+        @NotNull LineSegment line,
+        int xMcPx, int yMcPx,
+        int defaultArgb,
+        long frameSeed,
+        long tick
+    ) {
         int startX = xMcPx;
         int cursorMcPx = xMcPx;
         for (ColorSegment segment : line.getSegments())
-            cursorMcPx += drawSegment(g, segment, cursorMcPx, yMcPx, defaultArgb, frameSeed);
+            cursorMcPx += drawSegment(g, segment, cursorMcPx, yMcPx, defaultArgb, frameSeed, tick);
         return cursorMcPx - startX;
     }
 
@@ -111,11 +136,39 @@ public class TextKit {
         int defaultArgb,
         long frameSeed
     ) {
+        return drawSegment(g, segment, xMcPx, yMcPx, defaultArgb, frameSeed, frameSeed);
+    }
+
+    /**
+     * Draws a single {@link ColorSegment}, threading an animation {@code tick} for gradient scroll.
+     * A segment carrying a {@link ColorSegment#getGradient() gradient} routes to
+     * {@link GradientKit}; every other segment takes the byte-identical solid path.
+     *
+     * @param g the graphics owning the buffer and sampling factor
+     * @param segment the styled text segment to render
+     * @param xMcPx the starting cursor X in mcPixels
+     * @param yMcPx the baseline Y in mcPixels
+     * @param defaultArgb the fallback color when the segment has no explicit color
+     * @param frameSeed the animation frame seed for obfuscation substitution
+     * @param tick the absolute animation tick driving gradient scroll phase
+     * @return the advance width of the rendered segment in mcPixels
+     */
+    public static int drawSegment(
+        @NotNull MinecraftGraphics g,
+        @NotNull ColorSegment segment,
+        int xMcPx, int yMcPx,
+        int defaultArgb,
+        long frameSeed,
+        long tick
+    ) {
         String text = segment.getText();
         if (text.isEmpty()) return 0;
 
         if (segment.isObfuscated())
             text = substitute(text, frameSeed);
+
+        if (segment.getGradient().isPresent())
+            return GradientKit.drawSegment(g, segment, segment.getGradient().get(), text, xMcPx, yMcPx, tick);
 
         int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
         MinecraftFont font = MinecraftFont.of(segment.fontStyle());
