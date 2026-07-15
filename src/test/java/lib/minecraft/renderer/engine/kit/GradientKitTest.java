@@ -126,6 +126,56 @@ class GradientKitTest {
         }
     }
 
+    @Nested
+    @DisplayName("per-pixel banding + shear")
+    class PerPixel {
+
+        @Test
+        @DisplayName("bandCenterT quantizes columns to band centers")
+        void bandCenterQuantizes() {
+            assertThat((double) GradientKit.bandCenterT(0, 0, 0f, 1, 100), is(closeTo(0.005, 1e-6)));
+            assertThat((double) GradientKit.bandCenterT(10, 0, 0f, 1, 100), is(closeTo(0.105, 1e-6)));
+            // bandPx 8: columns 0 and 7 fall in band 0 (center 4/100), column 8 in band 1 (12/100)
+            assertThat(GradientKit.bandCenterT(0, 0, 0f, 8, 100), is(GradientKit.bandCenterT(7, 0, 0f, 8, 100)));
+            assertThat((double) GradientKit.bandCenterT(0, 0, 0f, 8, 100), is(closeTo(0.04, 1e-6)));
+            assertThat((double) GradientKit.bandCenterT(8, 0, 0f, 8, 100), is(closeTo(0.12, 1e-6)));
+        }
+
+        @Test
+        @DisplayName("shear leaves the baseline unchanged and shifts sampling left above it")
+        void shearIsBaselineAnchored() {
+            // at the baseline (height 0) shear has no effect
+            assertThat(GradientKit.bandCenterT(20, 0, 0.2f, 1, 100), is(GradientKit.bandCenterT(20, 0, 0f, 1, 100)));
+            // above the baseline the same column samples an earlier band (bands lean right going up)
+            assertThat(GradientKit.bandCenterT(20, 10, 0.2f, 1, 100),
+                is(lessThan(GradientKit.bandCenterT(20, 0, 0.2f, 1, 100))));
+        }
+
+        @Test
+        @DisplayName("per-pixel band 1 renders a smooth left-dark to right-light sweep")
+        @ExtendWith(MinecraftFontsExtension.class)
+        void perPixelSmoothSweep() {
+            MinecraftFont font = MinecraftFont.REGULAR;
+            int advW = font.glyph('W').advanceWidth();
+
+            PixelBuffer buffer = PixelBuffer.create(4 * advW + 8, 40);
+            buffer.fill(0xFF000000);
+            MinecraftGraphics g = new MinecraftGraphics(buffer);
+
+            GradientSpec spec = GradientSpec.builder(GradientSpec.Mode.START_END)
+                .addStop(0x000000).addStop(0xFFFFFF).bandPx(1).build();
+            ColorSegment segment = ColorSegment.builder().withText("WWWW").withGradient(spec).build();
+            int baseX = 1 * MinecraftFont.MC_PIXEL_SCALE;
+            GradientKit.drawSegment(g, segment, spec, "WWWW", 1, 16, 0L);
+
+            int leftMax = maxRed(buffer, baseX, baseX + advW);
+            int rightMax = maxRed(buffer, baseX + 3 * advW, baseX + 4 * advW);
+            assertThat(leftMax, is(lessThan(rightMax)));
+            assertThat(leftMax, is(lessThan(110)));
+            assertThat(rightMax, is(greaterThan(150)));
+        }
+    }
+
     @Test
     @DisplayName("measureCodepoints walks codepoints, so a surrogate pair is one glyph")
     @ExtendWith(MinecraftFontsExtension.class)

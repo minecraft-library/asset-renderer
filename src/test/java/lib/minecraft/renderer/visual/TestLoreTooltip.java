@@ -124,6 +124,16 @@ public final class TestLoreTooltip {
         // (bandPx 0): one flat color per glyph at its advance-span center, all four modes.
         renderGradient("gradient_perletter", gradientPerLetterLines(), chrome.get());
 
+        // Per-pixel fidelity: bandPx 1 (smooth) and bandPx 8 (blocky), same four modes.
+        renderGradient("gradient_band1", gradientBandLines(1), chrome.get());
+        renderGradient("gradient_band8", gradientBandLines(8), chrome.get());
+
+        // Italic segments with auto shear: per-pixel bands run parallel to the slanted stems.
+        renderGradient("gradient_italic_shear", gradientItalicShearLines(), chrome.get());
+
+        // Scrolling gradient: promotes to an animated GIF, one seamless cycle at cycleTicks 40.
+        renderGradient("gradient_scroll", gradientScrollLines(), chrome.get());
+
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
     }
 
@@ -281,6 +291,56 @@ public final class TestLoreTooltip {
             .addStop(0x55FF55, 0.0f).addStop(0xFFFFFF, 0.5f).addStop(0x55FFFF, 1.0f).build(), false));
         lines.add(gradientLine("Rainbow Legendary", GradientSpec.builder(GradientSpec.Mode.RAINBOW)
             .hueCycles(1f).build(), false));
+        return lines;
+    }
+
+    /**
+     * The four gradient modes at per-pixel fidelity with the given band width.
+     *
+     * @param bandPx the band width in output px (1 = smooth, larger = blocky)
+     * @return the gradient sample lines
+     */
+    private static ConcurrentList<LineSegment> gradientBandLines(int bandPx) {
+        ConcurrentList<LineSegment> lines = Concurrent.newList();
+        lines.add(gradientLine("Start to End", GradientSpec.builder(GradientSpec.Mode.START_END)
+            .addStop(0xFF5555).addStop(0x5555FF).bandPx(bandPx).build(), false));
+        lines.add(gradientLine("Fire Range Sweep", GradientSpec.builder(GradientSpec.Mode.RANGE)
+            .addStop(0xFF0000).addStop(0xFFAA00).addStop(0xFFFF00).bandPx(bandPx).build(), false));
+        lines.add(gradientLine("Specific Stops", GradientSpec.builder(GradientSpec.Mode.SPECIFIC)
+            .addStop(0x55FF55, 0.0f).addStop(0xFFFFFF, 0.5f).addStop(0x55FFFF, 1.0f).bandPx(bandPx).build(), false));
+        lines.add(gradientLine("Rainbow Legendary", GradientSpec.builder(GradientSpec.Mode.RAINBOW)
+            .hueCycles(1f).bandPx(bandPx).build(), false));
+        return lines;
+    }
+
+    /**
+     * Two italic per-pixel gradients (auto shear) so the sheared bands can be eyeballed parallel to
+     * the slanted stems.
+     *
+     * @return the gradient sample lines
+     */
+    private static ConcurrentList<LineSegment> gradientItalicShearLines() {
+        ConcurrentList<LineSegment> lines = Concurrent.newList();
+        lines.add(gradientLine("Italic Rainbow Slant", GradientSpec.builder(GradientSpec.Mode.RAINBOW)
+            .hueCycles(1f).bandPx(1).build(), true));
+        lines.add(gradientLine("Italic Range Slant", GradientSpec.builder(GradientSpec.Mode.RANGE)
+            .addStop(0xFF0000).addStop(0x00FF00).addStop(0x0000FF).bandPx(1).build(), true));
+        return lines;
+    }
+
+    /**
+     * Two scrolling per-pixel gradients at {@code cycleTicks 40}. Both repeat the first color as the
+     * last stop so the sweep loops without a seam (06 §2.7).
+     *
+     * @return the gradient sample lines
+     */
+    private static ConcurrentList<LineSegment> gradientScrollLines() {
+        ConcurrentList<LineSegment> lines = Concurrent.newList();
+        GradientSpec.Scroll scroll = new GradientSpec.Scroll(40, GradientSpec.Scroll.Direction.LEFT);
+        lines.add(gradientLine("Scrolling Rainbow", GradientSpec.builder(GradientSpec.Mode.RAINBOW)
+            .hueCycles(1f).bandPx(1).scroll(scroll).build(), false));
+        lines.add(gradientLine("Scrolling Fire Loop", GradientSpec.builder(GradientSpec.Mode.RANGE)
+            .addStop(0xFF0000).addStop(0xFFAA00).addStop(0xFFFF00).addStop(0xFF0000).bandPx(1).scroll(scroll).build(), false));
         return lines;
     }
 

@@ -65,7 +65,10 @@ public class GradientKit {
         int segWidthOut = measureCodepoints(text, font);
         if (segWidthOut <= 0) return 0;
 
-        drawPerLetter(g.target(), segment, spec, font, text, segWidthOut, xMcPx, yMcPx, tick);
+        if (spec.bandPx() == GradientSpec.PER_LETTER)
+            drawPerLetter(g.target(), segment, spec, font, text, segWidthOut, xMcPx, yMcPx, tick);
+        else
+            drawPerPixel(g.target(), segment, spec, font, text, segWidthOut, xMcPx, yMcPx, tick);
         return segWidthOut / MinecraftFont.MC_PIXEL_SCALE;
     }
 
@@ -145,6 +148,146 @@ public class GradientKit {
             fillClamped(target, cursorX, baselineY + TextKit.STRIKETHROUGH_OFFSET_MCPX * scale, advanceOut, TextKit.STRIKETHROUGH_THICKNESS_MCPX * scale, argb);
         if (segment.isUnderlined())
             fillClamped(target, cursorX, baselineY + TextKit.UNDERLINE_OFFSET_MCPX * scale, advanceOut, TextKit.UNDERLINE_THICKNESS_MCPX * scale, argb);
+    }
+
+    // --- per-pixel fidelity (bandPx >= 1) ---
+
+    /**
+     * Per-pixel path: uniform bands of {@link GradientSpec#bandPx()} output px over the segment,
+     * each glyph pixel tinted by {@link #sample(GradientSpec, float)} at its band center (06 §2.5).
+     * This is the white-glyph-multiply identity realized directly - each glyph pixel's alpha mask is
+     * tinted by its band color and {@code NORMAL}-blended onto the frame, confining the multiply to
+     * the glyph mask so neighbours, descenders' background, and chrome are never touched (the same
+     * guarantee a per-segment scratch gives, without a transparent intermediate that
+     * {@code BlendMode.NORMAL} would premultiply). Bands slant by the shear (06 §2.8); the shadow
+     * pass is split out and samples the MAIN letterform position (offset by {@code +delta}) so shadow
+     * bands sit exactly under main bands (06 §2.6).
+     */
+    private static void drawPerPixel(
+        @NotNull PixelBuffer target,
+        @NotNull ColorSegment segment,
+        @NotNull GradientSpec spec,
+        @NotNull MinecraftFont font,
+        @NotNull String text,
+        int segWidthOut,
+        int xMcPx, int yMcPx,
+        long tick
+    ) {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        int baseX = xMcPx * scale;
+        int baselineY = yMcPx * scale;
+        int delta = TextKit.SHADOW_OFFSET_MCPX * scale;
+        int bandPx = spec.bandPx();
+        float shear = resolveShear(spec, segment.isItalic());
+        int[] codepoints = text.codePoints().toArray();
+
+        // Band rgb at an absolute frame pixel, relative to the MAIN letterform (06 §2.5/§2.8).
+        PixelColor main = (px, py) -> bandColor(spec, px - baseX, baselineY - py, shear, bandPx, segWidthOut, tick);
+        // Shadow samples the main position (offset back by -delta), then darkens (06 §2.6).
+        PixelColor shadow = (px, py) -> shadowRgb(main.at(px - delta, py - delta));
+
+        // Shadow pass (offset +delta), then main pass.
+        int cursor = 0;
+        for (int cp : codepoints) {
+            GlyphData glyph = font.glyph(cp);
+            blitGlyphMasked(target, glyph, baseX + delta + cursor, baselineY + delta, shadow);
+            fillDecorationsMasked(target, segment, baseX + delta + cursor, baselineY + delta, glyph.advanceWidth(), shadow);
+            cursor += glyph.advanceWidth();
+        }
+        cursor = 0;
+        for (int cp : codepoints) {
+            GlyphData glyph = font.glyph(cp);
+            blitGlyphMasked(target, glyph, baseX + cursor, baselineY, main);
+            fillDecorationsMasked(target, segment, baseX + cursor, baselineY, glyph.advanceWidth(), main);
+            cursor += glyph.advanceWidth();
+        }
+    }
+
+    /**
+     * The banded, sheared, scroll-adjusted rgb for a pixel at column {@code xRel} output px from the
+     * segment start and {@code heightAboveBaseline} output px above the baseline (06 §2.5-2.8).
+     */
+    private static int bandColor(@NotNull GradientSpec spec, int xRel, int heightAboveBaseline, float shear, int bandPx, int segWidthOut, long tick) {
+        float center = bandCenterT(xRel, heightAboveBaseline, shear, bandPx, segWidthOut);
+        return sample(spec, scrolledT(center, spec.scroll(), tick));
+    }
+
+    /**
+     * The band-center position {@code t} for a pixel: shears the column
+     * ({@code x' = xRel - shear*(yBase - y)}), takes the band {@code floor(x'/bandPx)}, and returns
+     * its center {@code ((band + 0.5)*bandPx)/segWidth} (06 §2.5/§2.8). Not yet scroll-adjusted or
+     * clamped - {@link #scrolledT} and {@link #sample} finish the mapping.
+     *
+     * @param xRel the pixel column in output px from the segment start
+     * @param heightAboveBaseline the pixel's output px above the baseline ({@code yBase - y})
+     * @param shear the band slant
+     * @param bandPx the band width in output px (>= 1)
+     * @param segWidthOut the segment width in output px
+     * @return the band-center position
+     */
+    static float bandCenterT(int xRel, int heightAboveBaseline, float shear, int bandPx, int segWidthOut) {
+        float xPrime = xRel - shear * heightAboveBaseline;
+        int band = (int) Math.floor(xPrime / bandPx);
+        return ((band + 0.5f) * bandPx) / segWidthOut;
+    }
+
+    /**
+     * Blits a glyph's alpha mask, tinting each pixel by {@code color} at its frame position and
+     * {@code NORMAL}-blending onto {@code target}. The per-pixel counterpart of
+     * {@link #blitGlyphTinted}.
+     */
+    private static void blitGlyphMasked(@NotNull PixelBuffer target, @NotNull GlyphData glyph, int cursorX, int cursorY, @NotNull PixelColor color) {
+        PixelBuffer bitmap = glyph.bitmap();
+        int gx = cursorX + glyph.bearingX();
+        int gy = cursorY + glyph.bearingY();
+        int tw = target.width();
+        int th = target.height();
+
+        for (int by = 0; by < bitmap.height(); by++) {
+            int py = gy + by;
+            if (py < 0 || py >= th) continue;
+            for (int bx = 0; bx < bitmap.width(); bx++) {
+                int alpha = ColorMath.alpha(bitmap.getPixel(bx, by));
+                if (alpha == 0) continue;
+                int px = gx + bx;
+                if (px < 0 || px >= tw) continue;
+                int rgb = color.at(px, py);
+                int tinted = ColorMath.pack(alpha, ColorMath.red(rgb), ColorMath.green(rgb), ColorMath.blue(rgb));
+                target.setPixel(px, py, ColorMath.blend(tinted, target.getPixel(px, py), BlendMode.NORMAL));
+            }
+        }
+    }
+
+    /**
+     * Draws a glyph's strikethrough / underline bars, each pixel tinted by {@code color} so
+     * decorations follow the per-pixel gradient (06 §2.9).
+     */
+    private static void fillDecorationsMasked(@NotNull PixelBuffer target, @NotNull ColorSegment segment, int cursorX, int baselineY, int advanceOut, @NotNull PixelColor color) {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        if (segment.isStrikethrough())
+            fillMasked(target, cursorX, baselineY + TextKit.STRIKETHROUGH_OFFSET_MCPX * scale, advanceOut, TextKit.STRIKETHROUGH_THICKNESS_MCPX * scale, color);
+        if (segment.isUnderlined())
+            fillMasked(target, cursorX, baselineY + TextKit.UNDERLINE_OFFSET_MCPX * scale, advanceOut, TextKit.UNDERLINE_THICKNESS_MCPX * scale, color);
+    }
+
+    private static void fillMasked(@NotNull PixelBuffer target, int x, int y, int w, int h, @NotNull PixelColor color) {
+        int x0 = Math.max(0, x);
+        int y0 = Math.max(0, y);
+        int x1 = Math.min(target.width(), x + w);
+        int y1 = Math.min(target.height(), y + h);
+        for (int py = y0; py < y1; py++)
+            for (int px = x0; px < x1; px++) {
+                int argb = 0xFF000000 | (color.at(px, py) & 0xFFFFFF);
+                target.setPixel(px, py, ColorMath.blend(argb, target.getPixel(px, py), BlendMode.NORMAL));
+            }
+    }
+
+    /**
+     * A per-pixel color source: the 24-bit rgb at an absolute frame pixel.
+     */
+    @FunctionalInterface
+    private interface PixelColor {
+        int at(int px, int py);
     }
 
     // --- pure color evaluation (unit-tested) ---

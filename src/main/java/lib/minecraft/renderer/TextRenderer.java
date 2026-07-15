@@ -15,6 +15,7 @@ import lib.minecraft.renderer.option.TextOptions;
 import lib.minecraft.renderer.option.slot.TextSlot;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.ColorSegment;
+import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
@@ -55,6 +56,13 @@ public final class TextRenderer implements Renderer<TextOptions> {
      */
     private static final int DEFAULT_COLOR_ARGB = ChatColor.Legacy.GRAY.rgb();
 
+    /**
+     * Upper bound on an animated gradient's loop duration in milliseconds, mirroring
+     * {@code FrameCompositor.MAX_LOOP_MS}. Beyond it the loop is truncated and a scroll seam is
+     * accepted (06 §2.7) - the same policy the frame compositors apply to LCM-merged loops.
+     */
+    private static final long MAX_LOOP_MS = 10_000L;
+
     /** {@inheritDoc} */
     @Override
     public @NotNull ImageData render(@NotNull TextOptions options) {
@@ -62,7 +70,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
             return FrameCompositor.wrapFrames(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
 
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
-        boolean animated = hasObfuscation(options.getLines());
+        boolean animated = hasObfuscation(options.getLines()) || hasAnimatedGradient(options.getLines());
         int padMcPx = isLore ? options.getChrome().paddingMcPx(options) : 0;
         int loreGapMcPx = isLore && options.getLines().size() > 1 ? LORE_GAP_MCPX : 0;
         int canvasWMcPx = measureWidthMcPixels(options) + padMcPx * 2;
@@ -76,11 +84,13 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
         if (!animated)
-            return FrameCompositor.wrapFrames(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L), 0);
+            return FrameCompositor.wrapFrames(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L, 0L), 0);
 
+        int ticksPerFrame = ticksPerFrame(options);
+        int frameCount = animationFrameCount(options, ticksPerFrame);
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        for (int frameIndex = 0; frameIndex < options.getFrameCount(); frameIndex++)
-            frames.addAll(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, frameIndex));
+        for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
+            frames.addAll(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, frameIndex, (long) frameIndex * ticksPerFrame));
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
         return FrameCompositor.wrapFrames(frames, delayMs);
@@ -97,13 +107,15 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * @param canvasWMcPx the canvas width in mcPixels
      * @param canvasHMcPx the canvas height in mcPixels
      * @param frameSeed the obfuscation seed for this frame
+     * @param tick the absolute animation tick driving gradient scroll phase
      * @return a single-element list holding the drawn frame buffer
      */
     private static @NotNull ConcurrentList<PixelBuffer> drawSingleFrame(
         @NotNull TextOptions options,
         int canvasWMcPx,
         int canvasHMcPx,
-        long frameSeed
+        long frameSeed,
+        long tick
     ) {
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
         int padMcPx = isLore ? options.getChrome().paddingMcPx(options) : 0;
@@ -125,7 +137,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
             MinecraftGraphics g = new MinecraftGraphics(frame);
             int baselineMcPx = padMcPx + MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
             for (int i = 0; i < options.getLines().size(); i++) {
-                TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed);
+                TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed, tick);
                 baselineMcPx += LINE_HEIGHT_MCPX;
                 if (isLore && i == 0)
                     baselineMcPx += LORE_GAP_MCPX;
@@ -149,6 +161,76 @@ public final class TextRenderer implements Renderer<TextOptions> {
                 if (segment.isObfuscated()) return true;
         }
         return false;
+    }
+
+    /**
+     * Returns whether any segment carries a scrolling gradient, which - like obfuscation - promotes
+     * the render to an animated multi-frame output (06 §2.7).
+     */
+    private static boolean hasAnimatedGradient(@NotNull ConcurrentList<LineSegment> lines) {
+        for (LineSegment line : lines) {
+            for (ColorSegment segment : line.getSegments())
+                if (segment.getGradient().map(spec -> spec.scroll() != null).orElse(false)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Game ticks per output frame at the render's frame rate ({@code VANILLA_TICK_FPS / fps}, min 1).
+     * At the 20 fps default one output frame is one tick, so {@code tick(frame) == frame}.
+     */
+    private static int ticksPerFrame(@NotNull TextOptions options) {
+        return Math.max(1, Math.round(TextOptions.VANILLA_TICK_FPS / (float) options.getFramesPerSecond()));
+    }
+
+    /**
+     * The number of frames to render for a seamless animation loop. Obfuscation alone keeps the
+     * caller's {@link TextOptions#getFrameCount() frameCount} (byte-identical to the pre-gradient
+     * behaviour); a scrolling gradient sizes the loop to a whole number of cycles - the LCM of every
+     * scroll's {@code cycleTicks} (and the obfuscation loop, when combined), converted to frames and
+     * capped at {@link #MAX_LOOP_MS} (06 §2.7).
+     */
+    private static int animationFrameCount(@NotNull TextOptions options, int ticksPerFrame) {
+        if (!hasAnimatedGradient(options.getLines()))
+            return options.getFrameCount();
+
+        long loopTicks = 0;
+        for (LineSegment line : options.getLines()) {
+            for (ColorSegment segment : line.getSegments()) {
+                GradientSpec.Scroll scroll = segment.getGradient().map(GradientSpec::scroll).orElse(null);
+                if (scroll != null)
+                    loopTicks = loopTicks == 0 ? scroll.cycleTicks() : lcm(loopTicks, scroll.cycleTicks());
+            }
+        }
+        if (hasObfuscation(options.getLines())) {
+            long obfuscationLoopTicks = (long) options.getFrameCount() * ticksPerFrame;
+            loopTicks = loopTicks == 0 ? obfuscationLoopTicks : lcm(loopTicks, obfuscationLoopTicks);
+        }
+
+        int frameCount = Math.max(1, (int) (loopTicks / ticksPerFrame));
+        int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
+        int maxFrames = Math.max(1, (int) (MAX_LOOP_MS / delayMs));
+        return Math.min(frameCount, maxFrames);
+    }
+
+    /**
+     * Least common multiple, dividing before multiplying to limit overflow.
+     */
+    private static long lcm(long a, long b) {
+        if (a == 0 || b == 0) return 0;
+        return Math.abs(a / gcd(a, b) * b);
+    }
+
+    /**
+     * Greatest common divisor by the iterative Euclidean algorithm.
+     */
+    private static long gcd(long a, long b) {
+        while (b != 0) {
+            long t = b;
+            b = a % b;
+            a = t;
+        }
+        return a;
     }
 
     /**
