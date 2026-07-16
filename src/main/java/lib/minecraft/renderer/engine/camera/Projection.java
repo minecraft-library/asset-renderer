@@ -232,7 +232,7 @@ public enum Projection {
      */
     public @NotNull View resolve(@NotNull EulerRotation rotation, @NotNull Facing facing) {
         EulerRotation posed = facing.apply(compose(this.basePose, rotation));
-        return new View(Camera.fromPose(posed, facing.apply(this.lens)), LightingFrame.trackingPose(posed));
+        return new View(Camera.fromPose(posed, facing.apply(this.lens)), LightingFrame.tracking(posed));
     }
 
     /**

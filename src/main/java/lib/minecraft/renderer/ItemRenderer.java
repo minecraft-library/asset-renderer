@@ -377,7 +377,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         ModelEngine engine = new ModelEngine(context, Camera.fromPose(SHIELD_GUI_ROTATION, SHIELD_PERSPECTIVE));
         PixelBuffer texture = engine.textures().resolveTextureAtTick(SHIELD_NOPATTERN_TEXTURE_ID, tick);
         ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture);
-        triangles = ShieldKit.relightShield(triangles, LightingFrame.trackingPose(SHIELD_GUI_ROTATION));
+        triangles = ShieldKit.relightShield(triangles, LightingFrame.tracking(SHIELD_GUI_ROTATION));
 
         Matrix4f modelTransform = Matrix4f.IDENTITY.translate(
             SHIELD_ALIGN_OFFSET.x(), SHIELD_ALIGN_OFFSET.y(), SHIELD_ALIGN_OFFSET.z());

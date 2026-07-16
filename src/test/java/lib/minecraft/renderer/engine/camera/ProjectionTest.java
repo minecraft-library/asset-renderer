@@ -39,7 +39,7 @@ class ProjectionTest {
     void resolveKeepsBasePose() {
         for (Projection projection : Projection.values())
             assertThat(projection + " lighting pose", projection.resolve().lighting(),
-                equalTo(LightingFrame.trackingPose(projection.basePose())));
+                equalTo(LightingFrame.tracking(projection.basePose())));
     }
 
     @Test

@@ -248,7 +248,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ModelTransform gui = this.context.resolveIconGui(block).orElse(null);
             if (gui == null)
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
-            return new View(Camera.fromDisplayGui(gui), LightingFrame.trackingPose(gui.getRotation()));
+            return new View(Camera.fromDisplayGui(gui), LightingFrame.tracking(gui.getRotation()));
         }
 
         /**

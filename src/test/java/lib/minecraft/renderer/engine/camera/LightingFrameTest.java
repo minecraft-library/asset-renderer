@@ -29,24 +29,46 @@ class LightingFrameTest {
     @DisplayName("factories carry the right mirror and preserve the rotation")
     void factories() {
         EulerRotation r = new EulerRotation(30f, 225f, 0f);
-        assertEquals(LightingFrame.Mirror.NONE, LightingFrame.trackingPose(r).mirror());
-        assertEquals(LightingFrame.Mirror.NONE, LightingFrame.fixed(r).mirror());
-        assertEquals(r, LightingFrame.trackingPose(r).rotation());
+        assertEquals(LightingFrame.Mirror.NONE, LightingFrame.tracking(r).mirror());
+        assertEquals(r, LightingFrame.tracking(r).rotation());
 
-        LightingFrame mirrored = LightingFrame.trackingPose(r).mirroredHorizontally();
+        LightingFrame mirrored = LightingFrame.tracking(r).mirroredHorizontally();
         assertEquals(LightingFrame.Mirror.HORIZONTAL, mirrored.mirror());
         assertEquals(r, mirrored.rotation(), "mirroredHorizontally keeps the rotation");
 
         // Deriving a mirror leaves the original frame untouched (records are immutable).
-        LightingFrame base = LightingFrame.trackingPose(r);
+        LightingFrame base = LightingFrame.tracking(r);
         base.mirroredHorizontally();
         assertEquals(LightingFrame.Mirror.NONE, base.mirror());
     }
 
     @Test
+    @DisplayName("rotated() composes for a tracking frame and no-ops for a fixed frame")
+    void rotationPolicy() {
+        EulerRotation base = new EulerRotation(30f, 225f, 0f);
+        EulerRotation delta = new EulerRotation(10f, -20f, 5f);
+
+        // Tracking follows the view: the delta composes into the angle.
+        LightingFrame tracked = LightingFrame.tracking(base).rotated(delta);
+        assertEquals(new EulerRotation(40f, 205f, 5f), tracked.rotation(), "tracking composes the rotation");
+
+        // Fixed stays put: the delta is ignored.
+        LightingFrame fixed = LightingFrame.fixed(base).rotated(delta);
+        assertEquals(base, fixed.rotation(), "fixed ignores the rotation");
+
+        // A zero delta is a no-op for either policy.
+        assertEquals(base, LightingFrame.tracking(base).rotated(EulerRotation.NONE).rotation(), "tracking zero-delta");
+        assertEquals(base, LightingFrame.fixed(base).rotated(EulerRotation.NONE).rotation(), "fixed zero-delta");
+
+        // The mirror survives a rotation.
+        assertEquals(LightingFrame.Mirror.HORIZONTAL,
+            LightingFrame.tracking(base).mirroredHorizontally().rotated(delta).mirror(), "mirror preserved");
+    }
+
+    @Test
     @DisplayName("HORIZONTAL mirror swaps the left/right lit sides, top unchanged")
     void mirrorSwapsLeftRight() {
-        LightingFrame none = LightingFrame.trackingPose(EulerRotation.NONE);
+        LightingFrame none = LightingFrame.tracking(EulerRotation.NONE);
         LightingFrame mirrored = none.mirroredHorizontally();
         Vector3f rightX = new Vector3f(1f, 0f, 0f);
         Vector3f leftX = new Vector3f(-1f, 0f, 0f);

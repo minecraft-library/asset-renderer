@@ -4,10 +4,10 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * A resolved render viewpoint - a {@link Camera} (pose + lens) paired with the {@link LightingFrame} it
- * is lit through. {@link Projection#resolve} produces one, defaulting the lighting to
- * {@linkplain LightingFrame#trackingPose track the camera pose}; a caller substitutes or derives a
- * different frame with {@link #withLighting} (e.g. a screen mirror, or a fixed borrowed angle) without
- * disturbing the camera.
+ * is lit through. {@link Projection#resolve} produces one, defaulting the lighting to a
+ * {@linkplain LightingFrame#tracking frame that tracks the resolved pose}; a caller substitutes or
+ * derives a different frame with {@link #withLighting} (e.g. a screen mirror, or a
+ * {@linkplain LightingFrame#fixed fixed} borrowed angle) without disturbing the camera.
  *
  * <p>The {@link Camera} is what a {@code ModelEngine} rasterizes through; the {@link LightingFrame} is
  * read separately by the relight pass, so lighting stays an independent axis from pose and lens.
