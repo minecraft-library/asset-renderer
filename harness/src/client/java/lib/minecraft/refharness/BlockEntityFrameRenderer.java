@@ -50,6 +50,7 @@ import net.minecraft.client.renderer.blockentity.state.SignRenderState;
 import net.minecraft.client.renderer.blockentity.state.SkullBlockRenderState;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.resources.model.cuboid.ItemTransform;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
@@ -64,7 +65,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import org.joml.Matrix4f;
-import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.slf4j.Logger;
@@ -120,14 +120,6 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
 
     /** Stable position for the transient BE - never written to the world. */
     private static final BlockPos TRANSIENT_POS = new BlockPos(0, 64, 0);
-
-    private static final Quaternionf BLOCK_GUI_ROTATION = new Quaternionf().rotationXYZ(
-        (float) Math.toRadians(30),
-        (float) Math.toRadians(225),
-        0f
-    );
-
-    private static final float BLOCK_GUI_SCALE = 0.625f;
 
     private static final int[] NO_TINTS = new int[0];
 
@@ -211,6 +203,13 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
     private int textureHeight;
 
     /**
+     * The block's authored {@code display.gui} transform for the subject being rendered, resolved
+     * once per {@link #renderAndWrite} call and read by {@link #blockCenteredPose} /
+     * {@link #isoFitPose}. Falls back to {@link BlockGuiTransform#DEFAULT_BLOCK_GUI} when unreadable.
+     */
+    private ItemTransform guiTransform = BlockGuiTransform.DEFAULT_BLOCK_GUI;
+
+    /**
      * Renders the block-entity geometry of {@code state} as an iso-pose icon and writes the
      * result PNG to {@code outputPath}. Returns {@code false} when the block has no
      * {@link EntityBlock}-style entity, no registered renderer, or the renderer returns a
@@ -230,6 +229,10 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
 
         BlockEntityRenderState renderState = renderer.createRenderState();
         renderer.extractRenderState(blockEntity, renderState, 0f, /*cameraPos*/ net.minecraft.world.phys.Vec3.ZERO, /*breakProgress*/ null);
+
+        // The block's own authored display.gui pose, honored by both pose builders below (falls back
+        // to the standard [30,225,0]+0.625 iso pose when the item model exposes no readable transform).
+        guiTransform = BlockGuiTransform.resolve(client, state);
 
         ensureTextures(size, size);
 
@@ -542,23 +545,23 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
 
     /**
      * The standard block-centred iso PIP pose: centre on canvas, 1 model unit -&gt; canvas pixels
-     * (Y-down -&gt; Y-up), the block {@code display.gui} rotation + scale, then centre the
-     * {@code [0,1]} block model on the origin. Used by the raw BE path and by heads that fit inside
-     * the block.
+     * (Y-down -&gt; Y-up), then the block's authored {@code display.gui} transform via
+     * {@link ItemTransform#apply} (translation, {@code rotationXYZ}, scale, and the {@code [0,1]}
+     * block-model centring). Used by the raw BE path and by heads that fit inside the block.
      */
     private PoseStack blockCenteredPose() {
         PoseStack ps = new PoseStack();
         ps.translate(textureWidth / 2.0f, textureHeight / 2.0f, 0.0f);
         ps.scale(textureWidth, -textureHeight, textureWidth);
-        ps.mulPose(BLOCK_GUI_ROTATION);
-        ps.scale(BLOCK_GUI_SCALE, BLOCK_GUI_SCALE, BLOCK_GUI_SCALE);
-        ps.translate(-0.5f, -0.5f, -0.5f);
+        guiTransform.apply(false, ps.last());
         return ps;
     }
 
     /**
-     * Builds the iso PIP pose with a bbox-fit baked in: the standard block iso chain (no fixed
-     * block centring), then a uniform shrink so the bbox's largest extent is at most
+     * Builds the iso PIP pose with a bbox-fit baked in: the block's authored {@code display.gui}
+     * transform applied <b>fit-neutral</b> (translation, {@code rotationXYZ}, scale - <i>without</i>
+     * the {@code [0,1]} block-centring translate, since this recentres on the measured geometry
+     * bbox instead), then a uniform shrink so the bbox's largest extent is at most
      * {@link #ICON_FIT_EXTENT}, then a recenter that maps the bbox midpoint to the origin (canvas
      * centre). Mirrors asset-renderer's {@code recenterAndFit}. Callers append any per-piece
      * model transform (bed icon rotation, banner facing) after this returns.
@@ -570,8 +573,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
         PoseStack ps = new PoseStack();
         ps.translate(textureWidth / 2.0f, textureHeight / 2.0f, 0.0f);
         ps.scale(textureWidth, -textureHeight, textureWidth);
-        ps.mulPose(BLOCK_GUI_ROTATION);
-        ps.scale(BLOCK_GUI_SCALE, BLOCK_GUI_SCALE, BLOCK_GUI_SCALE);
+        BlockGuiTransform.applyFitNeutral(guiTransform, ps.last());
         ps.scale(scale, scale, scale);
         ps.translate(-bounds.centerX(), -bounds.centerY(), -bounds.centerZ());
         return ps;

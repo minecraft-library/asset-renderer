@@ -28,6 +28,7 @@ import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.resources.model.cuboid.ItemTransform;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
@@ -38,7 +39,6 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.GrassColor;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.slf4j.Logger;
@@ -58,10 +58,16 @@ import org.slf4j.LoggerFactory;
  * <pre>
  *   T(canvasW/2, canvasH/2, 0)  // center on canvas
  *   × S(canvasW, -canvasH, canvasW)  // 1 model unit -> canvasW pixels, Y-down -> Y-up
- *   × R_XYZ(30°, 225°, 0°)  // vanilla block display.gui rotation
- *   × S(0.625)              // vanilla block display.gui scale
- *   × T(-0.5, -0.5, -0.5)   // center block model (baked in [0,1] coords) on origin
+ *   × [block display.gui]  // ItemTransform.apply: T(translation) · R_XYZ(rot) · S(scale) · T(-0.5)
  * </pre>
+ *
+ * <p>The {@code display.gui} transform is the block's own authored one, resolved from its item
+ * model by {@link BlockGuiTransform#resolve} and applied via {@link ItemTransform#apply} (which
+ * emits the translation, {@code rotationXYZ}, scale, and {@code [0,1]} block-model centring in one
+ * step). Stairs pose at {@code [30,135,0]}, fence gates at {@code [30,45,0]}, and standard full-cube
+ * blocks inherit {@code block/block.json}'s {@code [30,225,0]} + scale {@code 0.625}; blocks with no
+ * readable authored transform fall back to that same default
+ * ({@link BlockGuiTransform#DEFAULT_BLOCK_GUI}).
  *
  * <p>Tints are resolved to vanilla's inventory (no-world) colour per tint index via
  * {@link #resolveInventoryTints}; biome-tinted blocks (grass_block, oak_leaves) render at the
@@ -90,24 +96,6 @@ public final class BlockFrameRenderer implements AutoCloseable {
      * colour is the correct ground truth.
      */
     private static final int[] NO_TINTS = new int[0];
-
-    /**
-     * Vanilla's standard {@code display.gui} pose for blocks. Pre-built once; same quaternion
-     * vanilla bakes into {@code block/block.json}'s root display transform. Stairs / slabs /
-     * fence gates author their own gui rotation in JSON; we intentionally ignore those for the
-     * reference renders since the goal is a uniform iso pose for parity testing.
-     */
-    private static final Quaternionf BLOCK_GUI_ROTATION = new Quaternionf().rotationXYZ(
-        (float) Math.toRadians(30),
-        (float) Math.toRadians(225),
-        0f
-    );
-
-    /**
-     * Vanilla's {@code block/block.json} {@code display.gui.scale}. Applied after the iso
-     * rotation; matches the iso-projected silhouette to ~88% of the canvas width.
-     */
-    private static final float BLOCK_GUI_SCALE = 0.625f;
 
     private final Projection projection = new Projection();
     private final ProjectionMatrixBuffer projectionMatrixBuffer = new ProjectionMatrixBuffer("refharness block PIP");
@@ -181,12 +169,16 @@ public final class BlockFrameRenderer implements AutoCloseable {
             projection.setupOrtho(-1000.0f, 1000.0f, textureWidth, textureHeight, /*invertY*/ true);
             RenderSystem.setProjectionMatrix(projectionMatrixBuffer.getBuffer(projection), ProjectionType.ORTHOGRAPHIC);
 
+            // The block's own authored display.gui, falling back to the standard [30,225,0]+0.625
+            // iso pose when the item model exposes no readable transform. ItemTransform.apply emits
+            // T(translation) · R_XYZ(rot) · S(scale) · T(-0.5,-0.5,-0.5) in one step, subsuming the
+            // former fixed rotation + 0.625 scale + [0,1] block-model centring translate.
+            ItemTransform guiTransform = BlockGuiTransform.resolve(client, state);
+
             PoseStack poseStack = new PoseStack();
             poseStack.translate(textureWidth / 2.0f, textureHeight / 2.0f, 0.0f);
             poseStack.scale(textureWidth, -textureHeight, textureWidth);
-            poseStack.mulPose(BLOCK_GUI_ROTATION);
-            poseStack.scale(BLOCK_GUI_SCALE, BLOCK_GUI_SCALE, BLOCK_GUI_SCALE);
-            poseStack.translate(-0.5f, -0.5f, -0.5f);
+            guiTransform.apply(false, poseStack.last());
 
             // ITEMS_3D = inventory iso pose lighting (same setup the item path uses for block
             // items). Matches the lighting frame the asset-renderer entity pipeline already
