@@ -24,6 +24,7 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Generates the canonical triangle lists needed by the engine layer for common 3D shapes.
@@ -244,22 +245,25 @@ public class BlockGeometryKit {
 
     /**
      * Per-build parameters for {@link #buildFromElements(ConcurrentList, Map, ElementBuildParams)}:
-     * the per-face tints plus the blockstate variant rotation and {@code uvlock} flag. Bundles the
-     * five values that vary per build so callers name them instead of threading a positional
-     * overload cascade.
+     * the per-face tints, the blockstate variant rotation, the {@code uvlock} flag, and the
+     * force-translucent face refs. Bundles the values that vary per build so callers name them
+     * instead of threading a positional overload cascade.
      *
      * @param tintedArgb ARGB applied to faces with {@code tintindex >= 0}
      * @param untintedArgb ARGB applied to faces with {@code tintindex = -1}
      * @param variantRotationX the variant's whole-model X rotation in degrees (0/90/180/270)
      * @param variantRotationY the variant's whole-model Y rotation in degrees (0/90/180/270)
      * @param uvLock whether the blockstate variant requested {@code uvlock}
+     * @param forceTranslucentRefs raw face-texture refs whose model entry carried
+     *     {@code force_translucent}, sorted into the translucent pass regardless of texel alpha
      */
     public record ElementBuildParams(
         int tintedArgb,
         int untintedArgb,
         int variantRotationX,
         int variantRotationY,
-        boolean uvLock
+        boolean uvLock,
+        @NotNull Set<String> forceTranslucentRefs
     ) {}
 
     /**
@@ -294,7 +298,7 @@ public class BlockGeometryKit {
         @NotNull Map<String, PixelBuffer> faceTextures,
         int tintArgb
     ) {
-        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintArgb, tintArgb, 0, 0, false));
+        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintArgb, tintArgb, 0, 0, false, Set.of()));
     }
 
     /**
@@ -318,7 +322,7 @@ public class BlockGeometryKit {
         int tintedArgb,
         int untintedArgb
     ) {
-        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false));
+        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, Set.of()));
     }
 
     /**
@@ -353,7 +357,45 @@ public class BlockGeometryKit {
         boolean uvLock
     ) {
         return buildFromElements(elements, faceTextures,
-            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock));
+            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, Set.of()));
+    }
+
+    /**
+     * {@code force_translucent}-aware variant of {@link #buildFromElements(ConcurrentList, Map, int, int)}.
+     * Refs present in {@code forceTranslucentRefs} join the translucent pass regardless of texel alpha.
+     *
+     * @param forceTranslucentRefs raw face-texture refs flagged {@code force_translucent} by the model
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
+        @NotNull ConcurrentList<ModelElement> elements,
+        @NotNull Map<String, PixelBuffer> faceTextures,
+        int tintedArgb,
+        int untintedArgb,
+        @NotNull Set<String> forceTranslucentRefs
+    ) {
+        return buildFromElements(elements, faceTextures,
+            new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, forceTranslucentRefs));
+    }
+
+    /**
+     * {@code force_translucent}-aware variant of
+     * {@link #buildFromElements(ConcurrentList, Map, int, int, int, int, boolean)}. Refs present in
+     * {@code forceTranslucentRefs} join the translucent pass regardless of texel alpha.
+     *
+     * @param forceTranslucentRefs raw face-texture refs flagged {@code force_translucent} by the model
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
+        @NotNull ConcurrentList<ModelElement> elements,
+        @NotNull Map<String, PixelBuffer> faceTextures,
+        int tintedArgb,
+        int untintedArgb,
+        int variantRotationX,
+        int variantRotationY,
+        boolean uvLock,
+        @NotNull Set<String> forceTranslucentRefs
+    ) {
+        return buildFromElements(elements, faceTextures,
+            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, forceTranslucentRefs));
     }
 
     /**
@@ -379,6 +421,7 @@ public class BlockGeometryKit {
         int variantRotationX = params.variantRotationX();
         int variantRotationY = params.variantRotationY();
         boolean uvLock = params.uvLock();
+        Set<String> forceTranslucentRefs = params.forceTranslucentRefs();
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
@@ -460,8 +503,12 @@ public class BlockGeometryKit {
                 // translucent so the rasterizer sorts them back-to-front. A block with stacked
                 // translucent layers (honey_block's #down outer over its #up inner) emits them in
                 // model order, which can be front-to-back; without the sort the farther inner face
-                // is depth-rejected and only one layer blends instead of vanilla's two.
-                boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
+                // is depth-rejected and only one layer blends instead of vanilla's two. A 26.1 model
+                // may also flag a texture force_translucent; those faces join the pass even when the
+                // sprite is fully opaque - vanilla glass already qualifies via its alpha, so this is
+                // additive for pack content only.
+                boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture)
+                    || forceTranslucentRefs.contains(face.getTexture());
                 addQuad(
                     triangles,
                     corners[0], corners[1], corners[2], corners[3],

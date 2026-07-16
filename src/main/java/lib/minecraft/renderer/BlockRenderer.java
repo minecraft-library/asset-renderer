@@ -438,10 +438,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
                     partModel.getElements(), partModel.getTextures(),
                     id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
+                var forceRefs = Textures.resolveForceTranslucentRefs(
+                    partModel.getElements(), partModel.getTextures(), partModel.getTextureObjects());
 
                 ConcurrentList<VisibleTriangle> partTriangles = apply.uvlock()
-                    ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, apply.x(), apply.y(), true)
-                    : BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
+                    ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, apply.x(), apply.y(), true, forceRefs)
+                    : BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, forceRefs);
 
                 // Apply per-part rotation if specified
                 if (apply.hasRotation())
@@ -552,13 +554,15 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
                 model.getElements(), model.getTextures(),
                 id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
+            var forceRefs = Textures.resolveForceTranslucentRefs(
+                model.getElements(), model.getTextures(), model.getTextureObjects());
 
             // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
             // texture stays world-aligned (the position rotation is applied separately by the
             // caller via applyRotation). Non-uvlock variants fall through to the plain build.
             if (variant != null && variant.uvlock())
-                return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint, variant.x(), variant.y(), true);
-            return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint);
+                return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint, variant.x(), variant.y(), true, forceRefs);
+            return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint, forceRefs);
         }
 
         /**
@@ -669,10 +673,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
                 partModel.getElements(), partModel.getTextures(),
                 id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
+            var forceRefs = Textures.resolveForceTranslucentRefs(
+                partModel.getElements(), partModel.getTextures(), partModel.getTextureObjects());
 
             ConcurrentList<VisibleTriangle> triangles = first.uvlock()
-                ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, first.x(), first.y(), true)
-                : BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
+                ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, first.x(), first.y(), true, forceRefs)
+                : BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, forceRefs);
 
             if (first.hasRotation())
                 triangles = applyRotation(triangles, buildVariantRotation(first));

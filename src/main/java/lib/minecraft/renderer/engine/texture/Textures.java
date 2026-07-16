@@ -4,6 +4,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.exception.RenderException;
 
 import dev.simplified.collection.Concurrent;
@@ -422,6 +423,69 @@ public class Textures {
             }
         }
         return faceTextures;
+    }
+
+    /**
+     * Resolves which of a model's element face refs are force-translucent - the raw
+     * {@link ModelFace#getTexture()} refs whose texture variable carried {@code force_translucent} in
+     * the 26.1 object form. Keys match {@link #loadElementFaceTextures} exactly (the raw ref including
+     * any leading {@code #}) and the {@code #variable} chain is walked as in
+     * {@link #resolveTextureReference}, so a returned ref is the same key
+     * {@link lib.minecraft.renderer.engine.kit.BlockGeometryKit#buildFromElements} looks up. A face is
+     * force-translucent when any variable in its deref chain is flagged.
+     *
+     * @param elements the model's element boxes
+     * @param textureVars the model's {@code #variable} bindings
+     * @param textureObjects the retained object-form entries keyed by variable name
+     * @return the raw face refs to force into the translucent pass, empty when nothing is flagged
+     */
+    public static @NotNull ConcurrentSet<String> resolveForceTranslucentRefs(
+        @NotNull Iterable<ModelElement> elements,
+        @NotNull ConcurrentMap<String, String> textureVars,
+        @NotNull ConcurrentMap<String, ModelTexture> textureObjects
+    ) {
+        ConcurrentSet<String> refs = Concurrent.newSet();
+        if (textureObjects.isEmpty()) return refs;
+
+        for (ModelElement element : elements) {
+            for (ModelFace face : element.getFaces().values()) {
+                String ref = face.getTexture();
+                if (ref.isBlank() || refs.contains(ref)) continue;
+                if (isForceTranslucent(ref, textureVars, textureObjects)) refs.add(ref);
+            }
+        }
+        return refs;
+    }
+
+    /**
+     * Walks the {@code #variable} chain of a face ref, reporting whether any hop resolves to an
+     * object-form entry flagged {@code force_translucent}.
+     *
+     * @param reference the raw face-texture ref, possibly starting with {@code #}
+     * @param variables the variable map to resolve against
+     * @param textureObjects the retained object-form entries keyed by variable name
+     * @return {@code true} when any variable in the chain carried {@code force_translucent}
+     */
+    private static boolean isForceTranslucent(
+        @NotNull String reference,
+        @NotNull ConcurrentMap<String, String> variables,
+        @NotNull ConcurrentMap<String, ModelTexture> textureObjects
+    ) {
+        String current = reference;
+        if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
+            current = "#" + current;
+
+        ConcurrentSet<String> visited = Concurrent.newSet();
+        while (current.startsWith("#")) {
+            if (!visited.add(current)) return false;
+            String name = current.substring(1);
+            ModelTexture object = textureObjects.get(name);
+            if (object != null && object.forceTranslucent()) return true;
+            String next = variables.get(name);
+            if (next == null) return false;
+            current = next;
+        }
+        return false;
     }
 
     /**

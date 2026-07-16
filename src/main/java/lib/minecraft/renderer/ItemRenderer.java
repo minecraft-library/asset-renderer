@@ -718,7 +718,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 return buildBannerOrShield3D(engine, options.getItemId(), options);
             if (!item.model().getElements().isEmpty()) {
                 Map<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item, tick);
-                return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint);
+                var forceRefs = Textures.resolveForceTranslucentRefs(
+                    item.model().getElements(), item.model().getTextures(), item.model().getTextureObjects());
+                return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint, tint, forceRefs);
             }
             PixelBuffer texture = composeTintedLayers(this.context, engine, item, options, cit, tick);
             return BlockGeometryKit.buildBoxTriangles(

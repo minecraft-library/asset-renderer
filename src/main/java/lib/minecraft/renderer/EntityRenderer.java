@@ -772,8 +772,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // untinted dirt sides stay white. Sampled against the default biome (there is no world
         // context for a held block); untinted (tintindex -1) faces keep white.
         int blockTint = BlockRenderer.resolveBlockTint(context, block.get(), Biome.Vanilla.PLAINS);
+        var forceRefs = Textures.resolveForceTranslucentRefs(
+            block.get().model().getElements(), block.get().model().getTextures(), block.get().model().getTextureObjects());
         ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(
-            block.get().model().getElements(), faceTextures, blockTint, ColorMath.WHITE);
+            block.get().model().getElements(), faceTextures, blockTint, ColorMath.WHITE, forceRefs);
         if (blockTris.isEmpty()) return Concurrent.newList();
 
         // Compose the per-overlay transform matrix in vanilla block units. PoseStack ops apply
