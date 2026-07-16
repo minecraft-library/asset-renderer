@@ -180,6 +180,13 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
+    register<JavaExec>("blockItems") {
+        description = "tooling: walks Items.<clinit> and generates src/main/resources/lib/minecraft/renderer/block_items.json (secondary block -> standing block item alias map)."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockItems")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
     register<JavaExec>("blockTints") {
         description = "tooling: walks BlockColors.createDefault() and generates src/main/resources/lib/minecraft/renderer/block_tints.json (tints + dropped[])."
         group = "tooling"

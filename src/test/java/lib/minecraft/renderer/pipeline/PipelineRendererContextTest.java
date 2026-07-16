@@ -192,6 +192,7 @@ class PipelineRendererContextTest {
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), itemTints, Concurrent.newMap(), glintItems,
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             RuleSet.empty(PackId.VANILLA),
+            Concurrent.newMap(),
             Concurrent.newMap()
         );
         context = PipelineRendererContext.of(result);

@@ -129,7 +129,7 @@ public class Pipeline {
 
         return new Result(packRoot, stack, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, itemTints, itemTrees, glintItems, blockTags,
-            potionEffectColors, bannerPatterns, rules, blockStateResult.getDefaultStateKeys());
+            potionEffectColors, bannerPatterns, rules, blockStateResult.getDefaultStateKeys(), blockStateResult.getItemBlockIds());
     }
 
     /**
@@ -445,6 +445,15 @@ public class Pipeline {
          * variant without a harness sidecar. Empty-property blocks are absent.
          */
         private final @NotNull ConcurrentMap<String, String> blockDefaultStateKeys;
+
+        /**
+         * Secondary block id to the standing block id whose inventory item it shares, from the bundled
+         * {@code block_items.json} snapshot (parsed from the vanilla {@code Items} registry by
+         * {@code ToolingBlockItems} and read by {@link BlockStateLoader}). Lets the icon renderer pose
+         * an aliased block's inventory icon through the shared item's {@code display.gui}. Blocks that
+         * own their own item are absent.
+         */
+        private final @NotNull ConcurrentMap<String, String> blockItemAliases;
 
     }
 

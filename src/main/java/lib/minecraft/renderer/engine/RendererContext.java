@@ -190,7 +190,10 @@ public interface RendererContext {
 
     /**
      * Resolves the {@code display.gui} transform a block's inventory icon renders through - the block
-     * item's gui, the same source the in-game icon and the vanilla-reference harness use. Walks the
+     * item's gui, the same source the in-game icon and the vanilla-reference harness use. The item is
+     * the block's {@link Block#itemBlockId() item-block id}, so a secondary block that shares another
+     * block's item (a wall banner, a wall skull, a filled cauldron) resolves the standing block's gui,
+     * mirroring the in-game {@code new ItemStack(block)} resolution. Walks the
      * block-item's dispatch tree at the neutral {@link ItemModelContext#gui() gui context}; a
      * {@code special} leaf (chest, banner, skull, bed) resolves to its {@code base} item model - the
      * one carrying the gui - while a plain leaf uses its own resolved model, both falling back to
@@ -202,7 +205,8 @@ public interface RendererContext {
      * @return the authored {@code display.gui}, or empty when none is readable
      */
     default @NotNull Optional<ModelTransform> resolveIconGui(@NotNull Block block) {
-        String itemId = block.id().namespace() + ":" + block.id().name();
+        ResourceId itemBlock = block.itemBlockId();
+        String itemId = itemBlock.id();
         Optional<ItemModelTree> tree = findItemTree(itemId);
 
         // The gui transform survives only on a direct model or special item wrapper. A dispatch or
@@ -222,7 +226,7 @@ public interface RendererContext {
                 .map(ItemModelNode.Special::base)
                 .orElseGet(() -> resolution.modelId().orElse(null)))
             .orElse(null);
-        String modelId = resolved != null ? resolved : block.id().namespace() + ":item/" + block.id().name();
+        String modelId = resolved != null ? resolved : itemBlock.namespace() + ":item/" + itemBlock.name();
 
         Optional<ModelTransform> itemGui = findItemModel(modelId).map(model -> model.getDisplay().get("gui"));
         if (itemGui.isPresent()) return itemGui;
