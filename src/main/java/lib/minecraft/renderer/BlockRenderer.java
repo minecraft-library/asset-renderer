@@ -15,9 +15,12 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.AnimationTimeline;
 import lib.minecraft.renderer.engine.compose.Finalize;
@@ -35,6 +38,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.slot.BlockSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -57,11 +61,12 @@ import java.util.Optional;
  * Each sub-renderer is a {@code public static final} inner class implementing
  * {@link Renderer Renderer&lt;BlockOptions&gt;}:
  * <ul>
- * <li>{@link Isometric3D} uses a {@link ModelEngine} fixed to the standard
- * {@code [30, 225, 0]} block-icon pose by default (via {@link Projection#VANILLA_ISO}). The
- * vanilla-reference harness renders every block at this uniform iso pose and ignores each
- * model's authored {@code display.gui} (stairs/slabs/fence gates ship {@code [30, 135, 0]}),
- * so per-state orientation comes from the baked blockstate variant rotation, not the camera.</li>
+ * <li>{@link Isometric3D} poses a {@link ModelEngine} from the model's authored {@code display.gui}
+ * for a default render, falling back to the standard {@code [30, 225, 0]} iso pose
+ * ({@link Projection#VANILLA_ISO}) when absent. The standard {@code block/block.json} gui reproduces
+ * that iso pose bit-for-bit, so only mirrored-Y blocks (stairs/slabs/fence gates ship
+ * {@code [30, 135, 0]} or {@code [30, 45, 0]}) present a different side; per-state orientation comes
+ * from the baked blockstate variant rotation on top of the gui pose.</li>
  * <li>{@link BlockFace2D} delegates to {@link RasterEngine} for single-face output.</li>
  * </ul>
  * Shared block lookup and biome tint resolution live as package-private static helpers on this
@@ -163,21 +168,16 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             Block block = requireBlock(this.context, options.getBlockId());
-            // Every block renders at the standard [30, 225, 0] iso pose - NOT the model's own
-            // authored display.gui. The vanilla-reference harness deliberately ignores each
-            // model's display.gui and hardcodes BLOCK_GUI_ROTATION = rotationXYZ(30, 225, 0) for
-            // both its plain-block (BlockFrameRenderer) and entity-block (BlockEntityFrameRenderer)
-            // paths, so a uniform iso pose is the ground truth. Reading the model's display.gui
-            // mirrored every y=90/270 oriented block (stairs/slabs/fence-gates ship [30, 135, 0],
-            // the reflection of 225 about yaw=180): the stair step faced the opposite horizontal
-            // side from vanilla. The blockstate variant rotation (baked into the harness's
-            // BlockStateModel quads, applied here via buildVariantRotation) supplies the real
-            // per-state orientation; the camera pose stays fixed.
-            // The caller's rotation is composed onto the projection's base pose, so it poses the
-            // camera AND the inventory-relight lighting together (resolved.lightingPose()); the
-            // rasterize call below applies no separate model-spin. A default render passes
-            // EulerRotation.NONE, leaving the pose at the base [30, 225, 0] iso.
-            var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
+            // Honor the model's authored display.gui for a default block-icon render, so mirrored-Y
+            // blocks (stairs / slabs / fence gates ship [30, 135, 0] or [30, 45, 0]) face the side
+            // they do in-game rather than the [30, 225, 0] mirror. block/block.json's standard gui
+            // ([30, 225, 0], scale 0.625) reproduces VANILLA_ISO bit-for-bit, so plain blocks are
+            // unchanged - only the authored overrides move. A non-default projection, rotation, or
+            // facing keeps the projection path, since the caller drove that pose deliberately. The
+            // chosen pose drives the camera AND the inventory relight together (resolved.lightingPose());
+            // the blockstate variant rotation (buildVariantRotation) still supplies per-state
+            // orientation, and the rasterize call applies no separate model-spin.
+            Camera resolved = resolveIconCamera(block, options.getOutput());
             EulerRotation guiRotation = resolved.lightingPose();
 
             // The Block.Entity is attached directly to the Block at PipelineRendererContext
@@ -218,6 +218,65 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 new ModelEngine(this.context, resolved).rasterize(
                     buildRelitTriangles(tick, block, be, effectiveVariant, tint, untintedTint, guiRotation, options),
                     target));
+        }
+
+        /**
+         * Resolves the camera a block icon renders through, honouring the block's authored
+         * {@code display.gui} pose for a neutral inventory render. Every family - plain, mirrored-Y, and
+         * block-entity - reads the same source the in-game icon and the vanilla-reference harness use:
+         * the block's ITEM-model gui (via {@link RendererContext#resolveIconGui}), applied in FULL
+         * (rotation + translation + per-axis scale) by {@link Camera#fromDisplayGui}. The standard
+         * {@code block/block.json} gui ({@code [30, 225, 0]}, scale {@code 0.625}) collapses to
+         * {@link Projection#VANILLA_ISO} bit-for-bit, so only blocks whose gui overrides that pose move.
+         * <p>
+         * A block-entity's per-family canonical facing rides separately on its model-space presentation;
+         * {@link #reconcileBePresentation} is the seam that keeps the two in agreement. A non-neutral
+         * render (custom projection, rotation, or facing) falls back to the projection's own resolution
+         * so a caller-driven pose is never overridden.
+         *
+         * @param block the block whose authored {@code display.gui} pose to resolve
+         * @param output the output frame supplying the projection, rotation, and facing
+         * @return the camera the icon renders through
+         */
+        private @NotNull Camera resolveIconCamera(@NotNull Block block, @NotNull OutputOptions output) {
+            if (!output.isNeutralInventoryIcon())
+                return output.getProjection().resolve(output.getRotation(), output.getFacing());
+
+            // Block-entity icons compose the gui pose with a per-family canonical facing carried on
+            // their model-space presentation; reconciling the two is a separate step, so they keep
+            // their established pose here. Plain blocks move to the unified full-transform item gui.
+            if (block.entity().isPresent())
+                return resolveBlockEntityIconCamera(block, output);
+
+            ModelTransform gui = this.context.resolveIconGui(block).orElse(null);
+            if (gui == null)
+                return output.getProjection().resolve(output.getRotation(), output.getFacing());
+            return Camera.fromDisplayGui(gui);
+        }
+
+        /**
+         * Poses a block-entity inventory icon. A block-entity carries its per-family canonical facing
+         * on its model-space presentation, so its camera reads the item {@code display.gui} only where
+         * that presentation already faces the icon ({@link Block.Entity.BoneModel#inventoryYRotation()
+         * inventoryYRotation} {@code == 0}, e.g. shulker_box and decorated_pot), falling back to the
+         * block model gui, then to the default iso pose. Rotation and scale are honoured; translation
+         * is not, since the composed presentation supplies the icon's placement.
+         *
+         * @param block the block-entity block being posed
+         * @param output the output frame supplying the fallback projection
+         * @return the camera the block-entity icon renders through
+         */
+        private @NotNull Camera resolveBlockEntityIconCamera(@NotNull Block block, @NotNull OutputOptions output) {
+            ModelTransform gui = null;
+            if (block.entity().map(entity -> entity.boneModel().inventoryYRotation() == 0f).orElse(false)) {
+                String itemModelId = block.id().namespace() + ":item/" + block.id().name();
+                gui = this.context.findItemModel(itemModelId).map(model -> model.getDisplay().get("gui")).orElse(null);
+            }
+            if (gui == null) gui = block.model().getDisplay().get("gui");
+
+            if (gui != null)
+                return Camera.fromPose(gui.getRotation(), Lens.orthographic(gui.getScaleX()));
+            return output.getProjection().resolve(output.getRotation(), output.getFacing());
         }
 
         /**

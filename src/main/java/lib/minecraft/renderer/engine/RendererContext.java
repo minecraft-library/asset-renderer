@@ -13,9 +13,12 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
@@ -182,6 +185,29 @@ public interface RendererContext {
      */
     default @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
         return Optional.empty();
+    }
+
+    /**
+     * Resolves the {@code display.gui} transform a block's inventory icon renders through - the block's
+     * ITEM-model gui, the same source the in-game icon and the vanilla-reference harness use. Walks the
+     * block-item's dispatch tree at the neutral {@link ItemModelContext#gui() gui context} to its
+     * resolved model id (falling back to {@code <ns>:item/<name>}), then reads that model's flattened
+     * {@code display.gui}, finally falling back to the block model's own gui. Returns empty when no gui
+     * is authored anywhere, in which case the caller poses the icon at the default iso pose.
+     *
+     * @param block the block whose inventory-icon gui transform to resolve
+     * @return the authored {@code display.gui}, or empty when none is readable
+     */
+    default @NotNull Optional<ModelTransform> resolveIconGui(@NotNull Block block) {
+        String itemId = block.id().namespace() + ":" + block.id().name();
+        String modelId = findItemTree(itemId)
+            .map(tree -> ItemModelWalker.resolve(tree, ItemModelContext.gui()))
+            .flatMap(ItemModelWalker.Resolution::modelId)
+            .orElse(block.id().namespace() + ":item/" + block.id().name());
+
+        Optional<ModelTransform> itemGui = findItemModel(modelId).map(model -> model.getDisplay().get("gui"));
+        if (itemGui.isPresent()) return itemGui;
+        return Optional.ofNullable(block.model().getDisplay().get("gui"));
     }
 
     /**
