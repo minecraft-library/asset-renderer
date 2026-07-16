@@ -166,7 +166,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // poses the camera directly and the rasterize call applies no separate model-spin. Default
             // renders pass EulerRotation.NONE, leaving the base block-icon pose.
             var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
-            ModelEngine engine = new ModelEngine(this.context, resolved);
+            ModelEngine engine = new ModelEngine(this.context, resolved.camera());
             Textures textures = new Textures(this.context);
             PixelBuffer still = textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
             PixelBuffer flow = textures.resolveTextureAtTick(flowTextureId(options.getFluid()), tick);

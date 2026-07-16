@@ -78,14 +78,14 @@ class FacingTest {
     @DisplayName("resolve(r) equals resolve(r, DEFAULT) - the default path is a no-op")
     void resolveDefaultMatchesPlain() {
         EulerRotation r = new EulerRotation(10f, 20f, 5f);
-        Camera plain = Projection.PORTRAIT.resolve(r);
-        Camera defaulted = Projection.PORTRAIT.resolve(r, Facing.DEFAULT);
+        View plain = Projection.PORTRAIT.resolve(r);
+        View defaulted = Projection.PORTRAIT.resolve(r, Facing.DEFAULT);
         for (int col = 1; col <= 4; col++)
             for (int row = 1; row <= 4; row++)
-                assertEquals(plain.pose().get(col, row), defaulted.pose().get(col, row), 0f,
+                assertEquals(plain.camera().pose().get(col, row), defaulted.camera().pose().get(col, row), 0f,
                     "pose(" + col + "," + row + ")");
-        assertEquals(plain.lens(), defaulted.lens());
-        assertEquals(plain.lightingPose(), defaulted.lightingPose());
+        assertEquals(plain.camera().lens(), defaulted.camera().lens());
+        assertEquals(plain.lighting(), defaulted.lighting());
     }
 
     @Test
@@ -110,13 +110,13 @@ class FacingTest {
     void resolveAppliesFacingToBasePoseAndLens() {
         Projection p = Projection.CAVALIER;   // oblique, so the lens shear reflection is exercised too
         for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED, Facing.FLIPPED, Facing.MIRRORED_FLIPPED}) {
-            Camera resolved = p.resolve(EulerRotation.NONE, f);
+            View resolved = p.resolve(EulerRotation.NONE, f);
             Camera expected = Camera.fromPose(f.apply(p.basePose()), f.apply(p.lens()));
             for (int col = 1; col <= 4; col++)
                 for (int row = 1; row <= 4; row++)
-                    assertEquals(expected.pose().get(col, row), resolved.pose().get(col, row), EPS,
+                    assertEquals(expected.pose().get(col, row), resolved.camera().pose().get(col, row), EPS,
                         f + " pose(" + col + "," + row + ")");
-            assertEquals(expected.lens(), resolved.lens(), f + " lens");
+            assertEquals(expected.lens(), resolved.camera().lens(), f + " lens");
         }
     }
 

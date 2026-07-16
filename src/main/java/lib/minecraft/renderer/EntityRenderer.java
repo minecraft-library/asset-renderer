@@ -193,7 +193,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // render = pose · ENTITY_FACING · model_Ydown lands the entity upright AND facing under ANY
         // projection (exactly like the player's R_Y(180) facing, plus the Y-down flip). For the default,
         // R(30,225,0) · ENTITY_FACING = R(30,45,0) · flip180 reproduces the harness orientation.
-        Camera entityCamera = options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing());
+        Camera entityCamera = options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).camera();
         ModelEngine engine = new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT);
         Lens lens = entityCamera.lens();
 

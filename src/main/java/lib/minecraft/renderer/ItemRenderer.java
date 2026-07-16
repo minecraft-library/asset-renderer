@@ -673,7 +673,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // Identity-pose camera carrying only the projection's lens: the held-item pose lives
             // entirely in the model's display transform (applied as the modelTransform below), so the
             // camera pose stays identity and only the rotation-independent lens comes from resolve().
-            Camera camera = Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).lens());
+            Camera camera = Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).camera().lens());
             int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
 
             // One CIT walk per render, shared by the flat-slab layer composite and the glint tail; both

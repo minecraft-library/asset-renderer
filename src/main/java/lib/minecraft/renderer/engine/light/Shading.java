@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.light;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -81,24 +82,32 @@ public class Shading {
      * camera-facing flip below is therefore skipped for those faces (they cull instead). Passing
      * {@code false} (block-entity surfaces - signs, banner cloth, hanging-sign chains, which
      * vanilla renders with {@code entityCutoutNoCull}) keeps the two-sided faces and the flip.
+     * <p>
+     * The {@link LightingFrame} supplies the rotation and an optional screen reflection. A
+     * {@link LightingFrame.Mirror#HORIZONTAL} frame negates the X of the final shading normal - a
+     * screen-space left / right swap, top / bottom unchanged - by flipping the leading Y-flip's X sign
+     * ({@code diag(1,-1,1)} becomes {@code diag(-1,-1,1)}); {@link LightingFrame.Mirror#NONE} is the
+     * plain pose-tracking relight, bit-for-bit.
      *
      * @param triangles the kit-built block triangles carrying baked cardinal shading
-     * @param guiRotation the block's {@code display.gui} pose rotation
+     * @param lighting the frame the shading is built from - the {@code display.gui} pose rotation and any mirror
      * @param forceCullBackFaces whether to force every triangle to cull back faces (plain block
      *     models) and snap shading normals to the nearest cardinal
      * @return a new list of re-shaded triangles
      */
     public static @NotNull ConcurrentList<VisibleTriangle> relightForItems3d(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull EulerRotation guiRotation,
+        @NotNull LightingFrame lighting,
         boolean forceCullBackFaces
     ) {
+        EulerRotation rotation = lighting.rotation();
+        float mirrorX = lighting.mirror() == LightingFrame.Mirror.HORIZONTAL ? -1f : 1f;
         Matrix4f normalTransform = Matrix4f.IDENTITY
-            .scale(1f, -1f, 1f)
+            .scale(mirrorX, -1f, 1f)
             .rotate(Quaternionf.rotationXYZ(
-                guiRotation.pitchRadians(),
-                guiRotation.yawRadians(),
-                guiRotation.rollRadians()
+                rotation.pitchRadians(),
+                rotation.yawRadians(),
+                rotation.rollRadians()
             ));
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle t : triangles) {
@@ -121,8 +130,10 @@ public class Shading {
             // cube with INVERTED geometry ({@code from > to}, reversed winding) whose authored
             // normals point the wrong way; for those the winding (cross-product) normal is the
             // true facing. Use the winding normal only when it contradicts the authored one.
-            Vector3f geometricNormal = t.position1().subtract(t.position0())
-                .cross(t.position2().subtract(t.position0())).normalize();
+            Vector3f geometricNormal = t.position1()
+                .subtract(t.position0())
+                .cross(t.position2().subtract(t.position0()))
+                .normalize();
             Vector3f outwardNormal = geometricNormal.dot(t.normal()) < 0f ? geometricNormal : t.normal();
             // Vanilla's plain-block GUI path ({@code BlockFeatureRenderer.putBakedQuad}) carries NO
             // per-vertex normal: every quad lights by its single {@code BakedQuad.direction =
@@ -144,9 +155,7 @@ public class Shading {
             // Block-entity surfaces (signs, banner cloth, hanging-sign chains) render through
             // vanilla's entity path ({@code entityCutoutNoCull} + {@code PER_FACE_LIGHTING}), not
             // {@code putBakedQuad}, so they keep the continuous normal and the camera-facing flip.
-            Vector3f shadeNormal = forceCullBackFaces
-                ? BlockFace.fromNormal(outwardNormal).normal()
-                : outwardNormal;
+            Vector3f shadeNormal = forceCullBackFaces ? BlockFace.fromNormal(outwardNormal).normal() : outwardNormal;
             Vector3f renderNormal = shadeNormal.transformNormal(normalTransform).normalize();
             // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
             // ENTITY_CUTOUT / sign pipeline composes withCull(false) + PER_FACE_LIGHTING, whose

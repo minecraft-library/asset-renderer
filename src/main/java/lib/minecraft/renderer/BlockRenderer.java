@@ -20,7 +20,9 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.camera.View;
 import lib.minecraft.renderer.engine.compose.AnimationTimeline;
 import lib.minecraft.renderer.engine.compose.Finalize;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
@@ -40,7 +42,6 @@ import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.engine.texture.Biome;
-import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
@@ -173,11 +174,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // ([30, 225, 0], scale 0.625) reproduces VANILLA_ISO bit-for-bit, so plain blocks are
             // unchanged - only the authored overrides move. A non-default projection, rotation, or
             // facing keeps the projection path, since the caller drove that pose deliberately. The
-            // chosen pose drives the camera AND the inventory relight together (resolved.lightingPose());
-            // the blockstate variant rotation (buildVariantRotation) still supplies per-state
-            // orientation, and the rasterize call applies no separate model-spin.
-            Camera resolved = resolveIconCamera(block, options.getOutput());
-            EulerRotation guiRotation = resolved.lightingPose();
+            // chosen pose drives the camera AND the inventory relight together (view.lighting() defaults
+            // to tracking the pose); the blockstate variant rotation (buildVariantRotation) still supplies
+            // per-state orientation, and the rasterize call applies no separate model-spin.
+            View resolved = resolveIconView(block, options.getOutput());
+            LightingFrame lighting = resolved.lighting();
 
             // The Block.Entity is attached directly to the Block at PipelineRendererContext
             // construction time, so the renderer reads it straight off the block - no sidecar
@@ -214,13 +215,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int ssaa = Math.max(1, options.getOutput().getSupersample());
             Finalize.FinalizeSpec spec = Finalize.FinalizeSpec.tickStrip(size, size, ssaa, options.getOutput().isAntiAlias(), anim);
             return Finalize.render(spec, (target, mask, tick) ->
-                new ModelEngine(this.context, resolved).rasterize(
-                    buildRelitTriangles(tick, block, be, effectiveVariant, tint, untintedTint, guiRotation, options),
+                new ModelEngine(this.context, resolved.camera()).rasterize(
+                    buildRelitTriangles(tick, block, be, effectiveVariant, tint, untintedTint, lighting, options),
                     target));
         }
 
         /**
-         * Resolves the camera a block icon renders through, honouring the block's authored
+         * Resolves the {@link View} a block icon renders through - the camera plus its lighting frame -
+         * honouring the block's authored
          * {@code display.gui} pose for a neutral inventory render. Every block - plain, mirrored-Y, and
          * block-entity - reads the same source the in-game icon and the vanilla-reference harness use:
          * the block item's {@code display.gui} (via {@link RendererContext#resolveIconGui}, which
@@ -233,20 +235,20 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * (the item def's special {@code transformation}, captured as the bone presentation), so the
          * camera is the item gui for every block without a per-family branch. A non-neutral render
          * (custom projection, rotation, or facing) falls back to the projection's own resolution so a
-         * caller-driven pose is never overridden.
+         * caller-driven pose is never overridden. The lighting frame tracks the resolved pose.
          *
          * @param block the block whose authored {@code display.gui} pose to resolve
          * @param output the output frame supplying the projection, rotation, and facing
-         * @return the camera the icon renders through
+         * @return the view the icon renders through
          */
-        private @NotNull Camera resolveIconCamera(@NotNull Block block, @NotNull OutputOptions output) {
+        private @NotNull View resolveIconView(@NotNull Block block, @NotNull OutputOptions output) {
             if (!output.isNeutralInventoryIcon())
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
 
             ModelTransform gui = this.context.resolveIconGui(block).orElse(null);
             if (gui == null)
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
-            return Camera.fromDisplayGui(gui);
+            return new View(Camera.fromDisplayGui(gui), LightingFrame.trackingPose(gui.getRotation()));
         }
 
         /**
@@ -339,7 +341,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildRelitTriangles(
             int tick, @NotNull Block block, @Nullable Block.Entity be, @NotNull String effectiveVariant,
-            int tint, int untintedTint, @NotNull EulerRotation guiRotation, @NotNull BlockOptions options
+            int tint, int untintedTint, @NotNull LightingFrame lighting, @NotNull BlockOptions options
         ) {
             // Block geometry is assembled through a GeometryLayer stack - primary model, then additive
             // block-entity geometry, then merged block-entity parts - for uniformity with the other
@@ -385,7 +387,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (triangles.isEmpty())
                 triangles = tryFirstBlockstateApply(block, tint, untintedTint, tick);
 
-            return Shading.relightForItems3d(triangles, guiRotation, be == null);
+            return Shading.relightForItems3d(triangles, lighting, be == null);
         }
 
         /**

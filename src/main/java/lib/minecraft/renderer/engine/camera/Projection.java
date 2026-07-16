@@ -21,7 +21,7 @@ import org.jetbrains.annotations.NotNull;
  * defaults so existing output never changes. Every member resolves the same way: its base pose routes
  * through {@link Camera#fromPose} ({@code rotationXYZ}), reproducing the legacy block / player / entity
  * cameras bit-for-bit. An unrotated {@link #resolve()} on a {@code VANILLA_*} member yields the exact
- * shipped {@link Camera} (pose + {@link Lens}) and lighting pair.
+ * shipped {@link View} - the {@link Camera} (pose + {@link Lens}) and its {@link LightingFrame}.
  *
  * <p>Three projection families map onto the pipeline as follows: <b>axonometric</b> (isometric /
  * dimetric / trimetric) = orthographic flatten + a pose; <b>perspective</b> (one / two / three point)
@@ -190,18 +190,18 @@ public enum Projection {
     private final @NotNull Lens lens;
 
     /**
-     * Resolves this projection at its base pose into the unrotated {@link Camera} (pose + lens +
-     * lighting pose). Equivalent to {@link #resolve(EulerRotation)} with {@link EulerRotation#NONE}, so
-     * for a {@code VANILLA_*} member it yields the exact shipped baseline camera.
+     * Resolves this projection at its base pose into the unrotated {@link View} (camera + lighting
+     * frame). Equivalent to {@link #resolve(EulerRotation)} with {@link EulerRotation#NONE}, so
+     * for a {@code VANILLA_*} member it yields the exact shipped baseline view.
      *
-     * @return the camera at the base pose
+     * @return the view at the base pose
      */
-    public @NotNull Camera resolve() {
+    public @NotNull View resolve() {
         return resolve(EulerRotation.NONE, Facing.DEFAULT);
     }
 
     /**
-     * Resolves this projection into a {@link Camera} (pose + lens + lighting pose). The rotation adds to
+     * Resolves this projection into a {@link View} (camera + lighting frame). The rotation adds to
      * the base pitch / yaw / roll, so it poses the camera and its lighting together (the lens is
      * rotation-independent) through the parity-pinned {@link Camera#fromPose} {@code rotationXYZ} path;
      * {@link EulerRotation#NONE} yields the base pose unchanged.
@@ -212,14 +212,14 @@ public enum Projection {
      * as a model-spin), so blocks, players, and entities are all normal projection subjects.
      *
      * @param rotation the rotation composed onto the base pose, in degrees
-     * @return the resolved camera
+     * @return the resolved view
      */
-    public @NotNull Camera resolve(@NotNull EulerRotation rotation) {
+    public @NotNull View resolve(@NotNull EulerRotation rotation) {
         return resolve(rotation, Facing.DEFAULT);
     }
 
     /**
-     * Resolves this projection into a {@link Camera} with a view {@link Facing} reflection applied. The
+     * Resolves this projection into a {@link View} with a view {@link Facing} reflection applied. The
      * rotation adds to the base pose (as {@link #resolve(EulerRotation)}); the facing then reflects the
      * composed pose - {@link Facing#mirrored()} mirrors the yaw, {@link Facing#flipped()} negates the
      * pitch - and, for an {@linkplain Lens.Kind#OBLIQUE oblique} lens, flips the depth-shear so the
@@ -228,10 +228,11 @@ public enum Projection {
      *
      * @param rotation the rotation composed onto the base pose, in degrees
      * @param facing the view-facing reflection applied after composition
-     * @return the resolved camera
+     * @return the resolved view
      */
-    public @NotNull Camera resolve(@NotNull EulerRotation rotation, @NotNull Facing facing) {
-        return Camera.fromPose(facing.apply(compose(this.basePose, rotation)), facing.apply(this.lens));
+    public @NotNull View resolve(@NotNull EulerRotation rotation, @NotNull Facing facing) {
+        EulerRotation posed = facing.apply(compose(this.basePose, rotation));
+        return new View(Camera.fromPose(posed, facing.apply(this.lens)), LightingFrame.trackingPose(posed));
     }
 
     /**
