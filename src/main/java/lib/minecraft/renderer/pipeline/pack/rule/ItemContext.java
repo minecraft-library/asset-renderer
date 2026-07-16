@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.pack.rule;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.util.StringUtil;
 import lib.minecraft.nbt.NbtFactory;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.StringTag;
@@ -175,25 +176,35 @@ public record ItemContext(
         }
 
         /**
-         * Eagerly parses a base64-wrapped (gzip auto-detected) binary NBT payload - the Hypixel item
-         * shape - via {@link NbtFactory#fromBase64}.
+         * Parses a base64-wrapped (gzip auto-detected) binary NBT payload - the Hypixel item shape -
+         * into a lazily-decoded borrow tree: the base64 is decoded to bytes, then handed to
+         * {@link NbtFactory#borrowFromByteArray}. The rule layer reads most fields once, so the borrow
+         * tree skips the per-value materialization the eager path pays up front.
+         *
+         * <p>The decoded array is freshly allocated per call, so the borrow tree's buffer-retention
+         * contract carries no caller-mutation hazard here.
          *
          * @param base64 the base64 NBT payload
          * @return this builder
          */
         public @NotNull Builder nbtBase64(@NotNull String base64) {
-            this.nbt = Optional.of(NbtFactory.fromBase64(base64));
+            this.nbt = Optional.of(NbtFactory.borrowFromByteArray(StringUtil.decodeBase64(base64)));
             return this;
         }
 
         /**
-         * Eagerly parses a binary NBT byte array via {@link NbtFactory#fromByteArray}.
+         * Parses a binary NBT byte array into a lazily-decoded borrow tree via
+         * {@link NbtFactory#borrowFromByteArray}. The rule layer reads most fields once, so the
+         * borrow tree skips the per-value materialization the eager path pays up front.
+         *
+         * <p>The returned tree retains the (decompressed) input bytes, so callers must not mutate
+         * {@code bytes} after this call.
          *
          * @param bytes the binary NBT bytes
          * @return this builder
          */
         public @NotNull Builder nbt(byte @NotNull [] bytes) {
-            this.nbt = Optional.of(NbtFactory.fromByteArray(bytes));
+            this.nbt = Optional.of(NbtFactory.borrowFromByteArray(bytes));
             return this;
         }
 
