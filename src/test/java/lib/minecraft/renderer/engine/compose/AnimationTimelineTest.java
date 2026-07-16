@@ -16,8 +16,8 @@ import static org.hamcrest.Matchers.is;
  * Coverage for {@link AnimationTimeline}'s AUTO derivation against
  * the real vanilla 26.1 {@code .mcmeta} shapes: the reordered {@code fire_0} frames list, the
  * {@code water_still} bare frametime, the interpolating {@code magma} / {@code prismarine} loops (the
- * latter over the 200-tick cap), and multi-texture LCM/GCD reconciliation. Verifies both the uniform
- * timeline (frameCount + ticksPerFrame) and the change-point schedule.
+ * latter over the 200-tick cap), and multi-texture LCM/GCD reconciliation. Verifies the uniform
+ * timeline (frameCount + ticksPerFrame).
  */
 class AnimationTimelineTest {
 
@@ -107,28 +107,5 @@ class AnimationTimelineTest {
         ));
         assertThat(u.ticksPerFrame(), is(2));               // gcd(2, 4)
         assertThat(u.frameCount(), is(12));                 // lcm(8, 12) / 2 = 24 / 2
-    }
-
-    @Test
-    @DisplayName("fire schedule: change points 0..31, each frame held 50 ms (mcmeta round-trip)")
-    void fireSchedule() {
-        AnimationTimeline.Schedule schedule = AnimationTimeline.deriveSchedule(
-            List.of(new AnimationTimeline.Source(32, fire())));
-        assertThat(schedule.sampleTicks().length, is(32));
-        for (int f = 0; f < 32; f++) {
-            assertThat(schedule.sampleTicks()[f], is((long) f));
-            assertThat(schedule.frameDelaysMs()[f], is(50));
-        }
-    }
-
-    @Test
-    @DisplayName("water schedule: change points every 2 ticks (0,2,..,62), each held 100 ms")
-    void waterSchedule() {
-        AnimationTimeline.Schedule schedule = AnimationTimeline.deriveSchedule(
-            List.of(new AnimationTimeline.Source(32, waterStill())));
-        assertThat(schedule.sampleTicks().length, is(32));
-        assertThat(schedule.sampleTicks()[0], is(0L));
-        assertThat(schedule.sampleTicks()[1], is(2L));
-        assertThat(schedule.frameDelaysMs()[0], is(100));   // 2 ticks * 50 ms
     }
 }

@@ -277,32 +277,16 @@ public class GlintKit {
      * Renders an fps-paced glint loop by mapping each output frame to a glint time and delegating to
      * {@link #applyGlintAtTimes}. Frame {@code n} samples glint time
      * {@code round(n * (1000 / framesPerSecond) * MAX_ENCHANTMENT_GLINT_SPEED_MILLIS)}, the wall-clock
-     * schedule the live renderers (item / armor / entity) emit for their animated output.
-     *
-     * @param base the base item texture
-     * @param glintTexture the glint scroll texture
-     * @param options the glint configuration
-     * @return an ordered list of composited frames, one per output frame
-     */
-    public static @NotNull ConcurrentList<PixelBuffer> applyGlint(
-        @NotNull PixelBuffer base,
-        @NotNull PixelBuffer glintTexture,
-        @NotNull GlintOptions options
-    ) {
-        return applyGlint(base, glintTexture, options, null);
-    }
-
-    /**
-     * {@link #applyGlint(PixelBuffer, PixelBuffer, GlintOptions)} that restricts the foil to the
-     * pixels marked in {@code glintMask} - e.g. only the armor of a player / entity render rather
-     * than the whole opaque silhouette. {@code null} applies the foil to every opaque pixel, the
-     * default behaviour used for whole-subject items and blocks.
+     * schedule the live renderers (item / armor / entity) emit for their animated output. The foil is
+     * restricted to the pixels marked in {@code glintMask} - e.g. only the armor of a player / entity
+     * render rather than the whole opaque silhouette; {@code null} applies the foil to every opaque
+     * pixel, the default behaviour used for whole-subject items and blocks.
      *
      * @param base the base render
      * @param glintTexture the glint scroll texture
      * @param options the glint configuration
      * @param glintMask the per-pixel glint coverage mask, or {@code null} to foil all opaque pixels
-     * @return an ordered list of composited frames, one per glint frame
+     * @return an ordered list of composited frames, one per output frame
      */
     public static @NotNull ConcurrentList<PixelBuffer> applyGlint(
         @NotNull PixelBuffer base,
@@ -319,32 +303,14 @@ public class GlintKit {
 
     /**
      * Renders one glint frame per supplied glint time, stamping a scrolled copy of the glint texture
-     * over a fresh copy of the base for each. The glint time {@code t} is the value vanilla derives
-     * as {@code (long)(Util.getMillis() * glintSpeed * MAX_ENCHANTMENT_GLINT_SPEED_MILLIS)}; passing
-     * an explicit schedule lets a parity harness drive both this renderer and the live client off the
-     * same deterministic times so their animations are phase-aligned.
-     *
-     * @param base the base item texture
-     * @param glintTexture the glint scroll texture
-     * @param glintTimes the ordered glint times (vanilla post-{@code glintSpeed} millis), one per frame
-     * @param options the glint configuration
-     * @return an ordered list of composited frames, one per supplied glint time
-     */
-    public static @NotNull ConcurrentList<PixelBuffer> applyGlintAtTimes(
-        @NotNull PixelBuffer base,
-        @NotNull PixelBuffer glintTexture,
-        long @NotNull [] glintTimes,
-        @NotNull GlintOptions options
-    ) {
-        return applyGlintAtTimes(base, glintTexture, glintTimes, options, null);
-    }
-
-    /**
-     * {@link #applyGlintAtTimes(PixelBuffer, PixelBuffer, long[], GlintOptions)} overload that samples
-     * {@code UV0} through an explicit atlas sprite-UV rect instead of the offline normalized-icon
-     * approximation. The glint-parity harness uses it to replay vanilla's real {@code UV0} through this
-     * exact pipeline and confirm every other factor (scroll, rotation, scale, sampling, blend, alpha)
-     * is bit-accurate. {@code null} runs the offline approximation - the production path.
+     * over a fresh copy of the base for each, sampling {@code UV0} through an explicit atlas sprite-UV
+     * rect instead of the offline normalized-icon approximation. The glint time {@code t} is the value
+     * vanilla derives as {@code (long)(Util.getMillis() * glintSpeed * MAX_ENCHANTMENT_GLINT_SPEED_MILLIS)};
+     * passing an explicit schedule lets a parity harness drive both this renderer and the live client
+     * off the same deterministic times so their animations are phase-aligned. The harness uses the
+     * {@code spriteUv} rect to replay vanilla's real {@code UV0} through this exact pipeline and confirm
+     * every other factor (scroll, rotation, scale, sampling, blend, alpha) is bit-accurate;
+     * {@code null} runs the offline approximation - the production path.
      *
      * @param base the base item texture
      * @param glintTexture the glint scroll texture

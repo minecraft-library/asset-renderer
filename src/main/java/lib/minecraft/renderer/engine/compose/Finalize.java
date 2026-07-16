@@ -271,49 +271,6 @@ public final class Finalize {
     }
 
     /**
-     * Schedule-driven variable-delay strip: bakes one frame per entry of
-     * {@code sampleTicks} (each frame drawn at its own absolute tick), composes the per-frame glint as
-     * {@link #renderStrip} does, then wraps the frames with per-frame {@code frameDelaysMs}. This is the
-     * change-point export a subject's merged animation timeline produces - one output frame per DISTINCT
-     * texture state, each held for its authored duration - so a single-texture subject (fire's reordered
-     * frames list) round-trips its {@code .mcmeta} timeline exactly rather than resampling at a uniform
-     * cadence. Purely additive: {@link #render}/{@link #renderStrip} keep their uniform semantics.
-     *
-     * @param spec the terminal recipe (its {@code frameCount}/{@code startTick}/{@code ticksPerFrame}/
-     *        {@code delayMs} are ignored; the schedule drives frame count and timing, the glint rides)
-     * @param sampleTicks the absolute tick each output frame is drawn at, in playback order
-     * @param frameDelaysMs the playback duration of each frame in milliseconds, parallel to {@code sampleTicks}
-     * @param raster draws each frame at its scheduled tick
-     * @return the finished variable-delay strip
-     * @throws IllegalArgumentException if the two arrays differ in length or are empty
-     */
-    public static @NotNull ImageData renderSchedule(
-        @NotNull FinalizeSpec spec,
-        long @NotNull [] sampleTicks,
-        int @NotNull [] frameDelaysMs,
-        @NotNull FrameRasterizer raster
-    ) {
-        if (sampleTicks.length != frameDelaysMs.length)
-            throw new IllegalArgumentException("sampleTicks (%d) and frameDelaysMs (%d) must be the same length"
-                .formatted(sampleTicks.length, frameDelaysMs.length));
-        if (sampleTicks.length == 0)
-            throw new IllegalArgumentException("renderSchedule needs at least one sample tick");
-
-        List<Finished> baked = IntStream.range(0, sampleTicks.length)
-            .parallel()
-            .mapToObj(f -> rasterizeAndPost(spec, raster, (int) sampleTicks[f]))
-            .toList();
-
-        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        for (Finished finished : baked) frames.add(finished.buffer());
-
-        stampAnimatedGlint(spec, baked, frames,
-            f -> spec.glint() != null && spec.glint().animate() ? (int) sampleTicks[f] : (int) sampleTicks[0]);
-
-        return FrameCompositor.wrapFrames(frames, frameDelaysMs);
-    }
-
-    /**
      * Composes the enchantment glint onto a baked strip in place (a no-op unless the spec carries an
      * enchanted glint whose texture resolves). The animation owns the frame axis; each frame is
      * post-stamped with a scrolled foil at the glint time derived from that frame's tick
@@ -364,21 +321,6 @@ public final class Finalize {
      */
     static long glintTimeForTick(int tick) {
         return Math.round((double) tick * MILLIS_PER_TICK * GlintKit.MAX_ENCHANTMENT_GLINT_SPEED_MILLIS);
-    }
-
-    /**
-     * Runs the rasterize + supersample / FXAA / downscale tail for a single frame and returns the
-     * finished buffer, without wrapping it into {@link ImageData}. For renderers that assemble their
-     * own multi-frame output (e.g. a cross-frame loop crossfade) and need the raw finished buffers.
-     *
-     * @param spec the terminal recipe (the animation + glint fields are ignored; {@code recordMask}
-     *        still applies)
-     * @param raster draws the frame at {@code tick}
-     * @param tick the animation tick to draw
-     * @return the finished (downscaled) buffer
-     */
-    public static @NotNull PixelBuffer frame(@NotNull FinalizeSpec spec, @NotNull FrameRasterizer raster, int tick) {
-        return rasterizeAndPost(spec, raster, tick).buffer();
     }
 
     /**

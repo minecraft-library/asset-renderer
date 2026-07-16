@@ -7,7 +7,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.TreeSet;
 
 /**
  * Derives an output-clock animation timeline from a subject's resolved {@code .mcmeta} sidecars
@@ -15,19 +14,15 @@ import java.util.TreeSet;
  * {@code AnimationOptions.deriveTimeline} cannot generally know a sensible {@code frameCount} /
  * {@code ticksPerFrame} for its textures (a block may composite a 32-frame 2-tick water face and a
  * 300-frametime prismarine face); this helper probes each animated texture's loop length + entry
- * cadence and reconciles them into either:
- * <ul>
- * <li>a {@link Uniform} (frameCount + ticksPerFrame) for {@link Finalize.FinalizeSpec#tickStrip}, or</li>
- * <li>a {@link Schedule} (change-point sample ticks + per-frame delays) for
- *     {@link Finalize#renderSchedule}.</li>
- * </ul>
+ * cadence and reconciles them into a {@link Uniform} (frameCount + ticksPerFrame) for
+ * {@link Finalize.FinalizeSpec#tickStrip}.
  *
- * <p>Both reconcile within one capped loop: {@link #MAX_LOOP_TICKS} = 200 ticks (the tick equivalent
- * of {@code FrameCompositor.MAX_LOOP_MS} = 10 000 ms; also the precedent in {@code GlintKit}'s 2 s
- * truncation of the impractical 330 s vanilla glint loop). Interpolating textures have no discrete
- * change points - every tick is distinct - so derivation treats them as cadence 1 and lets the cap
- * bound the frame count. When no source is animated the result degrades to {@link Uniform#STATIC}, so
- * requesting {@code AUTO} on a static subject costs nothing.
+ * <p>Reconciliation runs within one capped loop: {@link #MAX_LOOP_TICKS} = 200 ticks (the tick
+ * equivalent of {@code FrameCompositor.MAX_LOOP_MS} = 10 000 ms; also the precedent in
+ * {@code GlintKit}'s 2 s truncation of the impractical 330 s vanilla glint loop). Interpolating
+ * textures have no discrete change points - every tick is distinct - so derivation treats them as
+ * cadence 1 and lets the cap bound the frame count. When no source is animated the result degrades to
+ * {@link Uniform#STATIC}, so requesting {@code AUTO} on a static subject costs nothing.
  */
 @UtilityClass
 public class AnimationTimeline {
@@ -63,15 +58,6 @@ public class AnimationTimeline {
     }
 
     /**
-     * A change-point derived timeline: one output frame per distinct texture state, each drawn at its
-     * absolute tick and held for its own delay.
-     *
-     * @param sampleTicks the absolute tick each output frame is drawn at, ascending
-     * @param frameDelaysMs the playback duration of each frame in milliseconds, parallel to {@code sampleTicks}
-     */
-    public record Schedule(long @NotNull [] sampleTicks, int @NotNull [] frameDelaysMs) {}
-
-    /**
      * Derives a {@link Uniform} timeline from the animated sources: {@code ticksPerFrame} is the GCD of
      * every entry duration (floored at 1, forced to 1 when any source interpolates so every distinct
      * tick is sampled); the loop length is the LCM of every source's total ticks, capped at
@@ -93,56 +79,6 @@ public class AnimationTimeline {
         return new Uniform(frameCount, ticksPerFrame);
     }
 
-    /**
-     * Derives a change-point {@link Schedule} from the animated sources: within one capped loop
-     * ({@link #MAX_LOOP_TICKS}), unions the tick offsets at which ANY source changes frame (each
-     * source's cumulative entry offsets, repeated to fill the loop; an interpolating source changes
-     * every tick), producing one output frame per distinct state. Frame {@code f} plays for
-     * {@code (sampleTicks[f+1] - sampleTicks[f]) * 50} ms, the last frame wrapping to the loop end. For
-     * a single non-interpolating texture this reproduces its {@code .mcmeta} timeline frame-for-frame
-     * (fire's authored, reordered {@code frames} list round-trips exactly). Returns a single frame at
-     * tick 0 when nothing animates.
-     *
-     * @param sources the subject's resolved animated textures
-     * @return the derived change-point schedule
-     */
-    public static @NotNull Schedule deriveSchedule(@NotNull List<Source> sources) {
-        List<int[]> durationsPerSource = playableDurations(sources);
-        if (durationsPerSource.isEmpty())
-            return new Schedule(new long[]{0L}, new int[]{Finalize.MILLIS_PER_TICK});
-
-        int loopTicks = cappedLoopTicks(durationsPerSource);
-        if (loopTicks <= 0)
-            return new Schedule(new long[]{0L}, new int[]{Finalize.MILLIS_PER_TICK});
-
-        TreeSet<Long> changePoints = new TreeSet<>();
-        changePoints.add(0L);
-        for (int s = 0; s < durationsPerSource.size(); s++) {
-            int[] durations = durationsPerSource.get(s);
-            if (interpolatesAt(sources, s)) {
-                for (long t = 0; t < loopTicks; t++) changePoints.add(t);
-                continue;
-            }
-            long t = 0;
-            int i = 0;
-            while (t < loopTicks) {
-                changePoints.add(t);
-                t += durations[i % durations.length];
-                i++;
-            }
-        }
-
-        List<Long> ticks = new ArrayList<>(changePoints.headSet((long) loopTicks));
-        long[] sampleTicks = new long[ticks.size()];
-        int[] frameDelaysMs = new int[ticks.size()];
-        for (int f = 0; f < ticks.size(); f++) {
-            sampleTicks[f] = ticks.get(f);
-            long next = f + 1 < ticks.size() ? ticks.get(f + 1) : loopTicks;
-            frameDelaysMs[f] = (int) (next - sampleTicks[f]) * Finalize.MILLIS_PER_TICK;
-        }
-        return new Schedule(sampleTicks, frameDelaysMs);
-    }
-
     /** The non-empty per-entry duration arrays of every playable source. */
     private static @NotNull List<int[]> playableDurations(@NotNull List<Source> sources) {
         List<int[]> out = new ArrayList<>();
@@ -155,22 +91,6 @@ public class AnimationTimeline {
             out.add(durations);
         }
         return out;
-    }
-
-    /** Whether the source at the given index into {@code sources} declares interpolation. */
-    private static boolean interpolatesAt(@NotNull List<Source> sources, int playableIndex) {
-        // playableDurations preserves order and only drops unplayable sources; re-walk to align indices.
-        int seen = 0;
-        for (Source source : sources) {
-            int[] durations = AnimationKit.entryDurations(source.frameCount(), source.animation());
-            if (durations.length == 0) continue;
-            long total = 0;
-            for (int d : durations) total += d;
-            if (total <= 0) continue;
-            if (seen == playableIndex) return source.animation().interpolate();
-            seen++;
-        }
-        return false;
     }
 
     /** Whether any playable source interpolates. */

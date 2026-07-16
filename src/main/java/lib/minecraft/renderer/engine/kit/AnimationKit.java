@@ -141,21 +141,6 @@ public class AnimationKit {
     }
 
     /**
-     * The total loop length of an animation in ticks - the sum of its {@link #entryDurations per-entry
-     * durations}, i.e. the tick at which the playback sequence wraps. Zero when the animation has no
-     * playable frames.
-     *
-     * @param frameCount the strip's implicit frame count (see {@link #entryDurations})
-     * @param animation the parsed {@code .mcmeta} metadata
-     * @return the loop length in ticks
-     */
-    public static int loopTicks(int frameCount, @NotNull AnimationData animation) {
-        int total = 0;
-        for (int d : entryDurations(frameCount, animation)) total += d;
-        return total;
-    }
-
-    /**
      * Extracts a single frame from the strip at the given index. Frame 0 occupies the top
      * {@code frameHeight} rows, frame 1 the next, and so on.
      *

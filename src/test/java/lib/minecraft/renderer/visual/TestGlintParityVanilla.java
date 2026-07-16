@@ -288,7 +288,7 @@ public final class TestGlintParityVanilla {
 
         PixelBuffer glintTexture = new RasterEngine(context).textures().resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
-            base, glintTexture, schedule, GlintKit.GlintOptions.armorDefault(30));
+            base, glintTexture, schedule, GlintKit.GlintOptions.armorDefault(30), null, null);
 
         List<BufferedImage> out = new ArrayList<>(frames.size());
         for (PixelBuffer frame : frames) out.add(frame.toBufferedImage());

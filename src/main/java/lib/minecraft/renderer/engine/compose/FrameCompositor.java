@@ -91,37 +91,6 @@ public class FrameCompositor {
     }
 
     /**
-     * Wraps a list of rendered frames as an {@link ImageData} instance where each frame carries its OWN
-     * playback delay - the variable-cadence counterpart of
-     * {@link #wrapFrames(ConcurrentList, int)}. A single-frame list becomes a {@link StaticImageData};
-     * multi-frame lists become an {@link AnimatedImageData} stamping {@code frameDelaysMs[i]} on frame
-     * {@code i}. Lets a subject export one output frame per distinct texture state (fire's authored,
-     * reordered {@code frames} list) without resampling to a uniform tick cadence.
-     *
-     * @param frames the ordered frame list
-     * @param frameDelaysMs the per-frame display durations in milliseconds, parallel to {@code frames}
-     * @return the wrapped image data
-     * @throws RenderException if {@code frames} is empty
-     * @throws IllegalArgumentException if {@code frameDelaysMs} is not the same length as {@code frames}
-     */
-    public static @NotNull ImageData wrapFrames(@NotNull ConcurrentList<PixelBuffer> frames, int @NotNull [] frameDelaysMs) {
-        if (frames.isEmpty())
-            throw new RenderException("Frame list must contain at least one frame");
-        if (frameDelaysMs.length != frames.size())
-            throw new IllegalArgumentException("frameDelaysMs (%d) must match frame count (%d)"
-                .formatted(frameDelaysMs.length, frames.size()));
-
-        if (frames.size() == 1)
-            return StaticImageData.of(frames.getFirst().toBufferedImage());
-
-        AnimatedImageData.Builder builder = AnimatedImageData.builder();
-        for (int i = 0; i < frames.size(); i++)
-            builder.withFrame(ImageFrame.of(frames.get(i), frameDelaysMs[i]));
-
-        return builder.build();
-    }
-
-    /**
      * Wraps a pixel buffer as a single-frame static {@link ImageData}. Shared convenience for every
      * renderer that needs to emit exactly one frame without glint or animation.
      *
