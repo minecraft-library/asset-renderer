@@ -20,7 +20,6 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
-import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.AnimationTimeline;
 import lib.minecraft.renderer.engine.compose.Finalize;
@@ -222,17 +221,19 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
         /**
          * Resolves the camera a block icon renders through, honouring the block's authored
-         * {@code display.gui} pose for a neutral inventory render. Every family - plain, mirrored-Y, and
+         * {@code display.gui} pose for a neutral inventory render. Every block - plain, mirrored-Y, and
          * block-entity - reads the same source the in-game icon and the vanilla-reference harness use:
-         * the block's ITEM-model gui (via {@link RendererContext#resolveIconGui}), applied in FULL
-         * (rotation + translation + per-axis scale) by {@link Camera#fromDisplayGui}. The standard
-         * {@code block/block.json} gui ({@code [30, 225, 0]}, scale {@code 0.625}) collapses to
-         * {@link Projection#VANILLA_ISO} bit-for-bit, so only blocks whose gui overrides that pose move.
+         * the block item's {@code display.gui} (via {@link RendererContext#resolveIconGui}, which
+         * resolves a special model to its base item model), applied in FULL (rotation + translation +
+         * per-axis scale) by {@link Camera#fromDisplayGui}. The standard {@code block/block.json} gui
+         * ({@code [30, 225, 0]}, scale {@code 0.625}) collapses to {@link Projection#VANILLA_ISO}
+         * bit-for-bit, so only blocks whose gui overrides that pose move.
          * <p>
-         * A block-entity's per-family canonical facing rides separately on its model-space presentation;
-         * {@link #reconcileBePresentation} is the seam that keeps the two in agreement. A non-neutral
-         * render (custom projection, rotation, or facing) falls back to the projection's own resolution
-         * so a caller-driven pose is never overridden.
+         * A block-entity's per-family mesh placement rides separately on its model-space presentation
+         * (the item def's special {@code transformation}, captured as the bone presentation), so the
+         * camera is the item gui for every block without a per-family branch. A non-neutral render
+         * (custom projection, rotation, or facing) falls back to the projection's own resolution so a
+         * caller-driven pose is never overridden.
          *
          * @param block the block whose authored {@code display.gui} pose to resolve
          * @param output the output frame supplying the projection, rotation, and facing
@@ -242,41 +243,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (!output.isNeutralInventoryIcon())
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
 
-            // Block-entity icons compose the gui pose with a per-family canonical facing carried on
-            // their model-space presentation; reconciling the two is a separate step, so they keep
-            // their established pose here. Plain blocks move to the unified full-transform item gui.
-            if (block.entity().isPresent())
-                return resolveBlockEntityIconCamera(block, output);
-
             ModelTransform gui = this.context.resolveIconGui(block).orElse(null);
             if (gui == null)
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
             return Camera.fromDisplayGui(gui);
-        }
-
-        /**
-         * Poses a block-entity inventory icon. A block-entity carries its per-family canonical facing
-         * on its model-space presentation, so its camera reads the item {@code display.gui} only where
-         * that presentation already faces the icon ({@link Block.Entity.BoneModel#inventoryYRotation()
-         * inventoryYRotation} {@code == 0}, e.g. shulker_box and decorated_pot), falling back to the
-         * block model gui, then to the default iso pose. Rotation and scale are honoured; translation
-         * is not, since the composed presentation supplies the icon's placement.
-         *
-         * @param block the block-entity block being posed
-         * @param output the output frame supplying the fallback projection
-         * @return the camera the block-entity icon renders through
-         */
-        private @NotNull Camera resolveBlockEntityIconCamera(@NotNull Block block, @NotNull OutputOptions output) {
-            ModelTransform gui = null;
-            if (block.entity().map(entity -> entity.boneModel().inventoryYRotation() == 0f).orElse(false)) {
-                String itemModelId = block.id().namespace() + ":item/" + block.id().name();
-                gui = this.context.findItemModel(itemModelId).map(model -> model.getDisplay().get("gui")).orElse(null);
-            }
-            if (gui == null) gui = block.model().getDisplay().get("gui");
-
-            if (gui != null)
-                return Camera.fromPose(gui.getRotation(), Lens.orthographic(gui.getScaleX()));
-            return output.getProjection().resolve(output.getRotation(), output.getFacing());
         }
 
         /**

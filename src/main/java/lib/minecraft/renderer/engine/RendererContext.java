@@ -17,6 +17,7 @@ import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelNode;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
@@ -188,22 +189,40 @@ public interface RendererContext {
     }
 
     /**
-     * Resolves the {@code display.gui} transform a block's inventory icon renders through - the block's
-     * ITEM-model gui, the same source the in-game icon and the vanilla-reference harness use. Walks the
-     * block-item's dispatch tree at the neutral {@link ItemModelContext#gui() gui context} to its
-     * resolved model id (falling back to {@code <ns>:item/<name>}), then reads that model's flattened
-     * {@code display.gui}, finally falling back to the block model's own gui. Returns empty when no gui
-     * is authored anywhere, in which case the caller poses the icon at the default iso pose.
+     * Resolves the {@code display.gui} transform a block's inventory icon renders through - the block
+     * item's gui, the same source the in-game icon and the vanilla-reference harness use. Walks the
+     * block-item's dispatch tree at the neutral {@link ItemModelContext#gui() gui context}; a
+     * {@code special} leaf (chest, banner, skull, bed) resolves to its {@code base} item model - the
+     * one carrying the gui - while a plain leaf uses its own resolved model, both falling back to
+     * {@code <ns>:item/<name>}. Reads that model's flattened {@code display.gui}, finally falling back
+     * to the block model's own gui. Returns empty when no gui is authored anywhere, in which case the
+     * caller poses the icon at the default iso pose.
      *
      * @param block the block whose inventory-icon gui transform to resolve
      * @return the authored {@code display.gui}, or empty when none is readable
      */
     default @NotNull Optional<ModelTransform> resolveIconGui(@NotNull Block block) {
         String itemId = block.id().namespace() + ":" + block.id().name();
-        String modelId = findItemTree(itemId)
-            .map(tree -> ItemModelWalker.resolve(tree, ItemModelContext.gui()))
-            .flatMap(ItemModelWalker.Resolution::modelId)
-            .orElse(block.id().namespace() + ":item/" + block.id().name());
+        Optional<ItemModelTree> tree = findItemTree(itemId);
+
+        // The gui transform survives only on a direct model or special item wrapper. A dispatch or
+        // composite root (select / condition / range_dispatch / composite - chest's date select,
+        // the bed / copper_golem_statue composites) exposes no readable transform, so the in-game
+        // icon - and the vanilla-reference harness - render it at the default iso pose. Such a root
+        // has no gui override here.
+        ItemModelNode root = tree.map(ItemModelTree::root).orElse(null);
+        if (root != null && !(root instanceof ItemModelNode.Model) && !(root instanceof ItemModelNode.Special))
+            return Optional.empty();
+
+        // A special leaf carries the gui on its base item model (banner / skull on template_*); a plain
+        // leaf uses its own resolved model. Both fall back to <ns>:item/<name>.
+        String resolved = tree
+            .map(t -> ItemModelWalker.resolve(t, ItemModelContext.gui()))
+            .map(resolution -> resolution.special()
+                .map(ItemModelNode.Special::base)
+                .orElseGet(() -> resolution.modelId().orElse(null)))
+            .orElse(null);
+        String modelId = resolved != null ? resolved : block.id().namespace() + ":item/" + block.id().name();
 
         Optional<ModelTransform> itemGui = findItemModel(modelId).map(model -> model.getDisplay().get("gui"));
         if (itemGui.isPresent()) return itemGui;
