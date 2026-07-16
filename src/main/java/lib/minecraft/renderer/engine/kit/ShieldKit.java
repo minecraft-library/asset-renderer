@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
@@ -80,19 +81,25 @@ public class ShieldKit {
      * ({@link Lighting#itemsFlat} vs the {@code ITEMS_3D} variant). Measured
      * against the vanilla reference the front plate matches to ~0.004 and the {@code +X} edge to
      * ~0.002.
+     * <p>
+     * A {@link LightingFrame.Mirror#HORIZONTAL} frame negates the final normal's screen-X (a left /
+     * right swap) by flipping the leading Y-flip's X sign, exactly as {@code Shading.relightForItems3d}
+     * does; {@link LightingFrame.Mirror#NONE} is the plain pose-tracking relight, bit-for-bit.
      *
      * @param triangles the shield triangles from {@link #buildShield3D}
-     * @param guiRotation the shield item model's {@code display.gui} pose
+     * @param lighting the frame the shield lights through - the {@code display.gui} pose rotation and any mirror
      * @return a new list of re-shaded triangles
      */
     public static @NotNull ConcurrentList<VisibleTriangle> relightShield(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull EulerRotation guiRotation
+        @NotNull LightingFrame lighting
     ) {
+        EulerRotation rotation = lighting.rotation();
+        float mirrorX = lighting.mirror() == LightingFrame.Mirror.HORIZONTAL ? -1f : 1f;
         Matrix4f normalTransform = Matrix4f.IDENTITY
-            .scale(1f, -1f, 1f)
+            .scale(mirrorX, -1f, 1f)
             .rotate(Quaternionf.rotationXYZ(
-                guiRotation.pitchRadians(), guiRotation.yawRadians(), guiRotation.rollRadians()));
+                rotation.pitchRadians(), rotation.yawRadians(), rotation.rollRadians()));
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle t : triangles) {
             Vector3f rendered = t.normal().transformNormal(normalTransform).normalize();
