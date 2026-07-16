@@ -8,6 +8,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererDebug;
+import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
@@ -73,72 +74,18 @@ public class EntityGeometryKit {
     private static final float MIN_MODEL_EXTENT = 0.001f;
 
     /**
-     * The vanilla entity-preview iso <b>lighting</b> angle {@code [210, 45, 0]} - the harness's
-     * {@code ISO_ROTATION} - used to derive the per-face plane-cube view direction below. This is
-     * distinct from {@link Projection#VANILLA_ISO}'s camera pose ({@code [30, 45, 0]}, the display
-     * pose): the entity's Y-down-to-Y-up flip + facing live on the renderer's {@code ENTITY_FACING}
-     * {@code Placement}, so the camera pose is a plain display pose while the lighting frame stays on the
-     * harness iso angle. Pinned here so it does not track {@code VANILLA_ISO.basePose()}.
+     * The vanilla entity-preview iso lighting frame - the harness's {@code ISO_ROTATION} {@code [210,
+     * 45, 0]} as a {@link LightingFrame}, the default every entity render lights through. Distinct from
+     * {@link Projection#VANILLA_ISO}'s camera pose ({@code [30, 225, 0]} + the renderer's facing
+     * {@code Placement}): the light frame stays on the harness iso angle while the camera is a plain
+     * display pose. {@link Lighting#resolveEntity} turns it into the per-face shading basis (view
+     * direction + the two diffuse lights); a caller may substitute a mirrored or borrowed frame.
      */
-    private static final @NotNull EulerRotation ENTITY_ISO_LIGHTING = new EulerRotation(210f, 45f, 0f);
+    public static final @NotNull LightingFrame DEFAULT_ENTITY_LIGHTING =
+        LightingFrame.fixed(new EulerRotation(210f, 45f, 0f));
 
     /**
-     * Standard GL view direction expressed in the kit's Y-flipped shading frame: camera at origin
-     * looking toward {@code -Z}, pre-rotated through the inverse iso pose chain plus the kit's
-     * legacy Y-flip on positions ({@code diag(1,-1,1)}) so it lives in the same frame the
-     * per-face <b>shading</b> normal does (a Y-flipped copy of the stored Y-up normal - see the
-     * shading-normal derivation in {@link #buildTriangles(EntityModelData, PixelBuffer, EntityBuildParams)}).
-     * <p>
-     * Used by {@link #computeFaceShading} to pick front-vs-back {@code PER_FACE_LIGHTING} shade
-     * for no-cull cubes. {@code dot(VIEW_DIRECTION_KIT, n) < 0} means the polygon's outward normal
-     * points TOWARD the camera (front-facing per vanilla's {@code gl_FrontFacing}); {@code >= 0}
-     * means it points AWAY (back-facing).
-     * <p>
-     * Derived as {@code diag(1,-1,1) * M_view^T * (0, 0, -1)} where {@code M_view = scale(1,1,-1)
-     * * R_X(pitch) * R_Y(yaw) * R_X(180°)} is vanilla's iso transform chain (the trailing
-     * {@code R_X(180°)} folds in vanilla's {@code LivingEntityRenderer.submit}'s
-     * {@code rotateY(180°) + scale(-1,-1,1)} as a single equivalent X-axis rotation - see
-     * {@link Projection#VANILLA_ISO} for the full derivation) evaluated at
-     * {@link #ENTITY_ISO_LIGHTING} {@code [210°, 45°, 0°]}. This evaluates to approximately
-     * {@code (0.6124, -0.5, 0.6124)}: the X and Z components are
-     * {@code cos(30°) * sin(45°) = √6/4 ≈ 0.6124} (45° yaw splits horizontal direction
-     * symmetrically into X and Z, modulated by {@code cos(30°)} from the pitch tilt); the Y
-     * component is {@code -sin(30°) = -0.5} (30° pitch contribution, negated by the trailing
-     * Y-flip compensation).
-     */
-    private static final @NotNull Vector3f VIEW_DIRECTION_KIT = computeKitFrameViewDirection();
-
-    /**
-     * Computes {@link #VIEW_DIRECTION_KIT} - the standard {@code (0, 0, -1)} GL view vector
-     * rotated into the kit's shading frame - by composing the inverse iso view transform with
-     * the kit Y-flip. See {@link #VIEW_DIRECTION_KIT} for the resulting value and its meaning.
-     *
-     * @return the view direction in the kit's Y-flipped shading frame
-     */
-
-    private static @NotNull Vector3f computeKitFrameViewDirection() {
-        EulerRotation iso = ENTITY_ISO_LIGHTING;
-        // Column-vector chain `diag(1,-1,1) * R_X(-180°) * R_Y(-yaw) * R_X(-pitch) *
-        // scale(1,1,-1)` implements `Yflip * M_view^T * v` where M_view = scale(1,1,-1) *
-        // R_X(pitch) * R_Y(yaw) * R_X(180°) is vanilla's iso transform. Each rotation transposes
-        // to its negated-angle counterpart; scales are diagonal so transpose is identity.
-        // Rightmost applies first.
-        // Fluent scale/rotate path: bit-identical to vanilla's PoseStack composition, whereas the
-        // createX().multiply(...) form drifts 1-4 ULPs per entry (see Matrix4f fluent-vs-multiply
-        // note). Mirrors the same chain in Lighting.deriveEntityInUiLightKit. Composition is
-        // unchanged - IDENTITY * S1 * R_X(-180) * R_Y(-yaw) * R_X(-pitch) * S2; rightmost applies
-        // to the vector first.
-        Matrix4f viewToKit = Matrix4f.IDENTITY
-            .scale(1f, -1f, 1f)
-            .rotateX((float) -Math.PI)
-            .rotateY(-iso.yawRadians())
-            .rotateX(-iso.pitchRadians())
-            .scale(1f, 1f, -1f);
-        return new Vector3f(0f, 0f, -1f).transformNormal(viewToKit);
-    }
-
-    /**
-     * Parameters for a native-resolution entity triangle build. Bundles the five values that vary
+     * Parameters for a native-resolution entity triangle build. Bundles the values that vary
      * per render so callers spell them at a named call boundary instead of through a telescoping
      * positional overload cascade.
      *
@@ -157,6 +104,9 @@ public class EntityGeometryKit {
      * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} baked onto every emitted
      *     triangle - {@code 1.0} (no-op) except for an overlay declaring an explicit {@code alpha}
      *     node (the warden pulsating-spots glow at {@code 0.25})
+     * @param lighting the frame the per-face shade resolves through ({@link Lighting#resolveEntity});
+     *     the {@link #DEFAULT_ENTITY_LIGHTING default} for every render, a mirror / borrowed frame to
+     *     re-light the subject
      */
     public record EntityBuildParams(
         @NotNull Vector3f centreAnchor,
@@ -165,13 +115,33 @@ public class EntityGeometryKit {
         float modelScale,
         int tintArgb,
         @NotNull BlendMode blend,
-        float alpha
+        float alpha,
+        @NotNull LightingFrame lighting
     ) {
         /**
+         * Constructs build params compositing with an explicit blend / opacity and the
+         * {@link #DEFAULT_ENTITY_LIGHTING default entity lighting frame}. Only a caller substituting the
+         * lighting (a mirror, a borrowed angle) uses the canonical eight-argument constructor.
+         *
+         * @param centreAnchor model-space point that maps to the canvas centre
+         * @param emissive whether every emitted triangle renders full-bright
+         * @param ndcScale model-units-to-NDC scale applied after centring
+         * @param modelScale per-render vertex pre-scale folded in before the NDC scale
+         * @param tintArgb ARGB tint multiplied into every sampled texel
+         * @param blend the colour-composition mode baked onto every emitted triangle
+         * @param alpha the per-fragment opacity multiplier baked onto every emitted triangle
+         */
+        public EntityBuildParams(
+            @NotNull Vector3f centreAnchor, boolean emissive, float ndcScale, float modelScale,
+            int tintArgb, @NotNull BlendMode blend, float alpha
+        ) {
+            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, blend, alpha, DEFAULT_ENTITY_LIGHTING);
+        }
+
+        /**
          * Constructs build params compositing with the standard {@link BlendMode#NORMAL source-over}
-         * blend at full opacity - the default for every base body / cutout / texture-alpha overlay.
-         * Only an overlay declaring an explicit {@code blend} / {@code alpha} node uses the canonical
-         * seven-argument constructor; every other call site uses this.
+         * blend at full opacity and the {@link #DEFAULT_ENTITY_LIGHTING default entity lighting frame} -
+         * the default for every base body / cutout / texture-alpha overlay.
          *
          * @param centreAnchor model-space point that maps to the canvas centre
          * @param emissive whether every emitted triangle renders full-bright
@@ -261,6 +231,7 @@ public class EntityGeometryKit {
         int tintArgb = params.tintArgb();
         BlendMode blend = params.blend();
         float alpha = params.alpha();
+        Lighting.EntityLighting lighting = Lighting.resolveEntity(params.lighting());
 
         Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
 
@@ -372,7 +343,7 @@ public class EntityGeometryKit {
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
 
                     Vector2f[] effUv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
-                    float shading = computeFaceShading(shadingNormal, cubeCullBackFaces);
+                    float shading = lighting.shade(shadingNormal, cubeCullBackFaces);
 
                     // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. The kit itself
                     // is det=+1 (emit-order cross AGREES with the stored normal); the chirality
@@ -936,68 +907,6 @@ public class EntityGeometryKit {
             return new Box(0f, 0f, 0f, 0f, 0f, 0f);
 
         return new Box(minX, minY, minZ, maxX, maxY, maxZ);
-    }
-
-    /**
-     * Computes the per-face shade factor baked into emitted triangles, modeling vanilla's
-     * {@code Lighting.ENTITY_IN_UI} two-directional Lambertian shader plus
-     * {@code PER_FACE_LIGHTING} for plane no-cull cubes.
-     * <p>
-     * The shade is computed against the post-flip screen-frame normal because
-     * {@link Lighting#ENTITY_IN_UI_LIGHT_0} and {@link Lighting#ENTITY_IN_UI_LIGHT_1}
-     * are likewise expressed in screen Y-up. The continuous (rather than per-face-bucketed)
-     * result matters for bones whose rotation produces non-cardinal normals (running zombie
-     * legs, bee leashes) where a {@code BlockFace.fromNormal} approximation would collapse
-     * adjacent faces to the same shade.
-     * <p>
-     * <b>Plane no-cull cubes</b> ({@code !cubeCullBackFaces && isPlaneCube}) require an extra
-     * tweak. Vanilla's entity render types (entityCutoutNoCull for fish fins, warden tendrils,
-     * skeleton_horse rib cage) bind a shader with {@code #define PER_FACE_LIGHTING}: the vertex
-     * stage pre-computes both a front-color ({@code max(0, dot(L, n))}) and a back-color
-     * ({@code max(0, dot(-L, n))}) per vertex; the fragment shader picks one via
-     * {@code gl_FrontFacing} based on screen-space winding. For PLANE cubes (one size component
-     * == 0) the two opposing-normal polygons (e.g. DOWN and UP) cover the same screen pixels
-     * with opposite windings - one is {@code gl_FrontFacing=true}, the other false. By
-     * construction front color of A == back color of B for opposite-normal polygons
-     * ({@code n_B = -n_A}, {@code dot(L, n_B) = dot(-L, n_A)}) - so both polygons of a plane
-     * cube compute the same shade, namely the shade against the CAMERA-FACING normal.
-     * <p>
-     * For face F we bake whichever shade matches the camera-facing direction.
-     * {@code dot(VIEW_DIRECTION_KIT, n_F_kit) < 0} means n_F points TOWARD camera (front-facing),
-     * so {@code shade(n_F_kit)}. {@code >= 0} means n_F points AWAY (back-facing), so
-     * {@code shade(-n_F_kit)}. Either way the value equals what vanilla's
-     * {@code PER_FACE_LIGHTING} resolves to for whichever polygon's UV is opaque.
-     * <p>
-     * <b>3D no-cull cubes</b> (skeleton_horse rib cage, chicken legs - both 3D cubes flagged
-     * {@code cullBackFaces=false} because a visible face's UV region exceeds the alpha-cutout
-     * threshold) ALSO need the picker. Vanilla's {@code ENTITY_CUTOUT} pipeline composes
-     * {@code withCull(false) + withShaderDefine("PER_FACE_LIGHTING")} - the same
-     * shader-side per-pixel front/back-color choice applies regardless of whether the cube is
-     * a plane or solid. For interior cube faces whose back-facing polygons are geometrically
-     * behind the front-facing ones, depth-test rejects the back fragments before the shade
-     * difference can over-brighten (the rasterizer's strict {@code <=} depth rejection mirrors
-     * vanilla's {@code GL_LEQUAL} default - first-drawn wins on coplanar, deeper rejects on
-     * separated faces). For polygons that DON'T overlap a front-facing companion in screen
-     * (chicken leg's UP face = foot underside, visible at the canvas bottom after iso flip),
-     * the back-facing triangle survives depth-test and the back color is what vanilla shows.
-     * Empirical sweep confirmed that lifting the {@code !isPlaneCube} guard fixes
-     * chicken_cold and chicken_warm without regressing skeleton_horse.
-     *
-     * @param normal the post-flip kit-frame outward face normal
-     * @param cubeCullBackFaces the cube's effective back-face culling flag
-     * @return the shade factor in {@code [0.4, 1.0]}
-     */
-    private static float computeFaceShading(
-        @NotNull Vector3f normal,
-        boolean cubeCullBackFaces
-    ) {
-        if (cubeCullBackFaces)
-            return Lighting.entityInUi(normal);
-
-        Vector3f cameraFacing = VIEW_DIRECTION_KIT.dot(normal) < 0f
-            ? normal
-            : new Vector3f(-normal.x(), -normal.y(), -normal.z());
-        return Lighting.entityInUi(cameraFacing);
     }
 
     /**

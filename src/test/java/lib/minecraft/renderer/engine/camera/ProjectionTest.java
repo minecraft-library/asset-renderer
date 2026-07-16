@@ -24,7 +24,7 @@ class ProjectionTest {
         // the single facing-neutral block-icon [30,225,0] pose shared by blocks, players, and entities;
         // each renderer applies its own facing as a Placement (block IDENTITY; player R_Y(180); entity
         // R_Y(180)·flip180 = diag(-1,-1,1)), so every projection presents the subject's front. The harness
-        // [210,45,0] lives on only as the entity kit's lighting angle (EntityGeometryKit.ENTITY_ISO_LIGHTING).
+        // [210,45,0] lives on only as the entity kit's lighting frame (EntityGeometryKit.DEFAULT_ENTITY_LIGHTING).
         assertThat(Projection.VANILLA_ISO.basePose(), equalTo(new EulerRotation(30f, 225f, 0f)));
         assertThat(Projection.VANILLA_GUI_ITEM.basePose(), equalTo(new EulerRotation(0f, 180f, 0f)));
     }

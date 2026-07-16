@@ -694,7 +694,7 @@ public class ModelEngine {
             if (pyStart > pyEnd) continue;
 
             // The kit baked the lighting term per-vanilla-render-path at geometry-build time
-            // (Lighting.inventory for blocks/fluids, entityInUi
+            // (Lighting.inventory for blocks/fluids, Lighting.EntityLighting#shade
             // for entities); the rasterizer just multiplies it in.
             float shading = t.source.shading();
             // Hoist the surface traits once per triangle; the per-pixel loop below reads

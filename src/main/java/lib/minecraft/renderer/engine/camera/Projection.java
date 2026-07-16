@@ -155,7 +155,7 @@ public enum Projection {
      * irrelevant - its {@code rasterizeFitted} path cancels the projection scale.
      * <p>
      * The entity's harness lighting angle {@code [210, 45, 0]} lives on only as
-     * {@code EntityGeometryKit.ENTITY_ISO_LIGHTING} (the plane-cube lighting frame), decoupled from this
+     * {@code EntityGeometryKit.DEFAULT_ENTITY_LIGHTING} (the plane-cube lighting frame), decoupled from this
      * camera pose. The caller's rotation composes onto this pose (blocks / players) or stays a separate
      * model-spin (entities). The default for the block, fluid, portal, player, and entity renderers.
      */

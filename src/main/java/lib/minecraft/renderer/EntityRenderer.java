@@ -811,6 +811,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // blockToPixel, then the bone anchor, then entityFit.
         Matrix4f finalMatrix = entityFit.multiply(boneAnchor).scale(16f, 16f, 16f).multiply(blockUnitChain);
 
+        Lighting.EntityLighting entityLighting = Lighting.resolveEntity(EntityGeometryKit.DEFAULT_ENTITY_LIGHTING);
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle tri : blockTris) {
             Vector3f transformedNormal = tri.normal().transformNormal(finalMatrix).normalize();
@@ -828,7 +829,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // Mushroom-cross overlays are unaffected: their plane normals are horizontal (y ~= 0), so
             // the flip is a no-op and mooshroom parity is unchanged.
             Vector3f shadingNormal = new Vector3f(transformedNormal.x(), -transformedNormal.y(), transformedNormal.z());
-            float shading = Lighting.entityInUi(shadingNormal);
+            float shading = entityLighting.shade(shadingNormal, true);
             // Force back-face culling, matching vanilla's block render types (all bind GL culling)
             // exactly as Shading.relightForItems3d does for plain block models. The
             // {@code red_mushroom} cross model emits its two zero-thickness planes as paired

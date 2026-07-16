@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.engine.light;
 
-import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -18,7 +18,7 @@ import org.jetbrains.annotations.NotNull;
  * vanilla {@code Lighting.Entry}).
  * <p>
  * Each entry pairs two pre-rotated diffuse light directions (public {@code Vector3f} constants) with
- * a shade method ({@link #blockItems3d}, {@link #entityInUi}, {@link #itemsFlat}); the cardinal
+ * a shade method ({@link #blockItems3d}, {@link EntityLighting#shade}, {@link #itemsFlat}); the cardinal
  * approximation is {@link #inventory}. All shade methods share {@link #MINECRAFT_LIGHT_POWER} /
  * {@link #MINECRAFT_AMBIENT_LIGHT} and clamp to {@code [0.4, 1.0]}.
  *
@@ -59,59 +59,14 @@ public class Lighting {
         Float.intBitsToFloat(0x3E40F819)   //  0.1884464175
     );
 
-    // --- entity inventory lighting constants (vanilla Lighting.ENTITY_IN_UI parity) ---
-
-    /**
-     * First diffuse light direction for vanilla's {@code Lighting.Entry.ENTITY_IN_UI} entry,
-     * pre-rotated by vanilla's iso transform chain so the kit-time dot product against a
-     * kit-frame (post-Y-flip, pre-engine-camera) bone-chain normal gives the same shade as
-     * vanilla's fragment-shader dot against a post-camera-frame normal.
-     * <p>
-     * Vanilla source: {@code INVENTORY_DIFFUSE_LIGHT_0 = normalize(0.2, -1, 1)} in camera frame
-     * (post-iso, Y-down). Our kit dots lights against a normal that is only Y-flipped (not iso-
-     * rotated). Solving:
-     * <pre>
-     * dot(L_kit, diag(1,-1,1) &times; n_model) = dot(L_camera, M_view &times; n_model)  for all n_model
-     * </pre>
-     * yields {@code L_kit = diag(1,-1,1) × M_view^T × L_camera}, where {@code M_view =
-     * scale(1,1,-1) × R_X(210°) × R_Y(45°) × R_X(180°)} (col-form) is the harness LER chain.
-     * Verified to give identical shade on all six cardinal-axis normals (cod-style entities). For
-     * rotated bones the dot agrees per-vertex with vanilla's post-iso fragment shader, removing
-     * the per-quadrant signed-luma signature. Pairs with {@link Projection#VANILLA_ISO}'s camera chain.
-     * <p>
-     * A naive Y-flip of vanilla's source ({@code normalize(0.2, 1, 1)}) matches the +Y and -Y axes
-     * exactly but diverges 0.04 / 0.07 / 0.13 / 0.17 on &plusmn;X / &plusmn;Z, so the light is instead
-     * derived from the transposed view chain above; the cardinal-axis match is bit-stable.
-     *
-     * @see <a href="https://github.com/Mojang/blaze3d/blob/main/src/main/java/com/mojang/blaze3d/platform/Lighting.java">com.mojang.blaze3d.platform.Lighting</a>
-     */
-    public static final @NotNull Vector3f ENTITY_IN_UI_LIGHT_0 = calibrateEntityLight(
-        deriveEntityInUiLightKit(0.2f, -1f, 1f),
-        0,
-        0f,
-        0.0015f,
-        0f
-    );
-
-    /**
-     * Second diffuse light direction; pre-rotated by the same {@code diag(1,-1,1) × M_view^T} as
-     * {@link #ENTITY_IN_UI_LIGHT_0} from vanilla's {@code INVENTORY_DIFFUSE_LIGHT_1 =
-     * normalize(-0.2, -1, 0)}, plus the same empirical GPU calibration.
-     */
-    public static final @NotNull Vector3f ENTITY_IN_UI_LIGHT_1 = calibrateEntityLight(
-        deriveEntityInUiLightKit(-0.2f, -1f, 0f),
-        1,
-        0f,
-        0f,
-        0.005f
-    );
+    // --- entity inventory lighting calibration (vanilla Lighting.ENTITY_IN_UI parity) ---
 
     /**
      * Applies a small empirical GPU-calibration offset (plus any {@code -Dasset.entity.L<idx>d{x,y,z}}
      * sweep override) to a derived kit-frame light direction, then re-normalises.
      * <p>
      * The lighting GLSL formula and the raw {@code INVENTORY_DIFFUSE_LIGHT} directions are
-     * bit-matched to vanilla, and {@link #entityInUi} reproduces the ideal Lambertian
+     * bit-matched to vanilla, and {@link EntityLighting#shade} reproduces the ideal Lambertian
      * shade exactly. But vanilla rasterises on the GPU and we on the CPU, so the per-face shade still
      * drifts ~0.003 from the harness - invisible on dark textures, but {@code +/-1} channel across
      * near-white entities (goat 0.63, copper_golem, husk, illager family, pig). A fleet sweep
@@ -155,7 +110,7 @@ public class Lighting {
      * <p>
      * Used by block + fluid kits to bake a per-triangle shading scalar at geometry-build time;
      * the rasterizer then applies the result to the sampled texel. Entity rendering uses
-     * {@link #entityInUi} instead so the output matches vanilla's
+     * {@link EntityLighting#shade} instead so the output matches vanilla's
      * {@code Lighting.ENTITY_IN_UI} dual-light shader rather than the four-cardinal-bucket
      * approximation.
      *
@@ -166,59 +121,94 @@ public class Lighting {
         return BlockFace.fromNormal(normal).lighting();
     }
 
-    // --- entity inventory lighting (vanilla Lighting.ENTITY_IN_UI parity) ---
-
     /**
-     * Derives a kit-frame diffuse light direction from a vanilla camera-frame
-     * {@code INVENTORY_DIFFUSE_LIGHT_N = normalize(x, y, z)} literal, using the same Matrix4f
-     * chain the per-vertex shader composes for the iso pose. The result is bit-identical to
-     * {@code diag(1,-1,1) × M_view^T × L_camera} computed via our column-vector
-     * {@link Matrix4f} / {@link Quaternionf} ops - matching whatever sub-ULP drift our matrix
-     * math has against vanilla's per-vertex GLSL chain. Replaces the 6-decimal hardcoded
-     * constants with values produced by the same float chain that runs at render-time.
+     * The resolved entity inventory-lighting basis for a {@link LightingFrame} - the camera-facing view
+     * direction (for {@code PER_FACE_LIGHTING} front/back selection) and the two diffuse light
+     * directions, all expressed in the kit's Y-flipped shading frame. Built once per entity render by
+     * {@link #resolveEntity}; {@link #shade} bakes the per-face scalar.
+     *
+     * @param viewDirection the standard {@code (0,0,-1)} GL view vector rotated into the kit frame
+     * @param light0 the first diffuse light direction in the kit frame
+     * @param light1 the second diffuse light direction in the kit frame
      */
-    private static @NotNull Vector3f deriveEntityInUiLightKit(float cameraX, float cameraY, float cameraZ) {
-        // L_camera_normalized via our Vector3f.normalize (same code path as runtime normals)
-        Vector3f lCamera = new Vector3f(cameraX, cameraY, cameraZ).normalize();
+    public record EntityLighting(
+        @NotNull Vector3f viewDirection,
+        @NotNull Vector3f light0,
+        @NotNull Vector3f light1
+    ) {
 
-        // M_view = scale(1,1,-1) × R_X(210°) × R_Y(45°) × R_X(180°) col-form
-        // M_view^T = R_X(-180°) × R_Y(-45°) × R_X(-210°) × scale(1,1,-1)
-        // diag(1,-1,1) × M_view^T = diag(1,-1,1) × (above)
-        // Built via fluent ops to match vanilla's PoseStack composition exactly.
-        Matrix4f viewToKit = Matrix4f.IDENTITY
-            .scale(1f, -1f, 1f)
-            .rotateX((float) -Math.PI)
-            .rotateY((float) Math.toRadians(-45.0))
-            .rotateX((float) Math.toRadians(-210.0))
-            .scale(1f, 1f, -1f);
-        Vector3f kitDir = lCamera.transformNormal(viewToKit);
-        return kitDir.normalize();
+        /**
+         * Computes the per-face shade factor for a post-Y-flip kit-frame outward normal, modeling
+         * vanilla's {@code Lighting.ENTITY_IN_UI} two-directional Lambertian
+         * ({@code min(1, (max(0, dot(L0, n)) + max(0, dot(L1, n))) * 0.6 + 0.4)}) plus
+         * {@code PER_FACE_LIGHTING} for plane no-cull cubes. A culling cube shades by its own normal; a
+         * no-cull plane shades by whichever of the two coplanar orientations faces the camera
+         * ({@code dot(viewDirection, n) < 0}), matching vanilla's per-pixel front / back colour choice.
+         * The Lambertian is continuous in the normal (not bucketed to six cardinals), so rotated bones
+         * (running zombie legs, leashed bees) match the refharness per-vertex.
+         *
+         * @param normal the post-flip kit-frame outward face normal
+         * @param cullBackFaces the cube's effective back-face culling flag
+         * @return the shade factor in {@code [0.4, 1.0]} - never below ambient, never above unity
+         */
+        public float shade(@NotNull Vector3f normal, boolean cullBackFaces) {
+            Vector3f cameraFacing = cullBackFaces || this.viewDirection.dot(normal) < 0f
+                ? normal
+                : new Vector3f(-normal.x(), -normal.y(), -normal.z());
+            float dot0 = Math.max(0f, this.light0.dot(cameraFacing));
+            float dot1 = Math.max(0f, this.light1.dot(cameraFacing));
+            return Math.min(1f, (dot0 + dot1) * MINECRAFT_LIGHT_POWER + MINECRAFT_AMBIENT_LIGHT);
+        }
     }
 
     /**
-     * Computes the dual-directional Lambertian shade factor for a world-space surface normal
-     * under vanilla's {@code Lighting.Entry#ENTITY_IN_UI} entry - the lighting setup used for
-     * mob portraits in containers and the inventory screen. Implements vanilla's
-     * {@code light.glsl#minecraft_mix_light_separate} verbatim:
-     * <pre>
-     * shading = min(1, (max(0, dot(L0, n)) + max(0, dot(L1, n))) * 0.6 + 0.4)
-     * </pre>
-     * <p>
-     * Two directional lights provide diffuse contributions (clamped at zero so back-facing
-     * surfaces do not subtract); their sum is scaled by {@link #MINECRAFT_LIGHT_POWER} and added
-     * to {@link #MINECRAFT_AMBIENT_LIGHT}, then clamped to {@code [0, 1]}. The result is
-     * <b>continuous in the surface normal</b> rather than bucketed to one of six cardinal-face
-     * constants - critical for matching the refharness output on rotated bones (running zombie
-     * legs, leashed bees, etc.) where the normal is no longer axis-aligned and a per-face lookup
-     * collapses neighbouring faces to the same shade.
+     * Resolves a {@link LightingFrame} into the entity {@link EntityLighting} basis. The frame's
+     * rotation drives the {@code diag(1,-1,1) × M_view^T} chain (the transpose of vanilla's iso view
+     * chain {@code M_view = scale(1,1,-1) × R_X(pitch) × R_Y(yaw) × R_X(180°)}) that expresses vanilla's
+     * camera-frame {@code INVENTORY_DIFFUSE_LIGHT} directions in the kit's Y-flipped shading frame - so a
+     * kit-time dot against a Y-flipped bone normal matches vanilla's post-camera fragment dot. The two
+     * lights carry the same small empirical GPU calibration as the shipped constants. A
+     * {@link LightingFrame.Mirror#HORIZONTAL} frame negates the lights' camera-frame (screen) X - a left /
+     * right swap - by flipping the chain's trailing scale X sign, leaving the view direction (a camera,
+     * not lighting, property) unmirrored.
      *
-     * @param normal the world-space surface normal (should be normalized)
-     * @return the shade factor in {@code [0.4, 1.0]} - never below ambient, never above unity
+     * <p>A {@code fixed([210, 45, 0])} / {@link LightingFrame.Mirror#NONE} frame reproduces the shipped
+     * entity lights and view direction bit-for-bit.
+     *
+     * @param frame the lighting frame to resolve
+     * @return the resolved entity lighting basis
      */
-    public static float entityInUi(@NotNull Vector3f normal) {
-        float dot0 = Math.max(0f, ENTITY_IN_UI_LIGHT_0.dot(normal));
-        float dot1 = Math.max(0f, ENTITY_IN_UI_LIGHT_1.dot(normal));
-        return Math.min(1f, (dot0 + dot1) * MINECRAFT_LIGHT_POWER + MINECRAFT_AMBIENT_LIGHT);
+    public static @NotNull EntityLighting resolveEntity(@NotNull LightingFrame frame) {
+        EulerRotation rotation = frame.rotation();
+        float mirrorX = frame.mirror() == LightingFrame.Mirror.HORIZONTAL ? -1f : 1f;
+        Matrix4f viewToKit = Matrix4f.IDENTITY
+            .scale(1f, -1f, 1f)
+            .rotateX((float) -Math.PI)
+            .rotateY(-rotation.yawRadians())
+            .rotateX(-rotation.pitchRadians())
+            .scale(1f, 1f, -1f);
+        Vector3f viewDirection = new Vector3f(0f, 0f, -1f).transformNormal(viewToKit);
+
+        // The mirror negates each light's camera-frame (innermost) X - the trailing scale's X sign - so
+        // the screen left / right lit sides swap; NONE keeps the shipped scale(1,1,-1) bit-for-bit.
+        Matrix4f lightToKit = Matrix4f.IDENTITY
+            .scale(1f, -1f, 1f)
+            .rotateX((float) -Math.PI)
+            .rotateY(-rotation.yawRadians())
+            .rotateX(-rotation.pitchRadians())
+            .scale(mirrorX, 1f, -1f);
+        Vector3f light0 = calibrateEntityLight(deriveKitLight(0.2f, -1f, 1f, lightToKit), 0, 0f, 0.0015f, 0f);
+        Vector3f light1 = calibrateEntityLight(deriveKitLight(-0.2f, -1f, 0f, lightToKit), 1, 0f, 0f, 0.005f);
+        return new EntityLighting(viewDirection, light0, light1);
+    }
+
+    /**
+     * Normalises a vanilla camera-frame {@code INVENTORY_DIFFUSE_LIGHT} literal, rotates it into the kit
+     * frame through {@code transform}, and re-normalises - the same float chain that runs at render time,
+     * so any sub-ULP matrix drift matches vanilla's per-vertex GLSL chain.
+     */
+    private static @NotNull Vector3f deriveKitLight(float cameraX, float cameraY, float cameraZ, @NotNull Matrix4f transform) {
+        return new Vector3f(cameraX, cameraY, cameraZ).normalize().transformNormal(transform).normalize();
     }
 
     // --- block-icon inventory lighting (vanilla Lighting.Entry.ITEMS_3D parity) ---
