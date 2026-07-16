@@ -10,7 +10,6 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTexture;
-import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackId;
@@ -22,15 +21,12 @@ import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 /**
  * Loader and resolver that walks every pack's {@code assets/<namespace>/models/} subtree, parses
@@ -118,13 +114,13 @@ public class ModelResolver {
         LinkedHashMap<String, Attributed> merged = new LinkedHashMap<>();
         for (ResourcePack pack : stack.ascending()) {
             pack.meta().pack().ifPresent(section -> merged.keySet().removeIf(id -> section.hides(ResourceId.parse(id))));
-            if (!(pack.container() instanceof PackContainer.Directory dir)) continue;
+            PackContainer container = pack.container();
 
             for (PackRoot root : pack.roots()) {
                 for (String namespace : pack.namespaces()) {
-                    Path modelsDir = dir.root().resolve(root.prefix()).resolve(VanillaSourcePaths.assetSubdir(namespace, subdir));
+                    String modelsPrefix = root.prefix() + VanillaSourcePaths.assetSubdir(namespace, subdir);
                     String idPrefix = VanillaSourcePaths.modelIdPrefix(namespace, kind);
-                    scanJsonFiles(modelsDir, idPrefix, pack.id()).forEach((id, json) -> merged.put(id, new Attributed(json, pack.id())));
+                    scanJsonFiles(container, modelsPrefix, idPrefix, pack.id()).forEach((id, json) -> merged.put(id, new Attributed(json, pack.id())));
                 }
             }
         }
@@ -155,55 +151,44 @@ public class ModelResolver {
     }
 
     /**
-     * Scans one model subtree into a raw JSON map keyed by resolved model id. Missing directories
-     * yield an empty map so a pack that omits a namespace's {@code models/item} (or the whole
-     * subtree) is tolerated rather than fatal.
+     * Scans one model subtree into a raw JSON map keyed by resolved model id. A missing subtree
+     * enumerates empty so a pack that omits a namespace's {@code models/item} (or the whole subtree)
+     * is tolerated rather than fatal.
      */
-    private static @NotNull ConcurrentMap<String, JsonObject> scanJsonFiles(@NotNull Path directory, @NotNull String idPrefix, @NotNull PackId packId) {
-        if (!Files.isDirectory(directory)) return Concurrent.newMap();
-
-        // Two-phase walk: collect paths serially (Files.walk spliterators don't split well for
-        // parallel work), then parallelise readString + Gson parse across the FJP common pool.
+    private static @NotNull ConcurrentMap<String, JsonObject> scanJsonFiles(@NotNull PackContainer container, @NotNull String modelsPrefix, @NotNull String idPrefix, @NotNull PackId packId) {
+        // Two-phase walk: enumerate entry paths serially (container walks don't split well for
+        // parallel work), then parallelise the byte read + Gson parse across the FJP common pool.
         // Concurrent.toMap collects per-shard HashMaps lock-free and adopts the merged result.
-        List<Path> files;
-        try (Stream<Path> stream = Files.walk(directory)) {
-            files = stream
-                .filter(Files::isRegularFile)
-                .filter(p -> p.toString().endsWith(".json"))
-                .toList();
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to scan model directory '%s'", directory);
-        }
+        List<String> files = container.entries(modelsPrefix).filter(p -> p.endsWith(".json")).toList();
 
         return files.parallelStream()
-            .map(p -> parseModelFile(p, directory, idPrefix, packId))
+            .map(p -> parseModelFile(container, p, modelsPrefix, idPrefix, packId))
             .flatMap(Optional::stream)
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**
-     * Parses a single model file into a raw JSON entry keyed by resolved model id (the path
-     * relative to {@code directory}, sans {@code .json}, under {@code idPrefix}, with {@code \}
-     * normalised to {@code /}). Empty for non-JSON, empty-parse, or malformed input so the caller
-     * can drop the entry; an I/O read failure is fatal. A malformed winning copy is reported with
-     * its owning pack so the silent fall-back to a lower pack is traceable.
+     * Parses a single model file into a raw JSON entry keyed by resolved model id (the entry path
+     * relative to {@code modelsPrefix}, sans {@code .json}, under {@code idPrefix}). Empty for
+     * non-JSON, empty-parse, or malformed input so the caller can drop the entry; an I/O read failure
+     * (surfaced by the container) is fatal. A malformed winning copy is reported with its owning pack
+     * so the silent fall-back to a lower pack is traceable.
      */
     private static @NotNull Optional<Map.Entry<String, JsonObject>> parseModelFile(
-        @NotNull Path p, @NotNull Path directory, @NotNull String idPrefix, @NotNull PackId packId
+        @NotNull PackContainer container, @NotNull String entry, @NotNull String modelsPrefix, @NotNull String idPrefix, @NotNull PackId packId
     ) {
-        String relative = directory.relativize(p).toString().replace('\\', '/');
+        String relative = entry.substring(modelsPrefix.length() + 1);
         if (!relative.endsWith(".json")) return Optional.empty();
         String id = idPrefix + relative.substring(0, relative.length() - ".json".length());
+        Optional<byte[]> bytes = container.bytes(entry);
+        if (bytes.isEmpty()) return Optional.empty();
         try {
-            String content = Files.readString(p);
-            JsonObject json = GSON.fromJson(content, JsonObject.class);
+            JsonObject json = GSON.fromJson(new String(bytes.get(), StandardCharsets.UTF_8), JsonObject.class);
             return json == null ? Optional.empty() : Optional.of(Map.entry(id, json));
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to read model '%s'", p);
         } catch (JsonSyntaxException ex) {
             // Resource packs occasionally ship malformed or pathologically-nested model JSON. Skip
             // so the merge falls back to a lower-priority pack's version.
-            System.err.printf("Skipping malformed model '%s' from pack '%s': %s%n", p, packId, ex.getMessage());
+            System.err.printf("Skipping malformed model '%s' from pack '%s': %s%n", entry, packId, ex.getMessage());
             return Optional.empty();
         }
     }

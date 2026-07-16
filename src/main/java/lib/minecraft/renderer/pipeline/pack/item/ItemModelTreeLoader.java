@@ -8,7 +8,6 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
@@ -18,14 +17,11 @@ import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 /**
  * Reads MC 26.1 item-definition dispatch trees from every pack's {@code assets/<namespace>/items/}
@@ -57,13 +53,13 @@ public class ItemModelTreeLoader {
         HashMap<String, ItemModelTree> merged = new HashMap<>();
         for (ResourcePack pack : stack.ascending()) {
             pack.meta().pack().ifPresent(section -> merged.keySet().removeIf(id -> section.hides(ResourceId.parse(id))));
-            if (!(pack.container() instanceof PackContainer.Directory dir)) continue;
+            PackContainer container = pack.container();
 
             for (PackRoot root : pack.roots())
                 for (String namespace : pack.namespaces()) {
-                    Path itemsDir = dir.root().resolve(root.prefix())
-                        .resolve(VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.ITEMS_SUBDIR));
-                    scanRoot(itemsDir, namespace).forEach(merged::put);
+                    String itemsPrefix = root.prefix()
+                        + VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.ITEMS_SUBDIR);
+                    scanRoot(container, itemsPrefix, namespace).forEach(merged::put);
                 }
 
             // A pre-format-46 pack ships no items/*.json trees; its models/item/*.json `overrides`
@@ -72,58 +68,48 @@ public class ItemModelTreeLoader {
             if (LegacyOverrideMapper.isLegacyPack(pack))
                 for (PackRoot root : pack.roots())
                     for (String namespace : pack.namespaces()) {
-                        Path itemModelsDir = dir.root().resolve(root.prefix())
-                            .resolve(VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.MODELS_ITEM_SUBDIR));
-                        mergeLegacyOverrides(itemModelsDir, namespace, pack.id(), merged);
+                        String itemModelsPrefix = root.prefix()
+                            + VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.MODELS_ITEM_SUBDIR);
+                        mergeLegacyOverrides(container, itemModelsPrefix, namespace, pack.id(), merged);
                     }
         }
         return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 
-    /** Scans one {@code (root x namespace)} items directory into an itemId -> tree map. */
-    private static @NotNull Map<String, ItemModelTree> scanRoot(@NotNull Path itemsDir, @NotNull String namespace) {
-        if (!Files.isDirectory(itemsDir)) return Map.of();
-
-        List<Path> files;
-        try (Stream<Path> stream = Files.walk(itemsDir)) {
-            files = stream.filter(Files::isRegularFile).filter(p -> p.toString().endsWith(".json")).toList();
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to scan item definitions in '%s'", itemsDir);
-        }
+    /** Scans one {@code (root x namespace)} items subtree into an itemId -> tree map. */
+    private static @NotNull Map<String, ItemModelTree> scanRoot(@NotNull PackContainer container, @NotNull String itemsPrefix, @NotNull String namespace) {
+        List<String> files = container.entries(itemsPrefix).filter(p -> p.endsWith(".json")).toList();
 
         return files.parallelStream()
-            .map(p -> parseTree(p, itemsDir, namespace))
+            .map(p -> parseTree(container, p, itemsPrefix, namespace))
             .flatMap(Optional::stream)
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**
      * Parses one item-definition file into an {@code itemId -> }{@link ItemModelTree} entry, or empty
-     * when the file has no {@code model} object. The item id is the path relative to {@code itemsDir}
-     * with the {@code .json} suffix stripped and the owning {@code <namespace>:} prepended. Malformed
-     * JSON is skipped (logged) so a bad entry falls back to a lower-priority pack.
+     * when the file has no {@code model} object. The item id is the entry path relative to
+     * {@code itemsPrefix} with the {@code .json} suffix stripped and the owning {@code <namespace>:}
+     * prepended. Malformed / unreadable input is skipped (logged) so a bad entry falls back to a
+     * lower-priority pack.
      */
-    private static @NotNull Optional<Map.Entry<String, ItemModelTree>> parseTree(@NotNull Path p, @NotNull Path itemsDir, @NotNull String namespace) {
-        String relative = itemsDir.relativize(p).toString().replace('\\', '/');
+    private static @NotNull Optional<Map.Entry<String, ItemModelTree>> parseTree(@NotNull PackContainer container, @NotNull String entry, @NotNull String itemsPrefix, @NotNull String namespace) {
+        String relative = entry.substring(itemsPrefix.length() + 1);
         if (!relative.endsWith(".json")) return Optional.empty();
         String itemId = VanillaSourcePaths.namespacePrefix(namespace) + relative.substring(0, relative.length() - ".json".length());
 
         try {
-            JsonObject json = GSON.fromJson(Files.readString(p), JsonObject.class);
+            JsonObject json = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
             if (json == null || !json.has("model") || !json.get("model").isJsonObject()) return Optional.empty();
             ItemModelNode root = ItemModelParser.parse(json.getAsJsonObject("model"));
             return Optional.of(Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
-        } catch (IOException ex) {
-            // A non-UTF-8 / truncated item definition throws MalformedInputException (an IOException);
-            // skip it like a malformed one so one bad file degrades to a lower pack rather than aborting.
-            System.err.printf("Skipping unreadable item definition '%s': %s%n", p, ex.getMessage());
-            return Optional.empty();
         } catch (RuntimeException ex) {
             // Resource packs sometimes ship deeply nested or otherwise malformed item definitions
             // (e.g. Hypixel+ player_head.json with 255+ levels of conditional nesting, or a semantically
-            // malformed field Gson accepts but a typed read rejects). Skip the entry so the merge falls
-            // back to a lower-priority pack's version of this id rather than aborting the whole load.
-            System.err.printf("Skipping malformed item definition '%s': %s%n", p, ex.getMessage());
+            // malformed field Gson accepts but a typed read rejects), or an unreadable / non-UTF-8 file
+            // (surfaced by the container as an unchecked read failure). Skip the entry so the merge
+            // falls back to a lower-priority pack's version rather than aborting the whole load.
+            System.err.printf("Skipping malformed item definition '%s': %s%n", entry, ex.getMessage());
             return Optional.empty();
         }
     }
@@ -141,18 +127,11 @@ public class ItemModelTreeLoader {
      * block-item model reference is left untouched (the legacy override is dropped with a diagnostic)
      * so the block-item inventory projection {@code deriveBlockItemModels} keys on is preserved.
      */
-    private static void mergeLegacyOverrides(@NotNull Path itemModelsDir, @NotNull String namespace, @NotNull PackId packId, @NotNull Map<String, ItemModelTree> merged) {
-        if (!Files.isDirectory(itemModelsDir)) return;
+    private static void mergeLegacyOverrides(@NotNull PackContainer container, @NotNull String itemModelsPrefix, @NotNull String namespace, @NotNull PackId packId, @NotNull Map<String, ItemModelTree> merged) {
+        List<String> files = container.entries(itemModelsPrefix).filter(p -> p.endsWith(".json")).toList();
 
-        List<Path> files;
-        try (Stream<Path> stream = Files.walk(itemModelsDir)) {
-            files = stream.filter(Files::isRegularFile).filter(p -> p.toString().endsWith(".json")).toList();
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to scan legacy item overrides in '%s'", itemModelsDir);
-        }
-
-        for (Path p : files)
-            parseLegacyOverride(p, itemModelsDir, namespace, packId, merged)
+        for (String p : files)
+            parseLegacyOverride(container, p, itemModelsPrefix, namespace, packId, merged)
                 .ifPresent(entry -> merged.put(entry.getKey(), entry.getValue()));
     }
 
@@ -166,9 +145,9 @@ public class ItemModelTreeLoader {
      * (logged), matching the native scan's skip-not-abort contract.
      */
     private static @NotNull Optional<Map.Entry<String, ItemModelTree>> parseLegacyOverride(
-        @NotNull Path p, @NotNull Path itemModelsDir, @NotNull String namespace, @NotNull PackId packId, @NotNull Map<String, ItemModelTree> merged
+        @NotNull PackContainer container, @NotNull String entry, @NotNull String itemModelsPrefix, @NotNull String namespace, @NotNull PackId packId, @NotNull Map<String, ItemModelTree> merged
     ) {
-        String relative = itemModelsDir.relativize(p).toString().replace('\\', '/');
+        String relative = entry.substring(itemModelsPrefix.length() + 1);
         if (!relative.endsWith(".json")) return Optional.empty();
         String stem = relative.substring(0, relative.length() - ".json".length());
         String itemId = VanillaSourcePaths.namespacePrefix(namespace) + stem;
@@ -187,19 +166,16 @@ public class ItemModelTreeLoader {
             : new ItemModelNode.Model(VanillaSourcePaths.modelIdPrefix(namespace, VanillaSourcePaths.ITEM_KIND) + stem, List.of());
 
         try {
-            JsonObject json = GSON.fromJson(Files.readString(p), JsonObject.class);
+            JsonObject json = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
             if (json == null || !json.has("overrides") || !json.get("overrides").isJsonArray()) return Optional.empty();
             JsonArray overrides = json.getAsJsonArray("overrides");
             if (overrides.isEmpty()) return Optional.empty();
             return LegacyOverrideMapper.map(itemId, overrides, packId, fallback)
                 .map(root -> Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
-        } catch (IOException ex) {
-            // A non-UTF-8 / truncated file throws MalformedInputException (an IOException, NOT a
-            // JsonSyntaxException); skip it like a malformed one rather than aborting the whole load.
-            System.err.printf("Skipping unreadable legacy item model '%s': %s%n", p, ex.getMessage());
-            return Optional.empty();
         } catch (RuntimeException ex) {
-            System.err.printf("Skipping malformed legacy item model '%s': %s%n", p, ex.getMessage());
+            // A malformed override, or an unreadable / non-UTF-8 file (surfaced by the container as an
+            // unchecked read failure); skip it rather than aborting the whole load.
+            System.err.printf("Skipping malformed legacy item model '%s': %s%n", entry, ex.getMessage());
             return Optional.empty();
         }
     }

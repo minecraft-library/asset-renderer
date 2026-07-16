@@ -17,16 +17,13 @@ import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * A loader that reads vanilla block tag JSON files from {@code data/minecraft/tags/block/} and
@@ -57,9 +54,9 @@ public class BlockTagLoader {
     public static @NotNull ConcurrentMap<String, BlockTag> load(@NotNull PackStack stack) {
         HashMap<String, List<String>> merged = new HashMap<>();
         for (ResourcePack pack : stack.ascending()) {
-            if (!(pack.container() instanceof PackContainer.Directory dir)) continue;
+            PackContainer container = pack.container();
             for (PackRoot root : pack.roots())
-                for (Map.Entry<String, List<String>> entry : scanRawTags(dir.root().resolve(root.prefix())).entrySet())
+                for (Map.Entry<String, List<String>> entry : scanRawTags(container, root.prefix()).entrySet())
                     merged.put(entry.getKey(), entry.getValue());
         }
 
@@ -82,35 +79,31 @@ public class BlockTagLoader {
      * HashMap / ArrayList to skip per-element write-locks - callers wrap with
      * {@link Concurrent#adoptMap} at the end.
      *
-     * @param packRoot the asset root to scan
+     * @param container the pack container to read through
+     * @param prefix the container root prefix ({@code ""} for base, {@code "<overlay>/"} for an overlay)
      * @return raw {@code "values"} lists keyed by namespaced tag id, references still {@code #}-prefixed
      */
-    private static @NotNull HashMap<String, List<String>> scanRawTags(@NotNull Path packRoot) {
-        Path tagsDir = packRoot.resolve("data/minecraft/tags/block");
+    private static @NotNull HashMap<String, List<String>> scanRawTags(@NotNull PackContainer container, @NotNull String prefix) {
+        String tagsPrefix = prefix + "data/minecraft/tags/block";
         HashMap<String, List<String>> raw = new HashMap<>();
-        if (!Files.isDirectory(tagsDir)) return raw;
 
-        try (Stream<Path> files = Files.walk(tagsDir)) {
-            files.filter(Files::isRegularFile)
-                .filter(p -> p.toString().endsWith(".json"))
-                .forEach(file -> {
-                    String relative = tagsDir.relativize(file).toString().replace('\\', '/');
-                    String tagId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - 5);
-                    try {
-                        JsonObject root = GSON.fromJson(Files.readString(file), JsonObject.class);
-                        if (root == null || !root.has("values")) return;
-                        JsonArray values = root.getAsJsonArray("values");
-                        ArrayList<String> entries = new ArrayList<>(values.size());
-                        for (int i = 0; i < values.size(); i++)
-                            entries.add(values.get(i).getAsString());
-                        raw.put(tagId, entries);
-                    } catch (IOException | JsonSyntaxException ex) {
-                        // Skip malformed tag files
-                    }
-                });
-        } catch (IOException ex) {
-            // Directory scan failure is non-fatal
-        }
+        container.entries(tagsPrefix)
+            .filter(p -> p.endsWith(".json"))
+            .forEach(entry -> {
+                String relative = entry.substring(tagsPrefix.length() + 1);
+                String tagId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - 5);
+                try {
+                    JsonObject root = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
+                    if (root == null || !root.has("values")) return;
+                    JsonArray values = root.getAsJsonArray("values");
+                    ArrayList<String> entries = new ArrayList<>(values.size());
+                    for (int i = 0; i < values.size(); i++)
+                        entries.add(values.get(i).getAsString());
+                    raw.put(tagId, entries);
+                } catch (JsonSyntaxException ex) {
+                    // Skip malformed tag files
+                }
+            });
         return raw;
     }
 

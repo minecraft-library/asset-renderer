@@ -11,9 +11,9 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Locale;
 
@@ -46,7 +46,7 @@ public class ColorMapLoader {
         for (ColorMap.Type type : ColorMap.Type.values()) {
             ResourceId id = new ResourceId("minecraft", "colormap/" + type.name().toLowerCase(Locale.ROOT));
             stack.resolve(id).ifPresent(resolved ->
-                colorMaps.put(type, new ColorMap(resolved.id().id(), resolved.pack().value(), type, decode(resolved.file()))));
+                colorMaps.put(type, new ColorMap(resolved.id().id(), resolved.pack().value(), type, decode(resolved.bytes()))));
         }
         return Concurrent.adoptMap(colorMaps).toUnmodifiable();
     }
@@ -55,20 +55,24 @@ public class ColorMapLoader {
      * Decodes a colormap PNG to the row-major, big-endian ARGB byte array {@code ColorMap.pixels}
      * carries - {@link BufferedImage#getRGB} to sRGB ARGB ints, packed big-endian 4 bytes/px. Kept
      * bit-identical to {@code ToolingColorMaps} so the stack decode round-trips the bundled snapshot.
+     * Reads the PNG bytes through {@link ImageIO} - the deliberate gamma-applying path, not the texture
+     * decode path whose grayscale-gamma bypass would diverge - fed a {@link ByteArrayInputStream} so the
+     * source is container-agnostic (a materialized directory, zip, or {@code .cats} pack all decode
+     * identically).
      *
-     * @param file the colormap PNG path
+     * @param bytes the raw colormap PNG bytes
      * @return the raw ARGB pixel bytes
      * @throws PipelineException if the PNG cannot be read or decoded
      */
-    static byte @NotNull [] decode(@NotNull Path file) {
+    static byte @NotNull [] decode(byte @NotNull [] bytes) {
         BufferedImage image;
         try {
-            image = ImageIO.read(file.toFile());
+            image = ImageIO.read(new ByteArrayInputStream(bytes));
         } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to read colormap '%s'", file);
+            throw new PipelineException(ex, "Failed to read colormap bytes");
         }
         if (image == null)
-            throw new PipelineException("Colormap '%s' could not be decoded", file);
+            throw new PipelineException("Colormap bytes could not be decoded");
 
         int[] pixels = new int[image.getWidth() * image.getHeight()];
         image.getRGB(0, 0, image.getWidth(), image.getHeight(), pixels, 0, image.getWidth());

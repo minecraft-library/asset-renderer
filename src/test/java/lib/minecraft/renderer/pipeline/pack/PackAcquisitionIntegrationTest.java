@@ -23,8 +23,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * Integration test acquiring the real vanilla pack plus the on-disk user packs (defrosted,
  * hypixel-skyblock, eureka.cats.zip) into a {@link PackStack}. Pins the id heuristic, namespace
- * discovery, capability detection, and {@code .cats} materialization end to end. Tagged slow because
- * it reads the gitignored pack cache and extracts an archive; skips gracefully when absent.
+ * discovery, capability detection, and virtual {@code .cats} byte access end to end. Tagged slow
+ * because it reads the gitignored pack cache; skips gracefully when absent.
  */
 @Tag("slow")
 @DisplayName("PackAcquisition over the real on-disk packs")
@@ -67,11 +67,13 @@ class PackAcquisitionIntegrationTest {
         assertThat(hyp.has(Capability.OPTIFINE_RULES), is(false));
         assertThat(hyp.has(Capability.CATHARSIS_CONVENTIONS), is(false));
 
-        // eureka: .cats filename id, catharsis capability, materialized to a directory tree
+        // eureka: .cats filename id, catharsis capability, served virtually from its .cats container
+        // (no extraction to disk - the render path reads bytes straight from the archive).
         ResourcePack eur = stack.byId(new PackId("eureka")).orElseThrow();
         assertThat(eur.has(Capability.CATHARSIS_CONVENTIONS), is(true));
-        assertThat(eur.container(), is(org.hamcrest.Matchers.instanceOf(PackContainer.Directory.class)));
-        assertThat(Files.isRegularFile(cache.resolve("packs/eureka/pack.mcmeta")), is(true));
+        assertThat(eur.container(), is(org.hamcrest.Matchers.instanceOf(PackContainer.Cats.class)));
+        assertThat("the pack mcmeta is reachable through the container without extraction",
+            eur.container().bytes("pack.mcmeta").isPresent(), is(true));
     }
 
     @Test

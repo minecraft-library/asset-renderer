@@ -27,15 +27,12 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 /**
  * A loader that reads blockstate JSON files from every pack's {@code assets/<namespace>/blockstates/}
@@ -97,12 +94,12 @@ public class BlockStateLoader {
                 variants.keySet().removeIf(id -> section.hides(ResourceId.parse(id)));
                 multiparts.keySet().removeIf(id -> section.hides(ResourceId.parse(id)));
             });
-            if (!(pack.container() instanceof PackContainer.Directory dir)) continue;
+            PackContainer container = pack.container();
 
             for (PackRoot root : pack.roots())
                 for (String namespace : pack.namespaces()) {
-                    Path blockstatesDir = dir.root().resolve(root.prefix()).resolve(VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.BLOCKSTATES_SUBDIR));
-                    mergeDir(blockstatesDir, namespace, blockModels, variants, multiparts);
+                    String blockstatesPrefix = root.prefix() + VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.BLOCKSTATES_SUBDIR);
+                    mergeDir(container, blockstatesPrefix, namespace, blockModels, variants, multiparts);
                 }
         }
 
@@ -153,28 +150,26 @@ public class BlockStateLoader {
      * directory is absent (a pack simply lacks that namespace's blockstates).
      */
     private static void mergeDir(
-        @NotNull Path blockstatesDir,
+        @NotNull PackContainer container,
+        @NotNull String blockstatesPrefix,
         @NotNull String namespace,
         @NotNull ConcurrentMap<String, ModelData> blockModels,
         @NotNull HashMap<String, ConcurrentMap<String, Block.Variant>> variants,
         @NotNull HashMap<String, Block.Multipart> multiparts
     ) {
-        if (!Files.isDirectory(blockstatesDir)) return;
-
         // Two-phase walk: serial path enumeration, then parallel JSON parse per file. Per-file
-        // work is CPU-bound (Gson parse of a small blockstate JSON) plus a tiny disk read; the
+        // work is CPU-bound (Gson parse of a small blockstate JSON) plus a tiny byte read; the
         // parallel stream scales it across cores. Each file produces at most one Parsed record;
         // the partition into variants/multiparts happens in a sequential pass over the gathered
-        // list so neither map pays per-element write-lock cost.
-        List<Path> files;
-        try (Stream<Path> stream = Files.list(blockstatesDir)) {
-            files = stream.filter(p -> p.toString().endsWith(".json")).toList();
-        } catch (IOException ex) {
-            return;
-        }
+        // list so neither map pays per-element write-lock cost. Blockstate files are flat under
+        // blockstates/ - direct children only, matching the old one-level list.
+        List<String> files = container.entries(blockstatesPrefix)
+            .filter(p -> p.endsWith(".json"))
+            .filter(p -> p.indexOf('/', blockstatesPrefix.length() + 1) < 0)
+            .toList();
 
         List<Parsed> parsedAll = files.parallelStream()
-            .map(file -> parseBlockstateFile(file, namespace, blockModels))
+            .map(file -> parseBlockstateFile(container, file, blockstatesPrefix, namespace, blockModels))
             .flatMap(Optional::stream)
             .toList();
 
@@ -210,14 +205,13 @@ public class BlockStateLoader {
      * @param blockModels the parsed model set used to bake each variant's resolved {@link ModelData}
      * @return the parsed variant / multipart / shadow record, or empty on a null or malformed file
      */
-    private static @NotNull Optional<Parsed> parseBlockstateFile(@NotNull Path file, @NotNull String namespace, @NotNull ConcurrentMap<String, ModelData> blockModels) {
-        String fileName = file.getFileName().toString();
+    private static @NotNull Optional<Parsed> parseBlockstateFile(@NotNull PackContainer container, @NotNull String entry, @NotNull String blockstatesPrefix, @NotNull String namespace, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+        String fileName = entry.substring(blockstatesPrefix.length() + 1);
         String blockName = fileName.substring(0, fileName.length() - 5);
         String blockId = VanillaSourcePaths.namespacePrefix(namespace) + blockName;
 
         try {
-            String json = Files.readString(file);
-            JsonObject root = GSON.fromJson(json, JsonObject.class);
+            JsonObject root = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
             if (root == null) return Optional.empty();
 
             if (root.has("variants")) {
@@ -229,8 +223,8 @@ public class BlockStateLoader {
             }
             // Valid JSON, nothing renderable: shadow the lower pack's entry (whole-file replace).
             return Optional.of(new Parsed(blockId, null, null));
-        } catch (IOException | JsonSyntaxException ex) {
-            // Malformed / unreadable: fall back to a lower pack's copy (no shadow).
+        } catch (JsonSyntaxException ex) {
+            // Malformed: fall back to a lower pack's copy (no shadow).
             return Optional.empty();
         }
     }

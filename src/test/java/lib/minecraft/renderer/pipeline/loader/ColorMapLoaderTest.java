@@ -41,7 +41,7 @@ class ColorMapLoaderTest {
         Path png = dir.resolve("grass.png");
         ImageIO.write(image, "PNG", png.toFile());
 
-        byte[] pixels = ColorMapLoader.decode(png);
+        byte[] pixels = ColorMapLoader.decode(Files.readAllBytes(png));
         assertArrayEquals(new byte[]{
             (byte) 0xFF, (byte) 0x7F, (byte) 0xB2, (byte) 0x38,
             (byte) 0xFF, 0x01, 0x02, 0x03

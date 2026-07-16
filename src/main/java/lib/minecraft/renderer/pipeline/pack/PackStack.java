@@ -7,8 +7,6 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -207,14 +205,15 @@ public final class PackStack {
     /** Walks the owning pack's roots base-first, keeping the last existing copy. */
     private @NotNull Optional<ResolvedTexture> locate(@NotNull IndexedTexture row) {
         ResourcePack pack = this.byId.get(row.pack());
-        if (pack == null || !(pack.container() instanceof PackContainer.Directory dir)) return Optional.empty();
+        if (pack == null) return Optional.empty();
 
-        Path winning = null;
+        PackContainer container = pack.container();
+        String winning = null;
         for (PackRoot root : pack.roots()) {
-            Path candidate = dir.root().resolve(root.prefix() + row.relativePath());
-            if (Files.isRegularFile(candidate)) winning = candidate;
+            String candidate = root.prefix() + row.relativePath();
+            if (container.exists(candidate)) winning = candidate;
         }
-        return winning == null ? Optional.empty() : Optional.of(new ResolvedTexture(row.pack(), row.id(), winning));
+        return winning == null ? Optional.empty() : Optional.of(new ResolvedTexture(row.pack(), row.id(), container, winning));
     }
 
     /** The within-pack namespace search order: primary namespace, then {@code minecraft}, then the rest sorted. */

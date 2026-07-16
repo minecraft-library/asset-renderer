@@ -30,13 +30,15 @@ import java.util.TreeSet;
 /**
  * Turns the vanilla pack root plus the user-supplied pack sources into a resolved {@link PackStack}:
  * detect each container by content, derive stable ids across the supply order (collisions resolved
- * loudly), materialize zip / {@code .cats} sources into {@code <cacheRoot>/packs/<id>/} with a
- * provenance sidecar (directory sources stay in place), resolve overlay roots against the
- * renderer-target format, detect capabilities, and assemble the stack with vanilla at priority 0.
+ * loudly), resolve overlay roots against the renderer-target format, detect capabilities, and assemble
+ * the stack with vanilla at priority 0.
  *
- * <p>Materialization is extract-to-directory: after acquisition every pack is a
- * plain {@link PackContainer.Directory}, so the render path never reads an archive. Re-extraction is
- * skipped when the provenance records the same source mtime and heuristic version.
+ * <p>Acquisition is virtual by default: each user pack keeps the {@link PackContainer} it was detected
+ * as - a zip or {@code .cats} archive serves its bytes in place, without extraction to disk - so every
+ * downstream loader reads through the container SPI. The vanilla base pack is a real
+ * {@link PackContainer.Directory} over the tree {@code Pipeline.extractClientJar} produces. The
+ * extract-to-directory path ({@link #materialize}, with its provenance sidecar) is retained as an
+ * unused fallback for a later opt-in flag.
  */
 public final class PackAcquisition {
 
@@ -71,7 +73,7 @@ public final class PackAcquisition {
         List<ResourcePack> packs = new ArrayList<>();
         packs.add(vanilla);
         for (int i = 0; i < userSources.size(); i++)
-            packs.add(userPack(userSources.get(i), containers.get(i), assignments.get(i), cacheRoot, target, minecraftVersion));
+            packs.add(userPack(containers.get(i), assignments.get(i), target, minecraftVersion));
 
         return PackStack.of(Concurrent.adoptList(packs).toUnmodifiable());
     }
@@ -83,24 +85,23 @@ public final class PackAcquisition {
         PackContainer container = new PackContainer.Directory(vanillaPackRoot);
         MCMeta meta = readMeta(container, PackId.VANILLA);
         Set<Capability> capabilities = detectCapabilities(container, meta);
-        ConcurrentList<PackRoot> roots = resolveRoots(vanillaPackRoot, container, meta, rendererTargetFrom(meta), minecraftVersion, capabilities);
-        return new ResourcePack(PackId.VANILLA, container, meta, roots, namespaces(vanillaPackRoot, roots), capabilities);
+        ConcurrentList<PackRoot> roots = resolveRoots(container, meta, rendererTargetFrom(meta), minecraftVersion, capabilities);
+        return new ResourcePack(PackId.VANILLA, container, meta, roots, namespaces(container, roots), capabilities);
     }
 
-    /** Materializes one user pack and assembles its {@link ResourcePack}. */
-    private static @NotNull ResourcePack userPack(@NotNull Path source, @NotNull PackContainer container,
-                                                  @NotNull Assignment assignment, @NotNull Path cacheRoot,
+    /**
+     * Assembles one user pack's {@link ResourcePack} straight off its detected container - virtual by
+     * default: a zip / {@code .cats} pack serves its bytes in place, without extraction to disk. The
+     * extract-to-directory path ({@link #materialize}) is retained as an unused fallback for a later
+     * opt-in flag.
+     */
+    private static @NotNull ResourcePack userPack(@NotNull PackContainer container, @NotNull Assignment assignment,
                                                   @NotNull FormatVersion target, @NotNull String minecraftVersion) {
         PackId id = assignment.id();
-        long sourceMtime = lastModified(source);
-        Path root = materialize(container, source, id, cacheRoot, sourceMtime);
-        writeProvenance(assignment, source, sourceMtime, cacheRoot, container);
-
-        PackContainer materialized = new PackContainer.Directory(root);
-        MCMeta meta = readMeta(materialized, id);
+        MCMeta meta = readMeta(container, id);
         Set<Capability> capabilities = detectCapabilities(container, meta);
-        ConcurrentList<PackRoot> roots = resolveRoots(root, materialized, meta, target, minecraftVersion, capabilities);
-        return new ResourcePack(id, materialized, meta, roots, namespaces(root, roots), capabilities);
+        ConcurrentList<PackRoot> roots = resolveRoots(container, meta, target, minecraftVersion, capabilities);
+        return new ResourcePack(id, container, meta, roots, namespaces(container, roots), capabilities);
     }
 
     /**
@@ -181,7 +182,7 @@ public final class PackAcquisition {
      * over the root in list order (later wins), the vanilla {@code CompositePackResources} semantics
      * already applies.
      */
-    private static @NotNull ConcurrentList<PackRoot> resolveRoots(@NotNull Path packRoot, @NotNull PackContainer container,
+    private static @NotNull ConcurrentList<PackRoot> resolveRoots(@NotNull PackContainer container,
                                                                   @NotNull MCMeta meta, @NotNull FormatVersion target,
                                                                   @NotNull String minecraftVersion, @NotNull Set<Capability> capabilities) {
         ArrayList<PackRoot> roots = new ArrayList<>();
@@ -189,12 +190,17 @@ public final class PackAcquisition {
         meta.pack().ifPresent(pack -> {
             for (MCMeta.Overlay overlay : pack.overlays()) {
                 if (!overlay.formats().contains(target)) continue;
-                if (Files.isDirectory(packRoot.resolve(overlay.directory()))) roots.add(PackRoot.overlay(overlay.directory()));
+                if (containsAny(container, overlay.directory())) roots.add(PackRoot.overlay(overlay.directory()));
             }
         });
         if (capabilities.contains(Capability.CATHARSIS_CONVENTIONS))
-            addCatharsisOverlays(packRoot, container, target, minecraftVersion, roots);
+            addCatharsisOverlays(container, target, minecraftVersion, roots);
         return Concurrent.adoptList(roots).toUnmodifiable();
+    }
+
+    /** Whether the container carries any file entry under a directory prefix - the virtual analog of "the overlay dir exists". */
+    private static boolean containsAny(@NotNull PackContainer container, @NotNull String directory) {
+        return container.entries(directory).findAny().isPresent();
     }
 
     /**
@@ -204,7 +210,7 @@ public final class PackAcquisition {
      * against them and the renderer target. Any parse failure degrades to no Catharsis overlays rather
      * than failing acquisition.
      */
-    private static void addCatharsisOverlays(@NotNull Path packRoot, @NotNull PackContainer container,
+    private static void addCatharsisOverlays(@NotNull PackContainer container,
                                              @NotNull FormatVersion target, @NotNull String minecraftVersion, @NotNull List<PackRoot> roots) {
         // Catharsis overlay evaluation runs over untrusted pack input during acquisition; any failure
         // (malformed JSON slipping a type guard, an illegal overlay directory string throwing
@@ -216,9 +222,9 @@ public final class PackAcquisition {
             CatharsisConfig config = CatharsisOverlays.loadConfig(readJson(container, CONFIG_CATHARSIS), mcmeta.get());
             CatharsisTarget catharsisTarget = new CatharsisTarget(target.major(), minecraftVersion);
             for (String directory : CatharsisOverlays.activeOverlayDirectories(mcmeta.get(), config, catharsisTarget))
-                if (Files.isDirectory(packRoot.resolve(directory))) roots.add(PackRoot.overlay(directory));
+                if (containsAny(container, directory)) roots.add(PackRoot.overlay(directory));
         } catch (RuntimeException ex) {
-            System.err.printf("Pack at '%s': skipping Catharsis overlays after an evaluation error: %s%n", packRoot, ex);
+            System.err.printf("Pack '%s': skipping Catharsis overlays after an evaluation error: %s%n", container, ex);
         }
     }
 
@@ -244,17 +250,21 @@ public final class PackAcquisition {
         return name == null ? "" : name.toString();
     }
 
-    /** The namespaces (directories under {@code assets/}) across a pack's active roots. */
-    private static @NotNull Set<String> namespaces(@NotNull Path packRoot, @NotNull ConcurrentList<PackRoot> roots) {
+    /**
+     * The namespaces (directories under {@code assets/}) across a pack's active roots, derived from
+     * the container's file entries so a zip / {@code .cats} pack enumerates identically to an exploded
+     * directory. A namespace directory that ships no files contributes nothing to rendering and is not
+     * reported (it was inert under the old directory listing too).
+     */
+    private static @NotNull Set<String> namespaces(@NotNull PackContainer container, @NotNull ConcurrentList<PackRoot> roots) {
         TreeSet<String> namespaces = new TreeSet<>();
         for (PackRoot root : roots) {
-            Path assets = packRoot.resolve(root.prefix()).resolve("assets");
-            if (!Files.isDirectory(assets)) continue;
-            try (var entries = Files.list(assets)) {
-                entries.filter(Files::isDirectory).forEach(dir -> namespaces.add(dir.getFileName().toString()));
-            } catch (IOException ex) {
-                throw new PipelineException(ex, "Failed to enumerate namespaces under '%s'", assets);
-            }
+            String assetsPrefix = root.prefix() + "assets";
+            container.entries(assetsPrefix).forEach(entry -> {
+                String rest = entry.substring(assetsPrefix.length() + 1);
+                int slash = rest.indexOf('/');
+                if (slash > 0) namespaces.add(rest.substring(0, slash));
+            });
         }
         return Set.copyOf(namespaces);
     }

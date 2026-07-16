@@ -18,9 +18,9 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Verifies {@link PackAcquisition} over synthetic directory packs: renderer-target overlay activation
- * (match the game format, not the pack's own), namespace discovery across active roots,
- * capability detection, and the provenance sidecar. A directory source materializes in place, so no
- * extraction is exercised here (the real-pack integration test covers that).
+ * (match the game format, not the pack's own), namespace discovery across active roots, and capability
+ * detection. Acquisition is virtual - a directory source is served in place through its
+ * {@link PackContainer.Directory}, with no extraction or cache copy.
  */
 @DisplayName("PackAcquisition over synthetic directory packs")
 class PackAcquisitionTest {
@@ -55,8 +55,9 @@ class PackAcquisitionTest {
         assertThat(mypack.namespaces(), containsInAnyOrder("minecraft", "testns"));
         assertThat(mypack.capabilities(), containsInAnyOrder(Capability.VANILLA_CORE, Capability.OPTIFINE_RULES));
 
-        // directory source materializes in place; provenance is written beside the cache packs dir
-        assertThat(Files.isRegularFile(cache.resolve("packs/mypack.provenance.json")), is(true));
+        // directory source is served in place (virtual - no extraction, no cache copy)
+        assertThat(mypack.container(), is(org.hamcrest.Matchers.instanceOf(PackContainer.Directory.class)));
+        assertThat(((PackContainer.Directory) mypack.container()).root(), is(user));
     }
 
     @Test

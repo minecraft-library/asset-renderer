@@ -25,10 +25,8 @@ import java.util.Set;
 import javax.imageio.ImageIO;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Exercises the multi-namespace texture index and the {@link PackStack} resolution rule: cross-pack
@@ -83,8 +81,8 @@ class TextureResolutionTest {
         assertThat(stack.indexed(ResourceId.parse("minecraft:block/stone")).orElseThrow().width(), is(32));
 
         ResolvedTexture resolved = stack.resolve(ResourceId.parse("minecraft:block/stone")).orElseThrow();
-        assertThat(resolved.file().toString().replace('\\', '/'), containsString("/hyp/"));
-        assertThat(resolved.file().toString().replace('\\', '/'), not(containsString("/vanilla/")));
+        assertThat(resolved.pack(), is(new PackId("hypixel-skyblock")));
+        assertThat(resolved.path(), is("assets/minecraft/textures/block/stone.png"));
     }
 
     @Test
@@ -102,7 +100,7 @@ class TextureResolutionTest {
     @DisplayName("within a pack the last existing root wins (overlay over base)")
     void overlayLastWins() {
         ResolvedTexture grass = stack.resolve(ResourceId.parse("minecraft:block/grass")).orElseThrow();
-        assertThat(grass.file().toString().replace('\\', '/'), containsString("/ov/assets/minecraft/textures/block/grass.png"));
+        assertThat(grass.path(), is("ov/assets/minecraft/textures/block/grass.png"));
     }
 
     @Test

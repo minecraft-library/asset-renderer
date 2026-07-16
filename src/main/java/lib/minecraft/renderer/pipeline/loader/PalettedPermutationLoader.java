@@ -6,7 +6,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.engine.texture.PalettedPermutationSource;
-import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
@@ -15,15 +14,12 @@ import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 /**
  * Collects the {@code minecraft:paletted_permutations} entries from every pack's
@@ -55,35 +51,30 @@ public class PalettedPermutationLoader {
     public static @NotNull List<PalettedPermutationSource> load(@NotNull PackStack stack) {
         List<PalettedPermutationSource> sources = new ArrayList<>();
         for (ResourcePack pack : stack.ascending()) {
-            if (!(pack.container() instanceof PackContainer.Directory dir)) continue;
+            PackContainer container = pack.container();
             for (PackRoot root : pack.roots())
                 for (String namespace : pack.namespaces()) {
-                    Path atlasesDir = dir.root().resolve(root.prefix())
-                        .resolve(VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.ATLASES_SUBDIR));
-                    scanRoot(atlasesDir, sources);
+                    String atlasesPrefix = root.prefix() + VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.ATLASES_SUBDIR);
+                    scanRoot(container, atlasesPrefix, sources);
                 }
         }
         return List.copyOf(sources);
     }
 
-    /** Scans one {@code (root x namespace)} atlases directory, appending its permutation sources. */
-    private static void scanRoot(@NotNull Path atlasesDir, @NotNull List<PalettedPermutationSource> out) {
-        if (!Files.isDirectory(atlasesDir)) return;
+    /** Scans one {@code (root x namespace)} atlases subtree in sorted path order, appending its permutation sources. */
+    private static void scanRoot(@NotNull PackContainer container, @NotNull String atlasesPrefix, @NotNull List<PalettedPermutationSource> out) {
+        List<String> files = container.entries(atlasesPrefix)
+            .filter(p -> p.endsWith(".json"))
+            .sorted()
+            .toList();
 
-        List<Path> files;
-        try (Stream<Path> stream = Files.walk(atlasesDir)) {
-            files = stream.filter(Files::isRegularFile).filter(p -> p.toString().endsWith(".json")).sorted().toList();
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to scan atlases in '%s'", atlasesDir);
-        }
-
-        for (Path file : files) parseAtlas(file, out);
+        for (String file : files) parseAtlas(container, file, out);
     }
 
     /** Parses one atlas file, appending each {@code paletted_permutations} source it declares. */
-    private static void parseAtlas(@NotNull Path file, @NotNull List<PalettedPermutationSource> out) {
+    private static void parseAtlas(@NotNull PackContainer container, @NotNull String entry, @NotNull List<PalettedPermutationSource> out) {
         try {
-            JsonObject json = GSON.fromJson(Files.readString(file), JsonObject.class);
+            JsonObject json = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
             if (json == null || !json.has("sources") || !json.get("sources").isJsonArray()) return;
             for (JsonElement element : json.getAsJsonArray("sources")) {
                 if (!element.isJsonObject()) continue;
@@ -91,10 +82,8 @@ public class PalettedPermutationLoader {
                 if (!PALETTED_PERMUTATIONS_TYPE.equals(string(source, "type"))) continue;
                 parseSource(source).ifPresent(out::add);
             }
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to read atlas '%s'", file);
         } catch (JsonSyntaxException ex) {
-            System.err.printf("Skipping malformed atlas '%s': %s%n", file, ex.getMessage());
+            System.err.printf("Skipping malformed atlas '%s': %s%n", entry, ex.getMessage());
         }
     }
 
