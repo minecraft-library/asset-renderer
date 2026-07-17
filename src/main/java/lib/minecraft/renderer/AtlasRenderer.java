@@ -290,7 +290,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      */
     private @NotNull TileSpec.Source classifyBlockSource(@NotNull String blockId) {
         return this.context.findBlock(blockId)
-            .map(block -> switch (block.getSource()) {
+            .map(block -> switch (block.source()) {
                 case TILE_ENTITY -> TileSpec.Source.TILE_ENTITY;
                 case BLOCKSTATE_ONLY -> TileSpec.Source.BLOCKSTATE_ONLY;
                 case PRIMARY -> TileSpec.Source.BLOCK_MODEL;

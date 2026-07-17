@@ -18,7 +18,7 @@
  * ({@link lib.minecraft.renderer.option.EntityAppearance EntityAppearance},
  * {@link lib.minecraft.renderer.option.TintAxis TintAxis},
  * {@link lib.minecraft.renderer.option.TropicalFishPattern TropicalFishPattern},
- * {@link lib.minecraft.renderer.option.Age Age}) is entity-appearance work-in-progress to be
- * relocated to a dedicated home in a later cleanup.
+ * {@link lib.minecraft.renderer.option.Age Age}) is entity-appearance vocabulary that also lives
+ * at this level.
  */
 package lib.minecraft.renderer.option;

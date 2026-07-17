@@ -5,7 +5,7 @@ package lib.minecraft.renderer.option;
  * one of three distinct baked meshes (deflated {@link #SMALL}, {@link #MEDIUM}, fully-puffed
  * {@link #LARGE}); the deferred salmon / slime / magma_cube size axes reuse the same enum for their
  * per-size scale. Each entity declares its own default (the {@code size} axis's {@code default} in the
- * family form), so an unset selection renders that entity's canonical mesh - byte-identical.
+ * family form), so an unset selection renders that entity's canonical mesh.
  */
 public enum Size {
 

@@ -8,6 +8,7 @@ import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import org.junit.jupiter.api.BeforeAll;
@@ -30,7 +31,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * mirrored / flipped entity poses (the reference harness only rendered the default view), so this
  * checks what CAN be proven without a reference image:
  * <ol>
- * <li><b>{@link Facing#DEFAULT} is a byte-identical no-op</b> - the regression guard that entity
+ * <li><b>{@link Facing#DEFAULT} is a no-op</b> - the regression guard that entity
  *     rendering is unchanged for existing callers.</li>
  * <li><b>Facing variants render present and uncropped</b> - the entity-specific risk is that facing
  *     desyncs the three projection-resolve sites (render camera / bounds / anchor) and the entity
@@ -58,7 +59,7 @@ class EntityFacingTest {
     static void bootstrap() {
         Pipeline.Result result = Pipeline.run(
             PipelineOptions.builder().version("26.1").cacheRoot(CACHE_ROOT).build());
-        ConcurrentMap<String, EntityModelLoader.EntityDefinition> entities = EntityModelLoader.load();
+        ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
         assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModelsJava first");
         entityRenderer = new EntityRenderer(PipelineRendererContext.of(result), entities);
     }
@@ -85,7 +86,7 @@ class EntityFacingTest {
     }
 
     @Test
-    @DisplayName("facing(DEFAULT) is byte-identical to no facing")
+    @DisplayName("facing(DEFAULT) equals no facing")
     void defaultIsNoOp() {
         int[] noFacing = pixels(render(base().build()));
         int[] explicitDefault = pixels(render(base().output(baseRender().mutate().facing(Facing.DEFAULT).build()).build()));

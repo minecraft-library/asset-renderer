@@ -14,8 +14,8 @@ import org.jetbrains.annotations.NotNull;
  * pre-rotation).
  *
  * <p>{@link ModelEngine} composes it between the camera pose and the caller's model transform
- * ({@code pose x placement x modelTransform}). {@link #IDENTITY} is the no-op placement -
- * byte-identical to the pre-Placement pipeline - used by subjects already authored in world orientation
+ * ({@code pose x placement x modelTransform}). {@link #IDENTITY} is the no-op placement, used by
+ * subjects already authored in world orientation
  * (blocks, fluids, portals via their variant rotation; the player via its pre-rotation). The entity is
  * the one subject with a non-identity placement: {@code EntityRenderer}'s
  * {@code diag(-1, -1, 1)} humanoid-facing + Y-down-to-Y-up flip + chirality, which lets
@@ -31,7 +31,7 @@ public record Placement(@NotNull Matrix4f modelToWorld) {
 
     /**
      * Whether this placement is the {@link #IDENTITY} no-op, letting {@link ModelEngine} skip the extra
-     * matrix multiply and stay byte-identical to the pre-Placement transform chain.
+     * matrix multiply.
      *
      * @return {@code true} if this is the identity placement
      */

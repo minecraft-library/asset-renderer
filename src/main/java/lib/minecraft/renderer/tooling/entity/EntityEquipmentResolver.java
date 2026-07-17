@@ -1,251 +1,210 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.tooling.util.AsmKit;
-import lib.minecraft.renderer.tooling.util.ClassNodeCache;
-import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
-import lombok.experimental.UtilityClass;
+import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
+import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
+import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
 
-import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Bytecode-driven discovery of the generic equipment overlays (saddle, body armor) a mob renderer
- * attaches via {@code addLayer(new SimpleEquipmentLayer(...))}. Each such constructor carries
- * everything the static-pose render needs, extractable from the {@code <init>} bytecode:
+ * The equipment side of the {@code layers[]} node - one row per saddle / body-armor layer
+ * a renderer attaches. Candidates come from the roster site's call-site window (a
+ * {@code LayerType} static opening the candidate, the following {@code ModelLayers} statics
+ * carrying the adult and baby meshes) or from a bespoke layer's own class internals (wolf
+ * armor, llama decor).
  *
- * <ul>
- *   <li>{@code GETSTATIC EquipmentClientInfo$LayerType.<X>} - the equipment texture <b>subdir</b>
- *       (the enum constant name lower-cased: {@code PIG_SADDLE} -&gt; {@code pig_saddle},
- *       {@code HORSE_BODY} -&gt; {@code horse_body}), and the {@link Result#slot() slot} (a name
- *       containing {@code SADDLE} is the saddle slot, otherwise the body slot).</li>
- *   <li>{@code GETSTATIC ModelLayers.<X>} - the equipment <b>geometry</b> field baked into the
- *       layer's adult {@code EntityModel} ({@code ModelLayers.PIG_SADDLE},
- *       {@code ModelLayers.HORSE_ARMOR}). This is the {@code _SADDLE}/{@code _ARMOR} field the
- *       primary-geometry picker in {@link EntityLayerDefinitionResolver} deliberately skips; the
- *       equipment overlay resolves it through {@code layerDefs} to bake a distinct mesh.</li>
- * </ul>
- *
- * <p>The layer constructor takes no static default item asset - the texture is chosen at render from
- * the equipped item's data component. For the static icon the resolver supplies a
- * {@link Result#defaultAsset() default asset} per slot ({@code saddle} for the single saddle item,
- * {@code leather} as the baseline armor material); a caller overrides it via the equipment axis.
- *
- * <p>Wolf armor is NOT a {@code SimpleEquipmentLayer} (it uses a bespoke {@code WolfArmorLayer}) and
- * is handled separately; the llama carpet ({@code LlamaDecorLayer}) is handled by
- * {@link EntityOverlayResolver}.
+ * <p>The texture subdir reads the {@code EquipmentClientInfo$LayerType.<clinit>} id literal;
+ * sole-PNG subdirs derive their default material from the jar listing; multi-material subdirs
+ * consult {@link EntityOverlayPolicies#defaultMaterialFor}.
  */
-@UtilityClass
-public final class EntityEquipmentResolver {
+final class EntityEquipmentResolver {
 
-    /** Equipment slot id for a saddle overlay ({@code *_SADDLE} layer types). */
-    public static final @NotNull String SLOT_SADDLE = "saddle";
+    private final @NotNull ClassNodeCache cache;
+    private final @NotNull EntitySubject subject;
+    private final @NotNull LayerDefinitionIndex layerDefinitions;
+    private final @NotNull GeometryManifest manifest;
+    private final @NotNull Diagnostics diagnostics;
 
-    /** Equipment slot id for a body-armor / harness overlay ({@code *_BODY} layer types). */
-    public static final @NotNull String SLOT_BODY = "body";
-
-    /** Default asset for the saddle slot - there is a single saddle item, asset id {@code saddle}. */
-    private static final @NotNull String DEFAULT_SADDLE_ASSET = "saddle";
-
-    /** Default armor material for the body slot - the baseline dyeable-leather armor. */
-    private static final @NotNull String DEFAULT_BODY_ASSET = "leather";
-
-    /** Default material for the wolf body slot - wolf armor is a single dyeable armadillo-scute item. */
-    private static final @NotNull String DEFAULT_WOLF_BODY_ASSET = "armadillo_scute";
-
-    /** The wolf body equipment subdir, whose only material is {@link #DEFAULT_WOLF_BODY_ASSET}. */
-    private static final @NotNull String WOLF_BODY_SUBDIR = "wolf_body";
-
-    /** Default material for the llama body slot - a dyed carpet has no single default; use white. */
-    private static final @NotNull String DEFAULT_LLAMA_BODY_ASSET = "white";
-
-    /** The llama body (dyed carpet) equipment subdir; materials are the 16 dye colours. */
-    private static final @NotNull String LLAMA_BODY_SUBDIR = "llama_body";
-
-    /**
-     * Default material for the happy-ghast body slot - the harness has no leather baseline; its
-     * materials are the 16 dyed {@code <colour>_harness} assets, so the static icon defaults to
-     * {@code white_harness}.
-     */
-    private static final @NotNull String DEFAULT_HAPPY_GHAST_BODY_ASSET = "white_harness";
-
-    /** The happy-ghast body (dyed harness) equipment subdir; materials are the 16 {@code <colour>_harness} assets. */
-    private static final @NotNull String HAPPY_GHAST_BODY_SUBDIR = "happy_ghast_body";
-
-    /**
-     * Resolves the equipment overlays a renderer attaches via {@code SimpleEquipmentLayer}. Returns
-     * an empty list when the renderer attaches none (the common case).
-     *
-     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
-     * @param rendererInternalName the renderer class JVM internal name
-     * @return one {@link Result} per {@code SimpleEquipmentLayer} the renderer's {@code <init>}
-     *     constructs, in constructor order
-     */
-    public static @NotNull ConcurrentList<Result> resolve(
-        @NotNull ClassNodeCache classNodes,
-        @NotNull String rendererInternalName
+    EntityEquipmentResolver(
+        @NotNull ClassNodeCache cache,
+        @NotNull EntitySubject subject,
+        @NotNull LayerDefinitionIndex layerDefinitions,
+        @NotNull GeometryManifest manifest,
+        @NotNull Diagnostics diagnostics
     ) {
-        ConcurrentList<Result> out = Concurrent.newList();
-        ClassNode renderer = classNodes.load(rendererInternalName);
-        if (renderer == null) return out;
-        MethodNode init = AsmKit.findMethod(renderer, AsmKit.INIT);
-        if (init == null) return out;
+        this.cache = cache;
+        this.subject = subject;
+        this.layerDefinitions = layerDefinitions;
+        this.manifest = manifest;
+        this.diagnostics = diagnostics;
+    }
 
-        // Walk the constructor tracking the current equipment candidate's LayerType + ModelLayers. A
-        // `LayerType.<X>` static opens a candidate (it always precedes the equipment's geometry), and
-        // the FIRST `ModelLayers.<X>` after it is the adult mesh (a body layer may bake a second
-        // baby-model ModelLayers, ignored). The candidate emits when a SimpleEquipmentLayer is
-        // constructed - either directly (`new SimpleEquipmentLayer(...)` -> its `<init>`) or through a
-        // factory helper returning one (`createCamelSaddleLayer(...)` for camel / camel_husk, whose
-        // LayerType + ModelLayers are passed at the call site rather than baked inline).
-        String layerTypeField = null;
-        String modelLayerField = null;
-        for (AbstractInsnNode node = init.instructions.getFirst(); node != null; node = node.getNext()) {
-            // Bespoke equipment layer (WolfArmorLayer wolf armor, LlamaDecorLayer dyed carpet): not a
-            // SimpleEquipmentLayer - it bakes its own ModelLayers.X + references its LayerType inside
-            // its own class, so resolve it from there rather than from statics in this renderer's <init>.
-            if (node instanceof TypeInsnNode typeInsn
-                && typeInsn.getOpcode() == Opcodes.NEW
-                && isBespokeEquipmentLayer(typeInsn.desc)) {
-                Result bespoke = resolveBespokeLayer(classNodes, typeInsn.desc);
-                if (bespoke != null) out.add(bespoke);
+    /**
+     * The equipment row of a call-site candidate: the window's {@code LayerType} static
+     * names the subdir, the following {@code ModelLayers} statics the adult (first) and
+     * baby (second) meshes.
+     *
+     * @param site the roster site the row belongs to
+     * @param windowStart the first instruction of the site's call-site window
+     * @return the row, or {@code null} when the window carries no equipment candidate
+     */
+    @Nullable JsonNode resolveCallSite(
+        @NotNull EntityRendererResolver.LayerSite site,
+        @NotNull AbstractInsnNode windowStart
+    ) {
+        String layerType = null;
+        List<String> meshFields = new ArrayList<>(2);
+        for (AbstractInsnNode in = windowStart; in != null && in != site.addLayer(); in = in.getNext()) {
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)) {
+                layerType = ((FieldInsnNode) in).name;
+                meshFields.clear();
                 continue;
             }
-            if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode field) {
-                if (VanillaSourceClasses.EQUIPMENT_LAYER_TYPE.equals(field.owner)) {
-                    // A LayerType static starts a fresh candidate: reset the geometry so a primary /
-                    // baby ModelLayers baked earlier (the super(...) body mesh) can't leak into it.
-                    layerTypeField = field.name;
-                    modelLayerField = null;
-                } else if (layerTypeField != null && modelLayerField == null
-                    && VanillaSourceClasses.MODEL_LAYERS.equals(field.owner)) {
-                    modelLayerField = field.name;
-                }
-                continue;
-            }
-            if (isEquipmentConstruction(node)) {
-                if (layerTypeField != null && modelLayerField != null)
-                    out.add(build(layerTypeField, modelLayerField));
-                layerTypeField = null;
-                modelLayerField = null;
-            }
+            if (layerType != null && AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS))
+                meshFields.add(((FieldInsnNode) in).name);
         }
-        return out;
+        if (layerType == null || meshFields.isEmpty()) return null;
+        return buildRow(site, layerType, meshFields.getFirst(), meshFields.size() > 1 ? meshFields.get(1) : null);
     }
 
     /**
-     * Whether {@code layerInternalName} is a bespoke equipment layer (one that bakes its own geometry
-     * and references its {@code LayerType} internally rather than as a {@code SimpleEquipmentLayer}
-     * ctor argument): {@code WolfArmorLayer} (wolf armor) or {@code LlamaDecorLayer} (dyed carpet).
+     * The equipment row of a bespoke layer: the class's own first {@code LayerType} +
+     * {@code ModelLayers} references (wolf armor, llama decor).
      *
-     * @param layerInternalName the layer class JVM internal name
-     * @return whether it is a recognised bespoke equipment layer
+     * @param site the roster site the row belongs to
+     * @param cn the bespoke layer class
+     * @return the row, or {@code null} when the pair cannot be resolved
      */
-    private static boolean isBespokeEquipmentLayer(@NotNull String layerInternalName) {
-        return VanillaSourceClasses.WOLF_ARMOR_LAYER.equals(layerInternalName)
-            || VanillaSourceClasses.LLAMA_DECOR_LAYER.equals(layerInternalName);
-    }
-
-    /**
-     * Resolves a bespoke equipment layer (WolfArmorLayer, LlamaDecorLayer) that bakes its own geometry
-     * and references its {@code LayerType} internally rather than via statics in the parent renderer's
-     * {@code <init>}.
-     * Walks the layer class for the first {@code LayerType.<X>} (in its {@code submit}) + the first
-     * {@code ModelLayers.<X>} (baked in its {@code <init>}).
-     *
-     * @param classNodes the ClassNode cache
-     * @param layerInternalName the bespoke layer class JVM internal name
-     * @return the resolved equipment result, or {@code null} when the class isn't loadable or the
-     *     LayerType / ModelLayers pair can't be found
-     */
-    private static @Nullable Result resolveBespokeLayer(@NotNull ClassNodeCache classNodes, @NotNull String layerInternalName) {
-        ClassNode layer = classNodes.load(layerInternalName);
-        if (layer == null) return null;
-        String layerTypeField = null;
-        String modelLayerField = null;
-        for (MethodNode method : layer.methods)
-            for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext()) {
-                if (node.getOpcode() != Opcodes.GETSTATIC || !(node instanceof FieldInsnNode field)) continue;
-                if (layerTypeField == null && VanillaSourceClasses.EQUIPMENT_LAYER_TYPE.equals(field.owner))
-                    layerTypeField = field.name;
-                else if (modelLayerField == null && VanillaSourceClasses.MODEL_LAYERS.equals(field.owner))
-                    modelLayerField = field.name;
+    @Nullable JsonNode resolveBespoke(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
+        String layerType = null;
+        String meshField = null;
+        for (MethodNode method : cn.methods)
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
+                if (layerType == null && VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE.equals(fi.owner))
+                    layerType = fi.name;
+                else if (meshField == null && VanillaSourceClasses.Types.MODEL_LAYERS.equals(fi.owner)
+                    && !fi.name.contains("BABY"))   // the first non-baby field is the adult mesh
+                    meshField = fi.name;
             }
-        return layerTypeField != null && modelLayerField != null ? build(layerTypeField, modelLayerField) : null;
+        if (layerType == null || meshField == null) return null;
+        return buildRow(site, layerType, meshField, null);
     }
 
     /**
-     * Whether {@code node} constructs a {@code SimpleEquipmentLayer} - directly (its {@code <init>})
-     * or through a factory helper method that returns one (camel's {@code createCamelSaddleLayer}).
-     *
-     * @param node the instruction to test
-     * @return whether it produces a {@code SimpleEquipmentLayer}
+     * Assembles one {@code layers[]} row: {@code id} is the slot, the gate is
+     * {@code when: {equipment: <slot>}}, and the overlay body carries the registered
+     * adult mesh, the {@code equipment/<subdir>/<material>} template, the derived or
+     * declared default material, and the captured baby mesh.
      */
-    private static boolean isEquipmentConstruction(@NotNull AbstractInsnNode node) {
-        if (!(node instanceof MethodInsnNode method)) return false;
-        if (node.getOpcode() == Opcodes.INVOKESPECIAL
-            && VanillaSourceClasses.SIMPLE_EQUIPMENT_LAYER.equals(method.owner)
-            && AsmKit.INIT.equals(method.name))
-            return true;
-        return (node.getOpcode() == Opcodes.INVOKESTATIC || node.getOpcode() == Opcodes.INVOKEVIRTUAL)
-            && AsmKit.descriptorReturns(method.desc, VanillaSourceClasses.SIMPLE_EQUIPMENT_LAYER);
+    private @Nullable JsonNode buildRow(
+        @NotNull EntityRendererResolver.LayerSite site,
+        @NotNull String layerTypeConstant,
+        @NotNull String adultField,
+        @Nullable String babyField
+    ) {
+        String subdir = layerTypeSubdir(this.cache, layerTypeConstant);
+        if (subdir == null) {
+            this.diagnostics.warn("LayerType.%s has no <clinit> id literal [D33] - equipment row dropped", layerTypeConstant);
+            return null;
+        }
+        // The layers-row slot vocabulary is {saddle, body}; mob-equipment subdirs follow
+        // the <mob>_<slot> id grammar. A LayerType outside it (wings, humanoid armor) is
+        // player-style runtime equipment, never a static-pose row.
+        String slot = subdir.endsWith("_saddle") ? "saddle" : subdir.endsWith("_body") ? "body" : null;
+        if (slot == null) {
+            this.diagnostics.info("LayerType id '%s' outside the mob-equipment slot grammar - no row", subdir);
+            return null;
+        }
+        String adultKey = registerMesh(adultField);
+        if (adultKey == null) {
+            this.diagnostics.info("equipment mesh ModelLayers.%s unresolved - row dropped", adultField);
+            return null;
+        }
+        JsonNode overlay = JsonNode.object()
+            .put("geometry", adultKey)
+            .put("texture_template", VanillaSourceClasses.Paths.EQUIPMENT_DIR + subdir + "/<material>")
+            .put("default_material", defaultMaterial(subdir));
+        if (babyField != null) {
+            String babyKey = registerMesh(babyField);
+            if (babyKey != null) overlay.put("baby_geometry", babyKey);
+        }
+        this.diagnostics.info("equipment row '%s' (%s) meshes adult=%s baby=%s", slot, subdir, adultField, babyField);
+        return JsonNode.object()
+            .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
+            .putInt("layer_index", site.layerIndex())
+            .put("id", slot)
+            .put("when", JsonNode.object().put("equipment", slot))
+            .put("overlay", overlay);
+    }
+
+    /** Registers an equipment mesh request off its index entry, or {@code null} when unindexed. */
+    private @Nullable String registerMesh(@NotNull String meshField) {
+        LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(meshField);
+        if (entry == null) return null;
+        return this.manifest.register(GeometryRequest.equipment(
+            entry.factoryClass(), entry.factoryMethod(), entry.factoryDesc(), this.subject.entityId(),
+            entry.texWidthOverride(), entry.texHeightOverride(), entry.floatParam(),
+            entry.grow(), entry.appliedMeshTransformerScale()));
     }
 
     /**
-     * Builds a {@link Result} from a captured layer-type + model-layer field pair, deriving the slot
-     * and default asset from the layer-type name.
-     *
-     * @param layerTypeField the {@code EquipmentClientInfo$LayerType} enum constant name (e.g. {@code PIG_SADDLE})
-     * @param modelLayerField the {@code ModelLayers} geometry field name (e.g. {@code PIG_SADDLE})
-     * @return the resolved equipment overlay descriptor
+     * The default material: the sole material's basename when the subdir holds exactly one
+     * (saddle, the wolf's armadillo scute), else the declared pick from
+     * {@link EntityOverlayPolicies#defaultMaterialFor}. An {@code _overlay} companion is a
+     * dyeable material's tint layer ({@code armadillo_scute_overlay}, {@code leather_overlay}),
+     * never a material of its own.
      */
-    private static @NotNull Result build(@NotNull String layerTypeField, @NotNull String modelLayerField) {
-        boolean saddle = layerTypeField.contains("SADDLE");
-        String slot = saddle ? SLOT_SADDLE : SLOT_BODY;
-        String subdir = layerTypeField.toLowerCase(Locale.ROOT);
-        String defaultAsset = saddle ? DEFAULT_SADDLE_ASSET
-            : WOLF_BODY_SUBDIR.equals(subdir) ? DEFAULT_WOLF_BODY_ASSET
-            : LLAMA_BODY_SUBDIR.equals(subdir) ? DEFAULT_LLAMA_BODY_ASSET
-            : HAPPY_GHAST_BODY_SUBDIR.equals(subdir) ? DEFAULT_HAPPY_GHAST_BODY_ASSET
-            : DEFAULT_BODY_ASSET;
-        return new Result(slot, subdir, modelLayerField, defaultAsset);
+    private @NotNull String defaultMaterial(@NotNull String subdir) {
+        String dir = VanillaSourceClasses.Paths.ASSETS_ROOT + VanillaSourceClasses.Paths.TEXTURES_ENTITY
+            + VanillaSourceClasses.Paths.EQUIPMENT_DIR + subdir + "/";
+        List<String> materials = new ArrayList<>();
+        for (String entry : this.cache.list(dir, ".png")) {
+            String basename = entry.substring(entry.lastIndexOf('/') + 1, entry.length() - ".png".length());
+            if (!basename.endsWith("_overlay")) materials.add(basename);
+        }
+        if (materials.size() == 1) {
+            this.diagnostics.info("default material '%s' via sole-material listing [D32]", materials.getFirst());
+            return materials.getFirst();
+        }
+        return EntityOverlayPolicies.defaultMaterialFor(subdir);
     }
 
     /**
-     * One equipment overlay a renderer attaches: its slot, texture subdir, geometry field, and the
-     * default asset the static icon shows when the caller selects the slot without a material.
+     * The equipment texture subdir of a {@code LayerType} constant - its {@code <clinit>}
+     * id literal (the last string paired with the constant's {@code PUTSTATIC}).
      *
-     * @param slot the equipment slot id ({@link #SLOT_SADDLE} / {@link #SLOT_BODY})
-     * @param layerSubdir the equipment texture subdir ({@code pig_saddle}, {@code horse_body}); the
-     *     texture path is {@code equipment/<layerSubdir>/<material>.png}
-     * @param modelLayerField the {@code ModelLayers} field name whose baked mesh the overlay renders
-     * @param defaultAsset the default material/asset id when the slot is selected without one
+     * @param cache the class cache
+     * @param constant the {@code EquipmentClientInfo$LayerType} constant name
+     * @return the id literal, or {@code null} when unresolved
      */
-    public record Result(
-        @NotNull String slot,
-        @NotNull String layerSubdir,
-        @NotNull String modelLayerField,
-        @NotNull String defaultAsset
-    ) {}
-
-    /**
-     * Whether {@code layerClass} is the generic {@code SimpleEquipmentLayer} - used by callers that
-     * scan a renderer's ordered layer-class list.
-     *
-     * @param layerClass the layer class JVM internal name
-     * @return whether it is the {@code SimpleEquipmentLayer}
-     */
-    public static boolean isEquipmentLayer(@Nullable String layerClass) {
-        return VanillaSourceClasses.SIMPLE_EQUIPMENT_LAYER.equals(layerClass);
+    static @Nullable String layerTypeSubdir(@NotNull ClassNodeCache cache, @NotNull String constant) {
+        ClassNode cn = cache.load(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE);
+        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        if (clinit == null) return null;
+        String pending = null;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            String literal = AsmKit.readStringLiteral(in);
+            if (literal != null) {
+                pending = literal;
+                continue;
+            }
+            if (AsmKit.isPutStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE, constant)) return pending;
+        }
+        return null;
     }
 
 }

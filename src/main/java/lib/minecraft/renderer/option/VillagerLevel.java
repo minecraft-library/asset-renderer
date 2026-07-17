@@ -9,8 +9,8 @@ import java.util.Optional;
 /**
  * A villager (or zombie-villager) trade level badge - one of the five vanilla
  * {@code VillagerProfessionLayer.LEVEL_LOCATIONS} tiers (levels 1..5) drawn as a small emblem over
- * the profession clothes. {@link #NONE} (the default) draws no badge, so the default appearance is
- * byte-identical; the five tiers each carry a {@code <prefix>/profession_level/<badge>} texture. The
+ * the profession clothes. {@link #NONE} (the default) draws no badge; the five tiers each carry a
+ * {@code <prefix>/profession_level/<badge>} texture. The
  * badge draws only when the selected {@link VillagerProfession#drawsBadge() profession draws a badge}
  * (a real job), matching the layer. The prefix ({@code villager} / {@code zombie_villager}) is
  * supplied per-entity at render, so this enum carries only the prefix-relative sub-path.

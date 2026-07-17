@@ -44,8 +44,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * frame, and the chirality reflection re-enters at render time via the {@code Placement} + camera -
  * so screen-space cull winding is unchanged.
  *
- * <p>Round 5 of {@code JAVA_PIPELINE_RESEARCH.md} identified the coupled invariants that must
- * change together: position frame, normal frame, UV face swap (UP/DOWN), UV permutation per face
+ * <p>The coupled invariants that must change together: position frame, normal frame, UV face swap
+ * (UP/DOWN), UV permutation per face
  * direction, and triangle winding. This test exercises each on the simplest possible input so a
  * defect in one shows as a focused assertion failure rather than a downstream entity-render
  * regression. Guarding against: removing / adding a kit {@code FLIP_Y} without updating the
@@ -118,8 +118,7 @@ class EntityGeometryKitTest {
         // The kit emits triangles in NATURAL CCW order (0, 1, 2) and (0, 2, 3); with no in-kit
         // reflection their emit-order cross product now AGREES with the stored (un-flipped) face
         // normal. The screen-space winding the rasterizer culls on is unchanged - the reflection re-enters
-        // via the Placement + camera at render time (verified: entity parity byte-identical across the
-        // baseline set) - so this flip is kit-internal only.
+        // via the Placement + camera at render time - so this flip is kit-internal only.
         //
         // A failure here means the emission winding or the stored-normal frame has drifted away from
         // the expected de-flipped kit contract.

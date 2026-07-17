@@ -9,15 +9,15 @@ import org.jetbrains.annotations.NotNull;
  * Plays back a vanilla {@code .mcmeta} texture animation against a vertically stacked strip.
  * <p>
  * Strip layout matches vanilla: the source {@link PixelBuffer} is a tall image holding one
- * square (or {@link AnimationData#getWidth() width}-by-{@link AnimationData#getHeight() height}
+ * square (or {@link AnimationData#width() width}-by-{@link AnimationData#height() height}
  * overridden) frame per row, stacked top to bottom. The frame count is derived from the strip's
  * height divided by the frame height.
  * <p>
  * A call to {@link #sampleFrame(PixelBuffer, AnimationData, int) sampleFrame} returns the frame
  * for a specific tick, honoring the animation's per-entry duration overrides and optional linear
  * interpolation between adjacent frames. Each entry lasts {@link AnimationData.FrameEntry#time()}
- * ticks, falling back to {@link AnimationData#getFrametime() frametime} whenever the entry declares
- * no positive override. When {@link AnimationData#isInterpolate()} is {@code true}, the result is a
+ * ticks, falling back to {@link AnimationData#frametime() frametime} whenever the entry declares
+ * no positive override. When {@link AnimationData#interpolate()} is {@code true}, the result is a
  * {@link PixelBuffer#lerp blend} between the current entry's frame and the next entry's frame using
  * a progress factor computed from the current entry's per-frame ticks.
  */
@@ -35,7 +35,7 @@ public class AnimationKit {
      * when the entry declares no positive override. Out-of-range entry indices are clamped into
      * {@code 0..frameCount-1}.
      * <p>
-     * When {@link AnimationData#isInterpolate() interpolate} is set, the returned frame is a linear
+     * When {@link AnimationData#interpolate() interpolate} is set, the returned frame is a linear
      * blend of the current and next entry's frames weighted by how far the tick has advanced into
      * the current entry's duration. The blend is skipped when the next entry maps to the same strip
      * index as the current one, since there is nothing to interpolate towards.
@@ -59,11 +59,11 @@ public class AnimationKit {
         int frameCount = strip.height() / frameHeight;
         if (frameCount <= 0) return strip;
 
-        int defaultTicks = Math.max(1, animation.getFrametime());
+        int defaultTicks = Math.max(1, animation.frametime());
 
         int[] indices;
         int[] durations;
-        if (animation.getFrames().isEmpty()) {
+        if (animation.frames().isEmpty()) {
             indices = new int[frameCount];
             durations = new int[frameCount];
             for (int i = 0; i < frameCount; i++) {
@@ -71,11 +71,11 @@ public class AnimationKit {
                 durations[i] = defaultTicks;
             }
         } else {
-            int size = animation.getFrames().size();
+            int size = animation.frames().size();
             indices = new int[size];
             durations = new int[size];
             for (int i = 0; i < size; i++) {
-                AnimationData.FrameEntry entry = animation.getFrames().get(i);
+                AnimationData.FrameEntry entry = animation.frames().get(i);
                 indices[i] = Math.clamp(entry.index(), 0, frameCount - 1);
                 durations[i] = entry.time() > 0 ? entry.time() : defaultTicks;
             }
@@ -98,7 +98,7 @@ public class AnimationKit {
         }
 
         PixelBuffer current = extractFrame(strip, indices[currentEntry], frameWidth, frameHeight);
-        if (!animation.isInterpolate()) return current;
+        if (!animation.interpolate()) return current;
 
         int nextEntry = (currentEntry + 1) % durations.length;
         if (indices[nextEntry] == indices[currentEntry]) return current;
@@ -146,7 +146,7 @@ public class AnimationKit {
      * @return the frame width in pixels
      */
     public static int frameWidth(@NotNull PixelBuffer strip, @NotNull AnimationData animation) {
-        return animation.getWidth() > 0 ? animation.getWidth() : strip.width();
+        return animation.width() > 0 ? animation.width() : strip.width();
     }
 
     /**
@@ -159,7 +159,7 @@ public class AnimationKit {
      * @return the frame height in pixels
      */
     public static int frameHeight(@NotNull PixelBuffer strip, @NotNull AnimationData animation) {
-        return animation.getHeight() > 0 ? animation.getHeight() : strip.width();
+        return animation.height() > 0 ? animation.height() : strip.width();
     }
 
 }

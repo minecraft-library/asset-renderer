@@ -150,10 +150,63 @@ tasks {
         exclude("**/*.upstream.json")
     }
 
-    // Tooling
+    // tooling - the rewrite flows (decision 30 naming); outputs land under
+    // src/main/resources/lib/minecraft/renderer/, never the legacy top-level JSONs.
+
+    register<JavaExec>("entityModels") {
+        description = "tooling: walks the client jar and generates src/main/resources/lib/minecraft/renderer/entity_models.json + entity_geometry.json."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingEntityModels")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("blockModels") {
+        description = "tooling: walks the client jar and generates src/main/resources/lib/minecraft/renderer/block_models.json + block_geometry.json."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockModels")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("blockDefaults") {
+        description = "tooling: bytewalks registerDefaultState and generates src/main/resources/lib/minecraft/renderer/block_defaults.json (default blockstate per block + unresolved[])."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockDefaults")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("blockTints") {
+        description = "tooling: walks BlockColors.createDefault() and generates src/main/resources/lib/minecraft/renderer/block_tints.json (tints + dropped[])."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockTints")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("potionColors") {
+        description = "tooling: walks MobEffects.<clinit> and generates src/main/resources/lib/minecraft/renderer/potion_colors.json (effect colours, sorted by id)."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingPotionColors")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("glintItems") {
+        description = "tooling: walks Items.<clinit> and generates src/main/resources/lib/minecraft/renderer/glint_items.json (always-glinted item ids, sorted)."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingGlintItems")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("colorMaps") {
+        description = "tooling: reads the biome colormap PNGs from the jar and generates src/main/resources/lib/minecraft/renderer/color_maps.json (base64 big-endian ARGB pixels)."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingColorMaps")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    // atlas render job (decision 35: not an extraction flow); output stays scratch build/atlas/.
+    // Diagnose task names per doc-12 F9 (diagnoseAtlas2 + diagnoseAtlas2Task10).
 
     register<JavaExec>("atlas") {
-        description = "Generates a block/item atlas PNG + coordinates JSON to build/atlas/."
+        description = "tooling: renders a block/item atlas PNG + typed AtlasSidecar JSON to build/atlas/."
         group = "tooling"
         mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlas")
         classpath = sourceSets["main"].runtimeClasspath
@@ -161,7 +214,7 @@ tasks {
     }
 
     register<JavaExec>("diagnoseAtlas") {
-        description = "Slices build/atlas/atlas.png by atlas.json, flags blank tiles to build/atlas/missing.json."
+        description = "tooling: slices build/atlas/atlas.png by the AtlasSidecar, flags blank/sparse tiles to build/atlas/missing.json."
         group = "tooling"
         mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlasDiagnose")
         classpath = sourceSets["main"].runtimeClasspath
@@ -169,137 +222,9 @@ tasks {
     }
 
     register<JavaExec>("diagnoseAtlasTask10") {
-        description = "Writes a mini atlas containing only blockstate additions to build/atlas/blockstate_only/."
+        description = "tooling: writes a mini atlas containing only blockstate additions to build/atlas/blockstate_only/."
         group = "tooling"
         mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlasDiagnose")
-        classpath = sourceSets["main"].runtimeClasspath
-        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath, "--source-filter=blockstate_only")
-    }
-
-    register<JavaExec>("blockTints") {
-        description = "Parses BlockColors out of the cached client jar via ASM and rewrites src/main/resources/lib/minecraft/renderer/block_tints.json. Run on a Minecraft version bump."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockTints")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("entityModels") {
-        description = "Walks the Java client jar via ASM and generates src/main/resources/lib/minecraft/renderer/entity_models.json + entity_geometry.json (per-entity bone trees + variant metadata). Run on a Minecraft version bump."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingEntityModels")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("blockModels") {
-        description = "Parses block-entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/lib/minecraft/renderer/block_models.json."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockModels")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("blockDefaults") {
-        description = "Bytewalks registerDefaultState in the Blocks registry via ASM and rewrites src/main/resources/lib/minecraft/renderer/block_defaults.json (per-block default state key). Run on a Minecraft version bump."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockDefaults")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("colorMaps") {
-        description = "Reads vanilla biome colormap PNGs and generates src/main/resources/lib/minecraft/renderer/color_maps.json. Run on a Minecraft version bump."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingColorMaps")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("potionColors") {
-        description = "Parses MobEffects out of the cached client jar via ASM and rewrites src/main/resources/lib/minecraft/renderer/potion_colors.json. Run on a Minecraft version bump."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingPotionColors")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("glintItems") {
-        description = "Parses the Items registry out of the cached client jar via ASM and rewrites src/main/resources/lib/minecraft/renderer/glint_items.json (always-glinted item ids). Run on a Minecraft version bump."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingGlintItems")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    // tooling2 - the rewrite flows (decision 30 naming); outputs land under
-    // src/main/resources/lib/minecraft/renderer/v2/, never the legacy top-level JSONs.
-
-    register<JavaExec>("entityModels2") {
-        description = "tooling2: walks the client jar and generates src/main/resources/lib/minecraft/renderer/v2/entity_models.json + v2/entity_geometry.json."
-        group = "tooling2"
-        mainClass.set("lib.minecraft.renderer.tooling2.ToolingEntityModels")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("blockModels2") {
-        description = "tooling2: walks the client jar and generates src/main/resources/lib/minecraft/renderer/v2/block_models.json + v2/block_geometry.json."
-        group = "tooling2"
-        mainClass.set("lib.minecraft.renderer.tooling2.ToolingBlockModels")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("blockDefaults2") {
-        description = "tooling2: bytewalks registerDefaultState and generates src/main/resources/lib/minecraft/renderer/v2/block_defaults.json (default blockstate per block + unresolved[])."
-        group = "tooling2"
-        mainClass.set("lib.minecraft.renderer.tooling2.ToolingBlockDefaults")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("blockTints2") {
-        description = "tooling2: walks BlockColors.createDefault() and generates src/main/resources/lib/minecraft/renderer/v2/block_tints.json (tints + dropped[])."
-        group = "tooling2"
-        mainClass.set("lib.minecraft.renderer.tooling2.ToolingBlockTints")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("potionColors2") {
-        description = "tooling2: walks MobEffects.<clinit> and generates src/main/resources/lib/minecraft/renderer/v2/potion_colors.json (effect colours, sorted by id)."
-        group = "tooling2"
-        mainClass.set("lib.minecraft.renderer.tooling2.ToolingPotionColors")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("glintItems2") {
-        description = "tooling2: walks Items.<clinit> and generates src/main/resources/lib/minecraft/renderer/v2/glint_items.json (always-glinted item ids, sorted)."
-        group = "tooling2"
-        mainClass.set("lib.minecraft.renderer.tooling2.ToolingGlintItems")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("colorMaps2") {
-        description = "tooling2: reads the biome colormap PNGs from the jar and generates src/main/resources/lib/minecraft/renderer/v2/color_maps.json (base64 big-endian ARGB pixels)."
-        group = "tooling2"
-        mainClass.set("lib.minecraft.renderer.tooling2.ToolingColorMaps")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    // atlas render job (decision 35: not an extraction flow); output stays scratch build/atlas/.
-    // Diagnose task names per doc-12 F9 (diagnoseAtlas2 + diagnoseAtlas2Task10).
-
-    register<JavaExec>("atlas2") {
-        description = "tooling2: renders a block/item atlas PNG + typed AtlasSidecar JSON to build/atlas/."
-        group = "tooling2"
-        mainClass.set("lib.minecraft.renderer.tooling2.ToolingAtlas")
-        classpath = sourceSets["main"].runtimeClasspath
-        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
-    }
-
-    register<JavaExec>("diagnoseAtlas2") {
-        description = "tooling2: slices build/atlas/atlas.png by the AtlasSidecar, flags blank/sparse tiles to build/atlas/missing.json."
-        group = "tooling2"
-        mainClass.set("lib.minecraft.renderer.tooling2.ToolingAtlasDiagnose")
-        classpath = sourceSets["main"].runtimeClasspath
-        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
-    }
-
-    register<JavaExec>("diagnoseAtlas2Task10") {
-        description = "tooling2: writes a mini atlas containing only blockstate additions to build/atlas/blockstate_only/."
-        group = "tooling2"
-        mainClass.set("lib.minecraft.renderer.tooling2.ToolingAtlasDiagnose")
         classpath = sourceSets["main"].runtimeClasspath
         args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath, "--source-filter=blockstate_only")
     }

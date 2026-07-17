@@ -55,7 +55,7 @@ public interface RendererContext {
      * Looks up the parsed {@code .mcmeta} animation sidecar for the given texture, if any. The
      * default implementation returns empty so non-animated contexts do not need to override it;
      * animation-aware contexts should look up the associated {@code Texture} entity and forward
-     * its {@link Texture#getAnimation() animation} field.
+     * its {@link Texture#animation() animation} field.
      *
      * @param textureId the namespaced texture identifier
      * @return the animation metadata, or empty when the texture has no sidecar

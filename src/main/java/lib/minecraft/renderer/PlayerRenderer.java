@@ -428,8 +428,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         // Compose the front-facing body as an ordered ImageLayer stack folded into Finalize's target;
         // Finalize owns the single glint mask (recordMask = enchanted), which the ARMOR / trim
         // composites stamp their coverage into so the foil is confined to the armor (not the bare
-        // skin). Body-part rectangles tile the canvas without overlap, so the per-pass order is
-        // equivalent to the historic per-part order.
+        // skin). Body-part rectangles tile the canvas without overlap, so the per-pass order matches
+        // the per-part draw order.
         return Finalize.render(
             Finalize.FinalizeSpec.staticFrame(size, size, 1, options.getOutput().isAntiAlias())
                 .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
@@ -657,7 +657,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
             // The caller's rotation is composed into the engine's camera pose at construction (above),
             // so the fitted rasterize applies no separate model-spin - EulerRotation.NONE. Default
-            // renders leave the byte-identical base player pose.
+            // renders leave the base player pose.
             (target, mask, tick) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL, mask));
     }
 

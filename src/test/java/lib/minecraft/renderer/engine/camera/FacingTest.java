@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * Unit coverage for {@link Facing} - the horizontal-mirror / vertical-flip view reflections and their
- * byte-identical {@link Facing#DEFAULT} no-op.
+ * {@link Facing#DEFAULT} no-op.
  */
 @DisplayName("Facing view reflections")
 class FacingTest {
@@ -75,7 +75,7 @@ class FacingTest {
     }
 
     @Test
-    @DisplayName("resolve(r) equals resolve(r, DEFAULT) - the default path stays byte-identical")
+    @DisplayName("resolve(r) equals resolve(r, DEFAULT) - the default path is a no-op")
     void resolveDefaultMatchesPlain() {
         EulerRotation r = new EulerRotation(10f, 20f, 5f);
         Camera plain = Projection.PORTRAIT.resolve(r);

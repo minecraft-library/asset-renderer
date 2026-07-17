@@ -9,6 +9,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lombok.experimental.UtilityClass;
@@ -92,7 +93,7 @@ public final class TestEntityParityVanilla {
         }
 
         PipelineRendererContext context = PipelineRendererContext.of(result);
-        ConcurrentMap<String, EntityModelLoader.EntityDefinition> javaEntities = EntityModelLoader.load();
+        ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
             System.err.println("entity_models.json missing - run :asset-renderer:entityModelsJava first");
             return;
@@ -101,17 +102,29 @@ public final class TestEntityParityVanilla {
 
         TreeSet<String> javaKeys = new TreeSet<>(javaEntities.keySet());
         TreeSet<String> vanillaKeys = collectVanillaEntityIds();
-        TreeSet<String> intersection = new TreeSet<>(vanillaKeys);
-        intersection.retainAll(javaKeys);
 
-        List<String> entityIds = entityIdFilter.isEmpty()
-            ? List.copyOf(intersection)
-            : entityIdFilter;
+        // Variant-aware enumeration: reconcile the harness's per-variant refs (cow_cold) with the Java
+        // keyset whether variant is id-encoded (a first-class key) or option-encoded (base + an
+        // appearance selection). This ADDS the variant-superset families whose only ref is the plain
+        // base (axolotl / llama / panda / rabbit / trader_llama), previously silently un-compared.
+        ParityRefMapping mapping = ParityRefMapping.load();
+        List<ParityRefMapping.Subject> subjects = mapping.resolve(javaKeys, vanillaKeys);
+        if (!entityIdFilter.isEmpty()) {
+            List<ParityRefMapping.Subject> filtered = subjects.stream()
+                .filter(s -> entityIdFilter.contains(s.refId()) || entityIdFilter.contains(s.entityId()))
+                .collect(Collectors.toCollection(ArrayList::new));
+            // Preserve the "render any id passed" affordance: an id that resolves to no subject
+            // (e.g. a bare base id) renders plain against its own ref.
+            for (String id : entityIdFilter)
+                if (filtered.stream().noneMatch(s -> s.refId().equals(id) || s.entityId().equals(id)))
+                    filtered.add(new ParityRefMapping.Subject(id, id, Optional.empty()));
+            subjects = filtered;
+        }
 
-        System.out.printf("Parity sweep (vs vanilla harness): %d entities to %s (vanilla-only: %d, java-only: %d)%n",
-            entityIds.size(), OUTPUT_DIR.toAbsolutePath(),
-            vanillaKeys.size() - intersection.size(),
-            javaKeys.size() - intersection.size());
+        System.out.printf("Parity sweep (vs vanilla harness): %d subjects to %s (unresolved harness refs: %d, java-only: %d)%n",
+            subjects.size(), OUTPUT_DIR.toAbsolutePath(),
+            mapping.unresolved(javaKeys, vanillaKeys).size(),
+            javaKeys.size() - ParityRefMapping.legacyIntersection(javaKeys, vanillaKeys).size());
 
         long t0 = System.nanoTime();
         // Parallel dispatch across independent per-entity renders, mirroring
@@ -122,8 +135,8 @@ public final class TestEntityParityVanilla {
         // concurrently. Each entity writes to its own sub-directory and returns its Row; no shared
         // mutable state beyond the collector. (RendererDebug's bounds-dump toggle is a ThreadLocal,
         // so the per-entity begin/end framing stays correct on each worker thread.)
-        List<Row> rows = entityIds.parallelStream()
-            .map(entityId -> renderAndCompare(entityId, javaRenderer))
+        List<Row> rows = subjects.parallelStream()
+            .map(subject -> renderAndCompare(subject, javaRenderer))
             .collect(Collectors.toCollection(ArrayList::new));
         long totalMs = (System.nanoTime() - t0) / 1_000_000L;
 
@@ -161,33 +174,39 @@ public final class TestEntityParityVanilla {
      * reference, render error) is captured as a {@code POSITIVE_INFINITY} sentinel row rather than
      * aborting the sweep.
      *
-     * @param entityId the entity id to render and compare
+     * @param subject the parity subject (its ref id names the vanilla PNG + output folder; its entity id
+     *     and variant drive the Java render)
      * @param javaRenderer the shared read-only Java entity renderer
      * @return the comparison row, or a {@code POSITIVE_INFINITY} sentinel on failure
      */
-    private static @NotNull Row renderAndCompare(@NotNull String entityId, @NotNull EntityRenderer javaRenderer) {
-        Path entityDir = OUTPUT_DIR.resolve(entityId.replace(':', '_'));
+    private static @NotNull Row renderAndCompare(@NotNull ParityRefMapping.Subject subject, @NotNull EntityRenderer javaRenderer) {
+        String refId = subject.refId();
+        Path entityDir = OUTPUT_DIR.resolve(refId.replace(':', '_'));
         try {
             Files.createDirectories(entityDir);
-            Path vanillaPng = VANILLA_DIR.resolve(VANILLA_PREFIX + entityId.substring("minecraft:".length()) + ".png");
+            Path vanillaPng = VANILLA_DIR.resolve(VANILLA_PREFIX + refId.substring("minecraft:".length()) + ".png");
             BufferedImage vanillaImg = ImageIO.read(vanillaPng.toFile());
             if (vanillaImg == null) {
-                System.err.printf("       %-40s vanilla PNG unreadable: %s%n", entityId, vanillaPng);
-                return new Row(entityId, Double.POSITIVE_INFINITY, -1, 0, 0, 0, 0, 0, 0);
+                System.err.printf("       %-40s vanilla PNG unreadable: %s%n", refId, vanillaPng);
+                return new Row(refId, Double.POSITIVE_INFINITY, -1, 0, 0, 0, 0, 0, 0);
             }
             int vw = vanillaImg.getWidth();
             int vh = vanillaImg.getHeight();
 
-            EntityOptions options = EntityOptions.builder()
-                .entityId(Optional.of(entityId))
-                .fitMode(EntityOptions.FitMode.FAMILY_BOUNDS)
-                .build();
+            EntityOptions.EntityOptionsBuilder optionsBuilder = EntityOptions.builder()
+                .entityId(Optional.of(subject.entityId()))
+                .fitMode(EntityOptions.FitMode.FAMILY_BOUNDS);
+            // Drive the option-encoded variant coat (empty for an id-encoded pseudo-id, whose id already
+            // selects the coat, or a non-variant subject).
+            subject.variant().ifPresent(v -> optionsBuilder.appearance(
+                lib.minecraft.renderer.option.EntityAppearance.builder().variant(Optional.of(v)).build()));
+            EntityOptions options = optionsBuilder.build();
             ImageData java;
-            lib.minecraft.renderer.engine.RendererDebug.beginPerEntityBoundsDump(entityId);
+            lib.minecraft.renderer.engine.RendererDebug.beginPerEntityBoundsDump(refId);
             try {
                 java = javaRenderer.render(options);
             } finally {
-                lib.minecraft.renderer.engine.RendererDebug.endPerEntityBoundsDump(entityId);
+                lib.minecraft.renderer.engine.RendererDebug.endPerEntityBoundsDump(refId);
             }
             BufferedImage javaImg = java.toBufferedImage();
             int jw = javaImg.getWidth();
@@ -210,12 +229,12 @@ public final class TestEntityParityVanilla {
             ParityMetrics.Stats stats = ParityMetrics.compareImages(vanillaPadded, javaPadded);
             String dimMismatch = (vw == jw && vh == jh) ? "" : String.format(" [%dx%d vs %dx%d]", jw, jh, vw, vh);
             System.out.printf("  %-40s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%s%n",
-                entityId, stats.meanDelta(), stats.differingPixels(),
+                refId, stats.meanDelta(), stats.differingPixels(),
                 stats.javaCoverage() * 100, stats.vanillaCoverage() * 100, dimMismatch);
-            return new Row(entityId, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(), jw, jh, vw, vh);
+            return new Row(refId, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(), jw, jh, vw, vh);
         } catch (Exception ex) {
-            System.err.printf("       %-40s FAILED: %s%n", entityId, ex.getMessage());
-            return new Row(entityId, Double.POSITIVE_INFINITY, -1, 0, 0, 0, 0, 0, 0);
+            System.err.printf("       %-40s FAILED: %s%n", refId, ex.getMessage());
+            return new Row(refId, Double.POSITIVE_INFINITY, -1, 0, 0, 0, 0, 0, 0);
         }
     }
 

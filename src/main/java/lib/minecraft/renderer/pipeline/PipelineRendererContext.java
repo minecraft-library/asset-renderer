@@ -12,7 +12,6 @@ import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.Texture;
 import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.asset.rule.CitMatcher;
@@ -28,7 +27,6 @@ import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemIndexLoader;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
-import lib.minecraft.renderer.tooling.ToolingColorMaps;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -36,7 +34,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -53,7 +50,7 @@ import java.util.Optional;
  * unmodifiable indexes and serves lookups.
  * <p>
  * Biome colormaps and per-block tint targets are wired through to render time by
- * {@code ToolingColorMaps.Parser} and {@link BlockTintsLoader}; the lazy {@code textureCache} is
+ * {@code ColorMapLoader} and {@link BlockTintsLoader}; the lazy {@code textureCache} is
  * the only mutable map on the context.
  */
 @RequiredArgsConstructor
@@ -117,32 +114,14 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
-     * Loads the entity index from {@link EntityModelLoader#load()}, materialising each
-     * {@link EntityModelLoader.EntityDefinition} into an {@link Entity} DTO with overlay layers
-     * flattened into the entity's own {@code Entity.Layer} list. Block-entity models render via
-     * the block path now, so only mob entities reach the entity index.
+     * Loads the entity index natively from {@link EntityModelLoader#load()}, keyed by namespaced entity
+     * id. The loaded {@link Entity} is the full definition the renderer consumes; block-entity models
+     * render via the block path now, so only mob entities reach the entity index.
      *
      * @return the populated entity index, keyed by namespaced entity id
      */
     private static @NotNull ConcurrentMap<String, Entity> loadEntityIndex() {
-        return EntityModelLoader.load()
-            .stream()
-            .collect(Concurrent.toMap(Map.Entry::getKey, entry -> {
-                String entityId = entry.getKey();
-                EntityModelLoader.EntityDefinition definition = entry.getValue();
-
-                return new Entity(
-                    ResourceId.parse(entityId),
-                    definition.model(),
-                    definition.textureRef(),
-                    definition.overlays()
-                        .stream()
-                        .map(o -> new Entity.Layer(o.model(), o.textureRef(), o.emissive()))
-                        .collect(Concurrent.toList())
-                        .toUnmodifiable()
-                );
-            }))
-            .toUnmodifiable();
+        return EntityModelLoader.load();
     }
 
     /** {@inheritDoc} */
@@ -168,12 +147,12 @@ public final class PipelineRendererContext implements RendererContext {
         Texture texture = this.textures.get(normalized);
         if (texture == null) return Optional.empty();
 
-        TexturePack owner = this.packs.get(texture.getPackId());
+        TexturePack owner = this.packs.get(texture.packId());
         if (owner == null) return Optional.empty();
 
         Path winning = null;
         for (Path root : owner.getAssetRoots()) {
-            Path candidate = root.resolve(VanillaSourcePaths.TEXTURES_DIR).resolve(texture.getRelativePath());
+            Path candidate = root.resolve(VanillaSourcePaths.TEXTURES_DIR).resolve(texture.relativePath());
             if (Files.isRegularFile(candidate)) winning = candidate;
         }
         if (winning == null) return Optional.empty();
@@ -222,7 +201,7 @@ public final class PipelineRendererContext implements RendererContext {
     public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
         String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
         Texture texture = this.textures.get(normalized);
-        return texture == null ? Optional.empty() : texture.getAnimation();
+        return texture == null ? Optional.empty() : texture.animation();
     }
 
     /**
@@ -333,11 +312,11 @@ public final class PipelineRendererContext implements RendererContext {
     private @NotNull String primaryTag(@NotNull String blockId) {
         Block block = this.blockIndex.get(blockId);
 
-        if (block != null && !block.getTags().isEmpty()) {
-            return block.getTags()
+        if (block != null && !block.tags().isEmpty()) {
+            return block.tags()
                 .stream()
                 .filter(this.blockTags::containsKey)
-                .min(Comparator.comparingInt(tag -> this.blockTags.get(tag).getValues().size()))
+                .min(Comparator.comparingInt(tag -> this.blockTags.get(tag).values().size()))
                 .orElse(blockId);
         }
 

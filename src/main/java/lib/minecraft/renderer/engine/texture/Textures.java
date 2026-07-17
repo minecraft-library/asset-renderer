@@ -157,7 +157,7 @@ public class Textures {
      * Resolves a texture and returns the specific animation frame that should be displayed at
      * the given tick. For textures without an {@code .mcmeta} sidecar the source buffer is
      * returned unchanged; for animated textures {@link AnimationKit#sampleFrame} extracts the
-     * correct strip frame, blending adjacent frames when {@link AnimationData#isInterpolate()}
+     * correct strip frame, blending adjacent frames when {@link AnimationData#interpolate()}
      * is set.
      *
      * @param textureId the namespaced texture identifier
@@ -175,7 +175,7 @@ public class Textures {
      * has no match - the frame-flattening counterpart of {@link #tryResolveTexture}. For textures
      * without an {@code .mcmeta} sidecar the source buffer is returned unchanged; for animated
      * textures {@link AnimationKit#sampleFrame} extracts the correct strip frame (blending adjacent
-     * frames when {@link AnimationData#isInterpolate()} is set).
+     * frames when {@link AnimationData#interpolate()} is set).
      *
      * @param textureId the namespaced texture identifier
      * @param tick the current animation tick (free-running, signed)
@@ -281,7 +281,7 @@ public class Textures {
      * never populate {@link ItemOptions#getContext()} pay zero rule-walk cost. CIT in vanilla
      * Optifine semantics replaces only {@code layer0}; {@code layer1+} overlays (potion liquid,
      * leather armor overlay, leather helmet pattern) pass through unchanged via
-     * {@link Item#getTextures()} and don't go through this helper.
+     * {@link Item#textures()} and don't go through this helper.
      *
      * @param item the item DTO
      * @param options the per-render options carrying the optional {@link ItemContext}
@@ -292,7 +292,7 @@ public class Textures {
             Optional<String> override = this.context.resolveItemTextureOverride(options.getContext());
             if (override.isPresent()) return override.get();
         }
-        return item.getTextures().get("layer0");
+        return item.textures().get("layer0");
     }
 
     /**
@@ -449,7 +449,7 @@ public class Textures {
      * colormap suitable for {@link #sampleColormap(int[], float, float)}.
      */
     private int @NotNull [] unpackColorMap(@NotNull ColorMap map) {
-        byte[] bytes = map.getPixels();
+        byte[] bytes = map.pixels();
         int[] pixels = new int[bytes.length / 4];
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
         buffer.asIntBuffer().get(pixels);

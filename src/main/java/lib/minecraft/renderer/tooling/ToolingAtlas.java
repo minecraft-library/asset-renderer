@@ -1,98 +1,75 @@
 package lib.minecraft.renderer.tooling;
 
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
+import dev.simplified.image.codec.webp.WebPWriteOptions;
 import lib.minecraft.renderer.AtlasRenderer;
-import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.AtlasOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import dev.simplified.image.ImageFactory;
-import dev.simplified.image.ImageFormat;
-import dev.simplified.image.codec.webp.WebPWriteOptions;
-import lombok.experimental.UtilityClass;
-import org.jetbrains.annotations.NotNull;
+import lib.minecraft.renderer.tooling.atlas.AtlasSidecar;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Entry point invoked by the {@code atlas} Gradle JavaExec task.
- * <p>
- * The main is a thin I/O wrapper: it bootstraps the asset pipeline (downloading the Minecraft
- * client jar if it is not already cached), wraps the result in a {@link PipelineRendererContext},
- * delegates the actual rendering to {@link AtlasRenderer#renderAtlas(AtlasOptions)}, and writes the
- * produced atlas image plus its {@code atlas.json} sidecar to the output directory passed as the
- * first program argument (defaulting to {@code build/atlas}). Static atlases are written as
- * {@code atlas.png}; an animated atlas is written as lossless multithreaded {@code atlas.webp}. All
- * rendering, tile iteration, and progress reporting lives on the renderer; this class only handles
- * file I/O and command-line argument parsing.
+ * Entry point of the {@code atlas} Gradle task - a render job over the texture pack, not a
+ * client-jar extraction. A thin I/O shell around {@code Pipeline.run} + {@link
+ * AtlasRenderer#renderAtlas}: it writes the atlas image ({@code atlas.png}, or {@code atlas.webp}
+ * for animated packs) plus the {@code atlas.json} sidecar to the output directory (scratch
+ * {@code build/atlas/}, never a bundled resource).
+ *
+ * <p>The sidecar is verified through the typed {@link AtlasSidecar} on the read side only;
+ * {@code AtlasRenderer} still emits the raw JSON natively.
  */
-@UtilityClass
 public final class ToolingAtlas {
+
+    private ToolingAtlas() {
+    }
 
     /**
      * Runs the atlas generator.
      *
-     * @param args {@code args[0]} is the output directory; defaults to {@code build/atlas} when omitted
-     * @throws IOException if the atlas image or sidecar JSON cannot be written
+     * @param args {@code args[0]} is the output directory; defaults to {@code build/atlas}
+     * @throws IOException if the atlas image or sidecar cannot be written
      */
-    public static void main(String @NotNull [] args) throws IOException {
-        File outputDir = Path.of(args.length > 0 ? args[0] : "build/atlas").toFile();
-        Files.createDirectories(outputDir.toPath());
+    public static void main(String[] args) throws IOException {
+        Diagnostics diagnostics = Diagnostics.root("atlas", Diagnostics.Output.CONSOLE, null);
+        Path outputDir = Path.of(args.length > 0 ? args[0] : "build/atlas");
+        Files.createDirectories(outputDir);
 
-        Pipeline.Result result;
-        try {
-            result = Pipeline.run(PipelineOptions.defaults());
-        } catch (PipelineException ex) {
-            System.err.println("Atlas generation failed during pipeline bootstrap: " + ex.getMessage());
-            throw ex;
-        }
-
-        System.out.printf(
-            "Pipeline ready: %d block models, %d item models, %d textures cached at %s%n",
-            result.getBlockModels().size(),
-            result.getItemModels().size(),
-            result.getTextures().size(),
-            result.getPackRoot()
-        );
+        Pipeline.Result result = Pipeline.run(PipelineOptions.defaults());
+        diagnostics.info("pipeline ready: %d block models, %d item models, %d textures at %s",
+            result.getBlockModels().size(), result.getItemModels().size(), result.getTextures().size(), result.getPackRoot());
 
         PipelineRendererContext context = PipelineRendererContext.of(result);
-        AtlasRenderer atlasRenderer = new AtlasRenderer(context);
-        AtlasRenderer.AtlasResult atlas = atlasRenderer.renderAtlas(AtlasOptions.defaults());
+        AtlasRenderer.AtlasResult atlas = new AtlasRenderer(context).renderAtlas(AtlasOptions.defaults());
+
+        boolean animated = atlas.image().isAnimated();
+        File outputFile = outputDir.resolve("atlas." + (animated ? "webp" : "png")).toFile();
         ImageFactory imageFactory = new ImageFactory();
-        File outputFile = outputDir.toPath().resolve("atlas." + (atlas.image().isAnimated() ? "webp" : "png")).toFile();
+        if (animated)
+            imageFactory.toFile(atlas.image(), ImageFormat.WEBP, outputFile,
+                WebPWriteOptions.builder().isLossless().isMultithreaded().build());
+        else
+            imageFactory.toFile(atlas.image(), ImageFormat.PNG, outputFile);
 
-        if (atlas.image().isAnimated()) {
-            imageFactory.toFile(
-                atlas.image(),
-                ImageFormat.WEBP,
-                outputFile,
-                WebPWriteOptions.builder()
-                    .isLossless()
-                    .isMultithreaded()
-                    .build()
-            );
-        } else {
-            imageFactory.toFile(
-                atlas.image(),
-                ImageFormat.PNG,
-                outputFile
-            );
-        }
+        Path jsonFile = outputDir.resolve("atlas.json");
+        Files.writeString(jsonFile, atlas.sidecarJson());
 
-        File jsonFile = outputDir.toPath().resolve("atlas.json").toFile();
-        Files.writeString(jsonFile.toPath(), atlas.sidecarJson());
-
-        System.out.printf(
-            "Wrote atlas: %d tiles -> %s (%dx%d px)%n",
-            atlas.tiles().size(),
-            outputFile.getAbsolutePath(),
-            atlas.image().getWidth(),
-            atlas.image().getHeight()
-        );
-        System.out.println("Wrote sidecar: " + jsonFile.getAbsolutePath());
+        AtlasSidecar sidecar = AtlasSidecar.parse(JsonNode.parse(atlas.sidecarJson().getBytes(StandardCharsets.UTF_8)));
+        if (sidecar.count() != sidecar.tiles().size())
+            throw new ToolingException("atlas sidecar count %d disagrees with %d tiles", sidecar.count(), sidecar.tiles().size());
+        diagnostics.info("wrote atlas: %d tiles -> %s (%dx%d px)",
+            sidecar.tiles().size(), outputFile.getAbsolutePath(), atlas.image().getWidth(), atlas.image().getHeight());
+        diagnostics.info("wrote sidecar: %s", jsonFile.toAbsolutePath());
     }
 
 }

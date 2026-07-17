@@ -8,6 +8,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.pipeline.load.GeometryDocument;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -220,8 +221,10 @@ public class EntityModelData {
 
         /**
          * Uniform outward expansion applied to every face in model units; {@code 0} leaves the cube
-         * at its authored size.
+         * at its authored size. Deserialises from either the legacy {@code inflate} key or the
+         * geometry {@code grow} key (a scalar in 26.1; per-axis {@code grow} is a later evolution).
          */
+        @SerializedName(value = "inflate", alternate = {"grow"})
         private float inflate = 0f;
 
         /**
@@ -263,6 +266,47 @@ public class EntityModelData {
         @SerializedName("face_uv")
         private @NotNull ConcurrentMap<String, FaceUv> faceUv = Concurrent.newMap();
 
+        /**
+         * Per-axis outward expansion, populated by {@link GeometryDocument}
+         * under the synthetic {@code grow_axis} key when a {@code grow} is an {@code [x, y, z]} array
+         * (an asymmetric {@code CubeDeformation}); {@code null} for the uniform {@link #inflate} scalar
+         * every 26.1 cube carries. Declared last so the all-args constructor keeps the existing
+         * eight-argument order for the deep-clone call sites. See {@link #getGrow()}.
+         */
+        @SerializedName("grow_axis")
+        private @Nullable Vector3f growAxis = null;
+
+        /**
+         * Constructs a cube with a uniform scalar {@link #inflate} (no per-axis {@link #growAxis}) - the
+         * existing eight-argument shape every 26.1 cube and every kit fixture uses. Delegates to the
+         * all-args constructor with a {@code null} per-axis grow.
+         */
+        public Cube(
+            @NotNull Vector3f origin,
+            @NotNull Vector3f size,
+            @NotNull Vector2f uv,
+            float inflate,
+            boolean mirror,
+            @NotNull Vector3f pivot,
+            @NotNull EulerRotation rotation,
+            @NotNull ConcurrentMap<String, FaceUv> faceUv
+        ) {
+            this(origin, size, uv, inflate, mirror, pivot, rotation, faceUv, null);
+        }
+
+        /**
+         * The cube's per-axis outward expansion in model units: the {@link #growAxis} vector when an
+         * asymmetric grow was authored, else the uniform {@link #inflate} scalar broadcast to all three
+         * axes. The kit expands the cube's corner box by this per-axis, leaving the
+         * {@code size}-derived UV footprint untouched (vanilla {@code CubeDeformation} grows vertices,
+         * not the sampled texture rectangle).
+         *
+         * @return the per-axis grow (scalar {@code inflate} broadcast when no array grow was authored)
+         */
+        public @NotNull Vector3f getGrow() {
+            return this.growAxis != null ? this.growAxis : new Vector3f(this.inflate, this.inflate, this.inflate);
+        }
+
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
@@ -274,12 +318,13 @@ public class EntityModelData {
                 && Objects.equals(uv, that.uv)
                 && Objects.equals(pivot, that.pivot)
                 && Objects.equals(rotation, that.rotation)
-                && Objects.equals(faceUv, that.faceUv);
+                && Objects.equals(faceUv, that.faceUv)
+                && Objects.equals(growAxis, that.growAxis);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(origin, size, uv, inflate, mirror, pivot, rotation, faceUv);
+            return Objects.hash(origin, size, uv, inflate, mirror, pivot, rotation, faceUv, growAxis);
         }
 
     }

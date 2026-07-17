@@ -12,9 +12,10 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.pipeline.load.block.BlockDefaultsReader;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
-import lib.minecraft.renderer.tooling2.bridge.LegacyBridge;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.UtilityClass;
@@ -22,8 +23,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -55,8 +54,6 @@ import java.util.stream.Stream;
 public class BlockStateLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
-
-    private static final @NotNull String DEFAULTS_RESOURCE_PATH = "/lib/minecraft/renderer/block_defaults.json";
 
     /**
      * Loads all blockstate JSON files and returns both variant and multipart data.
@@ -121,26 +118,7 @@ public class BlockStateLoader {
      * @throws PipelineException if the resource is missing or cannot be parsed
      */
     private static @NotNull ConcurrentMap<String, String> loadDefaultStateKeys() {
-        HashMap<String, String> defaults = new HashMap<>();
-        try (InputStream stream = BlockStateLoader.class.getResourceAsStream(DEFAULTS_RESOURCE_PATH)) {
-            if (stream == null && !LegacyBridge.active())
-                throw new PipelineException("Vanilla block-defaults resource '%s' not found on the classpath", DEFAULTS_RESOURCE_PATH);
-
-            // tooling2 bridge seam (10-bridge SS2.3): the default-state map is materialized from
-            // v2/block_defaults.json under the fork-lifetime -Dasset.tooling2.bridge flag.
-            JsonObject root = LegacyBridge.active()
-                ? LegacyBridge.materialize("block_defaults.json").toGson().getAsJsonObject()
-                : GSON.fromJson(new String(stream.readAllBytes(), StandardCharsets.UTF_8), JsonObject.class);
-            if (root == null || !root.has("blocks"))
-                throw new PipelineException("Vanilla block-defaults resource '%s' has no 'blocks' object", DEFAULTS_RESOURCE_PATH);
-
-            JsonObject blocks = root.getAsJsonObject("blocks");
-            for (String blockId : blocks.keySet())
-                defaults.put(blockId, blocks.get(blockId).getAsString());
-        } catch (IOException | JsonSyntaxException ex) {
-            throw new PipelineException(ex, "Failed to load vanilla block-defaults resource '%s'", DEFAULTS_RESOURCE_PATH);
-        }
-        return Concurrent.adoptMap(defaults).toUnmodifiable();
+        return BlockDefaultsReader.load(Diagnostics.root("blockDefaults", Diagnostics.Output.CONSOLE, null));
     }
 
     /**

@@ -234,24 +234,30 @@ public class BoneKit {
     /**
      * Computes a cube's axis-aligned bounds in bone-local pixel space: the cube origin and size
      * scaled by the owning bone's uniform {@code scale} and expanded on every side by the scaled
-     * inflate. Shared by both kits' per-cube emit loops (the block {@code /16 - 0.5} normalization
-     * and the entity fit / measure passes) so the scaled-inflate arithmetic lives in one place.
+     * per-axis grow. Shared by both kits' per-cube emit loops (the block {@code /16 - 0.5}
+     * normalization and the entity fit / measure passes) so the scaled-grow arithmetic lives in one
+     * place. The grow expands the corner box only; the {@code size}-derived UV footprint is untouched
+     * ({@link EntityModelData.Cube#getGrow()}). A scalar {@code inflate} degenerates to an equal grow
+     * on all three axes.
      *
      * @param scale the owning bone's uniform scale (vanilla {@code PartPose.scaled} /
      *     {@code MeshTransformer.scaling})
      * @param cube the cube whose bounds to compute
-     * @return the scaled, inflated cube bounds in bone-local coordinates
+     * @return the scaled, grown cube bounds in bone-local coordinates
      */
     public static @NotNull Box scaledCubeBounds(float scale, @NotNull EntityModelData.Cube cube) {
         Vector3f origin = cube.getOrigin();
         Vector3f size = cube.getSize();
-        float scaledInflate = scale * cube.getInflate();
+        Vector3f grow = cube.getGrow();
+        float gx = scale * grow.x();
+        float gy = scale * grow.y();
+        float gz = scale * grow.z();
         float ox = scale * origin.x();
         float oy = scale * origin.y();
         float oz = scale * origin.z();
         return new Box(
-            ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
-            ox + scale * size.x() + scaledInflate, oy + scale * size.y() + scaledInflate, oz + scale * size.z() + scaledInflate);
+            ox - gx, oy - gy, oz - gz,
+            ox + scale * size.x() + gx, oy + scale * size.y() + gy, oz + scale * size.z() + gz);
     }
 
     /**

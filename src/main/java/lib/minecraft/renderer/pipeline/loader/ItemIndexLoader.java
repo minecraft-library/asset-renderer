@@ -79,8 +79,8 @@ public class ItemIndexLoader {
 
         int before = itemIndex.size();
         itemIndex.values().removeIf(item ->
-            !item.getId().id().equals(SHIELD_ITEM_ID)
-                && Models.rendersNothing(item.getModel().getElements(), item.getModel().getTextures(), true));
+            !item.id().id().equals(SHIELD_ITEM_ID)
+                && Models.rendersNothing(item.model().getElements(), item.model().getTextures(), true));
         System.out.printf("Atlas empty-model filter: removed %d template items%n", before - itemIndex.size());
 
         return Concurrent.adoptMap(itemIndex).toUnmodifiable();
