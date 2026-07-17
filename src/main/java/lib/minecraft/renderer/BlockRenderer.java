@@ -24,8 +24,8 @@ import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
 import lib.minecraft.renderer.engine.compose.AnimationTimeline;
-import lib.minecraft.renderer.engine.compose.Finalize;
-import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.RasterPass;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -213,11 +213,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 anim = deriveBlockTimeline(block, anim);
             int size = options.getOutput().getCanvasSize();
             int ssaa = Math.max(1, options.getOutput().getSupersample());
-            Finalize.FinalizeSpec spec = Finalize.FinalizeSpec.tickStrip(size, size, ssaa, options.getOutput().isAntiAlias(), anim);
-            return Finalize.render(spec, (target, mask, tick) ->
-                new ModelEngine(this.context, resolved.camera()).rasterize(
-                    buildRelitTriangles(tick, block, be, effectiveVariant, tint, untintedTint, lighting, options),
-                    target));
+            return Timeline.tickStrip(anim).bake(
+                RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, mask, tick) ->
+                    new ModelEngine(this.context, resolved.camera()).rasterize(
+                        buildRelitTriangles(tick, block, be, effectiveVariant, tint, untintedTint, lighting, options),
+                        target)));
         }
 
         /**
@@ -867,7 +867,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int size = options.getOutput().getCanvasSize();
             buffer.blitScaled(tinted, 0, 0, size, size);
 
-            return FrameCompositor.staticFrame(buffer);
+            return Timeline.still(buffer);
         }
 
     }

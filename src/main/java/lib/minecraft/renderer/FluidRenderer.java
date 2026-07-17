@@ -10,7 +10,8 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.Finalize;
+import lib.minecraft.renderer.engine.compose.RasterPass;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -149,10 +150,9 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // in parallel. The per-tick build MUST stay inside the rasterizer callback (capturing it
             // once would freeze the animation on frame 0's textures).
             int ssaa = Math.max(1, options.getOutput().getSupersample());
-            return Finalize.render(
-                Finalize.FinalizeSpec.tickStrip(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias(),
-                    options.getAnimation()),
-                (target, mask, tick) -> rasterizeFrame(options, tick, target));
+            return Timeline.tickStrip(options.getAnimation()).bake(
+                RasterPass.of(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias(),
+                    (target, mask, tick) -> rasterizeFrame(options, tick, target)));
         }
 
         /**
@@ -200,10 +200,9 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         public @NotNull ImageData render(@NotNull FluidOptions options) {
             // Each tick constructs its own RasterEngine, so Finalize bakes frames in parallel. Flat 2D
             // blit: no supersample / FXAA (ssaa = 1, antiAlias = false).
-            return Finalize.render(
-                Finalize.FinalizeSpec.tickStrip(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,
-                    options.getAnimation()),
-                (target, mask, tick) -> rasterizeFrame(options, tick, target));
+            return Timeline.tickStrip(options.getAnimation()).bake(
+                RasterPass.of(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,
+                    (target, mask, tick) -> rasterizeFrame(options, tick, target)));
         }
 
         /**
