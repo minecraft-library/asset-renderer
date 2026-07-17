@@ -15,10 +15,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
-import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.kit.AnimationKit;
-import lib.minecraft.renderer.option.ItemOptions;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -33,9 +30,8 @@ import java.util.function.Function;
  * to their layers) for its two families of helpers:
  * <ul>
  *   <li><b>Pack resolution</b> - {@code resolveTexture} / {@code resolveTextureAtTick} (animation
- *       strip extraction via {@link AnimationKit AnimationKit}), the {@code minecraft:entity/}
- *       entity-texture prefix ({@code resolveEntityTexture}), and the CIT {@code layer0}
- *       override lookup.</li>
+ *       strip extraction via {@link AnimationKit AnimationKit}) and the {@code minecraft:entity/}
+ *       entity-texture prefix ({@code resolveEntityTextureAtTick}).</li>
  *   <li><b>Tint sampling</b> - biome grass / foliage / water tint (the vanilla
  *       {@code BiomeSpecialEffects$GrassColorModifier} dark-forest / swamp variants and the default
  *       water table) and the redstone-wire-by-power tint, each honouring pack
@@ -131,25 +127,13 @@ public class Textures {
     }
 
     /**
-     * Resolves an entity texture ref against the vanilla pack at {@code minecraft:entity/<ref>},
-     * returning empty when the pack has no such texture. Centralises the {@code minecraft:entity/}
-     * prefix idiom the entity renderer's base / overlay / collar / equipment / family-member paths
-     * all share.
-     *
-     * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
-     *     {@code .png} suffix)
-     * @return the resolved texture, or empty when the pack has no match
-     */
-    public @NotNull Optional<PixelBuffer> resolveEntityTexture(@NotNull String ref) {
-        return tryResolveTexture("minecraft:entity/" + ref);
-    }
-
-    /**
-     * Resolves an entity texture ref at a specific animation tick - the frame-flattening counterpart
-     * of {@link #resolveEntityTexture(String)}, wrapping {@link #tryResolveTextureAtTick} with the
-     * {@code minecraft:entity/} prefix. A sidecar-less entity texture (every vanilla entity) returns
-     * its buffer unchanged, so {@code tick 0} is byte-identical to the raw lookup; a sidecar-carrying
-     * texture samples the frame for {@code tick} (frame-0-at-default when static).
+     * Resolves an entity texture ref against the vanilla pack at {@code minecraft:entity/<ref>} at a
+     * specific animation tick, wrapping {@link #tryResolveTextureAtTick} with the
+     * {@code minecraft:entity/} prefix. Centralises the {@code minecraft:entity/} prefix idiom the
+     * entity renderer's base / overlay / collar / equipment / family-member paths all share. A
+     * sidecar-less entity texture (every vanilla entity) returns its buffer unchanged, so
+     * {@code tick 0} is byte-identical to the raw lookup; a sidecar-carrying texture samples the frame
+     * for {@code tick} (frame-0-at-default when static).
      *
      * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
      *     {@code .png} suffix)
@@ -167,7 +151,7 @@ public class Textures {
      * @param textureId the namespaced texture identifier
      * @return the animation metadata, or empty when the texture has no sidecar
      */
-    public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
+    private @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
         return this.context.findAnimation(textureId);
     }
 
@@ -287,25 +271,6 @@ public class Textures {
         if (power < 0 || power >= REDSTONE_TINTS.length)
             throw new IllegalArgumentException("Redstone power '%d' is outside [0, 15]".formatted(power));
         return this.context.findColorOverride("redstone." + power).orElse(REDSTONE_TINTS[power]);
-    }
-
-    /**
-     * Resolves the Custom Item Texture effect for this render - one walk of the merged CIT rules via
-     * {@link RendererContext#resolveItemTextureOverride(ItemContext)}, whose result the caller resolves
-     * each layer against with {@link CitResult#textureFor(String)} (one walk per render, not per layer).
-     *
-     * <p>The walk runs even for the {@link ItemContext#EMPTY} default: the item-texture override never
-     * fires there (no rule's item list contains the empty id), but the glint decision is
-     * context-independent for the global {@code useGlint=false} toggle and item-list-less
-     * {@code type=enchantment} rules, so it must ride through to the compose terminal even
-     * for a plainly-enchanted icon that carries no item NBT. A vanilla stack (no rules, no
-     * {@code useGlint}) still yields {@link CitResult#NONE}, so the empty-context path stays byte-identical.
-     *
-     * @param options the per-render options carrying the optional {@link ItemContext}
-     * @return the CIT effect, or {@link CitResult#NONE} when nothing matches and the glint is default
-     */
-    public @NotNull CitResult resolveCit(@NotNull ItemOptions options) {
-        return this.context.resolveItemTextureOverride(options.getContext());
     }
 
     /**

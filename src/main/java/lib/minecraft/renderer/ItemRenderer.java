@@ -566,7 +566,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // vanilla-identical. CIT + glint are tick-independent; only per-layer texture resolution is
             // tick-aware, so the LayerContext is captured once and buildGuiLayers re-runs per frame with
             // the frame's tick.
-            CitResult cit = engine.textures().resolveCit(options);
+            CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
             // Resolve the item AFTER the CIT walk so a CIT model override can replace the tree-resolved
             // model; the neutral context + no override yields the baked item.
             Item item = resolveRenderItem(this.context, options, cit);
@@ -661,13 +661,28 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link PixelBuffer} via {@link ItemRenderer#composeTintedLayers} and feed the result into the
      * thin-Z-slab path, so the held view reflects the same per-layer tint as the GUI icon.
      */
-    @RequiredArgsConstructor
     public static final class Held3D implements Renderer<ItemOptions> {
 
         /**
          * The renderer context supplying pack / model / texture lookups.
          */
         private final @NotNull RendererContext context;
+
+        /**
+         * The pack-aware texture-resolution service bound once to {@link #context}, shared by the
+         * flat-slab layer composite and the glint tail.
+         */
+        private final @NotNull Textures textures;
+
+        /**
+         * Constructs the held-3D sub-renderer bound to the given context.
+         *
+         * @param context the renderer context supplying pack / model / texture lookups
+         */
+        public Held3D(@NotNull RendererContext context) {
+            this.context = context;
+            this.textures = new Textures(context);
+        }
 
         /** {@inheritDoc} */
         @Override
@@ -683,8 +698,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // moves INSIDE the raster callback (fluid pattern) and the ModelEngine is rebuilt per frame
             // for thread-safe parallel strip baking. Vanilla ships no item sidecars, so a default render
             // (frameCount = 1) resolves at tick 0 - byte-identical.
-            Textures textures = new Textures(this.context);
-            CitResult cit = textures.resolveCit(options);
+            CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
             Item item = resolveRenderItem(this.context, options, cit);
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
 
@@ -698,7 +712,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) -> {
                     ModelEngine engine = new ModelEngine(this.context, camera);
                     engine.rasterize(buildTrianglesAtTick(engine, item, options, cit, tint, tick), target, displayTransform);
-                }).finishing(itemGlint(textures, item, options, cit.glint())));
+                }).finishing(itemGlint(this.textures, item, options, cit.glint())));
         }
 
         /**

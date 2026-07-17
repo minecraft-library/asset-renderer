@@ -137,10 +137,25 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
      * a static image, multi-frame renders return an animated image whose per-frame delay spans
      * {@code ticksPerFrame} game ticks.
      */
-    @RequiredArgsConstructor
     public static final class Isometric3D implements Renderer<FluidOptions> {
 
         private final @NotNull RendererContext context;
+
+        /**
+         * The pack-aware texture-resolution service bound once to {@link #context}, shared by the
+         * per-frame still / flow texture sampling.
+         */
+        private final @NotNull Textures textures;
+
+        /**
+         * Constructs the isometric fluid sub-renderer bound to the given context.
+         *
+         * @param context the renderer context supplying pack / texture lookups
+         */
+        public Isometric3D(@NotNull RendererContext context) {
+            this.context = context;
+            this.textures = new Textures(context);
+        }
 
         /** {@inheritDoc} */
         @Override
@@ -167,9 +182,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // renders pass EulerRotation.NONE, leaving the base block-icon pose.
             var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
             ModelEngine engine = new ModelEngine(this.context, resolved.camera());
-            Textures textures = new Textures(this.context);
-            PixelBuffer still = textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
-            PixelBuffer flow = textures.resolveTextureAtTick(flowTextureId(options.getFluid()), tick);
+            PixelBuffer still = this.textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
+            PixelBuffer flow = this.textures.resolveTextureAtTick(flowTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
 
             // Single built-in contributor (the cube), expressed as a GeometryLayer so fluid uses the

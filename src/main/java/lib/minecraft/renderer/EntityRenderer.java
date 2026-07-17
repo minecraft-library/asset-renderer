@@ -71,7 +71,6 @@ import java.util.function.IntFunction;
  * single {@link #ENTITY_PLACEMENT} {@link Placement}. That split lets any projection be swapped in and
  * still present the subject's front, upright.
  */
-@RequiredArgsConstructor
 public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
@@ -87,6 +86,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private final @NotNull Map<String, Entity> javaEntities;
 
     /**
+     * The pack-aware texture-resolution service, bound once to {@link #context}, that every
+     * base / variant / family-member texture lookup on this renderer flows through.
+     */
+    private final @NotNull Textures textures;
+
+    /**
      * The entity's model-to-world facing - the humanoid {@code R_Y(180)} yaw flip (same as the player's,
      * turning the {@code +Z} front to the camera) composed with vanilla
      * {@code LivingEntityRenderer.submit}'s {@code rotateY(180) * scale(-1,-1,1) = flip180} (the Y-down
@@ -100,6 +105,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /** The entity's model-to-world {@link Placement} - {@link #ENTITY_FACING} as a placement. */
     private static final @NotNull Placement ENTITY_PLACEMENT = new Placement(ENTITY_FACING);
+
+    /**
+     * Constructs an entity renderer bound to the given context and entity definitions, deriving the
+     * single {@link Textures} service every texture lookup shares.
+     *
+     * @param context the renderer context for texture resolution + isometric engine setup
+     * @param javaEntities the entity definitions keyed by namespaced id
+     */
+    public EntityRenderer(@NotNull RendererContext context, @NotNull Map<String, Entity> javaEntities) {
+        this.context = context;
+        this.javaEntities = javaEntities;
+        this.textures = new Textures(context);
+    }
 
     /**
      * Renders the entity and composites it over the caller's background. Returns an empty frame
@@ -276,7 +294,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             LayerStack<GeometryLayer> stack = new LayerStack<>();
             FeatureContext featureCtx = new FeatureContext(
                 resolved, options, model, buildResult,
-                frameTexture, anchor, ndcScale, modelScale, new Textures(this.context), this.context, tick);
+                frameTexture, anchor, ndcScale, modelScale, this.textures, this.context, tick);
             for (EntityFeature feature : EntityFeature.values())
                 feature.contribute(featureCtx, stack);
             Layers.foldInto(stack, options.getLayerDecorator(), triangles);
@@ -333,8 +351,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@link EntityAppearance#getState() state} selection matching one of the definition's
      * {@link Entity#stateTextures() state textures} (wolf
      * {@code tame}/{@code angry}) &gt; the entity's own
-     * {@link Entity#textureRef() texture_ref}. Each family-form ref is
-     * resolved against the vanilla pack at {@code minecraft:entity/<ref>} via {@link #resolveEntityRef}.
+     * {@link Entity#textureRef() texture_ref}. Each family-form ref is resolved against the vanilla
+     * pack at {@code minecraft:entity/<ref>} via {@link Textures#resolveEntityTextureAtTick}.
      */
     private @NotNull Optional<PixelBuffer> resolveEntityTexture(
         @NotNull Entity definition,
@@ -342,13 +360,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int tick
     ) {
         if (options.getTextureId().isPresent())
-            return options.getTextureId().flatMap(id -> new Textures(this.context).tryResolveTextureAtTick(id, tick));
+            return options.getTextureId().flatMap(id -> this.textures.tryResolveTextureAtTick(id, tick));
 
         EntityAppearance appearance = options.getAppearance();
         return babyTexture(definition, appearance, tick)
-            .or(() -> selectWeatheringTexture(definition, appearance).flatMap(ref -> resolveEntityRefAtTick(ref, tick)))
-            .or(() -> selectStateTexture(definition, appearance).flatMap(ref -> resolveEntityRefAtTick(ref, tick)))
-            .or(() -> definition.textureRef().flatMap(ref -> resolveEntityRefAtTick(ref, tick)));
+            .or(() -> selectWeatheringTexture(definition, appearance).flatMap(ref -> this.textures.resolveEntityTextureAtTick(ref, tick)))
+            .or(() -> selectStateTexture(definition, appearance).flatMap(ref -> this.textures.resolveEntityTextureAtTick(ref, tick)))
+            .or(() -> definition.textureRef().flatMap(ref -> this.textures.resolveEntityTextureAtTick(ref, tick)));
     }
 
     /**
@@ -369,31 +387,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Resolves a family-form entity texture ref (a {@code textures/entity/} sub-path) against the
-     * vanilla pack at {@code minecraft:entity/<ref>}.
-     *
-     * @param ref the entity texture sub-path (without {@code minecraft:entity/} or {@code .png})
-     * @return the resolved texture, or empty when the pack has no such texture
-     */
-    private @NotNull Optional<PixelBuffer> resolveEntityRef(@NotNull String ref) {
-        return new Textures(this.context).resolveEntityTexture(ref);
-    }
-
-    /**
-     * Resolves a family-form entity texture ref at animation {@code tick} - the tick-aware counterpart
-     * of {@link #resolveEntityRef(String)} used by the per-frame render path. A sidecar-less ref (the
-     * whole vanilla roster) resolves byte-identically to the raw lookup; a sidecar-carrying ref samples
-     * the frame for {@code tick}.
-     *
-     * @param ref the entity texture sub-path (without {@code minecraft:entity/} or {@code .png})
-     * @param tick the animation tick to sample
-     * @return the resolved frame, or empty when the pack has no such texture
-     */
-    private @NotNull Optional<PixelBuffer> resolveEntityRefAtTick(@NotNull String ref, int tick) {
-        return new Textures(this.context).resolveEntityTextureAtTick(ref, tick);
-    }
-
-    /**
      * The baby texture when the resolved definition renders the baby mesh - the baby mesh has its
      * own UV layout, so it binds the matching {@code <variant>_baby} texture carried in
      * {@link Entity#stateTextures() stateTextures} under {@code "baby"}.
@@ -407,7 +400,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         if (!appearance.isBaby() || definition.axes().babyModel().isEmpty())
             return Optional.empty();
-        return Optional.ofNullable(definition.axes().stateTextures().get("baby")).flatMap(ref -> resolveEntityRefAtTick(ref, tick));
+        return Optional.ofNullable(definition.axes().stateTextures().get("baby")).flatMap(ref -> this.textures.resolveEntityTextureAtTick(ref, tick));
     }
 
     /**
@@ -1073,7 +1066,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull Optional<PixelBuffer> resolveFamilyMemberTexture(@NotNull Entity definition) {
         if (definition.textureRef().isEmpty()) return Optional.empty();
-        return resolveEntityRef(definition.textureRef().get());
+        return this.textures.resolveEntityTextureAtTick(definition.textureRef().get(), 0);
     }
 
     /**

@@ -283,7 +283,7 @@ public final class PackStack {
     private @NotNull Optional<ResolvedTexture> probeInPack(@NotNull ResourcePack pack, @NotNull String path) {
         PackContainer container = pack.container();
         for (String namespace : searchOrder(pack)) {
-            String relativePath = "assets/" + namespace + "/textures/" + path + ".png";
+            String relativePath = PackPaths.texturesDir(namespace) + "/" + path + ".png";
             String winning = null;
             for (PackRoot root : pack.roots()) {
                 String candidate = root.prefix() + relativePath;

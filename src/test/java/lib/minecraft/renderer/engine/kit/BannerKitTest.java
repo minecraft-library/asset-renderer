@@ -128,6 +128,26 @@ class BannerKitTest {
         );
     }
 
+    @Test
+    @DisplayName("textureFor delegates to the shared BannerPattern builder for namespaced and bare asset ids")
+    void variantTexturePathMatchesSharedBuilder() {
+        // The banner-kit variant path and the BannerPattern mask path splice the atlas sub-path with
+        // the same rule: a namespaced asset id keeps its namespace, a bare id defaults to minecraft.
+        for (String assetId : new String[] {"minecraft:creeper", "creeper", "custom:mob"}) {
+            assertThat(
+                BannerKit.Variant.BANNER_ITEM.textureFor(assetId),
+                is(equalTo(BannerPattern.atlasTexture(assetId, "entity/banner")))
+            );
+            assertThat(
+                BannerKit.Variant.SHIELD_ITEM.textureFor(assetId),
+                is(equalTo(BannerPattern.atlasTexture(assetId, "entity/shield")))
+            );
+        }
+
+        assertThat(BannerPattern.atlasTexture("creeper", "entity/banner"), is(equalTo("minecraft:entity/banner/creeper")));
+        assertThat(BannerPattern.atlasTexture("custom:mob", "entity/shield"), is(equalTo("custom:entity/shield/mob")));
+    }
+
     /** Builds a {@code w}-by-{@code h} buffer filled with a single ARGB value. */
     private static PixelBuffer solid(int w, int h, int argb) {
         int[] pixels = new int[w * h];

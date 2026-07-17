@@ -64,7 +64,7 @@ public class TextureIndexer {
         LinkedHashMap<ResourceId, ResolvedTexture> rows = new LinkedHashMap<>();
         for (PackRoot root : pack.roots()) {
             for (String namespace : pack.namespaces()) {
-                String texturesPrefix = root.prefix() + "assets/" + namespace + "/textures";
+                String texturesPrefix = root.prefix() + PackPaths.texturesDir(namespace);
                 rows.putAll(scanTexturesDir(container, texturesPrefix, namespace, pack.id()));
             }
         }
