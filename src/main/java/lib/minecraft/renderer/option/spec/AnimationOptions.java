@@ -43,7 +43,7 @@ public class AnimationOptions {
      * subject that cannot know a sensible {@link #frameCount} / {@link #ticksPerFrame} for its textures
      * probes its resolved {@code .mcmeta} sidecars once at {@link #startTick} and derives the timeline
      * (LCM loop capped at 200 ticks, GCD cadence) via
-     * {@link lib.minecraft.renderer.engine.compose.AnimationTimeline#deriveUniform}, then renders that
+     * {@link lib.minecraft.renderer.engine.compose.Timeline#deriveTickStrip}, then renders that
      * ordinary explicit timeline. Default {@code false} leaves the caller's explicit values untouched;
      * a subject with no animated texture degrades to a single static frame, so requesting it costs
      * nothing on a static subject. The parity floor is preserved mechanically - the default is static.
