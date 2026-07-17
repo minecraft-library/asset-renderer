@@ -264,27 +264,6 @@ public class GlintKit {
             return new GlintOptions(this.framesPerSecond, this.totalFrames, glintTextureId, this.textureScale,
                 this.atlasSampled, this.uLoopMillis, this.vLoopMillis, this.tintArgb);
         }
-
-        /**
-         * Default entity-held item glint preset at the given frame rate. Uses the item texture
-         * but with {@link #ENTITY_ITEM_SCALE} instead of {@link #ITEM_SCALE}, matching vanilla's
-         * {@code ENTITY_GLINT} render type.
-         *
-         * @param framesPerSecond the output frame rate
-         * @return the entity-held item glint preset
-         */
-        public static @NotNull GlintOptions entityItemDefault(int framesPerSecond) {
-            return new GlintOptions(
-                framesPerSecond,
-                framesPerSecond * 2,
-                ITEM_GLINT_TEXTURE_ID,
-                ENTITY_ITEM_SCALE,
-                true,
-                VANILLA_U_LOOP_MILLIS,
-                VANILLA_V_LOOP_MILLIS,
-                ColorMath.WHITE
-            );
-        }
     }
 
     /**

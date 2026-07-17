@@ -134,8 +134,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
      * Full 3D isometric fluid cube renderer. Builds triangles via {@link FluidGeometryKit}, then
      * rasterizes through {@link Projection#VANILLA_ISO}'s {@code [30, 225, 0]} pose by default.
      * Animation is driven by {@link AnimationOptions#getFrameCount()} - single-frame renders return
-     * a static image, multi-frame renders return an animated image with per-frame delay of
-     * {@code ticksPerFrame * 50ms}.
+     * a static image, multi-frame renders return an animated image whose per-frame delay spans
+     * {@code ticksPerFrame} game ticks.
      */
     @RequiredArgsConstructor
     public static final class Isometric3D implements Renderer<FluidOptions> {

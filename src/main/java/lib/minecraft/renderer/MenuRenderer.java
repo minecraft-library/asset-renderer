@@ -15,9 +15,9 @@ import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
-import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.engine.kit.NineSliceKit;
 import lib.minecraft.renderer.engine.kit.TextKit;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.option.BlockOptions;
@@ -427,9 +427,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @return the decoded slot sprite, or {@code null} when unresolved
      */
     static @Nullable PixelBuffer resolveSlotSprite(@NotNull RendererContext context) {
-        return context.resolveTexture(SLOT_SPRITE_ID)
-            .map(buffer -> context.findAnimation(SLOT_SPRITE_ID).map(anim -> AnimationKit.sampleFrame(buffer, anim, 0)).orElse(buffer))
-            .orElse(null);
+        return new Textures(context).tryResolveTextureAtTick(SLOT_SPRITE_ID, 0).orElse(null);
     }
 
     /**

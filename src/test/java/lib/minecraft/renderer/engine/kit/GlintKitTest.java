@@ -14,9 +14,8 @@ import static org.hamcrest.Matchers.*;
 /**
  * Verifies {@link GlintKit} constants against the MC 26.1 deobfuscated client source (loop periods,
  * per-type scales, rotation, texture ids) and pins the {@link GlintKit.GlintOptions} preset split -
- * {@link GlintKit.GlintOptions#itemDefault item}, {@link GlintKit.GlintOptions#armorDefault armor},
- * and {@link GlintKit.GlintOptions#entityItemDefault entity-held} each route to vanilla's texture
- * and scale. Also pins {@link GlintKit#applyGlint} output: a 2-second frame count that tracks
+ * {@link GlintKit.GlintOptions#itemDefault item} and {@link GlintKit.GlintOptions#armorDefault armor}
+ * each route to vanilla's texture and scale. Also pins {@link GlintKit#applyGlint} output: a 2-second frame count that tracks
  * {@code framesPerSecond}, preserved canvas dimensions, and the foil being masked to the base
  * image's opaque pixels.
  */
@@ -60,14 +59,6 @@ class GlintKitTest {
         assertThat(options.glintTextureId(), equalTo(GlintKit.ARMOR_GLINT_TEXTURE_ID));
         assertThat(options.textureScale(), is(GlintKit.ARMOR_SCALE));
         assertThat(options.glintTextureId(), is(not(equalTo(GlintKit.ITEM_GLINT_TEXTURE_ID))));
-    }
-
-    @Test
-    @DisplayName("entityItemDefault preset uses the item texture with ENTITY_ITEM_SCALE")
-    void entityItemDefaultPreset() {
-        GlintKit.GlintOptions options = GlintKit.GlintOptions.entityItemDefault(30);
-        assertThat(options.glintTextureId(), equalTo(GlintKit.ITEM_GLINT_TEXTURE_ID));
-        assertThat(options.textureScale(), is(GlintKit.ENTITY_ITEM_SCALE));
     }
 
     @Test
