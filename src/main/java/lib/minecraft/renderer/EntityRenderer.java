@@ -37,7 +37,6 @@ import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.slot.EntitySlot;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lib.minecraft.renderer.pipeline.resolve.EntityDefinitionResolver;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.DyeColor;
@@ -129,7 +128,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Fold the age / carried policy into a single resolved definition up front, so every
         // downstream site (texture, ortho bounds, geometry contributors) reads it unconditionally
         // with no scattered !baby gates. The resolve is a no-op for a non-baby, non-carried appearance.
-        Entity resolved = EntityDefinitionResolver.resolve(definition, options.getAppearance());
+        Entity resolved = definition.resolve(options.getAppearance());
         EntityModelData model = resolved.model();
 
         // Resolve the base texture at the timeline's start tick: frame 0 of a sidecar-carrying
