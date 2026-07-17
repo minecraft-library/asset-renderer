@@ -33,12 +33,6 @@ import java.util.regex.Pattern;
 @UtilityClass
 public final class PackIdDeriver {
 
-    /**
-     * The id-heuristic version, bumped whenever the derivation changes so cached pack directories
-     * re-key predictably.
-     */
-    public static final int HEURISTIC_VERSION = 1;
-
     private static final @NotNull PackId SYNTHETIC = new PackId("pack");
     private static final @NotNull String[] EXTENSIONS = { ".zip", ".cats" };
     private static final @NotNull Pattern SECTION_CODE = Pattern.compile("§.", Pattern.DOTALL);

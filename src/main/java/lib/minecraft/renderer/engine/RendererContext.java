@@ -15,14 +15,12 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
-import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelNode;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -48,14 +46,6 @@ import java.util.Optional;
  * what they care about.
  */
 public interface RendererContext {
-
-    /**
-     * Looks up an active resource pack by its id.
-     *
-     * @param id the pack id, e.g. {@link PackId#VANILLA}
-     * @return the pack, or empty when no active pack has that id
-     */
-    @NotNull Optional<ResourcePack> findPack(@NotNull PackId id);
 
     /**
      * Looks up the parsed {@code .mcmeta} animation sidecar for the given texture, if any. The
@@ -302,18 +292,5 @@ public interface RendererContext {
      * @return the decoded texture, or empty if unknown
      */
     @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId);
-
-    /**
-     * Resolves a texture within one specific pack, bypassing the stack-wide namespace-first dispatch -
-     * the escape hatch for callers that need a pack-restricted lookup. The default returns empty so
-     * test stubs do not need to override it.
-     *
-     * @param pack the pack to restrict resolution to
-     * @param id the namespaced texture id
-     * @return the decoded texture, or empty when the pack does not supply it
-     */
-    default @NotNull Optional<PixelBuffer> resolveTexture(@NotNull PackId pack, @NotNull ResourceId id) {
-        return Optional.empty();
-    }
 
 }

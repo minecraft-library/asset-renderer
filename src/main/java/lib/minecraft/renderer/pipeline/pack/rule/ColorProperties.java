@@ -4,13 +4,11 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Properties;
 
@@ -84,26 +82,6 @@ public record ColorProperties(
      */
     public @NotNull Optional<Integer> redstoneTint(int power) {
         return get("redstone." + power);
-    }
-
-    /**
-     * The potion-liquid tint override for an effect - {@code potion.<effect>}.
-     *
-     * @param effect the effect id
-     * @return the override, or empty when the pack does not supply it
-     */
-    public @NotNull Optional<Integer> potionColor(@NotNull ResourceId effect) {
-        return get("potion." + effect.name());
-    }
-
-    /**
-     * The wolf-collar tint override for a dye - {@code collar.<dye>}.
-     *
-     * @param dye the vanilla dye
-     * @return the override, or empty when the pack does not supply it
-     */
-    public @NotNull Optional<Integer> collarColor(@NotNull DyeColor.Vanilla dye) {
-        return get("collar." + dye.name().toLowerCase(Locale.ROOT));
     }
 
     /**

@@ -322,12 +322,12 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("findPack resolves the vanilla pack and nothing else")
-    void findPackResolvesVanillaOnly() {
-        Optional<ResourcePack> vanilla = context.findPack(PackId.VANILLA);
+    @DisplayName("the pack stack resolves the vanilla pack and nothing else")
+    void stackResolvesVanillaOnly() {
+        Optional<ResourcePack> vanilla = result.getStack().byId(PackId.VANILLA);
         assertThat(vanilla.isPresent(), is(true));
         assertThat(vanilla.get().roots().isEmpty(), is(false));
-        assertThat(context.findPack(new PackId("nonexistent")).isPresent(), is(false));
+        assertThat(result.getStack().byId(new PackId("nonexistent")).isPresent(), is(false));
     }
 
     @Test

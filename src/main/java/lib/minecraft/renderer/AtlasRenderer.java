@@ -12,8 +12,6 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.pipeline.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
@@ -545,12 +543,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * @param delegate the wrapped context every non-overridden method forwards to
      */
     private record StaticTextureContext(@NotNull RendererContext delegate) implements RendererContext {
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull Optional<ResourcePack> findPack(@NotNull PackId id) {
-            return this.delegate.findPack(id);
-        }
 
         /**
          * Resolves a texture, flattening animation strips to frame 0 via

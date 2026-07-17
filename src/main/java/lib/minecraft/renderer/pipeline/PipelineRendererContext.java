@@ -29,7 +29,6 @@ import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
 import lib.minecraft.renderer.pipeline.pack.rule.CitRule;
 import lib.minecraft.renderer.pipeline.pack.rule.CitType;
@@ -150,12 +149,6 @@ public final class PipelineRendererContext implements RendererContext {
         BlockEntityShadowDiagnostics.report(stack, beBackedIds);
     }
 
-    /** {@inheritDoc} */
-    @Override
-    public @NotNull Optional<ResourcePack> findPack(@NotNull PackId id) {
-        return this.stack.byId(id);
-    }
-
     /**
      * {@inheritDoc}
      * <p>
@@ -176,12 +169,6 @@ public final class PipelineRendererContext implements RendererContext {
         // holds only the trim atlas, whose references the item renderer serves before resolution, so
         // this .or() never fires - byte-neutral.
         return decode(this.stack.resolve(id)).or(() -> this.synthesizer.synthesize(id, this::resolveTexture));
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull PackId pack, @NotNull ResourceId id) {
-        return decode(this.stack.resolveIn(pack, id));
     }
 
     /** Decodes a resolved texture, memoising on the resolved {@code (PackId, ResourceId)} key. */

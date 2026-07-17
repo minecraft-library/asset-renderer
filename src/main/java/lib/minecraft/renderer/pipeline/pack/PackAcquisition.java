@@ -16,7 +16,6 @@ import lib.minecraft.renderer.pipeline.pack.rule.CatharsisOverlays;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisTarget;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,9 +35,7 @@ import java.util.TreeSet;
  * <p>Acquisition is virtual by default: each user pack keeps the {@link PackContainer} it was detected
  * as - a zip or {@code .cats} archive serves its bytes in place, without extraction to disk - so every
  * downstream loader reads through the container SPI. The vanilla base pack is a real
- * {@link PackContainer.Directory} over the tree {@code Pipeline.extractClientJar} produces. The
- * extract-to-directory path ({@link #materialize}, with its provenance sidecar) is retained as an
- * unused fallback for a later opt-in flag.
+ * {@link PackContainer.Directory} over the tree {@code Pipeline.extractClientJar} produces.
  */
 public final class PackAcquisition {
 
@@ -91,9 +88,7 @@ public final class PackAcquisition {
 
     /**
      * Assembles one user pack's {@link ResourcePack} straight off its detected container - virtual by
-     * default: a zip / {@code .cats} pack serves its bytes in place, without extraction to disk. The
-     * extract-to-directory path ({@link #materialize}) is retained as an unused fallback for a later
-     * opt-in flag.
+     * default: a zip / {@code .cats} pack serves its bytes in place, without extraction to disk.
      */
     private static @NotNull ResourcePack userPack(@NotNull PackContainer container, @NotNull Assignment assignment,
                                                   @NotNull FormatVersion target, @NotNull String minecraftVersion) {
@@ -102,76 +97,6 @@ public final class PackAcquisition {
         Set<Capability> capabilities = detectCapabilities(container, meta);
         ConcurrentList<PackRoot> roots = resolveRoots(container, meta, target, minecraftVersion, capabilities);
         return new ResourcePack(id, container, meta, roots, namespaces(container, roots), capabilities);
-    }
-
-    /**
-     * Extracts a zip / {@code .cats} container into {@code <cacheRoot>/packs/<id>/}, or returns a
-     * directory source in place. Reuses an existing extraction whose provenance matches the source
-     * mtime and heuristic version.
-     */
-    private static @NotNull Path materialize(@NotNull PackContainer container, @NotNull Path source,
-                                             @NotNull PackId id, @NotNull Path cacheRoot, long sourceMtime) {
-        if (container instanceof PackContainer.Directory dir) return dir.root();
-
-        Path dest = cacheRoot.resolve("packs").resolve(id.value());
-        if (upToDate(dest.resolve(".pack.provenance.json"), sourceMtime)) return dest;
-
-        try {
-            if (Files.isDirectory(dest)) deleteTree(dest);
-            Files.createDirectories(dest);
-            container.entries("").forEach(entry -> writeEntry(container, entry, dest, id));
-            // Ensure the authoritative pack.mcmeta lands even when it is an outer .cats.zip decoy
-            // (decoys are not enumerated by entries()).
-            container.bytes("pack.mcmeta").ifPresent(bytes -> writeBytes(dest.resolve("pack.mcmeta"), bytes, dest, id));
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to materialize pack '%s' into '%s'", id, dest);
-        }
-        return dest;
-    }
-
-    /** Writes one container entry into the destination tree, guarding against zip-slip. */
-    private static void writeEntry(@NotNull PackContainer container, @NotNull String entry, @NotNull Path dest, @NotNull PackId id) {
-        container.bytes(entry).ifPresent(bytes -> writeBytes(dest.resolve(entry), bytes, dest, id));
-    }
-
-    private static void writeBytes(@NotNull Path target, byte @NotNull [] bytes, @NotNull Path dest, @NotNull PackId id) {
-        Path normalized = target.normalize();
-        if (!normalized.startsWith(dest))
-            throw new PipelineException("Pack '%s' contains an entry escaping its root: '%s'", id, target);
-        try {
-            Files.createDirectories(normalized.getParent());
-            Files.write(normalized, bytes);
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to write pack '%s' entry '%s'", id, normalized);
-        }
-    }
-
-    /** Whether an extraction is current: provenance exists, records this heuristic version, and is not older than the source. */
-    private static boolean upToDate(@NotNull Path provenanceFile, long sourceMtime) {
-        if (!Files.isRegularFile(provenanceFile)) return false;
-        try {
-            PackProvenance provenance = PackProvenance.parse(Files.readString(provenanceFile));
-            return provenance.heuristicVersion() == PackIdDeriver.HEURISTIC_VERSION
-                && provenance.sourceModifiedMillis() >= sourceMtime;
-        } catch (IOException | PipelineException ex) {
-            return false;
-        }
-    }
-
-    /** Writes the provenance sidecar - inside the extracted tree for archives, beside it for in-place directory sources. */
-    private static void writeProvenance(@NotNull Assignment assignment, @NotNull Path source, long sourceMtime,
-                                        @NotNull Path cacheRoot, @NotNull PackContainer container) {
-        PackProvenance provenance = PackProvenance.of(assignment, source, sourceMtime);
-        Path packsDir = cacheRoot.resolve("packs");
-        Path file = container instanceof PackContainer.Directory
-            ? packsDir.resolve(assignment.id().value() + ".provenance.json")
-            : packsDir.resolve(assignment.id().value()).resolve(".pack.provenance.json");
-        try {
-            Files.createDirectories(file.getParent());
-            Files.writeString(file, provenance.toJson());
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to write provenance for pack '%s'", assignment.id());
-        }
     }
 
     /**
@@ -337,28 +262,6 @@ public final class PackAcquisition {
         return container.bytes("LICENSE")
             .map(bytes -> new String(bytes, StandardCharsets.UTF_8))
             .flatMap(text -> text.lines().map(String::strip).filter(line -> !line.isEmpty()).findFirst());
-    }
-
-    private static long lastModified(@NotNull Path source) {
-        try {
-            return Files.getLastModifiedTime(source).toMillis();
-        } catch (IOException ex) {
-            return 0L;
-        }
-    }
-
-    private static void deleteTree(@NotNull Path root) throws IOException {
-        try (var walk = Files.walk(root)) {
-            walk.sorted((a, b) -> b.getNameCount() - a.getNameCount()).forEach(path -> {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (IOException ex) {
-                    throw new java.io.UncheckedIOException(ex);
-                }
-            });
-        } catch (java.io.UncheckedIOException ex) {
-            throw ex.getCause();
-        }
     }
 
 }

@@ -2,8 +2,6 @@ package lib.minecraft.renderer.engine.texture;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.pipeline.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.engine.RendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -84,10 +82,6 @@ class RedstoneTintTest {
      */
     static @NotNull RendererContext stubContext(@NotNull Map<String, Integer> overrides) {
         return new RendererContext() {
-            @Override public @NotNull Optional<ResourcePack> findPack(@NotNull PackId id) {
-                return Optional.empty();
-            }
-
             @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
                 return Optional.empty();
             }
