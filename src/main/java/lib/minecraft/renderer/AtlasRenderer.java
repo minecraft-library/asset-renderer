@@ -13,13 +13,8 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.pipeline.pack.MCMeta;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
-import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
-import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.AtlasOptions;
@@ -565,45 +560,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         }
 
         // Pinned empty (load-bearing): forwarding re-animates the atlas; every texture must read static.
+        // This is the sole surviving pin - the tint / override / gui-scaling lookups now forward to the
+        // delegate so static-atlas sprites see potion tints and pack color.properties.
         @Override
         public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
             return Optional.empty();
-        }
-
-        // Pinned empty (behavior-preserving): the static atlas did not scale sprites before this pass.
-        @Override
-        public @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
-            return Optional.empty();
-        }
-
-        // Pinned empty (behavior-preserving): the static atlas did not resolve item dispatch trees before.
-        @Override
-        public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
-            return Optional.empty();
-        }
-
-        // Pinned empty (behavior-preserving): the static atlas did not resolve tree/CIT item models before.
-        @Override
-        public @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
-            return Optional.empty();
-        }
-
-        // Pinned empty (behavior-preserving): the static atlas did not apply color.properties overrides before.
-        @Override
-        public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
-            return Optional.empty();
-        }
-
-        // Pinned empty (behavior-preserving): the static atlas did not tint potion sprites before.
-        @Override
-        public @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
-            return Optional.empty();
-        }
-
-        // Pinned NONE (behavior-preserving): the static atlas did not apply CIT overrides before.
-        @Override
-        public @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
-            return CitResult.NONE;
         }
 
     }
