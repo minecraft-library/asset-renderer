@@ -6,6 +6,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -218,7 +219,7 @@ class VanillaEntityTransformGoldenTest {
             new Vector3f(-HALF, -HALF, -HALF),
             new Vector3f(2f * HALF, 2f * HALF, 2f * HALF),
             Vector2f.ZERO,
-            0f,
+            Vector3f.ZERO,
             false,
             Vector3f.ZERO,
             EulerRotation.NONE,
@@ -230,7 +231,7 @@ class VanillaEntityTransformGoldenTest {
             Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f, cubes, null);
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", bone);
-        EntityModelData model = new EntityModelData(64, 64, 0f, bones, false);
+        EntityModelData model = new EntityModelData(TextureSize.DEFAULT, 0f, bones, false);
         return EntityGeometryKit.buildTriangles(model, solidTexture(64, 64));
     }
 

@@ -1,17 +1,18 @@
 package lib.minecraft.renderer.pipeline.load.block;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.load.GeometryDocument;
 import lib.minecraft.renderer.pipeline.load.BundledResources;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -43,6 +44,9 @@ public final class BlockModelReader {
     private static final @NotNull String GEOMETRY_RESOURCE = "block_geometry.json";
     private static final @NotNull String TEXTURE_PREFIX = "textures/";
     private static final @NotNull String TEXTURE_SUFFIX = ".png";
+
+    /** Shared Gson configured with the project defaults, used to deserialise geometry entries. */
+    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     private BlockModelReader() {}
 
@@ -146,7 +150,7 @@ public final class BlockModelReader {
         JsonObject geometry = geometries.getAsJsonObject(coordinate);
         if (geometry == null)
             throw new PipelineException("Block model '%s' references geometry '%s' which is absent from block_geometry", modelId, coordinate);
-        EntityModelData mesh = GeometryDocument.parse(geometry);
+        EntityModelData mesh = GSON.fromJson(geometry, EntityModelData.class);
 
         boolean sourceYUp = "UP".equals(model.has("y_axis") ? model.get("y_axis").getAsString() : null);
         boolean tinted = model.has("tinted") && model.get("tinted").getAsBoolean();

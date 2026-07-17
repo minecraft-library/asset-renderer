@@ -1,17 +1,18 @@
 package lib.minecraft.renderer.pipeline.load.entity;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.pipeline.load.ArgbHex;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.load.GeometryDocument;
 import lib.minecraft.renderer.pipeline.load.BundledResources;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
@@ -27,6 +28,7 @@ import lib.minecraft.renderer.asset.Entity.TransformOp.Scale;
 import lib.minecraft.renderer.asset.Entity.TransformOp.Translate;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.option.AppearanceGate;
+import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -80,6 +82,9 @@ public final class EntityFamilyReader {
     private static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
 
     private static final int WHITE = 0xFFFFFFFF;
+
+    /** Shared Gson configured with the project defaults, used to deserialise geometry entries. */
+    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     private EntityFamilyReader() {}
 
@@ -367,7 +372,7 @@ public final class EntityFamilyReader {
             // 0.5) wins; else a same-mesh grow-less overlay that RE-SUBMITS the base geometry with no
             // colour tint gets the depth-clearance inflate (emissive eyes, texture_by profession /
             // crackiness); every other overlay carries none.
-            float inflate = entry.has("grow") ? entry.get("grow").getAsFloat()
+            float inflate = entry.has("grow") ? growScalar(entry.get("grow"))
                 : sameGeometry && !hasTint && !hasTintBy ? DEPTH_CLEARANCE_INFLATE : 0f;
             EntityModelData materialised = inflate != 0f ? inflateModel(retained, inflate) : retained;
             JsonObject pipeline = entry.has("pipeline") ? entry.getAsJsonObject("pipeline") : null;
@@ -749,7 +754,7 @@ public final class EntityFamilyReader {
             if (bones.remove(name) == null)
                 diagnostics.warn("entity '%s' hidden_bones names bone '%s' which is not on the geometry", entityId, name);
         }
-        return new EntityModelData(model.getTextureWidth(), model.getTextureHeight(), model.getInventoryYRotation(), Concurrent.adoptLinkedMap(bones), model.isCull());
+        return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(), Concurrent.adoptLinkedMap(bones), model.isCull());
     }
 
     /**
@@ -775,7 +780,7 @@ public final class EntityFamilyReader {
                     bone.getScale(), Concurrent.adoptList(new ArrayList<>()), bone.getParent()));
             }
         }
-        return new EntityModelData(source.getTextureWidth(), source.getTextureHeight(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(out), source.isCull());
+        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(out), source.isCull());
     }
 
     /** Reports whether any proper ancestor of {@code bone} is named in {@code retain}. */
@@ -790,26 +795,39 @@ public final class EntityFamilyReader {
     }
 
     /**
-     * Returns a deep-cloned copy of {@code model} with every cube's inflate bumped by {@code delta} -
-     * surrounding the base mesh with the inflated overlay instead of z-fighting it. Bones, pivots,
-     * rotations, UVs, and parent links are preserved verbatim.
+     * Reads an overlay {@code grow} value defensively - a scalar returns as-is; an {@code [x, y, z]}
+     * array (an asymmetric grow, absent from 26.1) returns its largest component so the depth-clearance
+     * bump never decode-throws. The bump is applied per-axis by {@link #inflateModel}.
+     */
+    private static float growScalar(@NotNull JsonElement grow) {
+        if (!grow.isJsonArray()) return grow.getAsFloat();
+        float max = 0f;
+        for (JsonElement axis : grow.getAsJsonArray()) max = Math.max(max, axis.getAsFloat());
+        return max;
+    }
+
+    /**
+     * Returns a deep-cloned copy of {@code model} with every cube's grow bumped by {@code delta} on
+     * every axis - surrounding the base mesh with the inflated overlay instead of z-fighting it. Bones,
+     * pivots, rotations, UVs, and parent links are preserved verbatim.
      */
     private static @NotNull EntityModelData inflateModel(@NotNull EntityModelData source, float delta) {
         LinkedHashMap<String, EntityModelData.Bone> inflated = new LinkedHashMap<>();
         for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {
             EntityModelData.Bone bone = e.getValue();
             ArrayList<EntityModelData.Cube> cubes = new ArrayList<>(bone.getCubes().size());
-            for (EntityModelData.Cube cube : bone.getCubes())
+            for (EntityModelData.Cube cube : bone.getCubes()) {
+                Vector3f grow = cube.getGrow();
                 cubes.add(new EntityModelData.Cube(
                     cube.getOrigin(), cube.getSize(), cube.getUv(),
-                    cube.getInflate() + delta, cube.isMirror(),
-                    cube.getPivot(), cube.getRotation(), cube.getFaceUv(),
-                    cube.getGrowAxis()));       // depth-clearance is a scalar bump; per-axis grow (none in 26.1) rides through
+                    new Vector3f(grow.x() + delta, grow.y() + delta, grow.z() + delta), cube.isMirror(),
+                    cube.getPivot(), cube.getRotation(), cube.getFaceUv()));
+            }
             inflated.put(e.getKey(), new EntityModelData.Bone(
                 bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
                 bone.getScale(), Concurrent.adoptList(cubes), bone.getParent()));
         }
-        return new EntityModelData(source.getTextureWidth(), source.getTextureHeight(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(inflated), source.isCull());
+        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(inflated), source.isCull());
     }
 
     // ------------------------------------------------------------------------------------
@@ -824,7 +842,7 @@ public final class EntityFamilyReader {
         Map<String, EntityModelData> out = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> entry : geometriesJson.entrySet()) {
             if (entry.getKey().startsWith("//")) continue;
-            out.put(entry.getKey(), GeometryDocument.parse(entry.getValue().getAsJsonObject()));
+            out.put(entry.getKey(), GSON.fromJson(entry.getValue(), EntityModelData.class));
         }
         return out;
     }

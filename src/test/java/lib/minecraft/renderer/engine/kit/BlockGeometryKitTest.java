@@ -6,6 +6,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.light.Lighting;
@@ -239,14 +240,14 @@ class BlockGeometryKitTest {
     private static EntityModelData fullBlockCubeModel() {
         EntityModelData.Cube cube = new EntityModelData.Cube(
             new Vector3f(-8f, -8f, -8f), new Vector3f(16f, 16f, 16f), Vector2f.ZERO,
-            0f, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
+            Vector3f.ZERO, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
         ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
         cubes.add(cube);
         EntityModelData.Bone bone = new EntityModelData.Bone(
             new Vector3f(8f, 8f, 8f), EulerRotation.NONE, EulerRotation.NONE, 1f, cubes, null);
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", bone);
-        return new EntityModelData(16, 16, 0f, bones, false);
+        return new EntityModelData(new TextureSize(16, 16), 0f, bones, false);
     }
 
     /** Maps a (mostly-)axis-aligned normal to its cardinal-direction label. */

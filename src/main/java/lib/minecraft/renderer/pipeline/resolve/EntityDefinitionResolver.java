@@ -173,7 +173,7 @@ public final class EntityDefinitionResolver {
         }
         if (bones == null) return null;
         return new EntityModelData(
-            definition.model().getTextureWidth(), definition.model().getTextureHeight(),
+            definition.model().getTextureSize(),
             definition.model().getInventoryYRotation(), Concurrent.adoptLinkedMap(bones), definition.model().isCull());
     }
 }

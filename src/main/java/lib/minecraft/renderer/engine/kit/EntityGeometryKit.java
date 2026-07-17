@@ -444,7 +444,7 @@ public class EntityGeometryKit {
             for (EntityModelData.Cube cube : bone.getCubes()) {
                 Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
-                float inflate = cube.getInflate();
+                Vector3f grow = cube.getGrow();
                 Matrix4f cubeTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
 
                 Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
@@ -473,7 +473,7 @@ public class EntityGeometryKit {
                     // Fully-opaque faces are unaffected: the 4 contributed positions are then
                     // the 4 cube corners regardless of pairing.
                     Vector2f[] uvs = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
-                    String dumpLabel = RendererDebug.boundsFaceLabel(boneName, cubeIndex, face.direction(), origin, size, inflate, cube.isMirror());
+                    String dumpLabel = RendererDebug.boundsFaceLabel(boneName, cubeIndex, face.direction(), origin, size, grow, cube.isMirror());
                     contributeFaceAlphaTight(corners3d, uvs, cubeTransform, modelScale, screenTransform, texture, acc, dumpLabel);
                 }
                 cubeIndex++;

@@ -13,9 +13,9 @@ import static org.hamcrest.Matchers.*;
  * bytecode-walk tooling and read back through Gson.
  * <p>
  * Focused on the texture-atlas dimensions and value semantics: the no-arg constructor defaults to a
- * {@code 64 x 64} atlas with no bones, Gson populates {@code textureWidth}/{@code textureHeight}
- * from JSON, a deserialise &rarr; serialise &rarr; deserialise roundtrip is stable under
- * {@code equals}/{@code hashCode}, and equality discriminates on texture dimensions. Uses the
+ * {@code 64 x 64} atlas with no bones, Gson populates the {@code texture_size} array through the
+ * {@link TextureSize} adapter, a deserialise &rarr; serialise &rarr; deserialise roundtrip is stable
+ * under {@code equals}/{@code hashCode}, and equality discriminates on texture dimensions. Uses the
  * shared {@link GsonSettings#defaults()} configuration so the test exercises the same adapter set
  * as the runtime loader.
  */
@@ -37,9 +37,9 @@ class EntityModelDataTest {
     }
 
     @Test
-    @DisplayName("deserialises textureWidth / textureHeight from JSON")
+    @DisplayName("deserialises the texture_size [w, h] array")
     void deserialisesTextureDimensions() {
-        String json = "{\"textureWidth\": 128, \"textureHeight\": 32}";
+        String json = "{\"texture_size\": [128, 32]}";
         EntityModelData model = GSON.fromJson(json, EntityModelData.class);
         assertThat(model.getTextureWidth(), is(128));
         assertThat(model.getTextureHeight(), is(32));
@@ -48,7 +48,7 @@ class EntityModelDataTest {
     @Test
     @DisplayName("roundtrips through the Gson serializer")
     void roundtripsThroughGson() {
-        String original = "{\"textureWidth\": 64, \"textureHeight\": 32}";
+        String original = "{\"texture_size\": [64, 32]}";
         EntityModelData model = GSON.fromJson(original, EntityModelData.class);
         String reserialized = GSON.toJson(model);
         EntityModelData reloaded = GSON.fromJson(reserialized, EntityModelData.class);
@@ -59,9 +59,9 @@ class EntityModelDataTest {
     @Test
     @DisplayName("equals / hashCode differentiate on texture dimensions")
     void equalityRespectsTextureDimensions() {
-        EntityModelData a = GSON.fromJson("{\"textureWidth\": 64}", EntityModelData.class);
-        EntityModelData b = GSON.fromJson("{\"textureWidth\": 128}", EntityModelData.class);
-        EntityModelData c = GSON.fromJson("{\"textureWidth\": 128}", EntityModelData.class);
+        EntityModelData a = GSON.fromJson("{\"texture_size\": [64, 64]}", EntityModelData.class);
+        EntityModelData b = GSON.fromJson("{\"texture_size\": [128, 64]}", EntityModelData.class);
+        EntityModelData c = GSON.fromJson("{\"texture_size\": [128, 64]}", EntityModelData.class);
 
         assertThat(a, is(not(equalTo(b))));
         assertThat(b, is(equalTo(c)));

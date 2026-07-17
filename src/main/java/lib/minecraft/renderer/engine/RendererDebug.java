@@ -244,13 +244,13 @@ public final class RendererDebug {
     public static @Nullable String boundsFaceLabel(@NotNull String boneName, int cubeIndex,
                                                     @NotNull Object faceDirection,
                                                     @NotNull Vector3f origin, @NotNull Vector3f size,
-                                                    float inflate, boolean mirror) {
+                                                    @NotNull Vector3f grow, boolean mirror) {
         if (!BOUNDS_DUMP.get()) return null;
-        return String.format("bone=%s cube=%d face=%s orig=(%g,%g,%g) size=(%g,%g,%g) inflate=%g mirror=%s",
+        return String.format("bone=%s cube=%d face=%s orig=(%g,%g,%g) size=(%g,%g,%g) grow=(%g,%g,%g) mirror=%s",
             boneName, cubeIndex, faceDirection,
             origin.x(), origin.y(), origin.z(),
             size.x(), size.y(), size.z(),
-            inflate, mirror);
+            grow.x(), grow.y(), grow.z(), mirror);
     }
 
     /**

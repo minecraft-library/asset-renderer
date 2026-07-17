@@ -1,14 +1,17 @@
 package lib.minecraft.renderer.asset.model;
 
+import com.google.gson.TypeAdapter;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.face.BlockFace;
-import lib.minecraft.renderer.pipeline.load.GeometryDocument;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -18,6 +21,7 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -40,16 +44,12 @@ import java.util.Objects;
 public class EntityModelData {
 
     /**
-     * The texture atlas width in pixels that cube UVs are resolved against, typically {@code 64}
-     * or {@code 128}.
+     * The texture atlas dimensions (width, height in pixels) that cube UVs are resolved against,
+     * typically {@code [64, 64]} or {@code [128, 64]}, carried as the geometry dialect's
+     * {@code texture_size:[w, h]} array.
      */
-    private int textureWidth = 64;
-
-    /**
-     * The texture atlas height in pixels that cube UVs are resolved against, typically {@code 64}
-     * or {@code 128}.
-     */
-    private int textureHeight = 64;
+    @SerializedName("texture_size")
+    private @NotNull TextureSize textureSize = TextureSize.DEFAULT;
 
     /**
      * The GUI-facing yaw in degrees this model's inventory render applies before rasterization.
@@ -86,12 +86,30 @@ public class EntityModelData {
      */
     private boolean cull = false;
 
+    /**
+     * The texture atlas width in pixels - delegates to {@link #textureSize}, kept so the many call
+     * sites reading the scalar dimensions keep compiling.
+     *
+     * @return the atlas width
+     */
+    public int getTextureWidth() {
+        return this.textureSize.width();
+    }
+
+    /**
+     * The texture atlas height in pixels - delegates to {@link #textureSize}.
+     *
+     * @return the atlas height
+     */
+    public int getTextureHeight() {
+        return this.textureSize.height();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         EntityModelData that = (EntityModelData) o;
-        return textureWidth == that.textureWidth
-            && textureHeight == that.textureHeight
+        return Objects.equals(textureSize, that.textureSize)
             && Float.compare(inventoryYRotation, that.inventoryYRotation) == 0
             && cull == that.cull
             && Objects.equals(bones, that.bones);
@@ -99,7 +117,7 @@ public class EntityModelData {
 
     @Override
     public int hashCode() {
-        return Objects.hash(textureWidth, textureHeight, inventoryYRotation, bones, cull);
+        return Objects.hash(textureSize, inventoryYRotation, bones, cull);
     }
 
     /**
@@ -220,12 +238,16 @@ public class EntityModelData {
         private @NotNull Vector2f uv = Vector2f.ZERO;
 
         /**
-         * Uniform outward expansion applied to every face in model units; {@code 0} leaves the cube
-         * at its authored size. Deserialises from either the legacy {@code inflate} key or the
-         * geometry {@code grow} key (a scalar in 26.1; per-axis {@code grow} is a later evolution).
+         * Per-axis outward expansion applied to every face in model units; {@link Vector3f#ZERO}
+         * leaves the cube at its authored size. Deserialises from the geometry {@code grow} key - a
+         * scalar {@code g} broadcasts to {@code (g, g, g)}, an {@code [x, y, z]} array (an asymmetric
+         * vanilla {@code CubeDeformation}) is read per-axis. The kit expands the cube's corner box by
+         * this, leaving the {@code size}-derived UV footprint untouched (vanilla {@code CubeDeformation}
+         * grows vertices, not the sampled texture rectangle).
          */
-        @SerializedName(value = "inflate", alternate = {"grow"})
-        private float inflate = 0f;
+        @SerializedName("grow")
+        @JsonAdapter(GrowAdapter.class)
+        private @NotNull Vector3f grow = Vector3f.ZERO;
 
         /**
          * Whether the cube's texture UVs are mirrored left-to-right.
@@ -266,65 +288,66 @@ public class EntityModelData {
         @SerializedName("face_uv")
         private @NotNull ConcurrentMap<String, FaceUv> faceUv = Concurrent.newMap();
 
-        /**
-         * Per-axis outward expansion, populated by {@link GeometryDocument}
-         * under the synthetic {@code grow_axis} key when a {@code grow} is an {@code [x, y, z]} array
-         * (an asymmetric {@code CubeDeformation}); {@code null} for the uniform {@link #inflate} scalar
-         * every 26.1 cube carries. Declared last so the all-args constructor keeps the existing
-         * eight-argument order for the deep-clone call sites. See {@link #getGrow()}.
-         */
-        @SerializedName("grow_axis")
-        private @Nullable Vector3f growAxis = null;
-
-        /**
-         * Constructs a cube with a uniform scalar {@link #inflate} (no per-axis {@link #growAxis}) - the
-         * existing eight-argument shape every 26.1 cube and every kit fixture uses. Delegates to the
-         * all-args constructor with a {@code null} per-axis grow.
-         */
-        public Cube(
-            @NotNull Vector3f origin,
-            @NotNull Vector3f size,
-            @NotNull Vector2f uv,
-            float inflate,
-            boolean mirror,
-            @NotNull Vector3f pivot,
-            @NotNull EulerRotation rotation,
-            @NotNull ConcurrentMap<String, FaceUv> faceUv
-        ) {
-            this(origin, size, uv, inflate, mirror, pivot, rotation, faceUv, null);
-        }
-
-        /**
-         * The cube's per-axis outward expansion in model units: the {@link #growAxis} vector when an
-         * asymmetric grow was authored, else the uniform {@link #inflate} scalar broadcast to all three
-         * axes. The kit expands the cube's corner box by this per-axis, leaving the
-         * {@code size}-derived UV footprint untouched (vanilla {@code CubeDeformation} grows vertices,
-         * not the sampled texture rectangle).
-         *
-         * @return the per-axis grow (scalar {@code inflate} broadcast when no array grow was authored)
-         */
-        public @NotNull Vector3f getGrow() {
-            return this.growAxis != null ? this.growAxis : new Vector3f(this.inflate, this.inflate, this.inflate);
-        }
-
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
             Cube that = (Cube) o;
-            return Float.compare(inflate, that.inflate) == 0
-                && mirror == that.mirror
+            return mirror == that.mirror
                 && Objects.equals(origin, that.origin)
                 && Objects.equals(size, that.size)
                 && Objects.equals(uv, that.uv)
+                && Objects.equals(grow, that.grow)
                 && Objects.equals(pivot, that.pivot)
                 && Objects.equals(rotation, that.rotation)
-                && Objects.equals(faceUv, that.faceUv)
-                && Objects.equals(growAxis, that.growAxis);
+                && Objects.equals(faceUv, that.faceUv);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(origin, size, uv, inflate, mirror, pivot, rotation, faceUv, growAxis);
+            return Objects.hash(origin, size, uv, grow, mirror, pivot, rotation, faceUv);
+        }
+
+        /**
+         * Reads the geometry {@code grow} value into the {@link #grow} vector: a scalar {@code g}
+         * broadcasts to {@code (g, g, g)}, an {@code [x, y, z]} array is read per-axis. Writes the
+         * uniform form back as a scalar so a round-trip stays byte-compatible with the tooling emit.
+         */
+        static final class GrowAdapter extends TypeAdapter<Vector3f> {
+
+            @Override
+            public void write(@NotNull JsonWriter out, Vector3f value) throws IOException {
+                if (value == null) {
+                    out.nullValue();
+                    return;
+                }
+                if (value.x() == value.y() && value.y() == value.z()) {
+                    out.value(value.x());
+                    return;
+                }
+                out.beginArray();
+                out.value(value.x());
+                out.value(value.y());
+                out.value(value.z());
+                out.endArray();
+            }
+
+            @Override
+            public @NotNull Vector3f read(@NotNull JsonReader in) throws IOException {
+                if (in.peek() == JsonToken.NULL) {
+                    in.nextNull();
+                    return Vector3f.ZERO;
+                }
+                if (in.peek() == JsonToken.BEGIN_ARRAY) {
+                    in.beginArray();
+                    float x = (float) in.nextDouble();
+                    float y = (float) in.nextDouble();
+                    float z = (float) in.nextDouble();
+                    in.endArray();
+                    return new Vector3f(x, y, z);
+                }
+                float g = (float) in.nextDouble();
+                return new Vector3f(g, g, g);
+            }
         }
 
     }
