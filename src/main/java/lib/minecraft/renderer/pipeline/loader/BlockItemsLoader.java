@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
@@ -10,6 +9,7 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * The reader for the block-to-item alias map.
@@ -37,14 +37,12 @@ public final class BlockItemsLoader {
      */
     public static @NotNull ConcurrentMap<String, String> load(@NotNull Diagnostics diagnostics) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
-        JsonObject root = document.payload().toGson().getAsJsonObject();
-        if (!root.has("aliases"))
+        AliasDoc doc = document.as(AliasDoc.class);
+        if (doc.aliases() == null)
             throw new PipelineException("Block-items resource '%s' has no 'aliases' object", RESOURCE_NAME);
-
-        JsonObject aliases = root.getAsJsonObject("aliases");
-        HashMap<String, String> map = new HashMap<>();
-        for (String secondaryId : aliases.keySet())
-            map.put(secondaryId, aliases.get(secondaryId).getAsString());
-        return Concurrent.adoptMap(map).toUnmodifiable();
+        return Concurrent.adoptMap(new HashMap<>(doc.aliases())).toUnmodifiable();
     }
+
+    /** The {@code block_items.json} payload: the secondary-to-standing block-item alias map. */
+    record AliasDoc(@NotNull Map<String, String> aliases) {}
 }

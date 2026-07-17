@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.BannerPattern;
 import org.junit.jupiter.api.DisplayName;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,7 +33,7 @@ class BannerPatternLoaderTest {
         Files.writeString(patternDir.resolve("creeper.json"),
             "{\"asset_id\":\"minecraft:creeper\",\"translation_key\":\"block.minecraft.banner.creeper\"}");
 
-        ConcurrentMap<String, BannerPattern> patterns = BannerPatternLoader.load(packRoot);
+        ConcurrentMap<String, BannerPattern> patterns = load(packRoot);
         assertThat(patterns.size(), is(1));
         BannerPattern creeper = patterns.get("minecraft:creeper");
         assertThat(creeper.id(), is("minecraft:creeper"));
@@ -49,7 +51,7 @@ class BannerPatternLoaderTest {
         Files.writeString(patternDir.resolve("flow.json"),
             "{\"asset_id\":\"minecraft:flow\",\"translation_key\":\"block.minecraft.banner.flow\"}");
 
-        ConcurrentMap<String, BannerPattern> patterns = BannerPatternLoader.load(packRoot);
+        ConcurrentMap<String, BannerPattern> patterns = load(packRoot);
         assertThat(patterns.get("minecraft:base").id(), is("minecraft:base"));
         assertThat(patterns.get("minecraft:flow").id(), is("minecraft:flow"));
     }
@@ -62,7 +64,7 @@ class BannerPatternLoaderTest {
         Files.writeString(patternDir.resolve("creeper.json"),
             "{\"asset_id\":\"minecraft:creeper\",\"translation_key\":\"block.minecraft.banner.creeper\"}");
 
-        BannerPattern creeper = BannerPatternLoader.load(packRoot).get("minecraft:creeper");
+        BannerPattern creeper = load(packRoot).get("minecraft:creeper");
         assertThat(creeper.bannerTexture(), is(equalTo("minecraft:entity/banner/creeper")));
         assertThat(creeper.shieldTexture(), is(equalTo("minecraft:entity/shield/creeper")));
     }
@@ -70,7 +72,7 @@ class BannerPatternLoaderTest {
     @Test
     @DisplayName("returns empty map when the pattern directory is missing")
     void emptyWhenMissing(@TempDir Path packRoot) {
-        ConcurrentMap<String, BannerPattern> patterns = BannerPatternLoader.load(packRoot);
+        ConcurrentMap<String, BannerPattern> patterns = load(packRoot);
         assertThat(patterns.size(), is(0));
     }
 
@@ -83,9 +85,16 @@ class BannerPatternLoaderTest {
         Files.writeString(patternDir.resolve("good.json"),
             "{\"asset_id\":\"minecraft:good\",\"translation_key\":\"bar\"}");
 
-        ConcurrentMap<String, BannerPattern> patterns = BannerPatternLoader.load(packRoot);
+        ConcurrentMap<String, BannerPattern> patterns = load(packRoot);
         assertThat(patterns.size(), is(1));
         assertThat(patterns.containsKey("minecraft:good"), is(true));
+    }
+
+    /** Loads banner patterns from a single-pack (vanilla) stack rooted at the given directory. */
+    private static ConcurrentMap<String, BannerPattern> load(Path packRoot) {
+        ResourcePack vanilla = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(packRoot), MCMeta.EMPTY,
+            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
+        return BannerPatternLoader.load(PackStack.of(Concurrent.newList(vanilla)));
     }
 
 }

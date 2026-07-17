@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonObject;
+import com.google.gson.annotations.SerializedName;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -13,9 +13,9 @@ import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.HashMap;
 
 /**
@@ -42,19 +42,6 @@ public class BannerPatternLoader {
      * Shared Gson configured with the project defaults, used to parse pattern files.
      */
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
-
-    /**
-     * Loads every banner pattern definition from the given extracted pack root. Returns an
-     * empty map when the pattern directory is absent (older versions or stripped jars).
-     *
-     * @param packRoot the extracted pack root directory
-     * @return a map of pattern id to pattern descriptor
-     */
-    public static @NotNull ConcurrentMap<String, BannerPattern> load(@NotNull Path packRoot) {
-        HashMap<String, BannerPattern> merged = new HashMap<>();
-        scanRoot(new PackContainer.Directory(packRoot), "", merged);
-        return Concurrent.adoptMap(merged).toUnmodifiable();
-    }
 
     /**
      * Loads banner pattern definitions across the whole pack stack. Packs are visited ascending,
@@ -112,12 +99,21 @@ public class BannerPatternLoader {
     ) {
         String relative = entry.substring(patternPrefix.length() + 1);
         String patternId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
-        JsonObject root = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
-        if (root == null || !root.has("asset_id")) return;
+        PatternDoc doc = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), PatternDoc.class);
+        if (doc == null || doc.assetId() == null) return;
 
-        String assetId = root.get("asset_id").getAsString();
-        String translationKey = root.has("translation_key") ? root.get("translation_key").getAsString() : "";
-        result.put(patternId, new BannerPattern(patternId, assetId, translationKey));
+        String translationKey = doc.translationKey() == null ? "" : doc.translationKey();
+        result.put(patternId, new BannerPattern(patternId, doc.assetId(), translationKey));
     }
+
+    /**
+     * One banner pattern file's payload. A file with no {@code asset_id} (null here) is skipped; a
+     * missing {@code translation_key} defaults to the empty string.
+     *
+     * @param assetId the pattern {@code asset_id}, or {@code null} when the file omits it
+     * @param translationKey the pattern {@code translation_key}, or {@code null} when omitted
+     */
+    record PatternDoc(@SerializedName("asset_id") @Nullable String assetId,
+                      @SerializedName("translation_key") @Nullable String translationKey) {}
 
 }

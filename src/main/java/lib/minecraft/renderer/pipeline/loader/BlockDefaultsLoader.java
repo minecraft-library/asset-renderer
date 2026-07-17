@@ -10,11 +10,14 @@ import lib.minecraft.renderer.pipeline.load.ResourceDocument;
 import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
 
@@ -64,15 +67,15 @@ public final class BlockDefaultsLoader {
      */
     public static @NotNull ConcurrentMap<String, String> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
-        JsonObject root = document.payload().toGson().getAsJsonObject();
-        if (!root.has("blocks"))
+        DefaultsDoc doc = document.as(DefaultsDoc.class);
+        if (doc.blocks() == null)
             throw new PipelineException("Block-defaults resource '%s' has no 'blocks' object", RESOURCE_NAME);
 
-        Set<String> unresolved = new HashSet<>();
-        if (root.has("unresolved"))
-            for (JsonElement element : root.getAsJsonArray("unresolved")) unresolved.add(element.getAsString());
+        Set<String> unresolved = doc.unresolved() == null ? new HashSet<>() : new HashSet<>(doc.unresolved());
+        // Mutable copy of the base blocks map (JSON order preserved); the pack override channel overlays
+        // later-wins per block id (replacing in place, appending a new id last - matching the source order).
+        LinkedHashMap<String, Map<String, String>> blocks = new LinkedHashMap<>(doc.blocks());
 
-        JsonObject blocks = root.getAsJsonObject("blocks").deepCopy();
         // Overlay the pack override channel per block id (later-wins) and resolve each overridden id -
         // a pack supplying a default state removes any classpath "unresolved" mark for it. A non-object
         // entry (e.g. the author wrote the flat "facing=east" runtime form instead of {"facing":"east"})
@@ -83,39 +86,62 @@ public final class BlockDefaultsLoader {
                 System.err.printf("renderer/block_defaults.json override for '%s' is not a {property:value} object; ignored%n", blockId);
                 continue;
             }
-            blocks.add(blockId, defaultOverrides.get(blockId));
+            blocks.put(blockId, toStringMap(blockId, defaultOverrides.getAsJsonObject(blockId)));
             unresolved.remove(blockId);
         }
 
         HashMap<String, String> defaults = new HashMap<>();
         for (String blockId : blocks.keySet()) {
             if (unresolved.contains(blockId)) continue;
-            defaults.put(blockId, joinProperties(blockId, blocks.getAsJsonObject(blockId)));
+            defaults.put(blockId, joinProperties(blocks.get(blockId)));
         }
         return Concurrent.adoptMap(defaults).toUnmodifiable();
     }
 
     /**
-     * Joins a structured default-state object into the legacy {@code prop=val,prop=val} key,
-     * property-name-sorted; an empty object joins to the empty string. A property whose value is not a
-     * primitive (a malformed pack override entry) fails with a clear block-attributed message rather
-     * than a raw {@code IllegalStateException}.
+     * Converts a pack override's {@code {property:value}} object into a {@code property -> value} map,
+     * failing with a clear block-attributed message when a value is not a scalar (a malformed pack
+     * override entry) rather than a raw {@code IllegalStateException}.
      *
-     * @param blockId the block id the state belongs to, for error attribution
-     * @param state the structured {@code {property:value}} default state
-     * @return the comma-joined property key
+     * @param blockId the block id the override belongs to, for error attribution
+     * @param state the override's {@code {property:value}} object
+     * @return the property-to-value map
      * @throws PipelineException if a property value is not a JSON primitive
      */
-    private static @NotNull String joinProperties(@NotNull String blockId, @NotNull JsonObject state) {
-        List<String> properties = new ArrayList<>(state.keySet());
-        properties.sort(null);
-        StringJoiner joiner = new StringJoiner(",");
-        for (String property : properties) {
+    private static @NotNull Map<String, String> toStringMap(@NotNull String blockId, @NotNull JsonObject state) {
+        LinkedHashMap<String, String> map = new LinkedHashMap<>();
+        for (String property : state.keySet()) {
             JsonElement value = state.get(property);
             if (!value.isJsonPrimitive())
                 throw new PipelineException("Block-defaults override for '%s' property '%s' is not a scalar value", blockId, property);
-            joiner.add(property + "=" + value.getAsString());
+            map.put(property, value.getAsString());
         }
+        return map;
+    }
+
+    /**
+     * Joins a structured default-state map into the legacy {@code prop=val,prop=val} key,
+     * property-name-sorted; an empty map joins to the empty string.
+     *
+     * @param state the {@code property -> value} default state
+     * @return the comma-joined property key
+     */
+    private static @NotNull String joinProperties(@NotNull Map<String, String> state) {
+        List<String> properties = new ArrayList<>(state.keySet());
+        properties.sort(null);
+        StringJoiner joiner = new StringJoiner(",");
+        for (String property : properties)
+            joiner.add(property + "=" + state.get(property));
         return joiner.toString();
     }
+
+    /**
+     * The {@code block_defaults.json} payload: {@code blocks} maps each block id to its structured
+     * {@code {property:value}} default state (an empty map means "resolved, declares no properties"),
+     * and {@code unresolved} lists the block ids whose default state could not be ASM-resolved.
+     *
+     * @param blocks the per-block structured default states, in on-disk order
+     * @param unresolved the block ids whose default state is unresolved (omitted from the runtime map)
+     */
+    record DefaultsDoc(@NotNull Map<String, Map<String, String>> blocks, @Nullable List<String> unresolved) {}
 }

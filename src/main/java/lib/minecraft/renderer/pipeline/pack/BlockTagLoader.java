@@ -1,8 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
@@ -93,13 +91,9 @@ public class BlockTagLoader {
                 String relative = entry.substring(tagsPrefix.length() + 1);
                 String tagId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - 5);
                 try {
-                    JsonObject root = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
-                    if (root == null || !root.has("values")) return;
-                    JsonArray values = root.getAsJsonArray("values");
-                    ArrayList<String> entries = new ArrayList<>(values.size());
-                    for (int i = 0; i < values.size(); i++)
-                        entries.add(values.get(i).getAsString());
-                    raw.put(tagId, entries);
+                    TagDoc doc = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), TagDoc.class);
+                    if (doc == null || doc.values() == null) return;
+                    raw.put(tagId, new ArrayList<>(doc.values()));
                 } catch (JsonSyntaxException ex) {
                     // Skip malformed tag files
                 }
@@ -137,5 +131,8 @@ public class BlockTagLoader {
                 out.add(entry);
         }
     }
+
+    /** One tag file's payload: its {@code values} array of block ids and {@code #}-prefixed tag refs. */
+    record TagDoc(@NotNull List<String> values) {}
 
 }
