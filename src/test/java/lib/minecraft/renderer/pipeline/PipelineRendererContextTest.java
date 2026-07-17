@@ -213,7 +213,8 @@ class PipelineRendererContextTest {
 
         context = new PipelineRendererContext(
             stack, blockIndex, itemIndex, itemTrees, itemModels, entityIndex, colorMaps,
-            blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, synthesizer);
+            blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, synthesizer,
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
     }
 
     @Test

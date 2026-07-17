@@ -91,6 +91,12 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntities;
     private final @NotNull TextureSynthesizer synthesizer;
 
+    /** The block ids in atlas-grouping order (primary tag then id), precomputed once, shared unmodifiable. */
+    private final @NotNull ConcurrentList<String> knownBlockIds;
+
+    /** The item ids in atlas-grouping order (material prefix then id), precomputed once, shared unmodifiable. */
+    private final @NotNull ConcurrentList<String> knownItemIds;
+
     /**
      * Builds the production renderer context from the extracted client assets - the single loader
      * assembly point. Compiles the pack stack ({@link PackAcquisition#acquire}), resolves every model,
@@ -144,7 +150,9 @@ public final class PipelineRendererContext implements RendererContext {
             potionEffectColors,
             bannerPatterns,
             blockEntities,
-            synthesizer
+            synthesizer,
+            sortedBlockIds(blockIndex, blockTags),
+            sortedItemIds(itemIndex)
         );
     }
 
@@ -239,19 +247,25 @@ public final class PipelineRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * Sorted by {@link #primaryTag(String) primary tag} (most-specific tag, or material prefix
+     * Sorted by {@link #primaryTag(String, ConcurrentMap, ConcurrentMap) primary tag} (most-specific tag, or material prefix
      * fallback) then id, both case-insensitive, so semantically related blocks cluster in atlas output.
      */
     @Override
     public @NotNull ConcurrentList<String> knownBlockIds() {
-        ArrayList<String> ids = new ArrayList<>(this.blockIndex.keySet());
+        return this.knownBlockIds;
+    }
+
+    /** Sorts the block ids by primary tag then id (both case-insensitive); the shared, precomputed order. */
+    private static @NotNull ConcurrentList<String> sortedBlockIds(
+        @NotNull ConcurrentMap<String, Block> blockIndex, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
+        ArrayList<String> ids = new ArrayList<>(blockIndex.keySet());
         ids.sort((a, b) -> {
-            String groupA = primaryTag(a);
-            String groupB = primaryTag(b);
+            String groupA = primaryTag(a, blockIndex, blockTags);
+            String groupB = primaryTag(b, blockIndex, blockTags);
             int cmp = String.CASE_INSENSITIVE_ORDER.compare(groupA, groupB);
             return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
         });
-        return Concurrent.adoptList(ids);
+        return Concurrent.adoptList(ids).toUnmodifiable();
     }
 
     /**
@@ -261,12 +275,17 @@ public final class PipelineRendererContext implements RendererContext {
      */
     @Override
     public @NotNull ConcurrentList<String> knownItemIds() {
-        ArrayList<String> ids = new ArrayList<>(this.itemIndex.keySet());
+        return this.knownItemIds;
+    }
+
+    /** Sorts the item ids by material prefix then id (both case-insensitive); the shared, precomputed order. */
+    private static @NotNull ConcurrentList<String> sortedItemIds(@NotNull ConcurrentMap<String, Item> itemIndex) {
+        ArrayList<String> ids = new ArrayList<>(itemIndex.keySet());
         ids.sort((a, b) -> {
             int cmp = String.CASE_INSENSITIVE_ORDER.compare(idPrefix(a), idPrefix(b));
             return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
         });
-        return Concurrent.adoptList(ids);
+        return Concurrent.adoptList(ids).toUnmodifiable();
     }
 
     /** {@inheritDoc} */
@@ -324,14 +343,15 @@ public final class PipelineRendererContext implements RendererContext {
      * block's material prefix as a fallback for untagged blocks. Used as the primary sort key
      * so semantically related blocks cluster together in atlas output.
      */
-    private @NotNull String primaryTag(@NotNull String blockId) {
-        Block block = this.blockIndex.get(blockId);
+    private static @NotNull String primaryTag(@NotNull String blockId,
+        @NotNull ConcurrentMap<String, Block> blockIndex, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
+        Block block = blockIndex.get(blockId);
 
         if (block != null && !block.tags().isEmpty()) {
             return block.tags()
                 .stream()
-                .filter(this.blockTags::containsKey)
-                .min(Comparator.comparingInt(tag -> this.blockTags.get(tag).values().size()))
+                .filter(blockTags::containsKey)
+                .min(Comparator.comparingInt(tag -> blockTags.get(tag).values().size()))
                 .orElse(blockId);
         }
 
