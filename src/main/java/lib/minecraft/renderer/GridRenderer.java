@@ -6,6 +6,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -75,7 +76,7 @@ public final class GridRenderer implements Renderer<GridOptions> {
             placements.parallelStream().forEach(placement ->
                 buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize));
 
-            return FrameCompositor.staticFrame(buffer);
+            return Timeline.still(buffer);
         }
 
         return FrameCompositor.merge(placements, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackground());

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.TooltipChrome;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -55,7 +56,7 @@ public class TextOptions implements RenderOptions {
     /**
      * Obfuscation animation frame rate; matches vanilla's 20 ticks-per-second refresh.
      */
-    public static final int VANILLA_TICK_FPS = 20;
+    public static final int VANILLA_TICK_FPS = Timeline.TICKS_PER_SECOND;
 
     /**
      * Rendering style - {@link Style#LORE} tooltip chrome or plain {@link Style#CHAT} text.

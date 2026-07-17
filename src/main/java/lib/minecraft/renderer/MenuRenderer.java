@@ -11,6 +11,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -262,7 +263,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             for (FramePlacement placement : placements)
                 buffer.blit(placement.source().toPixelBuffer(), placement.x(), placement.y());
 
-            return FrameCompositor.staticFrame(buffer);
+            return Timeline.still(buffer);
         }
 
         return FrameCompositor.merge(placements, canvasW, canvasH, options.getFramesPerSecond(), Background.TRANSPARENT);
@@ -607,18 +608,15 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
         int w = baseChrome.width();
         int h = baseChrome.height();
-        int frameCount = options.getFramesPerSecond();
-        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-
-        for (int i = 0; i < frameCount; i++) {
-            PixelBuffer frameBuffer = PixelBuffer.create(w, h);
-            frameBuffer.blit(baseChrome, 0, 0);
-            drawTitleSegments(frameBuffer, titleLine, titleX, INSET, TITLE_HEIGHT, defaultTitleArgb, i);
-            frames.add(frameBuffer);
-        }
-
-        int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return FrameCompositor.wrapFrames(frames, delayMs);
+        // One second of unique obfuscation frames: a wall-rate loop of framesPerSecond frames, the
+        // frame index doubling as the per-frame obfuscation seed.
+        return new Timeline.FpsLoop(options.getFramesPerSecond(), options.getFramesPerSecond())
+            .wrap(f -> {
+                PixelBuffer frameBuffer = PixelBuffer.create(w, h);
+                frameBuffer.blit(baseChrome, 0, 0);
+                drawTitleSegments(frameBuffer, titleLine, titleX, INSET, TITLE_HEIGHT, defaultTitleArgb, f);
+                return frameBuffer;
+            });
     }
 
     /**

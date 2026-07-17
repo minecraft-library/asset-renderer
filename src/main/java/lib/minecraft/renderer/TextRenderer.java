@@ -3,9 +3,8 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.TooltipChrome;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
@@ -56,18 +55,11 @@ public final class TextRenderer implements Renderer<TextOptions> {
      */
     private static final int DEFAULT_COLOR_ARGB = ChatColor.Legacy.GRAY.rgb();
 
-    /**
-     * Upper bound on an animated gradient's loop duration in milliseconds, mirroring
-     * {@code FrameCompositor.MAX_LOOP_MS}. Beyond it the loop is truncated and a scroll seam is
-     * accepted - the same policy the frame compositors apply to LCM-merged loops.
-     */
-    private static final long MAX_LOOP_MS = 10_000L;
-
     /** {@inheritDoc} */
     @Override
     public @NotNull ImageData render(@NotNull TextOptions options) {
         if (options.getLines().isEmpty())
-            return FrameCompositor.wrapFrames(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
+            return Timeline.empty();
 
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
         boolean animated = hasObfuscation(options.getLines()) || hasAnimatedGradient(options.getLines());
@@ -84,16 +76,14 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
         if (!animated)
-            return FrameCompositor.wrapFrames(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L, 0L), 0);
+            return Timeline.still(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L, 0L).getFirst());
 
         int ticksPerFrame = ticksPerFrame(options);
         int frameCount = animationFrameCount(options, ticksPerFrame);
-        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
-            frames.addAll(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, frameIndex, (long) frameIndex * ticksPerFrame));
-
-        int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return FrameCompositor.wrapFrames(frames, delayMs);
+        Timeline.TickLoop timeline = new Timeline.TickLoop(
+            0, frameCount, ticksPerFrame, Timeline.delayForFps(options.getFramesPerSecond()));
+        return timeline.wrap(f ->
+            drawSingleFrame(options, canvasWMcPx, canvasHMcPx, f, timeline.tickAt(f)).getFirst());
     }
 
     /**
@@ -188,7 +178,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * caller's {@link TextOptions#getFrameCount() frameCount} (byte-identical to the pre-gradient
      * behaviour); a scrolling gradient sizes the loop to a whole number of cycles - the LCM of every
      * scroll's {@code cycleTicks} (and the obfuscation loop, when combined), converted to frames and
-     * capped at {@link #MAX_LOOP_MS}.
+     * capped at {@link Timeline#MAX_LOOP_MS}.
      */
     private static int animationFrameCount(@NotNull TextOptions options, int ticksPerFrame) {
         if (!hasAnimatedGradient(options.getLines()))
@@ -199,44 +189,25 @@ public final class TextRenderer implements Renderer<TextOptions> {
             for (ColorSegment segment : line.getSegments()) {
                 GradientSpec.Scroll scroll = segment.getGradient().map(GradientSpec::scroll).orElse(null);
                 if (scroll != null)
-                    loopTicks = loopTicks == 0 ? scroll.cycleTicks() : lcm(loopTicks, scroll.cycleTicks());
+                    loopTicks = loopTicks == 0 ? scroll.cycleTicks() : Timeline.lcm(loopTicks, scroll.cycleTicks());
             }
         }
         if (hasObfuscation(options.getLines())) {
             long obfuscationLoopTicks = (long) options.getFrameCount() * ticksPerFrame;
-            loopTicks = loopTicks == 0 ? obfuscationLoopTicks : lcm(loopTicks, obfuscationLoopTicks);
+            loopTicks = loopTicks == 0 ? obfuscationLoopTicks : Timeline.lcm(loopTicks, obfuscationLoopTicks);
         }
 
         // Size the loop to the smallest tick span that is BOTH a whole number of scroll cycles
         // (a multiple of loopTicks) AND an integer number of frames (a multiple of ticksPerFrame),
-        // so the wrap frame lands exactly on phase 0: lcm(loopTicks, ticksPerFrame). At the 20 fps
-        // default (ticksPerFrame 1) this equals loopTicks, unchanged. Without the ticksPerFrame
-        // factor a coarser frame cadence (fps < tick rate) would truncate mid-cycle and seam.
-        long spanTicks = lcm(loopTicks, ticksPerFrame);
+        // so the wrap frame lands exactly on phase 0: the least common multiple of loopTicks and
+        // ticksPerFrame. At the 20 fps default (ticksPerFrame 1) this equals loopTicks, unchanged.
+        // Without the ticksPerFrame factor a coarser frame cadence (fps < tick rate) would truncate
+        // mid-cycle and seam.
+        long spanTicks = Timeline.lcm(loopTicks, ticksPerFrame);
         int frameCount = Math.max(1, (int) (spanTicks / ticksPerFrame));
-        int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        int maxFrames = Math.max(1, (int) (MAX_LOOP_MS / delayMs));
+        int delayMs = Timeline.delayForFps(options.getFramesPerSecond());
+        int maxFrames = Math.max(1, (int) (Timeline.MAX_LOOP_MS / delayMs));
         return Math.min(frameCount, maxFrames);
-    }
-
-    /**
-     * Least common multiple, dividing before multiplying to limit overflow.
-     */
-    private static long lcm(long a, long b) {
-        if (a == 0 || b == 0) return 0;
-        return Math.abs(a / gcd(a, b) * b);
-    }
-
-    /**
-     * Greatest common divisor by the iterative Euclidean algorithm.
-     */
-    private static long gcd(long a, long b) {
-        while (b != 0) {
-            long t = b;
-            b = a % b;
-            a = t;
-        }
-        return a;
     }
 
     /**
@@ -248,18 +219,6 @@ public final class TextRenderer implements Renderer<TextOptions> {
         for (LineSegment line : options.getLines())
             max = Math.max(max, TextKit.measureLineMcPixels(line));
         return Math.max(16, max);
-    }
-
-    /**
-     * Builds a single-frame list holding one flat-filled buffer. Used for the empty-input
-     * degenerate case (a 1x1 transparent frame).
-     */
-    private static @NotNull ConcurrentList<PixelBuffer> singleFrame(int w, int h, int fill) {
-        PixelBuffer buffer = PixelBuffer.create(w, h);
-        buffer.fill(fill);
-        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        frames.add(buffer);
-        return frames;
     }
 
 }
