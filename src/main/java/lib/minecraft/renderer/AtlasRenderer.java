@@ -8,12 +8,18 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
+import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
+import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.option.AtlasOptions;
@@ -535,14 +541,14 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     ) {}
 
     /**
-     * A context wrapper that flattens animated textures to their first frame. Delegates
-     * every method to the wrapped context except {@link #resolveTexture} (which extracts
-     * frame 0 from animation strips) and {@link #findAnimation} (inherited default returns empty
-     * for this wrapper, so downstream renderers treat every texture as static).
+     * A context wrapper that flattens animated textures to their first frame for the static atlas.
+     * Implemented as a {@link RendererContext.Forwarding} view: every lookup reaches the wrapped context
+     * except the {@link #resolveTexture} frame-0 override and the explicit empty pins below, each of
+     * which preserves the static atlas's prior behaviour.
      *
      * @param delegate the wrapped context every non-overridden method forwards to
      */
-    private record StaticTextureContext(@NotNull RendererContext delegate) implements RendererContext {
+    private record StaticTextureContext(@NotNull RendererContext delegate) implements RendererContext.Forwarding {
 
         /**
          * Resolves a texture, flattening animation strips to frame 0 via
@@ -558,46 +564,46 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             return new Textures(this.delegate).tryResolveTextureAtTick(textureId, 0);
         }
 
-        /** {@inheritDoc} */
+        // Pinned empty (load-bearing): forwarding re-animates the atlas; every texture must read static.
         @Override
-        public @NotNull Optional<ColorMap> findColorMap(ColorMap.@NotNull Type type) {
-            return this.delegate.findColorMap(type);
+        public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
+            return Optional.empty();
         }
 
-        /** {@inheritDoc} */
+        // Pinned empty (behavior-preserving): the static atlas did not scale sprites before this pass.
         @Override
-        public @NotNull Optional<Block> findBlock(@NotNull String id) {
-            return this.delegate.findBlock(id);
+        public @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
+            return Optional.empty();
         }
 
-        /** {@inheritDoc} */
+        // Pinned empty (behavior-preserving): the static atlas did not resolve item dispatch trees before.
         @Override
-        public @NotNull Optional<Item> findItem(@NotNull String id) {
-            return this.delegate.findItem(id);
+        public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+            return Optional.empty();
         }
 
-        /** {@inheritDoc} */
+        // Pinned empty (behavior-preserving): the static atlas did not resolve tree/CIT item models before.
         @Override
-        public @NotNull Optional<Entity> findEntity(@NotNull String id) {
-            return this.delegate.findEntity(id);
+        public @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
+            return Optional.empty();
         }
 
-        /** {@inheritDoc} */
+        // Pinned empty (behavior-preserving): the static atlas did not apply color.properties overrides before.
         @Override
-        public @NotNull ConcurrentList<String> knownBlockIds() {
-            return this.delegate.knownBlockIds();
+        public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
+            return Optional.empty();
         }
 
-        /** {@inheritDoc} */
+        // Pinned empty (behavior-preserving): the static atlas did not tint potion sprites before.
         @Override
-        public @NotNull ConcurrentList<String> knownItemIds() {
-            return this.delegate.knownItemIds();
+        public @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
+            return Optional.empty();
         }
 
-        /** {@inheritDoc} */
+        // Pinned NONE (behavior-preserving): the static atlas did not apply CIT overrides before.
         @Override
-        public @NotNull Optional<Block.Entity> findBlockEntityEntry(@NotNull String blockId) {
-            return this.delegate.findBlockEntityEntry(blockId);
+        public @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
+            return CitResult.NONE;
         }
 
     }

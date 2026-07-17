@@ -293,4 +293,116 @@ public interface RendererContext {
      */
     @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId);
 
+    /**
+     * A forwarding mixin for context wrappers: every {@link RendererContext} method forwards to
+     * {@link #delegate()}, so an implementor overrides only the methods it changes and supplies the
+     * wrapped context through {@code delegate()} (a record component named {@code delegate} satisfies it
+     * directly).
+     *
+     * <p>Because every method is forwarded rather than defaulted, a wrapper that wants a lookup to
+     * behave differently from its delegate must say so explicitly - pinning an override rather than
+     * relying on a silent empty default. A method a wrapper leaves alone reaches the real context, which
+     * is the safe default for a pass-through view; the deliberate exceptions are stated at the override.
+     */
+    interface Forwarding extends RendererContext {
+
+        /**
+         * The wrapped context every non-overridden method forwards to.
+         *
+         * @return the delegate context
+         */
+        @NotNull RendererContext delegate();
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
+            return delegate().findAnimation(textureId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
+            return delegate().findGuiScaling(textureId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<BannerPattern> findBannerPattern(@NotNull String patternId) {
+            return delegate().findBannerPattern(patternId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Block> findBlock(@NotNull String id) {
+            return delegate().findBlock(id);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Block.Entity> findBlockEntityEntry(@NotNull String blockId) {
+            return delegate().findBlockEntityEntry(blockId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<ColorMap> findColorMap(ColorMap.@NotNull Type type) {
+            return delegate().findColorMap(type);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
+            return delegate().findColorOverride(key);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Entity> findEntity(@NotNull String id) {
+            return delegate().findEntity(id);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Item> findItem(@NotNull String id) {
+            return delegate().findItem(id);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+            return delegate().findItemTree(id);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
+            return delegate().findItemModel(modelId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<ModelTransform> resolveIconGui(@NotNull Block block) {
+            return delegate().resolveIconGui(block);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
+            return delegate().findPotionEffectColor(effectId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull ConcurrentList<BannerPattern> knownBannerPatterns() {
+            return delegate().knownBannerPatterns();
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull ConcurrentList<String> knownBlockIds() {
+            return delegate().knownBlockIds();
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull ConcurrentList<String> knownItemIds() {
+            return delegate().knownItemIds();
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
+            return delegate().resolveItemTextureOverride(context);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
+            return delegate().resolveTexture(textureId);
+        }
+
+    }
+
 }
