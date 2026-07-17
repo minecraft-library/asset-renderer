@@ -26,7 +26,7 @@ import lib.minecraft.renderer.pipeline.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.Capability;
-import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
+import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackId;
@@ -408,9 +408,9 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("IndexedTexture carries the whole mcmeta sidecar for sidecar-equipped PNGs")
+    @DisplayName("ResolvedTexture carries the whole mcmeta sidecar for sidecar-equipped PNGs")
     void textureAnimationFieldIsPopulated() {
-        IndexedTexture fixture = stack.textureIndex().get(ResourceId.parse("minecraft:block/fixture"));
+        ResolvedTexture fixture = stack.textureIndex().get(ResourceId.parse("minecraft:block/fixture"));
         assertThat(fixture, is(notNullValue()));
         assertThat(fixture.meta().isPresent(), is(true));
         assertThat(fixture.meta().get().animation().isPresent(), is(true));

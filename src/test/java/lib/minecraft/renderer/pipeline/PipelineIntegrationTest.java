@@ -2,13 +2,15 @@ package lib.minecraft.renderer.pipeline;
 
 
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.pack.ColorMapLoader;
-import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
+import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
@@ -143,11 +145,12 @@ class PipelineIntegrationTest {
     void cataloguesTextures() {
         assertThat("texture catalogue is populated", stack.textureIndex().size(), is(greaterThan(500)));
 
-        IndexedTexture grassTop = stack.textureIndex().get(ResourceId.parse("minecraft:block/grass_block_top"));
+        ResolvedTexture grassTop = stack.textureIndex().get(ResourceId.parse("minecraft:block/grass_block_top"));
         assertThat("grass_block_top texture catalogued", grassTop, is(notNullValue()));
-        assertThat(grassTop.width(), is(greaterThanOrEqualTo(16)));
-        assertThat(grassTop.height(), is(greaterThanOrEqualTo(16)));
-        assertThat(grassTop.relativePath(), allOf(
+        PixelBuffer grassBuffer = new ImageFactory().fromByteArray(grassTop.bytes()).toPixelBuffer();
+        assertThat(grassBuffer.width(), is(greaterThanOrEqualTo(16)));
+        assertThat(grassBuffer.height(), is(greaterThanOrEqualTo(16)));
+        assertThat(grassTop.path(), allOf(
             containsString("block"),
             containsString("grass_block_top"),
             containsString(".png")

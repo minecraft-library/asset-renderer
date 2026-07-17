@@ -7,7 +7,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
+import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
@@ -56,7 +56,7 @@ class Phase5PackSmokeTest {
             .texturePacks(Concurrent.adoptList(List.of(hypixel.toFile())))
             .build();
         PackStack bare = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
-        ConcurrentMap<ResourceId, IndexedTexture> textures = TextureIndexer.index(bare);
+        ConcurrentMap<ResourceId, ResolvedTexture> textures = TextureIndexer.index(bare);
         PackStack stack = bare.withTextureIndex(textures);
 
         assertThat(stack.namespaces().contains(NS), is(true));

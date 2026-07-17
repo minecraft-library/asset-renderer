@@ -35,7 +35,6 @@ import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.pack.FormatRange;
-import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
@@ -386,15 +385,14 @@ public final class PipelineParityDump {
     /**
      * Returns the texture-index section, sourced STRICTLY from {@link PackStack#textureIndex}.
      * <p>
-     * It is never built by iterating ids through {@code resolve} / {@code resolveIn}: those fabricate
-     * synthetic rows with zero dimensions and no sidecar, and they mutate the stack's
-     * ambiguity-logging set as a side effect - a dump that walked them would be serializing an object
-     * it was concurrently changing.
+     * It is never built by iterating ids through {@code resolve} / {@code resolveIn}: those mutate the
+     * stack's ambiguity-logging set as a side effect, so a dump that walked them would be serializing an
+     * object it was concurrently changing.
      * <p>
-     * {@code size} is sourced from the row's width/height, which are filled by a per-PNG decode at
-     * index time and stay {@code 0} for an undecodable PNG ({@code 0} means unknown, not empty).
-     * Those two fields are deleted when {@code IndexedTexture} merges into {@code ResolvedTexture},
-     * at which point {@code size} leaves the dump through that phase's removal-only manifest.
+     * {@code path} is the owning-root-relative container path ({@code assets/<ns>/textures/<name>.png}),
+     * reconstructed from the row's id: the merged {@code ResolvedTexture} stores the winning
+     * root-prefixed entry (which the {@code resolution} probe records), so this section derives the
+     * stable root-relative form the id already determines.
      *
      * @param stack the resolved pack stack
      * @return the textures section
@@ -409,11 +407,10 @@ public final class PipelineParityDump {
      * @param texture the row to emit
      * @return the row object
      */
-    private static @NotNull JsonObject texture(@NotNull IndexedTexture texture) {
+    private static @NotNull JsonObject texture(@NotNull ResolvedTexture texture) {
         JsonObject root = new JsonObject();
         root.addProperty("pack", texture.pack().value());
-        root.addProperty("path", texture.relativePath());
-        root.add("size", size(texture.width(), texture.height()));
+        root.addProperty("path", "assets/" + texture.id().namespace() + "/textures/" + texture.id().name() + ".png");
         CanonicalJson.put(root, "meta", texture.meta(), PipelineParityDump::meta);
         return root;
     }

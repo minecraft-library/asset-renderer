@@ -98,7 +98,7 @@ class PackAcquisitionIntegrationTest {
             .texturePacks(Concurrent.adoptList(sources.stream().map(Path::toFile).toList()))
             .build();
         PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
-        ConcurrentMap<ResourceId, IndexedTexture> index = TextureIndexer.index(stack);
+        ConcurrentMap<ResourceId, ResolvedTexture> index = TextureIndexer.index(stack);
 
         // Vanilla alone catalogues > 500 textures; the user packs override some and add their own.
         assertThat(index.size(), is(greaterThan(500)));

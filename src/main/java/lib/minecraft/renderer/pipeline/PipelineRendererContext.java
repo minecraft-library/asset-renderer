@@ -33,7 +33,6 @@ import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
 import lib.minecraft.renderer.pipeline.ItemIndexBuilder;
 import lib.minecraft.renderer.pipeline.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
-import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackId;
@@ -173,7 +172,7 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
         ResourceId id = ResourceId.parse(textureId);
-        Optional<IndexedTexture> indexed = this.stack.indexed(id);
+        Optional<ResolvedTexture> indexed = this.stack.indexed(id);
         if (indexed.isPresent()) {
             PixelBuffer cached = this.textureCache.get(new CacheKey(indexed.get().pack(), id));
             if (cached != null) return Optional.of(cached);
@@ -248,7 +247,7 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
         return this.stack.indexed(ResourceId.parse(textureId))
-            .flatMap(IndexedTexture::meta)
+            .flatMap(ResolvedTexture::meta)
             .flatMap(MCMeta::animation)
             .map(PipelineRendererContext::toAnimationData);
     }
@@ -262,7 +261,7 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
         return this.stack.indexed(ResourceId.parse(textureId))
-            .flatMap(IndexedTexture::meta)
+            .flatMap(ResolvedTexture::meta)
             .flatMap(MCMeta::gui);
     }
 

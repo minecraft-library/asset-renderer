@@ -8,6 +8,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -33,12 +34,12 @@ public final class PackStack {
     private final @NotNull ConcurrentList<ResourcePack> ascending;
     private final @NotNull Map<PackId, ResourcePack> byId;
     private final @NotNull Set<String> namespaces;
-    private final @NotNull ConcurrentMap<ResourceId, IndexedTexture> textureIndex;
+    private final @NotNull ConcurrentMap<ResourceId, ResolvedTexture> textureIndex;
     private final @NotNull RuleSet rules;
     private final @NotNull Set<String> loggedAmbiguities = ConcurrentHashMap.newKeySet();
 
     private PackStack(@NotNull ConcurrentList<ResourcePack> ascending, @NotNull Map<PackId, ResourcePack> byId,
-                      @NotNull Set<String> namespaces, @NotNull ConcurrentMap<ResourceId, IndexedTexture> textureIndex,
+                      @NotNull Set<String> namespaces, @NotNull ConcurrentMap<ResourceId, ResolvedTexture> textureIndex,
                       @NotNull RuleSet rules) {
         this.ascending = ascending;
         this.byId = byId;
@@ -77,7 +78,7 @@ public final class PackStack {
      * @param index the scanned texture index, keyed by namespaced id
      * @return the indexed stack
      */
-    public @NotNull PackStack withTextureIndex(@NotNull ConcurrentMap<ResourceId, IndexedTexture> index) {
+    public @NotNull PackStack withTextureIndex(@NotNull ConcurrentMap<ResourceId, ResolvedTexture> index) {
         return new PackStack(this.ascending, this.byId, this.namespaces, index, this.rules);
     }
 
@@ -164,7 +165,7 @@ public final class PackStack {
      *
      * @return the texture index
      */
-    public @NotNull ConcurrentMap<ResourceId, IndexedTexture> textureIndex() {
+    public @NotNull ConcurrentMap<ResourceId, ResolvedTexture> textureIndex() {
         return this.textureIndex;
     }
 
@@ -184,7 +185,7 @@ public final class PackStack {
      * @param id the namespaced texture id
      * @return the index row, or empty when no pack indexed it
      */
-    public @NotNull Optional<IndexedTexture> indexed(@NotNull ResourceId id) {
+    public @NotNull Optional<ResolvedTexture> indexed(@NotNull ResourceId id) {
         return Optional.ofNullable(this.textureIndex.get(id));
     }
 
@@ -201,7 +202,7 @@ public final class PackStack {
      * @return the resolved texture, or empty when nothing supplies it
      */
     public @NotNull Optional<ResolvedTexture> resolve(@NotNull ResourceId id) {
-        return dispatch(id).flatMap(this::locate);
+        return dispatch(id);
     }
 
     /**
@@ -213,11 +214,11 @@ public final class PackStack {
      * @return the resolved texture, or empty when the pack does not supply it
      */
     public @NotNull Optional<ResolvedTexture> resolveIn(@NotNull PackId pack, @NotNull ResourceId id) {
-        return byId(pack).flatMap(p -> probeInPack(p, id.name())).flatMap(this::locate);
+        return byId(pack).flatMap(p -> probeInPack(p, id.name()));
     }
 
-    /** The namespace-first / pack-id-second dispatch producing an index or probed row (no root walk yet). */
-    private @NotNull Optional<IndexedTexture> dispatch(@NotNull ResourceId id) {
+    /** The namespace-first / pack-id-second dispatch: an index lookup or a live pack probe, both baked. */
+    private @NotNull Optional<ResolvedTexture> dispatch(@NotNull ResourceId id) {
         String prefix = id.namespace();
         if (this.namespaces.contains(prefix)) {
             if (isLoadedPackId(prefix)) logAmbiguityOnce(prefix);
@@ -228,29 +229,32 @@ public final class PackStack {
         return Optional.empty();
     }
 
-    /** Probes one pack for a texture path across its namespaces (primary, then minecraft, then sorted). */
-    private @NotNull Optional<IndexedTexture> probeInPack(@NotNull ResourcePack pack, @NotNull String path) {
+    /**
+     * Probes one pack for a texture path across its namespaces (primary, then minecraft, then sorted),
+     * baking the within-pack root walk (base first, overlays after, last existing copy winning) and the
+     * {@code .png.mcmeta} sidecar beside the winner - the same merged form the index carries.
+     */
+    private @NotNull Optional<ResolvedTexture> probeInPack(@NotNull ResourcePack pack, @NotNull String path) {
+        PackContainer container = pack.container();
         for (String namespace : searchOrder(pack)) {
             String relativePath = "assets/" + namespace + "/textures/" + path + ".png";
-            boolean present = pack.roots().stream().anyMatch(root -> pack.container().exists(root.prefix() + relativePath));
-            if (present)
-                return Optional.of(new IndexedTexture(new ResourceId(namespace, path), pack.id(), relativePath, 0, 0, Optional.empty()));
+            String winning = null;
+            for (PackRoot root : pack.roots()) {
+                String candidate = root.prefix() + relativePath;
+                if (container.exists(candidate)) winning = candidate;
+            }
+            if (winning != null) {
+                ResourceId id = new ResourceId(namespace, path);
+                return Optional.of(new ResolvedTexture(pack.id(), id, container, winning, readSidecar(container, winning, id)));
+            }
         }
         return Optional.empty();
     }
 
-    /** Walks the owning pack's roots base-first, keeping the last existing copy. */
-    private @NotNull Optional<ResolvedTexture> locate(@NotNull IndexedTexture row) {
-        ResourcePack pack = this.byId.get(row.pack());
-        if (pack == null) return Optional.empty();
-
-        PackContainer container = pack.container();
-        String winning = null;
-        for (PackRoot root : pack.roots()) {
-            String candidate = root.prefix() + row.relativePath();
-            if (container.exists(candidate)) winning = candidate;
-        }
-        return winning == null ? Optional.empty() : Optional.of(new ResolvedTexture(row.pack(), row.id(), container, winning));
+    /** Reads the whole {@code <file>.png.mcmeta} sidecar next to a PNG, bound to the same pack+root. */
+    private static @NotNull Optional<MCMeta> readSidecar(@NotNull PackContainer container, @NotNull String pngEntry, @NotNull ResourceId id) {
+        return container.bytes(pngEntry + ".mcmeta")
+            .map(bytes -> MCMeta.parse(new String(bytes, StandardCharsets.UTF_8), id));
     }
 
     /** The within-pack namespace search order: primary namespace, then {@code minecraft}, then the rest sorted. */

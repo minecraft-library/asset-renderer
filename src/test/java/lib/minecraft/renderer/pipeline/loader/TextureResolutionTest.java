@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.loader;
 import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.image.ImageFactory;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.pipeline.pack.Capability;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
@@ -77,9 +78,9 @@ class TextureResolutionTest {
     @Test
     @DisplayName("higher-priority pack wins a cross-pack id collision")
     void crossPackPriority() {
-        assertThat(stack.indexed(ResourceId.parse("minecraft:block/stone")).orElseThrow().pack(),
-            is(new PackId("hypixel-skyblock")));
-        assertThat(stack.indexed(ResourceId.parse("minecraft:block/stone")).orElseThrow().width(), is(32));
+        ResolvedTexture stone = stack.indexed(ResourceId.parse("minecraft:block/stone")).orElseThrow();
+        assertThat(stone.pack(), is(new PackId("hypixel-skyblock")));
+        assertThat(new ImageFactory().fromByteArray(stone.bytes()).toPixelBuffer().width(), is(32));
 
         ResolvedTexture resolved = stack.resolve(ResourceId.parse("minecraft:block/stone")).orElseThrow();
         assertThat(resolved.pack(), is(new PackId("hypixel-skyblock")));
@@ -153,10 +154,10 @@ class TextureResolutionTest {
     }
 
     @Test
-    @DisplayName("index row relativePath is the owning-root-relative container path")
-    void relativePathShape() {
-        assertThat(stack.indexed(new ResourceId("hypixel_skyblock", "item/sword")).orElseThrow().relativePath(),
-            equalTo("assets/hypixel_skyblock/textures/item/sword.png"));
+    @DisplayName("index row path is the baked winning root-prefixed container path (overlay winner)")
+    void indexedPathIsBaked() {
+        assertThat(stack.indexed(ResourceId.parse("minecraft:block/grass")).orElseThrow().path(),
+            equalTo("ov/assets/minecraft/textures/block/grass.png"));
     }
 
     private static @org.jetbrains.annotations.NotNull ResourcePack pack(PackId id, Path root, Set<String> namespaces,
