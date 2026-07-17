@@ -70,6 +70,13 @@ public class GridOptions implements RenderOptions {
     private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
+     * Output frame rate for the animated composite; consulted only when a tile is animated - a fully
+     * static grid ignores it. Defaults to {@code 30}.
+     */
+    @lombok.Builder.Default
+    private final int framesPerSecond = 30;
+
+    /**
      * Transform applied to the default tile {@link LayerStack} of {@link FrameLayer}s (built under
      * {@link GridSlot#CELL}) before it runs, letting callers splice custom layers (overlays, watermarks)
      * relative to the built-in cells. Defaults to {@linkplain UnaryOperator#identity() identity}.
