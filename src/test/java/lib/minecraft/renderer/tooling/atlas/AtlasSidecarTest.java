@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.atlas;
 
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import lib.minecraft.renderer.json.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.atlas;
 
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import lib.minecraft.renderer.json.JsonNode;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

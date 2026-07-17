@@ -6,7 +6,7 @@ import lib.minecraft.renderer.tooling.entity.EntitySubject;
 import lib.minecraft.renderer.tooling.geometry.GeometryFlow;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -36,11 +36,13 @@ public final class ToolingEntityModels {
     public static void main(String[] args) {
         try (ToolingSession session = ToolingPipeline.openSession("entityModels", Diagnostics.Output.CONSOLE)) {
             List<EntitySubject> subjects = EntityRegistryDiscovery.discover(session);
-            JsonNode root = JsonNode.envelope(session,
+            JsonNode root = session.envelope(
                 "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain");
             GeometryManifest manifest = new GeometryManifest();
             EntityRegistryWalk.run(session, subjects, manifest, root);
-            root.writeResource(RESOURCE_DIR.resolve("entity_models.json"), session.diagnostics());
+            Path out = RESOURCE_DIR.resolve("entity_models.json");
+            root.write(out);
+            session.diagnostics().info("wrote %s", out.toAbsolutePath());
             GeometryFlow.emit(session, manifest, RESOURCE_DIR.resolve("entity_geometry.json"));
             failOnStrictGate(session);
         }

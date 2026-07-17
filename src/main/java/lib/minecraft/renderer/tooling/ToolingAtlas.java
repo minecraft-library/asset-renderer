@@ -10,7 +10,8 @@ import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tooling.atlas.AtlasSidecar;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import lib.minecraft.renderer.json.JsonException;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 
 import java.io.File;
@@ -64,7 +65,12 @@ public final class ToolingAtlas {
         Path jsonFile = outputDir.resolve("atlas.json");
         Files.writeString(jsonFile, atlas.sidecarJson());
 
-        AtlasSidecar sidecar = AtlasSidecar.parse(JsonNode.parse(atlas.sidecarJson().getBytes(StandardCharsets.UTF_8)));
+        AtlasSidecar sidecar;
+        try {
+            sidecar = AtlasSidecar.parse(JsonNode.parse(atlas.sidecarJson().getBytes(StandardCharsets.UTF_8)));
+        } catch (JsonException ex) {
+            throw new ToolingException(ex, "Failed to parse atlas sidecar JSON");
+        }
         if (sidecar.count() != sidecar.tiles().size())
             throw new ToolingException("atlas sidecar count %d disagrees with %d tiles", sidecar.count(), sidecar.tiles().size());
         diagnostics.info("wrote atlas: %d tiles -> %s (%dx%d px)",

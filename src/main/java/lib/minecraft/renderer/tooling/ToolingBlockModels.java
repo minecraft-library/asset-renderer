@@ -6,7 +6,7 @@ import lib.minecraft.renderer.tooling.blockentity.BlockEntitySubject;
 import lib.minecraft.renderer.tooling.geometry.GeometryFlow;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -39,11 +39,13 @@ public final class ToolingBlockModels {
     public static void main(String[] args) {
         try (ToolingSession session = ToolingPipeline.openSession("blockModels", Diagnostics.Output.CONSOLE)) {
             List<BlockEntitySubject> subjects = BlockEntityRegistryDiscovery.discover(session);
-            JsonNode root = JsonNode.envelope(session,
+            JsonNode root = session.envelope(
                 "BlockEntityRenderers.<clinit> registration order x BlockFamilyPolicies split order");
             GeometryManifest manifest = new GeometryManifest();
             BlockEntityRegistryWalk.run(session, subjects, manifest, root);
-            root.writeResource(RESOURCE_DIR.resolve("block_models.json"), session.diagnostics());
+            Path out = RESOURCE_DIR.resolve("block_models.json");
+            root.write(out);
+            session.diagnostics().info("wrote %s", out.toAbsolutePath());
             GeometryFlow.emit(session, manifest, RESOURCE_DIR.resolve("block_geometry.json"));
             failOnStrictGate(session);
         }

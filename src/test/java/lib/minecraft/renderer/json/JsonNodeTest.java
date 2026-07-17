@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling.kernel;
+package lib.minecraft.renderer.json;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonPrimitive;
@@ -17,16 +17,16 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins for the tooling {@link JsonNode} contracts: insertion-order preservation, the
- * Float-vs-Double serialisation difference motivating the float-only rule (a permanent
- * dependency-bump tripwire), the envelope shape, and the {@code writeResource} newline
- * contract.
+ * Pins for the {@link JsonNode} contracts: insertion-order preservation, the Float-vs-Double
+ * serialisation difference motivating the float-only rule (a permanent dependency-bump tripwire),
+ * the total read surface, and the {@code write} newline contract.
  */
-@DisplayName("tooling JsonNode build/read/io contracts")
+@DisplayName("JsonNode build/read/io contracts")
 class JsonNodeTest {
 
     private static final @NotNull Gson COMPACT = GsonSettings.defaults().create();
@@ -125,15 +125,104 @@ class JsonNodeTest {
     }
 
     @Test
-    @DisplayName("writeResource emits pretty JSON terminated by exactly one platform newline")
-    void writeResourceNewlineContract() throws IOException {
+    @DisplayName("write emits pretty JSON terminated by exactly one platform newline")
+    void writeNewlineContract() throws IOException {
         Path out = tempDir.resolve("nested/out.json");
-        JsonNode.object().put("k", "v").writeResource(out, Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        JsonNode.object().put("k", "v").write(out);
         String written = Files.readString(out, StandardCharsets.UTF_8);
         assertTrue(written.endsWith(System.lineSeparator()), "platform newline at EOF");
         assertTrue(written.contains("\"k\": \"v\""), "pretty-printed");
         assertEquals(written.length() - System.lineSeparator().length(),
             written.lastIndexOf(System.lineSeparator()), "exactly one trailing newline");
+    }
+
+    // --- the added total read surface (P4/E2) ---
+
+    @Test
+    @DisplayName("kind predicates + size classify object / array / primitive")
+    void kindPredicates() {
+        JsonNode node = JsonNode.parse("{\"o\":{\"a\":1},\"arr\":[1,2,3],\"s\":\"x\"}".getBytes(StandardCharsets.UTF_8));
+        assertTrue(node.isObject());
+        assertFalse(node.isArray());
+        assertEquals(3, node.size());
+        assertTrue(node.has("o"));
+        assertFalse(node.has("missing"));
+        assertTrue(node.get("arr").isArray());
+        assertEquals(3, node.get("arr").size());
+        assertTrue(node.get("s").isPrimitive());
+        assertEquals(0, node.get("s").size());
+    }
+
+    @Test
+    @DisplayName("find* reads are total: absent or wrong-kind yields empty, never a throw")
+    void totalFindReads() {
+        JsonNode node = JsonNode.parse("{\"s\":\"v\",\"i\":7,\"f\":1.5,\"b\":true,\"o\":{\"k\":1},\"a\":[1,2]}"
+            .getBytes(StandardCharsets.UTF_8));
+        assertEquals("v", node.findString("s").orElseThrow());
+        assertEquals(7, node.findInt("i").orElseThrow());
+        assertEquals(1.5f, node.findFloat("f").orElseThrow());
+        assertTrue(node.findBool("b").orElseThrow());
+        assertTrue(node.findObject("o").isPresent());
+        assertTrue(node.findArray("a").isPresent());
+        assertTrue(node.findInt("s").isEmpty());        // string is not a number
+        assertTrue(node.findObject("a").isEmpty());     // array is not an object
+        assertTrue(node.findString("missing").isEmpty());
+        assertTrue(node.find("missing").isEmpty());
+        assertTrue(node.get("s").findString("anything").isEmpty());   // total even on a non-object node
+    }
+
+    @Test
+    @DisplayName("self-value reads return empty on kind mismatch")
+    void selfValueReads() {
+        JsonNode node = JsonNode.parse("{\"s\":\"v\",\"i\":7,\"b\":true}".getBytes(StandardCharsets.UTF_8));
+        assertEquals("v", node.get("s").stringValue().orElseThrow());
+        assertEquals(7, node.get("i").intValue().orElseThrow());
+        assertTrue(node.get("b").boolValue().orElseThrow());
+        assertTrue(node.get("s").intValue().isEmpty());     // string primitive is not a number
+        assertTrue(node.get("i").boolValue().isEmpty());
+    }
+
+    @Test
+    @DisplayName("primitive-array getters skip mismatched entries; streams are empty on wrong kind")
+    void arraysAndStreams() {
+        JsonNode node = JsonNode.parse("{\"ints\":[1,2,3],\"floats\":[0.5,1.5],\"strs\":[\"a\",\"b\"],\"mixed\":[1,\"x\",true]}"
+            .getBytes(StandardCharsets.UTF_8));
+        assertEquals(List.of(1, 2, 3), node.getInts("ints"));
+        assertEquals(List.of(0.5f, 1.5f), node.getFloats("floats"));
+        assertEquals(List.of("a", "b"), node.getStrings("strs"));
+        assertEquals(List.of(1), node.getInts("mixed"));            // non-numbers skipped
+        assertTrue(node.getInts("missing").isEmpty());
+        assertEquals(List.of("ints", "floats", "strs", "mixed"), node.keys().toList());
+        assertEquals(3, node.get("ints").stream().count());
+        assertTrue(node.get("ints").keys().toList().isEmpty());     // array has no keys
+        assertTrue(node.get("strs").memberStream().toList().isEmpty());
+    }
+
+    @Test
+    @DisplayName("putAll deep-copies later-wins; deepCopy is independent")
+    void mergeAndCopy() {
+        JsonNode a = JsonNode.object().put("x", "1").put("y", "2");
+        JsonNode b = JsonNode.object().put("y", "9").put("z", "3");
+        a.putAll(b);
+        assertEquals("{\"x\":\"1\",\"y\":\"9\",\"z\":\"3\"}", COMPACT.toJson(a.toGson()));
+        JsonNode src = JsonNode.object().put("k", "orig");
+        JsonNode copy = src.deepCopy();
+        src.put("k", "changed");
+        assertEquals("{\"k\":\"orig\"}", COMPACT.toJson(copy.toGson()));   // deep copy is independent
+    }
+
+    @Test
+    @DisplayName("as() deserialises the whole node into a typed DTO")
+    void asDeserialises() {
+        JsonNode node = JsonNode.parse("{\"name\":\"grass\",\"count\":4}".getBytes(StandardCharsets.UTF_8));
+        Sample sample = node.as(Sample.class);
+        assertEquals("grass", sample.name);
+        assertEquals(4, sample.count);
+    }
+
+    private static final class Sample {
+        String name;
+        int count;
     }
 
 }

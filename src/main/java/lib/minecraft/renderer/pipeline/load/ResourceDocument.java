@@ -3,9 +3,9 @@ package lib.minecraft.renderer.pipeline.load;
 import com.google.gson.Gson;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.json.JsonException;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,8 +18,7 @@ import org.jetbrains.annotations.Nullable;
  * silent proceed. The parsed node is exposed through {@link #payload()} for structural reads and
  * {@link #as(Class)} for whole-document deserialisation into a typed DTO.
  *
- * <p>Reading reuses the tooling {@link JsonNode} read surface rather than a bespoke navigator, over
- * the {@code pipeline -> tooling.kernel} edge.
+ * <p>Reading reuses the {@link JsonNode} read surface rather than a bespoke navigator.
  */
 public final class ResourceDocument {
 
@@ -56,7 +55,7 @@ public final class ResourceDocument {
         JsonNode payload;
         try {
             payload = JsonNode.parse(utf8);
-        } catch (ToolingException ex) {
+        } catch (JsonException ex) {
             throw new PipelineException(ex, "Malformed JSON resource (%d bytes)", utf8.length);
         }
 

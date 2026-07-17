@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.geometry;
 
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -34,7 +34,7 @@ public final class GeometryFlow {
      */
     public static void emit(@NotNull ToolingSession session, @NotNull GeometryManifest manifest, @NotNull Path out) {
         Diagnostics diagnostics = session.diagnostics().child("geometry");
-        JsonNode root = JsonNode.envelope(session,
+        JsonNode root = session.envelope(
             "GeometryManifest registration order (walk order; append-last as a data-structure property)");
         JsonNode geometries = root.child("geometries");
         for (Map.Entry<String, GeometryRequest> entry : manifest.entries().entrySet()) {
@@ -57,7 +57,8 @@ public final class GeometryFlow {
             node.putIf("bones", parsed.get("bones"));
             geometries.put(key, node);
         }
-        root.writeResource(out, diagnostics);
+        root.write(out);
+        diagnostics.info("wrote %s", out.toAbsolutePath());
     }
 
     /**

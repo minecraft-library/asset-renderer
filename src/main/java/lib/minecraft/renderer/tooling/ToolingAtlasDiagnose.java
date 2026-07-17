@@ -3,7 +3,8 @@ package lib.minecraft.renderer.tooling;
 import lib.minecraft.renderer.tooling.atlas.AtlasScan;
 import lib.minecraft.renderer.tooling.atlas.AtlasSidecar;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.JsonNode;
+import lib.minecraft.renderer.json.JsonException;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -68,7 +69,12 @@ public final class ToolingAtlasDiagnose {
         if (!Files.isRegularFile(atlasJson))
             throw new ToolingException("Missing atlas sidecar '%s'", atlasJson.toAbsolutePath());
 
-        AtlasSidecar sidecar = AtlasSidecar.parse(JsonNode.parse(Files.readAllBytes(atlasJson)));
+        AtlasSidecar sidecar;
+        try {
+            sidecar = AtlasSidecar.parse(JsonNode.parse(Files.readAllBytes(atlasJson)));
+        } catch (JsonException ex) {
+            throw new ToolingException(ex, "Failed to parse atlas sidecar '%s'", atlasJson.toAbsolutePath());
+        }
         BufferedImage atlas = ImageIO.read(atlasPng.toFile());
         if (atlas == null)
             throw new ToolingException("Could not decode atlas PNG '%s'", atlasPng.toAbsolutePath());
@@ -113,7 +119,9 @@ public final class ToolingAtlasDiagnose {
             .putInt("sparseContent", sparse)
             .put("sparseContentThreshold", (float) AtlasScan.sparseContentThreshold())
             .put("tiles", flagged);
-        report.writeResource(root.resolve("missing.json"), diagnostics);
+        Path missing = root.resolve("missing.json");
+        report.write(missing);
+        diagnostics.info("wrote %s", missing.toAbsolutePath());
         diagnostics.info("flagged %d/%d tiles (%d fully transparent, %d sparse)", fully + sparse, total, fully, sparse);
     }
 
@@ -156,7 +164,9 @@ public final class ToolingAtlasDiagnose {
             .putInt("count", matching.size())
             .put("sourceFilter", sourceFilter)
             .put("tiles", miniTiles);
-        miniRoot.writeResource(outDir.resolve("atlas.json"), diagnostics);
+        Path atlasJson = outDir.resolve("atlas.json");
+        miniRoot.write(atlasJson);
+        diagnostics.info("wrote %s", atlasJson.toAbsolutePath());
 
         ids.sort(String.CASE_INSENSITIVE_ORDER);
         Files.writeString(outDir.resolve("ids.txt"), String.join(System.lineSeparator(), ids) + System.lineSeparator());

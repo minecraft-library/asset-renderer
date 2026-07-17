@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.kernel;
 
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import org.jetbrains.annotations.NotNull;
 
@@ -24,6 +25,22 @@ public record ToolingSession(
     public void close() {
         this.cache.close();
         this.diagnostics.flush();
+    }
+
+    /**
+     * A fresh resource envelope root: the {@code //} header (generator, regen task, and the file's
+     * declared ordering source), {@code format: 2}, and {@code source_version} derived from the
+     * session's jar options.
+     *
+     * @param orderingSource the declared ordering source stamped into the header
+     * @return the envelope root, ready for its payload member
+     */
+    public @NotNull JsonNode envelope(@NotNull String orderingSource) {
+        String flow = this.diagnostics.path();
+        return JsonNode.object()
+            .put("//", "tooling." + flow + " · regen: ./gradlew " + flow + "2 · order: " + orderingSource)
+            .putInt("format", 2)
+            .put("source_version", this.options.getVersion());
     }
 
 }
