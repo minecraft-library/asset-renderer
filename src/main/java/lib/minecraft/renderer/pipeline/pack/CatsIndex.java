@@ -1,19 +1,18 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import dev.simplified.util.compression.Compression;
+import dev.simplified.util.compression.exception.CompressionException;
 import lib.minecraft.renderer.exception.PipelineException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
-import java.util.zip.GZIPInputStream;
 
 /**
  * The decoded index of a Catharsis {@code pack.cats} container.
@@ -84,7 +83,7 @@ public final class CatsIndex {
             } else if (type == 0x00) {
                 int offset = readInt(blob, advance(pos, 4));
                 int size = readInt(blob, advance(pos, 4));
-                Compression compression = Compression.fromByte(readByte(blob, pos));
+                Compression compression = fromMarker(readByte(blob, pos), path);
                 out.put(path, new CatsEntry(path, offset, size, compression));
             } else {
                 throw new PipelineException("CATS entry '%s' has unknown type byte 0x%02X", path, type);
@@ -107,10 +106,13 @@ public final class CatsIndex {
             return "pack.mcmeta".equals(path) ? this.outerMcmeta.map(byte[]::clone) : Optional.empty();
 
         byte[] slice = Arrays.copyOfRange(this.data, entry.offset(), entry.offset() + entry.size());
-        return switch (entry.compression()) {
-            case STORED -> Optional.of(slice);
-            case GZIP -> Optional.of(gunzip(slice, path));
-        };
+        if (entry.compression() == Compression.NONE)
+            return Optional.of(slice);
+        try {
+            return Optional.of(Compression.decompress(slice));
+        } catch (CompressionException ex) {
+            throw new PipelineException(ex, "Failed to decompress CATS entry '%s'", path);
+        }
     }
 
     /**
@@ -142,12 +144,18 @@ public final class CatsIndex {
         return this.entries.size();
     }
 
-    private static byte @NotNull [] gunzip(byte @NotNull [] slice, @NotNull String path) {
-        try (GZIPInputStream in = new GZIPInputStream(new ByteArrayInputStream(slice))) {
-            return in.readAllBytes();
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to inflate GZIP CATS entry '%s'", path);
-        }
+    /**
+     * Maps a CATS per-file compression marker byte to the shared {@link Compression}: {@code 0xFF} to
+     * {@link Compression#NONE}, {@code 0xFE} to {@link Compression#GZIP}. The marker is authoritative -
+     * the stored/gzip choice is never re-derived from the data's magic bytes, so a stored entry whose
+     * bytes happen to begin {@code 1F 8B} is never mis-inflated.
+     */
+    private static @NotNull Compression fromMarker(int marker, @NotNull String path) {
+        return switch (marker) {
+            case 0xFF -> Compression.NONE;
+            case 0xFE -> Compression.GZIP;
+            default -> throw new PipelineException("CATS entry '%s' has unknown compression marker 0x%02X", path, marker);
+        };
     }
 
     private static int readByte(byte @NotNull [] blob, int @NotNull [] pos) {
@@ -192,36 +200,8 @@ public final class CatsIndex {
      * @param path the full {@code /}-separated path
      * @param offset the byte offset within the data region (relative to the header end)
      * @param size the stored byte length within the data region
-     * @param compression how the stored bytes are compressed
+     * @param compression the {@link Compression} the stored bytes carry ({@link Compression#NONE} or {@link Compression#GZIP})
      */
     public record CatsEntry(@NotNull String path, int offset, int size, @NotNull Compression compression) {}
-
-    /** Per-file compression of a {@link CatsEntry}. */
-    public enum Compression {
-
-        /** Uncompressed, stored verbatim ({@code 0xFF}). */
-        STORED(0xFF),
-        /** GZIP-compressed ({@code 0xFE}). */
-        GZIP(0xFE);
-
-        private final int marker;
-
-        Compression(int marker) {
-            this.marker = marker;
-        }
-
-        /**
-         * Maps a compression marker byte to its enum.
-         *
-         * @param marker the marker byte value ({@code 0..255})
-         * @return the compression
-         * @throws PipelineException if the marker is neither {@code 0xFF} nor {@code 0xFE}
-         */
-        public static @NotNull Compression fromByte(int marker) {
-            for (Compression c : values())
-                if (c.marker == marker) return c;
-            throw new PipelineException("Unknown CATS compression marker 0x%02X", marker);
-        }
-    }
 
 }
