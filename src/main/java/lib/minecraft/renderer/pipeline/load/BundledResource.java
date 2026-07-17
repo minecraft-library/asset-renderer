@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.load;
 
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -9,7 +10,8 @@ import java.io.InputStream;
 import java.util.Optional;
 
 /**
- * The single classpath-read site for the bundled {@code *.json} asset resources.
+ * The single classpath-read site for the bundled {@code *.json} asset resources - reads exactly one
+ * bundled resource per call.
  *
  * <p>{@link #read(String, MissingPolicy, Diagnostics)} opens
  * {@code /lib/minecraft/renderer/<name>} under try-with-resources - closing the stream on every
@@ -19,12 +21,11 @@ import java.util.Optional;
  * resources are {@link MissingPolicy#GRACEFUL_EMPTY} (their features are optional), while
  * {@code block} / {@code tints} / {@code potions} / {@code glint} are {@link MissingPolicy#REQUIRED}.
  */
-public final class BundledResources {
+@UtilityClass
+public final class BundledResource {
 
     /** Classpath root under which every resource is bundled. */
     private static final @NotNull String RESOURCE_DIR = "/lib/minecraft/renderer/";
-
-    private BundledResources() {}
 
     /** How {@link #read(String, MissingPolicy, Diagnostics)} reacts to an absent resource. */
     public enum MissingPolicy {
@@ -46,7 +47,7 @@ public final class BundledResources {
      *     stream cannot be read
      */
     public static @NotNull Optional<ResourceDocument> read(@NotNull String name, @NotNull MissingPolicy policy, @NotNull Diagnostics diagnostics) {
-        try (InputStream stream = BundledResources.class.getResourceAsStream(RESOURCE_DIR + name)) {
+        try (InputStream stream = BundledResource.class.getResourceAsStream(RESOURCE_DIR + name)) {
             if (stream == null) {
                 if (policy == MissingPolicy.REQUIRED)
                     throw new PipelineException("Classpath resource '%s' not found - run its tooling Gradle task to generate it", name);

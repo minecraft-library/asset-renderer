@@ -1,5 +1,6 @@
-package lib.minecraft.renderer.pipeline.load.block;
+package lib.minecraft.renderer.pipeline.load;
 
+import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
@@ -31,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Exercises the block-entity geometry override channel: {@link BlockRendererOverrides}
  * gathering pack-root {@code renderer/*.json} files through the format-2 envelope with per-entry
- * later-wins, and {@link BlockModelLoader} / {@link BlockDefaultsReader} overlaying them onto the
+ * later-wins, and {@link BlockModelLoader} / {@link BlockDefaultsLoader} overlaying them onto the
  * classpath snapshot. Uses {@code minecraft:conduit} (a clean single-block block entity) as the
  * override target.
  */
@@ -114,7 +115,7 @@ class BlockRendererOverridesTest {
         blocks.add("minecraft:conduit", state);
         Path pack = writePack("defaults", "renderer/block_defaults.json", envelope("blocks", blocks));
 
-        var defaults = BlockDefaultsReader.load(NONE, BlockRendererOverrides.gather(stack(pack), NONE));
+        var defaults = BlockDefaultsLoader.load(NONE, BlockRendererOverrides.gather(stack(pack), NONE));
         assertThat(defaults.get("minecraft:conduit"), is("facing=east"));
     }
 
@@ -150,7 +151,7 @@ class BlockRendererOverridesTest {
         dev.simplified.collection.ConcurrentMap<String, String> defaults;
         try {
             System.setErr(new java.io.PrintStream(buffer, true, java.nio.charset.StandardCharsets.UTF_8));
-            defaults = BlockDefaultsReader.load(NONE, overrides);
+            defaults = BlockDefaultsLoader.load(NONE, overrides);
         } finally {
             System.setErr(original);
         }

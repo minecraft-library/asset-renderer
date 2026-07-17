@@ -5,7 +5,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.ArgbHex;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.load.BundledResources;
+import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.tooling.ToolingPotionColors;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -54,7 +54,7 @@ public class PotionColorLoader {
      * @throws PipelineException if the resource is missing or malformed
      */
     static @NotNull ConcurrentMap<String, Integer> loadNative(@NotNull Diagnostics diagnostics) {
-        ResourceDocument document = BundledResources.read(RESOURCE_NAME, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         HashMap<String, Integer> colors = new HashMap<>();
         for (EffectRow effect : document.as(PotionColorTable.class).effects())
             colors.put(effect.effect(), ArgbHex.parse(effect.color(), diagnostics));

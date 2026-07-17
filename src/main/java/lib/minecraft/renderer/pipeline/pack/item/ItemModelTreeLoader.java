@@ -29,8 +29,8 @@ import java.util.Optional;
  * trees, from which the two projections the pipeline needs are derived by walking each tree against
  * the neutral
  * {@link ItemModelContext#gui()} context - {@link #deriveBlockItemModels(Map)} (the block-item
- * inventory-model map {@code BlockIndexLoader} consumes) and {@link #deriveTints(Map)} (the per-layer
- * tint list {@code ItemIndexLoader} attaches).
+ * inventory-model map {@code BlockIndexBuilder} consumes) and {@link #deriveTints(Map)} (the per-layer
+ * tint list {@code ItemIndexBuilder} attaches).
  *
  * <p>The block-item map is the root-plain-model-block-ref set (a dispatch-rooted item is never a
  * block-item override), and the neutral walk reaches the tint-carrying branch. Packs merge
@@ -182,7 +182,7 @@ public class ItemModelTreeLoader {
 
     /**
      * Derives the block-item inventory-model map ({@code itemId -> blockModelId}) from the parsed
-     * trees - the block-item projection {@code BlockIndexLoader} consumes to swap a block's in-world
+     * trees - the block-item projection {@code BlockIndexBuilder} consumes to swap a block's in-world
      * model for its inventory model (e.g. {@code piston -> block/piston_inventory}). Only a
      * root-plain-{@code model} node whose ref is a block model qualifies; a dispatch-rooted item
      * (beehive, bee_nest) is never a block-item override.

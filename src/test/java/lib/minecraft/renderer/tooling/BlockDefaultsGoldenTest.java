@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.is;
  * <p>
  * The snapshot stores each block's default state as a structured {@code {prop:"val"}} object (an
  * empty {@code {}} for a no-property block); this test reconstructs the comma-joined key from that
- * object exactly as {@code BlockDefaultsReader} does at load.
+ * object exactly as {@code BlockDefaultsLoader} does at load.
  * <p>
  * Regeneration workflow: run {@code ./gradlew :asset-renderer:blockDefaults} to refresh the snapshot,
  * then update {@code block_defaults.sha256} per {@code ResourceShaTest}.
@@ -84,7 +84,7 @@ class BlockDefaultsGoldenTest {
 
     /**
      * Reconstructs the comma-joined {@code prop=val} default-state key from the structured
-     * {@code {prop:"val"}} object (properties are stored sorted), mirroring {@code BlockDefaultsReader}.
+     * {@code {prop:"val"}} object (properties are stored sorted), mirroring {@code BlockDefaultsLoader}.
      * An empty object yields the empty key (a no-property block).
      */
     private static @NotNull String joinDefaultKey(@NotNull JsonObject properties) {

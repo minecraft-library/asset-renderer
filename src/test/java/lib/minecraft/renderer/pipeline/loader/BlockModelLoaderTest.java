@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.load.block;
+package lib.minecraft.renderer.pipeline.loader;
 
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.option.spec.DyeColor;
@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * models+geometry join, the {@code texture_size} adaptation, the runtime texture-path strip, the
  * icon open bag, DyeColor tints, and the no-{@code blocks[]} models (which carry no block binding).
  */
-class BlockModelReaderTest {
+class BlockModelLoaderTest {
 
     private static @NotNull BlockModelLoader.LoadResult load() {
         return BlockModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));

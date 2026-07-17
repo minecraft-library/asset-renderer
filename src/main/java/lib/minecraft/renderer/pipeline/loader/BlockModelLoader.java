@@ -13,10 +13,10 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.spec.DyeColor;
-import lib.minecraft.renderer.pipeline.load.BundledResources;
+import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.load.block.BlockEntityShadowDiagnostics;
-import lib.minecraft.renderer.pipeline.load.block.BlockRendererOverrides;
+import lib.minecraft.renderer.pipeline.loader.BlockEntityShadowDiagnostics;
+import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -144,8 +144,8 @@ public class BlockModelLoader {
      * @throws PipelineException if a resource is missing, malformed, or a geometry coordinate dangles
      */
     public static @NotNull LoadResult load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
-        ResourceDocument modelsDoc = BundledResources.read(MODELS_RESOURCE, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
-        ResourceDocument geometryDoc = BundledResources.read(GEOMETRY_RESOURCE, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument modelsDoc = BundledResource.read(MODELS_RESOURCE, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument geometryDoc = BundledResource.read(GEOMETRY_RESOURCE, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
 
         JsonObject models = modelsDoc.payload().toGson().getAsJsonObject().getAsJsonObject("models");
         JsonObject geometries = geometryDoc.payload().toGson().getAsJsonObject().getAsJsonObject("geometries");

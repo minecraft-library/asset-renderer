@@ -6,7 +6,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.ArgbHex;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.load.BundledResources;
+import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.tooling.ToolingBlockTints;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -66,7 +66,7 @@ public class BlockTintsLoader {
      * @throws PipelineException if the resource is missing or malformed
      */
     static @NotNull ConcurrentMap<String, Block.Tint> loadNative(@NotNull Diagnostics diagnostics) {
-        ResourceDocument document = BundledResources.read(RESOURCE_NAME, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         return toTints(document.as(TintTable.class).tints(), diagnostics);
     }
 

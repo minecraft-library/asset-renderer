@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.loader;
+package lib.minecraft.renderer.pipeline;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  * exception: those ids carry a real texture but vanilla renders them invisible, so they are dropped too.
  */
 @UtilityClass
-public class BlockIndexLoader {
+public class BlockIndexBuilder {
 
     /**
      * Blocks that are invisible by design in vanilla - they carry a real texture binding (so the

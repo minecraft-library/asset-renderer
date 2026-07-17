@@ -19,17 +19,17 @@ import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.option.AppearanceGate;
-import lib.minecraft.renderer.pipeline.load.block.BlockDefaultsReader;
-import lib.minecraft.renderer.pipeline.load.block.BlockItemsReader;
-import lib.minecraft.renderer.pipeline.load.block.BlockRendererOverrides;
-import lib.minecraft.renderer.pipeline.loader.BannerPatternLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockItemsLoader;
+import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
+import lib.minecraft.renderer.pipeline.pack.BannerPatternLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
-import lib.minecraft.renderer.pipeline.loader.BlockTagLoader;
+import lib.minecraft.renderer.pipeline.pack.BlockTagLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
-import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
+import lib.minecraft.renderer.pipeline.pack.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
-import lib.minecraft.renderer.pipeline.loader.PalettedPermutationLoader;
+import lib.minecraft.renderer.pipeline.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
@@ -93,7 +93,7 @@ import java.util.TreeMap;
  * writes those inputs.
  * <p>
  * <b>Altitude.</b> The dump is taken at renderer-context level, not {@code ClientAcquisition.Result} level.
- * Five loaders ({@code BlockModelLoader}, {@code BlockIndexLoader}, {@code ItemIndexLoader},
+ * Five loaders ({@code BlockModelLoader}, {@code BlockIndexBuilder}, {@code ItemIndexBuilder},
  * {@code EntityModelLoader}, {@code PalettedPermutationLoader}) run inside
  * {@link PipelineRendererContext#of} and their outputs exist nowhere else - and they are precisely
  * the loaders this series rewrites. A Result-level dump would green-light breaking every one of them.
@@ -178,7 +178,7 @@ public final class PipelineParityDump {
         if (context.knownBlockIds().isEmpty() || context.knownItemIds().isEmpty())
             throw new IllegalStateException("block index (" + context.knownBlockIds().size() + ") or item index ("
                 + context.knownItemIds().size() + ") is empty - the blocks/items sections and the id_order and "
-                + "icon_gui probes would silently emit nothing; BlockIndexLoader/ItemIndexLoader produced no rows");
+                + "icon_gui probes would silently emit nothing; BlockIndexBuilder/ItemIndexBuilder produced no rows");
 
         Path base = Path.of("").toAbsolutePath().normalize();
         Map<String, JsonObject> sections = new LinkedHashMap<>();
@@ -751,8 +751,8 @@ public final class PipelineParityDump {
         root.add("glint_items", CanonicalJson.strings(GlintItemsLoader.load()));
 
         Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.NONE, null);
-        root.add("block_default_state_keys", CanonicalJson.map(BlockDefaultsReader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag)), JsonPrimitive::new));
-        root.add("block_item_aliases", CanonicalJson.map(BlockItemsReader.load(Diagnostics.root("blockItems", Diagnostics.Output.NONE, null)), JsonPrimitive::new));
+        root.add("block_default_state_keys", CanonicalJson.map(BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag)), JsonPrimitive::new));
+        root.add("block_item_aliases", CanonicalJson.map(BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.NONE, null)), JsonPrimitive::new));
 
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         // Not the parsed item definitions the name suggests, and not every item: the loader keeps an

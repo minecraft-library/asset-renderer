@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.loader;
+package lib.minecraft.renderer.pipeline;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
@@ -42,7 +42,7 @@ import java.util.Map;
  * {@code Items} registry) that drives the automatic enchantment foil on intrinsically-foil items.
  */
 @UtilityClass
-public class ItemIndexLoader {
+public class ItemIndexBuilder {
 
     /**
      * The shield item id. Its vanilla item model carries neither elements nor a {@code layer0}

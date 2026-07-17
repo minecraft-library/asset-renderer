@@ -17,13 +17,13 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
-import lib.minecraft.renderer.pipeline.loader.BlockIndexLoader;
+import lib.minecraft.renderer.pipeline.BlockIndexBuilder;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
-import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
+import lib.minecraft.renderer.pipeline.pack.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lib.minecraft.renderer.pipeline.loader.ItemIndexLoader;
-import lib.minecraft.renderer.pipeline.loader.PalettedPermutationLoader;
-import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
+import lib.minecraft.renderer.pipeline.ItemIndexBuilder;
+import lib.minecraft.renderer.pipeline.pack.PalettedPermutationLoader;
+import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.Capability;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
@@ -193,7 +193,7 @@ class PipelineRendererContextTest {
         itemTints.put("minecraft:leather_helmet", List.of(new LayerTint.Dye(0xFFA06540)));
 
         // Always-glinted item set. Synthetic: marks the fixture stick as foil so the alwaysGlinted
-        // flag plumbing through ItemIndexLoader can be asserted in isolation; vanilla's real set is
+        // flag plumbing through ItemIndexBuilder can be asserted in isolation; vanilla's real set is
         // the 7 intrinsically-foil items (enchanted_book, nether_star, ...).
         ConcurrentSet<String> glintItems = Concurrent.newSet("minecraft:stick");
 
@@ -204,10 +204,10 @@ class PipelineRendererContextTest {
 
         BlockModelLoader.LoadResult beResult = BlockModelLoader.load(stack);
         ConcurrentMap<String, Block.Entity> blockEntities = beResult.models();
-        ConcurrentMap<String, Block> blockIndex = BlockIndexLoader.load(
+        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(
             blockModels, blockTints, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, beResult.variants());
-        ConcurrentMap<String, Item> itemIndex = ItemIndexLoader.load(itemTints, glintItems, itemModels, itemTrees, blockEntities);
+        ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
 

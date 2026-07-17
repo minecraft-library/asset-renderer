@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.load.block;
+package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.pipeline.pack.Capability;

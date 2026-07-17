@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.load.block;
+package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -10,14 +10,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
- * Verifies {@link BlockDefaultsReader} against the bundled {@code block_defaults.json}: the
+ * Verifies {@link BlockDefaultsLoader} against the bundled {@code block_defaults.json}: the
  * structured {@code {prop:val}} states flatten to the property-sorted comma-joined key (empty state to
  * the empty string), and {@code unresolved} ids are absent - the empty-vs-absent distinction.
  */
-class BlockDefaultsReaderTest {
+class BlockDefaultsLoaderTest {
 
     private static @NotNull ConcurrentMap<String, String> load() {
-        return BlockDefaultsReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        return BlockDefaultsLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
     }
 
     @Test

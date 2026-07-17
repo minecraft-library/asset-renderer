@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.loader;
 
+import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.ResourceId;

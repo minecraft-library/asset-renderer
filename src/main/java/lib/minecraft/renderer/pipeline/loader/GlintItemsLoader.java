@@ -4,7 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.load.BundledResources;
+import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.tooling.ToolingGlintItems;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -53,7 +53,7 @@ public class GlintItemsLoader {
      * @throws PipelineException if the resource is missing or malformed
      */
     static @NotNull ConcurrentSet<String> loadNative(@NotNull Diagnostics diagnostics) {
-        ResourceDocument document = BundledResources.read(RESOURCE_NAME, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         HashSet<String> ids = new HashSet<>(document.as(GlintItemTable.class).items());
         return Concurrent.adoptSet(ids).toUnmodifiable();
     }

@@ -11,7 +11,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
+import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
 import lib.minecraft.renderer.pipeline.pack.FormatRange.FormatVersion;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisConfig;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisOverlays;

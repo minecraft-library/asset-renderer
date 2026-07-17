@@ -13,7 +13,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.pipeline.load.ArgbHex;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.load.BundledResources;
+import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
 import lib.minecraft.renderer.asset.Entity.BoneToggle;
@@ -130,8 +130,8 @@ public final class EntityModelLoader {
      *     coordinate absent from the geometry file
      */
     public static @NotNull ConcurrentMap<String, Entity> load(@NotNull Diagnostics diagnostics) {
-        Optional<ResourceDocument> geometryDoc = BundledResources.read(GEOMETRY_RESOURCE, BundledResources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
-        Optional<ResourceDocument> modelsDoc = BundledResources.read(MODELS_RESOURCE, BundledResources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
+        Optional<ResourceDocument> geometryDoc = BundledResource.read(GEOMETRY_RESOURCE, BundledResource.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
+        Optional<ResourceDocument> modelsDoc = BundledResource.read(MODELS_RESOURCE, BundledResource.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
         if (geometryDoc.isEmpty() || modelsDoc.isEmpty()) return Concurrent.newMap();
 
         Map<String, EntityModelData> geometries = parseGeometries(geometryDoc.get());
@@ -158,7 +158,7 @@ public final class EntityModelLoader {
      * @return family membership keyed by entity id (empty when the models resource is absent)
      */
     public static @NotNull Map<String, List<String>> loadFamilies(@NotNull Diagnostics diagnostics) {
-        Optional<ResourceDocument> modelsDoc = BundledResources.read(MODELS_RESOURCE, BundledResources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
+        Optional<ResourceDocument> modelsDoc = BundledResource.read(MODELS_RESOURCE, BundledResource.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
         if (modelsDoc.isEmpty()) return Map.of();
         JsonObject families = familiesOf(modelsDoc.get());
         if (families == null) return Map.of();

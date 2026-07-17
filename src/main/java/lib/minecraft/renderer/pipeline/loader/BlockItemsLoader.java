@@ -1,10 +1,10 @@
-package lib.minecraft.renderer.pipeline.load.block;
+package lib.minecraft.renderer.pipeline.loader;
 
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.load.BundledResources;
+import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
@@ -21,11 +21,11 @@ import java.util.HashMap;
  * aliased block's inventory icon poses through the shared item's {@code display.gui} rather than the
  * default iso pose, matching the in-game inventory.
  */
-public final class BlockItemsReader {
+public final class BlockItemsLoader {
 
     private static final @NotNull String RESOURCE_NAME = "block_items.json";
 
-    private BlockItemsReader() {}
+    private BlockItemsLoader() {}
 
     /**
      * Reads the secondary-to-standing block-item alias map from {@code block_items.json}.
@@ -36,7 +36,7 @@ public final class BlockItemsReader {
      * @throws PipelineException if the resource is missing or has no {@code aliases} object
      */
     public static @NotNull ConcurrentMap<String, String> load(@NotNull Diagnostics diagnostics) {
-        ResourceDocument document = BundledResources.read(RESOURCE_NAME, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         JsonObject root = document.payload().toGson().getAsJsonObject();
         if (!root.has("aliases"))
             throw new PipelineException("Block-items resource '%s' has no 'aliases' object", RESOURCE_NAME);

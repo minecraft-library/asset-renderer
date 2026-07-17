@@ -1,5 +1,6 @@
-package lib.minecraft.renderer.pipeline.load.block;
+package lib.minecraft.renderer.pipeline.loader;
 
+import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
@@ -17,7 +18,7 @@ import java.util.Set;
  * beds, banners, signs, skulls, shulkers, conduit, decorated_pot, copper_golem_statue, ...).
  *
  * <p>Those ids render through code-driven block-entity geometry - the non-additive {@code Block.Entity}
- * precedence in {@code BlockIndexLoader} hides any pack-supplied model, exactly as the vanilla client
+ * precedence in {@code BlockIndexBuilder} hides any pack-supplied model, exactly as the vanilla client
  * ignores a stray {@code chest.json}. Rather than silently discarding the pack's file, this pass names
  * the pack and points at the {@code renderer/*.json} override channel ({@link BlockRendererOverrides})
  * that CAN deliberately replace block-entity geometry. It changes no precedence and moves no output

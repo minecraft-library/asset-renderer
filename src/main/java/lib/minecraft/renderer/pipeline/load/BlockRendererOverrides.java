@@ -1,5 +1,6 @@
-package lib.minecraft.renderer.pipeline.load.block;
+package lib.minecraft.renderer.pipeline.load;
 
+import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
@@ -30,7 +31,7 @@ import java.util.Optional;
  * attribution.
  *
  * <p>The three accumulators are the OVERLAY over the classpath base: {@link BlockModelReader} and
- * {@link BlockDefaultsReader} read their bundled snapshot first, then apply these per-entry. A
+ * {@link BlockDefaultsLoader} read their bundled snapshot first, then apply these per-entry. A
  * vanilla-only stack ships none of these files, so the gathered overrides are empty and the readers
  * produce byte-identical output.
  *

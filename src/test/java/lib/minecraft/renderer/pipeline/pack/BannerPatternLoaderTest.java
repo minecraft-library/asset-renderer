@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.loader;
+package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.BannerPattern;

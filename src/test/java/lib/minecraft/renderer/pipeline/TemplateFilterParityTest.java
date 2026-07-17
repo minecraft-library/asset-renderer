@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.loader;
+package lib.minecraft.renderer.pipeline;
 
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
@@ -9,9 +9,14 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.pipeline.load.block.BlockDefaultsReader;
-import lib.minecraft.renderer.pipeline.load.block.BlockItemsReader;
-import lib.minecraft.renderer.pipeline.load.block.BlockRendererOverrides;
+import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockItemsLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
+import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
+import lib.minecraft.renderer.pipeline.pack.BlockStateLoader;
+import lib.minecraft.renderer.pipeline.pack.BlockTagLoader;
+import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
@@ -93,8 +98,8 @@ class TemplateFilterParityTest {
         blockTags = BlockTagLoader.load(stack);
 
         Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.NONE, null);
-        blockDefaultStateKeys = BlockDefaultsReader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));
-        blockItemAliases = BlockItemsReader.load(Diagnostics.root("blockItems", Diagnostics.Output.NONE, null));
+        blockDefaultStateKeys = BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));
+        blockItemAliases = BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.NONE, null));
 
         be = BlockModelLoader.load();
     }
@@ -102,10 +107,10 @@ class TemplateFilterParityTest {
     @Test
     @DisplayName("block filter keeps renderable variants, drops only empty templates")
     void blockFilter() {
-        Set<String> built = new HashSet<>(BlockIndexLoader.buildUnfiltered(
+        Set<String> built = new HashSet<>(BlockIndexBuilder.buildUnfiltered(
             blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts,
             blockTags, blockDefaultStateKeys, blockItemAliases, be.models(), be.variants()).keySet());
-        Set<String> kept = new HashSet<>(BlockIndexLoader.load(
+        Set<String> kept = new HashSet<>(BlockIndexBuilder.load(
             blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts,
             blockTags, blockDefaultStateKeys, blockItemAliases, be.models(), be.variants()).keySet());
         System.out.printf("[block] built=%d kept=%d dropped=%d%n", built.size(), kept.size(), built.size() - kept.size());
@@ -127,7 +132,7 @@ class TemplateFilterParityTest {
     @Test
     @DisplayName("item filter keeps renderable variants, drops only empty templates")
     void itemFilter() {
-        Set<String> kept = new HashSet<>(ItemIndexLoader.load(itemTints, glintItems, itemModels, itemTrees, be.models()).keySet());
+        Set<String> kept = new HashSet<>(ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, be.models()).keySet());
         System.out.printf("[item] kept=%d%n", kept.size());
 
         // Every range / trim / sprite variant renders, so it stays.

@@ -18,20 +18,20 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
-import lib.minecraft.renderer.pipeline.load.block.BlockDefaultsReader;
-import lib.minecraft.renderer.pipeline.load.block.BlockItemsReader;
-import lib.minecraft.renderer.pipeline.load.block.BlockRendererOverrides;
-import lib.minecraft.renderer.pipeline.loader.BannerPatternLoader;
-import lib.minecraft.renderer.pipeline.loader.BlockIndexLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockItemsLoader;
+import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
+import lib.minecraft.renderer.pipeline.pack.BannerPatternLoader;
+import lib.minecraft.renderer.pipeline.BlockIndexBuilder;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
-import lib.minecraft.renderer.pipeline.loader.BlockStateLoader;
-import lib.minecraft.renderer.pipeline.loader.BlockTagLoader;
+import lib.minecraft.renderer.pipeline.pack.BlockStateLoader;
+import lib.minecraft.renderer.pipeline.pack.BlockTagLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
-import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
+import lib.minecraft.renderer.pipeline.pack.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
-import lib.minecraft.renderer.pipeline.loader.ItemIndexLoader;
-import lib.minecraft.renderer.pipeline.loader.PalettedPermutationLoader;
+import lib.minecraft.renderer.pipeline.ItemIndexBuilder;
+import lib.minecraft.renderer.pipeline.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
@@ -68,7 +68,7 @@ import java.util.Set;
  * keyed by the resolved {@code (PackId, ResourceId)}.
  * <p>
  * Construction goes through {@link #of(ClientAssets)}, which delegates index building to the
- * pipeline loaders: {@link BlockIndexLoader} and {@link ItemIndexLoader} materialise the block /
+ * pipeline loaders: {@link BlockIndexBuilder} and {@link ItemIndexBuilder} materialise the block /
  * item indexes (keyed by namespaced id, registry-filtered so parent templates and submodels never
  * become atlas tiles), {@link BlockModelLoader} supplies block-entity geometry, and
  * {@link EntityModelLoader} supplies the entity index. The context itself only wraps the finished,
@@ -122,8 +122,8 @@ public final class PipelineRendererContext implements RendererContext {
         BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack, models.blocks());
 
         Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.CONSOLE, null);
-        ConcurrentMap<String, String> blockDefaultStateKeys = BlockDefaultsReader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));
-        ConcurrentMap<String, String> blockItemAliases = BlockItemsReader.load(Diagnostics.root("blockItems", Diagnostics.Output.CONSOLE, null));
+        ConcurrentMap<String, String> blockDefaultStateKeys = BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));
+        ConcurrentMap<String, String> blockItemAliases = BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.CONSOLE, null));
 
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
@@ -138,10 +138,10 @@ public final class PipelineRendererContext implements RendererContext {
         BlockModelLoader.LoadResult beResult = BlockModelLoader.load(stack);
         ConcurrentMap<String, Block.Entity> blockEntities = beResult.models();
 
-        ConcurrentMap<String, Block> blockIndex = BlockIndexLoader.load(
+        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(
             models.blocks(), blockTints, itemDefinitions, blockStates.variants(), blockStates.multiparts(),
             blockTags, blockDefaultStateKeys, blockItemAliases, blockEntities, beResult.variants());
-        ConcurrentMap<String, Item> itemIndex = ItemIndexLoader.load(
+        ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(
             itemTints, glintItems, models.items(), itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));

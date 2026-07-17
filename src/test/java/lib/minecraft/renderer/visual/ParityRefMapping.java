@@ -3,7 +3,7 @@ package lib.minecraft.renderer.visual;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.load.BundledResources;
+import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 
@@ -84,7 +84,7 @@ public final class ParityRefMapping {
      * @return the mapping, or an empty mapping when the resource is absent
      */
     public static @NotNull ParityRefMapping load() {
-        Optional<ResourceDocument> doc = BundledResources.read(MODELS_RESOURCE, BundledResources.MissingPolicy.GRACEFUL_EMPTY,
+        Optional<ResourceDocument> doc = BundledResource.read(MODELS_RESOURCE, BundledResource.MissingPolicy.GRACEFUL_EMPTY,
                                                                Diagnostics.root("parity_ref_mapping", Diagnostics.Output.NONE, null));
         if (doc.isEmpty()) return new ParityRefMapping(Map.of());
         JsonObject root = doc.get().payload().toGson().getAsJsonObject();
