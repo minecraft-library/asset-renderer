@@ -132,7 +132,8 @@ public final class PipelineRendererContext implements RendererContext {
 
         ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(
             models.blocks(), blockTints, itemDefinitions, blockStates.variants(), blockStates.multiparts(),
-            blockTags, blockDefaultStateKeys, blockItemAliases, blockEntities, beResult.variants());
+            blockTags, blockDefaultStateKeys, blockItemAliases, blockEntities, beResult.variants(),
+            itemTrees, models.items());
         ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(
             itemTints, glintItems, models.items(), itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();

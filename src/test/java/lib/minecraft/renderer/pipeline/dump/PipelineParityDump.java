@@ -462,6 +462,7 @@ public final class PipelineParityDump {
         root.addProperty("source", block.source().name());
         root.addProperty("default_state_key", block.defaultStateKey());
         root.addProperty("item_block_id", block.itemBlockId().id());
+        CanonicalJson.put(root, "icon_gui", block.iconGui(), PipelineParityDump::transform);
         CanonicalJson.put(root, "multipart", block.multipart(), multipart ->
             CanonicalJson.ordered(multipart.parts(), PipelineParityDump::part));
         CanonicalJson.put(root, "entity", block.entity(), PipelineParityDump::blockEntity);
@@ -589,11 +590,10 @@ public final class PipelineParityDump {
      * {@code stack.resolve} / {@code stack.resolveIn}, never the context's {@code resolveTexture}, which
      * decodes the PNG and writes the texture cache.
      * <p>
-     * The parameter is the concrete context, not the {@code RendererContext} interface, and deliberately:
-     * most of that interface's defaults return empty, but {@code resolveIconGui}'s default carries real
-     * logic and falls back to the BLOCK model's gui when the item lookups come back empty. A stub would
-     * not produce a loudly empty {@code icon_gui} - it would produce a populated, plausible, quietly
-     * wrong one. A compile-time type rules that out and cannot rot the way an {@code instanceof} can.
+     * {@code icon_gui} reads the baked {@link Block#iconGui()} field rather than a resolver method: the
+     * interface resolver was deleted in favour of baking the resolved {@code display.gui} transform at
+     * index build, and this probe pins that the baked value equals what the resolver produced (the
+     * byte-equality that proves the bake reproduces it).
      *
      * @param context the loaded renderer context
      * @param stack the resolved pack stack
@@ -611,7 +611,7 @@ public final class PipelineParityDump {
 
         JsonObject iconGui = new JsonObject();
         for (String id : context.knownBlockIds())
-            CanonicalJson.put(iconGui, id, context.resolveIconGui(context.findBlock(id).orElseThrow()),
+            CanonicalJson.put(iconGui, id, context.findBlock(id).orElseThrow().iconGui(),
                 PipelineParityDump::transform);
         root.add("icon_gui", iconGui);
 

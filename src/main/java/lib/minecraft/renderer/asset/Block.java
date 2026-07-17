@@ -6,6 +6,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
@@ -59,6 +60,11 @@ import java.util.Optional;
  *     {@code block_items.json} (an ASM walk of the {@code Items} registry) and baked on at
  *     pipeline-context construction, so the icon renderer resolves the shared item's
  *     {@code display.gui} the same way the in-game inventory does
+ * @param iconGui the resolved {@code display.gui} transform this block's inventory icon poses through -
+ *     the {@link #itemBlockId() item-block}'s gui (a {@code special} leaf resolves to its {@code base}
+ *     model's gui, a plain leaf to its own resolved model), falling back to this block's own model gui,
+ *     or empty when no gui is authored anywhere. Baked at index build so the icon renderer reads it
+ *     without walking the item dispatch tree at render time
  */
 public record Block(
     @NotNull ResourceId id,
@@ -71,7 +77,8 @@ public record Block(
     @NotNull Optional<Entity> entity,
     @NotNull Source source,
     @NotNull String defaultStateKey,
-    @NotNull ResourceId itemBlockId
+    @NotNull ResourceId itemBlockId,
+    @NotNull Optional<ModelTransform> iconGui
 ) {
 
     /**

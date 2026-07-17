@@ -109,10 +109,12 @@ class TemplateFilterParityTest {
     void blockFilter() {
         Set<String> built = new HashSet<>(BlockIndexBuilder.buildUnfiltered(
             blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts,
-            blockTags, blockDefaultStateKeys, blockItemAliases, be.models(), be.variants()).keySet());
+            blockTags, blockDefaultStateKeys, blockItemAliases, be.models(), be.variants(),
+            itemTrees, itemModels).keySet());
         Set<String> kept = new HashSet<>(BlockIndexBuilder.load(
             blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts,
-            blockTags, blockDefaultStateKeys, blockItemAliases, be.models(), be.variants()).keySet());
+            blockTags, blockDefaultStateKeys, blockItemAliases, be.models(), be.variants(),
+            itemTrees, itemModels).keySet());
         System.out.printf("[block] built=%d kept=%d dropped=%d%n", built.size(), kept.size(), built.size() - kept.size());
 
         // Concrete variant renders - real geometry + resolvable texture - must survive.

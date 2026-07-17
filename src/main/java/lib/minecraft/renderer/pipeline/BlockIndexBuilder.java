@@ -9,8 +9,13 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelNode;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -68,6 +73,8 @@ public class BlockIndexBuilder {
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param beEntries the block-entity geometry table from {@link BlockModelLoader}
      * @param beVariants the block-entity state-conditional variants from {@link BlockModelLoader}
+     * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
+     * @param itemModels the parsed item models keyed by full model id, for baking {@code iconGui}
      * @return the finished block index, keyed by stripped block id, unmodifiable
      */
     public static @NotNull ConcurrentMap<String, Block> load(
@@ -80,9 +87,11 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
         @NotNull ConcurrentMap<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
+        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
+        @NotNull ConcurrentMap<String, ModelData> itemModels
     ) {
-        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockTags, blockDefaultStateKeys, blockItemAliases, beEntries, beVariants);
+        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockTags, blockDefaultStateKeys, blockItemAliases, beEntries, beVariants, itemTrees, itemModels);
 
         int before = blockIndex.size();
         blockIndex.entrySet().removeIf(entry -> {
@@ -115,6 +124,8 @@ public class BlockIndexBuilder {
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param beEntries the block-entity geometry table
      * @param beVariants the block-entity state-conditional variants
+     * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
+     * @param itemModels the parsed item models keyed by full model id, for baking {@code iconGui}
      * @return the unfiltered block index, mutable
      */
     static @NotNull ConcurrentMap<String, Block> buildUnfiltered(
@@ -127,12 +138,14 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
         @NotNull ConcurrentMap<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
+        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
+        @NotNull ConcurrentMap<String, ModelData> itemModels
     ) {
         ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = buildReverseTagIndex(blockTags);
-        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, beEntries, beVariants, reverseTagIndex);
-        attachOrphanBlockEntities(blockIndex, beEntries, beVariants, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, reverseTagIndex);
-        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, beEntries, blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, reverseTagIndex);
+        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, beEntries, beVariants, reverseTagIndex, itemTrees, itemModels);
+        attachOrphanBlockEntities(blockIndex, beEntries, beVariants, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, reverseTagIndex, itemTrees, itemModels);
+        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, beEntries, blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, reverseTagIndex, itemTrees, itemModels);
         System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
         return blockIndex;
     }
@@ -211,6 +224,45 @@ public class BlockIndexBuilder {
     }
 
     /**
+     * Bakes the {@code display.gui} transform a block's inventory icon poses through, resolving it the
+     * same way the in-game inventory does: the item-block's dispatch tree at the neutral
+     * {@link ItemModelContext#gui() gui context} (a {@code special} leaf resolves to its {@code base}
+     * item model, a plain leaf to its own resolved model, both falling back to {@code <ns>:item/<name>}),
+     * reading that model's {@code display.gui}, then falling back to the block model's own gui. A
+     * dispatch or composite tree root exposes no readable transform, so it resolves to empty.
+     *
+     * @param itemBlockId the block whose inventory item this icon poses through ({@link #itemBlockIdFor})
+     * @param blockModel the block's own model, the final gui fallback
+     * @param itemTrees the parsed item dispatch trees keyed by item id
+     * @param itemModels the parsed item models keyed by full model id
+     * @return the resolved {@code display.gui}, or empty when none is authored anywhere
+     */
+    private static @NotNull Optional<ModelTransform> iconGuiFor(
+        @NotNull ResourceId itemBlockId, @NotNull ModelData blockModel,
+        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees, @NotNull ConcurrentMap<String, ModelData> itemModels) {
+        String itemId = itemBlockId.id();
+        Optional<ItemModelTree> tree = itemTrees.getOptional(itemId);
+
+        // The gui transform survives only on a direct model or special item wrapper. A dispatch or
+        // composite root exposes no readable transform, so the icon renders at the default iso pose.
+        ItemModelNode root = tree.map(ItemModelTree::root).orElse(null);
+        if (root != null && !(root instanceof ItemModelNode.Model) && !(root instanceof ItemModelNode.Special))
+            return Optional.empty();
+
+        String resolved = tree
+            .map(t -> ItemModelWalker.resolve(t, ItemModelContext.gui()))
+            .map(resolution -> resolution.special()
+                .map(ItemModelNode.Special::base)
+                .orElseGet(() -> resolution.modelId().orElse(null)))
+            .orElse(null);
+        String modelId = resolved != null ? resolved : itemBlockId.namespace() + ":item/" + itemBlockId.name();
+
+        Optional<ModelTransform> itemGui = itemModels.getOptional(modelId).map(model -> model.getDisplay().get("gui"));
+        if (itemGui.isPresent()) return itemGui;
+        return Optional.ofNullable(blockModel.getDisplay().get("gui"));
+    }
+
+    /**
      * Builds the primary block index by walking every parsed {@link ModelData} entry and
      * materialising a {@link Block} per id.
      * <p>
@@ -237,6 +289,8 @@ public class BlockIndexBuilder {
      * @param blockEntityEntries the block-entity geometry table from {@link BlockModelLoader}
      * @param beVariants the block-entity state-conditional variants from {@link BlockModelLoader}
      * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
+     * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
+     * @param itemModels the parsed item models keyed by full model id, for baking {@code iconGui}
      * @return a fresh map keyed by stripped block id
      */
     private static @NotNull ConcurrentMap<String, Block> buildPrimaryBlockIndex(
@@ -249,7 +303,9 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
-        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
+        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex,
+        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
+        @NotNull ConcurrentMap<String, ModelData> itemModels
     ) {
         ConcurrentMap<String, Block.Tint> tints = blockTints;
         ConcurrentMap<String, String> itemDefs = itemDefinitions;
@@ -292,6 +348,7 @@ public class BlockIndexBuilder {
                 source = Block.Source.TILE_ENTITY;
             }
 
+            ResourceId itemBlockId = itemBlockIdFor(blockItemAliases, blockId);
             blockIndex.put(blockId, new Block(
                 blockResource,
                 modelToUse,
@@ -303,7 +360,8 @@ public class BlockIndexBuilder {
                 Optional.ofNullable(entity),
                 source,
                 defaultKeyFor(blockDefaultStateKeys, blockId),
-                itemBlockIdFor(blockItemAliases, blockId)
+                itemBlockId,
+                iconGuiFor(itemBlockId, modelToUse, itemTrees, itemModels)
             ));
         }
 
@@ -327,6 +385,8 @@ public class BlockIndexBuilder {
      * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
+     * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
+     * @param itemModels the parsed item models keyed by full model id, for baking {@code iconGui}
      */
     private static void attachOrphanBlockEntities(
         @NotNull ConcurrentMap<String, Block> blockIndex,
@@ -336,7 +396,9 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
         @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
         @NotNull ConcurrentMap<String, String> blockItemAliases,
-        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
+        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex,
+        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
+        @NotNull ConcurrentMap<String, ModelData> itemModels
     ) {
         ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = blockVariants;
         ConcurrentMap<String, Block.Multipart> multipartMap = blockMultiparts;
@@ -351,9 +413,11 @@ public class BlockIndexBuilder {
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             HashMap<String, String> textures = new HashMap<>();
             textures.put("#entity", be.textureId());
+            ModelData model = new ModelData();
+            ResourceId itemBlockId = itemBlockIdFor(blockItemAliases, blockId);
             blockIndex.put(blockId, new Block(
                 ResourceId.parse(blockId),
-                new ModelData(),
+                model,
                 Concurrent.adoptMap(textures),
                 variants,
                 multipart,
@@ -362,7 +426,8 @@ public class BlockIndexBuilder {
                 Optional.of(be),
                 Block.Source.TILE_ENTITY,
                 defaultKeyFor(blockDefaultStateKeys, blockId),
-                itemBlockIdFor(blockItemAliases, blockId)
+                itemBlockId,
+                iconGuiFor(itemBlockId, model, itemTrees, itemModels)
             ));
         }
     }
@@ -412,6 +477,8 @@ public class BlockIndexBuilder {
      * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
+     * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
+     * @param itemModels the parsed item models keyed by full model id, for baking {@code iconGui}
      * @return the set of ids registered through this fallback path (kept by the caller for the
      *     diagnostic count line)
      */
@@ -425,7 +492,9 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
         @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
         @NotNull ConcurrentMap<String, String> blockItemAliases,
-        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
+        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex,
+        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
+        @NotNull ConcurrentMap<String, ModelData> itemModels
     ) {
         ConcurrentMap<String, Block.Tint> tints = blockTints;
         ConcurrentMap<String, String> itemDefs = itemDefinitions;
@@ -456,6 +525,7 @@ public class BlockIndexBuilder {
             Optional<Block.Entity> attachedEntity = additiveEntity != null && additiveEntity.additive()
                 ? Optional.of(additiveEntity) : Optional.empty();
             Block.Source source = attachedEntity.isPresent() ? Block.Source.TILE_ENTITY : Block.Source.BLOCKSTATE_ONLY;
+            ResourceId itemBlockId = itemBlockIdFor(blockItemAliases, blockId);
             blockIndex.put(blockId, new Block(
                 ResourceId.parse(blockId),
                 modelToUse,
@@ -467,7 +537,8 @@ public class BlockIndexBuilder {
                 attachedEntity,
                 source,
                 defaultKeyFor(blockDefaultStateKeys, blockId),
-                itemBlockIdFor(blockItemAliases, blockId)));
+                itemBlockId,
+                iconGuiFor(itemBlockId, modelToUse, itemTrees, itemModels)));
             blockstateOnlyIds.add(blockId);
         }
         return blockstateOnlyIds;

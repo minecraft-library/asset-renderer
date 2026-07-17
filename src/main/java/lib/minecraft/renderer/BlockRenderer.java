@@ -224,7 +224,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * honouring the block's authored
          * {@code display.gui} pose for a neutral inventory render. Every block - plain, mirrored-Y, and
          * block-entity - reads the same source the in-game icon and the vanilla-reference harness use:
-         * the block item's {@code display.gui} (via {@link RendererContext#resolveIconGui}, which
+         * the block item's {@code display.gui} (baked onto {@link Block#iconGui()} at index build, which
          * resolves a special model to its base item model), applied in FULL (rotation + translation +
          * per-axis scale) by {@link Camera#fromDisplayGui}. The standard {@code block/block.json} gui
          * ({@code [30, 225, 0]}, scale {@code 0.625}) collapses to {@link Projection#VANILLA_ISO}
@@ -244,7 +244,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (!output.isNeutralInventoryIcon())
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
 
-            ModelTransform gui = this.context.resolveIconGui(block).orElse(null);
+            ModelTransform gui = block.iconGui().orElse(null);
             if (gui == null)
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
             return new View(Camera.fromDisplayGui(gui), LightingFrame.tracking(gui.getRotation()));
