@@ -14,8 +14,17 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.BlockTag;
+import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
+import lib.minecraft.renderer.pipeline.loader.BlockIndexLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
+import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.pipeline.loader.ItemIndexLoader;
+import lib.minecraft.renderer.pipeline.loader.PalettedPermutationLoader;
 import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.Capability;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
@@ -46,7 +55,7 @@ import static org.hamcrest.Matchers.*;
  * Unit tests for {@link PipelineRendererContext}.
  * <p>
  * The fixtures build a real on-disk pack layout in a temporary directory and synthesise a
- * minimal {@link Pipeline.Result} around it, so the tests exercise the same code paths
+ * minimal {@link ClientAssets} around it, so the tests exercise the same code paths
  * a production pipeline run would hit without needing to download the client jar.
  */
 @DisplayName("PipelineRendererContext wraps a pipeline result into a rendering context")
@@ -55,16 +64,19 @@ class PipelineRendererContextTest {
     @TempDir
     static Path packRoot;
 
-    /** Context under test, wrapping the synthetic {@link #result} via {@link PipelineRendererContext#of}. */
+    /** Context under test, built directly from the synthetic stack + indexes via its constructor. */
     private static PipelineRendererContext context;
 
-    /** Hand-assembled pipeline result the context is built from; also probed directly by pass-through tests. */
-    private static Pipeline.Result result;
+    /** The synthetic pack stack the context is built over; probed directly by pass-through tests. */
+    private static PackStack stack;
+
+    /** The synthetic block-tint map, probed by the tint pass-through test. */
+    private static ConcurrentMap<String, Block.Tint> blockTints;
 
     /**
      * Stages a minimal on-disk pack (fixture PNG + animation sidecar + grass colormap) in the temp
      * directory, scans it with the real {@link TextureIndexer} / {@link ColorMapLoader}, synthesises
-     * the remaining {@link Pipeline.Result} maps by hand, and wraps the whole thing in the
+     * the remaining {@link ClientAssets} maps by hand, and wraps the whole thing in the
      * {@link PipelineRendererContext} under test.
      *
      * @throws IOException if writing the fixture PNGs or sidecar fails
@@ -114,10 +126,10 @@ class PipelineRendererContextTest {
         ResourcePack vanillaPack = new ResourcePack(
             PackId.VANILLA, new PackContainer.Directory(packRoot), MCMeta.EMPTY,
             Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
-        PackStack stack = PackStack.of(Concurrent.newList(vanillaPack))
+        stack = PackStack.of(Concurrent.newList(vanillaPack))
             .withTextureIndex(TextureIndexer.index(PackStack.of(Concurrent.newList(vanillaPack))));
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
-        ConcurrentMap<String, Block.Tint> blockTints = Concurrent.newMap();
+        blockTints = Concurrent.newMap();
         blockTints.put("minecraft:grass_block", new Block.Tint(Block.TintTarget.GRASS, Optional.empty()));
         blockTints.put("minecraft:oak_leaves", new Block.Tint(Block.TintTarget.FOLIAGE, Optional.empty()));
         blockTints.put("minecraft:spruce_leaves", new Block.Tint(Block.TintTarget.CONSTANT, Optional.of(0xFF619961)));
@@ -125,7 +137,7 @@ class PipelineRendererContextTest {
         // Synthetic model maps. Each model references the fixture texture so resolveTexture
         // has a meaningful lookup target. Gson is used in place of reflective setters because
         // the DTOs are already Gson-friendly and the JSON form matches what the production
-        // pipeline feeds through ModelResolver.
+        // pipeline feeds through ResolvedModels.
         Gson gson = GsonSettings.defaults().create();
         ConcurrentMap<String, ModelData> blockModels = Concurrent.newMap();
         blockModels.put(
@@ -185,17 +197,23 @@ class PipelineRendererContextTest {
         // the 7 intrinsically-foil items (enchanted_book, nether_star, ...).
         ConcurrentSet<String> glintItems = Concurrent.newSet("minecraft:stick");
 
-        result = new Pipeline.Result(
-            packRoot,
-            stack,
-            colorMaps, blockTints, blockModels, itemModels,
-            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), itemTints, Concurrent.newMap(), glintItems,
-            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
-            RuleSet.empty(PackId.VANILLA),
-            Concurrent.newMap(),
-            Concurrent.newMap()
-        );
-        context = PipelineRendererContext.of(result);
+        // The context is built directly via its @RequiredArgsConstructor (of() takes real ClientAssets;
+        // this test drives synthetic maps), running the same index loaders of() runs over the stack.
+        ConcurrentMap<String, ItemModelTree> itemTrees = Concurrent.newMap();
+        ConcurrentMap<String, BlockTag> blockTags = Concurrent.newMap();
+
+        BlockModelLoader.LoadResult beResult = BlockModelLoader.load(stack);
+        ConcurrentMap<String, Block.Entity> blockEntities = beResult.models();
+        ConcurrentMap<String, Block> blockIndex = BlockIndexLoader.load(
+            blockModels, blockTints, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, beResult.variants());
+        ConcurrentMap<String, Item> itemIndex = ItemIndexLoader.load(itemTints, glintItems, itemModels, itemTrees, blockEntities);
+        ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
+        TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
+
+        context = new PipelineRendererContext(
+            stack, blockIndex, itemIndex, itemTrees, itemModels, entityIndex, colorMaps,
+            blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, RuleSet.empty(PackId.VANILLA), synthesizer);
     }
 
     @Test
@@ -324,10 +342,10 @@ class PipelineRendererContextTest {
     @Test
     @DisplayName("the pack stack resolves the vanilla pack and nothing else")
     void stackResolvesVanillaOnly() {
-        Optional<ResourcePack> vanilla = result.getStack().byId(PackId.VANILLA);
+        Optional<ResourcePack> vanilla = stack.byId(PackId.VANILLA);
         assertThat(vanilla.isPresent(), is(true));
         assertThat(vanilla.get().roots().isEmpty(), is(false));
-        assertThat(result.getStack().byId(new PackId("nonexistent")).isPresent(), is(false));
+        assertThat(stack.byId(new PackId("nonexistent")).isPresent(), is(false));
     }
 
     @Test
@@ -392,7 +410,7 @@ class PipelineRendererContextTest {
     @Test
     @DisplayName("IndexedTexture carries the whole mcmeta sidecar for sidecar-equipped PNGs")
     void textureAnimationFieldIsPopulated() {
-        IndexedTexture fixture = result.getStack().textureIndex().get(ResourceId.parse("minecraft:block/fixture"));
+        IndexedTexture fixture = stack.textureIndex().get(ResourceId.parse("minecraft:block/fixture"));
         assertThat(fixture, is(notNullValue()));
         assertThat(fixture.meta().isPresent(), is(true));
         assertThat(fixture.meta().get().animation().isPresent(), is(true));
@@ -400,9 +418,9 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("Synthetic block tint map is wired through to Pipeline.Result")
+    @DisplayName("Synthetic block tint map is wired through to ClientAssets")
     void blockTintsExposedFromResult() {
-        ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
+        ConcurrentMap<String, Block.Tint> tints = blockTints;
         assertThat(tints.size(), equalTo(3));
         assertThat(tints.containsKey("minecraft:grass_block"), is(true));
         assertThat(tints.containsKey("minecraft:oak_leaves"), is(true));

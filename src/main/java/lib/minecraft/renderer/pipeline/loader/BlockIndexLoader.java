@@ -11,7 +11,6 @@ import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
-import lib.minecraft.renderer.pipeline.Pipeline;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -26,7 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Materialises the renderer's block index from a {@link Pipeline.Result} and the block-entity
+ * Materialises the renderer's block index from the parsed block asset tables and the block-entity
  * geometry table, returning the finished {@code blockId -> }{@link Block} map the renderer
  * context wraps directly.
  * <p>
@@ -38,7 +37,7 @@ import java.util.stream.Collectors;
  * Because the primary pass keys off model FILES, the parent templates ({@code block/stairs},
  * {@code block/cross}, {@code block/slab}) leak in as fake {@code minecraft:<name>} entries. They
  * are dropped structurally rather than by name: a template carries only unresolved
- * {@code #variable} texture references, so it would render blank ({@link Models#rendersNothing}).
+ * {@code #variable} texture references, so it would render blank ({@link ModelData#rendersNothing}).
  * Concrete variant models that DO render ({@code block/acacia_slab_top}, {@code block/redstone_dust_side},
  * door halves, growth stages) are kept. {@link #INVISIBLE_BLOCK_NAMES} is the one explicit
  * exception: those ids carry a real texture but vanilla renders them invisible, so they are dropped too.
@@ -59,17 +58,31 @@ public class BlockIndexLoader {
     /**
      * Builds and filters the renderer's block index.
      *
-     * @param result the pipeline result supplying block models, tints, item-defs, variants, multiparts, and tags
+     * @param blockModels the parsed block model data keyed by full model id
+     * @param blockTints the block tint bindings keyed by stripped block id
+     * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
+     * @param blockVariants the blockstate variant maps keyed by stripped block id
+     * @param blockMultiparts the multipart descriptors keyed by stripped block id
+     * @param blockTags the block-tag membership descriptors keyed by tag id
+     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
+     * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param beEntries the block-entity geometry table from {@link BlockModelLoader}
      * @param beVariants the block-entity state-conditional variants from {@link BlockModelLoader}
      * @return the finished block index, keyed by stripped block id, unmodifiable
      */
     public static @NotNull ConcurrentMap<String, Block> load(
-        @NotNull Pipeline.Result result,
+        @NotNull ConcurrentMap<String, ModelData> blockModels,
+        @NotNull ConcurrentMap<String, Block.Tint> blockTints,
+        @NotNull ConcurrentMap<String, String> itemDefinitions,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
+        @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
+        @NotNull ConcurrentMap<String, BlockTag> blockTags,
+        @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
+        @NotNull ConcurrentMap<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants
     ) {
-        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(result, beEntries, beVariants);
+        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockTags, blockDefaultStateKeys, blockItemAliases, beEntries, beVariants);
 
         int before = blockIndex.size();
         blockIndex.entrySet().removeIf(entry -> {
@@ -92,20 +105,34 @@ public class BlockIndexLoader {
      * Runs the three build passes and returns the assembled index <b>before</b> the empty-model /
      * invisible filter. Exposed package-privately so the parity test can inspect the full built set.
      *
-     * @param result the pipeline result
+     * @param blockModels the parsed block model data keyed by full model id
+     * @param blockTints the block tint bindings keyed by stripped block id
+     * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
+     * @param blockVariants the blockstate variant maps keyed by stripped block id
+     * @param blockMultiparts the multipart descriptors keyed by stripped block id
+     * @param blockTags the block-tag membership descriptors keyed by tag id
+     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
+     * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param beEntries the block-entity geometry table
      * @param beVariants the block-entity state-conditional variants
      * @return the unfiltered block index, mutable
      */
     static @NotNull ConcurrentMap<String, Block> buildUnfiltered(
-        @NotNull Pipeline.Result result,
+        @NotNull ConcurrentMap<String, ModelData> blockModels,
+        @NotNull ConcurrentMap<String, Block.Tint> blockTints,
+        @NotNull ConcurrentMap<String, String> itemDefinitions,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
+        @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
+        @NotNull ConcurrentMap<String, BlockTag> blockTags,
+        @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
+        @NotNull ConcurrentMap<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants
     ) {
-        ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = buildReverseTagIndex(result.getBlockTags());
-        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(result, beEntries, beVariants, reverseTagIndex);
-        attachOrphanBlockEntities(blockIndex, beEntries, beVariants, result, reverseTagIndex);
-        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, beEntries, result, reverseTagIndex);
+        ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = buildReverseTagIndex(blockTags);
+        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, beEntries, beVariants, reverseTagIndex);
+        attachOrphanBlockEntities(blockIndex, beEntries, beVariants, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, reverseTagIndex);
+        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, beEntries, blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, reverseTagIndex);
         System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
         return blockIndex;
     }
@@ -122,7 +149,7 @@ public class BlockIndexLoader {
     }
 
     /**
-     * Inverts the tag-to-blocks map into a block-to-tags map. The primary {@link Pipeline}
+     * Inverts the tag-to-blocks map into a block-to-tags map. The parsed tag table
      * keys block tags by tag id with the member block ids as the value list; the renderer wants
      * the reverse so each block's {@code tags} field can be populated in a single hash lookup
      * during block index construction.
@@ -162,12 +189,12 @@ public class BlockIndexLoader {
      * Returns the bundled default-state key for a block id, or empty when the block has no
      * entry in {@code block_defaults.json} (an empty-property block).
      *
-     * @param result the pipeline result supplying the loaded default-state-key table
+     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
      * @param blockId the namespaced block id
      * @return the default-state key, or empty
      */
-    private static @NotNull String defaultKeyFor(@NotNull Pipeline.Result result, @NotNull String blockId) {
-        return result.getBlockDefaultStateKeys().getOrDefault(blockId, "");
+    private static @NotNull String defaultKeyFor(@NotNull ConcurrentMap<String, String> blockDefaultStateKeys, @NotNull String blockId) {
+        return blockDefaultStateKeys.getOrDefault(blockId, "");
     }
 
     /**
@@ -175,12 +202,12 @@ public class BlockIndexLoader {
      * secondary block that shares another block's item ({@code white_wall_banner} to
      * {@code white_banner}), or the block's own id when it owns its item.
      *
-     * @param result the pipeline result supplying the loaded block-item alias table
+     * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param blockId the namespaced block id
      * @return the item-block id, defaulting to {@code blockId} when the block owns its own item
      */
-    private static @NotNull ResourceId itemBlockIdFor(@NotNull Pipeline.Result result, @NotNull String blockId) {
-        return ResourceId.parse(result.getBlockItemAliases().getOrDefault(blockId, blockId));
+    private static @NotNull ResourceId itemBlockIdFor(@NotNull ConcurrentMap<String, String> blockItemAliases, @NotNull String blockId) {
+        return ResourceId.parse(blockItemAliases.getOrDefault(blockId, blockId));
     }
 
     /**
@@ -200,25 +227,37 @@ public class BlockIndexLoader {
      * primary block.json model in place and only attach the entity for the renderer to merge
      * on top; these stay {@link Block.Source#PRIMARY}.
      *
-     * @param result the pipeline result supplying block models, tints, item-defs, variants, and multiparts
+     * @param blockModels the parsed block model data keyed by full model id
+     * @param blockTints the block tint bindings keyed by stripped block id
+     * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
+     * @param blockVariants the blockstate variant maps keyed by stripped block id
+     * @param blockMultiparts the multipart descriptors keyed by stripped block id
+     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
+     * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param blockEntityEntries the block-entity geometry table from {@link BlockModelLoader}
      * @param beVariants the block-entity state-conditional variants from {@link BlockModelLoader}
      * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
      * @return a fresh map keyed by stripped block id
      */
     private static @NotNull ConcurrentMap<String, Block> buildPrimaryBlockIndex(
-        @NotNull Pipeline.Result result,
+        @NotNull ConcurrentMap<String, ModelData> blockModels,
+        @NotNull ConcurrentMap<String, Block.Tint> blockTints,
+        @NotNull ConcurrentMap<String, String> itemDefinitions,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
+        @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
+        @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
+        @NotNull ConcurrentMap<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
     ) {
-        ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
-        ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockVariants();
-        ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
+        ConcurrentMap<String, Block.Tint> tints = blockTints;
+        ConcurrentMap<String, String> itemDefs = itemDefinitions;
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = blockVariants;
+        ConcurrentMap<String, Block.Multipart> multipartMap = blockMultiparts;
 
         HashMap<String, Block> blockIndex = new HashMap<>();
-        for (Map.Entry<String, ModelData> blockEntry : result.getBlockModels().entrySet()) {
+        for (Map.Entry<String, ModelData> blockEntry : blockModels.entrySet()) {
             String modelId = blockEntry.getKey();
             ModelData model = blockEntry.getValue();
             ResourceId blockResource = ResourceId.ofModelId(modelId);
@@ -227,7 +266,7 @@ public class BlockIndexLoader {
             ModelData modelToUse = model;
             String itemModelRef = itemDefs.get(blockId);
             if (itemModelRef != null && !itemModelRef.equals(modelId)) {
-                ModelData override = result.getBlockModels().get(itemModelRef);
+                ModelData override = blockModels.get(itemModelRef);
                 if (override != null)
                     modelToUse = override;
             }
@@ -263,8 +302,8 @@ public class BlockIndexLoader {
                 tint,
                 Optional.ofNullable(entity),
                 source,
-                defaultKeyFor(result, blockId),
-                itemBlockIdFor(result, blockId)
+                defaultKeyFor(blockDefaultStateKeys, blockId),
+                itemBlockIdFor(blockItemAliases, blockId)
             ));
         }
 
@@ -283,18 +322,24 @@ public class BlockIndexLoader {
      * @param blockIndex the primary index produced by {@link #buildPrimaryBlockIndex}; mutated in place
      * @param blockEntityEntries the block-entity geometry table from {@link BlockModelLoader}
      * @param beVariants the block-entity state-conditional variants from {@link BlockModelLoader}
-     * @param result the pipeline result supplying variants and multiparts
+     * @param blockVariants the blockstate variant maps keyed by stripped block id
+     * @param blockMultiparts the multipart descriptors keyed by stripped block id
+     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
+     * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
      */
     private static void attachOrphanBlockEntities(
         @NotNull ConcurrentMap<String, Block> blockIndex,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
-        @NotNull Pipeline.Result result,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
+        @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
+        @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
+        @NotNull ConcurrentMap<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
     ) {
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockVariants();
-        ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = blockVariants;
+        ConcurrentMap<String, Block.Multipart> multipartMap = blockMultiparts;
 
         for (Map.Entry<String, Block.Entity> entry : blockEntityEntries.entrySet()) {
             String blockId = entry.getKey();
@@ -316,8 +361,8 @@ public class BlockIndexLoader {
                 new Block.Tint(Block.TintTarget.NONE, Optional.empty()),
                 Optional.of(be),
                 Block.Source.TILE_ENTITY,
-                defaultKeyFor(result, blockId),
-                itemBlockIdFor(result, blockId)
+                defaultKeyFor(blockDefaultStateKeys, blockId),
+                itemBlockIdFor(blockItemAliases, blockId)
             ));
         }
     }
@@ -359,7 +404,13 @@ public class BlockIndexLoader {
      * @param blockIndex the index from {@link #buildPrimaryBlockIndex} +
      *     {@link #attachOrphanBlockEntities}; mutated in place
      * @param blockEntityEntries the block-entity geometry table from {@link BlockModelLoader}
-     * @param result the pipeline result supplying block models, tints, item-defs, variants, and multiparts
+     * @param blockModels the parsed block model data keyed by full model id
+     * @param blockTints the block tint bindings keyed by stripped block id
+     * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
+     * @param blockVariants the blockstate variant maps keyed by stripped block id
+     * @param blockMultiparts the multipart descriptors keyed by stripped block id
+     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
+     * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
      * @return the set of ids registered through this fallback path (kept by the caller for the
      *     diagnostic count line)
@@ -367,13 +418,19 @@ public class BlockIndexLoader {
     private static @NotNull Set<String> attachBlockstateOnlyBlocks(
         @NotNull ConcurrentMap<String, Block> blockIndex,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
-        @NotNull Pipeline.Result result,
+        @NotNull ConcurrentMap<String, ModelData> blockModels,
+        @NotNull ConcurrentMap<String, Block.Tint> blockTints,
+        @NotNull ConcurrentMap<String, String> itemDefinitions,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
+        @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
+        @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
+        @NotNull ConcurrentMap<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
     ) {
-        ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
-        ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockVariants();
-        ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
+        ConcurrentMap<String, Block.Tint> tints = blockTints;
+        ConcurrentMap<String, String> itemDefs = itemDefinitions;
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = blockVariants;
+        ConcurrentMap<String, Block.Multipart> multipartMap = blockMultiparts;
 
         Set<String> blockstateOnlyIds = new HashSet<>();
         Set<String> candidateBlockstateIds = new LinkedHashSet<>();
@@ -382,7 +439,7 @@ public class BlockIndexLoader {
         for (String blockId : candidateBlockstateIds) {
             if (blockIndex.containsKey(blockId)) continue;
             if (isInvisible(blockId)) continue;
-            Optional<ResolvedBlockModel> resolved = resolveBlockStateModel(blockId, itemDefs, variantMap, result.getBlockModels());
+            Optional<ResolvedBlockModel> resolved = resolveBlockStateModel(blockId, itemDefs, variantMap, blockModels);
             if (resolved.isEmpty()) continue;
             ResolvedBlockModel hit = resolved.get();
 
@@ -409,8 +466,8 @@ public class BlockIndexLoader {
                 tint,
                 attachedEntity,
                 source,
-                defaultKeyFor(result, blockId),
-                itemBlockIdFor(result, blockId)));
+                defaultKeyFor(blockDefaultStateKeys, blockId),
+                itemBlockIdFor(blockItemAliases, blockId)));
             blockstateOnlyIds.add(blockId);
         }
         return blockstateOnlyIds;

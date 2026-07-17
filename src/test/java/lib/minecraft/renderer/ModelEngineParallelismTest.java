@@ -5,8 +5,9 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -49,8 +50,8 @@ class ModelEngineParallelismTest {
 
     @BeforeAll
     static void bootstrapPipeline() {
-        Pipeline.Result result = Pipeline.run(
-            PipelineOptions.builder()
+        ClientAssets result = ClientAcquisition.acquire(
+            ClientOptions.builder()
                 .version("26.1")
                 .cacheRoot(CACHE_ROOT)
                 .build()

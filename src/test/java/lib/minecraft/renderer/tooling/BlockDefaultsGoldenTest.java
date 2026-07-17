@@ -5,8 +5,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -57,7 +58,7 @@ class BlockDefaultsGoldenTest {
     @Tag("slow")
     @DisplayName("each default resolves to a live-pipeline variant")
     void crossCheckAgainstLivePipeline() throws IOException {
-        Pipeline.Result result = Pipeline.run(PipelineOptions.builder()
+        ClientAssets result = ClientAcquisition.acquire(ClientOptions.builder()
             .version("26.1")
             .cacheRoot(new File("cache/it"))
             .build());

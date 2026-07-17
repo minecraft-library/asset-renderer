@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.tooling.kernel;
 
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -44,10 +44,10 @@ public class ToolingPipeline {
      * @throws ToolingException if the jar cannot be acquired or opened
      */
     public static @NotNull ToolingSession openSession(@NotNull String flow, @NotNull Diagnostics.Output mode) {
-        PipelineOptions options = PipelineOptions.defaults();
+        ClientOptions options = ClientOptions.defaults();
         Path jar;
         try {
-            jar = Pipeline.downloadJarToCache(options);
+            jar = ClientAcquisition.downloadJarToCache(options);
         } catch (PipelineException ex) {
             throw new ToolingException(ex, "Failed to acquire client jar for flow '%s'", flow);
         }

@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Entity;
@@ -16,22 +17,36 @@ import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.model.ModelTransform;
-import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.option.AppearanceGate;
+import lib.minecraft.renderer.pipeline.load.block.BlockDefaultsReader;
+import lib.minecraft.renderer.pipeline.load.block.BlockItemsReader;
+import lib.minecraft.renderer.pipeline.load.block.BlockRendererOverrides;
+import lib.minecraft.renderer.pipeline.loader.BannerPatternLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockTagLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
+import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
 import lib.minecraft.renderer.pipeline.loader.PalettedPermutationLoader;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.pack.FormatRange;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelNode;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import lib.minecraft.renderer.pipeline.pack.item.ItemNodeAccess;
 import lib.minecraft.renderer.pipeline.pack.item.SpecialTransform;
 import lib.minecraft.renderer.pipeline.pack.rule.BlockMatch;
@@ -47,6 +62,7 @@ import lib.minecraft.renderer.pipeline.pack.rule.NbtPredicate;
 import lib.minecraft.renderer.pipeline.pack.rule.NbtRule;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import lib.minecraft.renderer.pipeline.pack.rule.TileRef;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -76,7 +92,7 @@ import java.util.TreeMap;
  * and implies the same thing whenever the phase's diff leaves the render path alone. This class
  * writes those inputs.
  * <p>
- * <b>Altitude.</b> The dump is taken at renderer-context level, not {@code Pipeline.Result} level.
+ * <b>Altitude.</b> The dump is taken at renderer-context level, not {@code ClientAcquisition.Result} level.
  * Five loaders ({@code BlockModelLoader}, {@code BlockIndexLoader}, {@code ItemIndexLoader},
  * {@code EntityModelLoader}, {@code PalettedPermutationLoader}) run inside
  * {@link PipelineRendererContext#of} and their outputs exist nowhere else - and they are precisely
@@ -112,7 +128,7 @@ public final class PipelineParityDump {
         Path root = Path.of("cache", "parity-dump", label);
 
         long started = System.currentTimeMillis();
-        dump(PipelineOptions.defaults(), root.resolve("vanilla"));
+        dump(ClientOptions.defaults(), root.resolve("vanilla"));
 
         List<File> fixtures = fixtures();
         if (fixtures.size() < PACK_FIXTURES.size()) {
@@ -120,7 +136,7 @@ public final class PipelineParityDump {
                 + "(want " + PACK_FIXTURES + ", found " + fixtures.stream().map(File::getName).toList() + "). "
                 + "The F3/F4/F5/W5 phases have NO evidence without it.");
         } else {
-            dump(PipelineOptions.builder().texturePacks(Concurrent.adoptList(fixtures)).build(), root.resolve("packs"));
+            dump(ClientOptions.builder().texturePacks(Concurrent.adoptList(fixtures)).build(), root.resolve("packs"));
         }
 
         System.out.println("parityDump '" + label + "' written in " + (System.currentTimeMillis() - started) + "ms");
@@ -147,10 +163,11 @@ public final class PipelineParityDump {
      * @param directory the output directory for this configuration
      * @throws IOException if a section cannot be written
      */
-    private static void dump(@NotNull PipelineOptions options, @NotNull Path directory) throws IOException {
-        Pipeline.Result result = Pipeline.run(options);
-        PipelineRendererContext context = PipelineRendererContext.of(result);
-        PackStack stack = result.getStack();
+    private static void dump(@NotNull ClientOptions options, @NotNull Path directory) throws IOException {
+        ClientAssets assets = ClientAcquisition.acquire(options);
+        PackStack stack = PackAcquisition.acquire(assets);
+        PipelineRendererContext context = PipelineRendererContext.of(assets);
+        ResolvedModels resolvedModels = ResolvedModels.load(stack);
 
         // An empty index does not fail anything downstream - every lookup just returns empty - so without
         // these the dump would write a well-formed, fully-populated-looking artifact of nothing at all,
@@ -169,8 +186,8 @@ public final class PipelineParityDump {
         sections.put("run", run(options));
         sections.put("packs", packs(stack, base));
         sections.put("textures", textures(stack));
-        sections.put("block-models", models(result.getBlockModels()));
-        sections.put("item-models", models(result.getItemModels()));
+        sections.put("block-models", models(resolvedModels.blocks()));
+        sections.put("item-models", models(resolvedModels.items()));
         sections.put("blocks", blocks(context));
 
         // The same pure call PipelineRendererContext.of makes at build time, re-run because the context
@@ -185,11 +202,11 @@ public final class PipelineParityDump {
         // there is no way to enumerate the index it holds. This is the same call it made to build it.
         sections.put("entities", CanonicalJson.map(EntityModelLoader.load(), PipelineParityDump::entity));
         sections.put("items", items(context));
-        sections.put("rules", rules(result.getRules()));
+        sections.put("rules", rules(stack.rules()));
         sections.put("synthesis", synthesis(stack));
-        sections.put("misc", misc(result));
+        sections.put("misc", misc(stack));
         sections.put("probes", probes(context, stack));
-        sections.put("trees", CanonicalJson.map(result.getItemTrees(), tree -> {
+        sections.put("trees", CanonicalJson.map(ItemModelTreeLoader.load(stack), tree -> {
             JsonObject entry = new JsonObject();
             entry.addProperty("id", tree.id().id());
             entry.add("root", node(tree.root()));
@@ -211,7 +228,7 @@ public final class PipelineParityDump {
      * @param options the configuration that was loaded
      * @return the run section
      */
-    private static @NotNull JsonObject run(@NotNull PipelineOptions options) {
+    private static @NotNull JsonObject run(@NotNull ClientOptions options) {
         JsonObject root = new JsonObject();
         root.addProperty("version", options.getVersion());
         root.add("texture_packs", CanonicalJson.ordered(
@@ -720,25 +737,30 @@ public final class PipelineParityDump {
     }
 
     /**
-     * Returns the miscellaneous section - the loaded families that are each too small to own a file.
+     * Returns the miscellaneous section - the loaded tables each too small to own a file. Each is
+     * re-loaded from {@code stack} here (the context exposes no accessor for the raw maps); the loaders
+     * are pure functions of the stack, so this reproduces exactly what the context built from.
      *
-     * @param result the loaded pipeline result
+     * @param stack the resolved pack stack
      * @return the misc section
      */
-    private static @NotNull JsonObject misc(Pipeline.@NotNull Result result) {
+    private static @NotNull JsonObject misc(@NotNull PackStack stack) {
         JsonObject root = new JsonObject();
-        root.add("block_tints", CanonicalJson.map(result.getBlockTints(), PipelineParityDump::tint));
-        root.add("potion_effect_colors", CanonicalJson.map(result.getPotionEffectColors(), CanonicalJson::argb));
-        root.add("glint_items", CanonicalJson.strings(result.getGlintItems()));
-        root.add("block_default_state_keys", CanonicalJson.map(result.getBlockDefaultStateKeys(), JsonPrimitive::new));
-        root.add("block_item_aliases", CanonicalJson.map(result.getBlockItemAliases(), JsonPrimitive::new));
+        root.add("block_tints", CanonicalJson.map(BlockTintsLoader.load(), PipelineParityDump::tint));
+        root.add("potion_effect_colors", CanonicalJson.map(PotionColorLoader.load(), CanonicalJson::argb));
+        root.add("glint_items", CanonicalJson.strings(GlintItemsLoader.load()));
 
+        Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.NONE, null);
+        root.add("block_default_state_keys", CanonicalJson.map(BlockDefaultsReader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag)), JsonPrimitive::new));
+        root.add("block_item_aliases", CanonicalJson.map(BlockItemsReader.load(Diagnostics.root("blockItems", Diagnostics.Output.NONE, null)), JsonPrimitive::new));
+
+        ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         // Not the parsed item definitions the name suggests, and not every item: the loader keeps an
         // entry only where the tree's root is a plain model AND that model is a block-model ref, so this
         // is the block-item inventory-model projection. A dispatch-rooted item is absent by design.
-        root.add("block_item_models", CanonicalJson.map(result.getItemDefinitions(), JsonPrimitive::new));
+        root.add("block_item_models", CanonicalJson.map(ItemModelTreeLoader.deriveBlockItemModels(itemTrees), JsonPrimitive::new));
 
-        root.add("block_tags", CanonicalJson.map(result.getBlockTags(), tag -> {
+        root.add("block_tags", CanonicalJson.map(BlockTagLoader.load(stack), tag -> {
             JsonObject entry = new JsonObject();
             entry.addProperty("id", tag.id().id());
             // ORDERED: the loader appends in JSON encounter order, resolving nested #tag refs in place,
@@ -747,7 +769,7 @@ public final class PipelineParityDump {
             return entry;
         }));
 
-        root.add("banner_patterns", CanonicalJson.map(result.getBannerPatterns(), pattern -> {
+        root.add("banner_patterns", CanonicalJson.map(BannerPatternLoader.load(stack), pattern -> {
             JsonObject entry = new JsonObject();
             entry.addProperty("id", pattern.id());
             entry.addProperty("asset_id", pattern.assetId());
@@ -756,13 +778,13 @@ public final class PipelineParityDump {
         }));
 
         // ORDERED inner list: a tint's index IS its layer index.
-        root.add("item_tints", CanonicalJson.map(result.getItemTints(),
+        root.add("item_tints", CanonicalJson.map(ItemModelTreeLoader.deriveTints(itemTrees),
             tints -> CanonicalJson.ordered(tints, PipelineParityDump::tint)));
 
-        // Sourced from the loaded result rather than probed back out of the context: the colormap decode
-        // path applies sRGB gamma where the texture-resolution path does not, so the same PNG yields
-        // different bytes through the two, and only these are the ones the renderer actually holds.
-        root.add("color_maps", CanonicalJson.map(result.getColorMaps(), Enum::name, colorMap -> {
+        // Sourced from the loader rather than probed back out of the context: the colormap decode path
+        // applies sRGB gamma where the texture-resolution path does not, so the same PNG yields different
+        // bytes through the two, and only these are the ones the renderer actually holds.
+        root.add("color_maps", CanonicalJson.map(ColorMapLoader.load(stack), Enum::name, colorMap -> {
             JsonObject entry = new JsonObject();
             entry.addProperty("id", colorMap.id());
             entry.addProperty("pack", colorMap.packId());

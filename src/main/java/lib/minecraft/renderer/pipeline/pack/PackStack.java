@@ -5,8 +5,10 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -32,14 +34,17 @@ public final class PackStack {
     private final @NotNull Map<PackId, ResourcePack> byId;
     private final @NotNull Set<String> namespaces;
     private final @NotNull ConcurrentMap<ResourceId, IndexedTexture> textureIndex;
+    private final @NotNull RuleSet rules;
     private final @NotNull Set<String> loggedAmbiguities = ConcurrentHashMap.newKeySet();
 
     private PackStack(@NotNull ConcurrentList<ResourcePack> ascending, @NotNull Map<PackId, ResourcePack> byId,
-                      @NotNull Set<String> namespaces, @NotNull ConcurrentMap<ResourceId, IndexedTexture> textureIndex) {
+                      @NotNull Set<String> namespaces, @NotNull ConcurrentMap<ResourceId, IndexedTexture> textureIndex,
+                      @NotNull RuleSet rules) {
         this.ascending = ascending;
         this.byId = byId;
         this.namespaces = namespaces;
         this.textureIndex = textureIndex;
+        this.rules = rules;
     }
 
     /**
@@ -63,7 +68,7 @@ public final class PackStack {
             byId.put(pack.id(), pack);
             namespaces.addAll(pack.namespaces());
         }
-        return new PackStack(ascending, Map.copyOf(byId), Set.copyOf(namespaces), Concurrent.newMap());
+        return new PackStack(ascending, Map.copyOf(byId), Set.copyOf(namespaces), Concurrent.newMap(), RuleSet.empty(PackId.VANILLA));
     }
 
     /**
@@ -73,7 +78,39 @@ public final class PackStack {
      * @return the indexed stack
      */
     public @NotNull PackStack withTextureIndex(@NotNull ConcurrentMap<ResourceId, IndexedTexture> index) {
-        return new PackStack(this.ascending, this.byId, this.namespaces, index);
+        return new PackStack(this.ascending, this.byId, this.namespaces, index, this.rules);
+    }
+
+    /**
+     * Returns a copy of this stack carrying the given merged rule set.
+     *
+     * @param rules the merged pack rules (CIT / CTM / colour overrides / glint)
+     * @return the stack carrying the rules
+     */
+    public @NotNull PackStack withRules(@NotNull RuleSet rules) {
+        return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, rules);
+    }
+
+    /**
+     * The merged pack rule payload the renderer consults - CIT rules, CTM rules, per-key colour
+     * overrides, and the global glint policy, folded across the stack by {@link RuleSet#merge}.
+     *
+     * @return the merged rules
+     */
+    public @NotNull RuleSet rules() {
+        return this.rules;
+    }
+
+    /**
+     * The vanilla base pack's on-disk root - the {@code <cacheRoot>/vanilla/<version>} directory the
+     * client jar was extracted into.
+     *
+     * @return the vanilla pack root
+     * @throws PipelineException if the vanilla pack is not directory-backed
+     */
+    public @NotNull Path vanillaRoot() {
+        if (vanilla().container() instanceof PackContainer.Directory dir) return dir.root();
+        throw new PipelineException("Vanilla pack '%s' is not directory-backed", vanilla().id());
     }
 
     /**

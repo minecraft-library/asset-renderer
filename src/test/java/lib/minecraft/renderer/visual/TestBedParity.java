@@ -23,8 +23,9 @@ import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -76,19 +77,19 @@ public final class TestBedParity {
     public static void main(String @NotNull [] args) throws IOException {
         int size = args.length > 0 ? Integer.parseInt(args[0]) : 1024;
 
-        Pipeline.Result result = Pipeline.run(PipelineOptions.defaults());
+        ClientAssets result = ClientAcquisition.acquire(ClientOptions.defaults());
         PipelineRendererContext context = PipelineRendererContext.of(result);
         BlockRenderer renderer = new BlockRenderer(context);
         Path outputDir = Path.of("cache/visual/bed-parity");
         Files.createDirectories(outputDir);
 
-        // 1. Pipeline entity model version
+        // 1. ClientAcquisition entity model version
         render(renderer, "minecraft:red_bed", size, outputDir.resolve("pipeline_red_bed.png"));
 
         // 2. mc-assets ground truth (block model elements)
         renderMcAssetsBed(context, size, outputDir.resolve("mc_assets_red_bed.png"));
 
-        // 3. Pipeline chest
+        // 3. ClientAcquisition chest
         render(renderer, "minecraft:chest", size, outputDir.resolve("pipeline_chest.png"));
 
         // 4. mc-assets chest ground truth

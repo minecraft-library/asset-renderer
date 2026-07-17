@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Unit coverage for {@link Pipeline#extractClientJar(Path, Path)} - in particular the
+ * Unit coverage for {@link ClientAcquisition#extractClientJar(Path, Path)} - in particular the
  * {@code pack.mcmeta} synthesis fallback that kicks in when the source jar does not ship
  * a root mcmeta (the modern Mojang client-jar shape, verified across 1.21.4 and 26.1
  * during the 999.8 backlog investigation).
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.is;
  * These tests construct synthetic ZIPs in-process - no Minecraft assets are touched and
  * the {@code @Tag("slow")} integration path is untouched.
  */
-@DisplayName("Pipeline.extractClientJar pack.mcmeta synthesis")
+@DisplayName("ClientAcquisition.extractClientJar pack.mcmeta synthesis")
 class PipelineExtractClientJarTest {
 
     private static final Gson GSON = GsonSettings.defaults().create();
@@ -65,7 +65,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         Path mcmeta = packRoot.resolve("pack.mcmeta");
         assertThat(Files.isRegularFile(mcmeta), is(true));
@@ -107,7 +107,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         MCMeta parsed = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"));
         assertThat(parsed.pack().orElseThrow().formats().min().major(), is(42));
@@ -138,7 +138,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         MCMeta parsed = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"));
         assertThat(parsed.pack().orElseThrow().formats().min().major(), is(46));
@@ -166,7 +166,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         MCMeta parsed = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"));
         assertThat(parsed.pack().orElseThrow().formats().min().major(), is(84));
@@ -184,7 +184,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         assertThat(Files.exists(packRoot.resolve("pack.mcmeta")), is(false));
     }
@@ -212,7 +212,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         assertThat(Files.exists(packRoot.resolve("pack.mcmeta")), is(false));
     }
@@ -233,7 +233,7 @@ class PipelineExtractClientJarTest {
             zip.closeEntry();
         });
 
-        Pipeline.extractClientJar(jarPath, packRoot);
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         assertThat(Files.exists(packRoot.resolve("pack.mcmeta")), is(false));
     }

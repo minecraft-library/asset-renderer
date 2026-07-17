@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Exercises the block-entity geometry override channel: {@link BlockRendererOverrides}
  * gathering pack-root {@code renderer/*.json} files through the format-2 envelope with per-entry
- * later-wins, and {@link BlockModelReader} / {@link BlockDefaultsReader} overlaying them onto the
+ * later-wins, and {@link BlockModelLoader} / {@link BlockDefaultsReader} overlaying them onto the
  * classpath snapshot. Uses {@code minecraft:conduit} (a clean single-block block entity) as the
  * override target.
  */
@@ -68,7 +68,7 @@ class BlockRendererOverridesTest {
     @Test
     @DisplayName("a renderer/block_models.json entry swaps the block-entity geometry through the reader")
     void readerAppliesModelEntrySwap() throws IOException {
-        BlockModelLoader.LoadResult base = BlockModelReader.load(NONE);
+        BlockModelLoader.LoadResult base = BlockModelLoader.load(NONE);
         String baseTexture = base.models().get("minecraft:conduit").textureId();
 
         JsonObject conduit = bundledModelEntry("minecraft:conduit").deepCopy();
@@ -78,7 +78,7 @@ class BlockRendererOverridesTest {
         models.add("minecraft:conduit", conduit);
 
         Path pack = writePack("swap", "renderer/block_models.json", envelope("models", models));
-        BlockModelLoader.LoadResult loaded = BlockModelReader.load(NONE, BlockRendererOverrides.gather(stack(pack), NONE));
+        BlockModelLoader.LoadResult loaded = BlockModelLoader.load(NONE, BlockRendererOverrides.gather(stack(pack), NONE));
 
         assertThat(loaded.models().get("minecraft:conduit").textureId(), is("minecraft:entity/conduit/overridden"));
         assertThat(loaded.models().get("minecraft:conduit").textureId(), is(not(baseTexture)));
@@ -133,7 +133,7 @@ class BlockRendererOverridesTest {
 
         var overrides = new BlockRendererOverrides(models, new JsonObject(), new JsonObject());
         lib.minecraft.renderer.exception.PipelineException ex = org.junit.jupiter.api.Assertions.assertThrows(
-            lib.minecraft.renderer.exception.PipelineException.class, () -> BlockModelReader.load(NONE, overrides));
+            lib.minecraft.renderer.exception.PipelineException.class, () -> BlockModelLoader.load(NONE, overrides));
         assertThat(ex.getMessage().contains("minecraft:foo"), is(true));
         assertThat(ex.getMessage().toLowerCase().contains("geometry"), is(true));
     }

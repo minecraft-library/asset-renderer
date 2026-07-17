@@ -17,8 +17,8 @@ import lib.minecraft.renderer.option.spec.ArmorOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
@@ -63,7 +63,7 @@ import javax.imageio.ImageIO;
  *
  * <p>The sweep skin is the vanilla {@code entity/player/wide/steve} texture id (offline); the sweep
  * cape is a synthesized 64x32 texture since the vanilla pack ships none. The {@code account} sheet
- * is the exception - it streams a live skin + cape through {@link Pipeline#mojang()} and is skipped
+ * is the exception - it streams a live skin + cape through {@link ClientAcquisition#mojang()} and is skipped
  * (not fatal) when offline. 3D cells render at {@link #SSAA}x supersampling for crisp edges.
  *
  * <p>Usage:
@@ -308,15 +308,15 @@ public final class TestPlayerRender {
     }
 
     /**
-     * Live-account sheet: resolves a username's Mojang profile through {@link Pipeline#mojang()},
+     * Live-account sheet: resolves a username's Mojang profile through {@link ClientAcquisition#mojang()},
      * then renders its real skin (and cape, if the account has one) across scopes. The cape is shown
      * from the rear and at a 3/4 angle since the front-facing default hides the anatomical back.
-     * The skin / cape URLs stream through the same {@link Pipeline#mojang()} contract at render time
+     * The skin / cape URLs stream through the same {@link ClientAcquisition#mojang()} contract at render time
      * (see {@code PlayerRenderer.resolveSkin}/{@code resolveCape}). Requires network; the caller
      * skips the sheet on failure.
      */
     private static @NotNull List<Cell> account(int size, @NotNull String username) throws MojangApiException {
-        MojangProfile profile = Pipeline.mojang().getMojangProfile(username);
+        MojangProfile profile = ClientAcquisition.mojang().getMojangProfile(username);
         MojangProfile.Textures textures = profile.getTextures();
         Optional<String> skinUrl = textures.getSkin().map(value -> value.getUrl());
         Optional<String> capeUrl = textures.getCape().map(value -> value.getUrl());
@@ -529,11 +529,11 @@ public final class TestPlayerRender {
     }
 
     private static @NotNull PipelineRendererContext buildContext(@NotNull ConcurrentList<File> userPacks) {
-        PipelineOptions options = PipelineOptions.defaults().mutate().texturePacks(userPacks).build();
+        ClientOptions options = ClientOptions.defaults().mutate().texturePacks(userPacks).build();
         try {
-            return PipelineRendererContext.of(Pipeline.run(options));
+            return PipelineRendererContext.of(ClientAcquisition.acquire(options));
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
     }

@@ -5,8 +5,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.json.JsonNode;
@@ -45,7 +45,7 @@ class GeometryParserTest {
 
     @BeforeAll
     static void open() {
-        cache = ClassNodeCache.open(Pipeline.downloadJarToCache(PipelineOptions.defaults()));
+        cache = ClassNodeCache.open(ClientAcquisition.downloadJarToCache(ClientOptions.defaults()));
         referenceGeometries = GSON.fromJson(new InputStreamReader(
                 Objects.requireNonNull(GeometryParserTest.class.getResourceAsStream(
                     "/lib/minecraft/renderer/entity_geometry.json")), StandardCharsets.UTF_8),

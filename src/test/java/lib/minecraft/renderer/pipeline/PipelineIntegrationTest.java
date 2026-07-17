@@ -1,12 +1,18 @@
 package lib.minecraft.renderer.pipeline;
 
 
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
+import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
+import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,14 +46,26 @@ import static org.hamcrest.Matchers.*;
  * {@code asset-renderer/cache/}, so nothing leaks into commits.
  */
 @Tag("slow")
-@DisplayName("Pipeline end-to-end integration")
+@DisplayName("ClientAcquisition end-to-end integration")
 class PipelineIntegrationTest {
 
     /** Stable, non-temporary cache root so the extracted client jar survives across sessions. */
     private static final File CACHE_ROOT = new File("cache/it");
 
-    /** Full pipeline result shared across every test in the class, built once in {@link #downloadAndExtract()}. */
-    private static Pipeline.Result result;
+    /** Client assets (options + vanilla root) shared across every test, built once in {@link #downloadAndExtract()}. */
+    private static ClientAssets result;
+
+    /** The compiled pack stack, probed by the stack / texture-index assertions. */
+    private static PackStack stack;
+
+    /** The resolved block + item model sets, probed by the model-count assertions. */
+    private static ResolvedModels models;
+
+    /** The loaded block-tint table, probed by the {@code block_tints.json} assertion. */
+    private static ConcurrentMap<String, Block.Tint> blockTints;
+
+    /** The stack-resolved biome colormaps, probed by the colormap byte-parity assertion. */
+    private static ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
 
     /** Extracted pack root ({@code cache/it/.../vanilla}) that the on-disk assertions probe. */
     private static Path packRoot;
@@ -58,13 +76,17 @@ class PipelineIntegrationTest {
      */
     @BeforeAll
     static void downloadAndExtract() {
-        PipelineOptions options = PipelineOptions.builder()
+        ClientOptions options = ClientOptions.builder()
             .version("26.1")
             .cacheRoot(CACHE_ROOT)
             .build();
 
-        result = Pipeline.run(options);
-        packRoot = result.getPackRoot();
+        result = ClientAcquisition.acquire(options);
+        packRoot = result.vanillaRoot();
+        stack = PackAcquisition.acquire(result);
+        models = ResolvedModels.load(stack);
+        blockTints = BlockTintsLoader.load();
+        colorMaps = ColorMapLoader.load(stack);
     }
 
     @Test
@@ -84,44 +106,44 @@ class PipelineIntegrationTest {
     @Test
     @DisplayName("populates the vanilla pack at the base of the stack")
     void populatesVanillaPack() {
-        ResourcePack vanilla = result.getStack().vanilla();
+        ResourcePack vanilla = stack.vanilla();
         assertThat(vanilla.id(), equalTo(PackId.VANILLA));
         assertThat(vanilla.namespaces(), hasItem("minecraft"));
         assertThat(vanilla.container(), instanceOf(PackContainer.Directory.class));
         assertThat(((PackContainer.Directory) vanilla.container()).root().toString(), containsString("vanilla"));
-        assertThat(result.getStack().ascending().getFirst(), is(vanilla));
+        assertThat(stack.ascending().getFirst(), is(vanilla));
     }
 
     @Test
     @DisplayName("loads every block model under models/block")
     void loadsBlockModels() {
-        assertThat("block model count", result.getBlockModels().size(), is(greaterThan(500)));
-        assertThat(result.getBlockModels(), hasKey("minecraft:block/grass_block"));
-        assertThat(result.getBlockModels(), hasKey("minecraft:block/cobblestone"));
-        assertThat(result.getBlockModels(), hasKey("minecraft:block/stone"));
+        assertThat("block model count", models.blocks().size(), is(greaterThan(500)));
+        assertThat(models.blocks(), hasKey("minecraft:block/grass_block"));
+        assertThat(models.blocks(), hasKey("minecraft:block/cobblestone"));
+        assertThat(models.blocks(), hasKey("minecraft:block/stone"));
 
-        ModelData grass = result.getBlockModels().get("minecraft:block/grass_block");
+        ModelData grass = models.blocks().get("minecraft:block/grass_block");
         assertThat("grass block model resolved", grass, is(notNullValue()));
     }
 
     @Test
     @DisplayName("loads every item model under models/item")
     void loadsItemModels() {
-        assertThat("item model count", result.getItemModels().size(), is(greaterThan(500)));
-        assertThat(result.getItemModels(), hasKey("minecraft:item/diamond_sword"));
-        assertThat(result.getItemModels(), hasKey("minecraft:item/iron_pickaxe"));
-        assertThat(result.getItemModels(), hasKey("minecraft:item/apple"));
+        assertThat("item model count", models.items().size(), is(greaterThan(500)));
+        assertThat(models.items(), hasKey("minecraft:item/diamond_sword"));
+        assertThat(models.items(), hasKey("minecraft:item/iron_pickaxe"));
+        assertThat(models.items(), hasKey("minecraft:item/apple"));
 
-        ModelData sword = result.getItemModels().get("minecraft:item/diamond_sword");
+        ModelData sword = models.items().get("minecraft:item/diamond_sword");
         assertThat("diamond sword model resolved", sword, is(notNullValue()));
     }
 
     @Test
     @DisplayName("catalogues every texture under assets/minecraft/textures")
     void cataloguesTextures() {
-        assertThat("texture catalogue is populated", result.getStack().textureIndex().size(), is(greaterThan(500)));
+        assertThat("texture catalogue is populated", stack.textureIndex().size(), is(greaterThan(500)));
 
-        IndexedTexture grassTop = result.getStack().textureIndex().get(ResourceId.parse("minecraft:block/grass_block_top"));
+        IndexedTexture grassTop = stack.textureIndex().get(ResourceId.parse("minecraft:block/grass_block_top"));
         assertThat("grass_block_top texture catalogued", grassTop, is(notNullValue()));
         assertThat(grassTop.width(), is(greaterThanOrEqualTo(16)));
         assertThat(grassTop.height(), is(greaterThanOrEqualTo(16)));
@@ -153,7 +175,7 @@ class PipelineIntegrationTest {
     @Test
     @DisplayName("VanillaTintsLoader loads the bundled block_tints.json into Block.Tint entries")
     void parsesBlockColors() {
-        var tints = result.getBlockTints();
+        var tints = blockTints;
 
         // Print the full table once so the slowTest log captures what the bundled JSON contains
         // - useful when refreshing the snapshot via the generateVanillaTints Gradle task and
@@ -193,11 +215,11 @@ class PipelineIntegrationTest {
         // The byte-parity probe: sha256 of the raw
         // big-endian ARGB bytes of each bundled colormap. The re-point resolves vanilla's own
         // extracted PNG through the stack and must decode to the identical bytes.
-        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.GRASS).pixels()),
+        assertThat(sha256(colorMaps.get(ColorMap.Type.GRASS).pixels()),
             equalTo("99ac9a2db44c6ed14da168bad2f66001535fd8b6290a2255bc8aa251d16afcc4"));
-        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.FOLIAGE).pixels()),
+        assertThat(sha256(colorMaps.get(ColorMap.Type.FOLIAGE).pixels()),
             equalTo("64c43c6b59f7da4ae1c8f56a332c6e21a6d0789dd0272c2cc32c809bc2e0da50"));
-        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.DRY_FOLIAGE).pixels()),
+        assertThat(sha256(colorMaps.get(ColorMap.Type.DRY_FOLIAGE).pixels()),
             equalTo("04fe97199d0400e161c1413077735b8dff765d86999890d76953681bee86708f"));
     }
 

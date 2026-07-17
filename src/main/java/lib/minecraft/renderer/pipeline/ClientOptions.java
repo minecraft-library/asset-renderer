@@ -8,15 +8,16 @@ import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
+import java.nio.file.Path;
 
 /**
- * Configuration for a single {@link Pipeline} run. Controls the target Minecraft version,
+ * Configuration for a single {@link ClientAcquisition} run. Controls the target Minecraft version,
  * the cache root, additional texture pack directories, and whether to force a re-download of an
  * existing cached client jar.
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class PipelineOptions {
+public class ClientOptions {
 
     /**
      * The target Minecraft client version; defaults to the hardcoded 26.1 build.
@@ -50,7 +51,7 @@ public class PipelineOptions {
      *
      * @return a builder copy of these options
      */
-    public @NotNull PipelineOptionsBuilder mutate() {
+    public @NotNull ClientOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
@@ -60,8 +61,18 @@ public class PipelineOptions {
      *
      * @return the default options
      */
-    public static @NotNull PipelineOptions defaults() {
+    public static @NotNull ClientOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * The {@code <cacheRoot>/vanilla/<version>} pack root these options resolve to - the directory the
+     * client jar is extracted into and the vanilla base pack is read from.
+     *
+     * @return the vanilla pack root path
+     */
+    public @NotNull Path vanillaRoot() {
+        return this.cacheRoot.toPath().resolve("vanilla").resolve(this.version);
     }
 
 }

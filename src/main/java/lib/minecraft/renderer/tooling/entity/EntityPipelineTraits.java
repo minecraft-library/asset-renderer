@@ -59,7 +59,7 @@ final class EntityPipelineTraits {
 
     private final @NotNull ClassNodeCache cache;
 
-    /** Pipeline field name to build-block trait set - the ONE {@code RenderPipelines.<clinit>} walk, lazy. */
+    /** ClientAcquisition field name to build-block trait set - the ONE {@code RenderPipelines.<clinit>} walk, lazy. */
     private @Nullable Map<String, Set<Trait>> pipelineTraits;
 
     /** Factory name to resolved trait set - the per-factory memo. */

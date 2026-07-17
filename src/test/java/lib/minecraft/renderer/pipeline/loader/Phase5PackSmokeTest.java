@@ -1,13 +1,16 @@
 package lib.minecraft.renderer.pipeline.loader;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
-import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -47,14 +50,18 @@ class Phase5PackSmokeTest {
         Path hypixel = PACKS.resolve("hypixel-skyblock");
         assumeTrue(Files.isDirectory(hypixel), () -> "hypixel-skyblock pack not present under " + PACKS);
 
-        PackStack bare = PackAcquisition.acquire(List.of(hypixel), cache, VANILLA);
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(cache.toFile())
+            .texturePacks(Concurrent.adoptList(List.of(hypixel.toFile())))
+            .build();
+        PackStack bare = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
         ConcurrentMap<ResourceId, IndexedTexture> textures = TextureIndexer.index(bare);
         PackStack stack = bare.withTextureIndex(textures);
 
         assertThat(stack.namespaces().contains(NS), is(true));
 
         // 1171 item models (all under hypixel_skyblock/models/item/) index by qualified id.
-        ConcurrentMap<String, ModelData> itemModels = ModelResolver.loadItemModels(stack);
+        ConcurrentMap<String, ModelData> itemModels = ResolvedModels.load(stack).items();
         long hypixelModels = itemModels.keySet().stream().filter(id -> id.startsWith(NS + ":")).count();
         assertThat("hypixel_skyblock item models indexed", hypixelModels, greaterThan(1000L));
         assertThat(itemModels.containsKey(NS + ":item/abiphones/abiphone_basic"), is(true));

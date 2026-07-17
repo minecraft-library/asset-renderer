@@ -29,7 +29,7 @@ import java.util.Optional;
  * The engine's resource-provider port: the read-only view of active texture packs, biome
  * colormaps, model repositories, and other lookup-side state that every renderer and engine
  * subsystem consumes, without coupling consumers to a specific implementation. The
- * {@link lib.minecraft.renderer.pipeline.Pipeline pipeline} supplies the production implementation;
+ * {@link lib.minecraft.renderer.pipeline.ClientAcquisition pipeline} supplies the production implementation;
  * tests and in-memory callers supply lightweight stubs directly.
  * <p>
  * Method naming follows two prefixes for {@link Optional}-returning lookups:

@@ -11,6 +11,7 @@ import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Exercises the {@link ModelResolver} attributed multi-namespace merge: namespace-qualified model
+ * Exercises the {@link ResolvedModels} attributed multi-namespace merge: namespace-qualified model
  * ids, cross-pack raw-later-wins-then-inherit, {@link ModelTexture} object-form retention, the
  * pack-attributed {@code rendersNothing} diagnostic, and {@code filter.block} erasure.
  */
@@ -53,7 +54,7 @@ class ModelResolverTest {
             pack(PackId.VANILLA, van, Set.of("minecraft")),
             pack(new PackId("userpack"), user, Set.of("testns"))));
 
-        ConcurrentMap<String, ModelData> items = ModelResolver.loadItemModels(stack);
+        ConcurrentMap<String, ModelData> items = ResolvedModels.load(stack).items();
         assertThat(items.containsKey("minecraft:item/apple"), is(true));
         assertThat(items.containsKey("testns:item/gizmo"), is(true));
         assertThat(items.get("testns:item/gizmo").getTextures().get("layer0"), is("testns:item/gizmo"));
@@ -74,7 +75,7 @@ class ModelResolverTest {
             pack(PackId.VANILLA, van, Set.of("minecraft")),
             pack(new PackId("userpack"), user, Set.of("testns"))));
 
-        ModelData child = ModelResolver.loadBlockModels(stack).get("testns:block/child");
+        ModelData child = ResolvedModels.load(stack).blocks().get("testns:block/child");
         assertThat("inherited the vanilla-only parent's elements", child.getElements().isEmpty(), is(false));
         assertThat(child.getTextures().get("all"), is("testns:block/x"));
     }
@@ -89,7 +90,7 @@ class ModelResolverTest {
                 + "\"plain\":\"minecraft:block/stone\"}}");
 
         PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft"))));
-        ModelData glass = ModelResolver.loadBlockModels(stack).get("minecraft:block/glass");
+        ModelData glass = ResolvedModels.load(stack).blocks().get("minecraft:block/glass");
 
         // The render-path string map keeps the flattened sprite form.
         assertThat(glass.getTextures().get("all"), is("minecraft:block/glass"));
@@ -118,7 +119,7 @@ class ModelResolverTest {
         ByteArrayOutputStream captured = new ByteArrayOutputStream();
         try {
             System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
-            ModelResolver.loadBlockModels(stack);
+            ResolvedModels.load(stack).blocks();
         } finally {
             System.err.flush();
             System.setErr(originalErr);
@@ -147,7 +148,7 @@ class ModelResolverTest {
             filtering, Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("testns"), Set.of(Capability.VANILLA_CORE));
 
         PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft")), filterPack));
-        ConcurrentMap<String, ModelData> blocks = ModelResolver.loadBlockModels(stack);
+        ConcurrentMap<String, ModelData> blocks = ResolvedModels.load(stack).blocks();
 
         assertThat(blocks.containsKey("minecraft:block/keepme"), is(true));
         assertThat("hidden by filter.block", blocks.containsKey("minecraft:block/hideme"), is(false));
@@ -164,7 +165,7 @@ class ModelResolverTest {
                 + "\"c\":{\"sprite\":\"minecraft:block/c\",\"force_translucent\":true}}}");
 
         PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft"))));
-        ModelData weird = ModelResolver.loadBlockModels(stack).get("minecraft:block/weird"); // must not throw
+        ModelData weird = ResolvedModels.load(stack).blocks().get("minecraft:block/weird"); // must not throw
 
         assertThat(weird.getTextures().get("a"), is("minecraft:block/a"));
         assertThat("string flag -> false", weird.getTextureObjects().get("a"), is(new ModelTexture("minecraft:block/a", false)));
@@ -189,7 +190,7 @@ class ModelResolverTest {
             filtering, Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("testns"), Set.of(Capability.VANILLA_CORE));
 
         PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft")), filterPack));
-        ConcurrentMap<String, ModelData> blocks = ModelResolver.loadBlockModels(stack);
+        ConcurrentMap<String, ModelData> blocks = ResolvedModels.load(stack).blocks();
 
         assertThat(blocks.containsKey("minecraft:block/keepme"), is(true));
         assertThat("substring pattern hides block/target", blocks.containsKey("minecraft:block/target"), is(false));

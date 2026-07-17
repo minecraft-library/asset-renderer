@@ -1,7 +1,10 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -44,7 +47,11 @@ class PackAcquisitionIntegrationTest {
             "sample packs not present under " + PACKS);
 
         List<Path> sources = new ArrayList<>(List.of(defrosted, hypixel, eureka));
-        PackStack stack = PackAcquisition.acquire(sources, cache, VANILLA);
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(cache.toFile())
+            .texturePacks(Concurrent.adoptList(sources.stream().map(Path::toFile).toList()))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
 
         assertThat(stack.size(), is(4));
 
@@ -86,7 +93,11 @@ class PackAcquisitionIntegrationTest {
             "sample packs not present under " + PACKS);
 
         List<Path> sources = new ArrayList<>(List.of(defrosted, hypixel));
-        PackStack stack = PackAcquisition.acquire(sources, cache, VANILLA);
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(cache.toFile())
+            .texturePacks(Concurrent.adoptList(sources.stream().map(Path::toFile).toList()))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
         ConcurrentMap<ResourceId, IndexedTexture> index = TextureIndexer.index(stack);
 
         // Vanilla alone catalogues > 500 textures; the user packs override some and add their own.

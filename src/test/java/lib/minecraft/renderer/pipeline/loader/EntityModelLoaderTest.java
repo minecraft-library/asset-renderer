@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.load.entity;
+package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.option.EntityAppearance;
@@ -22,19 +22,19 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Load-contract tests for {@link EntityFamilyReader}, exercising the family read of
+ * Load-contract tests for {@link EntityModelLoader}, exercising the family read of
  * {@code entity_models.json} directly. Load-bearing canaries: the wolf
  * variant/state texture join, the baby three-source texture chain, the dyed-collar presence, the
  * option-encoded variant coat map + resolver fold, and the depth-clearance auto-skip on a
  * base-mesh-inheriting overlay.
  */
-@DisplayName("EntityFamilyReader native load")
-class EntityFamilyReaderTest {
+@DisplayName("EntityModelLoader native load")
+class EntityModelLoaderTest {
 
     @Test
     @DisplayName("wolf base texture ref equals the default variant option's wild texture")
     void wolfWildEqualsTextureRef() {
-        ConcurrentMap<String, Entity> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         Entity pale = coat(defs, "minecraft:wolf", "pale");
         assertThat(pale.axes().stateTextures().get("wild"), is("wolf/wolf"));
         assertThat("wild state equals the default texture_ref",
@@ -46,7 +46,7 @@ class EntityFamilyReaderTest {
     @Test
     @DisplayName("baby texture resolves via the three-source chain (variant baby_texture / isBaby binding / <adult>_baby)")
     void babyThreeSourceChain() {
-        ConcurrentMap<String, Entity> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         // 1) variant-table per-option baby_texture (per coat sub-definition)
         assertThat(coat(defs, "minecraft:cow", "temperate").axes().stateTextures().get("baby"), is("cow/cow_temperate_baby"));
         assertThat(coat(defs, "minecraft:cow", "warm").axes().stateTextures().get("baby"), is("cow/cow_warm_baby"));
@@ -63,7 +63,7 @@ class EntityFamilyReaderTest {
         // The collar renders only when a collar colour is supplied (the truthful collar_color gate); the
         // load contract pins the collar texture presence that gate resolves against. A bare wolf / cat
         // with no collar colour therefore renders no collar band.
-        ConcurrentMap<String, Entity> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         assertThat(coat(defs, "minecraft:wolf", "pale").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
         assertThat("every wolf variant shares the family collar",
             coat(defs, "minecraft:wolf", "ashen").layers().collar(), equalTo(Optional.of("wolf/wolf_collar")));
@@ -75,7 +75,7 @@ class EntityFamilyReaderTest {
     @Test
     @DisplayName("option-encoded variant family loads one base row + a coat map the resolver fold selects")
     void variantOptionEncoding() {
-        ConcurrentMap<String, Entity> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         Entity cow = defs.get("minecraft:cow");
         assertThat("one base row, no coat pseudo-ids", cow != null && defs.get("minecraft:cow_cold") == null, is(true));
         assertThat("the coat map carries every option", cow.axes().variants().keySet(), hasItems("cold", "temperate", "warm"));
@@ -88,7 +88,7 @@ class EntityFamilyReaderTest {
         assertThat("the cold coat differs from the default", resolvedCold.textureRef(), not(cow.textureRef()));
         assertThat("selecting cold swaps to the cold coat mesh", resolvedCold.model(), sameInstance(cow.axes().variants().get("cold").model()));
 
-        Map<String, List<String>> families = EntityFamilyReader.loadFamilies(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        Map<String, List<String>> families = EntityModelLoader.loadFamilies(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         assertThat("an option-encoded variant family is a single base row (coats ride the base's axes.variants)",
             families.getOrDefault("minecraft:cow", List.of()), contains("minecraft:cow"));
         assertThat("a singleton entity returns itself",
@@ -100,7 +100,7 @@ class EntityFamilyReaderTest {
     void humanoidArmorFromLayersRow() {
         // armor_type lives under `layers`: the reader classifies humanoid off the layers armor row
         // (absence IS none). Skeleton/zombie are humanoid; cow/sheep are none.
-        ConcurrentMap<String, Entity> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         assertThat("skeleton is humanoid-armored", defs.get("minecraft:skeleton").humanoidArmor(), is(true));
         assertThat("zombie is humanoid-armored", defs.get("minecraft:zombie").humanoidArmor(), is(true));
         assertThat("the derived accessor reads the layers row", defs.get("minecraft:zombie").layers().humanoidArmor(), is(true));
@@ -116,7 +116,7 @@ class EntityFamilyReaderTest {
     @Test
     @DisplayName("a base-mesh-inheriting grow-less overlay is auto-skipped from canvas bounds")
     void depthClearanceOnGeometryInheritance() {
-        ConcurrentMap<String, Entity> defs = EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         // enderman eyes re-submit the base mesh (same geometry coordinate) with no tint - our auto-emitted
         // depth-clearance inflate wins the coplanar tie, and the overlay is excluded from canvas bounds
         // because the base already covers its silhouette. Keyed on the overlay inheriting the base mesh,

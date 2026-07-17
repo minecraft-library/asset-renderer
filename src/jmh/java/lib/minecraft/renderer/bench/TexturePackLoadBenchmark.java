@@ -1,7 +1,8 @@
 package lib.minecraft.renderer.bench;
 
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientOptions;
+import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -13,7 +14,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Cold texture-pack load benchmark - measures a fresh {@link Pipeline#run} invocation on an
+ * Cold texture-pack load benchmark - measures a fresh {@link ClientAcquisition#run} invocation on an
  * already-cached pack root (so the network hop is excluded, but all PNG decode, JSON parse, and
  * {@code ImageIO.read} work is on the critical path). Times the parallel pack-load scaling that
  * every renderer benchmark amortises away in its trial {@code @Setup}.
@@ -35,7 +36,7 @@ public class TexturePackLoadBenchmark {
      */
     @Benchmark
     public void coldLoad(Blackhole bh) throws Exception {
-        bh.consume(Pipeline.run(PipelineOptions.defaults()));
+        bh.consume(PipelineRendererContext.of(ClientAcquisition.acquire(ClientOptions.defaults())));
     }
 
 }

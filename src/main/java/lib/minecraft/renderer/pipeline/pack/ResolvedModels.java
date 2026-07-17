@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.resolver;
+package lib.minecraft.renderer.pipeline.pack;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
@@ -10,14 +10,6 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTexture;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.pack.PackContainer;
-import lib.minecraft.renderer.pipeline.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.PackRoot;
-import lib.minecraft.renderer.pipeline.pack.PackStack;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
-import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
-import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
@@ -28,54 +20,45 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Loader and resolver that walks every pack's {@code assets/<namespace>/models/} subtree, parses
- * every block and item JSON file into {@link ModelData}, and eagerly merges parent chains so the
- * resulting DTOs carry everything needed for rendering without further resolution at render time.
+ * The resolved block and item model sets: every pack's {@code assets/<namespace>/models/} JSON parsed
+ * into {@link ModelData} with parent chains eagerly merged, so the DTOs carry everything needed for
+ * rendering without further resolution at render time.
  * <p>
- * Parent chain merging is deep: child textures and elements win on conflicting keys, and the
- * merged result records the original parent id in its {@code parent} field for introspection.
- * Vanilla chains are acyclic and shallow (at most 3 deep), so no cycle detection is needed.
+ * Parent chain merging is deep: child textures and elements win on conflicting keys. Vanilla chains
+ * are acyclic and shallow (at most 3 deep), so no cycle detection is needed.
  * <p>
  * The raw merge runs over the {@link PackStack} effective file set: for each model id the winning
  * pack's bytes, with that pack's {@code pack.mcmeta filter.block} erasing matching lower-pack rows
- * before its own merge in (via {@link lib.minecraft.renderer.pipeline.pack.MCMeta.Pack#hides}). Raw
- * JSON merges later-wins on the resolved model id <em>before</em> parent-chain inheritance runs, so
- * a higher-priority child model still inherits from a vanilla parent that lives only in the base
- * pack, and a pack parent retro-affects every vanilla child - exactly the vanilla client's
- * per-file resolution against the effective set followed by baking. The merge is
- * <em>attributed</em>: every winning file carries its origin {@link ResourcePack}, so a non-vanilla
- * winner that trips {@link Models#rendersNothing} (or fails to parse) is diagnosed by pack name
- * rather than vanishing silently. A vanilla-only stack scans exactly {@code assets/minecraft/}.
+ * before its own merge in (via {@link MCMeta.Pack#hides}). Raw JSON merges later-wins on the resolved
+ * model id <em>before</em> parent-chain inheritance runs, so a higher-priority child model still
+ * inherits from a vanilla parent that lives only in the base pack, and a pack parent retro-affects
+ * every vanilla child - exactly the vanilla client's per-file resolution against the effective set
+ * followed by baking. The merge is <em>attributed</em>: every winning file carries its origin
+ * {@link ResourcePack}, so a non-vanilla winner that trips {@link ModelData#rendersNothing} (or fails
+ * to parse) is diagnosed by pack name rather than vanishing silently. A vanilla-only stack scans
+ * exactly {@code assets/minecraft/}.
  *
- * @see ModelData
- * @see PackStack
- * @see PipelineRendererContext
+ * @param blocks resolved block models keyed by model id ({@code "minecraft:block/grass_block"})
+ * @param items resolved item models keyed by model id ({@code "minecraft:item/diamond_sword"})
  */
-@UtilityClass
-public class ModelResolver {
+public record ResolvedModels(
+    @NotNull ConcurrentMap<String, ModelData> blocks,
+    @NotNull ConcurrentMap<String, ModelData> items
+) {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
-     * Loads every block model JSON under {@code assets/<ns>/models/block} across the stack and
-     * returns them keyed by resolved model id ({@code "minecraft:block/grass_block"}).
+     * Loads and resolves every block and item model across the stack.
      *
      * @param stack the resolved pack stack
-     * @return a map of model id to resolved block model data
+     * @return the resolved block + item model sets
      */
-    public static @NotNull ConcurrentMap<String, ModelData> loadBlockModels(@NotNull PackStack stack) {
-        return resolveModels(stack, VanillaSourcePaths.MODELS_BLOCK_SUBDIR, VanillaSourcePaths.BLOCK_KIND, false);
-    }
-
-    /**
-     * Loads every item model JSON under {@code assets/<ns>/models/item} across the stack and
-     * returns them keyed by resolved model id ({@code "minecraft:item/diamond_sword"}).
-     *
-     * @param stack the resolved pack stack
-     * @return a map of model id to resolved item model data
-     */
-    public static @NotNull ConcurrentMap<String, ModelData> loadItemModels(@NotNull PackStack stack) {
-        return resolveModels(stack, VanillaSourcePaths.MODELS_ITEM_SUBDIR, VanillaSourcePaths.ITEM_KIND, true);
+    public static @NotNull ResolvedModels load(@NotNull PackStack stack) {
+        return new ResolvedModels(
+            resolveModels(stack, VanillaSourcePaths.MODELS_BLOCK_SUBDIR, VanillaSourcePaths.BLOCK_KIND, false),
+            resolveModels(stack, VanillaSourcePaths.MODELS_ITEM_SUBDIR, VanillaSourcePaths.ITEM_KIND, true)
+        );
     }
 
     /**
@@ -84,7 +67,7 @@ public class ModelResolver {
      * @param stack the resolved pack stack
      * @param subdir the assets subtree ({@code models/block} or {@code models/item})
      * @param kind the model-id kind segment ({@code block} or {@code item})
-     * @param isItem whether these are item models (drives the {@link Models#rendersNothing} check)
+     * @param isItem whether these are item models (drives the {@link ModelData#rendersNothing} check)
      * @return the resolved model map, unmodifiable
      */
     private static @NotNull ConcurrentMap<String, ModelData> resolveModels(

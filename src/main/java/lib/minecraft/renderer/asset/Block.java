@@ -20,7 +20,7 @@ import java.util.Optional;
 /**
  * A fully-parsed block definition backed by its vanilla model JSON and blockstate variants.
  * <p>
- * Every field is populated once during {@code Pipeline} bootstrap and stored verbatim; no
+ * Every field is populated once during {@code ClientAcquisition} bootstrap and stored verbatim; no
  * lazy or computed fields live on this DTO. Lookup happens through the active renderer
  * context.
  *

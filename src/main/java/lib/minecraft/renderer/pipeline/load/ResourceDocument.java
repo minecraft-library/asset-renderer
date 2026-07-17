@@ -22,7 +22,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class ResourceDocument {
 
-    /** The version stamp every 26.1 resource carries; mirrors {@code PipelineOptions.version}. */
+    /** The version stamp every 26.1 resource carries; mirrors {@code ClientOptions.version}. */
     static final @NotNull String EXPECTED_SOURCE_VERSION = "26.1";
 
     /** The {@code format} discriminator every resource carries. */

@@ -14,14 +14,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies {@link BlockModelReader} against the bundled block resources: the two-file
+ * Verifies {@link BlockModelLoader} against the bundled block resources: the two-file
  * models+geometry join, the {@code texture_size} adaptation, the runtime texture-path strip, the
  * icon open bag, DyeColor tints, and the no-{@code blocks[]} models (which carry no block binding).
  */
 class BlockModelReaderTest {
 
     private static @NotNull BlockModelLoader.LoadResult load() {
-        return BlockModelReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        return BlockModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
     }
 
     @Test

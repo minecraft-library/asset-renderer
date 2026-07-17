@@ -9,12 +9,17 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
+import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
 import lib.minecraft.renderer.pipeline.pack.FormatRange.FormatVersion;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisConfig;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisOverlays;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisTarget;
+import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,7 +39,7 @@ import java.util.TreeSet;
  * <p>Acquisition is virtual by default: each user pack keeps the {@link PackContainer} it was detected
  * as - a zip or {@code .cats} archive serves its bytes in place, without extraction to disk - so every
  * downstream loader reads through the container SPI. The vanilla base pack is a real
- * {@link PackContainer.Directory} over the tree {@code Pipeline.extractClientJar} produces.
+ * {@link PackContainer.Directory} over the tree {@code ClientAcquisition.extractClientJar} produces.
  */
 public final class PackAcquisition {
 
@@ -44,19 +49,25 @@ public final class PackAcquisition {
     private PackAcquisition() {}
 
     /**
-     * Acquires the full pack stack.
+     * Compiles the full, fully-indexed pack stack for the given client assets: build the vanilla base
+     * pack at the configured version, detect each user container by content, derive stable ids across
+     * the supply order (collisions resolved loudly), resolve overlay roots, assemble the stack, scan it
+     * into the texture index, and merge the pack rule layer - so callers never receive a bare stack.
      *
-     * @param userSources the user pack sources in supply (ascending priority) order
-     * @param cacheRoot the renderer cache root ({@code packs/<id>/} lives under it)
-     * @param vanillaPackRoot the extracted vanilla pack root (the base pack at priority 0)
-     * @return the resolved stack, vanilla first
-     * @throws PipelineException if a source is unreadable or a pack's metadata is malformed
+     * @param assets the extracted client assets (options + vanilla root)
+     * @return the resolved, texture-indexed, rule-carrying stack, vanilla first
+     * @throws PipelineException if a source is unreadable, a pack's metadata is malformed, or the
+     *     extracted root does not match the configured version
      */
-    public static @NotNull PackStack acquire(@NotNull List<Path> userSources, @NotNull Path cacheRoot, @NotNull Path vanillaPackRoot) {
-        String minecraftVersion = minecraftVersion(vanillaPackRoot);
-        ResourcePack vanilla = vanillaPack(vanillaPackRoot, minecraftVersion);
+    public static @NotNull PackStack acquire(@NotNull ClientAssets assets) {
+        ClientOptions options = assets.options();
+        Path vanillaRoot = assets.vanillaRoot();
+        // The directory-name version derivation is gone; the options version is authoritative.
+        String minecraftVersion = options.getVersion();
+        ResourcePack vanilla = vanillaPack(vanillaRoot, minecraftVersion);
         FormatVersion target = rendererTarget(vanilla);
 
+        List<Path> userSources = options.getTexturePacks().stream().map(File::toPath).toList();
         List<PackContainer> containers = new ArrayList<>();
         List<PackIdDeriver.Naming> naming = new ArrayList<>();
         for (Path source : userSources) {
@@ -71,7 +82,9 @@ public final class PackAcquisition {
         for (int i = 0; i < userSources.size(); i++)
             packs.add(userPack(containers.get(i), ids.get(i), target, minecraftVersion));
 
-        return PackStack.of(Concurrent.adoptList(packs).toUnmodifiable());
+        PackStack base = PackStack.of(Concurrent.adoptList(packs).toUnmodifiable());
+        PackStack indexed = base.withTextureIndex(TextureIndexer.index(base));
+        return indexed.withRules(RuleSet.merge(indexed));
     }
 
     /** Builds the vanilla base pack from its already-extracted tree (in place, no materialization). */
@@ -165,12 +178,6 @@ public final class PackAcquisition {
                 return Optional.empty();
             }
         });
-    }
-
-    /** The renderer's target Minecraft version - the vanilla pack root's directory name ({@code <cache>/vanilla/<version>}). */
-    private static @NotNull String minecraftVersion(@NotNull Path vanillaPackRoot) {
-        Path name = vanillaPackRoot.getFileName();
-        return name == null ? "" : name.toString();
     }
 
     /**

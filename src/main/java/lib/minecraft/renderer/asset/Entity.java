@@ -10,7 +10,7 @@ import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
-import lib.minecraft.renderer.pipeline.load.entity.EntityFamilyReader;
+import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lombok.Builder;
 import org.jetbrains.annotations.NotNull;
@@ -27,7 +27,7 @@ import java.util.Set;
 /**
  * A fully-parsed entity definition - the base bone/cube geometry, its vanilla texture reference, and
  * the overlay / block-overlay / axis / layer structure a render appearance selects among - consumed by
- * {@link EntityRenderer}. Loaded from the bundled resources by {@link EntityFamilyReader} (per-entity
+ * {@link EntityRenderer}. Loaded from the bundled resources by {@link EntityModelLoader} (per-entity
  * metadata joined against the deduplicated bone/cube trees) and looked up by namespaced id via
  * {@link RendererContext#findEntity(String)}. Player skins are never stored on this DTO; they are
  * supplied at render time through the {@code PlayerOptions.skinBytes} / {@code skinUrl} /
@@ -96,7 +96,7 @@ public record Entity(
      * vanilla submits the identical {@code ModelPart} with no deformation - so a same-geometry overlay
      * carrying at most this much inflate is excluded from canvas-sizing bounds. A larger inflate is a
      * real vanilla {@code CubeDeformation} (tropical_fish 0.008, llama carpet 0.5) that vanilla's bounds
-     * walk includes, so it keeps contributing. {@link EntityFamilyReader} carries its own mirror
+     * walk includes, so it keeps contributing. {@link EntityModelLoader} carries its own mirror
      * constant for the native read; this copy backs the {@link OverlayLayer#skipBounds()} javadoc.
      */
     private static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
@@ -500,7 +500,7 @@ public record Entity(
      * rendered on the body only when the {@code equipment} render axis selects its {@link #slot}. Unlike
      * an always-on {@link OverlayLayer}, the texture is chosen at render from the axis-selected material
      * through {@link #textureTemplate} (or {@link #defaultMaterial} when the slot is selected without a
-     * material). Sourced by {@link EntityFamilyReader} from the family form's {@code when.equipment}-gated
+     * material). Sourced by {@link EntityModelLoader} from the family form's {@code when.equipment}-gated
      * {@code layers}.
      *
      * @param slot the equipment slot this overlay is gated on ({@code saddle} / {@code body})

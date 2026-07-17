@@ -8,8 +8,9 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
@@ -63,11 +64,11 @@ public final class TestEntityProjections {
         String entityId = args.length > 0 && !args[0].isBlank() ? args[0] : DEFAULT_ENTITY;
         int size = args.length > 1 ? Integer.parseInt(args[1]) : 256;
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
         PipelineRendererContext context = PipelineRendererContext.of(result);

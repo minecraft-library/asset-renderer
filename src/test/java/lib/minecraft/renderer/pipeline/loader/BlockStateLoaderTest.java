@@ -44,8 +44,8 @@ class BlockStateLoaderTest {
         write(van.resolve("assets/minecraft/blockstates/thing.json"),
             "{\"variants\":{\"\":[{\"model\":\"minecraft:block/a\"},{\"model\":\"minecraft:block/b\"}]}}");
 
-        BlockStateLoader.LoadResult result = load(van);
-        Block.Variant variant = result.getVariants().get("minecraft:thing").get("");
+        BlockStateLoader.BlockStates result = load(van);
+        Block.Variant variant = result.variants().get("minecraft:thing").get("");
         assertThat(variant.modelId(), is("minecraft:block/a"));
     }
 
@@ -56,8 +56,8 @@ class BlockStateLoaderTest {
         write(van.resolve("assets/minecraft/blockstates/wire.json"),
             "{\"multipart\":[{\"apply\":[{\"model\":\"minecraft:block/a\"},{\"model\":\"minecraft:block/b\"}]}]}");
 
-        BlockStateLoader.LoadResult result = load(van);
-        Block.Multipart multipart = result.getMultiparts().get("minecraft:wire");
+        BlockStateLoader.BlockStates result = load(van);
+        Block.Multipart multipart = result.multiparts().get("minecraft:wire");
         assertThat(multipart.parts().getFirst().apply().modelId(), is("minecraft:block/a"));
     }
 
@@ -74,9 +74,9 @@ class BlockStateLoaderTest {
             pack(PackId.VANILLA, van, Set.of("minecraft")),
             pack(new PackId("userpack"), user, Set.of("testns"))));
 
-        BlockStateLoader.LoadResult result = BlockStateLoader.load(stack, NO_MODELS);
-        assertThat(result.getVariants().containsKey("minecraft:stone"), is(true));
-        assertThat(result.getVariants().get("testns:gadget").get("").modelId(), is("testns:block/gadget"));
+        BlockStateLoader.BlockStates result = BlockStateLoader.load(stack, NO_MODELS);
+        assertThat(result.variants().containsKey("minecraft:stone"), is(true));
+        assertThat(result.variants().get("testns:gadget").get("").modelId(), is("testns:block/gadget"));
     }
 
     @Test
@@ -93,9 +93,9 @@ class BlockStateLoaderTest {
             pack(PackId.VANILLA, van, Set.of("minecraft")),
             pack(new PackId("userpack"), user, Set.of("minecraft"))));
 
-        BlockStateLoader.LoadResult result = BlockStateLoader.load(stack, NO_MODELS);
-        assertThat("variant form dropped", result.getVariants().containsKey("minecraft:flip"), is(false));
-        assertThat(result.getMultiparts().get("minecraft:flip").parts().getFirst().apply().modelId(), is("minecraft:block/new"));
+        BlockStateLoader.BlockStates result = BlockStateLoader.load(stack, NO_MODELS);
+        assertThat("variant form dropped", result.variants().containsKey("minecraft:flip"), is(false));
+        assertThat(result.multiparts().get("minecraft:flip").parts().getFirst().apply().modelId(), is("minecraft:block/new"));
     }
 
     @Test
@@ -114,10 +114,10 @@ class BlockStateLoaderTest {
             filtering, Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
 
         PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft")), filterPack));
-        BlockStateLoader.LoadResult result = BlockStateLoader.load(stack, NO_MODELS);
+        BlockStateLoader.BlockStates result = BlockStateLoader.load(stack, NO_MODELS);
 
-        assertThat(result.getVariants().containsKey("minecraft:keepme"), is(true));
-        assertThat("hidden by filter.block", result.getVariants().containsKey("minecraft:hideme"), is(false));
+        assertThat(result.variants().containsKey("minecraft:keepme"), is(true));
+        assertThat("hidden by filter.block", result.variants().containsKey("minecraft:hideme"), is(false));
     }
 
     @Test
@@ -133,9 +133,9 @@ class BlockStateLoaderTest {
             pack(PackId.VANILLA, van, Set.of("minecraft")),
             pack(new PackId("userpack"), user, Set.of("minecraft"))));
 
-        BlockStateLoader.LoadResult result = BlockStateLoader.load(stack, NO_MODELS);
-        assertThat("higher empty file shadows the lower variant", result.getVariants().containsKey("minecraft:foo"), is(false));
-        assertThat(result.getMultiparts().containsKey("minecraft:foo"), is(false));
+        BlockStateLoader.BlockStates result = BlockStateLoader.load(stack, NO_MODELS);
+        assertThat("higher empty file shadows the lower variant", result.variants().containsKey("minecraft:foo"), is(false));
+        assertThat(result.multiparts().containsKey("minecraft:foo"), is(false));
     }
 
     @Test
@@ -151,11 +151,11 @@ class BlockStateLoaderTest {
             pack(PackId.VANILLA, van, Set.of("minecraft")),
             pack(new PackId("userpack"), user, Set.of("minecraft"))));
 
-        BlockStateLoader.LoadResult result = BlockStateLoader.load(stack, NO_MODELS);
-        assertThat("malformed higher file falls back to lower", result.getVariants().get("minecraft:bar").get("").modelId(), is("minecraft:block/bar"));
+        BlockStateLoader.BlockStates result = BlockStateLoader.load(stack, NO_MODELS);
+        assertThat("malformed higher file falls back to lower", result.variants().get("minecraft:bar").get("").modelId(), is("minecraft:block/bar"));
     }
 
-    private static BlockStateLoader.LoadResult load(Path vanillaRoot) {
+    private static BlockStateLoader.BlockStates load(Path vanillaRoot) {
         return BlockStateLoader.load(PackStack.of(Concurrent.newList(pack(PackId.VANILLA, vanillaRoot, Set.of("minecraft")))), NO_MODELS);
     }
 

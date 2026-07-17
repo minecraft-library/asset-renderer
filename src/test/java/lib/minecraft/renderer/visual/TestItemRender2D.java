@@ -4,8 +4,9 @@ import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
 import dev.simplified.image.ImageData;
@@ -68,11 +69,11 @@ public final class TestItemRender2D {
             ? ItemOptions.Type.HELD_3D
             : ItemOptions.Type.GUI_2D;
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
 

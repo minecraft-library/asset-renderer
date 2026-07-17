@@ -31,7 +31,7 @@ import lib.minecraft.renderer.face.SkinFace;
 import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.slot.PlayerSlot2D;
 import lib.minecraft.renderer.option.slot.PlayerSlot3D;
-import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -212,7 +212,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * Reads a Mojang skin or cape texture by extracting the trailing path segment from the URL
-     * (the texture hash) and streaming the PNG bytes through {@link Pipeline#mojang() Pipeline.mojang()}'s
+     * (the texture hash) and streaming the PNG bytes through {@link ClientAcquisition#mojang() ClientAcquisition.mojang()}'s
      * {@link MojangContract#downloadTexture(String) downloadTexture}.
      * <p>
      * The URL format is the {@code http://textures.minecraft.net/texture/<hash>} pattern Mojang's
@@ -221,7 +221,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static byte @NotNull [] fetchTexture(@NotNull String url) {
         String hash = url.substring(url.lastIndexOf('/') + 1);
-        try (InputStream stream = Pipeline.mojang().downloadTexture(hash)) {
+        try (InputStream stream = ClientAcquisition.mojang().downloadTexture(hash)) {
             return stream.readAllBytes();
         } catch (IOException ex) {
             throw new RenderException(ex, "Failed to fetch texture from '%s'", url);

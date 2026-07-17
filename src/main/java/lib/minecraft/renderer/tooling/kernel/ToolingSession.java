@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.kernel;
 
 import lib.minecraft.renderer.json.JsonNode;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -16,7 +16,7 @@ import org.jetbrains.annotations.NotNull;
  * @param diagnostics the diagnostics root scope
  */
 public record ToolingSession(
-    @NotNull PipelineOptions options,
+    @NotNull ClientOptions options,
     @NotNull ClassNodeCache cache,
     @NotNull Diagnostics diagnostics
 ) implements AutoCloseable {

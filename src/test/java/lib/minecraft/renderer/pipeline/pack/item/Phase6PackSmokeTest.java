@@ -1,6 +1,9 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +44,11 @@ class Phase6PackSmokeTest {
         Path hypixel = PACKS.resolve("hypixel-skyblock");
         assumeTrue(Files.isDirectory(hypixel), () -> "hypixel-skyblock pack not present under " + PACKS);
 
-        PackStack stack = PackAcquisition.acquire(List.of(hypixel), cache, VANILLA);
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(cache.toFile())
+            .texturePacks(Concurrent.adoptList(List.of(hypixel.toFile())))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
         ConcurrentMap<String, ItemModelTree> trees = ItemModelTreeLoader.load(stack);
 
         long hypixelTrees = trees.keySet().stream().filter(id -> id.startsWith(NS + ":")).count();

@@ -4,7 +4,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.EntityAppearance;
-import lib.minecraft.renderer.pipeline.load.entity.EntityFamilyReader;
+import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 class EntityResolveTest {
 
     private static final @NotNull ConcurrentMap<String, Entity> DEFS =
-        EntityFamilyReader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
 
     @Test
     @DisplayName("charged gate: the creeper energy swirl renders only when charged")

@@ -6,8 +6,9 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -69,11 +70,11 @@ public final class TestBlockRender3D {
         int size = args.length > 1 ? Integer.parseInt(args[1]) : 512;
         int ssaa = args.length > 2 ? Integer.parseInt(args[2]) : 2;
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
 

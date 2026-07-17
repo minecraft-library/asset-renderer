@@ -2,8 +2,11 @@ package lib.minecraft.renderer.pipeline.pack.item;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.load.block.BlockEntityShadowDiagnostics;
 import lib.minecraft.renderer.pipeline.load.block.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
@@ -57,7 +60,11 @@ class Phase7PackSmokeTest {
         Path fixture = work.resolve("phase7fixture");
         writeFixture(fixture);
 
-        PackStack stack = PackAcquisition.acquire(List.of(fixture), work.resolve("cache"), VANILLA);
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(work.resolve("cache").toFile())
+            .texturePacks(Concurrent.adoptList(List.of(fixture.toFile())))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
 
         // --- Override channel: conduit geometry entry swaps its texture through the reader. ---
         BlockModelLoader.LoadResult be = BlockModelLoader.load(stack);

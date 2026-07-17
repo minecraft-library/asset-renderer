@@ -13,7 +13,7 @@ import lib.minecraft.renderer.option.spec.ArmorOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -44,7 +44,7 @@ import java.util.function.UnaryOperator;
  * bytes (1), an absolute URL (2), then a pack-resolvable texture id (3). With no skin source present
  * the renderer falls back to the registered {@code minecraft:entity/steve} texture. The URL path
  * extracts the URL's trailing path segment (the texture hash) and streams the PNG through the
- * {@link Pipeline#mojang() Pipeline.mojang()} proxy. The cape is consulted only when the skin's
+ * {@link ClientAcquisition#mojang() ClientAcquisition.mojang()} proxy. The cape is consulted only when the skin's
  * {@code renderCape} toggle is set.
  *
  * @see lib.minecraft.renderer.PlayerRenderer

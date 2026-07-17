@@ -6,8 +6,9 @@ import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.MenuOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -41,11 +42,11 @@ public final class TestMenuRender {
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
 
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             System.exit(1);
             return;
         }

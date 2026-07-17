@@ -9,8 +9,9 @@ import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -62,8 +63,8 @@ class PlayerRasterizeFittedGoldenTest {
 
     @BeforeAll
     static void bootstrapPipeline() {
-        Pipeline.Result result = Pipeline.run(
-            PipelineOptions.builder()
+        ClientAssets result = ClientAcquisition.acquire(
+            ClientOptions.builder()
                 .version("26.1")
                 .cacheRoot(CACHE_ROOT)
                 .build()

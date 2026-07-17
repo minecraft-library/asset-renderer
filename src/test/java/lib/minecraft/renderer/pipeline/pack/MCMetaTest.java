@@ -88,9 +88,9 @@ class MCMetaTest {
     @Test
     @DisplayName("vanilla synth: bare pack_format, provenance-string description")
     void vanillaSynth() {
-        Pack pack = pack("{\"pack\":{\"pack_format\":84,\"description\":\"Minecraft 26.1 vanilla resources (synthesised by asset-renderer Pipeline.extractClientJar)\"}}");
+        Pack pack = pack("{\"pack\":{\"pack_format\":84,\"description\":\"Minecraft 26.1 vanilla resources (synthesised by asset-renderer ClientAcquisition.extractClientJar)\"}}");
         assertThat(pack.formats(), is(new FormatRange(new FormatVersion(84, 0), new FormatVersion(84, MAX))));
-        assertThat(pack.description().plain(), equalTo("Minecraft 26.1 vanilla resources (synthesised by asset-renderer Pipeline.extractClientJar)"));
+        assertThat(pack.description().plain(), equalTo("Minecraft 26.1 vanilla resources (synthesised by asset-renderer ClientAcquisition.extractClientJar)"));
     }
 
     // --- description normalization forms ---

@@ -4,8 +4,9 @@ import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.engine.compose.TooltipChrome;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.TextOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.GradientSpec;
@@ -96,11 +97,11 @@ public final class TestLoreTooltip {
 
         // Build a renderer context so the sprite-backed tooltip chrome can resolve the vanilla
         // tooltip/background + tooltip/frame nine-slice sprites through the pack stack.
-        Pipeline.Result result;
+        ClientAssets result;
         try {
-            result = Pipeline.run(PipelineOptions.defaults());
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (PipelineException ex) {
-            System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             System.exit(1);
             return;
         }

@@ -5,8 +5,9 @@ import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.webp.WebPWriteOptions;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.option.AtlasOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tooling.atlas.AtlasSidecar;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -22,7 +23,7 @@ import java.nio.file.Path;
 
 /**
  * Entry point of the {@code atlas} Gradle task - a render job over the texture pack, not a
- * client-jar extraction. A thin I/O shell around {@code Pipeline.run} + {@link
+ * client-jar extraction. A thin I/O shell around {@code ClientAcquisition.run} + {@link
  * AtlasRenderer#renderAtlas}: it writes the atlas image ({@code atlas.png}, or {@code atlas.webp}
  * for animated packs) plus the {@code atlas.json} sidecar to the output directory (scratch
  * {@code build/atlas/}, never a bundled resource).
@@ -46,11 +47,10 @@ public final class ToolingAtlas {
         Path outputDir = Path.of(args.length > 0 ? args[0] : "build/atlas");
         Files.createDirectories(outputDir);
 
-        Pipeline.Result result = Pipeline.run(PipelineOptions.defaults());
-        diagnostics.info("pipeline ready: %d block models, %d item models, %d textures at %s",
-            result.getBlockModels().size(), result.getItemModels().size(), result.getStack().textureIndex().size(), result.getPackRoot());
-
-        PipelineRendererContext context = PipelineRendererContext.of(result);
+        ClientAssets assets = ClientAcquisition.acquire(ClientOptions.defaults());
+        PipelineRendererContext context = PipelineRendererContext.of(assets);
+        diagnostics.info("pipeline ready: %d blocks, %d items at %s",
+            context.knownBlockIds().size(), context.knownItemIds().size(), assets.vanillaRoot());
         AtlasRenderer.AtlasResult atlas = new AtlasRenderer(context).renderAtlas(AtlasOptions.defaults());
 
         boolean animated = atlas.image().isAnimated();

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
@@ -12,22 +13,34 @@ import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
-import lib.minecraft.renderer.pipeline.load.block.BlockEntityShadowDiagnostics;
+import lib.minecraft.renderer.pipeline.load.block.BlockDefaultsReader;
+import lib.minecraft.renderer.pipeline.load.block.BlockItemsReader;
+import lib.minecraft.renderer.pipeline.load.block.BlockRendererOverrides;
+import lib.minecraft.renderer.pipeline.loader.BannerPatternLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockIndexLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockStateLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockTagLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
+import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemIndexLoader;
 import lib.minecraft.renderer.pipeline.loader.PalettedPermutationLoader;
+import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
 import lib.minecraft.renderer.pipeline.pack.rule.CitRule;
@@ -36,23 +49,25 @@ import lib.minecraft.renderer.pipeline.pack.rule.GlintEvaluator;
 import lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 /**
- * The production {@link RendererContext} implementation, built once at bootstrap from a single
- * {@link Pipeline.Result}. Every {@code findX} / {@code resolveX} method is backed by an
+ * The production {@link RendererContext} implementation, built once at bootstrap from the extracted
+ * {@link ClientAssets}. Every {@code findX} / {@code resolveX} method is backed by an
  * eagerly-materialised index so warm-path lookups are pure map accesses; texture pixels stay on
  * disk until the first {@link #resolveTexture(String)} call and are memoised in a per-context cache
  * keyed by the resolved {@code (PackId, ResourceId)}.
  * <p>
- * Construction goes through {@link #of(Pipeline.Result)}, which delegates index building to the
+ * Construction goes through {@link #of(ClientAssets)}, which delegates index building to the
  * pipeline loaders: {@link BlockIndexLoader} and {@link ItemIndexLoader} materialise the block /
  * item indexes (keyed by namespaced id, registry-filtered so parent templates and submodels never
  * become atlas tiles), {@link BlockModelLoader} supplies block-entity geometry, and
@@ -91,62 +106,61 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<CacheKey, PixelBuffer> textureCache = Concurrent.newMap();
 
     /**
-     * Builds a context from a completed pipeline result.
-     * <p>
-     * Block, item, and entity indexes are materialised eagerly via the pipeline loaders so every
+     * Builds the production renderer context from the extracted client assets - the single loader
+     * assembly point. Compiles the pack stack ({@link PackAcquisition#acquire}), resolves every model,
+     * runs every domain loader, and materialises the block / item / entity indexes eagerly so each
      * {@code findX} lookup is a pure map access. Textures stay on disk until
-     * {@link #resolveTexture(String)} is called for them the first time.
+     * {@link #resolveTexture(String)} is first called.
      *
-     * @param result the pipeline result to wrap
-     * @return a new context scoped to the given result
+     * @param assets the extracted client assets (options + vanilla root)
+     * @return a new context scoped to the given assets
      */
-    public static @NotNull PipelineRendererContext of(@NotNull Pipeline.Result result) {
-        BlockModelLoader.LoadResult beResult = BlockModelLoader.load(result.getStack());
+    public static @NotNull PipelineRendererContext of(@NotNull ClientAssets assets) {
+        PackStack stack = PackAcquisition.acquire(assets);
+
+        ResolvedModels models = ResolvedModels.load(stack);
+        BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack, models.blocks());
+
+        Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.CONSOLE, null);
+        ConcurrentMap<String, String> blockDefaultStateKeys = BlockDefaultsReader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));
+        ConcurrentMap<String, String> blockItemAliases = BlockItemsReader.load(Diagnostics.root("blockItems", Diagnostics.Output.CONSOLE, null));
+
+        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
+        ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
+        ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
+        ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
+        ConcurrentMap<String, List<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
+        ConcurrentSet<String> glintItems = GlintItemsLoader.load();
+        ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(stack);
+        ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
+        ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(stack);
+
+        BlockModelLoader.LoadResult beResult = BlockModelLoader.load(stack);
         ConcurrentMap<String, Block.Entity> blockEntities = beResult.models();
-        reportBlockEntityShadows(result.getStack(), beResult);
-        ConcurrentMap<String, Block> blockIndex = BlockIndexLoader.load(result, blockEntities, beResult.variants());
-        ConcurrentMap<String, Item> itemIndex = ItemIndexLoader.load(result, blockEntities);
-        ConcurrentMap<String, Entity> entityIndex = loadEntityIndex();
-        TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(result.getStack()));
+
+        ConcurrentMap<String, Block> blockIndex = BlockIndexLoader.load(
+            models.blocks(), blockTints, itemDefinitions, blockStates.variants(), blockStates.multiparts(),
+            blockTags, blockDefaultStateKeys, blockItemAliases, blockEntities, beResult.variants());
+        ConcurrentMap<String, Item> itemIndex = ItemIndexLoader.load(
+            itemTints, glintItems, models.items(), itemTrees, blockEntities);
+        ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
+        TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
 
         return new PipelineRendererContext(
-            result.getStack(),
+            stack,
             blockIndex,
             itemIndex,
-            result.getItemTrees(),
-            result.getItemModels(),
+            itemTrees,
+            models.items(),
             entityIndex,
-            result.getColorMaps(),
-            result.getBlockTags(),
-            result.getPotionEffectColors(),
-            result.getBannerPatterns(),
+            colorMaps,
+            blockTags,
+            potionEffectColors,
+            bannerPatterns,
             blockEntities,
-            result.getRules(),
+            stack.rules(),
             synthesizer
         );
-    }
-
-    /**
-     * Loads the entity index natively from {@link EntityModelLoader#load()}, keyed by namespaced entity
-     * id. The loaded {@link Entity} is the full definition the renderer consumes; block-entity models
-     * render via the block path now, so only mob entities reach the entity index.
-     *
-     * @return the populated entity index, keyed by namespaced entity id
-     */
-    private static @NotNull ConcurrentMap<String, Entity> loadEntityIndex() {
-        return EntityModelLoader.load();
-    }
-
-    /**
-     * Runs the shadowed-model diagnostic over the block-entity-backed id set - the
-     * primary block-entity models unioned with their state-conditional variants - so a non-vanilla pack
-     * shipping a vanilla-form model / blockstate for a code-rendered block entity is named rather than
-     * silently ignored. Byte-neutral: a vanilla-only stack emits nothing.
-     */
-    private static void reportBlockEntityShadows(@NotNull PackStack stack, @NotNull BlockModelLoader.LoadResult beResult) {
-        Set<String> beBackedIds = new HashSet<>(beResult.models().keySet());
-        beBackedIds.addAll(beResult.variants().keySet());
-        BlockEntityShadowDiagnostics.report(stack, beBackedIds);
     }
 
     /**

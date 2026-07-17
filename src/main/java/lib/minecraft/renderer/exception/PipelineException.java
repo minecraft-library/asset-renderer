@@ -16,7 +16,7 @@ import org.jetbrains.annotations.Nullable;
  * </ul>
  *
  * @see RendererException
- * @see lib.minecraft.renderer.pipeline.Pipeline
+ * @see lib.minecraft.renderer.pipeline.ClientAcquisition
  */
 public final class PipelineException extends RendererException {
 
