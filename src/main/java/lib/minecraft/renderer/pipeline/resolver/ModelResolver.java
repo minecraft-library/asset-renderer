@@ -16,8 +16,7 @@ import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
-import lib.minecraft.renderer.pipeline.util.Models;
-import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
+import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -142,7 +141,7 @@ public class ModelResolver {
         model.setTextureObjects(textureObjects);
 
         if (!attributed.origin().equals(PackId.VANILLA)
-            && Models.rendersNothing(model.getElements(), model.getTextures(), isItem))
+            && model.rendersNothing(isItem))
             System.err.printf("Model '%s' from pack '%s' renders blank (empty template); it is dropped from the "
                 + "atlas index unless it is a block-entity-backed or special-item id that renders through a code path%n",
                 id, attributed.origin());

@@ -30,9 +30,6 @@
  *       matchers for OptiFine features (CIT / CTM / colormap) and the value types they consume.</li>
  *   <li>{@link lib.minecraft.renderer.pipeline.resolver resolver} - cross-loader resolvers: model
  *       parent inheritance ({@code ModelResolver}).</li>
- *   <li>{@link lib.minecraft.renderer.pipeline.util util} - shared utilities: the {@code Models}
- *       blank-model template test and the {@code VanillaSourcePaths} jar-prefix constants every
- *       loader keys off.</li>
  * </ul>
  *
  * <p><b>Gson.</b> {@link lib.minecraft.renderer.pipeline.PipelineGsonContributor

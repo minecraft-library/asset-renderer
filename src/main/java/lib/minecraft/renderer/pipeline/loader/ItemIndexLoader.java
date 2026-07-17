@@ -12,7 +12,6 @@ import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
-import lib.minecraft.renderer.pipeline.util.Models;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -83,7 +82,7 @@ public class ItemIndexLoader {
         int before = itemIndex.size();
         itemIndex.values().removeIf(item ->
             !item.id().id().equals(SHIELD_ITEM_ID)
-                && Models.rendersNothing(item.model().getElements(), item.model().getTextures(), true));
+                && item.model().rendersNothing(true));
         System.out.printf("Atlas empty-model filter: removed %d template items%n", before - itemIndex.size());
 
         addDispatchOnlyItems(itemIndex, result, beEntries);

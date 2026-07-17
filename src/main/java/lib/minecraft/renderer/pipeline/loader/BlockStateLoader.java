@@ -20,7 +20,7 @@ import lib.minecraft.renderer.pipeline.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
-import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
+import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

@@ -39,7 +39,7 @@ import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
-import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
+import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.UtilityClass;

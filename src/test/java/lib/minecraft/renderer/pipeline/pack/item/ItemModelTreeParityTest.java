@@ -15,7 +15,7 @@ import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
-import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
+import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

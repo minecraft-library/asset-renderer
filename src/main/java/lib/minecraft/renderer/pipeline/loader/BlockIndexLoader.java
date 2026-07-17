@@ -12,7 +12,6 @@ import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.util.Models;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -82,7 +81,7 @@ public class BlockIndexLoader {
                 return false;
             ModelData model = block.model();
             return isInvisible(entry.getKey())
-                || Models.rendersNothing(model.getElements(), model.getTextures(), false);
+                || model.rendersNothing(false);
         });
         System.out.printf("Atlas empty-model filter: removed %d template/invisible blocks%n", before - blockIndex.size());
 
