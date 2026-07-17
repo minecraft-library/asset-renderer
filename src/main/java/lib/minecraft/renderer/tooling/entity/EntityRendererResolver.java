@@ -26,9 +26,9 @@ import java.util.Set;
  * order, declared once, here. Each per-node resolver owns exactly one JSON node and returns
  * null to omit its key (the empty-vs-absent rule).
  *
- * <p>The overlays node resolves BEFORE the axes node (the shape axis clones the family's
+ * <p>The overlays node resolves BEFORE the axes node (the shape axis clones the model's
  * pattern overlays onto its large mesh), but the put chain keeps the on-disk order - axes
- * ahead of overlays. {@code family_of} is appended by the post-pass linker.
+ * ahead of overlays. {@code group_of} is appended by the post-pass linker.
  */
 final class EntityRendererResolver {
 
@@ -79,15 +79,15 @@ final class EntityRendererResolver {
     }
 
     /**
-     * Builds the family node - invocation order IS on-disk member order.
-     * The variant axis resolves ahead of the adult-texture resolution (variant-axis families
+     * Builds the model node - invocation order IS on-disk member order.
+     * The variant axis resolves ahead of the adult-texture resolution (variant-axis models
      * carry per-option textures, so no adult texture is resolved for them); the base geometry
      * and adult texture feed the mandatory age axis' {@code options.adult}, and the overlays
      * resolve ahead of the axes (the shape-axis clone) - the put order is unaffected.
      */
     @NotNull JsonNode resolve() {
         // The primary geometry is registered FIRST (manifest order) but is not emitted at
-        // top level: it moves the family baseline (base geometry + adult texture) into
+        // top level: it moves the model baseline (base geometry + adult texture) into
         // the mandatory age axis' options.adult (EntityAgeAxisResolver).
         String baseGeometry = this.geometryRef.resolve();                               // -> manifest key
         // armor_type is not a top-level member: EntityLayersResolver emits the humanoid
@@ -103,7 +103,7 @@ final class EntityRendererResolver {
             .putIf("overlays", overlays)
             .putIf("block_overlays", this.blockOverlays.resolve())
             .putIf("layers", this.layers.resolve());
-    }   // family_of appended by the EntityFamilyLinker post-pass
+    }   // group_of appended by the EntityGroupLinker post-pass
 
     /**
      * One {@code addLayer(...)} call site in the renderer constructor chain.

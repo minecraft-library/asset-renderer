@@ -13,18 +13,18 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Node {@code family_of} - the cross-entity grouping post-pass (mooshroom to cow, stray to
- * skeleton). Runs AFTER the walk loop over the completed {@code families} tree.
+ * Node {@code group_of} - the cross-entity grouping post-pass (mooshroom to cow, stray to
+ * skeleton). Runs AFTER the walk loop over the completed {@code models} tree.
  *
- * <p>Clustering key = shared primary {@code GeometryRequest} identity, taken from the family's
+ * <p>Clustering key = shared primary {@code GeometryRequest} identity, taken from the model's
  * embedded manifest key rather than any derived-id string. The canonical root is the member
  * whose entity id matches the factory-class stem, matched against the REQUEST coordinate
- * rather than an emitted id string; a stemless cluster is a coincidence family (illager) and
+ * rather than an emitted id string; a stemless cluster is a coincidence group (illager) and
  * links nothing. A data-variant-registry base (zombie_nautilus) heads its own variant family
  * and is barred from NON-root membership, while variant bases stay eligible as roots
  * (mooshroom to cow).
  */
-final class EntityFamilyLinker {
+final class EntityGroupLinker {
 
     /** The factory-class stem prefixes that never appear in an entity id (the adult / baby name strips). */
     private static final @NotNull List<String> STEM_PREFIXES = List.of("Adult", "Baby");
@@ -32,24 +32,24 @@ final class EntityFamilyLinker {
     /** The factory-class suffix every vanilla model class carries. */
     private static final @NotNull String STEM_SUFFIX = "Model";
 
-    private EntityFamilyLinker() {
+    private EntityGroupLinker() {
     }
 
     /**
-     * Appends {@code family_of} to every linked non-root family (the put lands last in the
+     * Appends {@code group_of} to every linked non-root model (the put lands last in the
      * member order).
      *
-     * @param root the envelope root owning the completed {@code families} node
+     * @param root the envelope root owning the completed {@code models} node
      * @param variants the data-variant index (the non-root membership bar)
      * @param diagnostics the post-pass scope
      */
     static void link(@NotNull JsonNode root, @NotNull VariantIndex variants, @NotNull Diagnostics diagnostics) {
-        JsonNode families = root.child("families");
+        JsonNode models = root.child("models");
         Map<String, List<String>> clusters = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonNode> family : families.members()) {
-            String geometry = primaryGeometry(family.getValue());
+        for (Map.Entry<String, JsonNode> model : models.members()) {
+            String geometry = primaryGeometry(model.getValue());
             if (geometry != null)
-                clusters.computeIfAbsent(geometry, key -> new ArrayList<>()).add(family.getKey());
+                clusters.computeIfAbsent(geometry, key -> new ArrayList<>()).add(model.getKey());
         }
 
         for (Map.Entry<String, List<String>> cluster : clusters.entrySet()) {
@@ -64,12 +64,12 @@ final class EntityFamilyLinker {
             for (String member : members) {
                 if (member.equals(rootId)) continue;
                 if (variants.table(localId(member)) != null) {
-                    diagnostics.info("variant-registry base '%s' kept out of '%s' family (heads its own variant family)",
+                    diagnostics.info("variant-registry base '%s' kept out of '%s' group (heads its own variant family)",
                         member, rootId);
                     continue;
                 }
-                families.child(member).put("family_of", rootId);
-                diagnostics.info("family link: %s -> %s (shared %s) [D40]", member, rootId, cluster.getKey());
+                models.child(member).put("group_of", rootId);
+                diagnostics.info("group link: %s -> %s (shared %s)", member, rootId, cluster.getKey());
             }
         }
     }
@@ -91,23 +91,23 @@ final class EntityFamilyLinker {
     }
 
     /**
-     * The family's primary geometry manifest key, read from the mandatory age axis' {@code options.adult}
-     * (the family baseline), or {@code null} when any node on that path is absent (an unresolvable
-     * family links nothing).
+     * The model's primary geometry manifest key, read from the mandatory age axis' {@code options.adult}
+     * (the model baseline), or {@code null} when any node on that path is absent (an unresolvable
+     * model links nothing).
      */
-    private static @Nullable String primaryGeometry(@NotNull JsonNode family) {
-        JsonNode axes = family.get("axes");
+    private static @Nullable String primaryGeometry(@NotNull JsonNode model) {
+        JsonNode axes = model.get("axes");
         JsonNode age = axes == null ? null : axes.get("age");
         JsonNode options = age == null ? null : age.get("options");
         JsonNode adult = options == null ? null : options.get("adult");
         return adult == null ? null : adult.getString("geometry");
     }
 
-    /** The namespace-stripped local id of a family key. */
-    private static @NotNull String localId(@NotNull String familyId) {
-        return familyId.startsWith(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE)
-            ? familyId.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length())
-            : familyId;
+    /** The namespace-stripped local id of a model key. */
+    private static @NotNull String localId(@NotNull String modelId) {
+        return modelId.startsWith(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE)
+            ? modelId.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length())
+            : modelId;
     }
 
 }

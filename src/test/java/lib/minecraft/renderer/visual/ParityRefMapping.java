@@ -88,9 +88,9 @@ public final class ParityRefMapping {
                                                                Diagnostics.root("parity_ref_mapping", Diagnostics.Output.NONE, null));
         if (doc.isEmpty()) return new ParityRefMapping(Map.of());
         JsonObject root = doc.get().payload().toGson().getAsJsonObject();
-        if (!root.has("families")) return new ParityRefMapping(Map.of());
+        if (!root.has("models")) return new ParityRefMapping(Map.of());
         Map<String, VariantFamily> families = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("families").entrySet()) {
+        for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("models").entrySet()) {
             if (!entry.getValue().isJsonObject()) continue;
             JsonObject family = entry.getValue().getAsJsonObject();
             if (!family.has("axes")) continue;

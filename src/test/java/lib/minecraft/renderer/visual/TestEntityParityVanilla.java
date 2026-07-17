@@ -196,7 +196,7 @@ public final class TestEntityParityVanilla {
 
             EntityOptions.EntityOptionsBuilder optionsBuilder = EntityOptions.builder()
                 .entityId(Optional.of(subject.entityId()))
-                .fitMode(EntityOptions.FitMode.FAMILY_BOUNDS);
+                .fitMode(EntityOptions.FitMode.GROUP_BOUNDS);
             // Drive the option-encoded variant coat (empty for an id-encoded pseudo-id, whose id already
             // selects the coat, or a non-variant subject).
             subject.variant().ifPresent(v -> optionsBuilder.appearance(

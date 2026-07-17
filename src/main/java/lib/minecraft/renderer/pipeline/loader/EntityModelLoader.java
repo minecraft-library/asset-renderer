@@ -43,19 +43,19 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * The reader for entity model definitions. Reads the family form of
- * {@code entity_models.json} (90 base-entity families) joined against {@code entity_geometry.json}
+ * The reader for entity model definitions. Reads the model form of
+ * {@code entity_models.json} (90 base-entity models) joined against {@code entity_geometry.json}
  * (the deduplicated bone trees) DIRECTLY into the {@link Entity} map the renderer consumes.
  *
- * <p>The geometry file is keyed by the same manifest factory coordinate the family baseline names
+ * <p>The geometry file is keyed by the same manifest factory coordinate the model baseline names
  * under {@code axes.age.options.adult.geometry} (e.g. {@code AdultWolfModel#createBodyLayer},
  * {@code PigModel#createBodyLayer@grow=0.5}), so a coordinate resolves directly. A dangling
  * coordinate fails LOUD ({@link PipelineException}).
  *
  * <p>The reader's one non-trivial expansion is <b>id-encoded variant expansion</b>: a
  * {@code variant} axis flattens to {@code minecraft:<id>_<opt>} render pseudo-ids, the default option
- * carrying the family baseline and every other option pointing back at it via {@code variant_of} for the
- * family canvas-union (baked onto {@link Entity#members()}). The family's render fields (overlays, block overlays,
+ * carrying the model baseline and every other option pointing back at it via {@code variant_of} for the
+ * group canvas-union (baked onto {@link Entity#members()}). The model's render fields (overlays, block overlays,
  * scale, tint, bones) apply to EVERY variant row - the renderer resolves each variant row directly and
  * does not inherit through {@code variant_of}, so the baseline is copied onto each row here.
  *
@@ -114,29 +114,29 @@ public final class EntityModelLoader {
 
         Map<String, EntityModelData> geometries = parseGeometries(geometryDoc.get());
         if (geometries.isEmpty()) return Concurrent.newMap();
-        JsonObject families = familiesOf(modelsDoc.get());
-        if (families == null) return Concurrent.newMap();
+        JsonObject models = modelsOf(modelsDoc.get());
+        if (models == null) return Concurrent.newMap();
 
         LinkedHashMap<String, Entity> definitions = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : families.entrySet()) {
+        for (Map.Entry<String, JsonElement> entry : models.entrySet()) {
             if (!entry.getValue().isJsonObject()) continue;
-            readFamily(entry.getKey(), entry.getValue().getAsJsonObject(), geometries, definitions, diagnostics);
+            readDefinition(entry.getKey(), entry.getValue().getAsJsonObject(), geometries, definitions, diagnostics);
         }
-        attachGroupMembers(families, definitions);
+        attachGroupMembers(models, definitions);
         return Concurrent.adoptMap(definitions);
     }
 
     /**
      * Stamps each grouped entity's canvas-group membership onto its {@link Entity#members()} - the
-     * self-inclusive member list the family-union fit bound iterates. Groups of size one (singletons)
+     * self-inclusive member list the group-union fit bound iterates. Groups of size one (singletons)
      * carry no members (the empty default); only genuine groups (size &gt; 1) are rewritten. Runs on the
-     * already-parsed {@code families} object, so no second resource read is needed.
+     * already-parsed {@code models} object, so no second resource read is needed.
      *
-     * @param families the parsed {@code families} object
+     * @param models the parsed {@code models} object
      * @param definitions the built definitions, mutated in place for grouped entities
      */
-    private static void attachGroupMembers(@NotNull JsonObject families, @NotNull Map<String, Entity> definitions) {
-        for (Map.Entry<String, List<String>> group : groupMembership(families).entrySet()) {
+    private static void attachGroupMembers(@NotNull JsonObject models, @NotNull Map<String, Entity> definitions) {
+        for (Map.Entry<String, List<String>> group : groupMembership(models).entrySet()) {
             if (group.getValue().size() <= 1) continue;
             Entity entity = definitions.get(group.getKey());
             if (entity == null) continue;
@@ -145,20 +145,20 @@ public final class EntityModelLoader {
     }
 
     /**
-     * Returns {@code entityId -> familyMembers} keyed by every native entity id, derived from
+     * Returns {@code entityId -> groupMembers} keyed by every native entity id, derived from
      * {@code variant_of} (variant siblings roll up to their base row) plus the cross-entity
-     * {@code family_of} groupings (mooshroom -&gt; cow). Singletons return a single-element list of
+     * {@code group_of} groupings (mooshroom -&gt; cow). Singletons return a single-element list of
      * themselves so the fold is uniform; {@link #attachGroupMembers} keeps only the genuine groups.
      *
-     * @param families the parsed {@code families} object
-     * @return family membership keyed by entity id
+     * @param models the parsed {@code models} object
+     * @return group membership keyed by entity id
      */
-    private static @NotNull Map<String, List<String>> groupMembership(@NotNull JsonObject families) {
+    private static @NotNull Map<String, List<String>> groupMembership(@NotNull JsonObject models) {
         // Row id -> its variant_of base (null for a base / plain row) in expansion order, plus the
-        // cross-entity family_of table (keyed by the FAMILY id).
+        // cross-entity group_of table (keyed by the model id).
         Map<String, String> variantOf = new LinkedHashMap<>();
-        Map<String, String> crossFamilies = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : families.entrySet()) {
+        Map<String, String> crossGroups = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : models.entrySet()) {
             if (!entry.getValue().isJsonObject()) continue;
             String familyId = entry.getKey();
             JsonObject family = entry.getValue().getAsJsonObject();
@@ -172,22 +172,22 @@ public final class EntityModelLoader {
                     variantOf.put(rowId, option.equals(defaultOption) ? null : baseId);
                 }
             } else {
-                // Non-variant OR option-encoded variant family: one base row. Option-encoded coats live on
-                // the base definition's axes.variants and are measured by the family canvas union, not as
+                // Non-variant OR option-encoded variant model: one base row. Option-encoded coats live on
+                // the base definition's axes.variants and are measured by the group canvas union, not as
                 // separate member rows.
                 variantOf.put(familyId, null);
             }
-            // family_of groups a non-variant sub-species under its base (camel_husk -> camel). A variant
-            // family's family_of (mooshroom -> cow, trader_llama -> llama) is INERT at runtime in both
-            // id-encoding states - id-encoded, its rows are pseudo-ids the family-id-keyed crossFamilies
-            // never matches; guarding it to non-variant families keeps that inertness once option-encoding
-            // makes the base row a plain id, so the coat's family stays itself in both states.
-            if (variant == null && family.has("family_of")) crossFamilies.put(familyId, family.get("family_of").getAsString());
+            // group_of groups a non-variant sub-species under its base (camel_husk -> camel). A variant
+            // model's group_of (mooshroom -> cow, trader_llama -> llama) is INERT at runtime in both
+            // id-encoding states - id-encoded, its rows are pseudo-ids the model-id-keyed crossGroups
+            // never matches; guarding it to non-variant models keeps that inertness once option-encoding
+            // makes the base row a plain id, so the coat's group stays itself in both states.
+            if (variant == null && family.has("group_of")) crossGroups.put(familyId, family.get("group_of").getAsString());
         }
 
         Map<String, String> entityToFamily = new LinkedHashMap<>();
         for (Map.Entry<String, String> row : variantOf.entrySet()) {
-            String family = crossFamilies.get(row.getKey());
+            String family = crossGroups.get(row.getKey());
             if (family == null) family = row.getValue();
             if (family == null) family = row.getKey();
             entityToFamily.put(row.getKey(), family);
@@ -202,14 +202,14 @@ public final class EntityModelLoader {
     }
 
     // ------------------------------------------------------------------------------------
-    // family read
+    // model read
     // ------------------------------------------------------------------------------------
 
     /**
-     * Reads one family into one (plain) or many (id-encoded variant) {@link Entity} rows,
+     * Reads one model into one (plain) or many (id-encoded variant) {@link Entity} rows,
      * adding each to {@code definitions}.
      */
-    private static void readFamily(
+    private static void readDefinition(
         @NotNull String familyId,
         @NotNull JsonObject family,
         @NotNull Map<String, EntityModelData> geometries,
@@ -871,10 +871,10 @@ public final class EntityModelLoader {
         return out;
     }
 
-    /** Returns the {@code families} object of a parsed models document, or {@code null} when absent. */
-    private static @Nullable JsonObject familiesOf(@NotNull ResourceDocument modelsDoc) {
+    /** Returns the {@code models} object of a parsed models document, or {@code null} when absent. */
+    private static @Nullable JsonObject modelsOf(@NotNull ResourceDocument modelsDoc) {
         JsonObject root = modelsDoc.payload().toGson().getAsJsonObject();
-        return root.has("families") ? root.getAsJsonObject("families") : null;
+        return root.has("models") ? root.getAsJsonObject("models") : null;
     }
 
     /**

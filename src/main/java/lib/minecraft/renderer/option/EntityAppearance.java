@@ -12,10 +12,10 @@ import java.util.Set;
 /**
  * The entity-specific axis selections for a single {@code EntityRenderer} invocation, held as one
  * cohesive value on {@link EntityOptions#getAppearance()} so {@code EntityOptions} does not accrete a
- * loose field per axis. Each selection maps onto the {@code entity_models.json} family form: the
+ * loose field per axis. Each selection maps onto the {@code entity_models.json} model form: the
  * typed {@link #getAge() age} axis, the option-sourced dyed {@link #tint(TintAxis) collar} tint, and the
  * id-encoded / option-encoded string axes ({@link #getState() state}, {@link #getCarried() carried})
- * whose valid values are declared per-entity in the family JSON rather than a hard-coded enum.
+ * whose valid values are declared per-entity in the model JSON rather than a hard-coded enum.
  *
  * <p>Every axis is empty / default unless explicitly set, so the default appearance has no effect on
  * the render. An axis a given entity does not support is simply ignored at render (an unknown
@@ -45,7 +45,7 @@ public class EntityAppearance {
     /**
      * Variant selector for entities whose coat / colour {@code variant} axis is option-encoded (cow
      * temperate / cold / warm, wolf coats, cat breeds, ...). Selects that option's baked mesh + coat
-     * texture in place of the family's default coat; empty (default) renders the default coat. Ignored
+     * texture in place of the model's default coat; empty (default) renders the default coat. Ignored
      * by entities with no variant axis, or while the axis is id-encoded (each coat a first-class render id).
      */
     @lombok.Builder.Default
@@ -80,7 +80,7 @@ public class EntityAppearance {
      * The selected dye per {@link TintAxis tint axis} - the body base tint ({@link TintAxis#BASE},
      * tropical fish) and each named overlay tint ({@link TintAxis#WOOL} sheep wool,
      * {@link TintAxis#PATTERN} tropical fish pattern, {@link TintAxis#COLLAR} wolf / cat collar).
-     * An axis absent from the map uses its target's baked default (the family {@code base_tint} or
+     * An axis absent from the map uses its target's baked default (the model {@code base_tint} or
      * the overlay's {@code tint_color}), so the default appearance is unchanged; a
      * present axis multiplies its target by the dye's {@link DyeColor#argb() ARGB}. One map rather
      * than a loose {@link Optional} field per dye axis - see {@link TintAxis}.
@@ -174,7 +174,7 @@ public class EntityAppearance {
 
     /**
      * The set of bone-toggle names to un-hide for entities with toggleable bones (donkey / mule /
-     * llama {@code chest}). Each name matches a family-form {@code bone_toggles} key; a toggle a
+     * llama {@code chest}). Each name matches a model-form {@code bone_toggles} key; a toggle a
      * given entity does not declare is ignored. Empty (default) leaves every toggleable bone hidden.
      */
     @lombok.Builder.Default

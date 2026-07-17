@@ -88,12 +88,12 @@ class EntityModelLoaderTest {
         assertThat("the cold coat differs from the default", resolvedCold.textureRef(), not(cow.textureRef()));
         assertThat("selecting cold swaps to the cold coat mesh", resolvedCold.model(), sameInstance(cow.axes().variants().get("cold").model()));
 
-        // Canvas-group membership is baked onto Entity.members: an option-encoded variant family with no
-        // cross-entity group is a singleton (empty members); a genuine family_of group carries the
+        // Canvas-group membership is baked onto Entity.members: an option-encoded variant model with no
+        // cross-entity group is a singleton (empty members); a genuine group_of group carries the
         // self-inclusive member list identically on every member.
-        assertThat("an option-encoded variant family with no cross-group carries no members", cow.members(), is(empty()));
+        assertThat("an option-encoded variant model with no cross-group carries no members", cow.members(), is(empty()));
         assertThat("a plain singleton entity carries no members", defs.get("minecraft:sheep").members(), is(empty()));
-        assertThat("a family_of group is self-inclusive on every member",
+        assertThat("a group_of group is self-inclusive on every member",
             defs.get("minecraft:camel").members(), containsInAnyOrder("minecraft:camel", "minecraft:camel_husk"));
         assertThat("the group member list is identical on every member",
             defs.get("minecraft:camel_husk").members(), equalTo(defs.get("minecraft:camel").members()));

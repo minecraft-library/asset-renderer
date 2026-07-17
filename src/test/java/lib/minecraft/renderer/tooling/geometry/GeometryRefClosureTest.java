@@ -40,7 +40,7 @@ class GeometryRefClosureTest {
     @Test
     @DisplayName("entity pair: entity_models.json refs close over entity_geometry.json")
     void entityPairCloses() throws IOException {
-        assertPairCloses("entity_models.json", "families", "entity_geometry.json");
+        assertPairCloses("entity_models.json", "models", "entity_geometry.json");
     }
 
     @Test

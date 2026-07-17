@@ -87,7 +87,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
      * The pack-aware texture-resolution service, bound once to {@link #context}, that every
-     * base / variant / family-member texture lookup on this renderer flows through.
+     * base / variant / group-member texture lookup on this renderer flows through.
      */
     private final @NotNull Textures textures;
 
@@ -221,9 +221,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // entity rendering flows through the same auto-fit pipeline the player uses.
         //
         // ORTHOGRAPHIC (VANILLA_ISO + axonometric): size a native pixels-per-block canvas from the
-        // entity's alpha-tight (optionally family-unioned) silhouette - measured through the EXACT render
+        // entity's alpha-tight (optionally group-unioned) silhouette - measured through the EXACT render
         // orientation ({@code engine.orient}), dispatched on FitMode (OUTPUT_SIZE honours canvasSize +
-        // padding; UNION_BOUNDS / FAMILY_BOUNDS auto-size from the entity's own / family-unioned bounds).
+        // padding; UNION_BOUNDS / GROUP_BOUNDS auto-size from the entity's own / group-unioned bounds).
         // The engine bakes that explicit scale in 3D and centres the measured silhouette midpoint in
         // screen space (NATIVE_SCALE) - so a non-brick silhouette (cod's z=[-4,11] AABB vs its z=[0,7]
         // cube hug) stays tightly centred, without the old model-space anchor inverse. Per-entity
@@ -351,7 +351,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@link EntityAppearance#getState() state} selection matching one of the definition's
      * {@link Entity#stateTextures() state textures} (wolf
      * {@code tame}/{@code angry}) &gt; the entity's own
-     * {@link Entity#textureRef() texture_ref}. Each family-form ref is resolved against the vanilla
+     * {@link Entity#textureRef() texture_ref}. Each model-form ref is resolved against the vanilla
      * pack at {@code minecraft:entity/<ref>} via {@link Textures#resolveEntityTextureAtTick}.
      */
     private @NotNull Optional<PixelBuffer> resolveEntityTexture(
@@ -852,26 +852,26 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * Selects whether canvas sizing + silhouette centring measure this entity alone (base
      * model + non-{@code skipBounds} overlays unioned together) or also union across every
-     * family member from the definition's {@link Entity#members()}. {@link EntityOptions.FitMode}
+     * group member from the definition's {@link Entity#members()}. {@link EntityOptions.FitMode}
      * picks which source via {@link #boundsScopeFor}; both modes share the same per-entity
-     * + overlay primitives so the only difference is whether the family loop runs.
+     * + overlay primitives so the only difference is whether the group loop runs.
      */
-    private enum BoundsScope { ENTITY_UNION, FAMILY_UNION }
+    private enum BoundsScope { ENTITY_UNION, GROUP_UNION }
 
     /**
      * Maps a public {@link EntityOptions.FitMode} to the internal {@link BoundsScope} the
      * canvas / centring math should measure against. {@code OUTPUT_SIZE} and
-     * {@code UNION_BOUNDS} measure this entity only; {@code FAMILY_BOUNDS} additionally
-     * unions every family member so cow + cow_warm + mooshroom share the same canvas.
+     * {@code UNION_BOUNDS} measure this entity only; {@code GROUP_BOUNDS} additionally
+     * unions every group member so camel + camel_husk share the same canvas.
      */
     private static @NotNull BoundsScope boundsScopeFor(@NotNull EntityOptions.FitMode mode) {
-        return mode == EntityOptions.FitMode.FAMILY_BOUNDS ? BoundsScope.FAMILY_UNION : BoundsScope.ENTITY_UNION;
+        return mode == EntityOptions.FitMode.GROUP_BOUNDS ? BoundsScope.GROUP_UNION : BoundsScope.ENTITY_UNION;
     }
 
     /**
      * Computes the screen-space bounds for the active {@link BoundsScope}. The two existing
      * primitives ({@link #computeUnionScreenBounds} for one entity, {@link
-     * #computeFamilyUnionScreenBounds} for the whole family) stay unchanged; this method is
+     * #computeGroupUnionScreenBounds} for the whole group) stay unchanged; this method is
      * the single dispatch point so canvas-sizing and centring agree on which bounds to use.
      */
     private @NotNull Box computeScreenBoundsFor(
@@ -885,18 +885,18 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         return switch (scope) {
             case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, modelScale, texture, tick);
-            case FAMILY_UNION -> computeFamilyUnionScreenBounds(entityId, definition, transform, modelScale, texture, tick);
+            case GROUP_UNION -> computeGroupUnionScreenBounds(entityId, definition, transform, modelScale, texture, tick);
         };
     }
 
     /**
      * Sizes the output canvas + model-units-to-NDC scale from a pre-measured projected silhouette,
      * dispatched on {@link EntityOptions#getFitMode()}. The caller measures the (alpha-tight, optionally
-     * family-unioned) {@code screenBounds} through the render orientation ({@link ModelEngine#orient});
+     * group-unioned) {@code screenBounds} through the render orientation ({@link ModelEngine#orient});
      * this is the pure sizing math the orthographic entity path feeds into a
      * {@link FitRequest#nativeScale(float, Box) NATIVE_SCALE} fit.
      *
-     * <p>{@code UNION_BOUNDS} / {@code FAMILY_BOUNDS}: take the tight screen-space extent in
+     * <p>{@code UNION_BOUNDS} / {@code GROUP_BOUNDS}: take the tight screen-space extent in
      * entity-pixel-units, size the canvas to {@code (extent * pixelsPerBlock / 16)} pixels per axis plus
      * {@code 2 * padding} on each axis, then uniformly shrink so the longer side stays at or below
      * {@link EntityOptions#getMaxCanvasSize() maxCanvasSize}.
@@ -994,26 +994,26 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Unions screen-space bounds across every family member of {@code entityId}, mirroring the
-     * vanilla harness's {@code EntitySweeper.computeFamilyFits} pre-pass so variant siblings
-     * (cow_cold / cow_warm, chicken_cold / chicken_warm, mooshroom in cow's family) render into
-     * a single canvas sized to the largest member. Without this the family's smaller variants
-     * canvas-fit to their own (tighter) bound and the family-locked geometry shifts position
-     * between variants - vanilla's pixel-identical-canvas guarantee requires every family
-     * member to share the same canvas dimensions, scale, and anchor.
+     * Unions screen-space bounds across every group member of {@code entityId}, mirroring the
+     * vanilla harness's {@code EntitySweeper.computeFamilyFits} pre-pass so grouped siblings
+     * (camel_husk in camel's group, stray in skeleton's group) render into a single canvas sized
+     * to the largest member. Without this the group's smaller members canvas-fit to their own
+     * (tighter) bound and the group-locked geometry shifts position between members - vanilla's
+     * pixel-identical-canvas guarantee requires every group member to share the same canvas
+     * dimensions, scale, and anchor.
      * <p>
-     * Per-member: load the variant's own definition + default texture (NOT the current render's
-     * options-override texture), apply the variant's {@link Entity#rendererScale rendererScale} model
-     * scale, run {@code computeUnionScreenBounds}, union the result. Family members whose
-     * texture / definition can't be resolved (missing PNG, unloaded variant) are skipped - the
+     * Per-member: load the member's own definition + default texture (NOT the current render's
+     * options-override texture), apply the member's {@link Entity#rendererScale rendererScale} model
+     * scale, run {@code computeUnionScreenBounds}, union the result. Group members whose
+     * texture / definition can't be resolved (missing PNG, unloaded member) are skipped - the
      * union degrades to the available members rather than throwing.
      * <p>
      * Members are read from the definition's own {@link Entity#members()} - the canvas-group
-     * membership baked at load from {@code variant_of} / {@code family_of}. A singleton carries an
+     * membership baked at load from {@code variant_of} / {@code group_of}. A singleton carries an
      * empty member list, so this method collapses to {@link #computeUnionScreenBounds} for
-     * non-family-bearing entities.
+     * non-group-bearing entities.
      */
-    private @NotNull Box computeFamilyUnionScreenBounds(
+    private @NotNull Box computeGroupUnionScreenBounds(
         @NotNull String entityId,
         @NotNull Entity definition,
         @NotNull Matrix4f transform,
@@ -1023,8 +1023,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         Box bounds = computeUnionScreenBounds(definition, transform, modelScale, texture, tick);
         // Option-encoded variant coats live on the base definition's axes.variants rather than as
-        // separate family-member rows, so union each coat's silhouette here. A no-op while variant is
-        // id-encoded (each coat is a member row measured below) or the family has no variant axis.
+        // separate group-member rows, so union each coat's silhouette here. A no-op while variant is
+        // id-encoded (each coat is a member row measured below) or the model has no variant axis.
         bounds = unionVariantSilhouettes(bounds, this.javaEntities.get(entityId), transform, tick);
         List<String> members = definition.members();
         if (members.size() <= 1) return bounds;
@@ -1032,7 +1032,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             if (memberId.equals(entityId)) continue;
             Entity memberDef = this.javaEntities.get(memberId);
             if (memberDef == null || memberDef.model().getBones().isEmpty()) continue;
-            Optional<PixelBuffer> memberTexture = resolveFamilyMemberTexture(memberDef);
+            Optional<PixelBuffer> memberTexture = resolveGroupMemberTexture(memberDef);
             if (memberTexture.isEmpty()) continue;
             float memberScale = memberDef.rendererScale();
             Box memberBounds = computeUnionScreenBounds(memberDef, transform, memberScale, memberTexture.get(), tick);
@@ -1045,14 +1045,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * Unions the screen-space silhouettes of a definition's option-encoded variant coats
      * ({@link Entity.Axes#variants()}) into {@code bounds}, each measured at its
-     * own coat texture + render scale (mirroring the family-member walk). A no-op when the definition is
-     * absent or carries no variant coats (id-encoded / non-variant families).
+     * own coat texture + render scale (mirroring the group-member walk). A no-op when the definition is
+     * absent or carries no variant coats (id-encoded / non-variant models).
      */
     private @NotNull Box unionVariantSilhouettes(@NotNull Box bounds, @Nullable Entity definition, @NotNull Matrix4f transform, int tick) {
         if (definition == null) return bounds;
         for (Entity coat : definition.axes().variants().values()) {
             if (coat.model().getBones().isEmpty()) continue;
-            Optional<PixelBuffer> coatTexture = resolveFamilyMemberTexture(coat);
+            Optional<PixelBuffer> coatTexture = resolveGroupMemberTexture(coat);
             if (coatTexture.isEmpty()) continue;
             bounds = unionBoxes(bounds, computeUnionScreenBounds(coat, transform, coat.rendererScale(), coatTexture.get(), tick));
         }
@@ -1060,11 +1060,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Resolves a family-member's default texture for the family-fit bound walk. Unlike
-     * {@link #resolveEntityTexture} this ignores {@code options.textureId} (family-fit measures
+     * Resolves a group-member's default texture for the group-fit bound walk. Unlike
+     * {@link #resolveEntityTexture} this ignores {@code options.textureId} (group-fit measures
      * each variant's OWN bound, not the current-render texture override).
      */
-    private @NotNull Optional<PixelBuffer> resolveFamilyMemberTexture(@NotNull Entity definition) {
+    private @NotNull Optional<PixelBuffer> resolveGroupMemberTexture(@NotNull Entity definition) {
         if (definition.textureRef().isEmpty()) return Optional.empty();
         return this.textures.resolveEntityTextureAtTick(definition.textureRef().get(), 0);
     }

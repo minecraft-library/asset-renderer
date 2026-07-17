@@ -75,7 +75,7 @@ import java.util.Set;
  * @param layers the conditional decoration layers drawn over the base body (collar, equipment,
  *     markings), each gated at render on its appearance axis - see {@link Layers}
  * @param members the self-inclusive canvas-group membership - every entity id that shares this
- *     entity's family-union fit window ({@code EntityOptions.FitMode.FAMILY_BOUNDS}), the SAME list on
+ *     entity's group-union fit window ({@code EntityOptions.FitMode.GROUP_BOUNDS}), the SAME list on
  *     each member of the group; empty for a singleton entity with no group
  */
 @Builder(toBuilder = true)
@@ -155,7 +155,7 @@ public record Entity(
     public @NotNull Entity resolve(@NotNull EntityAppearance appearance) {
         // Variant fold (option-encoded coat / colour): a selected variant resolves against that option's
         // fully-built sub-definition, so every later axis (baby / size / tint) folds on top of the coat.
-        // An absent or unknown option, and a non-variant family (empty variants map), keep the family
+        // An absent or unknown option, and a non-variant model (empty variants map), keep the model
         // default coat.
         Entity definition = appearance.getVariant()
             .map(coat -> this.axes().variants().getOrDefault(coat, this))
@@ -209,7 +209,7 @@ public record Entity(
             appearance.getSize().map(definition.axes().sizeScales()::get)
                 .ifPresent(scale -> builder.rendererScale(definition.rendererScale() * scale));
         }
-        // The base_color axis (tropical fish) overrides the family base_tint with the selected dye; absent
+        // The base_color axis (tropical fish) overrides the model base_tint with the selected dye; absent
         // (default) keeps the baked base_tint.
         appearance.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
         return builder.build();
@@ -280,7 +280,7 @@ public record Entity(
      *
      * @param stateTextures alternate base textures keyed by behavioural state (wolf
      *     {@code wild}/{@code tame}/{@code angry}) plus the {@code baby} texture, populated for
-     *     multi-state / ageable variant families; empty otherwise. The {@code wild} entry, when present,
+     *     multi-state / ageable variant models; empty otherwise. The {@code wild} entry, when present,
      *     equals the definition's {@code textureRef}
      * @param babyModel the distinct baked baby mesh, used in place of the base model when the
      *     {@code age} axis selects {@code baby}; empty for entities with no dedicated baby mesh
@@ -294,9 +294,9 @@ public record Entity(
      *     (cow {@code temperate}/{@code cold}/{@code warm}, wolf coats, cat breeds), each a fully-built
      *     definition; the base definition IS the default option's build. Empty when {@code variant} is
      *     id-encoded (each coat a first-class
-     *     pseudo-id) or the family has no variant axis. The render-time variant fold in
+     *     pseudo-id) or the model has no variant axis. The render-time variant fold in
      *     {@link Entity#resolve} swaps to the selected
-     *     option's sub-definition, and the family canvas union measures every option's silhouette
+     *     option's sub-definition, and the group canvas union measures every option's silhouette
      */
     public record Axes(
         @NotNull Map<String, String> stateTextures,
@@ -509,7 +509,7 @@ public record Entity(
      * rendered on the body only when the {@code equipment} render axis selects its {@link #slot}. Unlike
      * an always-on {@link OverlayLayer}, the texture is chosen at render from the axis-selected material
      * through {@link #textureTemplate} (or {@link #defaultMaterial} when the slot is selected without a
-     * material). Sourced by {@link EntityModelLoader} from the family form's {@code when.equipment}-gated
+     * material). Sourced by {@link EntityModelLoader} from the model form's {@code when.equipment}-gated
      * {@code layers}.
      *
      * @param slot the equipment slot this overlay is gated on ({@code saddle} / {@code body})

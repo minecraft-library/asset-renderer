@@ -43,8 +43,8 @@ class Directive4GoldenPinsTest {
     @Test
     @DisplayName("rotate_z: no block-overlay row emits a rotate_z transform")
     void noRotateZ() {
-        JsonObject families = read("entity_models.json").getAsJsonObject("families");
-        for (Map.Entry<String, JsonElement> family : families.entrySet()) {
+        JsonObject models = read("entity_models.json").getAsJsonObject("models");
+        for (Map.Entry<String, JsonElement> family : models.entrySet()) {
             if (!family.getValue().isJsonObject()) continue;
             JsonObject object = family.getValue().getAsJsonObject();
             if (!object.has("block_overlays")) continue;

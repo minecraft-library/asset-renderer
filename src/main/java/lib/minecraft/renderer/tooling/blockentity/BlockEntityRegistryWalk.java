@@ -16,7 +16,7 @@ import java.util.List;
  * and fans each subject into its family splits via {@link BlockGeometrySourceResolver}, appending
  * one {@code models} entry per split id.
  *
- * <p>The block side has no {@code family_of} analogue - no post-pass.
+ * <p>The block side has no {@code group_of} analogue - no post-pass.
  */
 public final class BlockEntityRegistryWalk {
 

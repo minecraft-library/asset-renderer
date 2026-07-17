@@ -2,7 +2,7 @@
   "//": "tooling.entityModels · regen: ./gradlew entityModels · order: EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain",
   "format": 2,
   "source_version": "26.1",
-  "families": {
+  "models": {
     "minecraft:allay": {
       "renderer": "net/minecraft/client/renderer/entity/AllayRenderer",
       "axes": {
@@ -332,7 +332,7 @@
           }
         }
       ],
-      "family_of": "minecraft:camel"
+      "group_of": "minecraft:camel"
     },
     "minecraft:cat": {
       "renderer": "net/minecraft/client/renderer/entity/CatRenderer",
@@ -1117,7 +1117,7 @@
           }
         }
       },
-      "family_of": "minecraft:squid"
+      "group_of": "minecraft:squid"
     },
     "minecraft:goat": {
       "renderer": "net/minecraft/client/renderer/entity/GoatRenderer",
@@ -1630,7 +1630,7 @@
           ]
         }
       ],
-      "family_of": "minecraft:cow"
+      "group_of": "minecraft:cow"
     },
     "minecraft:mule": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
@@ -1976,7 +1976,7 @@
           "armor_type": "humanoid"
         }
       ],
-      "family_of": "minecraft:piglin"
+      "group_of": "minecraft:piglin"
     },
     "minecraft:pillager": {
       "renderer": "net/minecraft/client/renderer/entity/PillagerRenderer",
@@ -2443,7 +2443,7 @@
           "armor_type": "humanoid"
         }
       ],
-      "family_of": "minecraft:skeleton"
+      "group_of": "minecraft:skeleton"
     },
     "minecraft:strider": {
       "renderer": "net/minecraft/client/renderer/entity/StriderRenderer",
@@ -2577,7 +2577,7 @@
           }
         }
       ],
-      "family_of": "minecraft:llama"
+      "group_of": "minecraft:llama"
     },
     "minecraft:tropical_fish": {
       "renderer": "net/minecraft/client/renderer/entity/TropicalFishRenderer",
@@ -2747,7 +2747,7 @@
           }
         }
       },
-      "family_of": "minecraft:villager"
+      "group_of": "minecraft:villager"
     },
     "minecraft:warden": {
       "renderer": "net/minecraft/client/renderer/entity/WardenRenderer",
@@ -3086,7 +3086,7 @@
           }
         }
       },
-      "family_of": "minecraft:hoglin"
+      "group_of": "minecraft:hoglin"
     },
     "minecraft:zombie": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieRenderer",
@@ -3293,7 +3293,7 @@
           "armor_type": "humanoid"
         }
       ],
-      "family_of": "minecraft:piglin"
+      "group_of": "minecraft:piglin"
     }
   }
 }

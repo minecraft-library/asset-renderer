@@ -13,7 +13,7 @@ import java.util.Optional;
 /**
  * A dye-tint axis - one independent dimension along which a render selects a {@link DyeColor} to tint
  * a target (the body base tint, or a named overlay). Each axis owns the {@code tint_by} token an
- * overlay names in the family form ({@code entity_models.json}) to source its multiplicative tint
+ * overlay names in the model form ({@code entity_models.json}) to source its multiplicative tint
  * from the render's {@link DyeColor} selection, mirroring vanilla's per-{@code RenderState} colour
  * fields (sheep {@code getWoolColor}, tropical fish {@code baseColor} / {@code patternColor}).
  *
@@ -27,7 +27,7 @@ import java.util.Optional;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum TintAxis {
 
-    /** The body's base tint (tropical fish {@code baseColor}); overrides the family {@code base_tint}. */
+    /** The body's base tint (tropical fish {@code baseColor}); overrides the model {@code base_tint}. */
     BASE("base_color"),
 
     /** A pattern overlay's tint (tropical fish {@code patternColor}). */
@@ -39,7 +39,7 @@ public enum TintAxis {
     /** A collar overlay's tint (wolf / cat collar dye). */
     COLLAR("collar_color");
 
-    /** The {@code tint_by} token this axis is named by in the family form (e.g. {@code "wool_color"}). */
+    /** The {@code tint_by} token this axis is named by in the model form (e.g. {@code "wool_color"}). */
     private final @NotNull String token;
 
     /**

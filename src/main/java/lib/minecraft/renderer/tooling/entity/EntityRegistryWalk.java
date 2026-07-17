@@ -13,7 +13,7 @@ import java.util.Set;
 /**
  * The registry walk - the ONLY stage that touches the output tree.
  * Builds the session-wide indexes once, loops the subjects in registry order appending one
- * family per subject, and hosts the post-pass linker hook.
+ * model per subject, and hosts the post-pass linker hook.
  */
 public final class EntityRegistryWalk {
 
@@ -22,12 +22,12 @@ public final class EntityRegistryWalk {
 
     /**
      * Runs the per-subject resolver chain over every subject, appending to
-     * {@code root.families}.
+     * {@code root.models}.
      *
      * @param session the live session
      * @param subjects the discovered subjects in registry order
      * @param manifest the geometry-request registry the resolvers populate
-     * @param root the envelope root owning the {@code families} node
+     * @param root the envelope root owning the {@code models} node
      */
     public static void run(
         @NotNull ToolingSession session,
@@ -41,13 +41,13 @@ public final class EntityRegistryWalk {
         EntityPipelineTraits pipelineTraits = new EntityPipelineTraits(session.cache());
         Set<String> nonBaseSuffixes = EntityTextureResolver.deriveNonBaseSuffixes(session);
 
-        JsonNode families = root.child("families");
+        JsonNode models = root.child("models");
         for (EntitySubject subject : subjects)
-            families.put(subject.entityId(),
+            models.put(subject.entityId(),
                 new EntityRendererResolver(session, subject, layerDefinitions, variants, nonBaseSuffixes,
                     blocks, pipelineTraits, manifest).resolve());
-        // The family_of post-pass needs all rows.
-        EntityFamilyLinker.link(root, variants, session.diagnostics().child("familyOf"));
+        // The group_of post-pass needs all rows.
+        EntityGroupLinker.link(root, variants, session.diagnostics().child("groupOf"));
     }
 
 }
