@@ -4,13 +4,13 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.FitRequest;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Shading;
-import lib.minecraft.renderer.engine.raster.GlintMask;
 import lib.minecraft.renderer.engine.raster.RasterMath;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -245,30 +245,10 @@ public class ModelEngine {
         @NotNull PixelBuffer buffer,
         @NotNull EulerRotation rotation
     ) {
-        rasterize(triangles, buffer, rotation, null);
-    }
-
-    /**
-     * As {@link #rasterize(ConcurrentList, PixelBuffer, EulerRotation)} but also
-     * records a per-pixel {@link GlintMask}: each pixel whose winning fragment came from a
-     * {@link SurfaceTraits#glinted() glinted} triangle is marked, so the glint compositor can
-     * restrict the enchantment foil to that geometry. Pass {@code null} for the plain behaviour.
-     *
-     * @param triangles the triangle list
-     * @param buffer the destination buffer
-     * @param rotation the Euler-angle rotation applied to the model before the camera pose
-     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
-     */
-    public void rasterize(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PixelBuffer buffer,
-        @NotNull EulerRotation rotation,
-        @Nullable GlintMask glintMask
-    ) {
         Matrix4f modelRotation = buildModelRotation(rotation);
         // Column-vector chain: modelRotation applies first to a vertex, then placement, then the camera pose.
         Matrix4f transform = cameraSide(modelRotation);
-        rasterizeInternal(triangles, buffer, transform, glintMask, null);
+        rasterizeInternal(triangles, buffer, transform, null);
     }
 
     /**
@@ -287,7 +267,7 @@ public class ModelEngine {
     ) {
         // Column-vector chain: modelTransform applies first to a vertex, then placement, then the camera pose.
         Matrix4f transform = cameraSide(modelTransform);
-        rasterizeInternal(triangles, buffer, transform, null, null);
+        rasterizeInternal(triangles, buffer, transform, null);
     }
 
     /**
@@ -314,30 +294,7 @@ public class ModelEngine {
         @NotNull EulerRotation rotation,
         float fill
     ) {
-        rasterizeFitted(triangles, buffer, rotation, fill, null);
-    }
-
-    /**
-     * As {@link #rasterizeFitted(ConcurrentList, PixelBuffer, EulerRotation, float)}
-     * but also records a per-pixel {@link GlintMask} (see
-     * {@link #rasterize(ConcurrentList, PixelBuffer, EulerRotation, GlintMask)}).
-     * The mask is sized to {@code buffer}; downsample it to the final canvas when rendering at a
-     * supersampled resolution. Pass {@code null} for the plain behaviour.
-     *
-     * @param triangles the triangle list, in fixed model-space units
-     * @param buffer the destination buffer
-     * @param rotation the Euler-angle model rotation applied before the camera pose
-     * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
-     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
-     */
-    public void rasterizeFitted(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PixelBuffer buffer,
-        @NotNull EulerRotation rotation,
-        float fill,
-        @Nullable GlintMask glintMask
-    ) {
-        rasterizeFitted(triangles, buffer, rotation, FitRequest.autoFill(fill), glintMask);
+        rasterizeFitted(triangles, buffer, rotation, FitRequest.autoFill(fill));
     }
 
     /**
@@ -348,23 +305,25 @@ public class ModelEngine {
      * pre-measured bounds (the entity's native-resolution orthographic path). The fit forks on lens
      * family inside {@link #prepareFit}, so the shared {@link #rasterizeInternal} core stays
      * lens-agnostic.
+     * <p>
+     * When {@code buffer} carries a coverage mask (see {@link PixelBuffer#enableMask()}), each pixel
+     * whose winning fragment came from a {@link SurfaceTraits#glinted() glinted} triangle is marked, so
+     * the glint compositor can restrict the enchantment foil to that geometry.
      *
      * @param triangles the triangle list, in fixed model-space units
      * @param buffer the destination buffer
      * @param rotation the Euler-angle model rotation applied before the camera pose
      * @param request how to scale and centre the silhouette
-     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
      */
     public void rasterizeFitted(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
         @NotNull EulerRotation rotation,
-        @NotNull FitRequest request,
-        @Nullable GlintMask glintMask
+        @NotNull FitRequest request
     ) {
         if (triangles.isEmpty()) return;
         FitPlan plan = prepareFit(triangles, buffer, rotation, request);
-        rasterizeInternal(triangles, buffer, plan.transform(), glintMask, plan.fit());
+        rasterizeInternal(triangles, buffer, plan.transform(), plan.fit());
     }
 
     /**
@@ -494,13 +453,11 @@ public class ModelEngine {
      * @param triangles the triangle list
      * @param buffer the destination buffer
      * @param transform the composed model-to-screen pose (from {@link #cameraSide})
-     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
      */
     private void rasterizeInternal(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
         @NotNull Matrix4f transform,
-        @Nullable GlintMask glintMask,
         @Nullable Fit2D fit
     ) {
         int width = buffer.width();
@@ -536,7 +493,7 @@ public class ModelEngine {
         if (height < MIN_TILED_HEIGHT) {
             float[] depthBuffer = new float[width * height];
             Arrays.fill(depthBuffer, Float.NEGATIVE_INFINITY);
-            rasterizeTile(prepared, buffer, depthBuffer, width, height, 0, height, glintMask);
+            rasterizeTile(prepared, buffer, depthBuffer, width, height, 0, height);
             return;
         }
 
@@ -551,7 +508,7 @@ public class ModelEngine {
 
             float[] depthSlice = new float[width * (tileEnd - tileStart)];
             Arrays.fill(depthSlice, Float.NEGATIVE_INFINITY);
-            rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd, glintMask);
+            rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd);
         });
     }
 
@@ -666,7 +623,6 @@ public class ModelEngine {
      * @param height the full image height
      * @param tileStart the inclusive first scanline row this tile owns
      * @param tileEnd the exclusive last scanline row this tile owns
-     * @param glintMask the glint mask to mark, or {@code null} to skip mask recording
      */
     private static void rasterizeTile(
         @NotNull List<Projected> prepared,
@@ -675,9 +631,12 @@ public class ModelEngine {
         int width,
         int height,
         int tileStart,
-        int tileEnd,
-        @Nullable GlintMask glintMask
+        int tileEnd
     ) {
+        // The buffer owns its coverage mask when recording is enabled (absent otherwise); read it once
+        // per tile so the per-pixel mark below stays a plain null-checked field access, not a getter.
+        PixelMask glintMask = buffer.mask().orElse(null);
+
         // Task A: a single barycentric scratch reused for every pixel in this tile. Each
         // rasterizeTile call runs on one FJP worker thread, so these arrays are thread-confined
         // by construction - no synchronisation needed. Replaces the per-pixel `new Vector2f(...)`

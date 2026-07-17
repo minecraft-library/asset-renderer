@@ -14,9 +14,11 @@
  *       barycentric coordinates, the {@code 1/256} fixed-point sub-pixel grid, and the
  *       {@code EdgeCoefficients} that drive the Pineda incremental edge functions / top-left fill
  *       rule the inner loop walks per pixel.</li>
- *   <li>{@link lib.minecraft.renderer.engine.raster.GlintMask GlintMask} - per-pixel coverage mask
- *       marking glinted geometry so the foil compositor restricts the enchantment glint to it.</li>
  * </ul>
+ * <p>
+ * The per-pixel coverage mask a render records (marking glinted geometry so the foil compositor
+ * restricts the enchantment glint to it) is {@link dev.simplified.image.pixel.PixelMask}, owned by the
+ * {@link dev.simplified.image.pixel.PixelBuffer} it covers.
  *
  * @see lib.minecraft.renderer.engine.ModelEngine
  */

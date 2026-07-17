@@ -586,7 +586,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             int size = options.getOutput().getCanvasSize();
             return Timeline.tickStrip(anim).bake(
                 RasterPass.of(size, size, 1, options.getOutput().isAntiAlias(),
-                        (target, mask, tick) -> Layers.foldInto(buildGuiLayers(ctx, tick), options.getLayerDecorator(), target))
+                        (target, tick) -> Layers.foldInto(buildGuiLayers(ctx, tick), options.getLayerDecorator(), target))
                     .finishing(itemGlint(engine.textures(), item, options, cit.glint())));
         }
 
@@ -695,7 +695,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             int size = options.getOutput().getCanvasSize();
             int ssaa = Math.max(1, options.getOutput().getSupersample());
             return Timeline.tickStrip(anim).bake(
-                RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, mask, tick) -> {
+                RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) -> {
                     ModelEngine engine = new ModelEngine(this.context, camera);
                     engine.rasterize(buildTrianglesAtTick(engine, item, options, cit, tint, tick), target, displayTransform);
                 }).finishing(itemGlint(textures, item, options, cit.glint())));

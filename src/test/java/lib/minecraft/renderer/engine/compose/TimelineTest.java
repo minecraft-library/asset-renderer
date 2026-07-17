@@ -287,7 +287,7 @@ class TimelineTest {
     @DisplayName("bake of one frame collapses to a StaticImageData")
     void bakeSingleFrameStatic() {
         ImageData result = new Timeline.Static(9).bake(
-            RasterPass.of(1, 1, 1, false, (target, mask, tick) -> target.setPixel(0, 0, 0xFFFFFFFF)));
+            RasterPass.of(1, 1, 1, false, (target, tick) -> target.setPixel(0, 0, 0xFFFFFFFF)));
         assertThat(result, is(instanceOf(StaticImageData.class)));
     }
 
@@ -296,9 +296,9 @@ class TimelineTest {
     void trimmingFinish() {
         int[] receivedBaked = {-1};
         RasterPass pass = RasterPass.of(1, 1, 1, false,
-                (target, mask, tick) -> target.setPixel(0, 0, 0xFFFFFFFF))
-            .finishing((frames, baked, timeline) -> {
-                receivedBaked[0] = baked.size();
+                (target, tick) -> target.setPixel(0, 0, 0xFFFFFFFF))
+            .finishing((frames, timeline) -> {
+                receivedBaked[0] = frames.size();
                 ConcurrentList<PixelBuffer> trimmed = Concurrent.newList();
                 for (int i = 0; i < 3; i++) trimmed.add(frames.get(i));
                 return new RasterPass.Finish.Result(trimmed, timeline);
@@ -316,8 +316,8 @@ class TimelineTest {
         int expanded = 8;
         int fps = 30;
         RasterPass pass = RasterPass.of(1, 1, 1, false,
-                (target, mask, tick) -> target.setPixel(0, 0, 0xFFFFFFFF))
-            .finishing((frames, baked, timeline) -> {
+                (target, tick) -> target.setPixel(0, 0, 0xFFFFFFFF))
+            .finishing((frames, timeline) -> {
                 ConcurrentList<PixelBuffer> looped = Concurrent.newList();
                 for (int i = 0; i < expanded; i++) looped.add(frames.getFirst().copy());
                 return new RasterPass.Finish.Result(looped, new Timeline.FpsLoop(fps, expanded));
@@ -350,10 +350,10 @@ class TimelineTest {
     private static @NotNull List<Integer> recordBakedTicks(@NotNull Timeline.TickTimeline timeline) {
         List<Integer> ticks = new ArrayList<>();
         RasterPass pass = RasterPass.of(1, 1, 1, false,
-                (target, mask, tick) -> target.setPixel(0, 0, 0xFF000000 | (tick & 0xFFFF)))
-            .finishing((frames, baked, tl) -> {
-                for (RasterPass.Frame frame : baked)
-                    ticks.add(frame.buffer().getPixel(0, 0) & 0xFFFF);
+                (target, tick) -> target.setPixel(0, 0, 0xFF000000 | (tick & 0xFFFF)))
+            .finishing((frames, tl) -> {
+                for (PixelBuffer frame : frames)
+                    ticks.add(frame.getPixel(0, 0) & 0xFFFF);
                 return new RasterPass.Finish.Result(frames, tl);
             });
         timeline.bake(pass);
