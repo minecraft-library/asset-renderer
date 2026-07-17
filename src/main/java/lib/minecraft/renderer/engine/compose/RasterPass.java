@@ -3,11 +3,7 @@ package lib.minecraft.renderer.engine.compose;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
-import lib.minecraft.renderer.engine.raster.GlintMask;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import java.util.List;
 
 /**
  * The per-render raster configuration and callbacks a {@link Timeline} plays a schedule through:
@@ -39,21 +35,13 @@ public record RasterPass(
         /**
          * Draws the frame at {@code tick} into {@code target}.
          *
-         * @param target the buffer to draw into (hi-res when supersampling, else the output buffer)
-         * @param mask the mask to populate, or {@code null} when the pass records no mask
+         * @param target the buffer to draw into (hi-res when supersampling, else the output buffer);
+         *     enable a coverage mask on it via {@link PixelBuffer#enableMask()} to record glint coverage
          * @param tick the absolute animation tick to sample
          */
-        void rasterize(@NotNull PixelBuffer target, @Nullable GlintMask mask, int tick);
+        void rasterize(@NotNull PixelBuffer target, int tick);
 
     }
-
-    /**
-     * One finished frame - the downscaled buffer and its downsampled coverage mask.
-     *
-     * @param buffer the finished output buffer
-     * @param mask the frame's coverage mask, or {@code null} when none was recorded
-     */
-    public record Frame(@NotNull PixelBuffer buffer, @Nullable GlintMask mask) {}
 
     /**
      * The whole-strip post step a bake applies after rastering every frame and before wrapping:
@@ -66,18 +54,16 @@ public record RasterPass(
     public interface Finish {
 
         /** The identity finish - frames and playback schedule pass through unchanged. */
-        Finish NONE = (frames, baked, timeline) -> new Result(frames, timeline);
+        Finish NONE = (frames, timeline) -> new Result(frames, timeline);
 
         /**
          * Transforms the baked strip.
          *
-         * @param frames the baked frame buffers, in frame order
-         * @param baked the untrimmed baked frames with their masks, in frame order
+         * @param frames the baked frame buffers, in frame order; each carries its own coverage mask
          * @param timeline the schedule that baked the frames
          * @return the frames to wrap and the schedule whose delays wrap them
          */
-        @NotNull Result finish(@NotNull ConcurrentList<PixelBuffer> frames,
-                               @NotNull List<Frame> baked, @NotNull Timeline timeline);
+        @NotNull Result finish(@NotNull ConcurrentList<PixelBuffer> frames, @NotNull Timeline timeline);
 
         /**
          * A finish step's output.
@@ -130,30 +116,30 @@ public record RasterPass(
      * down, and any mask downsampled; otherwise it is drawn straight into the output buffer.
      *
      * @param tick the absolute animation tick to sample
-     * @return the finished frame and its mask
+     * @return the finished frame, carrying its downsampled coverage mask when the pass records one
      */
-    public @NotNull Frame renderFrame(int tick) {
+    public @NotNull PixelBuffer renderFrame(int tick) {
         if (ssaa > 1) {
             int hiWidth = width * ssaa;
             int hiHeight = height * ssaa;
 
             try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiWidth, hiHeight)) {
                 PixelBuffer hiRes = lease.buffer();
-                GlintMask hiMask = recordMask ? new GlintMask(hiWidth, hiHeight) : null;
-                raster.rasterize(hiRes, hiMask, tick);
+                if (recordMask) hiRes.enableMask();
+                raster.rasterize(hiRes, tick);
                 if (antiAlias) hiRes.applyFxaa();
                 PixelBuffer output = PixelBuffer.create(width, height);
                 output.blitScaled(hiRes, 0, 0, width, height);
-                GlintMask mask = hiMask == null ? null : hiMask.downsample(width, height);
-                return new Frame(output, mask);
+                hiRes.mask().map(m -> m.downsample(width, height)).ifPresent(output::attachMask);
+                return output;
             }
         }
 
         PixelBuffer buffer = PixelBuffer.create(width, height);
-        GlintMask mask = recordMask ? new GlintMask(width, height) : null;
-        raster.rasterize(buffer, mask, tick);
+        if (recordMask) buffer.enableMask();
+        raster.rasterize(buffer, tick);
         if (antiAlias) buffer.applyFxaa();
-        return new Frame(buffer, mask);
+        return buffer;
     }
 
 }

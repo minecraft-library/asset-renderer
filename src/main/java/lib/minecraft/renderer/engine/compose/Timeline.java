@@ -289,22 +289,20 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
          * per sample tick in parallel (frame order preserved), applies the pass's finish step, then
          * wraps the result at the finish's playback schedule. This default is the one bake loop every
          * rasterizing renderer shares; an implementation that overrides it forks that shared loop and
-         * takes on its full contract - frame order, mask pairing, and the finish seam - alone.
+         * takes on its full contract - frame order and the finish seam - alone.
          *
          * @param pass the raster configuration and callbacks to play this schedule through
          * @return the finished image
          * @throws RenderException if the schedule is empty
          */
         default @NotNull ImageData bake(@NotNull RasterPass pass) {
-            List<RasterPass.Frame> baked = IntStream.range(0, frames())
+            ConcurrentList<PixelBuffer> buffers = Concurrent.newList();
+            IntStream.range(0, frames())
                 .parallel()
                 .mapToObj(f -> pass.renderFrame(tickAt(f)))
-                .toList();
+                .forEachOrdered(buffers::add);
 
-            ConcurrentList<PixelBuffer> buffers = Concurrent.newList();
-            for (RasterPass.Frame frame : baked) buffers.add(frame.buffer());
-
-            RasterPass.Finish.Result result = pass.finish().finish(buffers, baked, this);
+            RasterPass.Finish.Result result = pass.finish().finish(buffers, this);
             return wrapAt(result.frames(), result.playback());
         }
     }

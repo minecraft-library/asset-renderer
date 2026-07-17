@@ -67,7 +67,7 @@ class GlintAnimationTest {
         AnimationOptions anim = AnimationOptions.builder().frameCount(4).ticksPerFrame(50).build();
 
         ImageData result = Timeline.tickStrip(anim).bake(
-            RasterPass.of(24, 24, 1, false, (target, mask, tick) -> fillOpaque(target)).finishing(foil));
+            RasterPass.of(24, 24, 1, false, (target, tick) -> fillOpaque(target)).finishing(foil));
 
         assertThat(result, is(instanceOf(AnimatedImageData.class)));
         AnimatedImageData animated = (AnimatedImageData) result;
@@ -86,7 +86,7 @@ class GlintAnimationTest {
         AnimationOptions anim = AnimationOptions.builder().frameCount(3).ticksPerFrame(50).build();
 
         ImageData result = Timeline.tickStrip(anim).bake(
-            RasterPass.of(24, 24, 1, false, (target, mask, tick) -> fillOpaque(target)).finishing(foil));
+            RasterPass.of(24, 24, 1, false, (target, tick) -> fillOpaque(target)).finishing(foil));
 
         AnimatedImageData animated = (AnimatedImageData) result;
         assertThat(animated.getFrames().size(), is(3));

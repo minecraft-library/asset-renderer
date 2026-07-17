@@ -4,7 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.raster.GlintMask;
+import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
@@ -126,8 +126,6 @@ public class ArmorKit {
      * @param w the destination width
      * @param h the destination height
      * @param engine the texture engine for pack-aware texture resolution
-     * @param glintMask the per-pixel glint mask to stamp the armor / trim coverage into (so the
-     *     enchantment foil lands on the armor, not the bare skin), or {@code null} to skip
      */
     public static void compositeSlot2D(
         @NotNull PixelBuffer target,
@@ -135,15 +133,18 @@ public class ArmorKit {
         @NotNull ArmorTrim.Slot slot,
         @NotNull ArmorPiece piece,
         int x, int y, int w, int h,
-        @NotNull Textures engine,
-        @Nullable GlintMask glintMask
+        @NotNull Textures engine
     ) {
+        // The target buffer owns the coverage mask (enabled by the caller when the armor is enchanted);
+        // stamp the armor / trim sprite coverage into it so the enchantment foil lands on the armor,
+        // not the bare skin. Absent when the caller records no mask - then stampMaskScaled is a no-op.
+        PixelMask mask = target.mask().orElse(null);
         boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
         Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer);
         armorTexture.ifPresent(tex -> {
             PixelBuffer face = part.crop(tex, BlockFace.SOUTH, false);
             target.blitScaled(face, x, y, w, h);
-            stampMaskScaled(glintMask, face, x, y, w, h);
+            stampMaskScaled(mask, face, x, y, w, h);
         });
 
         if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
@@ -152,7 +153,7 @@ public class ArmorKit {
                 .ifPresent(trimTex -> {
                     PixelBuffer face = part.crop(trimTex, BlockFace.SOUTH, false);
                     target.blitScaled(face, x, y, w, h);
-                    stampMaskScaled(glintMask, face, x, y, w, h);
+                    stampMaskScaled(mask, face, x, y, w, h);
                 });
         }
     }
@@ -164,7 +165,7 @@ public class ArmorKit {
      * trim coverage so the foil never lands on the bare skin underneath. No-op when {@code mask} is
      * {@code null}.
      */
-    private static void stampMaskScaled(@Nullable GlintMask mask, @NotNull PixelBuffer face, int x, int y, int w, int h) {
+    private static void stampMaskScaled(@Nullable PixelMask mask, @NotNull PixelBuffer face, int x, int y, int w, int h) {
         if (mask == null) return;
         int fw = face.width();
         int fh = face.height();

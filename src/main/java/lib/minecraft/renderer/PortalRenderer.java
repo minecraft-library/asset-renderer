@@ -504,7 +504,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         int bridge = bridgeFrameCount(options);
         return Timeline.gameTime(startTick, outputCount + bridge, ticksPerFrame)
             .bake(RasterPass.of(size, size, ssaa, antiAlias, raster).finishing(
-                (frames, baked, timeline) -> {
+                (frames, timeline) -> {
                     applyBridgeCrossfade(frames, outputCount, bridge);
                     trimBridgeFrames(frames, outputCount);
                     return new RasterPass.Finish.Result(frames, timeline);
@@ -528,7 +528,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             int ssaa = Math.max(1, options.getOutput().getSupersample());
             return renderAnimated(options, ssaa, options.getOutput().isAntiAlias(),
-                (target, ignoredMask, tick) -> rasterizeFrame(options, tick, target));
+                (target, tick) -> rasterizeFrame(options, tick, target));
         }
 
         /**
@@ -636,7 +636,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             // Flat 2D bake: no supersample / FXAA (ssaa = 1, antiAlias = false), matching FluidFace2D.
             return renderAnimated(options, 1, false,
-                (target, ignoredMask, tick) -> rasterizeFrame(options, tick, target));
+                (target, tick) -> rasterizeFrame(options, tick, target));
         }
 
         /**

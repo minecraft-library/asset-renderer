@@ -5,14 +5,13 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.engine.compose.RasterPass;
 import lib.minecraft.renderer.engine.compose.Timeline;
-import lib.minecraft.renderer.engine.raster.GlintMask;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -271,27 +270,26 @@ public class GlintKit {
      * {@link #applyGlintAtTimes}. Frame {@code n} samples glint time
      * {@code round(n * (1000 / framesPerSecond) * MAX_ENCHANTMENT_GLINT_SPEED_MILLIS)}, the wall-clock
      * schedule the live renderers (item / armor / entity) emit for their animated output. The foil is
-     * restricted to the pixels marked in {@code glintMask} - e.g. only the armor of a player / entity
-     * render rather than the whole opaque silhouette; {@code null} applies the foil to every opaque
-     * pixel, the default behaviour used for whole-subject items and blocks.
+     * restricted to the pixels marked in {@code base}'s coverage mask (see
+     * {@link PixelBuffer#enableMask()}) - e.g. only the armor of a player / entity render rather than
+     * the whole opaque silhouette; an absent mask applies the foil to every opaque pixel, the default
+     * behaviour used for whole-subject items and blocks.
      *
-     * @param base the base render
+     * @param base the base render, whose coverage mask restricts the foil when present
      * @param glintTexture the glint scroll texture
      * @param options the glint configuration
-     * @param glintMask the per-pixel glint coverage mask, or {@code null} to foil all opaque pixels
      * @return an ordered list of composited frames, one per output frame
      */
     public static @NotNull ConcurrentList<PixelBuffer> applyGlint(
         @NotNull PixelBuffer base,
         @NotNull PixelBuffer glintTexture,
-        @NotNull GlintOptions options,
-        @Nullable GlintMask glintMask
+        @NotNull GlintOptions options
     ) {
         Timeline.FpsLoop loop = new Timeline.FpsLoop(options.framesPerSecond(), options.totalFrames());
         long[] glintTimes = new long[options.totalFrames()];
         for (int frameIndex = 0; frameIndex < glintTimes.length; frameIndex++)
             glintTimes[frameIndex] = glintTimeAt(loop.millisAt(frameIndex));
-        return applyGlintAtTimes(base, glintTexture, glintTimes, options, null, glintMask);
+        return applyGlintAtTimes(base, glintTexture, glintTimes, options, null);
     }
 
     /**
@@ -388,14 +386,13 @@ public class GlintKit {
          * instant; a static subject ({@code frames == 1}) yields the frame axis to the glint's own
          * frame-rate loop, whose delays wrap the multiplied frames.
          *
-         * @param frames the baked frame buffers, in frame order
-         * @param baked the untrimmed baked frames with their masks, in frame order
+         * @param frames the baked frame buffers, in frame order; each carries its own coverage mask
          * @param timeline the schedule that baked the frames
          * @return the finished frames and the schedule whose delays wrap them
          */
         @Override
         public @NotNull RasterPass.Finish.Result finish(@NotNull ConcurrentList<PixelBuffer> frames,
-                                                        @NotNull List<RasterPass.Frame> baked, @NotNull Timeline timeline) {
+                                                        @NotNull Timeline timeline) {
             if (!enchanted)
                 return new RasterPass.Finish.Result(frames, timeline);
 
@@ -404,8 +401,8 @@ public class GlintKit {
                 return new RasterPass.Finish.Result(frames, timeline);
 
             return timeline.frames() > 1
-                ? stampOver(this, frames, baked, timeline, glintTexture.get())
-                : scroll(this, frames, baked, glintTexture.get());
+                ? stampOver(this, frames, timeline, glintTexture.get())
+                : scroll(this, frames, glintTexture.get());
         }
     }
 
@@ -416,13 +413,12 @@ public class GlintKit {
      */
     private static @NotNull RasterPass.Finish.Result stampOver(
         @NotNull Foil foil, @NotNull ConcurrentList<PixelBuffer> frames,
-        @NotNull List<RasterPass.Frame> baked, @NotNull Timeline timeline, @NotNull PixelBuffer glintTexture
+        @NotNull Timeline timeline, @NotNull PixelBuffer glintTexture
     ) {
         for (int f = 0; f < frames.size(); f++) {
             long glintTime = glintTimeAt(timeline.millisAt(foil.animate() ? f : 0));
-            GlintMask mask = f < baked.size() ? baked.get(f).mask() : null;
             PixelBuffer stamped = applyGlintAtTimes(
-                frames.get(f), glintTexture, new long[]{glintTime}, foil.preset(), null, mask).getFirst();
+                frames.get(f), glintTexture, new long[]{glintTime}, foil.preset(), null).getFirst();
             frames.set(f, stamped);
         }
         return new RasterPass.Finish.Result(frames, timeline);
@@ -434,10 +430,9 @@ public class GlintKit {
      */
     private static @NotNull RasterPass.Finish.Result scroll(
         @NotNull Foil foil, @NotNull ConcurrentList<PixelBuffer> frames,
-        @NotNull List<RasterPass.Frame> baked, @NotNull PixelBuffer glintTexture
+        @NotNull PixelBuffer glintTexture
     ) {
-        GlintMask mask = baked.isEmpty() ? null : baked.getFirst().mask();
-        ConcurrentList<PixelBuffer> looped = applyGlint(frames.getFirst(), glintTexture, foil.preset(), mask);
+        ConcurrentList<PixelBuffer> looped = applyGlint(frames.getFirst(), glintTexture, foil.preset());
         Timeline.FpsLoop playback = new Timeline.FpsLoop(foil.preset().framesPerSecond(), foil.preset().totalFrames());
         if (foil.animate())
             return new RasterPass.Finish.Result(looped, playback);
@@ -457,13 +452,17 @@ public class GlintKit {
      * {@code spriteUv} rect to replay vanilla's real {@code UV0} through this exact pipeline and confirm
      * every other factor (scroll, rotation, scale, sampling, blend, alpha) is bit-accurate;
      * {@code null} runs the offline approximation - the production path.
+     * <p>
+     * The foil is restricted to the pixels marked in {@code base}'s coverage mask (see
+     * {@link PixelBuffer#enableMask()}) - e.g. only the armor of a player / entity render; an absent
+     * mask applies the foil to every opaque pixel.
      *
-     * @param base the base item texture
+     * @param base the base render, whose coverage mask restricts the foil when present
      * @param glintTexture the glint scroll texture
      * @param glintTimes the ordered glint times (vanilla post-{@code glintSpeed} millis), one per frame
      * @param options the glint configuration
      * @param spriteUv the real atlas sprite-UV rect to sample {@code UV0} through, or {@code null} for
-     * the offline approximation
+     *     the offline approximation
      * @return an ordered list of composited frames, one per supplied glint time
      */
     public static @NotNull ConcurrentList<PixelBuffer> applyGlintAtTimes(
@@ -473,36 +472,13 @@ public class GlintKit {
         @NotNull GlintOptions options,
         @Nullable SpriteUv spriteUv
     ) {
-        return applyGlintAtTimes(base, glintTexture, glintTimes, options, spriteUv, null);
-    }
-
-    /**
-     * Core glint compositor: as
-     * {@link #applyGlintAtTimes(PixelBuffer, PixelBuffer, long[], GlintOptions, SpriteUv)} but also
-     * restricts the foil to the pixels marked in {@code glintMask} (e.g. only the armor of a player
-     * / entity render). {@code null} applies the foil to every opaque pixel.
-     *
-     * @param base the base render
-     * @param glintTexture the glint scroll texture
-     * @param glintTimes the ordered glint times (vanilla post-{@code glintSpeed} millis), one per frame
-     * @param options the glint configuration
-     * @param spriteUv the real atlas sprite-UV rect to sample {@code UV0} through, or {@code null} for
-     *     the offline approximation
-     * @param glintMask the per-pixel glint coverage mask, or {@code null} to foil all opaque pixels
-     * @return an ordered list of composited frames, one per supplied glint time
-     */
-    public static @NotNull ConcurrentList<PixelBuffer> applyGlintAtTimes(
-        @NotNull PixelBuffer base,
-        @NotNull PixelBuffer glintTexture,
-        long @NotNull [] glintTimes,
-        @NotNull GlintOptions options,
-        @Nullable SpriteUv spriteUv,
-        @Nullable GlintMask glintMask
-    ) {
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         PixelBuffer tintedGlint = options.tintArgb() == ColorMath.WHITE
             ? glintTexture
             : ColorMath.tint(glintTexture, options.tintArgb());
+        // The foil coverage rides the base buffer; unwrap once here, at the boundary of the per-pixel
+        // stamp loop, so stampGlint's inner loop reads a plain nullable rather than an Optional.
+        PixelMask glintMask = base.mask().orElse(null);
 
         for (long glintTime : glintTimes) {
             PixelBuffer frame = base.copy();
@@ -525,7 +501,7 @@ public class GlintKit {
         long glintTimeMillis,
         @NotNull GlintOptions options,
         @Nullable SpriteUv rect,
-        @Nullable GlintMask glintMask
+        @Nullable PixelMask glintMask
     ) {
         int w = target.width();
         int h = target.height();

@@ -213,7 +213,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 ? Timeline.deriveTickStrip(collectAnimatedSources(block), anim.getStartTick())
                 : Timeline.tickStrip(anim);
             return timeline.bake(
-                RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, mask, tick) ->
+                RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) ->
                     new ModelEngine(this.context, resolved.camera()).rasterize(
                         buildRelitTriangles(tick, block, be, effectiveVariant, tint, untintedTint, lighting, options),
                         target)));

@@ -23,7 +23,6 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
-import lib.minecraft.renderer.engine.raster.GlintMask;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.BlockFace;
@@ -434,7 +433,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         // the per-part draw order.
         return Timeline.Static.ZERO.bake(
             RasterPass.of(size, size, 1, options.getOutput().isAntiAlias(),
-                (target, mask, tick) -> {
+                (target, tick) -> {
                 LayerStack<ImageLayer> stack = new LayerStack<>();
                 stack.append(PlayerSlot2D.SKIN, frame -> {
                     for (BodyPart2D bp : parts)
@@ -451,7 +450,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                     });
                 stack.append(PlayerSlot2D.ARMOR, frame -> {
                     for (BodyPart2D bp : parts)
-                        compositeArmor2D(frame, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, mask);
+                        compositeArmor2D(frame, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine);
                 });
                 Layers.foldInto(stack, options.getLayerDecorator(), target);
             })
@@ -468,8 +467,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull SkinFace part,
         int x, int y, int w, int h,
         @NotNull PlayerOptions options,
-        @NotNull RasterEngine engine,
-        @Nullable GlintMask glintMask
+        @NotNull RasterEngine engine
     ) {
         for (ArmorTrim.Slot slot : ArmorTrim.Slot.values()) {
             Optional<ArmorPiece> piece = switch (slot) {
@@ -485,7 +483,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 if (slotPart == part) { partInSlot = true; break; }
             if (!partInSlot) continue;
 
-            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h, engine.textures(), glintMask);
+            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h, engine.textures());
         }
     }
 
@@ -660,7 +658,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         // renders leave the base player pose.
         return Timeline.Static.ZERO.bake(
             RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(),
-                    (target, mask, tick) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL, mask))
+                    (target, tick) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL))
                 .withMask(enchanted)
                 .finishing(GlintKit.Foil.armor(engine.textures()::tryResolveTexture, enchanted)));
     }

@@ -152,7 +152,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             int ssaa = Math.max(1, options.getOutput().getSupersample());
             return Timeline.tickStrip(options.getAnimation()).bake(
                 RasterPass.of(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias(),
-                    (target, mask, tick) -> rasterizeFrame(options, tick, target)));
+                    (target, tick) -> rasterizeFrame(options, tick, target)));
         }
 
         /**
@@ -202,7 +202,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // blit: no supersample / FXAA (ssaa = 1, antiAlias = false).
             return Timeline.tickStrip(options.getAnimation()).bake(
                 RasterPass.of(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,
-                    (target, mask, tick) -> rasterizeFrame(options, tick, target)));
+                    (target, tick) -> rasterizeFrame(options, tick, target)));
         }
 
         /**

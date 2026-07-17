@@ -9,8 +9,6 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -86,7 +84,7 @@ class GlintScheduleTest {
     void scrollDirectionSwapsToFpsLoop() {
         GlintKit.Foil foil = GlintKit.Foil.item(resolver(), true, true, 30);
         ConcurrentList<PixelBuffer> frames = frames(base());
-        RasterPass.Finish.Result result = foil.finish(frames, baked(frames), new Timeline.Static(0));
+        RasterPass.Finish.Result result = foil.finish(frames, new Timeline.Static(0));
 
         assertThat(result.playback(), is(instanceOf(Timeline.FpsLoop.class)));
         Timeline.FpsLoop playback = (Timeline.FpsLoop) result.playback();
@@ -100,7 +98,7 @@ class GlintScheduleTest {
     void scrollNonAnimateKeepsOneFrame() {
         GlintKit.Foil foil = GlintKit.Foil.item(resolver(), true, false, 30);
         ConcurrentList<PixelBuffer> frames = frames(base());
-        RasterPass.Finish.Result result = foil.finish(frames, baked(frames), new Timeline.Static(0));
+        RasterPass.Finish.Result result = foil.finish(frames, new Timeline.Static(0));
 
         assertThat(result.frames().size(), is(1));
         assertThat(result.playback(), is(instanceOf(Timeline.FpsLoop.class)));
@@ -113,7 +111,7 @@ class GlintScheduleTest {
         ConcurrentList<PixelBuffer> frames = frames(base(), base(), base());
         Timeline.TickLoop timeline = new Timeline.TickLoop(0, 3, 50, 100);
 
-        RasterPass.Finish.Result result = foil.finish(frames, baked(frames), timeline);
+        RasterPass.Finish.Result result = foil.finish(frames, timeline);
         assertThat(result.frames(), is(sameInstance(frames)));
         assertThat(result.playback(), is(sameInstance(timeline)));
         assertThat(result.frames().size(), is(3));
@@ -126,7 +124,7 @@ class GlintScheduleTest {
         ConcurrentList<PixelBuffer> frames = frames(base(), base());
         Timeline.TickLoop timeline = new Timeline.TickLoop(0, 2, 50, 100);
 
-        RasterPass.Finish.Result result = foil.finish(frames, baked(frames), timeline);
+        RasterPass.Finish.Result result = foil.finish(frames, timeline);
         assertThat(result.frames(), is(sameInstance(frames)));
         assertThat(result.playback(), is(sameInstance(timeline)));
     }
@@ -138,11 +136,11 @@ class GlintScheduleTest {
         Timeline.TickLoop timeline = new Timeline.TickLoop(0, 2, 40, 100);
 
         ConcurrentList<PixelBuffer> scrolling = frames(base(), base());
-        GlintKit.Foil.item(resolver(), true, true, 30).finish(scrolling, baked(scrolling), timeline);
+        GlintKit.Foil.item(resolver(), true, true, 30).finish(scrolling, timeline);
         assertThat(differingPixels(scrolling.get(0), scrolling.get(1)), greaterThan(0));
 
         ConcurrentList<PixelBuffer> frozen = frames(base(), base());
-        GlintKit.Foil.item(resolver(), true, false, 30).finish(frozen, baked(frozen), timeline);
+        GlintKit.Foil.item(resolver(), true, false, 30).finish(frozen, timeline);
         assertThat(differingPixels(frozen.get(0), frozen.get(1)), is(0));
     }
 
@@ -178,13 +176,6 @@ class GlintScheduleTest {
     private static @NotNull ConcurrentList<PixelBuffer> frames(@NotNull PixelBuffer... buffers) {
         ConcurrentList<PixelBuffer> list = Concurrent.newList();
         for (PixelBuffer buffer : buffers) list.add(buffer);
-        return list;
-    }
-
-    /** The maskless baked-frame list matching a frame-buffer list. */
-    private static @NotNull List<RasterPass.Frame> baked(@NotNull ConcurrentList<PixelBuffer> frames) {
-        List<RasterPass.Frame> list = new ArrayList<>();
-        for (int f = 0; f < frames.size(); f++) list.add(new RasterPass.Frame(frames.get(f), null));
         return list;
     }
 
