@@ -74,6 +74,9 @@ import java.util.Set;
  *     textures, baby mesh, large shape, size meshes / scales) - see {@link Axes}
  * @param layers the conditional decoration layers drawn over the base body (collar, equipment,
  *     markings), each gated at render on its appearance axis - see {@link Layers}
+ * @param members the self-inclusive canvas-group membership - every entity id that shares this
+ *     entity's family-union fit window ({@code EntityOptions.FitMode.FAMILY_BOUNDS}), the SAME list on
+ *     each member of the group; empty for a singleton entity with no group
  */
 @Builder(toBuilder = true)
 public record Entity(
@@ -87,8 +90,14 @@ public record Entity(
     float rendererScale,
     @NotNull Map<String, BoneToggle> boneToggles,
     @NotNull Axes axes,
-    @NotNull Layers layers
+    @NotNull Layers layers,
+    @NotNull List<String> members
 ) {
+
+    /** Normalises a never-set {@link #members} to an empty (singleton) list so callers can omit it. */
+    public Entity {
+        members = members == null ? List.of() : members;
+    }
 
     /**
      * The auto-emitted depth-clearance inflate applied to same-geometry overlays (eyes, clothing

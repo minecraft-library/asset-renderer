@@ -9,11 +9,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
@@ -88,11 +88,15 @@ class EntityModelLoaderTest {
         assertThat("the cold coat differs from the default", resolvedCold.textureRef(), not(cow.textureRef()));
         assertThat("selecting cold swaps to the cold coat mesh", resolvedCold.model(), sameInstance(cow.axes().variants().get("cold").model()));
 
-        Map<String, List<String>> families = EntityModelLoader.loadFamilies(Diagnostics.root("test", Diagnostics.Output.NONE, null));
-        assertThat("an option-encoded variant family is a single base row (coats ride the base's axes.variants)",
-            families.getOrDefault("minecraft:cow", List.of()), contains("minecraft:cow"));
-        assertThat("a singleton entity returns itself",
-            families.getOrDefault("minecraft:sheep", List.of()), contains("minecraft:sheep"));
+        // Canvas-group membership is baked onto Entity.members: an option-encoded variant family with no
+        // cross-entity group is a singleton (empty members); a genuine family_of group carries the
+        // self-inclusive member list identically on every member.
+        assertThat("an option-encoded variant family with no cross-group carries no members", cow.members(), is(empty()));
+        assertThat("a plain singleton entity carries no members", defs.get("minecraft:sheep").members(), is(empty()));
+        assertThat("a family_of group is self-inclusive on every member",
+            defs.get("minecraft:camel").members(), containsInAnyOrder("minecraft:camel", "minecraft:camel_husk"));
+        assertThat("the group member list is identical on every member",
+            defs.get("minecraft:camel_husk").members(), equalTo(defs.get("minecraft:camel").members()));
     }
 
     @Test

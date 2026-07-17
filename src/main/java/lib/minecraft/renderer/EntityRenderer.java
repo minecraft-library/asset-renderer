@@ -852,7 +852,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * Selects whether canvas sizing + silhouette centring measure this entity alone (base
      * model + non-{@code skipBounds} overlays unioned together) or also union across every
-     * family member from {@link EntityModelLoader#loadFamilies()}. {@link EntityOptions.FitMode}
+     * family member from the definition's {@link Entity#members()}. {@link EntityOptions.FitMode}
      * picks which source via {@link #boundsScopeFor}; both modes share the same per-entity
      * + overlay primitives so the only difference is whether the family loop runs.
      */
@@ -1008,10 +1008,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * texture / definition can't be resolved (missing PNG, unloaded variant) are skipped - the
      * union degrades to the available members rather than throwing.
      * <p>
-     * Members are sourced from {@code EntityModelLoader.loadFamilies()} - {@code variant_of}
-     * for variant-of-same-entity groupings plus the top-level {@code families} table (derived
-     * (mooshroom -> cow). Singleton entities return a 1-element family list so this method
-     * collapses to {@link #computeUnionScreenBounds} for non-family-bearing entities.
+     * Members are read from the definition's own {@link Entity#members()} - the canvas-group
+     * membership baked at load from {@code variant_of} / {@code family_of}. A singleton carries an
+     * empty member list, so this method collapses to {@link #computeUnionScreenBounds} for
+     * non-family-bearing entities.
      */
     private @NotNull Box computeFamilyUnionScreenBounds(
         @NotNull String entityId,
@@ -1026,7 +1026,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // separate family-member rows, so union each coat's silhouette here. A no-op while variant is
         // id-encoded (each coat is a member row measured below) or the family has no variant axis.
         bounds = unionVariantSilhouettes(bounds, this.javaEntities.get(entityId), transform, tick);
-        List<String> members = EntityModelLoader.loadFamilies().getOrDefault(entityId, List.of(entityId));
+        List<String> members = definition.members();
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
             if (memberId.equals(entityId)) continue;

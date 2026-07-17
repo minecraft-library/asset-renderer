@@ -55,7 +55,7 @@ import java.util.Set;
  * <p>The reader's one non-trivial expansion is <b>id-encoded variant expansion</b>: a
  * {@code variant} axis flattens to {@code minecraft:<id>_<opt>} render pseudo-ids, the default option
  * carrying the family baseline and every other option pointing back at it via {@code variant_of} for the
- * family canvas-union ({@link #loadFamilies}). The family's render fields (overlays, block overlays,
+ * family canvas-union (baked onto {@link Entity#members()}). The family's render fields (overlays, block overlays,
  * scale, tint, bones) apply to EVERY variant row - the renderer resolves each variant row directly and
  * does not inherit through {@code variant_of}, so the baseline is copied onto each row here.
  *
@@ -100,28 +100,6 @@ public final class EntityModelLoader {
     }
 
     /**
-     * Lazily-computed {@code entityId -> familyMembers} result of {@link #loadFamilies(Diagnostics)},
-     * cached for the JVM lifetime (the underlying JSON never changes at runtime).
-     */
-    private static volatile Map<String, List<String>> FAMILIES_CACHE;
-
-    /**
-     * Returns {@code entityId -> familyMembers} keyed by every native entity id, cached on first call.
-     *
-     * @return the family membership map, keyed by entity id
-     */
-    public static @NotNull Map<String, List<String>> loadFamilies() {
-        Map<String, List<String>> cached = FAMILIES_CACHE;
-        if (cached != null) return cached;
-        synchronized (EntityModelLoader.class) {
-            if (FAMILIES_CACHE != null) return FAMILIES_CACHE;
-            Map<String, List<String>> result = loadFamilies(Diagnostics.root("entity_models", Diagnostics.Output.CONSOLE, null));
-            FAMILIES_CACHE = result;
-            return result;
-        }
-    }
-
-    /**
      * Reads the entity model catalog natively from the bundled resources.
      *
      * @param diagnostics the scope envelope and read warnings are recorded to
@@ -144,25 +122,38 @@ public final class EntityModelLoader {
             if (!entry.getValue().isJsonObject()) continue;
             readFamily(entry.getKey(), entry.getValue().getAsJsonObject(), geometries, definitions, diagnostics);
         }
+        attachGroupMembers(families, definitions);
         return Concurrent.adoptMap(definitions);
+    }
+
+    /**
+     * Stamps each grouped entity's canvas-group membership onto its {@link Entity#members()} - the
+     * self-inclusive member list the family-union fit bound iterates. Groups of size one (singletons)
+     * carry no members (the empty default); only genuine groups (size &gt; 1) are rewritten. Runs on the
+     * already-parsed {@code families} object, so no second resource read is needed.
+     *
+     * @param families the parsed {@code families} object
+     * @param definitions the built definitions, mutated in place for grouped entities
+     */
+    private static void attachGroupMembers(@NotNull JsonObject families, @NotNull Map<String, Entity> definitions) {
+        for (Map.Entry<String, List<String>> group : groupMembership(families).entrySet()) {
+            if (group.getValue().size() <= 1) continue;
+            Entity entity = definitions.get(group.getKey());
+            if (entity == null) continue;
+            definitions.put(group.getKey(), entity.toBuilder().members(group.getValue()).build());
+        }
     }
 
     /**
      * Returns {@code entityId -> familyMembers} keyed by every native entity id, derived from
      * {@code variant_of} (variant siblings roll up to their base row) plus the cross-entity
      * {@code family_of} groupings (mooshroom -&gt; cow). Singletons return a single-element list of
-     * themselves so callers iterate uniformly. Reproduces {@code EntityModelLoader.loadFamilies}'s
-     * two-pass fold on the natively-expanded rows.
+     * themselves so the fold is uniform; {@link #attachGroupMembers} keeps only the genuine groups.
      *
-     * @param diagnostics the scope envelope warnings are recorded to
-     * @return family membership keyed by entity id (empty when the models resource is absent)
+     * @param families the parsed {@code families} object
+     * @return family membership keyed by entity id
      */
-    public static @NotNull Map<String, List<String>> loadFamilies(@NotNull Diagnostics diagnostics) {
-        Optional<ResourceDocument> modelsDoc = BundledResource.read(MODELS_RESOURCE, BundledResource.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
-        if (modelsDoc.isEmpty()) return Map.of();
-        JsonObject families = familiesOf(modelsDoc.get());
-        if (families == null) return Map.of();
-
+    private static @NotNull Map<String, List<String>> groupMembership(@NotNull JsonObject families) {
         // Row id -> its variant_of base (null for a base / plain row) in expansion order, plus the
         // cross-entity family_of table (keyed by the FAMILY id).
         Map<String, String> variantOf = new LinkedHashMap<>();

@@ -197,9 +197,9 @@ public class EntityOptions implements RenderOptions {
         UNION_BOUNDS,
 
         /**
-         * Canvas is sized to the union across this entity AND every family member from
-         * {@code EntityModelLoader.loadFamilies()} (e.g. cow + cow_cold + cow_warm +
-         * mooshroom all share cow's family canvas). Same native ratio +
+         * Canvas is sized to the union across this entity AND every family member from the
+         * definition's {@code Entity.members()} canvas group (e.g. camel + camel_husk share one
+         * family canvas). Same native ratio +
          * {@link EntityOptions#getPadding() padding} expansion +
          * {@link EntityOptions#getMaxCanvasSize() maxCanvasSize} cap as {@link #UNION_BOUNDS}.
          * Required by {@code TestEntityParityVanilla} since the harness sizes by family-union

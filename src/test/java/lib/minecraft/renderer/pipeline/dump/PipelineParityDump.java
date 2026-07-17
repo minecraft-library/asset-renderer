@@ -1292,6 +1292,9 @@ public final class PipelineParityDump {
         root.add("axes", axes(entity.axes()));
         root.add("bone_toggles", CanonicalJson.map(entity.boneToggles(), PipelineParityDump::boneToggle));
         CanonicalJson.put(root, "texture_ref", entity.textureRef(), JsonPrimitive::new);
+        // Canvas-group membership: emitted only for genuine groups (size > 1) so singleton entities
+        // stay byte-identical; the members set has no meaningful order, so sort for a canonical array.
+        if (!entity.members().isEmpty()) root.add("members", CanonicalJson.strings(entity.members()));
         return root;
     }
 
