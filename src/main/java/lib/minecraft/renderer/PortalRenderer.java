@@ -535,7 +535,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
          * Draws one 3D isometric portal frame at the given game tick into {@code target}: resolves the
          * projection, bakes the parallax shader once at the target (raster) resolution as a screen-space
          * canvas, rasterizes the cube / slab with a white sampler to capture per-face shading, then
-         * composes shader &times; shading into {@code target}. The shared {@link Finalize} tail owns the
+         * composes shader &times; shading into {@code target}. The shared {@link RasterPass} tail owns the
          * supersample / FXAA / downscale around this draw, so {@code target} is the hi-res buffer when
          * supersampling.
          *

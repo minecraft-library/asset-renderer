@@ -19,12 +19,14 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
-import lib.minecraft.renderer.engine.compose.Finalize;
+import lib.minecraft.renderer.engine.compose.RasterPass;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.BannerKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.kit.ItemStackKit;
 import lib.minecraft.renderer.engine.kit.ShieldKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
@@ -181,26 +183,25 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Builds the item enchantment-glint tail for {@link Finalize}, deriving the glint flag
+     * Builds the item enchantment-glint finish, deriving the glint flag
      * ({@code glintOverride}, else the item's always-glinted flag or {@code enchanted}) the GUI and
      * held-item paths share, then applying the CIT-derived {@link GlintPolicy}: a
      * {@link GlintPolicy.Suppressed} decision forces no glint ({@code useGlint=false}); a
      * {@link GlintPolicy.Replaced} decision swaps the glint texture id (a matched
      * {@code type=enchantment} rule) while leaving whether the item glints to its own flag; a
-     * {@link GlintPolicy.Default} decision is vanilla behaviour. Application stays here in the compose
-     * tail.
+     * {@link GlintPolicy.Default} decision is vanilla behaviour.
      */
-    static @NotNull Finalize.Glint itemGlint(
+    static @NotNull GlintKit.Foil itemGlint(
         @NotNull Textures textures, @NotNull Item item, @NotNull ItemOptions options, @NotNull GlintPolicy glint
     ) {
         boolean glinted = options.getGlintOverride().orElse(item.alwaysGlinted() || options.isEnchanted());
         return switch (glint) {
             case GlintPolicy.Suppressed ignored ->
-                Finalize.Glint.item(textures::tryResolveTexture, false, options.isAnimateGlint(), options.getFramesPerSecond());
+                GlintKit.Foil.item(textures::tryResolveTexture, false, options.isAnimateGlint(), options.getFramesPerSecond());
             case GlintPolicy.Replaced replaced ->
-                Finalize.Glint.itemReplaced(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond(), replaced.texture().id());
+                GlintKit.Foil.itemReplaced(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond(), replaced.texture().id());
             case GlintPolicy.Default ignored ->
-                Finalize.Glint.item(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond());
+                GlintKit.Foil.item(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond());
         };
     }
 
@@ -573,7 +574,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
             // trim, damage-bar, and stack-count decorations) so callers can splice their own passes in
-            // via ItemOptions.layerDecorator, folded into Finalize's target. The terminal glint is the
+            // via ItemOptions.layerDecorator, folded into the raster target. The glint finish is the
             // finalisation step, not a layer, because it expands the buffer into one or many frames.
             // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in. Vanilla
             // ships zero item sidecars, so frameCount defaults to 1 and every layer resolves at tick 0 -
@@ -583,10 +584,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // (startTick=0, frameCount=1) is byte-identical.
             AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
-            Finalize.FinalizeSpec spec = Finalize.FinalizeSpec.tickStrip(size, size, 1, options.getOutput().isAntiAlias(), anim)
-                .withGlint(itemGlint(engine.textures(), item, options, cit.glint()), false);
-            return Finalize.render(spec,
-                (target, mask, tick) -> Layers.foldInto(buildGuiLayers(ctx, tick), options.getLayerDecorator(), target));
+            return Timeline.tickStrip(anim).bake(
+                RasterPass.of(size, size, 1, options.getOutput().isAntiAlias(),
+                        (target, mask, tick) -> Layers.foldInto(buildGuiLayers(ctx, tick), options.getLayerDecorator(), target))
+                    .finishing(itemGlint(engine.textures(), item, options, cit.glint())));
         }
 
         /**
@@ -679,7 +680,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             // One CIT walk per render, shared by the flat-slab layer composite and the glint tail; both
             // are tick-independent. Only the per-tick texture bake needs the tick, so the geometry build
-            // moves INSIDE the Finalize callback (fluid pattern) and the ModelEngine is rebuilt per frame
+            // moves INSIDE the raster callback (fluid pattern) and the ModelEngine is rebuilt per frame
             // for thread-safe parallel strip baking. Vanilla ships no item sidecars, so a default render
             // (frameCount = 1) resolves at tick 0 - byte-identical.
             Textures textures = new Textures(this.context);
@@ -693,12 +694,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
             int ssaa = Math.max(1, options.getOutput().getSupersample());
-            Finalize.FinalizeSpec spec = Finalize.FinalizeSpec.tickStrip(size, size, ssaa, options.getOutput().isAntiAlias(), anim)
-                .withGlint(itemGlint(textures, item, options, cit.glint()), false);
-            return Finalize.render(spec, (target, mask, tick) -> {
-                ModelEngine engine = new ModelEngine(this.context, camera);
-                engine.rasterize(buildTrianglesAtTick(engine, item, options, cit, tint, tick), target, displayTransform);
-            });
+            return Timeline.tickStrip(anim).bake(
+                RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, mask, tick) -> {
+                    ModelEngine engine = new ModelEngine(this.context, camera);
+                    engine.rasterize(buildTrianglesAtTick(engine, item, options, cit, tint, tick), target, displayTransform);
+                }).finishing(itemGlint(textures, item, options, cit.glint())));
         }
 
         /**
@@ -709,7 +709,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * {@code tick}. {@link #composeTintedLayers} folds in each layer's {@code LayerTint} (leather
          * dye, potion colour, firework colour) and the caller's {@code tintColor} so the held view
          * carries the same colour as the GUI icon (degenerate no-elements-and-no-layer0 cases throw
-         * inside it). Called once per frame from the {@link Finalize} callback so an animated pack
+         * inside it). Called once per frame from the raster callback so an animated pack
          * texture rebuilds per frame.
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildTrianglesAtTick(

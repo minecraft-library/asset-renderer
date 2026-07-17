@@ -146,7 +146,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
             // rasterizeFrame constructs its own engine, textures, and triangle list per invocation;
-            // context is the only shared reference and it is read-only, so Finalize bakes every frame
+            // context is the only shared reference and it is read-only, so the timeline bakes every frame
             // in parallel. The per-tick build MUST stay inside the rasterizer callback (capturing it
             // once would freeze the animation on frame 0's textures).
             int ssaa = Math.max(1, options.getOutput().getSupersample());
@@ -159,7 +159,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
          * Bakes a single animation frame at {@code tick} into {@code target}: resolves the projection,
          * samples the still and flow textures, builds the tinted fluid cube through
          * {@link FluidGeometryKit}, and rasterizes it. The supersample / FXAA / downscale tail is the
-         * shared {@link Finalize}.
+         * shared {@link RasterPass#renderFrame}.
          */
         private void rasterizeFrame(@NotNull FluidOptions options, int tick, @NotNull PixelBuffer target) {
             // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
@@ -198,7 +198,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
-            // Each tick constructs its own RasterEngine, so Finalize bakes frames in parallel. Flat 2D
+            // Each tick constructs its own RasterEngine, so the timeline bakes frames in parallel. Flat 2D
             // blit: no supersample / FXAA (ssaa = 1, antiAlias = false).
             return Timeline.tickStrip(options.getAnimation()).bake(
                 RasterPass.of(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,

@@ -10,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
  *
  * <p>The evaluation that chooses {@link Suppressed} / {@link Replaced} (matched {@code type=enchantment}
  * rules, the global {@code useGlint=false} toggle) lives in {@link GlintEvaluator}; the
- * result rides {@link CitResult} and the item renderer translates it into a {@code Finalize.Glint}.
+ * result rides {@link CitResult} and the item renderer translates it into a {@code GlintKit.Foil}.
  */
 public sealed interface GlintPolicy permits GlintPolicy.Default, GlintPolicy.Suppressed, GlintPolicy.Replaced {
 

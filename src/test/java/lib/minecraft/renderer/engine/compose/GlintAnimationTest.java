@@ -4,6 +4,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -19,12 +20,12 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * End-to-end coverage for glint × animation composition - the path no vanilla render
  * exercises (vanilla ships no animated-and-enchanted subject), reachable only when a caller opts a
- * glinted subject into {@code frameCount > 1}. Drives {@link Finalize#renderStrip} with an enchanted
- * {@link Finalize.Glint} over a flat opaque base and asserts the result is a multi-frame
+ * glinted subject into {@code frameCount > 1}. Bakes an animated {@link Timeline} with an enchanted
+ * {@link GlintKit.Foil} finish over a flat opaque base and asserts the result is a multi-frame
  * {@link AnimatedImageData} whose frames DIFFER - i.e. the foil is stamped per frame at the
  * tick-derived glint schedule rather than dropped or frozen.
  */
-class FinalizeGlintAnimationTest {
+class GlintAnimationTest {
 
     /** A small non-uniform glint texture so a scrolled sample visibly changes across phases. */
     private static @NotNull PixelBuffer glintTexture() {
@@ -61,12 +62,12 @@ class FinalizeGlintAnimationTest {
     @DisplayName("enchanted + animated: strip carries the animation's frames, each with its own scrolled foil")
     void animatedGlintStampsPerFrame() {
         PixelBuffer glint = glintTexture();
-        Finalize.Glint tail = Finalize.Glint.item(id -> Optional.of(glint), true, true, 30);
+        GlintKit.Foil foil = GlintKit.Foil.item(id -> Optional.of(glint), true, true, 30);
         // frameCount=4, ticksPerFrame=50 -> ticks 0/50/100/150 -> distinct glint phases per frame.
         AnimationOptions anim = AnimationOptions.builder().frameCount(4).ticksPerFrame(50).build();
-        Finalize.FinalizeSpec spec = Finalize.FinalizeSpec.tickStrip(24, 24, 1, false, anim).withGlint(tail, false);
 
-        ImageData result = Finalize.render(spec, (target, mask, tick) -> fillOpaque(target));
+        ImageData result = Timeline.tickStrip(anim).bake(
+            RasterPass.of(24, 24, 1, false, (target, mask, tick) -> fillOpaque(target)).finishing(foil));
 
         assertThat(result, is(instanceOf(AnimatedImageData.class)));
         AnimatedImageData animated = (AnimatedImageData) result;
@@ -81,11 +82,11 @@ class FinalizeGlintAnimationTest {
     @DisplayName("animateGlint=false + animated base: every frame stamps frame-0's phase (static foil, frames equal)")
     void nonScrollingGlintIsFrozen() {
         PixelBuffer glint = glintTexture();
-        Finalize.Glint tail = Finalize.Glint.item(id -> Optional.of(glint), true, false, 30);
+        GlintKit.Foil foil = GlintKit.Foil.item(id -> Optional.of(glint), true, false, 30);
         AnimationOptions anim = AnimationOptions.builder().frameCount(3).ticksPerFrame(50).build();
-        Finalize.FinalizeSpec spec = Finalize.FinalizeSpec.tickStrip(24, 24, 1, false, anim).withGlint(tail, false);
 
-        ImageData result = Finalize.render(spec, (target, mask, tick) -> fillOpaque(target));
+        ImageData result = Timeline.tickStrip(anim).bake(
+            RasterPass.of(24, 24, 1, false, (target, mask, tick) -> fillOpaque(target)).finishing(foil));
 
         AnimatedImageData animated = (AnimatedImageData) result;
         assertThat(animated.getFrames().size(), is(3));

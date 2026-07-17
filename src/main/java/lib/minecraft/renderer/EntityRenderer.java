@@ -17,14 +17,15 @@ import lib.minecraft.renderer.engine.camera.FitRequest;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.Finalize;
-import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.RasterPass;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
+import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -119,11 +120,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
         if (options.getEntityId().isEmpty())
-            return FrameCompositor.emptyFrame();
+            return Timeline.empty();
 
         Entity definition = this.javaEntities.get(options.getEntityId().get());
         if (definition == null)
-            return FrameCompositor.emptyFrame();
+            return Timeline.empty();
 
         // Fold the age / carried policy into a single resolved definition up front, so every
         // downstream site (texture, ortho bounds, geometry contributors) reads it unconditionally
@@ -137,13 +138,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // start-tick texture drives the missing-texture early-out and canvas sizing; the per-frame
         // render re-resolves inside the rasterizer callback so an opted-in animated texture rebuilds.
         AnimationOptions anim = options.getAnimation();
-        int startTick = anim.getStartTick();
+        Timeline.TickTimeline timeline = Timeline.tickStrip(anim);
+        int startTick = timeline.tickAt(0);
         Optional<PixelBuffer> texture = resolveEntityTexture(resolved, options, startTick);
         if (texture.isEmpty())
-            return FrameCompositor.emptyFrame();
+            return Timeline.empty();
 
         if (model.getBones().isEmpty())
-            return FrameCompositor.emptyFrame();
+            return Timeline.empty();
 
         // Combined bounds across the base entity AND every overlay so the shared auto-fit
         // window contains both. Slime's outer shell (8x8x8) extends beyond the inner body
@@ -287,7 +289,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // the callback reuses, so a static render never rebuilds.
         ConcurrentList<VisibleTriangle> startTriangles = buildAtTick.apply(startTick);
         if (startTriangles.isEmpty())
-            return FrameCompositor.staticFrame(PixelBuffer.create(canvasW, canvasH));
+            return Timeline.still(PixelBuffer.create(canvasW, canvasH));
 
         boolean enchanted = ArmorKit.hasEnchantedArmor(
             options.getArmor().getHelmet(), options.getArmor().getChestplate(),
@@ -299,13 +301,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // (glinted) armor rather than the whole entity silhouette.
         //
         // Route through tickStrip UNCONDITIONALLY (the FluidRenderer pattern): a frameCount=1 timeline
-        // yields the same single static frame but sampled at anim.getStartTick(), so Finalize draws at
-        // spec.startTick() == startTick and the callback's `tick == startTick` reuse fires. The
-        // staticFrame factory instead hardcodes tick 0, which - since the canvas/bounds/startTriangles
+        // yields the same single static frame but sampled at the timeline's start tick, so bake draws
+        // at timeline.tickAt(0) == startTick and the callback's `tick == startTick` reuse fires. A raw
+        // Static(0) would instead hardcode tick 0, which - since the canvas/bounds/startTriangles
         // above are built at startTick - would size the canvas for startTick's frame yet DRAW frame 0
         // (a wrong-frame + wasted-rebuild mismatch on an animated texture with a non-zero startTick).
-        // At frameCount=1 Finalize.render still takes the glint branch (frameCount <= 1); at
-        // frameCount>1 it bakes the strip. Default (startTick=0, frameCount=1) is byte-identical.
+        // At frameCount=1 the timeline is a Static at startTick and the foil takes the scroll
+        // direction; at frameCount>1 it bakes the strip and stamps per frame. Default (startTick=0,
+        // frameCount=1) is byte-identical.
         //
         // Canvas-sizing tradeoff (opt-in animated textures): the orthographic canvas + NATIVE_SCALE
         // silhouette are measured ONCE from the startTick frame's alpha-tight bounds, but frames render
@@ -315,11 +318,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // triggers it (no animated entity texture). Callers needing an uncropped fat-later-frame render
         // can pad via canvasSize/padding or the perspective path (which auto-fills per frame).
         int ssaa = Math.max(1, options.getOutput().getSupersample());
-        Finalize.FinalizeSpec spec = Finalize.FinalizeSpec.tickStrip(canvasW, canvasH, ssaa, options.getOutput().isAntiAlias(), anim)
-            .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted);
-        return Finalize.render(spec, (target, mask, tick) ->
-            new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT).rasterizeFitted(
-                tick == startTick ? startTriangles : buildAtTick.apply(tick), target, effective, fitRequest, mask));
+        return timeline.bake(
+            RasterPass.of(canvasW, canvasH, ssaa, options.getOutput().isAntiAlias(), (target, mask, tick) ->
+                    new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT).rasterizeFitted(
+                        tick == startTick ? startTriangles : buildAtTick.apply(tick), target, effective, fitRequest, mask))
+                .withMask(enchanted)
+                .finishing(GlintKit.Foil.armor(engine.textures()::tryResolveTexture, enchanted)));
     }
 
     /**

@@ -15,7 +15,7 @@ import java.util.List;
  * {@code ticksPerFrame} for its textures (a block may composite a 32-frame 2-tick water face and a
  * 300-frametime prismarine face); this helper probes each animated texture's loop length + entry
  * cadence and reconciles them into a {@link Uniform} (frameCount + ticksPerFrame) for
- * {@link Finalize.FinalizeSpec#tickStrip}.
+ * {@link Timeline#tickStrip}.
  *
  * <p>Reconciliation runs within one capped loop: {@link #MAX_LOOP_TICKS} = 200 ticks (the tick
  * equivalent of {@code FrameCompositor.MAX_LOOP_MS} = 10 000 ms; also the precedent in

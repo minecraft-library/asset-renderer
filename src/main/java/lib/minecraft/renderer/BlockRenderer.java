@@ -326,7 +326,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * primary / additive-entity / merged-parts {@link GeometryLayer} stack (each face texture
          * resolved at {@code tick}), folds it, applies the block-entity icon rotation + multi-block
          * recenter, rebuilds from the first blockstate apply when empty, then re-lights with vanilla's
-         * {@code Lighting.ITEMS_3D} Lambertian. Called once per frame from the {@link Finalize} callback.
+         * {@code Lighting.ITEMS_3D} Lambertian. Called once per frame from the raster callback.
          *
          * <p>Re-lights on the post-{@code display.gui} normal (26.1 dropped per-face cardinal
          * multiplication from the GUI inventory path - the shader's only lighting input is two
