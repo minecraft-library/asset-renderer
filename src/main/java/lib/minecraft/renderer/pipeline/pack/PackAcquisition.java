@@ -10,7 +10,6 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.pack.FormatRange.FormatVersion;
-import lib.minecraft.renderer.pipeline.pack.PackIdDeriver.Assignment;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisConfig;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisOverlays;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisTarget;
@@ -59,18 +58,18 @@ public final class PackAcquisition {
         FormatVersion target = rendererTarget(vanilla);
 
         List<PackContainer> containers = new ArrayList<>();
-        List<PackNameSources> naming = new ArrayList<>();
+        List<PackIdDeriver.Naming> naming = new ArrayList<>();
         for (Path source : userSources) {
             PackContainer container = PackContainer.detect(source);
             containers.add(container);
-            naming.add(new PackNameSources(source, licenseTitleLine(container), description(container)));
+            naming.add(new PackIdDeriver.Naming(source, container));
         }
-        ConcurrentList<Assignment> assignments = PackIdDeriver.assign(naming);
+        ConcurrentList<PackId> ids = PackIdDeriver.assign(naming);
 
         List<ResourcePack> packs = new ArrayList<>();
         packs.add(vanilla);
         for (int i = 0; i < userSources.size(); i++)
-            packs.add(userPack(containers.get(i), assignments.get(i), target, minecraftVersion));
+            packs.add(userPack(containers.get(i), ids.get(i), target, minecraftVersion));
 
         return PackStack.of(Concurrent.adoptList(packs).toUnmodifiable());
     }
@@ -90,9 +89,8 @@ public final class PackAcquisition {
      * Assembles one user pack's {@link ResourcePack} straight off its detected container - virtual by
      * default: a zip / {@code .cats} pack serves its bytes in place, without extraction to disk.
      */
-    private static @NotNull ResourcePack userPack(@NotNull PackContainer container, @NotNull Assignment assignment,
+    private static @NotNull ResourcePack userPack(@NotNull PackContainer container, @NotNull PackId id,
                                                   @NotNull FormatVersion target, @NotNull String minecraftVersion) {
-        PackId id = assignment.id();
         MCMeta meta = readMeta(container, id);
         Set<Capability> capabilities = detectCapabilities(container, meta);
         ConcurrentList<PackRoot> roots = resolveRoots(container, meta, target, minecraftVersion, capabilities);
@@ -248,20 +246,6 @@ public final class PackAcquisition {
         return container.bytes("pack.mcmeta")
             .map(bytes -> MCMeta.parse(new String(bytes, StandardCharsets.UTF_8), new ResourceId(id.value(), "pack")))
             .orElse(MCMeta.EMPTY);
-    }
-
-    private static @NotNull Optional<String> description(@NotNull PackContainer container) {
-        return container.bytes("pack.mcmeta")
-            .map(bytes -> MCMeta.parse(new String(bytes, StandardCharsets.UTF_8), new ResourceId("probe", "pack")))
-            .flatMap(MCMeta::pack)
-            .map(pack -> pack.description().plain())
-            .filter(plain -> !plain.isBlank());
-    }
-
-    private static @NotNull Optional<String> licenseTitleLine(@NotNull PackContainer container) {
-        return container.bytes("LICENSE")
-            .map(bytes -> new String(bytes, StandardCharsets.UTF_8))
-            .flatMap(text -> text.lines().map(String::strip).filter(line -> !line.isEmpty()).findFirst());
     }
 
 }

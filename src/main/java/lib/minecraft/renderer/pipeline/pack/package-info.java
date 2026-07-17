@@ -12,8 +12,5 @@
  * umbrella over every {@code .mcmeta} section, with
  * {@link lib.minecraft.renderer.pipeline.pack.FormatRange FormatRange} normalizing the three
  * pack-format generations to one inclusive span.
- *
- * <p>These types carry no production call sites yet; the stack wiring that consumes them lands with
- * the acquisition and resolution layer.
  */
 package lib.minecraft.renderer.pipeline.pack;

@@ -2,18 +2,21 @@ package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.pack.PackIdDeriver.Assignment;
-import lib.minecraft.renderer.pipeline.pack.PackIdDeriver.Preferred;
+import lib.minecraft.renderer.pipeline.pack.PackIdDeriver.Candidate;
+import lib.minecraft.renderer.pipeline.pack.PackIdDeriver.Naming;
 import lib.minecraft.renderer.pipeline.pack.PackIdDeriver.Rung;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -28,18 +31,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @DisplayName("PackIdDeriver ladder + collision resolution")
 class PackIdDeriverTest {
 
-    private static PackNameSources file(String name) {
-        return PackNameSources.of(Path.of(name));
-    }
+    @TempDir
+    Path tmp;
 
     @Test
     @DisplayName("rung 1: filename stem drives the id, extension chain stripped")
     void filenameRung() {
-        Preferred eureka = PackIdDeriver.preferred(file("eureka.cats.zip"));
+        Candidate eureka = PackIdDeriver.preferred(file("eureka.cats.zip"));
         assertThat(eureka.id(), is(new PackId("eureka")));
         assertThat(eureka.rung(), is(Rung.FILENAME));
 
-        Preferred fursky = PackIdDeriver.preferred(file("FurSky Reborn.cats.zip"));
+        Candidate fursky = PackIdDeriver.preferred(file("FurSky Reborn.cats.zip"));
         assertThat(fursky.id(), is(new PackId("fursky-reborn")));
         assertThat(fursky.rung(), is(Rung.FILENAME));
     }
@@ -47,7 +49,7 @@ class PackIdDeriverTest {
     @Test
     @DisplayName("rung 4: a numbers-only name falls through to the synthetic id")
     void syntheticRung() {
-        Preferred p = PackIdDeriver.preferred(file("26.1"));
+        Candidate p = PackIdDeriver.preferred(file("26.1"));
         assertThat(p.id(), is(new PackId("pack")));
         assertThat(p.rung(), is(Rung.SYNTHETIC));
     }
@@ -55,9 +57,7 @@ class PackIdDeriverTest {
     @Test
     @DisplayName("rung 2: the LICENSE title line, license tokens dropped")
     void licenseRung() {
-        PackNameSources sources = new PackNameSources(
-            Path.of("123"), Optional.of("HYPIXEL SKYBLOCK RESOURCE PACK LICENSE"), Optional.empty());
-        Preferred p = PackIdDeriver.preferred(sources);
+        Candidate p = PackIdDeriver.preferred(withLicense("123", "HYPIXEL SKYBLOCK RESOURCE PACK LICENSE"));
         assertThat(p.id(), is(new PackId("hypixel-skyblock")));
         assertThat(p.rung(), is(Rung.LICENSE));
     }
@@ -65,32 +65,28 @@ class PackIdDeriverTest {
     @Test
     @DisplayName("rung 3: a short description; a long one is rejected")
     void descriptionRung() {
-        PackNameSources usable = new PackNameSources(Path.of("123"), Optional.empty(), Optional.of("Hypixel SkyBlock"));
-        Preferred p = PackIdDeriver.preferred(usable);
+        Candidate p = PackIdDeriver.preferred(withDescription("123", "Hypixel SkyBlock"));
         assertThat(p.id(), is(new PackId("hypixel-skyblock")));
         assertThat(p.rung(), is(Rung.DESCRIPTION));
 
-        PackNameSources tooLong = new PackNameSources(Path.of("123"), Optional.empty(), Optional.of("one two three four five six"));
-        assertThat(PackIdDeriver.preferred(tooLong).rung(), is(Rung.SYNTHETIC));
+        assertThat(PackIdDeriver.preferred(withDescription("123", "one two three four five six")).rung(), is(Rung.SYNTHETIC));
     }
 
     @Test
     @DisplayName("colliding ids get -b, -c in supply order with a loud warning")
     void collisionSuffixes() {
-        List<PackNameSources> supply = List.of(file("Defrosted.zip"), file("defrosted"), file("DEFROSTED.cats"));
-        ConcurrentList<Assignment> assigned = captureErr(() -> PackIdDeriver.assign(supply)).result();
+        List<Naming> supply = List.of(file("Defrosted.zip"), file("defrosted"), file("DEFROSTED.cats"));
+        ConcurrentList<PackId> assigned = captureErr(() -> PackIdDeriver.assign(supply)).result();
 
-        assertThat(assigned.getFirst().id(), is(new PackId("defrosted")));
-        assertThat(assigned.getFirst().collisionBase(), is(Optional.empty()));
-        assertThat(assigned.get(1).id(), is(new PackId("defrosted-b")));
-        assertThat(assigned.get(1).collisionBase(), is(Optional.of(new PackId("defrosted"))));
-        assertThat(assigned.getLast().id(), is(new PackId("defrosted-c")));
+        assertThat(assigned.getFirst(), is(new PackId("defrosted")));
+        assertThat(assigned.get(1), is(new PackId("defrosted-b")));
+        assertThat(assigned.getLast(), is(new PackId("defrosted-c")));
     }
 
     @Test
     @DisplayName("a collision emits a warning naming the id")
     void collisionWarns() {
-        Captured<ConcurrentList<Assignment>> captured =
+        Captured<ConcurrentList<PackId>> captured =
             captureErr(() -> PackIdDeriver.assign(List.of(file("Defrosted.zip"), file("defrosted"))));
         assertThat(captured.err(), containsString("collision"));
         assertThat(captured.err(), containsString("defrosted-b"));
@@ -99,16 +95,52 @@ class PackIdDeriverTest {
     @Test
     @DisplayName("reserved ids are pre-taken, so the first user collider is suffixed")
     void reservedPreseeded() {
-        ConcurrentList<Assignment> assigned = captureErr(() -> PackIdDeriver.assign(List.of(file("Vanilla.zip")))).result();
-        assertThat(assigned.getFirst().id(), is(new PackId("vanilla-b")));
-        assertThat(assigned.getFirst().collisionBase(), is(Optional.of(PackId.VANILLA)));
+        ConcurrentList<PackId> assigned = captureErr(() -> PackIdDeriver.assign(List.of(file("Vanilla.zip")))).result();
+        assertThat(assigned.getFirst(), is(new PackId("vanilla-b")));
     }
 
     @Test
     @DisplayName("supplying the identical source twice is an error, not a suffix")
     void sameSourceTwiceErrors() {
-        PackNameSources s = file("pack.zip");
+        Naming s = file("pack.zip");
         assertThrows(PipelineException.class, () -> PackIdDeriver.assign(List.of(s, s)));
+    }
+
+    // --- naming fixtures (a Directory container serves the LICENSE / mcmeta a rung reads) ---
+
+    /** A naming handle over a source filename whose container ships nothing (only filename/synthetic fire). */
+    private Naming file(String name) {
+        return new Naming(Path.of(name), new PackContainer.Directory(freshDir()));
+    }
+
+    /** A naming handle whose container ships a root {@code LICENSE} with the given first line. */
+    private Naming withLicense(String name, String licenseText) {
+        Path dir = freshDir();
+        write(dir.resolve("LICENSE"), licenseText);
+        return new Naming(Path.of(name), new PackContainer.Directory(dir));
+    }
+
+    /** A naming handle whose container ships a {@code pack.mcmeta} carrying the given description. */
+    private Naming withDescription(String name, String description) {
+        Path dir = freshDir();
+        write(dir.resolve("pack.mcmeta"), "{\"pack\":{\"description\":\"" + description + "\"}}");
+        return new Naming(Path.of(name), new PackContainer.Directory(dir));
+    }
+
+    private Path freshDir() {
+        try {
+            return Files.createTempDirectory(this.tmp, "pack");
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    private static void write(Path file, String content) {
+        try {
+            Files.writeString(file, content);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     // --- System.err capture helper ---
