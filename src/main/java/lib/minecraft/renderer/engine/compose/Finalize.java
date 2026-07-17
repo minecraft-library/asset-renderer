@@ -320,7 +320,7 @@ public final class Finalize {
      * @return the glint time in vanilla post-{@code glintSpeed} milliseconds
      */
     static long glintTimeForTick(int tick) {
-        return Math.round((double) tick * MILLIS_PER_TICK * GlintKit.MAX_ENCHANTMENT_GLINT_SPEED_MILLIS);
+        return GlintKit.glintTimeAt(tick * (double) Timeline.MILLIS_PER_TICK);
     }
 
     /**

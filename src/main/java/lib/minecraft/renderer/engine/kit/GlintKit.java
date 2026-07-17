@@ -5,10 +5,15 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.compose.RasterPass;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.raster.GlintMask;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
+import java.util.Optional;
 
 /**
  * Generates animated enchantment glint frames by scrolling a glint texture over a base image and
@@ -148,6 +153,15 @@ public class GlintKit {
      */
     private static final int GLINT_DISCARD_ALPHA_BYTE = 26;
 
+    /** Output frame rate for worn-armor glint, matching every vanilla armor render site. */
+    private static final int ARMOR_GLINT_FPS = 30;
+
+    /**
+     * Baked glint loop length in seconds - the {@code framesPerSecond * GLINT_LOOP_SECONDS} frame
+     * count of each preset. Two seconds is a practical truncation of vanilla's 330-second full loop.
+     */
+    private static final int GLINT_LOOP_SECONDS = 2;
+
     /**
      * The live atlas sprite's normalized UV sub-rect, the real {@code UV0} source for an exact glint
      * sample in place of the offline normalized-icon approximation.
@@ -204,7 +218,7 @@ public class GlintKit {
         public static @NotNull GlintOptions itemDefault(int framesPerSecond) {
             return new GlintOptions(
                 framesPerSecond,
-                framesPerSecond * 2,
+                framesPerSecond * GLINT_LOOP_SECONDS,
                 ITEM_GLINT_TEXTURE_ID,
                 ITEM_SCALE,
                 true,
@@ -227,7 +241,7 @@ public class GlintKit {
         public static @NotNull GlintOptions armorDefault(int framesPerSecond) {
             return new GlintOptions(
                 framesPerSecond,
-                framesPerSecond * 2,
+                framesPerSecond * GLINT_LOOP_SECONDS,
                 ARMOR_GLINT_TEXTURE_ID,
                 ARMOR_SCALE,
                 false,
@@ -294,11 +308,164 @@ public class GlintKit {
         @NotNull GlintOptions options,
         @Nullable GlintMask glintMask
     ) {
-        double millisPerFrame = 1000.0 / options.framesPerSecond();
+        Timeline.FpsLoop loop = new Timeline.FpsLoop(options.framesPerSecond(), options.totalFrames());
         long[] glintTimes = new long[options.totalFrames()];
         for (int frameIndex = 0; frameIndex < glintTimes.length; frameIndex++)
-            glintTimes[frameIndex] = Math.round(frameIndex * millisPerFrame * MAX_ENCHANTMENT_GLINT_SPEED_MILLIS);
+            glintTimes[frameIndex] = glintTimeAt(loop.millisAt(frameIndex));
         return applyGlintAtTimes(base, glintTexture, glintTimes, options, null, glintMask);
+    }
+
+    /**
+     * Converts an exact sample instant to the post-{@code glintSpeed} glint time
+     * {@link #applyGlintAtTimes} consumes - the wall-clock instant scaled by
+     * {@link #MAX_ENCHANTMENT_GLINT_SPEED_MILLIS}, with the {@code glintSpeed} option pinned to
+     * {@code 1.0} offline. Folding the speed factor here, never inside the stamp, keeps an animated
+     * glint scrolling at the same rate as a static-frame glint and phase-aligned with the live client.
+     *
+     * @param instantMs the exact sample instant in milliseconds
+     * @return the glint time in vanilla post-{@code glintSpeed} milliseconds
+     */
+    public static long glintTimeAt(double instantMs) {
+        return Math.round(instantMs * MAX_ENCHANTMENT_GLINT_SPEED_MILLIS);
+    }
+
+    /**
+     * Resolves a glint scroll texture by its namespaced id; typically {@code engine::tryResolveTexture}.
+     */
+    @FunctionalInterface
+    public interface TextureResolver {
+
+        /**
+         * Resolves the glint texture for the given id.
+         *
+         * @param textureId the namespaced glint texture id
+         * @return the resolved texture, or empty when the active pack stack provides none
+         */
+        @NotNull Optional<PixelBuffer> resolve(@NotNull String textureId);
+
+    }
+
+    /**
+     * The enchantment-glint finish applied to a baked schedule. An animated subject owns the frame
+     * axis and each frame is post-stamped with the foil at its own sample instant; a static subject
+     * yields the axis to the glint's own frame-rate loop, which multiplies the one baked frame into
+     * the scrolling foil animation.
+     *
+     * @param resolver the glint-texture resolver
+     * @param enchanted whether the subject is enchanted and should show a glint
+     * @param animate whether to emit the animated scroll; {@code false} keeps only the frame-0 glint
+     * @param preset the glint preset (texture id + frame rate + loop periods)
+     */
+    public record Foil(
+        @NotNull TextureResolver resolver,
+        boolean enchanted,
+        boolean animate,
+        @NotNull GlintOptions preset
+    ) implements RasterPass.Finish {
+
+        /**
+         * Builds the worn-armor foil: always animated, at the armor preset.
+         *
+         * @param resolver the glint-texture resolver
+         * @param enchanted whether the subject is enchanted
+         * @return the armor foil
+         */
+        public static @NotNull Foil armor(@NotNull TextureResolver resolver, boolean enchanted) {
+            return new Foil(resolver, enchanted, true, GlintOptions.armorDefault(ARMOR_GLINT_FPS));
+        }
+
+        /**
+         * Builds the whole-item foil: animated per the caller's flag, at the item preset.
+         *
+         * @param resolver the glint-texture resolver
+         * @param enchanted whether the subject is enchanted
+         * @param animate whether to emit the animated scroll
+         * @param framesPerSecond the scroll's output frame rate
+         * @return the item foil
+         */
+        public static @NotNull Foil item(@NotNull TextureResolver resolver, boolean enchanted, boolean animate, int framesPerSecond) {
+            return new Foil(resolver, enchanted, animate, GlintOptions.itemDefault(framesPerSecond));
+        }
+
+        /**
+         * Builds a whole-item foil whose texture a CIT rule replaced - the item preset with only the
+         * glint texture id swapped. Falls back to no glint when the replacement texture resolves to
+         * nothing, exactly like the default preset.
+         *
+         * @param resolver the glint-texture resolver
+         * @param enchanted whether the subject is enchanted
+         * @param animate whether to emit the animated scroll
+         * @param framesPerSecond the scroll's output frame rate
+         * @param glintTextureId the replacement glint texture id
+         * @return the item foil
+         */
+        public static @NotNull Foil itemReplaced(@NotNull TextureResolver resolver, boolean enchanted, boolean animate, int framesPerSecond, @NotNull String glintTextureId) {
+            return new Foil(resolver, enchanted, animate, GlintOptions.itemDefault(framesPerSecond).withTexture(glintTextureId));
+        }
+
+        /**
+         * Applies the foil to the baked strip: an unenchanted or unresolved subject passes through
+         * unchanged; an animated subject ({@code frames > 1}) is stamped per frame at its own sample
+         * instant; a static subject ({@code frames == 1}) yields the frame axis to the glint's own
+         * frame-rate loop, whose delays wrap the multiplied frames.
+         *
+         * @param frames the baked frame buffers, in frame order
+         * @param baked the untrimmed baked frames with their masks, in frame order
+         * @param timeline the schedule that baked the frames
+         * @return the finished frames and the schedule whose delays wrap them
+         */
+        @Override
+        public @NotNull RasterPass.Finish.Result finish(@NotNull ConcurrentList<PixelBuffer> frames,
+                                                        @NotNull List<RasterPass.Frame> baked, @NotNull Timeline timeline) {
+            if (!enchanted)
+                return new RasterPass.Finish.Result(frames, timeline);
+
+            Optional<PixelBuffer> glintTexture = resolver.resolve(preset.glintTextureId());
+            if (glintTexture.isEmpty())
+                return new RasterPass.Finish.Result(frames, timeline);
+
+            return timeline.frames() > 1
+                ? stampOver(this, frames, baked, timeline, glintTexture.get())
+                : scroll(this, frames, baked, glintTexture.get());
+        }
+    }
+
+    /**
+     * Stamps the foil onto each frame of an animated strip in place - at that frame's own sample
+     * instant, or frame 0's when the foil does not scroll - and returns the frames on the baking
+     * schedule, whose per-frame delays already wrap them.
+     */
+    private static @NotNull RasterPass.Finish.Result stampOver(
+        @NotNull Foil foil, @NotNull ConcurrentList<PixelBuffer> frames,
+        @NotNull List<RasterPass.Frame> baked, @NotNull Timeline timeline, @NotNull PixelBuffer glintTexture
+    ) {
+        for (int f = 0; f < frames.size(); f++) {
+            long glintTime = glintTimeAt(timeline.millisAt(foil.animate() ? f : 0));
+            GlintMask mask = f < baked.size() ? baked.get(f).mask() : null;
+            PixelBuffer stamped = applyGlintAtTimes(
+                frames.get(f), glintTexture, new long[]{glintTime}, foil.preset(), null, mask).getFirst();
+            frames.set(f, stamped);
+        }
+        return new RasterPass.Finish.Result(frames, timeline);
+    }
+
+    /**
+     * Multiplies the one baked frame of a static subject into the scrolling foil loop, returning the
+     * frames on the glint's own frame-rate schedule. A non-animating foil keeps only the frame-0 glint.
+     */
+    private static @NotNull RasterPass.Finish.Result scroll(
+        @NotNull Foil foil, @NotNull ConcurrentList<PixelBuffer> frames,
+        @NotNull List<RasterPass.Frame> baked, @NotNull PixelBuffer glintTexture
+    ) {
+        GlintMask mask = baked.isEmpty() ? null : baked.getFirst().mask();
+        ConcurrentList<PixelBuffer> looped = applyGlint(frames.getFirst(), glintTexture, foil.preset(), mask);
+        Timeline.FpsLoop playback = new Timeline.FpsLoop(foil.preset().framesPerSecond(), foil.preset().totalFrames());
+        if (foil.animate())
+            return new RasterPass.Finish.Result(looped, playback);
+
+        ConcurrentList<PixelBuffer> single = Concurrent.newList();
+        single.add(looped.getFirst());
+        return new RasterPass.Finish.Result(single, playback);
     }
 
     /**
