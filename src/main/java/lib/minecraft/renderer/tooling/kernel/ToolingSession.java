@@ -38,7 +38,7 @@ public record ToolingSession(
     public @NotNull JsonNode envelope(@NotNull String orderingSource) {
         String flow = this.diagnostics.path();
         return JsonNode.object()
-            .put("//", "tooling." + flow + " · regen: ./gradlew " + flow + "2 · order: " + orderingSource)
+            .put("//", "tooling." + flow + " · regen: ./gradlew " + flow + " · order: " + orderingSource)
             .putInt("format", 2)
             .put("source_version", this.options.getVersion());
     }
