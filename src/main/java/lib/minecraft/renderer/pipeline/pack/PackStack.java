@@ -3,6 +3,8 @@ package lib.minecraft.renderer.pipeline.pack;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
@@ -37,6 +39,15 @@ public final class PackStack {
     private final @NotNull ConcurrentMap<ResourceId, ResolvedTexture> textureIndex;
     private final @NotNull RuleSet rules;
     private final @NotNull Set<String> loggedAmbiguities = ConcurrentHashMap.newKeySet();
+
+    private final @NotNull ImageFactory imageFactory = new ImageFactory();
+
+    /**
+     * Per-stack memoisation cache of decoded {@link PixelBuffer}s keyed by the resolved
+     * {@code (PackId, ResourceId)}, populated lazily on the first {@link #pixels(ResourceId)} of each
+     * texture, so a stack-wide and a pack-restricted lookup that land on the same file share one buffer.
+     */
+    private final @NotNull ConcurrentMap<PixelKey, PixelBuffer> pixelCache = Concurrent.newMap();
 
     private PackStack(@NotNull ConcurrentList<ResourcePack> ascending, @NotNull Map<PackId, ResourcePack> byId,
                       @NotNull Set<String> namespaces, @NotNull ConcurrentMap<ResourceId, ResolvedTexture> textureIndex,
@@ -217,6 +228,41 @@ public final class PackStack {
         return byId(pack).flatMap(p -> probeInPack(p, id.name()));
     }
 
+    /**
+     * Resolves a texture id to its decoded {@link PixelBuffer}, memoising the decode on the resolved
+     * {@code (PackId, ResourceId)} so a stack-wide and a pack-restricted lookup that land on the same
+     * file share one buffer. Runs the namespace-first dispatch then decodes the winning PNG once.
+     *
+     * @param id the namespaced texture id
+     * @return the decoded texture, or empty when nothing supplies it
+     */
+    public @NotNull Optional<PixelBuffer> pixels(@NotNull ResourceId id) {
+        Optional<ResolvedTexture> indexed = indexed(id);
+        if (indexed.isPresent()) {
+            PixelBuffer cached = this.pixelCache.get(new PixelKey(indexed.get().pack(), id));
+            if (cached != null) return Optional.of(cached);
+        }
+        return decode(resolve(id));
+    }
+
+    /** Decodes a resolved texture, memoising on the resolved {@code (PackId, ResourceId)} key. */
+    private @NotNull Optional<PixelBuffer> decode(@NotNull Optional<ResolvedTexture> resolved) {
+        return resolved.map(texture -> {
+            PixelKey key = new PixelKey(texture.pack(), texture.id());
+            PixelBuffer cached = this.pixelCache.get(key);
+            if (cached != null) return cached;
+
+            // PixelBuffer.wrap handles every BufferedImage layout the vanilla 1.21 pack ships -
+            // INT_ARGB, INT_RGB, INT_BGR, 4BYTE_ABGR, 3BYTE_BGR, BYTE_INDEXED, BYTE_GRAY, BYTE_BINARY
+            // (IndexColorModel), and TYPE_CUSTOM with ComponentColorModel of TYPE_GRAY (2-band
+            // tRNS-keyed grayscale) - without applying the sRGB-gamma transform that would inflate
+            // raw byte values on calibrated-gray sources.
+            PixelBuffer buffer = this.imageFactory.fromByteArray(texture.bytes()).toPixelBuffer();
+            this.pixelCache.put(key, buffer);
+            return buffer;
+        });
+    }
+
     /** The namespace-first / pack-id-second dispatch: an index lookup or a live pack probe, both baked. */
     private @NotNull Optional<ResolvedTexture> dispatch(@NotNull ResourceId id) {
         String prefix = id.namespace();
@@ -275,5 +321,8 @@ public final class PackStack {
             System.err.printf("Resolution ambiguity: prefix '%s' is both a live namespace and a loaded pack id; "
                 + "resolving as a namespace (use resolveIn for pack-restricted lookup)%n", prefix);
     }
+
+    /** The decoded-pixel cache key: the resolved pack plus the resolved texture id. */
+    private record PixelKey(@NotNull PackId pack, @NotNull ResourceId id) {}
 
 }

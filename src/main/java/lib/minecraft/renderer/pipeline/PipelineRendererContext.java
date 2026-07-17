@@ -4,7 +4,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
-import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.BannerPattern;
@@ -47,7 +46,6 @@ import lib.minecraft.renderer.pipeline.pack.rule.CitType;
 import lib.minecraft.renderer.pipeline.pack.rule.GlintEvaluator;
 import lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
-import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -63,8 +61,8 @@ import java.util.Set;
  * The production {@link RendererContext} implementation, built once at bootstrap from the extracted
  * {@link ClientAssets}. Every {@code findX} / {@code resolveX} method is backed by an
  * eagerly-materialised index so warm-path lookups are pure map accesses; texture pixels stay on
- * disk until the first {@link #resolveTexture(String)} call and are memoised in a per-context cache
- * keyed by the resolved {@code (PackId, ResourceId)}.
+ * disk until the first {@link #resolveTexture(String)} call, which decodes and memoises them through
+ * the {@link PackStack#pixels(ResourceId) pack stack}'s own cache.
  * <p>
  * Construction goes through {@link #of(ClientAssets)}, which delegates index building to the
  * pipeline loaders: {@link BlockIndexBuilder} and {@link ItemIndexBuilder} materialise the block /
@@ -74,8 +72,8 @@ import java.util.Set;
  * unmodifiable indexes and the resolved {@link PackStack}, and serves lookups.
  * <p>
  * Biome colormaps and per-block tint targets are wired through to render time by
- * {@code ColorMapLoader} and {@link BlockTintsLoader}; the lazy {@code textureCache} is
- * the only mutable map on the context.
+ * {@code ColorMapLoader} and {@link BlockTintsLoader}; the decoded-pixel cache now lives on the
+ * {@link PackStack}, so the context holds only immutable indexes.
  */
 @RequiredArgsConstructor
 public final class PipelineRendererContext implements RendererContext {
@@ -91,18 +89,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntities;
-    private final @NotNull RuleSet rules;
     private final @NotNull TextureSynthesizer synthesizer;
-
-    private final @NotNull ImageFactory imageFactory = new ImageFactory();
-
-    /**
-     * Per-context memoisation cache of decoded {@link PixelBuffer}s keyed by the resolved
-     * {@code (PackId, ResourceId)}, populated lazily on the first resolution of each texture, so a
-     * stack-wide and a pack-restricted lookup that land on the same file share one buffer. The only
-     * mutable state on the context.
-     */
-    private final @NotNull ConcurrentMap<CacheKey, PixelBuffer> textureCache = Concurrent.newMap();
 
     /**
      * Builds the production renderer context from the extracted client assets - the single loader
@@ -157,7 +144,6 @@ public final class PipelineRendererContext implements RendererContext {
             potionEffectColors,
             bannerPatterns,
             blockEntities,
-            stack.rules(),
             synthesizer
         );
     }
@@ -172,34 +158,11 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
         ResourceId id = ResourceId.parse(textureId);
-        Optional<ResolvedTexture> indexed = this.stack.indexed(id);
-        if (indexed.isPresent()) {
-            PixelBuffer cached = this.textureCache.get(new CacheKey(indexed.get().pack(), id));
-            if (cached != null) return Optional.of(cached);
-        }
         // Synthesis sits BEHIND resolution: only a stack miss consults the paletted-permutation
         // registry, so no present-texture path changes. On vanilla the registry
         // holds only the trim atlas, whose references the item renderer serves before resolution, so
         // this .or() never fires - byte-neutral.
-        return decode(this.stack.resolve(id)).or(() -> this.synthesizer.synthesize(id, this::resolveTexture));
-    }
-
-    /** Decodes a resolved texture, memoising on the resolved {@code (PackId, ResourceId)} key. */
-    private @NotNull Optional<PixelBuffer> decode(@NotNull Optional<ResolvedTexture> resolved) {
-        return resolved.map(texture -> {
-            CacheKey key = new CacheKey(texture.pack(), texture.id());
-            PixelBuffer cached = this.textureCache.get(key);
-            if (cached != null) return cached;
-
-            // PixelBuffer.wrap handles every BufferedImage layout the vanilla 1.21 pack ships -
-            // INT_ARGB, INT_RGB, INT_BGR, 4BYTE_ABGR, 3BYTE_BGR, BYTE_INDEXED, BYTE_GRAY, BYTE_BINARY
-            // (IndexColorModel), and TYPE_CUSTOM with ComponentColorModel of TYPE_GRAY (2-band
-            // tRNS-keyed grayscale) - without applying the sRGB-gamma transform that would inflate
-            // raw byte values on calibrated-gray sources.
-            PixelBuffer buffer = this.imageFactory.fromByteArray(texture.bytes()).toPixelBuffer();
-            this.textureCache.put(key, buffer);
-            return buffer;
-        });
+        return this.stack.pixels(id).or(() -> this.synthesizer.synthesize(id, this::resolveTexture));
     }
 
     /** {@inheritDoc} */
@@ -333,7 +296,7 @@ public final class PipelineRendererContext implements RendererContext {
     /** {@inheritDoc} */
     @Override
     public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
-        return this.rules.colors().get(key);
+        return this.stack.rules().colors().get(key);
     }
 
     /**
@@ -348,8 +311,8 @@ public final class PipelineRendererContext implements RendererContext {
      */
     @Override
     public @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
-        GlintPolicy glint = GlintEvaluator.evaluate(this.rules, context);
-        for (CitRule rule : this.rules.citRules()) {
+        GlintPolicy glint = GlintEvaluator.evaluate(this.stack.rules(), context);
+        for (CitRule rule : this.stack.rules().citRules()) {
             if (rule.type() != CitType.ITEM) continue;
             if (rule.matches(context)) return CitResult.of(rule.output(), glint);
         }
@@ -386,14 +349,5 @@ public final class PipelineRendererContext implements RendererContext {
         int lastUnderscore = name.lastIndexOf('_');
         return lastUnderscore > 0 ? "~" + name.substring(0, lastUnderscore) : "~" + name;
     }
-
-    /**
-     * The texture cache key: the resolved pack plus the resolved id, so a stack-wide and a
-     * pack-restricted lookup that land on the same file share one decoded buffer.
-     *
-     * @param pack the resolved owning pack
-     * @param id the resolved namespaced texture id
-     */
-    private record CacheKey(@NotNull PackId pack, @NotNull ResourceId id) {}
 
 }
