@@ -145,6 +145,19 @@ tasks {
         outputs.upToDateWhen { false }
     }
 
+    register<JavaExec>("parityDump") {
+        description = "pipeline-cleanup gate: loads the full pipeline + renderer context and writes the canonical semantic dump to cache/parity-dump/<label>/{vanilla,packs}/. Diff two labels to prove a phase moved no render input. -Plabel=base"
+        group = "verification"
+        mainClass.set("lib.minecraft.renderer.pipeline.dump.PipelineParityDump")
+        classpath = sourceSets["test"].runtimeClasspath
+        // A valueless -Plabel arrives as "" rather than null, which would write the dump to
+        // cache/parity-dump// - blank-check rather than null-check.
+        args = listOf((project.findProperty("label") as String?)?.takeIf { it.isNotBlank() } ?: "head")
+        // Deliberately declares no outputs: the dump must re-run every invocation. Declaring
+        // outputs without also declaring the label AND the forwarded asset.* set as inputs would let
+        // Gradle report UP-TO-DATE and serve a stale dump as if it were fresh evidence.
+    }
+
     withType<JavaExec>().configureEach {
         workingDir = layout.projectDirectory.asFile
     }

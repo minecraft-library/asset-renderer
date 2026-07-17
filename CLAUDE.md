@@ -49,8 +49,9 @@ The sibling [vanilla-reference-harness] drives the actual MC client to render ev
 2. **Vanilla reference** - drives real MC client via the harness; output at `cache/asset-renderer/vanilla/26.1/references/{blocks,entities}/`. **Ground truth.**
 
 ### Entity model family form (`entity_models.json`)
-`entity_models.json` is the **normalized family form**: one entry per base entity (`minecraft:wolf`, not a row per colour), keyed under a top-level `families` map. Each family carries `geometry_ref`/`armor_type`/overlays once, plus:
-- **`axes`** - orthogonal dimensions. `variant` (id-encoded: colour coat, tropical-fish shape; flattens to `minecraft:<id>_<opt>` pseudo-ids with `variant_of`). Option-encoded: `state` (wolf wild/tame/angry), `age` (adult/baby - `age.baby.geometry_ref` points at the dedicated `Baby<X>Model` mesh). Option axes are **NOT** id-encoded - they resolve at render from `EntityOptions`.
+`entity_models.json` is the **normalized family form**: one entry per base entity (`minecraft:wolf`, not a row per colour), keyed under a top-level `families` map - 90 families in 26.1. Each family carries `geometry_ref`/`armor_type`/overlays once, plus:
+- **`axes`** - orthogonal dimensions, ALL option-encoded in 26.1. `variant` (colour coat, tropical-fish shape) is carried by the 14 families that have it, `state` (wolf wild/tame/angry) and `age` (adult/baby - `age.baby.geometry_ref` points at the dedicated `Baby<X>Model` mesh) by the families that need them. Option axes are **NOT** id-encoded - they resolve at render from `EntityOptions`.
+- **Id-encoding is a dead branch, not a live shape.** The tooling HARDCODES `id_encoded: false` (`EntityVariantAxisResolver:114,272`), so all 14 variant axes ship `false` and the loaded `entityIndex` is exactly **90 rows keyed by plain family id**: no `minecraft:<id>_<opt>` pseudo-ids are ever synthesised. `variant_of` appears **zero times** in the JSON - it is in-memory only (`EntityFamilyReader:130` builds the map at load), never a key on disk. The `idEncoded` branch survives in `EntityFamilyReader:137-138,217-222` but is unreachable for tooling-generated data.
 - **`layers`** - conditional overlays (collar: `tint_by: collar_color`, an option-sourced tint).
 - Per-variant option `textures` hold `{wild, tame, angry, baby}` texture refs; `family_of` carries cross-entity groupings (mooshroom -> cow).
 
