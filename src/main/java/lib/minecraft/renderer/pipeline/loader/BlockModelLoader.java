@@ -5,6 +5,8 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.block.BlockModelReader;
+import lib.minecraft.renderer.pipeline.load.block.BlockRendererOverrides;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -58,6 +60,22 @@ public class BlockModelLoader {
      */
     public static @NotNull LoadResult load() {
         return BlockModelReader.load(Diagnostics.root("blockModels", Diagnostics.Output.CONSOLE, null));
+    }
+
+    /**
+     * Loads block-entity geometry from the classpath snapshot with the pack {@code renderer/*.json}
+     * override channel applied. Gathers each pack's block-entity geometry overrides
+     * and overlays them per block-entity model id / geometry coordinate; a vanilla-only stack ships
+     * none, so the result is byte-identical to {@link #load()}.
+     *
+     * @param stack the resolved pack stack whose {@code renderer/*.json} override files are consulted
+     * @return the primary models keyed by block id plus any per-variant state-conditional models
+     * @throws PipelineException if the resource is missing or cannot be parsed, or a pack override file
+     *     fails format-2 envelope validation
+     */
+    public static @NotNull LoadResult load(@NotNull PackStack stack) {
+        Diagnostics diagnostics = Diagnostics.root("blockModels", Diagnostics.Output.CONSOLE, null);
+        return BlockModelReader.load(diagnostics, BlockRendererOverrides.gather(stack, diagnostics));
     }
 
 }

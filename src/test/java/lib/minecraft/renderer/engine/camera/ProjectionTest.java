@@ -24,7 +24,7 @@ class ProjectionTest {
         // the single facing-neutral block-icon [30,225,0] pose shared by blocks, players, and entities;
         // each renderer applies its own facing as a Placement (block IDENTITY; player R_Y(180); entity
         // R_Y(180)·flip180 = diag(-1,-1,1)), so every projection presents the subject's front. The harness
-        // [210,45,0] lives on only as the entity kit's lighting angle (EntityGeometryKit.ENTITY_ISO_LIGHTING).
+        // [210,45,0] lives on only as the entity kit's lighting frame (EntityGeometryKit.DEFAULT_ENTITY_LIGHTING).
         assertThat(Projection.VANILLA_ISO.basePose(), equalTo(new EulerRotation(30f, 225f, 0f)));
         assertThat(Projection.VANILLA_GUI_ITEM.basePose(), equalTo(new EulerRotation(0f, 180f, 0f)));
     }
@@ -38,20 +38,21 @@ class ProjectionTest {
     @DisplayName("resolve(NONE) keeps each member's base pose as the lighting pose")
     void resolveKeepsBasePose() {
         for (Projection projection : Projection.values())
-            assertThat(projection + " lighting pose", projection.resolve().lightingPose(), equalTo(projection.basePose()));
+            assertThat(projection + " lighting pose", projection.resolve().lighting(),
+                equalTo(LightingFrame.tracking(projection.basePose())));
     }
 
     @Test
     @DisplayName("resolve() bundles each member's lens into the camera")
     void resolveBundlesLens() {
-        assertThat(Projection.VANILLA_ISO.resolve().lens(), equalTo(Lens.ISOMETRIC_BLOCK));
-        assertThat(Projection.VANILLA_GUI_ITEM.resolve().lens(), equalTo(Lens.GUI_ITEM));
+        assertThat(Projection.VANILLA_ISO.resolve().camera().lens(), equalTo(Lens.ISOMETRIC_BLOCK));
+        assertThat(Projection.VANILLA_GUI_ITEM.resolve().camera().lens(), equalTo(Lens.GUI_ITEM));
     }
 
     @Test
     @DisplayName("withLens keeps the pose and swaps the lens")
     void withLensSwapsLens() {
-        Camera block = Projection.VANILLA_ISO.resolve();
+        Camera block = Projection.VANILLA_ISO.resolve().camera();
         Camera relensed = block.withLens(Lens.NONE);
         assertThat("pose preserved", relensed.pose(), equalTo(block.pose()));
         assertThat("lens swapped", relensed.lens(), equalTo(Lens.NONE));

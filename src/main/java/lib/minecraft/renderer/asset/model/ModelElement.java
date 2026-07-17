@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.model;
 
+import com.google.gson.annotations.SerializedName;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentMap;
@@ -52,11 +53,21 @@ public class ModelElement {
      */
     private boolean shade = true;
 
+    /**
+     * The element's block light level {@code 0-15} (vanilla {@code light_emission}, 24w33a+). Raises
+     * the rendered shade floor to {@code emission / 15}, full-bright at {@code 15}. Vanilla's only
+     * emissive elements ({@code cross_emissive}) are also {@code shade: false},
+     * which is already full-bright, so the fold is a no-op on vanilla. Defaults to {@code 0}.
+     */
+    @SerializedName("light_emission")
+    private int lightEmission = 0;
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         ModelElement that = (ModelElement) o;
         return shade == that.shade
+            && lightEmission == that.lightEmission
             && Arrays.equals(from, that.from)
             && Arrays.equals(to, that.to)
             && Objects.equals(faces, that.faces)
@@ -65,7 +76,7 @@ public class ModelElement {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(faces, rotation, shade);
+        int result = Objects.hash(faces, rotation, shade, lightEmission);
         result = 31 * result + Arrays.hashCode(from);
         result = 31 * result + Arrays.hashCode(to);
         return result;

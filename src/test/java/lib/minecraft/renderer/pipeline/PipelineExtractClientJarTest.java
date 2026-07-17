@@ -3,7 +3,8 @@ package lib.minecraft.renderer.pipeline;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.rule.PackMeta;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -68,9 +69,9 @@ class PipelineExtractClientJarTest {
 
         Path mcmeta = packRoot.resolve("pack.mcmeta");
         assertThat(Files.isRegularFile(mcmeta), is(true));
-        PackMeta parsed = PackMeta.parse(mcmeta, "vanilla");
-        assertThat(parsed.packFormat(), is(84));
-        assertThat(parsed.description(), containsString("Test Pack"));
+        MCMeta parsed = MCMeta.parse(Files.readString(mcmeta), new ResourceId("vanilla", "pack"));
+        assertThat(parsed.pack().orElseThrow().formats().min().major(), is(84));
+        assertThat(parsed.pack().orElseThrow().description().plain(), containsString("Test Pack"));
         assertThat(Files.isRegularFile(packRoot.resolve("assets/minecraft/textures/block/stone.png")), is(true));
 
         // version.json is captured in memory for synthesis - it must NOT be extracted to disk.
@@ -108,9 +109,9 @@ class PipelineExtractClientJarTest {
 
         Pipeline.extractClientJar(jarPath, packRoot);
 
-        PackMeta parsed = PackMeta.parse(packRoot.resolve("pack.mcmeta"), "vanilla");
-        assertThat(parsed.packFormat(), is(42));
-        assertThat(parsed.description(), is("Original mcmeta from jar"));
+        MCMeta parsed = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"));
+        assertThat(parsed.pack().orElseThrow().formats().min().major(), is(42));
+        assertThat(parsed.pack().orElseThrow().description().plain(), is("Original mcmeta from jar"));
     }
 
     @Test
@@ -139,9 +140,9 @@ class PipelineExtractClientJarTest {
 
         Pipeline.extractClientJar(jarPath, packRoot);
 
-        PackMeta parsed = PackMeta.parse(packRoot.resolve("pack.mcmeta"), "vanilla");
-        assertThat(parsed.packFormat(), is(46));
-        assertThat(parsed.description(), containsString("1.21.4"));
+        MCMeta parsed = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"));
+        assertThat(parsed.pack().orElseThrow().formats().min().major(), is(46));
+        assertThat(parsed.pack().orElseThrow().description().plain(), containsString("1.21.4"));
     }
 
     @Test
@@ -167,8 +168,8 @@ class PipelineExtractClientJarTest {
 
         Pipeline.extractClientJar(jarPath, packRoot);
 
-        PackMeta parsed = PackMeta.parse(packRoot.resolve("pack.mcmeta"), "vanilla");
-        assertThat(parsed.packFormat(), is(84));
+        MCMeta parsed = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"));
+        assertThat(parsed.pack().orElseThrow().formats().min().major(), is(84));
     }
 
     @Test

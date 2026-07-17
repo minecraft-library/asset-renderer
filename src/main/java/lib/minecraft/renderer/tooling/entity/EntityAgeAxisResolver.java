@@ -70,7 +70,7 @@ final class EntityAgeAxisResolver {
      * emits an age axis; the {@code options} key-order IS the domain (no {@code values} list).
      *
      * @param baseGeometry the family's resolved primary geometry key (the adult mesh), or
-     *     {@code null} on an unresolvable family (mirrors the former top-level {@code putIf})
+     *     {@code null} on an unresolvable family
      * @param adultTexture the family's resolved adult texture (full namespaced path), or
      *     {@code null} on variant-axis / unresolved families
      * @param variantFamily whether the family carries a variant axis (baby textures then

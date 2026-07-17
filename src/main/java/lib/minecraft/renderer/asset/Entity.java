@@ -331,8 +331,7 @@ public record Entity(
      *     alpha byte (the MULTIPLY tint blend preserves the texel alpha)
      * @param gate the render condition parsed from the overlay's {@code when} object (the sheep wool
      *     {@code sheared} flag, the wool undercoat {@code tinted} axis, the creeper {@code charged} axis),
-     *     or empty when the overlay renders unconditionally. Retires the former {@code shearable} /
-     *     {@code requiresTint} / {@code requiresCharged} booleans
+     *     or empty when the overlay renders unconditionally
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,

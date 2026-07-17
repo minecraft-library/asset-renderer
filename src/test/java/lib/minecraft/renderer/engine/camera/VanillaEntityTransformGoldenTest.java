@@ -51,7 +51,7 @@ class VanillaEntityTransformGoldenTest {
     @Test
     @DisplayName("VANILLA_ISO camera pose is det=+1 (a plain iso display pose; chirality is on the Placement)")
     void pose_isDet_positive() {
-        Matrix4f pose = Projection.VANILLA_ISO.resolve().pose();
+        Matrix4f pose = Projection.VANILLA_ISO.resolve().camera().pose();
         assertThat("VANILLA_ISO resolves to rotationXYZ(30,225,0), a det=+1 display pose; the entity "
             + "chirality lives on the ENTITY_FLIP Placement in EntityRenderer, not the camera", det3(pose), greaterThan(0f));
     }
@@ -60,7 +60,7 @@ class VanillaEntityTransformGoldenTest {
     @Test
     @DisplayName("golden: VANILLA_ISO pose 16 floats match the captured display-pose baseline")
     void pose_matchesGolden() {
-        Matrix4f pose = Projection.VANILLA_ISO.resolve().pose();
+        Matrix4f pose = Projection.VANILLA_ISO.resolve().camera().pose();
         assertMatrix(GOLDEN_POSE, pose);
     }
 
@@ -73,7 +73,7 @@ class VanillaEntityTransformGoldenTest {
     @DisplayName("golden: single-cube fixture corners, kit-built then camera-posed, match the baseline")
     void fixtureCorners_matchGolden() {
         if (GOLDEN_CORNERS.length == 0) return; // placeholder not yet captured - skip until baked
-        Matrix4f pose = Projection.VANILLA_ISO.resolve().pose();
+        Matrix4f pose = Projection.VANILLA_ISO.resolve().camera().pose();
         float[] actual = fixtureCornerSample(pose);
         for (int i = 0; i < GOLDEN_CORNERS.length; i++)
             assertThat("corner sample [" + i + "]", (double) actual[i],
@@ -113,7 +113,7 @@ class VanillaEntityTransformGoldenTest {
     @Test
     @DisplayName("capture: write current display-pose snapshot to build/golden/ (regeneration aid)")
     void writeSnapshot() {
-        Matrix4f pose = Projection.VANILLA_ISO.resolve().pose();
+        Matrix4f pose = Projection.VANILLA_ISO.resolve().camera().pose();
         StringBuilder sb = new StringBuilder();
         sb.append("// GOLDEN_POSE\n");
         for (int col = 1; col <= 4; col++) {

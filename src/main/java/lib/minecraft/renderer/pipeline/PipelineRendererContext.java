@@ -12,42 +12,53 @@ import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.Texture;
-import lib.minecraft.renderer.asset.TexturePack;
-import lib.minecraft.renderer.asset.rule.CitMatcher;
-import lib.minecraft.renderer.asset.rule.CitRule;
-import lib.minecraft.renderer.asset.rule.CtmMatcher;
-import lib.minecraft.renderer.asset.rule.CtmResolution;
-import lib.minecraft.renderer.asset.rule.CtmRule;
-import lib.minecraft.renderer.asset.rule.ItemContext;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
+import lib.minecraft.renderer.pipeline.load.block.BlockEntityShadowDiagnostics;
 import lib.minecraft.renderer.pipeline.loader.BlockIndexLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemIndexLoader;
-import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
+import lib.minecraft.renderer.pipeline.loader.PalettedPermutationLoader;
+import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
+import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
+import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
+import lib.minecraft.renderer.pipeline.pack.rule.CitRule;
+import lib.minecraft.renderer.pipeline.pack.rule.CitType;
+import lib.minecraft.renderer.pipeline.pack.rule.GlintEvaluator;
+import lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy;
+import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
+import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The production {@link RendererContext} implementation, built once at bootstrap from a single
  * {@link Pipeline.Result}. Every {@code findX} / {@code resolveX} method is backed by an
  * eagerly-materialised index so warm-path lookups are pure map accesses; texture pixels stay on
- * disk until the first {@link #resolveTexture(String)} call and are memoised in a per-context cache.
+ * disk until the first {@link #resolveTexture(String)} call and are memoised in a per-context cache
+ * keyed by the resolved {@code (PackId, ResourceId)}.
  * <p>
  * Construction goes through {@link #of(Pipeline.Result)}, which delegates index building to the
  * pipeline loaders: {@link BlockIndexLoader} and {@link ItemIndexLoader} materialise the block /
  * item indexes (keyed by namespaced id, registry-filtered so parent templates and submodels never
  * become atlas tiles), {@link BlockModelLoader} supplies block-entity geometry, and
  * {@link EntityModelLoader} supplies the entity index. The context itself only wraps the finished,
- * unmodifiable indexes and serves lookups.
+ * unmodifiable indexes and the resolved {@link PackStack}, and serves lookups.
  * <p>
  * Biome colormaps and per-block tint targets are wired through to render time by
  * {@code ColorMapLoader} and {@link BlockTintsLoader}; the lazy {@code textureCache} is
@@ -56,28 +67,29 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public final class PipelineRendererContext implements RendererContext {
 
-    private final @NotNull ConcurrentMap<String, TexturePack> packs;
+    private final @NotNull PackStack stack;
     private final @NotNull ConcurrentMap<String, Block> blockIndex;
     private final @NotNull ConcurrentMap<String, Item> itemIndex;
+    private final @NotNull ConcurrentMap<String, ItemModelTree> itemTrees;
+    private final @NotNull ConcurrentMap<String, ModelData> itemModels;
     private final @NotNull ConcurrentMap<String, Entity> entityIndex;
-    private final @NotNull ConcurrentMap<String, Texture> textures;
     private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
     private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
     private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntities;
-    private final @NotNull ConcurrentMap<String, Integer> colorOverrides;
-    private final @NotNull ConcurrentList<CitRule> citRules;
-    private final @NotNull ConcurrentList<CtmRule> ctmRules;
+    private final @NotNull RuleSet rules;
+    private final @NotNull TextureSynthesizer synthesizer;
 
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
 
     /**
-     * Per-context memoisation cache of decoded {@link PixelBuffer}s keyed by normalised texture id,
-     * populated lazily on the first {@link #resolveTexture(String)} for each texture. The only
+     * Per-context memoisation cache of decoded {@link PixelBuffer}s keyed by the resolved
+     * {@code (PackId, ResourceId)}, populated lazily on the first resolution of each texture, so a
+     * stack-wide and a pack-restricted lookup that land on the same file share one buffer. The only
      * mutable state on the context.
      */
-    private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
+    private final @NotNull ConcurrentMap<CacheKey, PixelBuffer> textureCache = Concurrent.newMap();
 
     /**
      * Builds a context from a completed pipeline result.
@@ -90,26 +102,28 @@ public final class PipelineRendererContext implements RendererContext {
      * @return a new context scoped to the given result
      */
     public static @NotNull PipelineRendererContext of(@NotNull Pipeline.Result result) {
-        BlockModelLoader.LoadResult beResult = BlockModelLoader.load();
+        BlockModelLoader.LoadResult beResult = BlockModelLoader.load(result.getStack());
         ConcurrentMap<String, Block.Entity> blockEntities = beResult.models();
+        reportBlockEntityShadows(result.getStack(), beResult);
         ConcurrentMap<String, Block> blockIndex = BlockIndexLoader.load(result, blockEntities, beResult.variants());
         ConcurrentMap<String, Item> itemIndex = ItemIndexLoader.load(result, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = loadEntityIndex();
+        TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(result.getStack()));
 
         return new PipelineRendererContext(
-            result.getPacks(),
+            result.getStack(),
             blockIndex,
             itemIndex,
+            result.getItemTrees(),
+            result.getItemModels(),
             entityIndex,
-            result.getTextures(),
             result.getColorMaps(),
             result.getBlockTags(),
             result.getPotionEffectColors(),
             result.getBannerPatterns(),
             blockEntities,
-            result.getColorOverrides(),
-            result.getCitRules(),
-            result.getCtmRules()
+            result.getRules(),
+            synthesizer
         );
     }
 
@@ -124,47 +138,68 @@ public final class PipelineRendererContext implements RendererContext {
         return EntityModelLoader.load();
     }
 
+    /**
+     * Runs the shadowed-model diagnostic over the block-entity-backed id set - the
+     * primary block-entity models unioned with their state-conditional variants - so a non-vanilla pack
+     * shipping a vanilla-form model / blockstate for a code-rendered block entity is named rather than
+     * silently ignored. Byte-neutral: a vanilla-only stack emits nothing.
+     */
+    private static void reportBlockEntityShadows(@NotNull PackStack stack, @NotNull BlockModelLoader.LoadResult beResult) {
+        Set<String> beBackedIds = new HashSet<>(beResult.models().keySet());
+        beBackedIds.addAll(beResult.variants().keySet());
+        BlockEntityShadowDiagnostics.report(stack, beBackedIds);
+    }
+
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<TexturePack> findPack(@NotNull String id) {
-        return Optional.ofNullable(this.packs.get(id));
+    public @NotNull Optional<ResourcePack> findPack(@NotNull PackId id) {
+        return this.stack.byId(id);
     }
 
     /**
      * {@inheritDoc}
      * <p>
      * Bare texture ids are namespaced to {@code minecraft:} first. Returns the memoised buffer on a
-     * cache hit; otherwise reads the owning pack's asset roots in ascending order (last existing
-     * candidate wins), decodes it once, and caches it. Empty when the id is unknown, its owning pack
-     * is not registered, or the file is absent from every root.
+     * cache hit; otherwise resolves the id through the pack stack (namespace-first dispatch then the
+     * winning pack's root walk), decodes it once, and caches it. Empty when the id resolves to nothing.
      */
     @Override
     public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-        String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
-        PixelBuffer cached = this.textureCache.get(normalized);
-        if (cached != null) return Optional.of(cached);
-
-        Texture texture = this.textures.get(normalized);
-        if (texture == null) return Optional.empty();
-
-        TexturePack owner = this.packs.get(texture.packId());
-        if (owner == null) return Optional.empty();
-
-        Path winning = null;
-        for (Path root : owner.getAssetRoots()) {
-            Path candidate = root.resolve(VanillaSourcePaths.TEXTURES_DIR).resolve(texture.relativePath());
-            if (Files.isRegularFile(candidate)) winning = candidate;
+        ResourceId id = ResourceId.parse(textureId);
+        Optional<IndexedTexture> indexed = this.stack.indexed(id);
+        if (indexed.isPresent()) {
+            PixelBuffer cached = this.textureCache.get(new CacheKey(indexed.get().pack(), id));
+            if (cached != null) return Optional.of(cached);
         }
-        if (winning == null) return Optional.empty();
+        // Synthesis sits BEHIND resolution: only a stack miss consults the paletted-permutation
+        // registry, so no present-texture path changes. On vanilla the registry
+        // holds only the trim atlas, whose references the item renderer serves before resolution, so
+        // this .or() never fires - byte-neutral.
+        return decode(this.stack.resolve(id)).or(() -> this.synthesizer.synthesize(id, this::resolveTexture));
+    }
 
-        // PixelBuffer.wrap handles every BufferedImage layout the vanilla 1.21 pack ships -
-        // INT_ARGB, INT_RGB, INT_BGR, 4BYTE_ABGR, 3BYTE_BGR, BYTE_INDEXED, BYTE_GRAY, BYTE_BINARY
-        // (IndexColorModel), and TYPE_CUSTOM with ComponentColorModel of TYPE_GRAY (2-band
-        // tRNS-keyed grayscale) - without applying the sRGB-gamma transform that would inflate
-        // raw byte values on calibrated-gray sources.
-        PixelBuffer buffer = this.imageFactory.fromFile(winning.toFile()).toPixelBuffer();
-        this.textureCache.put(normalized, buffer);
-        return Optional.of(buffer);
+    /** {@inheritDoc} */
+    @Override
+    public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull PackId pack, @NotNull ResourceId id) {
+        return decode(this.stack.resolveIn(pack, id));
+    }
+
+    /** Decodes a resolved texture, memoising on the resolved {@code (PackId, ResourceId)} key. */
+    private @NotNull Optional<PixelBuffer> decode(@NotNull Optional<ResolvedTexture> resolved) {
+        return resolved.map(texture -> {
+            CacheKey key = new CacheKey(texture.pack(), texture.id());
+            PixelBuffer cached = this.textureCache.get(key);
+            if (cached != null) return cached;
+
+            // PixelBuffer.wrap handles every BufferedImage layout the vanilla 1.21 pack ships -
+            // INT_ARGB, INT_RGB, INT_BGR, 4BYTE_ABGR, 3BYTE_BGR, BYTE_INDEXED, BYTE_GRAY, BYTE_BINARY
+            // (IndexColorModel), and TYPE_CUSTOM with ComponentColorModel of TYPE_GRAY (2-band
+            // tRNS-keyed grayscale) - without applying the sRGB-gamma transform that would inflate
+            // raw byte values on calibrated-gray sources.
+            PixelBuffer buffer = this.imageFactory.fromByteArray(texture.bytes()).toPixelBuffer();
+            this.textureCache.put(key, buffer);
+            return buffer;
+        });
     }
 
     /** {@inheritDoc} */
@@ -187,6 +222,18 @@ public final class PipelineRendererContext implements RendererContext {
 
     /** {@inheritDoc} */
     @Override
+    public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+        return this.itemTrees.getOptional(id);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
+        return this.itemModels.getOptional(modelId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
     public @NotNull Optional<Entity> findEntity(@NotNull String id) {
         return this.entityIndex.getOptional(id);
     }
@@ -194,14 +241,36 @@ public final class PipelineRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's parsed
-     * {@code .mcmeta} animation sidecar is forwarded.
+     * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
+     * captured {@code .mcmeta} animation section is forwarded as an {@link AnimationData}.
      */
     @Override
     public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
-        String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
-        Texture texture = this.textures.get(normalized);
-        return texture == null ? Optional.empty() : texture.animation();
+        return this.stack.indexed(ResourceId.parse(textureId))
+            .flatMap(IndexedTexture::meta)
+            .flatMap(MCMeta::animation)
+            .map(PipelineRendererContext::toAnimationData);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
+     * captured {@code .mcmeta} {@code gui.scaling} section is forwarded.
+     */
+    @Override
+    public @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
+        return this.stack.indexed(ResourceId.parse(textureId))
+            .flatMap(IndexedTexture::meta)
+            .flatMap(MCMeta::gui);
+    }
+
+    /** Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationData} the renderer consumes. */
+    private static @NotNull AnimationData toAnimationData(@NotNull MCMeta.Animation animation) {
+        ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
+        for (MCMeta.Frame frame : animation.frames())
+            frames.add(new AnimationData.FrameEntry(frame.index(), frame.time()));
+        return new AnimationData(animation.frametime(), animation.interpolate(), frames, animation.width(), animation.height());
     }
 
     /**
@@ -264,44 +333,27 @@ public final class PipelineRendererContext implements RendererContext {
     /** {@inheritDoc} */
     @Override
     public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
-        return this.colorOverrides.getOptional(key);
+        return this.rules.colors().get(key);
     }
 
     /**
      * {@inheritDoc}
      * <p>
-     * Walks the weight-sorted CIT rule list and returns the first rule whose
-     * {@link CitMatcher} predicate accepts the context.
+     * Resolves the glint decision once via {@link GlintEvaluator} (the highest-precedence matching
+     * {@code type=enchantment} rule, else the merged {@code useGlint} toggle), then walks the merged CIT
+     * rule list first-match-wins, skipping non-{@link CitType#ITEM} rules (only item rules retexture
+     * icons), and grafts the glint onto the winning rule's effect. When no item rule matches the glint
+     * still rides through - so {@code useGlint=false} and enchantment glint replacements apply even to an
+     * un-retextured icon.
      */
     @Override
-    public @NotNull Optional<String> resolveItemTextureOverride(@NotNull ItemContext context) {
-        for (CitRule rule : this.citRules) {
-            if (CitMatcher.match(rule, context))
-                return Optional.of(rule.outputTextureId());
+    public @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
+        GlintPolicy glint = GlintEvaluator.evaluate(this.rules, context);
+        for (CitRule rule : this.rules.citRules()) {
+            if (rule.type() != CitType.ITEM) continue;
+            if (rule.matches(context)) return CitResult.of(rule.output(), glint);
         }
-
-        return Optional.empty();
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Walks the weight-sorted CTM rule list and returns the first matching rule's resolution
-     * (skipping rules that match on {@code appliesTo} but produce no {@link CtmResolution}).
-     */
-    @Override
-    public @NotNull Optional<CtmResolution> resolveCtm(
-        @NotNull String blockId,
-        @NotNull String baseTextureId,
-        @NotNull CtmRule.Face face
-    ) {
-        for (CtmRule rule : this.ctmRules) {
-            if (!rule.appliesTo(blockId, baseTextureId, face)) continue;
-            Optional<CtmResolution> resolution = CtmMatcher.resolve(rule, blockId, baseTextureId);
-            if (resolution.isPresent()) return resolution;
-        }
-
-        return Optional.empty();
+        return glint == GlintPolicy.DEFAULT ? CitResult.NONE : CitResult.NONE.withGlint(glint);
     }
 
     /**
@@ -334,5 +386,14 @@ public final class PipelineRendererContext implements RendererContext {
         int lastUnderscore = name.lastIndexOf('_');
         return lastUnderscore > 0 ? "~" + name.substring(0, lastUnderscore) : "~" + name;
     }
+
+    /**
+     * The texture cache key: the resolved pack plus the resolved id, so a stack-wide and a
+     * pack-restricted lookup that land on the same file share one decoded buffer.
+     *
+     * @param pack the resolved owning pack
+     * @param id the resolved namespaced texture id
+     */
+    private record CacheKey(@NotNull PackId pack, @NotNull ResourceId id) {}
 
 }

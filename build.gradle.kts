@@ -100,7 +100,13 @@ dependencies {
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend.
-    api("com.github.minecraft-library:text") { version { strictly("318157a") } }
+    api("com.github.minecraft-library:text") { version { strictly("b2fbe0d") } }
+
+    // nbt-factory (github.com/minecraft-library/nbt-factory, group dev.sbs rewritten by jitpack).
+    // Supplies the NBT tag model (CompoundTag/ListTag/NumericalTag) + parse surface
+    // (fromBase64/fromByteArray/fromSnbt) the pipeline.pack.rule CIT nbt-conditional layer walks;
+    // the built-in getPath is compound-only, so the rule layer supplies its own list/wildcard walker.
+    api("com.github.minecraft-library:nbt-factory") { version { strictly("f8b5f52") } }
 
     // ASM - used by VanillaTintsLoader to parse net.minecraft.client.color.block.BlockColors
     // straight from the extracted client jar, replacing the previously hand-curated tint table.
@@ -174,6 +180,13 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
+    register<JavaExec>("blockItems") {
+        description = "tooling: walks Items.<clinit> and generates src/main/resources/lib/minecraft/renderer/block_items.json (secondary block -> standing block item alias map)."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockItems")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
     register<JavaExec>("blockTints") {
         description = "tooling: walks BlockColors.createDefault() and generates src/main/resources/lib/minecraft/renderer/block_tints.json (tints + dropped[])."
         group = "tooling"
@@ -243,6 +256,15 @@ tasks {
         args = if (blockId != null) listOf(blockId, renderSize, ssaa) else listOf()
     }
 
+    register<JavaExec>("blockFlipbook") {
+        description = "Renders the vanilla animated-texture blocks (fire/magma/prismarine/sea_lantern/water) with animation opted in (deriveTimeline AUTO) to cache/visual/block-flipbook/ as GIFs - the phase-4 flipbook LOOK gate. -PrenderSize=256"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestBlockFlipbook")
+        classpath = sourceSets["test"].runtimeClasspath
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
+        args = listOf(renderSize)
+    }
+
     register<JavaExec>("projectionSmoke") {
         description = "Renders a block under every GraphicalProjection + facing to cache/visual/projection-smoke/. -PblockId=minecraft:tnt -PrenderSize=512"
         group = "visual"
@@ -292,6 +314,13 @@ tasks {
         description = "Renders a pair of SkyBlock-style lore tooltips to cache/visual/lore-tooltip/ for visual inspection."
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestLoreTooltip")
+        classpath = sourceSets["test"].runtimeClasspath
+    }
+
+    register<JavaExec>("menuRender") {
+        description = "Renders the vanilla-style chest chrome menus (SkyBlock crafting + vanilla crafting) to cache/visual/menu-render/ for visual inspection."
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestMenuRender")
         classpath = sourceSets["test"].runtimeClasspath
     }
 

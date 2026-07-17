@@ -6,11 +6,10 @@ import org.jetbrains.annotations.NotNull;
  * A namespaced resource identifier - a {@code namespace:name} pair such as
  * {@code minecraft:grass_block}.
  * <p>
- * Replaces the former {@code id}/{@code namespace}/{@code name} string triplet carried by the
- * asset DTOs ({@link Block}, {@link Item}, {@link Entity}, {@link BlockTag}). The full
- * {@code namespace:name} string is derived on demand via {@link #id()}; the factories
- * {@link #parse(String)} and {@link #ofModelId(String)} absorb the id-parsing the pipeline index
- * loaders previously performed inline.
+ * The asset DTOs ({@link Block}, {@link Item}, {@link Entity}, {@link BlockTag}) carry a
+ * {@code ResourceId}; the full {@code namespace:name} string is derived on demand via {@link #id()},
+ * and the factories {@link #parse(String)} and {@link #ofModelId(String)} centralise the id-parsing
+ * used by the pipeline index loaders.
  *
  * @param namespace the resource namespace (e.g. {@code minecraft})
  * @param name the resource path/name within the namespace (e.g. {@code grass_block})

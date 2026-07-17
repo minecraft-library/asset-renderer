@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
@@ -33,9 +34,22 @@ public class ModelData {
 
     /**
      * Texture variable bindings: {@code "#top" -> "minecraft:block/grass_block_top"} for blocks,
-     * {@code "layer0" -> "minecraft:item/diamond_sword"} for items.
+     * {@code "layer0" -> "minecraft:item/diamond_sword"} for items. Object-form 26.1 entries
+     * ({@code {sprite, force_translucent}}) are flattened to their sprite string here; the flag is
+     * retained separately on {@link #textureObjects}.
      */
     private @NotNull ConcurrentMap<String, String> textures = Concurrent.newMap();
+
+    /**
+     * The object-form texture entries that carried 26.1 sampler flags, keyed by the same variable
+     * name as {@link #textures} ({@code "all" -> ModelTexture("minecraft:block/glass", true)}).
+     * Present only for the {@code {sprite, force_translucent}} object form - string-form entries are
+     * absent. Retained-not-consumed: it is deliberately excluded from {@link #equals}/{@link #hashCode}
+     * so it never perturbs model dedup, and no renderer reads it yet (a later trigger folds
+     * {@link ModelTexture#forceTranslucent} into the translucent sort).
+     */
+    @Setter
+    private @NotNull ConcurrentMap<String, ModelTexture> textureObjects = Concurrent.newMap();
 
     /**
      * The list of element boxes that make up the model (empty for layered flat items).

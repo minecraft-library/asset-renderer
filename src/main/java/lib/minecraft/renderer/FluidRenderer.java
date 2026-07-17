@@ -10,7 +10,8 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.Finalize;
+import lib.minecraft.renderer.engine.compose.RasterPass;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -55,12 +56,6 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
     static final @NotNull String LAVA_STILL_TEXTURE_ID = "minecraft:block/lava_still";
     /** Namespaced flow-frame texture id for lava (side / sloped-top texture). */
     static final @NotNull String LAVA_FLOW_TEXTURE_ID = "minecraft:block/lava_flow";
-
-    /**
-     * Duration of one vanilla tick in milliseconds - used to convert {@code ticksPerFrame} into a
-     * per-frame animation delay.
-     */
-    private static final int MILLIS_PER_TICK = 50;
 
     /** Sub-renderer for the full 3D isometric cube path ({@link FluidOptions.Type#ISOMETRIC_3D}). */
     private final @NotNull Isometric3D isometric3D;
@@ -139,8 +134,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
      * Full 3D isometric fluid cube renderer. Builds triangles via {@link FluidGeometryKit}, then
      * rasterizes through {@link Projection#VANILLA_ISO}'s {@code [30, 225, 0]} pose by default.
      * Animation is driven by {@link AnimationOptions#getFrameCount()} - single-frame renders return
-     * a static image, multi-frame renders return an animated image with per-frame delay of
-     * {@code ticksPerFrame * 50ms}.
+     * a static image, multi-frame renders return an animated image whose per-frame delay spans
+     * {@code ticksPerFrame} game ticks.
      */
     @RequiredArgsConstructor
     public static final class Isometric3D implements Renderer<FluidOptions> {
@@ -151,29 +146,27 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
             // rasterizeFrame constructs its own engine, textures, and triangle list per invocation;
-            // context is the only shared reference and it is read-only, so Finalize bakes every frame
+            // context is the only shared reference and it is read-only, so the timeline bakes every frame
             // in parallel. The per-tick build MUST stay inside the rasterizer callback (capturing it
             // once would freeze the animation on frame 0's textures).
             int ssaa = Math.max(1, options.getOutput().getSupersample());
-            return Finalize.render(
-                Finalize.FinalizeSpec.animated(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias(),
-                    options.getAnimation().getFrameCount(), options.getAnimation().getStartTick(), options.getAnimation().getTicksPerFrame(),
-                    options.getAnimation().getTicksPerFrame() * MILLIS_PER_TICK),
-                (target, mask, tick) -> rasterizeFrame(options, tick, target));
+            return Timeline.tickStrip(options.getAnimation()).bake(
+                RasterPass.of(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias(),
+                    (target, mask, tick) -> rasterizeFrame(options, tick, target)));
         }
 
         /**
          * Bakes a single animation frame at {@code tick} into {@code target}: resolves the projection,
          * samples the still and flow textures, builds the tinted fluid cube through
          * {@link FluidGeometryKit}, and rasterizes it. The supersample / FXAA / downscale tail is the
-         * shared {@link Finalize}.
+         * shared {@link RasterPass#renderFrame}.
          */
         private void rasterizeFrame(@NotNull FluidOptions options, int tick, @NotNull PixelBuffer target) {
             // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
             // poses the camera directly and the rasterize call applies no separate model-spin. Default
             // renders pass EulerRotation.NONE, leaving the base block-icon pose.
             var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
-            ModelEngine engine = new ModelEngine(this.context, resolved);
+            ModelEngine engine = new ModelEngine(this.context, resolved.camera());
             Textures textures = new Textures(this.context);
             PixelBuffer still = textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
             PixelBuffer flow = textures.resolveTextureAtTick(flowTextureId(options.getFluid()), tick);
@@ -205,13 +198,11 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
-            // Each tick constructs its own RasterEngine, so Finalize bakes frames in parallel. Flat 2D
+            // Each tick constructs its own RasterEngine, so the timeline bakes frames in parallel. Flat 2D
             // blit: no supersample / FXAA (ssaa = 1, antiAlias = false).
-            return Finalize.render(
-                Finalize.FinalizeSpec.animated(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,
-                    options.getAnimation().getFrameCount(), options.getAnimation().getStartTick(), options.getAnimation().getTicksPerFrame(),
-                    options.getAnimation().getTicksPerFrame() * MILLIS_PER_TICK),
-                (target, mask, tick) -> rasterizeFrame(options, tick, target));
+            return Timeline.tickStrip(options.getAnimation()).bake(
+                RasterPass.of(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,
+                    (target, mask, tick) -> rasterizeFrame(options, tick, target)));
         }
 
         /**

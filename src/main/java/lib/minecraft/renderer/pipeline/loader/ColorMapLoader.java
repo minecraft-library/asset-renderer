@@ -3,28 +3,30 @@ package lib.minecraft.renderer.pipeline.loader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.load.BundledResources;
-import lib.minecraft.renderer.tooling.ToolingColorMaps;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.Base64;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Optional;
+import java.util.Locale;
 
 /**
- * A loader that reads pre-generated biome colormap data from the bundled {@code color_maps.json}
- * classpath resource.
+ * A loader that resolves the three biome colormaps ({@code textures/colormap/{grass,foliage,dry_foliage}.png})
+ * through the pack stack like any other texture, so a user pack's colormap override wins over vanilla's.
+ * The bytecode-derived snapshots (tints, potion colours, glint, block-entity geometry)
+ * stay bundled; only the colormaps - which ARE standard pack assets - join the stack.
  * <p>
- * The JSON is produced by the {@code colorMaps} Gradle task via {@link ToolingColorMaps}
- * {@code .Parser}, which reads the vanilla colormap PNGs and encodes their raw ARGB pixels as Base64.
- * This loader decodes the pixels at runtime so the renderer can sample biome tint colors without the
- * original PNG files. Each row is keyed by its {@link ColorMap.Type} and given a synthetic
- * {@code vanilla:<type>} id.
+ * Each PNG is decoded via {@link BufferedImage#getRGB} then packed big-endian, exactly as the bundled
+ * {@code color_maps.json} snapshot was generated ({@code ToolingColorMaps}), so a vanilla-only stack
+ * decodes byte-identical pixels to that snapshot - and NOT via the texture
+ * decode path, whose grayscale-gamma bypass would diverge.
  *
  * @see ColorMap
  */
@@ -32,74 +34,51 @@ import java.util.Optional;
 public class ColorMapLoader {
 
     /**
-     * Bundled colormap snapshot's resource file name.
-     */
-    private static final @NotNull String RESOURCE_NAME = "color_maps.json";
-
-    /**
-     * Loads all colormaps natively, indexed by their {@link ColorMap.Type}. Returns an empty
-     * map when the resource is absent from the classpath.
+     * Resolves every colormap the stack supplies, indexed by its {@link ColorMap.Type}. A type whose
+     * PNG no pack supplies is skipped (graceful).
      *
-     * @return the colormap entities keyed by type, wrapped unmodifiable so downstream reads bypass
-     *     the read lock
+     * @param stack the resolved pack stack carrying the texture index
+     * @return the colormap entities keyed by type, wrapped unmodifiable so downstream reads bypass the
+     *     read lock
      */
-    public static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> load() {
-        return loadNative(Diagnostics.root("colorMaps", Diagnostics.Output.CONSOLE, null));
-    }
-
-    /**
-     * Reads the colormap table from {@code color_maps.json} natively through the shared read layer,
-     * resolving {@code type} through {@link ColorMap.Type} with an unknown value skipped-with-diagnostic
-     * rather than aborting the load, and ignoring the per-map {@code source} provenance. A
-     * missing or empty {@code maps} array yields an empty map. Exposed for tests.
-     *
-     * @param diagnostics the scope envelope and type warnings are recorded to
-     * @return the colormap entities keyed by type, wrapped unmodifiable
-     */
-    static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> loadNative(@NotNull Diagnostics diagnostics) {
-        Optional<ResourceDocument> document = BundledResources.read(RESOURCE_NAME, BundledResources.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
-        List<ColorMapRow> maps = document.map(doc -> doc.as(ColorMapTable.class).maps()).orElse(null);
-        return toColorMaps(maps, diagnostics);
-    }
-
-    /**
-     * Maps the parsed colormap rows into the runtime lookup map, resolving {@code type} through
-     * {@link ColorMap.Type} with an unknown value skipped-with-diagnostic and decoding each row's
-     * Base64 {@code pixels}. A {@code null} row list (absent or empty {@code maps}) yields an empty
-     * map rather than throwing. Exposed for tests.
-     *
-     * @param rows the parsed colormap rows, or {@code null} when the resource omits {@code maps}
-     * @param diagnostics the scope type warnings are recorded to
-     * @return the colormap entities keyed by type, wrapped unmodifiable
-     */
-    static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> toColorMaps(@Nullable List<ColorMapRow> rows, @NotNull Diagnostics diagnostics) {
+    public static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> load(@NotNull PackStack stack) {
         HashMap<ColorMap.Type, ColorMap> colorMaps = new HashMap<>();
-        if (rows == null) return Concurrent.adoptMap(colorMaps).toUnmodifiable();
-
-        for (ColorMapRow row : rows) {
-            ColorMap.Type type;
-            try {
-                type = ColorMap.Type.valueOf(row.type());
-            } catch (IllegalArgumentException ex) {
-                diagnostics.warn("unknown colormap type '%s' - skipping row", row.type());
-                continue;
-            }
-            byte[] pixels = Base64.getDecoder().decode(row.pixels());
-            String id = "vanilla:" + type.name().toLowerCase();
-            colorMaps.put(type, new ColorMap(id, "vanilla", type, pixels));
+        for (ColorMap.Type type : ColorMap.Type.values()) {
+            ResourceId id = new ResourceId("minecraft", "colormap/" + type.name().toLowerCase(Locale.ROOT));
+            stack.resolve(id).ifPresent(resolved ->
+                colorMaps.put(type, new ColorMap(resolved.id().id(), resolved.pack().value(), type, decode(resolved.bytes()))));
         }
         return Concurrent.adoptMap(colorMaps).toUnmodifiable();
     }
 
-    /** The {@code color_maps.json} payload: the ordered colormap rows. */
-    record ColorMapTable(@Nullable List<ColorMapRow> maps) {}
-
     /**
-     * One colormap row ({@code source} provenance is ignored).
+     * Decodes a colormap PNG to the row-major, big-endian ARGB byte array {@code ColorMap.pixels}
+     * carries - {@link BufferedImage#getRGB} to sRGB ARGB ints, packed big-endian 4 bytes/px. Kept
+     * bit-identical to {@code ToolingColorMaps} so the stack decode round-trips the bundled snapshot.
+     * Reads the PNG bytes through {@link ImageIO} - the deliberate gamma-applying path, not the texture
+     * decode path whose grayscale-gamma bypass would diverge - fed a {@link ByteArrayInputStream} so the
+     * source is container-agnostic (a materialized directory, zip, or {@code .cats} pack all decode
+     * identically).
      *
-     * @param type the {@link ColorMap.Type} enum name
-     * @param pixels the Base64-encoded raw ARGB pixel bytes
+     * @param bytes the raw colormap PNG bytes
+     * @return the raw ARGB pixel bytes
+     * @throws PipelineException if the PNG cannot be read or decoded
      */
-    record ColorMapRow(@NotNull String type, @NotNull String pixels) {}
+    static byte @NotNull [] decode(byte @NotNull [] bytes) {
+        BufferedImage image;
+        try {
+            image = ImageIO.read(new ByteArrayInputStream(bytes));
+        } catch (IOException ex) {
+            throw new PipelineException(ex, "Failed to read colormap bytes");
+        }
+        if (image == null)
+            throw new PipelineException("Colormap bytes could not be decoded");
+
+        int[] pixels = new int[image.getWidth() * image.getHeight()];
+        image.getRGB(0, 0, image.getWidth(), image.getHeight(), pixels, 0, image.getWidth());
+        ByteBuffer buffer = ByteBuffer.allocate(pixels.length * Integer.BYTES);
+        buffer.asIntBuffer().put(pixels);
+        return buffer.array();
+    }
 
 }

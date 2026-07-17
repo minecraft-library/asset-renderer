@@ -4,6 +4,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.exception.RenderException;
 
 import dev.simplified.collection.Concurrent;
@@ -13,8 +14,9 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.asset.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
+import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.kit.AnimationKit;
 import lib.minecraft.renderer.option.ItemOptions;
 import lombok.Getter;
@@ -140,6 +142,22 @@ public class Textures {
      */
     public @NotNull Optional<PixelBuffer> resolveEntityTexture(@NotNull String ref) {
         return tryResolveTexture("minecraft:entity/" + ref);
+    }
+
+    /**
+     * Resolves an entity texture ref at a specific animation tick - the frame-flattening counterpart
+     * of {@link #resolveEntityTexture(String)}, wrapping {@link #tryResolveTextureAtTick} with the
+     * {@code minecraft:entity/} prefix. A sidecar-less entity texture (every vanilla entity) returns
+     * its buffer unchanged, so {@code tick 0} is byte-identical to the raw lookup; a sidecar-carrying
+     * texture samples the frame for {@code tick} (frame-0-at-default when static).
+     *
+     * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
+     *     {@code .png} suffix)
+     * @param tick the current animation tick (free-running, signed)
+     * @return the resolved frame, or empty when the pack has no match
+     */
+    public @NotNull Optional<PixelBuffer> resolveEntityTextureAtTick(@NotNull String ref, int tick) {
+        return tryResolveTextureAtTick("minecraft:entity/" + ref, tick);
     }
 
     /**
@@ -272,27 +290,22 @@ public class Textures {
     }
 
     /**
-     * Resolves the {@code layer0} texture id for an item, consulting any matching CIT rule via
-     * {@link RendererContext#resolveItemTextureOverride(ItemContext)} before falling back to the
-     * model's bound layer0. Returns {@code null} when the item supplies no layer0 binding and no
-     * CIT rule matches; callers raise their own error in that case.
-     * <p>
-     * The {@link ItemContext#EMPTY} sentinel short-circuits the override lookup so callers that
-     * never populate {@link ItemOptions#getContext()} pay zero rule-walk cost. CIT in vanilla
-     * Optifine semantics replaces only {@code layer0}; {@code layer1+} overlays (potion liquid,
-     * leather armor overlay, leather helmet pattern) pass through unchanged via
-     * {@link Item#textures()} and don't go through this helper.
+     * Resolves the Custom Item Texture effect for this render - one walk of the merged CIT rules via
+     * {@link RendererContext#resolveItemTextureOverride(ItemContext)}, whose result the caller resolves
+     * each layer against with {@link CitResult#textureFor(String)} (one walk per render, not per layer).
      *
-     * @param item the item DTO
+     * <p>The walk runs even for the {@link ItemContext#EMPTY} default: the item-texture override never
+     * fires there (no rule's item list contains the empty id), but the glint decision is
+     * context-independent for the global {@code useGlint=false} toggle and item-list-less
+     * {@code type=enchantment} rules, so it must ride through to the compose terminal even
+     * for a plainly-enchanted icon that carries no item NBT. A vanilla stack (no rules, no
+     * {@code useGlint}) still yields {@link CitResult#NONE}, so the empty-context path stays byte-identical.
+     *
      * @param options the per-render options carrying the optional {@link ItemContext}
-     * @return the namespaced layer0 texture id, or {@code null} when none is bound
+     * @return the CIT effect, or {@link CitResult#NONE} when nothing matches and the glint is default
      */
-    public String resolveLayer0(@NotNull Item item, @NotNull ItemOptions options) {
-        if (options.getContext() != ItemContext.EMPTY) {
-            Optional<String> override = this.context.resolveItemTextureOverride(options.getContext());
-            if (override.isPresent()) return override.get();
-        }
-        return item.textures().get("layer0");
+    public @NotNull CitResult resolveCit(@NotNull ItemOptions options) {
+        return this.context.resolveItemTextureOverride(options.getContext());
     }
 
     /**
@@ -410,6 +423,69 @@ public class Textures {
             }
         }
         return faceTextures;
+    }
+
+    /**
+     * Resolves which of a model's element face refs are force-translucent - the raw
+     * {@link ModelFace#getTexture()} refs whose texture variable carried {@code force_translucent} in
+     * the 26.1 object form. Keys match {@link #loadElementFaceTextures} exactly (the raw ref including
+     * any leading {@code #}) and the {@code #variable} chain is walked as in
+     * {@link #resolveTextureReference}, so a returned ref is the same key
+     * {@link lib.minecraft.renderer.engine.kit.BlockGeometryKit#buildFromElements} looks up. A face is
+     * force-translucent when any variable in its deref chain is flagged.
+     *
+     * @param elements the model's element boxes
+     * @param textureVars the model's {@code #variable} bindings
+     * @param textureObjects the retained object-form entries keyed by variable name
+     * @return the raw face refs to force into the translucent pass, empty when nothing is flagged
+     */
+    public static @NotNull ConcurrentSet<String> resolveForceTranslucentRefs(
+        @NotNull Iterable<ModelElement> elements,
+        @NotNull ConcurrentMap<String, String> textureVars,
+        @NotNull ConcurrentMap<String, ModelTexture> textureObjects
+    ) {
+        ConcurrentSet<String> refs = Concurrent.newSet();
+        if (textureObjects.isEmpty()) return refs;
+
+        for (ModelElement element : elements) {
+            for (ModelFace face : element.getFaces().values()) {
+                String ref = face.getTexture();
+                if (ref.isBlank() || refs.contains(ref)) continue;
+                if (isForceTranslucent(ref, textureVars, textureObjects)) refs.add(ref);
+            }
+        }
+        return refs;
+    }
+
+    /**
+     * Walks the {@code #variable} chain of a face ref, reporting whether any hop resolves to an
+     * object-form entry flagged {@code force_translucent}.
+     *
+     * @param reference the raw face-texture ref, possibly starting with {@code #}
+     * @param variables the variable map to resolve against
+     * @param textureObjects the retained object-form entries keyed by variable name
+     * @return {@code true} when any variable in the chain carried {@code force_translucent}
+     */
+    private static boolean isForceTranslucent(
+        @NotNull String reference,
+        @NotNull ConcurrentMap<String, String> variables,
+        @NotNull ConcurrentMap<String, ModelTexture> textureObjects
+    ) {
+        String current = reference;
+        if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
+            current = "#" + current;
+
+        ConcurrentSet<String> visited = Concurrent.newSet();
+        while (current.startsWith("#")) {
+            if (!visited.add(current)) return false;
+            String name = current.substring(1);
+            ModelTexture object = textureObjects.get(name);
+            if (object != null && object.forceTranslucent()) return true;
+            String next = variables.get(name);
+            if (next == null) return false;
+            current = next;
+        }
+        return false;
     }
 
     /**

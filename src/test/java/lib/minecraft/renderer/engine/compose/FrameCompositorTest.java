@@ -29,8 +29,9 @@ import static org.hamcrest.Matchers.is;
  *     a multi-frame {@link AnimatedImageData}, whose loop is sampled at the requested frame
  *     rate.</li>
  * </ul>
- * The merged loop math (LCM of animated layer periods, delay-per-frame) is exercised indirectly
- * via the promoted frame count rather than pinned here.
+ * The merged loop math is pinned exactly: the LCM of the animated layer periods over the
+ * output-fps frame delay ceils to a known frame count, and an animated loop shorter than one output
+ * frame still produces a one-frame {@code AnimatedImageData} - never a {@code StaticImageData}.
  */
 class FrameCompositorTest {
 
@@ -55,6 +56,34 @@ class FrameCompositorTest {
         ImageData result = FrameCompositor.merge(layers, 4, 4, 30, Background.TRANSPARENT);
         assertThat(result, is(instanceOf(AnimatedImageData.class)));
         assertThat(((AnimatedImageData) result).getFrames().size(), greaterThan(1));
+    }
+
+    @Test
+    @DisplayName("merged loop is the LCM of the animated layer periods; frame count ceils at the output fps")
+    void exactMergedFrameCount() {
+        ConcurrentList<FramePlacement> layers = Concurrent.newList();
+        layers.add(new FramePlacement(0, 0, animated(4, 4, 4, 50)));   // 200 ms loop
+        layers.add(new FramePlacement(0, 0, animated(4, 4, 6, 50)));   // 300 ms loop
+
+        ImageData result = FrameCompositor.merge(layers, 4, 4, 30, Background.TRANSPARENT);
+        assertThat(result, is(instanceOf(AnimatedImageData.class)));
+        // lcm(200, 300) = 600 ms; delay = round(1000 / 30) = 33 ms; ceil(600 / 33) = 19 frames.
+        assertThat(((AnimatedImageData) result).getFrames().size(), is(19));
+    }
+
+    @Test
+    @DisplayName("an animated loop shorter than one output frame stays a 1-frame AnimatedImageData")
+    void oneFrameAnimatedContainerEdge() {
+        ConcurrentList<FramePlacement> layers = Concurrent.newList();
+        layers.add(new FramePlacement(0, 0, StaticImageData.of(solidImage(4, 4, 0xFFFF0000))));
+        layers.add(new FramePlacement(0, 0, animated(4, 4, 1, 50)));   // 50 ms loop period
+
+        // At 15 fps the output frame delay is round(1000 / 15) = 67 ms, longer than the 50 ms loop,
+        // so ceil(50 / 67) == 1. The animated branch keys on the input type, not the output count:
+        // this must stay an AnimatedImageData with exactly one frame, never collapse to a StaticImageData.
+        ImageData result = FrameCompositor.merge(layers, 4, 4, 15, Background.TRANSPARENT);
+        assertThat(result, is(instanceOf(AnimatedImageData.class)));
+        assertThat(((AnimatedImageData) result).getFrames().size(), is(1));
     }
 
     /** Builds a {@code w}x{@code h} buffer filled with a single ARGB colour. */

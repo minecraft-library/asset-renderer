@@ -3,9 +3,9 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.Timeline;
+import lib.minecraft.renderer.engine.compose.TooltipChrome;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -14,45 +14,29 @@ import lib.minecraft.renderer.option.TextOptions;
 import lib.minecraft.renderer.option.slot.TextSlot;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.ColorSegment;
+import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Renders styled Minecraft text in one of two modes: item-style lore tooltips with a purple
- * bordered background, or plain chat text on a transparent canvas.
+ * Renders styled Minecraft text in one of two modes: item-style lore tooltips with a bordered
+ * background, or plain chat text on a transparent canvas.
  * <p>
- * Tooltip colors match the vanilla palette used by every client from 1.8.9 through 26.1:
- * background {@code 0xF0100010}, border gradient {@code 0x505000FF} (top) to
- * {@code 0x5028007F} (bottom). The background and border alphas are independently
- * configurable via {@link TextOptions#getBackgroundAlpha()} and
- * {@link TextOptions#getBorderAlpha()}.
+ * The LORE background and border are contributed by the {@linkplain TextOptions#getChrome() tooltip
+ * chrome}: {@link TooltipChrome.Vanilla#PROCEDURAL} draws the legacy vanilla palette (background
+ * {@code 0xF0100010}, gradient border {@code 0x505000FF} to {@code 0x5028007F}) with the
+ * caller-configurable {@link TextOptions#getBackgroundAlpha()} / {@link TextOptions#getBorderAlpha()}
+ * alphas; {@link TooltipChrome.Vanilla#SPRITE} nine-slices the pack's {@code tooltip/background} and
+ * {@code tooltip/frame} sprites (resolved by the caller into {@link TextOptions#getChromeSprites()}).
+ * The renderer owns only the glyph rows and the canvas sizing.
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
  * fresh {@link TextKit} obfuscation substitution.
  */
 public final class TextRenderer implements Renderer<TextOptions> {
-
-    /**
-     * Vanilla tooltip background RGB component - identical across 1.8.9 through 26.1. The
-     * full ARGB is {@code 0xF0100010}; the alpha {@code 0xF0} (240) is applied from
-     * {@link TextOptions#getBackgroundAlpha()} at composite time so callers can override it.
-     */
-    private static final int VANILLA_TOOLTIP_BG_RGB = 0x100010;
-
-    /**
-     * Vanilla tooltip border gradient top RGB component. Full ARGB is {@code 0x505000FF};
-     * alpha {@code 0x50} (80) is applied from {@link TextOptions#getBorderAlpha()}.
-     */
-    private static final int VANILLA_TOOLTIP_BORDER_TOP_RGB = 0x5000FF;
-
-    /**
-     * Vanilla tooltip border gradient bottom RGB component. Full ARGB is {@code 0x5028007F};
-     * alpha {@code 0x50} (80) is applied from {@link TextOptions#getBorderAlpha()}.
-     */
-    private static final int VANILLA_TOOLTIP_BORDER_BOTTOM_RGB = 0x28007F;
 
     /**
      * Distance between consecutive text baselines in mcPixels. Vanilla tooltip rendering
@@ -75,11 +59,11 @@ public final class TextRenderer implements Renderer<TextOptions> {
     @Override
     public @NotNull ImageData render(@NotNull TextOptions options) {
         if (options.getLines().isEmpty())
-            return FrameCompositor.wrapFrames(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
+            return Timeline.empty();
 
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
-        boolean animated = hasObfuscation(options.getLines());
-        int padMcPx = isLore ? options.getPadding() : 0;
+        boolean animated = hasObfuscation(options.getLines()) || hasAnimatedGradient(options.getLines());
+        int padMcPx = isLore ? options.getChrome().paddingMcPx(options) : 0;
         int loreGapMcPx = isLore && options.getLines().size() > 1 ? LORE_GAP_MCPX : 0;
         int canvasWMcPx = measureWidthMcPixels(options) + padMcPx * 2;
 
@@ -92,14 +76,14 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
         if (!animated)
-            return FrameCompositor.wrapFrames(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L), 0);
+            return Timeline.still(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L, 0L).getFirst());
 
-        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        for (int frameIndex = 0; frameIndex < options.getFrameCount(); frameIndex++)
-            frames.addAll(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, frameIndex));
-
-        int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return FrameCompositor.wrapFrames(frames, delayMs);
+        int ticksPerFrame = ticksPerFrame(options);
+        int frameCount = animationFrameCount(options, ticksPerFrame);
+        Timeline.TickLoop timeline = new Timeline.TickLoop(
+            0, frameCount, ticksPerFrame, Timeline.delayForFps(options.getFramesPerSecond()));
+        return timeline.wrap(f ->
+            drawSingleFrame(options, canvasWMcPx, canvasHMcPx, f, timeline.tickAt(f)).getFirst());
     }
 
     /**
@@ -113,36 +97,37 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * @param canvasWMcPx the canvas width in mcPixels
      * @param canvasHMcPx the canvas height in mcPixels
      * @param frameSeed the obfuscation seed for this frame
+     * @param tick the absolute animation tick driving gradient scroll phase
      * @return a single-element list holding the drawn frame buffer
      */
     private static @NotNull ConcurrentList<PixelBuffer> drawSingleFrame(
         @NotNull TextOptions options,
         int canvasWMcPx,
         int canvasHMcPx,
-        long frameSeed
+        long frameSeed,
+        long tick
     ) {
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
-        int padMcPx = isLore ? options.getPadding() : 0;
+        int padMcPx = isLore ? options.getChrome().paddingMcPx(options) : 0;
 
         int w = canvasWMcPx * MinecraftFont.MC_PIXEL_SCALE;
         int h = canvasHMcPx * MinecraftFont.MC_PIXEL_SCALE;
         PixelBuffer buffer = PixelBuffer.create(w, h);
 
-        // Compose the frame as an ordered ImageLayer stack: tooltip background + border (LORE only),
-        // then the glyph rows. Callers can splice passes via TextOptions.layerDecorator. The
-        // obfuscation animation stays the renderer's per-frame loop - the TEXT layer captures the seed.
+        // Compose the frame as an ordered ImageLayer stack: the tooltip chrome contributes the
+        // background + border (LORE only), then the renderer appends the glyph rows. Callers can splice
+        // passes via TextOptions.layerDecorator. The obfuscation animation stays the renderer's per-frame
+        // loop - the TEXT layer captures the seed.
         LayerStack<ImageLayer> stack = new LayerStack<>();
         if (isLore) {
-            int bgArgb = (Math.clamp(options.getBackgroundAlpha(), 0, 255) << 24) | VANILLA_TOOLTIP_BG_RGB;
-            int borderAlpha = Math.clamp(options.getBorderAlpha(), 0, 255);
-            stack.append(TextSlot.BACKGROUND, frame -> frame.fill(bgArgb));
-            stack.append(TextSlot.BORDER, frame -> drawGradientBorder(frame, w, h, borderAlpha));
+            TooltipChrome.ChromeBox box = new TooltipChrome.ChromeBox(w, h, MinecraftFont.MC_PIXEL_SCALE);
+            options.getChrome().contribute(stack, box, options.getChromeSprites(), options);
         }
         stack.append(TextSlot.TEXT, frame -> {
             MinecraftGraphics g = new MinecraftGraphics(frame);
             int baselineMcPx = padMcPx + MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
             for (int i = 0; i < options.getLines().size(); i++) {
-                TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed);
+                TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed, tick);
                 baselineMcPx += LINE_HEIGHT_MCPX;
                 if (isLore && i == 0)
                     baselineMcPx += LORE_GAP_MCPX;
@@ -154,75 +139,6 @@ public final class TextRenderer implements Renderer<TextOptions> {
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         frames.add(buffer);
         return frames;
-    }
-
-    /**
-     * Draws the vanilla tooltip border - a 1-{@code mcPixel}-thick frame inset 1 {@code mcPixel}
-     * from the canvas edge, filled with a vertical gradient from {@link #VANILLA_TOOLTIP_BORDER_TOP_RGB} at the
-     * top row to {@link #VANILLA_TOOLTIP_BORDER_BOTTOM_RGB} at the bottom row. Horizontal edges receive the
-     * endpoint colors; the interpolation interior runs along the vertical edges.
-     *
-     * @param buffer the output buffer to draw onto
-     * @param w the buffer width in output pixels
-     * @param h the buffer height in output pixels
-     * @param alpha the border alpha channel in {@code [0, 255]}
-     */
-    private static void drawGradientBorder(@NotNull PixelBuffer buffer, int w, int h, int alpha) {
-        int inset = MinecraftFont.MC_PIXEL_SCALE;   // border is inset 1 mcPixel from edge
-        int stroke = MinecraftFont.MC_PIXEL_SCALE;  // border stroke is 1 mcPixel thick
-        int topY0 = inset;
-        int topY1 = inset + stroke;
-        int botY0 = h - inset - stroke;
-        int botY1 = h - inset;
-        int leftX0 = inset;
-        int leftX1 = inset + stroke;
-        int rightX0 = w - inset - stroke;
-        int rightX1 = w - inset;
-
-        int innerTop = topY1;
-        int innerBottom = botY0;
-        int innerSpan = Math.max(1, innerBottom - 1 - innerTop); // rows in gradient interior
-
-        // Top stroke - solid top color
-        int topArgb = (alpha << 24) | VANILLA_TOOLTIP_BORDER_TOP_RGB;
-        for (int y = topY0; y < topY1; y++)
-            for (int x = leftX0; x < rightX1; x++)
-                buffer.setPixel(x, y, topArgb);
-
-        // Bottom stroke - solid bottom color
-        int botArgb = (alpha << 24) | VANILLA_TOOLTIP_BORDER_BOTTOM_RGB;
-        for (int y = botY0; y < botY1; y++)
-            for (int x = leftX0; x < rightX1; x++)
-                buffer.setPixel(x, y, botArgb);
-
-        // Left and right vertical edges - interpolate between top and bottom colors
-        for (int y = innerTop; y < innerBottom; y++) {
-            int argb = lerpArgb(topArgb, botArgb, y - innerTop, innerSpan);
-            for (int x = leftX0; x < leftX1; x++)
-                buffer.setPixel(x, y, argb);
-            for (int x = rightX0; x < rightX1; x++)
-                buffer.setPixel(x, y, argb);
-        }
-    }
-
-    /**
-     * Linearly interpolates between two packed ARGB colors in straight (non-premultiplied)
-     * space. Returns {@code from} when {@code t == 0} and {@code to} when {@code t == steps}.
-     */
-    private static int lerpArgb(int from, int to, int t, int steps) {
-        int a = lerp(ColorMath.alpha(from), ColorMath.alpha(to), t, steps);
-        int r = lerp(ColorMath.red(from), ColorMath.red(to), t, steps);
-        int g = lerp(ColorMath.green(from), ColorMath.green(to), t, steps);
-        int b = lerp(ColorMath.blue(from), ColorMath.blue(to), t, steps);
-        return ColorMath.pack(a, r, g, b);
-    }
-
-    /**
-     * Linearly interpolates a single 8-bit colour channel. Returns {@code from} at {@code t == 0}
-     * and {@code to} at {@code t == steps}.
-     */
-    private static int lerp(int from, int to, int t, int steps) {
-        return from + ((to - from) * t) / steps;
     }
 
     /**
@@ -238,6 +154,63 @@ public final class TextRenderer implements Renderer<TextOptions> {
     }
 
     /**
+     * Returns whether any segment carries a scrolling gradient, which - like obfuscation - promotes
+     * the render to an animated multi-frame output.
+     */
+    private static boolean hasAnimatedGradient(@NotNull ConcurrentList<LineSegment> lines) {
+        for (LineSegment line : lines) {
+            for (ColorSegment segment : line.getSegments())
+                if (segment.getGradient().map(spec -> spec.scroll() != null).orElse(false)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Game ticks per output frame at the render's frame rate ({@code VANILLA_TICK_FPS / fps}, min 1).
+     * At the 20 fps default one output frame is one tick, so {@code tick(frame) == frame}.
+     */
+    private static int ticksPerFrame(@NotNull TextOptions options) {
+        return Math.max(1, Math.round(TextOptions.VANILLA_TICK_FPS / (float) options.getFramesPerSecond()));
+    }
+
+    /**
+     * The number of frames to render for a seamless animation loop. Obfuscation alone keeps the
+     * caller's {@link TextOptions#getFrameCount() frameCount} (byte-identical to the pre-gradient
+     * behaviour); a scrolling gradient sizes the loop to a whole number of cycles - the LCM of every
+     * scroll's {@code cycleTicks} (and the obfuscation loop, when combined), converted to frames and
+     * capped at {@link Timeline#MAX_LOOP_MS}.
+     */
+    private static int animationFrameCount(@NotNull TextOptions options, int ticksPerFrame) {
+        if (!hasAnimatedGradient(options.getLines()))
+            return options.getFrameCount();
+
+        long loopTicks = 0;
+        for (LineSegment line : options.getLines()) {
+            for (ColorSegment segment : line.getSegments()) {
+                GradientSpec.Scroll scroll = segment.getGradient().map(GradientSpec::scroll).orElse(null);
+                if (scroll != null)
+                    loopTicks = loopTicks == 0 ? scroll.cycleTicks() : Timeline.lcm(loopTicks, scroll.cycleTicks());
+            }
+        }
+        if (hasObfuscation(options.getLines())) {
+            long obfuscationLoopTicks = (long) options.getFrameCount() * ticksPerFrame;
+            loopTicks = loopTicks == 0 ? obfuscationLoopTicks : Timeline.lcm(loopTicks, obfuscationLoopTicks);
+        }
+
+        // Size the loop to the smallest tick span that is BOTH a whole number of scroll cycles
+        // (a multiple of loopTicks) AND an integer number of frames (a multiple of ticksPerFrame),
+        // so the wrap frame lands exactly on phase 0: the least common multiple of loopTicks and
+        // ticksPerFrame. At the 20 fps default (ticksPerFrame 1) this equals loopTicks, unchanged.
+        // Without the ticksPerFrame factor a coarser frame cadence (fps < tick rate) would truncate
+        // mid-cycle and seam.
+        long spanTicks = Timeline.lcm(loopTicks, ticksPerFrame);
+        int frameCount = Math.max(1, (int) (spanTicks / ticksPerFrame));
+        int delayMs = Timeline.delayForFps(options.getFramesPerSecond());
+        int maxFrames = Math.max(1, (int) (Timeline.MAX_LOOP_MS / delayMs));
+        return Math.min(frameCount, maxFrames);
+    }
+
+    /**
      * Measures the widest line in mcPixels, clamped to a minimum of 16 mcPixels so short strings
      * still produce a non-degenerate canvas.
      */
@@ -246,18 +219,6 @@ public final class TextRenderer implements Renderer<TextOptions> {
         for (LineSegment line : options.getLines())
             max = Math.max(max, TextKit.measureLineMcPixels(line));
         return Math.max(16, max);
-    }
-
-    /**
-     * Builds a single-frame list holding one flat-filled buffer. Used for the empty-input
-     * degenerate case (a 1x1 transparent frame).
-     */
-    private static @NotNull ConcurrentList<PixelBuffer> singleFrame(int w, int h, int fill) {
-        PixelBuffer buffer = PixelBuffer.create(w, h);
-        buffer.fill(fill);
-        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        frames.add(buffer);
-        return frames;
     }
 
 }

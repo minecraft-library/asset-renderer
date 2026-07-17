@@ -11,12 +11,18 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.Texture;
-import lib.minecraft.renderer.asset.TexturePack;
-import lib.minecraft.renderer.asset.rule.CitMatcher;
-import lib.minecraft.renderer.asset.rule.CtmResolution;
-import lib.minecraft.renderer.asset.rule.CtmRule;
-import lib.minecraft.renderer.asset.rule.ItemContext;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelNode;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
+import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
+import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -44,23 +50,37 @@ import java.util.Optional;
 public interface RendererContext {
 
     /**
-     * Looks up an active texture pack by its id.
+     * Looks up an active resource pack by its id.
      *
-     * @param id the pack id, e.g. {@code "vanilla"}
+     * @param id the pack id, e.g. {@link PackId#VANILLA}
      * @return the pack, or empty when no active pack has that id
      */
-    @NotNull Optional<TexturePack> findPack(@NotNull String id);
+    @NotNull Optional<ResourcePack> findPack(@NotNull PackId id);
 
     /**
      * Looks up the parsed {@code .mcmeta} animation sidecar for the given texture, if any. The
      * default implementation returns empty so non-animated contexts do not need to override it;
-     * animation-aware contexts should look up the associated {@code Texture} entity and forward
-     * its {@link Texture#animation() animation} field.
+     * animation-aware contexts should look up the texture's index row and forward its captured
+     * sidecar's animation section.
      *
      * @param textureId the namespaced texture identifier
      * @return the animation metadata, or empty when the texture has no sidecar
      */
     default @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
+        return Optional.empty();
+    }
+
+    /**
+     * Looks up the parsed {@code gui.scaling} sidecar for a GUI-sprite texture, if any - the
+     * nine-slice / tile / stretch metadata {@link lib.minecraft.renderer.engine.kit.NineSliceKit}
+     * consumes for tooltip and menu chrome. The default returns empty so non-pack contexts do not need
+     * to override it; the production context forwards the texture's index-row sidecar's
+     * {@code gui.scaling} section.
+     *
+     * @param textureId the namespaced GUI-sprite texture id
+     * @return the scaling metadata, or empty when the texture has no {@code gui.scaling} sidecar
+     */
+    default @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
         return Optional.empty();
     }
 
@@ -143,6 +163,77 @@ public interface RendererContext {
     @NotNull Optional<Item> findItem(@NotNull String id);
 
     /**
+     * Looks up the parsed item-definition dispatch tree for an item id, for the
+     * render path to re-evaluate against a caller-supplied non-neutral {@code ItemModelContext} (trim
+     * material, dye, clock time). The default returns empty so test stubs and the neutral render path
+     * fall back to the pipeline-baked item.
+     *
+     * @param id the item id
+     * @return the item's dispatch tree, or empty when the item has no definition file
+     */
+    default @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+        return Optional.empty();
+    }
+
+    /**
+     * Looks up a parsed item {@link ModelData} by its FULL model id (e.g. {@code minecraft:item/bow_pulling_0}),
+     * for the render path to materialise a tree-resolved or CIT-overridden model without collapsing
+     * the id to a basename (which would collide across directories). The default returns empty so test
+     * stubs and the neutral render path fall back to the pipeline-baked item.
+     *
+     * @param modelId the full namespaced model id
+     * @return the parsed item model, or empty when no item model has that id
+     */
+    default @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
+        return Optional.empty();
+    }
+
+    /**
+     * Resolves the {@code display.gui} transform a block's inventory icon renders through - the block
+     * item's gui, the same source the in-game icon and the vanilla-reference harness use. The item is
+     * the block's {@link Block#itemBlockId() item-block id}, so a secondary block that shares another
+     * block's item (a wall banner, a wall skull, a filled cauldron) resolves the standing block's gui,
+     * mirroring the in-game {@code new ItemStack(block)} resolution. Walks the
+     * block-item's dispatch tree at the neutral {@link ItemModelContext#gui() gui context}; a
+     * {@code special} leaf (chest, banner, skull, bed) resolves to its {@code base} item model - the
+     * one carrying the gui - while a plain leaf uses its own resolved model, both falling back to
+     * {@code <ns>:item/<name>}. Reads that model's flattened {@code display.gui}, finally falling back
+     * to the block model's own gui. Returns empty when no gui is authored anywhere, in which case the
+     * caller poses the icon at the default iso pose.
+     *
+     * @param block the block whose inventory-icon gui transform to resolve
+     * @return the authored {@code display.gui}, or empty when none is readable
+     */
+    default @NotNull Optional<ModelTransform> resolveIconGui(@NotNull Block block) {
+        ResourceId itemBlock = block.itemBlockId();
+        String itemId = itemBlock.id();
+        Optional<ItemModelTree> tree = findItemTree(itemId);
+
+        // The gui transform survives only on a direct model or special item wrapper. A dispatch or
+        // composite root (select / condition / range_dispatch / composite - chest's date select,
+        // the bed / copper_golem_statue composites) exposes no readable transform, so the in-game
+        // icon - and the vanilla-reference harness - render it at the default iso pose. Such a root
+        // has no gui override here.
+        ItemModelNode root = tree.map(ItemModelTree::root).orElse(null);
+        if (root != null && !(root instanceof ItemModelNode.Model) && !(root instanceof ItemModelNode.Special))
+            return Optional.empty();
+
+        // A special leaf carries the gui on its base item model (banner / skull on template_*); a plain
+        // leaf uses its own resolved model. Both fall back to <ns>:item/<name>.
+        String resolved = tree
+            .map(t -> ItemModelWalker.resolve(t, ItemModelContext.gui()))
+            .map(resolution -> resolution.special()
+                .map(ItemModelNode.Special::base)
+                .orElseGet(() -> resolution.modelId().orElse(null)))
+            .orElse(null);
+        String modelId = resolved != null ? resolved : itemBlock.namespace() + ":item/" + itemBlock.name();
+
+        Optional<ModelTransform> itemGui = findItemModel(modelId).map(model -> model.getDisplay().get("gui"));
+        if (itemGui.isPresent()) return itemGui;
+        return Optional.ofNullable(block.model().getDisplay().get("gui"));
+    }
+
+    /**
      * Looks up the ARGB display colour for a potion effect, used by potion-bottle and tipped-arrow
      * rendering to tint the liquid / head layer. The default returns empty so test stubs do not
      * need to override it; the production context reads the bundled
@@ -186,45 +277,21 @@ public interface RendererContext {
     }
 
     /**
-     * Resolves a Connected Textures rule for the given block face, walking the parsed
-     * {@code optifine/ctm/**} and {@code mcpatcher/ctm/**} rule list in descending weight order
-     * and returning the first rule whose {@code appliesTo} predicate accepts the
-     * {@code (blockId, baseTextureId, face)} triple.
-     * <p>
-     * Non-neighbor methods (FIXED, RANDOM, REPEAT, OVERLAY, OVERLAY_FIXED) resolve fully via
-     * {@code CtmMatcher.resolve}. Neighbor-based methods currently fall back to {@code tiles[0]}
-     * when called through this entry point - resolving them properly requires a pre-computed
-     * {@code NeighborPattern} which the single-block renderer doesn't yet supply. The
-     * {@code BlockRenderer} hot path also doesn't yet consult this method, so no actual texture
-     * substitution happens in render output today; the data is available for tooling and
-     * external consumers.
+     * Resolves the highest-precedence Custom Item Texture effect for a render-time
+     * {@link ItemContext}, walking the merged CIT rule list first-match-wins and returning the effect
+     * the winning rule applies. The result is a {@link CitResult} carrying the {@code layer0} texture,
+     * named sub-texture replacements, a model override, and the glint policy. The default returns
+     * {@link CitResult#NONE} so test stubs need not override it.
      *
-     * @param blockId the block id, e.g. {@code "minecraft:stone_bricks"}
-     * @param baseTextureId the vanilla base texture id for the face, e.g. {@code "minecraft:block/stone_bricks"}
-     * @param face the face being rendered
-     * @return the resolution, or empty when no rule matches
-     */
-    default @NotNull Optional<CtmResolution> resolveCtm(
-        @NotNull String blockId,
-        @NotNull String baseTextureId,
-        @NotNull CtmRule.Face face
-    ) {
-        return Optional.empty();
-    }
-
-    /**
-     * Resolves the highest-priority Custom Item Texture override for a render-time
-     * {@link ItemContext ItemContext}, walking the parsed
-     * {@code optifine/cit/**} and {@code mcpatcher/cit/**} rule list in descending weight order
-     * and returning the first rule whose
-     * {@link CitMatcher} predicate accepts the context. The
-     * default returns empty so test stubs do not need to override it.
+     * <p>Connected Textures (CTM) has no render seam: it renders nothing, so the
+     * merged CTM rules are parse-and-store only, with zero render-path callers (see
+     * {@code CtmNeighborResolver}).
      *
      * @param context the per-render item context (item id + NBT + enchantments + display name)
-     * @return the namespaced output texture id, or empty when no rule matches
+     * @return the CIT effect, or {@link CitResult#NONE} when no rule matches
      */
-    default @NotNull Optional<String> resolveItemTextureOverride(@NotNull ItemContext context) {
-        return Optional.empty();
+    default @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
+        return CitResult.NONE;
     }
 
     /**
@@ -235,5 +302,18 @@ public interface RendererContext {
      * @return the decoded texture, or empty if unknown
      */
     @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId);
+
+    /**
+     * Resolves a texture within one specific pack, bypassing the stack-wide namespace-first dispatch -
+     * the escape hatch for callers that need a pack-restricted lookup. The default returns empty so
+     * test stubs do not need to override it.
+     *
+     * @param pack the pack to restrict resolution to
+     * @param id the namespaced texture id
+     * @return the decoded texture, or empty when the pack does not supply it
+     */
+    default @NotNull Optional<PixelBuffer> resolveTexture(@NotNull PackId pack, @NotNull ResourceId id) {
+        return Optional.empty();
+    }
 
 }

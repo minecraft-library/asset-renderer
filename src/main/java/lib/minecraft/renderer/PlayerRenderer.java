@@ -14,13 +14,15 @@ import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.Finalize;
+import lib.minecraft.renderer.engine.compose.RasterPass;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.raster.GlintMask;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.exception.RenderException;
@@ -425,15 +427,14 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         boolean overlay = options.getSkin().isRenderOverlay();
         boolean enchanted = hasEnchantedArmor(options);
 
-        // Compose the front-facing body as an ordered ImageLayer stack folded into Finalize's target;
-        // Finalize owns the single glint mask (recordMask = enchanted), which the ARMOR / trim
+        // Compose the front-facing body as an ordered ImageLayer stack folded into the raster target;
+        // the pass records the single glint mask (recordMask = enchanted), which the ARMOR / trim
         // composites stamp their coverage into so the foil is confined to the armor (not the bare
         // skin). Body-part rectangles tile the canvas without overlap, so the per-pass order matches
         // the per-part draw order.
-        return Finalize.render(
-            Finalize.FinalizeSpec.staticFrame(size, size, 1, options.getOutput().isAntiAlias())
-                .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
-            (target, mask, tick) -> {
+        return Timeline.Static.ZERO.bake(
+            RasterPass.of(size, size, 1, options.getOutput().isAntiAlias(),
+                (target, mask, tick) -> {
                 LayerStack<ImageLayer> stack = new LayerStack<>();
                 stack.append(PlayerSlot2D.SKIN, frame -> {
                     for (BodyPart2D bp : parts)
@@ -453,7 +454,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                         compositeArmor2D(frame, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, mask);
                 });
                 Layers.foldInto(stack, options.getLayerDecorator(), target);
-            });
+            })
+                .withMask(enchanted)
+                .finishing(GlintKit.Foil.armor(engine.textures()::tryResolveTexture, enchanted)));
     }
 
     /**
@@ -508,7 +511,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()).camera(), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -553,7 +556,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()).camera(), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -602,7 +605,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()).camera(), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -652,13 +655,14 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         int ssaa = Math.max(1, options.getOutput().getSupersample());
         // The glint mask is recorded at the raster size, then box-downsampled to the output so the
         // foil is confined to the armor (not the bare body) after the SSAA blit.
-        return Finalize.render(
-            Finalize.FinalizeSpec.staticFrame(size, size, ssaa, options.getOutput().isAntiAlias())
-                .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
-            // The caller's rotation is composed into the engine's camera pose at construction (above),
-            // so the fitted rasterize applies no separate model-spin - EulerRotation.NONE. Default
-            // renders leave the base player pose.
-            (target, mask, tick) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL, mask));
+        // The caller's rotation is composed into the engine's camera pose at construction (above),
+        // so the fitted rasterize applies no separate model-spin - EulerRotation.NONE. Default
+        // renders leave the base player pose.
+        return Timeline.Static.ZERO.bake(
+            RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(),
+                    (target, mask, tick) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL, mask))
+                .withMask(enchanted)
+                .finishing(GlintKit.Foil.armor(engine.textures()::tryResolveTexture, enchanted)));
     }
 
     /**

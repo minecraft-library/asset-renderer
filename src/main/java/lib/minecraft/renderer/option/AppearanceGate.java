@@ -7,9 +7,7 @@ import org.jetbrains.annotations.NotNull;
  * whether the gated overlay / layer renders for a given {@link EntityAppearance}. An absent {@code when}
  * is modelled as no gate (an {@code Optional.empty()} on the owning row), meaning unconditional.
  *
- * <p>This retires the boolean zoo ({@code shearable} / {@code requires_tint} / {@code requires_charged})
- * that the runtime overlay record previously carried, and the untruthful {@code state == "tame"} collar
- * fiction, by naming the exact vanilla branch each condition expresses. The seven arms mirror the seven
+ * <p>Each arm names the exact vanilla branch its condition expresses. The seven arms mirror the seven
  * {@code when} forms the tooling emits.
  */
 public sealed interface AppearanceGate
@@ -95,8 +93,8 @@ public sealed interface AppearanceGate
     }
 
     /**
-     * Renders only when a collar colour is supplied - the truthful wolf / cat collar branch
-     * ({@code collarColor != null}), replacing the legacy {@code state == "tame"} fiction (D42).
+     * Renders only when a collar colour is supplied - the wolf / cat collar branch
+     * ({@code collarColor != null}).
      */
     record CollarColorGate() implements AppearanceGate {
         @Override

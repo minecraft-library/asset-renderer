@@ -9,7 +9,8 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.Finalize;
+import lib.minecraft.renderer.engine.compose.RasterPass;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
@@ -60,15 +61,6 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
      * Resource id of {@code assets/minecraft/textures/entity/end_portal/end_portal.png} (Sampler1 in the vanilla shader).
      */
     static final @NotNull String END_PORTAL_NOISE_TEXTURE_ID = "minecraft:entity/end_portal/end_portal";
-
-    /**
-     * Fixed real-time playback delay per output frame, in milliseconds. {@code 50ms = 20 FPS}.
-     * Decoupled from {@link AnimationOptions#getTicksPerFrame()} so the animation speed knob
-     * doesn't stretch the GIF's wall-clock playback length; the shader's {@code GameTime} is a
-     * continuous day-cycle fraction so coupling sim rate to playback rate has no natural
-     * semantics (unlike {@link FluidRenderer}'s tick-aligned animation strip).
-     */
-    private static final int FRAME_DELAY_MS = 50;
 
     /**
      * Vanilla's {@code GameTime} uniform period - one day cycle in ticks. Matches
@@ -483,16 +475,15 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
-     * Assembles a portal render through the shared {@link Finalize} pipeline. A single static frame at
-     * {@link AnimationOptions#getStartTick()} when {@code frameCount <= 1}, otherwise a seamless-loop
-     * strip: it bakes {@code frameCount + bridge} frames via {@link Finalize#renderStrip} and hands that
-     * pipeline a post-processor that applies the {@link #applyBridgeCrossfade crossfade} and trims the
-     * bridge frames. Frame baking + wrapping live in {@link Finalize}; only the portal-specific
-     * loop-crossfade stays here. Both sub-renderers share this loop, differing only in {@code raster}.
+     * Assembles a portal render. A single static frame at {@link AnimationOptions#getStartTick()} when
+     * {@code frameCount <= 1}, otherwise a seamless-loop strip: it bakes {@code frameCount + bridge}
+     * frames through the game-time schedule and applies a finish step that
+     * {@link #applyBridgeCrossfade crossfades} the loop seam and trims the bridge frames. Both
+     * sub-renderers share this loop, differing only in {@code raster}.
      *
      * @param options the render options supplying animation timing
-     * @param ssaa the supersample factor for the shared tail ({@code 1} for the flat 2D path)
-     * @param antiAlias whether the shared tail applies FXAA
+     * @param ssaa the supersample factor for the raster tail ({@code 1} for the flat 2D path)
+     * @param antiAlias whether the raster tail applies FXAA
      * @param raster draws one portal frame at a tick into the target buffer
      * @return the finished static frame or animation strip
      */
@@ -500,27 +491,24 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         @NotNull PortalOptions options,
         int ssaa,
         boolean antiAlias,
-        @NotNull Finalize.FrameRasterizer raster
+        @NotNull RasterPass.FrameRasterizer raster
     ) {
         int size = options.getOutput().getCanvasSize();
         int startTick = options.getAnimation().getStartTick();
         int ticksPerFrame = options.getAnimation().getTicksPerFrame();
         int outputCount = options.getAnimation().getFrameCount();
         if (outputCount <= 1)
-            return Finalize.render(
-                Finalize.FinalizeSpec.animated(size, size, ssaa, antiAlias, 1, startTick, ticksPerFrame, FRAME_DELAY_MS),
-                raster);
+            return Timeline.gameTime(startTick, outputCount, ticksPerFrame)
+                .bake(RasterPass.of(size, size, ssaa, antiAlias, raster));
 
         int bridge = bridgeFrameCount(options);
-        int bakeCount = outputCount + bridge;
-        return Finalize.renderStrip(
-            Finalize.FinalizeSpec.animated(size, size, ssaa, antiAlias, bakeCount, startTick, ticksPerFrame, FRAME_DELAY_MS),
-            raster,
-            frames -> {
-                applyBridgeCrossfade(frames, outputCount, bridge);
-                trimBridgeFrames(frames, outputCount);
-                return frames;
-            });
+        return Timeline.gameTime(startTick, outputCount + bridge, ticksPerFrame)
+            .bake(RasterPass.of(size, size, ssaa, antiAlias, raster).finishing(
+                (frames, baked, timeline) -> {
+                    applyBridgeCrossfade(frames, outputCount, bridge);
+                    trimBridgeFrames(frames, outputCount);
+                    return new RasterPass.Finish.Result(frames, timeline);
+                }));
     }
 
     /**
@@ -547,7 +535,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
          * Draws one 3D isometric portal frame at the given game tick into {@code target}: resolves the
          * projection, bakes the parallax shader once at the target (raster) resolution as a screen-space
          * canvas, rasterizes the cube / slab with a white sampler to capture per-face shading, then
-         * composes shader &times; shading into {@code target}. The shared {@link Finalize} tail owns the
+         * composes shader &times; shading into {@code target}. The shared {@link RasterPass} tail owns the
          * supersample / FXAA / downscale around this draw, so {@code target} is the hi-res buffer when
          * supersampling.
          *
@@ -560,7 +548,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             // poses the camera directly and the rasterize call applies no separate model-spin. Default
             // renders pass EulerRotation.NONE, leaving the base block-icon pose.
             var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
-            ModelEngine engine = new ModelEngine(this.context, resolved);
+            ModelEngine engine = new ModelEngine(this.context, resolved.camera());
             PixelBuffer endSky = engine.textures().resolveTexture(END_SKY_TEXTURE_ID);
             PixelBuffer endPortalNoise = engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
 

@@ -67,6 +67,20 @@ public class OutputOptions {
     private final boolean antiAlias = false;
 
     /**
+     * Whether this frame is a neutral inventory-icon render - the default {@link Projection#VANILLA_ISO}
+     * projection with no view {@link Facing#DEFAULT reflection} and no user {@link EulerRotation#NONE
+     * rotation}. Only such a render honours a block's authored {@code display.gui} pose; a caller that
+     * pins a different projection, facing, or rotation drove that pose deliberately and keeps it.
+     *
+     * @return whether the frame is the default iso inventory icon
+     */
+    public boolean isNeutralInventoryIcon() {
+        return this.projection == Projection.VANILLA_ISO
+            && this.rotation.equals(EulerRotation.NONE)
+            && this.facing.equals(Facing.DEFAULT);
+    }
+
+    /**
      * Opens a builder seeded from this instance's current values, for deriving a variant with a
      * few fields changed.
      *

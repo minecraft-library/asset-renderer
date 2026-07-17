@@ -24,6 +24,7 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Generates the canonical triangle lists needed by the engine layer for common 3D shapes.
@@ -47,6 +48,15 @@ public class BlockGeometryKit {
      * normalise into the engine's {@code [-0.5, +0.5]} unit-cube space before projection.
      */
     public static final float VANILLA_PIXEL_UNITS_PER_BLOCK = 16f;
+
+    /**
+     * Maximum {@code light_emission} level (vanilla's {@code 0-15} block-light scale). This level
+     * raises the baked shade floor to {@code 1.0} (full-bright); intermediate values scale linearly
+     * ({@code emission / 15}). The floor survives on the no-relight Held3D item path; the block-icon
+     * path recomputes shade per-normal ({@link Shading#relightForItems3d}) and so drops the floor - a
+     * documented Held3D-only effect for intermediate emission.
+     */
+    private static final int FULL_LIGHT_EMISSION = 15;
 
 
     /**
@@ -225,7 +235,7 @@ public class BlockGeometryKit {
                         corners[0], corners[1], corners[2], corners[3],
                         uv[0], uv[1], uv[2], uv[3],
                         texture, tintArgb, normal,
-                        !isPlaneCube, translucent, true, false);
+                        !isPlaneCube, translucent, true, 0, false);
                 }
             }
         }
@@ -235,22 +245,25 @@ public class BlockGeometryKit {
 
     /**
      * Per-build parameters for {@link #buildFromElements(ConcurrentList, Map, ElementBuildParams)}:
-     * the per-face tints plus the blockstate variant rotation and {@code uvlock} flag. Bundles the
-     * five values that vary per build so callers name them instead of threading a positional
-     * overload cascade.
+     * the per-face tints, the blockstate variant rotation, the {@code uvlock} flag, and the
+     * force-translucent face refs. Bundles the values that vary per build so callers name them
+     * instead of threading a positional overload cascade.
      *
      * @param tintedArgb ARGB applied to faces with {@code tintindex >= 0}
      * @param untintedArgb ARGB applied to faces with {@code tintindex = -1}
      * @param variantRotationX the variant's whole-model X rotation in degrees (0/90/180/270)
      * @param variantRotationY the variant's whole-model Y rotation in degrees (0/90/180/270)
      * @param uvLock whether the blockstate variant requested {@code uvlock}
+     * @param forceTranslucentRefs raw face-texture refs whose model entry carried
+     *     {@code force_translucent}, sorted into the translucent pass regardless of texel alpha
      */
     public record ElementBuildParams(
         int tintedArgb,
         int untintedArgb,
         int variantRotationX,
         int variantRotationY,
-        boolean uvLock
+        boolean uvLock,
+        @NotNull Set<String> forceTranslucentRefs
     ) {}
 
     /**
@@ -285,7 +298,7 @@ public class BlockGeometryKit {
         @NotNull Map<String, PixelBuffer> faceTextures,
         int tintArgb
     ) {
-        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintArgb, tintArgb, 0, 0, false));
+        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintArgb, tintArgb, 0, 0, false, Set.of()));
     }
 
     /**
@@ -309,7 +322,7 @@ public class BlockGeometryKit {
         int tintedArgb,
         int untintedArgb
     ) {
-        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false));
+        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, Set.of()));
     }
 
     /**
@@ -344,7 +357,45 @@ public class BlockGeometryKit {
         boolean uvLock
     ) {
         return buildFromElements(elements, faceTextures,
-            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock));
+            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, Set.of()));
+    }
+
+    /**
+     * {@code force_translucent}-aware variant of {@link #buildFromElements(ConcurrentList, Map, int, int)}.
+     * Refs present in {@code forceTranslucentRefs} join the translucent pass regardless of texel alpha.
+     *
+     * @param forceTranslucentRefs raw face-texture refs flagged {@code force_translucent} by the model
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
+        @NotNull ConcurrentList<ModelElement> elements,
+        @NotNull Map<String, PixelBuffer> faceTextures,
+        int tintedArgb,
+        int untintedArgb,
+        @NotNull Set<String> forceTranslucentRefs
+    ) {
+        return buildFromElements(elements, faceTextures,
+            new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, forceTranslucentRefs));
+    }
+
+    /**
+     * {@code force_translucent}-aware variant of
+     * {@link #buildFromElements(ConcurrentList, Map, int, int, int, int, boolean)}. Refs present in
+     * {@code forceTranslucentRefs} join the translucent pass regardless of texel alpha.
+     *
+     * @param forceTranslucentRefs raw face-texture refs flagged {@code force_translucent} by the model
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
+        @NotNull ConcurrentList<ModelElement> elements,
+        @NotNull Map<String, PixelBuffer> faceTextures,
+        int tintedArgb,
+        int untintedArgb,
+        int variantRotationX,
+        int variantRotationY,
+        boolean uvLock,
+        @NotNull Set<String> forceTranslucentRefs
+    ) {
+        return buildFromElements(elements, faceTextures,
+            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, forceTranslucentRefs));
     }
 
     /**
@@ -370,6 +421,7 @@ public class BlockGeometryKit {
         int variantRotationX = params.variantRotationX();
         int variantRotationY = params.variantRotationY();
         boolean uvLock = params.uvLock();
+        Set<String> forceTranslucentRefs = params.forceTranslucentRefs();
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
@@ -451,8 +503,12 @@ public class BlockGeometryKit {
                 // translucent so the rasterizer sorts them back-to-front. A block with stacked
                 // translucent layers (honey_block's #down outer over its #up inner) emits them in
                 // model order, which can be front-to-back; without the sort the farther inner face
-                // is depth-rejected and only one layer blends instead of vanilla's two.
-                boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
+                // is depth-rejected and only one layer blends instead of vanilla's two. A 26.1 model
+                // may also flag a texture force_translucent; those faces join the pass even when the
+                // sprite is fully opaque - vanilla glass already qualifies via its alpha, so this is
+                // additive for pack content only.
+                boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture)
+                    || forceTranslucentRefs.contains(face.getTexture());
                 addQuad(
                     triangles,
                     corners[0], corners[1], corners[2], corners[3],
@@ -462,6 +518,7 @@ public class BlockGeometryKit {
                     !twoSided,
                     translucent,
                     element.isShade(),
+                    element.getLightEmission(),
                     false
                 );
             }
@@ -611,7 +668,7 @@ public class BlockGeometryKit {
         addQuad(out,
             topLeft, bottomLeft, bottomRight, topRight,
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            texture, tintArgb, normal, true, false, true, glinted);
+            texture, tintArgb, normal, true, false, true, 0, glinted);
     }
 
     /**
@@ -631,6 +688,10 @@ public class BlockGeometryKit {
      * @param translucent whether the face samples partial-alpha texels and must sort back-to-front
      * @param directionalLight whether the face receives {@code ITEMS_3D} shading, or full-bright when
      *     {@code false} (a {@code "shade": false} element)
+     * @param lightEmission the element's {@code light_emission} level {@code 0-15}: raises the baked
+     *     shade floor to {@code emission / 15}, full-bright at {@code 15};
+     *     {@code 0} leaves the shade untouched. The floor is a real {@code [0,1]} scalar (not the
+     *     {@link Shading#DISABLED} sentinel, which renders black on the un-relit Held3D path)
      * @param glinted whether the face is worn-armor geometry receiving the enchantment foil
      */
     private static void addQuad(
@@ -649,11 +710,26 @@ public class BlockGeometryKit {
         boolean cullBackFaces,
         boolean translucent,
         boolean directionalLight,
+        int lightEmission,
         boolean glinted
     ) {
         // Shade baked per triangle (see the javadoc): inventory cardinal shade, or full-bright
-        // DISABLED for a "shade": false element.
-        float shading = directionalLight ? Lighting.inventory(normal) : Shading.DISABLED;
+        // DISABLED for a "shade": false element. light_emission folds on top by
+        // raising the shade FLOOR to emission/15 (capped at 1.0 for the full 15) - NOT by mapping to
+        // the DISABLED sentinel, which renders BLACK on the no-relight Held3D item path (apply(-1)).
+        // So an emissive shade:true face bakes a real [0,1] scalar that renders full-bright on Held3D
+        // and, on the block-icon path, is recomputed by Shading.relightForItems3d (the floor is a
+        // documented Held3D-side effect there). Vanilla's only emissive elements are shade:false, so
+        // they take the DISABLED branch below unchanged - the fold is a no-op on vanilla.
+        float shading;
+        if (!directionalLight) {
+            shading = Shading.DISABLED;
+        } else if (lightEmission > 0) {
+            float emissionFloor = Math.min(lightEmission, FULL_LIGHT_EMISSION) / (float) FULL_LIGHT_EMISSION;
+            shading = Math.max(Lighting.inventory(normal), emissionFloor);
+        } else {
+            shading = Lighting.inventory(normal);
+        }
         SurfaceTraits traits = new SurfaceTraits(cullBackFaces, false, translucent, glinted);
         out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, traits, null));
         out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, traits, null));

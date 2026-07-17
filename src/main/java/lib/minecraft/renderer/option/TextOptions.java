@@ -2,6 +2,8 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.engine.compose.Timeline;
+import lib.minecraft.renderer.engine.compose.TooltipChrome;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.TextSlot;
@@ -11,6 +13,7 @@ import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 /**
@@ -53,7 +56,7 @@ public class TextOptions implements RenderOptions {
     /**
      * Obfuscation animation frame rate; matches vanilla's 20 ticks-per-second refresh.
      */
-    public static final int VANILLA_TICK_FPS = 20;
+    public static final int VANILLA_TICK_FPS = Timeline.TICKS_PER_SECOND;
 
     /**
      * Rendering style - {@link Style#LORE} tooltip chrome or plain {@link Style#CHAT} text.
@@ -73,6 +76,22 @@ public class TextOptions implements RenderOptions {
      */
     @lombok.Builder.Default
     private final int padding = TOOLTIP_PADDING_MCPX;
+
+    /**
+     * The tooltip chrome that contributes the LORE background + border. Defaults to
+     * {@link TooltipChrome.Vanilla#PROCEDURAL} so a context-free render (no resolved
+     * {@link #chromeSprites}) draws the legacy chrome; entry points that own a {@code RendererContext}
+     * resolve the sprite pair and select {@link TooltipChrome.Vanilla#SPRITE}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull TooltipChrome chrome = TooltipChrome.Vanilla.PROCEDURAL;
+
+    /**
+     * The resolved chrome sprite pair for the {@link TooltipChrome.Vanilla#SPRITE} path, resolved by the
+     * caller through the pack stack. Empty for the context-free / procedural path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<TooltipChrome.ChromeSprites> chromeSprites = Optional.empty();
 
     /**
      * Alpha channel for the LORE background fill, in {@code [0, 255]}. Defaults to

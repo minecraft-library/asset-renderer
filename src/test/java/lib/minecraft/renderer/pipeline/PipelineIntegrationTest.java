@@ -2,8 +2,13 @@ package lib.minecraft.renderer.pipeline;
 
 
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.Texture;
+import lib.minecraft.renderer.asset.ColorMap;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
+import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -12,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -28,7 +35,7 @@ import static org.hamcrest.Matchers.*;
  * {@code asset-renderer/cache/it} and complete in seconds.
  * <p>
  * The cache root is deliberately stable (not a temporary directory) so the extracted client jar
- * survives across sessions - the renderer grep tasks in this session depend on having the
+ * survives across sessions - offline vanilla-source lookups depend on having the
  * extracted 26.1 source available on disk after the test runs. {@code .gitignore} already excludes
  * {@code asset-renderer/cache/}, so nothing leaks into commits.
  */
@@ -75,13 +82,14 @@ class PipelineIntegrationTest {
     }
 
     @Test
-    @DisplayName("populates the vanilla texture pack entity")
+    @DisplayName("populates the vanilla pack at the base of the stack")
     void populatesVanillaPack() {
-        assertThat(result.getVanillaPack(), is(notNullValue()));
-        assertThat(result.getVanillaPack().getId(), equalTo("vanilla"));
-        assertThat(result.getVanillaPack().getNamespace(), equalTo("minecraft"));
-        assertThat(result.getVanillaPack().getAssetRoots().getFirst().toString(), containsString("vanilla"));
-        assertThat(result.getVanillaPack().getPriority(), is(0));
+        ResourcePack vanilla = result.getStack().vanilla();
+        assertThat(vanilla.id(), equalTo(PackId.VANILLA));
+        assertThat(vanilla.namespaces(), hasItem("minecraft"));
+        assertThat(vanilla.container(), instanceOf(PackContainer.Directory.class));
+        assertThat(((PackContainer.Directory) vanilla.container()).root().toString(), containsString("vanilla"));
+        assertThat(result.getStack().ascending().getFirst(), is(vanilla));
     }
 
     @Test
@@ -111,9 +119,9 @@ class PipelineIntegrationTest {
     @Test
     @DisplayName("catalogues every texture under assets/minecraft/textures")
     void cataloguesTextures() {
-        assertThat("texture catalogue is populated", result.getTextures().size(), is(greaterThan(500)));
+        assertThat("texture catalogue is populated", result.getStack().textureIndex().size(), is(greaterThan(500)));
 
-        Texture grassTop = result.getTextures().get("minecraft:block/grass_block_top");
+        IndexedTexture grassTop = result.getStack().textureIndex().get(ResourceId.parse("minecraft:block/grass_block_top"));
         assertThat("grass_block_top texture catalogued", grassTop, is(notNullValue()));
         assertThat(grassTop.width(), is(greaterThanOrEqualTo(16)));
         assertThat(grassTop.height(), is(greaterThanOrEqualTo(16)));
@@ -177,6 +185,28 @@ class PipelineIntegrationTest {
         var leafLitter = tints.get("minecraft:leaf_litter");
         assertThat(leafLitter, is(notNullValue()));
         assertThat(leafLitter.target(), equalTo(Block.TintTarget.DRY_FOLIAGE));
+    }
+
+    @Test
+    @DisplayName("stack-resolved colormaps byte-match the bundled color_maps.json LUT (D10)")
+    void colormapsByteMatchBundledLut() {
+        // The byte-parity probe: sha256 of the raw
+        // big-endian ARGB bytes of each bundled colormap. The re-point resolves vanilla's own
+        // extracted PNG through the stack and must decode to the identical bytes.
+        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.GRASS).pixels()),
+            equalTo("99ac9a2db44c6ed14da168bad2f66001535fd8b6290a2255bc8aa251d16afcc4"));
+        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.FOLIAGE).pixels()),
+            equalTo("64c43c6b59f7da4ae1c8f56a332c6e21a6d0789dd0272c2cc32c809bc2e0da50"));
+        assertThat(sha256(result.getColorMaps().get(ColorMap.Type.DRY_FOLIAGE).pixels()),
+            equalTo("04fe97199d0400e161c1413077735b8dff765d86999890d76953681bee86708f"));
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
 }

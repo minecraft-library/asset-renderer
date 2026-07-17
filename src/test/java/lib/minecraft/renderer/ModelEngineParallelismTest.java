@@ -85,7 +85,7 @@ class ModelEngineParallelismTest {
                 .antiAlias(false)
                 .build())
             .build();
-        assertDeterministicAndPinned(options, 0x8189C31EL);
+        assertDeterministicAndPinned(options, 0x33396D6EL);
     }
 
     @Test

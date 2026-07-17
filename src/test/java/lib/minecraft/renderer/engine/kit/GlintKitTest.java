@@ -14,9 +14,8 @@ import static org.hamcrest.Matchers.*;
 /**
  * Verifies {@link GlintKit} constants against the MC 26.1 deobfuscated client source (loop periods,
  * per-type scales, rotation, texture ids) and pins the {@link GlintKit.GlintOptions} preset split -
- * {@link GlintKit.GlintOptions#itemDefault item}, {@link GlintKit.GlintOptions#armorDefault armor},
- * and {@link GlintKit.GlintOptions#entityItemDefault entity-held} each route to vanilla's texture
- * and scale. Also pins {@link GlintKit#applyGlint} output: a 2-second frame count that tracks
+ * {@link GlintKit.GlintOptions#itemDefault item} and {@link GlintKit.GlintOptions#armorDefault armor}
+ * each route to vanilla's texture and scale. Also pins {@link GlintKit#applyGlint} output: a 2-second frame count that tracks
  * {@code framesPerSecond}, preserved canvas dimensions, and the foil being masked to the base
  * image's opaque pixels.
  */
@@ -63,14 +62,6 @@ class GlintKitTest {
     }
 
     @Test
-    @DisplayName("entityItemDefault preset uses the item texture with ENTITY_ITEM_SCALE")
-    void entityItemDefaultPreset() {
-        GlintKit.GlintOptions options = GlintKit.GlintOptions.entityItemDefault(30);
-        assertThat(options.glintTextureId(), equalTo(GlintKit.ITEM_GLINT_TEXTURE_ID));
-        assertThat(options.textureScale(), is(GlintKit.ENTITY_ITEM_SCALE));
-    }
-
-    @Test
     @DisplayName("totalFrames scales with framesPerSecond for a 2-second loop")
     void twoSecondLoop() {
         assertThat(GlintKit.GlintOptions.itemDefault(30).totalFrames(), is(60));
@@ -85,7 +76,7 @@ class GlintKitTest {
         PixelBuffer glint = solidBuffer(32, 32, 0x40FFFFFF);
         GlintKit.GlintOptions options = GlintKit.GlintOptions.itemDefault(10);
 
-        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(base, glint, options);
+        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(base, glint, options, null);
 
         assertThat(frames.size(), is(options.totalFrames()));
         for (PixelBuffer frame : frames) {
@@ -107,7 +98,7 @@ class GlintKitTest {
         PixelBuffer base = PixelBuffer.of(pixels, 16, 16);
         PixelBuffer glint = solidBuffer(32, 32, 0xFFFFFFFF);
 
-        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(base, glint, GlintKit.GlintOptions.itemDefault(1));
+        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(base, glint, GlintKit.GlintOptions.itemDefault(1), null);
         PixelBuffer first = frames.get(0);
 
         // Left half must be opaque (base red possibly brightened by glint).

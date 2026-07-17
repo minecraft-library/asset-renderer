@@ -172,6 +172,19 @@ public class BlockIndexLoader {
     }
 
     /**
+     * Resolves the block whose inventory item a block's icon poses through: the standing block for a
+     * secondary block that shares another block's item ({@code white_wall_banner} to
+     * {@code white_banner}), or the block's own id when it owns its item.
+     *
+     * @param result the pipeline result supplying the loaded block-item alias table
+     * @param blockId the namespaced block id
+     * @return the item-block id, defaulting to {@code blockId} when the block owns its own item
+     */
+    private static @NotNull ResourceId itemBlockIdFor(@NotNull Pipeline.Result result, @NotNull String blockId) {
+        return ResourceId.parse(result.getBlockItemAliases().getOrDefault(blockId, blockId));
+    }
+
+    /**
      * Builds the primary block index by walking every parsed {@link ModelData} entry and
      * materialising a {@link Block} per id.
      * <p>
@@ -251,7 +264,8 @@ public class BlockIndexLoader {
                 tint,
                 Optional.ofNullable(entity),
                 source,
-                defaultKeyFor(result, blockId)
+                defaultKeyFor(result, blockId),
+                itemBlockIdFor(result, blockId)
             ));
         }
 
@@ -303,7 +317,8 @@ public class BlockIndexLoader {
                 new Block.Tint(Block.TintTarget.NONE, Optional.empty()),
                 Optional.of(be),
                 Block.Source.TILE_ENTITY,
-                defaultKeyFor(result, blockId)
+                defaultKeyFor(result, blockId),
+                itemBlockIdFor(result, blockId)
             ));
         }
     }
@@ -395,7 +410,8 @@ public class BlockIndexLoader {
                 tint,
                 attachedEntity,
                 source,
-                defaultKeyFor(result, blockId)));
+                defaultKeyFor(result, blockId),
+                itemBlockIdFor(result, blockId)));
             blockstateOnlyIds.add(blockId);
         }
         return blockstateOnlyIds;

@@ -30,7 +30,7 @@ import java.util.Map;
  * <li>The four vertex indices into the canonical 8-corner box (see the layout diagram on
  *     {@link #corners}).</li>
  * <li>The outward unit {@link #normal} - the per-face default fed to the entity-in-UI Lambertian
- *     shader ({@code Lighting.entityInUi}), which dots the surface normal against two fixed
+ *     shader ({@code Lighting.EntityLighting#shade}), which dots the surface normal against two fixed
  *     inventory diffuse light vectors. Actual shading is per-vertex (see the lighting note below),
  *     so this face normal is the flat-shade fallback rather than the only sample point.</li>
  * <li>A {@link Layout} carrying the per-face axis-and-atlas-coefficient data

@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.engine.compose;
 
-import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
@@ -8,7 +7,6 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.exception.RenderException;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -27,17 +25,12 @@ import org.jetbrains.annotations.NotNull;
 public class FrameCompositor {
 
     /**
-     * Upper bound on the merged loop duration to prevent runaway LCM math.
-     */
-    private static final long MAX_LOOP_MS = 10_000L;
-
-    /**
      * Composites the given placements onto a canvas of the specified size.
      * <p>
      * If every placement is static, returns a {@link StaticImageData} with a single-frame composite.
      * Otherwise returns an {@link AnimatedImageData} whose duration is the LCM of the animated layers'
-     * loop periods (capped at {@link #MAX_LOOP_MS}), so every animated placement completes a whole
-     * number of loops, sampled at {@code framesPerSecond}.
+     * loop periods (capped at {@link Timeline#MAX_LOOP_MS}), so every animated placement completes a
+     * whole number of loops, sampled at {@code framesPerSecond}.
      *
      * @param layers the placements to composite, in back-to-front order
      * @param canvasW the canvas width in pixels
@@ -52,65 +45,18 @@ public class FrameCompositor {
         if (!anyAnimated)
             return StaticImageData.of(renderFrame(layers, canvasW, canvasH, background, 0).toBufferedImage());
 
-        int outputFrameDelayMs = Math.max(1, Math.round(1000f / framesPerSecond));
         long mergedLoopMs = computeMergedLoopMs(layers);
+        int outputFrameDelayMs = Timeline.delayForFps(framesPerSecond);
         int outputFrameCount = Math.max(1, (int) Math.ceil((double) mergedLoopMs / outputFrameDelayMs));
+        Timeline.FpsLoop playback = new Timeline.FpsLoop(framesPerSecond, outputFrameCount);
 
         AnimatedImageData.Builder builder = AnimatedImageData.builder();
         for (int frameIndex = 0; frameIndex < outputFrameCount; frameIndex++) {
-            long timeMs = (long) frameIndex * outputFrameDelayMs;
-            PixelBuffer frame = renderFrame(layers, canvasW, canvasH, background, timeMs);
-            builder.withFrame(ImageFrame.of(frame, outputFrameDelayMs));
+            PixelBuffer frame = renderFrame(layers, canvasW, canvasH, background, playback.playbackMsAt(frameIndex));
+            builder.withFrame(ImageFrame.of(frame, playback.delayMs(frameIndex)));
         }
 
         return builder.build();
-    }
-
-    /**
-     * Wraps a list of rendered frames as an {@link ImageData} instance. A single-frame list becomes a
-     * {@link StaticImageData}; multi-frame lists become an {@link AnimatedImageData} where every frame
-     * shares the same delay. The terminal output step shared by every renderer and compose stage.
-     *
-     * @param frames the ordered frame list
-     * @param frameDelayMs the per-frame display duration in milliseconds
-     * @return the wrapped image data
-     * @throws RenderException if {@code frames} is empty
-     */
-    public static @NotNull ImageData wrapFrames(@NotNull ConcurrentList<PixelBuffer> frames, int frameDelayMs) {
-        if (frames.isEmpty())
-            throw new RenderException("Frame list must contain at least one frame");
-
-        if (frames.size() == 1)
-            return StaticImageData.of(frames.getFirst().toBufferedImage());
-
-        AnimatedImageData.Builder builder = AnimatedImageData.builder();
-        for (PixelBuffer frame : frames)
-            builder.withFrame(ImageFrame.of(frame, frameDelayMs));
-
-        return builder.build();
-    }
-
-    /**
-     * Wraps a pixel buffer as a single-frame static {@link ImageData}. Shared convenience for every
-     * renderer that needs to emit exactly one frame without glint or animation.
-     *
-     * @param buffer the pixel buffer that becomes the static frame
-     * @return the wrapped image data
-     */
-    public static @NotNull ImageData staticFrame(@NotNull PixelBuffer buffer) {
-        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        frames.add(buffer);
-        return wrapFrames(frames, 0);
-    }
-
-    /**
-     * Returns a minimal 1x1 transparent static frame - the canonical "nothing to render" result for
-     * renderers short-circuiting on missing or empty input.
-     *
-     * @return a 1x1 transparent static image
-     */
-    public static @NotNull ImageData emptyFrame() {
-        return staticFrame(PixelBuffer.create(1, 1));
     }
 
     /**
@@ -155,11 +101,11 @@ public class FrameCompositor {
     /**
      * Computes the merged loop duration as the LCM of every animated layer's total duration, so
      * every animated layer completes a whole number of loops within it. Static layers and layers
-     * with a non-positive duration are skipped. Clamped to {@link #MAX_LOOP_MS} to bound the frame
-     * count; returns {@code 1} when no layer is animated.
+     * with a non-positive duration are skipped. Clamped to {@link Timeline#MAX_LOOP_MS} to bound the
+     * frame count; returns {@code 1} when no layer is animated.
      *
      * @param layers the placements to inspect
-     * @return the merged loop duration in milliseconds, capped at {@link #MAX_LOOP_MS}
+     * @return the merged loop duration in milliseconds, capped at {@link Timeline#MAX_LOOP_MS}
      */
     private static long computeMergedLoopMs(@NotNull ConcurrentList<FramePlacement> layers) {
         long merged = 0;
@@ -168,40 +114,10 @@ public class FrameCompositor {
             if (!(layer.source() instanceof AnimatedImageData animated)) continue;
             long layerMs = animated.getTotalDurationMs();
             if (layerMs <= 0) continue;
-            merged = merged == 0 ? layerMs : lcm(merged, layerMs);
-            if (merged >= MAX_LOOP_MS) return MAX_LOOP_MS;
+            merged = merged == 0 ? layerMs : Timeline.lcm(merged, layerMs);
+            if (merged >= Timeline.MAX_LOOP_MS) return Timeline.MAX_LOOP_MS;
         }
 
         return merged == 0 ? 1 : merged;
-    }
-
-    /**
-     * Least common multiple of {@code a} and {@code b}, computed as {@code |a / gcd(a, b) * b|} to
-     * divide before multiplying and limit overflow. Returns {@code 0} when either input is {@code 0}.
-     *
-     * @param a the first value
-     * @param b the second value
-     * @return the least common multiple
-     */
-    private static long lcm(long a, long b) {
-        if (a == 0 || b == 0) return 0;
-        return Math.abs(a / gcd(a, b) * b);
-    }
-
-    /**
-     * Greatest common divisor of {@code a} and {@code b} by the iterative Euclidean algorithm.
-     *
-     * @param a the first value
-     * @param b the second value
-     * @return the greatest common divisor
-     */
-    private static long gcd(long a, long b) {
-        while (b != 0) {
-            long t = b;
-            b = a % b;
-            a = t;
-        }
-
-        return a;
     }
 }

@@ -39,8 +39,8 @@ import javax.imageio.ImageIO;
 public final class TestRedstoneTints {
 
     /**
-     * Synthetic pack id used for the temp pack directory. Sanitised because
-     * {@code PackAcquirer.derivePackId} would normally do the same on a zip filename.
+     * Synthetic pack id used for the temp pack directory. Sanitised the same way a pack id
+     * derived from a zip filename would be.
      */
     private static final @NotNull String SYNTHETIC_PACK_ID = "redstone_tints_visual";
 
@@ -74,7 +74,7 @@ public final class TestRedstoneTints {
 
     /**
      * Writes a temporary pack directory under {@code cache/asset-renderer/packs/<id>/} containing
-     * a minimal {@code pack.mcmeta} (required by {@code PackResolver}) and
+     * a minimal {@code pack.mcmeta} (required for the pack to be acquired) and
      * {@code assets/minecraft/optifine/color.properties} with all 16 {@code redstone.N} entries
      * remapped to the synthetic gradient. The pack is durable so re-runs reuse it; the renderer's
      * pack cache lives at the same path so a stale stub would also be picked up.

@@ -9,6 +9,9 @@ import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
 import lib.minecraft.renderer.pipeline.util.Models;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -83,7 +86,49 @@ public class ItemIndexLoader {
                 && Models.rendersNothing(item.model().getElements(), item.model().getTextures(), true));
         System.out.printf("Atlas empty-model filter: removed %d template items%n", before - itemIndex.size());
 
+        addDispatchOnlyItems(itemIndex, result, beEntries);
+
         return Concurrent.adoptMap(itemIndex).toUnmodifiable();
+    }
+
+    /**
+     * Adds index entries for item ids that resolve through their {@code items/*.json} dispatch tree to
+     * a renderable model but carry no same-named {@code models/item/*.json} - {@code clock} (root
+     * {@code select(context_dimension) -> range_dispatch(time)} &rarr; {@code clock_00}), {@code compass}
+     * (root {@code condition(lodestone_tracker) -> range_dispatch(compass)} &rarr; {@code compass_16}),
+     * and similar predicate-frame items. Each is materialised from the neutral
+     * ({@link ItemModelContext#gui()}) resolution's backing model - the already-built, already-filtered
+     * frame item ({@code clock_00}/{@code compass_16}/...) - so no blank tiles slip in.
+     * <p>
+     * Additive only: an id already in the index (its model shares its name), a block-entity-backed id
+     * (renders via the block path), a special / nothing leaf, or a backing model that failed the
+     * empty-model filter is skipped. So every existing tile is untouched; the vanilla item sweep gains
+     * exactly the previously-unrenderable ids.
+     */
+    private static void addDispatchOnlyItems(
+        @NotNull HashMap<String, Item> itemIndex,
+        @NotNull Pipeline.Result result,
+        @NotNull ConcurrentMap<String, Block.Entity> beEntries
+    ) {
+        ConcurrentMap<String, List<LayerTint>> itemTints = result.getItemTints();
+        ConcurrentSet<String> glintItems = result.getGlintItems();
+        ItemModelContext neutral = ItemModelContext.gui();
+        int added = 0;
+        for (Map.Entry<String, ItemModelTree> entry : result.getItemTrees().entrySet()) {
+            String itemId = entry.getKey();
+            if (itemIndex.containsKey(itemId) || beEntries.containsKey(itemId)) continue;
+
+            String modelId = ItemModelWalker.resolve(entry.getValue(), neutral).modelId().orElse(null);
+            if (modelId == null) continue;
+            Item backing = itemIndex.get(ResourceId.ofModelId(modelId).id());
+            if (backing == null) continue;
+
+            List<LayerTint> tints = itemTints.getOrDefault(itemId, List.of());
+            itemIndex.put(itemId, new Item(ResourceId.parse(itemId), backing.model(), backing.textures(),
+                0, tints, glintItems.contains(itemId)));
+            added++;
+        }
+        System.out.printf("Dispatch-only item projection: added %d id(s) (clock/compass/predicate frames)%n", added);
     }
 
 }

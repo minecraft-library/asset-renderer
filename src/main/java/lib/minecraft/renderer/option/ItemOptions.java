@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
-import lib.minecraft.renderer.asset.rule.ItemContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -10,8 +9,11 @@ import lib.minecraft.renderer.engine.kit.BannerKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.option.slot.ItemSlot;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
+import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -116,11 +118,31 @@ public class ItemOptions implements RenderOptions {
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
+     * Texture-animation timeline for animated item textures (a resource-pack concern - vanilla 26.1
+     * ships zero {@code textures/item} sidecars). Defaults to a single static frame
+     * ({@link AnimationOptions#defaults()}); item resolution is tick-aware unconditionally, so an
+     * animated pack texture shows frame 0 when static instead
+     * of the squashed raw strip, and plays its flipbook when the caller opts in with
+     * {@code frameCount > 1}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull AnimationOptions animation = AnimationOptions.defaults();
+
+    /**
      * Render-time item context used by CIT matching, the damage bar, and the stack-count overlay.
      * Defaults to {@link ItemContext#EMPTY}
      */
     @lombok.Builder.Default
     private final @NotNull ItemContext context = ItemContext.EMPTY;
+
+    /**
+     * The item-definition evaluation context - the {@code items/*.json} dispatch-tree inputs (trim
+     * material, dye colour, clock time, compass angle) resolved at render time.
+     * Defaults to the neutral {@link ItemModelContext#gui()}, under which the render reuses the
+     * pipeline-baked item byte-for-byte; a caller supplying non-neutral options re-walks the tree.
+     */
+    @lombok.Builder.Default
+    private final @NotNull ItemModelContext itemModel = ItemModelContext.gui();
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).

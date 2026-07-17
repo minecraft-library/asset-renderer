@@ -47,7 +47,7 @@ public final class ToolingAtlas {
 
         Pipeline.Result result = Pipeline.run(PipelineOptions.defaults());
         diagnostics.info("pipeline ready: %d block models, %d item models, %d textures at %s",
-            result.getBlockModels().size(), result.getItemModels().size(), result.getTextures().size(), result.getPackRoot());
+            result.getBlockModels().size(), result.getItemModels().size(), result.getStack().textureIndex().size(), result.getPackRoot());
 
         PipelineRendererContext context = PipelineRendererContext.of(result);
         AtlasRenderer.AtlasResult atlas = new AtlasRenderer(context).renderAtlas(AtlasOptions.defaults());

@@ -5,40 +5,51 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.PackRoot;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.util.Models;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 /**
- * Loader and resolver that walks a pack's {@code assets/minecraft/models/} subtree, parses every
- * block and item JSON file into {@link ModelData}, and eagerly merges parent chains so the
+ * Loader and resolver that walks every pack's {@code assets/<namespace>/models/} subtree, parses
+ * every block and item JSON file into {@link ModelData}, and eagerly merges parent chains so the
  * resulting DTOs carry everything needed for rendering without further resolution at render time.
  * <p>
  * Parent chain merging is deep: child textures and elements win on conflicting keys, and the
  * merged result records the original parent id in its {@code parent} field for introspection.
  * Vanilla chains are acyclic and shallow (at most 3 deep), so no cycle detection is needed.
  * <p>
- * When several asset roots are supplied (a base pack plus overlays or higher-priority packs), raw
- * JSON is merged later-wins on the resolved model id <em>before</em> parent-chain inheritance runs,
- * so a higher-priority child model can still inherit from a vanilla parent that lives only in the
- * base pack.
+ * The raw merge runs over the {@link PackStack} effective file set: for each model id the winning
+ * pack's bytes, with that pack's {@code pack.mcmeta filter.block} erasing matching lower-pack rows
+ * before its own merge in (via {@link lib.minecraft.renderer.pipeline.pack.MCMeta.Pack#hides}). Raw
+ * JSON merges later-wins on the resolved model id <em>before</em> parent-chain inheritance runs, so
+ * a higher-priority child model still inherits from a vanilla parent that lives only in the base
+ * pack, and a pack parent retro-affects every vanilla child - exactly the vanilla client's
+ * per-file resolution against the effective set followed by baking. The merge is
+ * <em>attributed</em>: every winning file carries its origin {@link ResourcePack}, so a non-vanilla
+ * winner that trips {@link Models#rendersNothing} (or fails to parse) is diagnosed by pack name
+ * rather than vanishing silently. A vanilla-only stack scans exactly {@code assets/minecraft/}.
  *
  * @see ModelData
+ * @see PackStack
  * @see PipelineRendererContext
  */
 @UtilityClass
@@ -47,199 +58,235 @@ public class ModelResolver {
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
-     * Loads every block model JSON under {@code packRoot/assets/minecraft/models/block} and
+     * Loads every block model JSON under {@code assets/<ns>/models/block} across the stack and
      * returns them keyed by resolved model id ({@code "minecraft:block/grass_block"}).
      *
-     * @param packRoot the pack root directory
+     * @param stack the resolved pack stack
      * @return a map of model id to resolved block model data
      */
-    public static @NotNull ConcurrentMap<String, ModelData> loadBlockModels(@NotNull Path packRoot) {
-        return loadBlockModels(Concurrent.newList(packRoot));
+    public static @NotNull ConcurrentMap<String, ModelData> loadBlockModels(@NotNull PackStack stack) {
+        return resolveModels(stack, VanillaSourcePaths.MODELS_BLOCK_SUBDIR, VanillaSourcePaths.BLOCK_KIND, false);
     }
 
     /**
-     * Loads block models from every asset root in priority order (lowest first, highest last).
-     * Raw JSON merges later-wins so an overlay or higher-priority pack supersedes earlier roots
-     * before parent-chain inheritance runs - this is what lets a Hypixel+ child model still
-     * inherit from a vanilla parent that lives only in the base pack.
-     *
-     * @param assetRoots the ordered asset roots
-     * @return a map of model id to resolved block model data
-     */
-    public static @NotNull ConcurrentMap<String, ModelData> loadBlockModels(@NotNull ConcurrentList<Path> assetRoots) {
-        ConcurrentMap<String, JsonObject> raw = mergeRawAcrossRoots(assetRoots, VanillaSourcePaths.MODEL_BLOCK_DIR, VanillaSourcePaths.MODEL_BLOCK_ID_PREFIX);
-        return resolveTypedModels(raw, ModelData.class, "block");
-    }
-
-    /**
-     * Loads every item model JSON under {@code packRoot/assets/minecraft/models/item} and
+     * Loads every item model JSON under {@code assets/<ns>/models/item} across the stack and
      * returns them keyed by resolved model id ({@code "minecraft:item/diamond_sword"}).
      *
-     * @param packRoot the pack root directory
+     * @param stack the resolved pack stack
      * @return a map of model id to resolved item model data
      */
-    public static @NotNull ConcurrentMap<String, ModelData> loadItemModels(@NotNull Path packRoot) {
-        return loadItemModels(Concurrent.newList(packRoot));
+    public static @NotNull ConcurrentMap<String, ModelData> loadItemModels(@NotNull PackStack stack) {
+        return resolveModels(stack, VanillaSourcePaths.MODELS_ITEM_SUBDIR, VanillaSourcePaths.ITEM_KIND, true);
     }
 
     /**
-     * Loads item models from every asset root in priority order. See
-     * {@link #loadBlockModels(ConcurrentList)} for merge semantics.
+     * Runs the attributed raw merge then the parent-chain resolution for one model kind.
      *
-     * @param assetRoots the ordered asset roots
-     * @return a map of model id to resolved item model data
+     * @param stack the resolved pack stack
+     * @param subdir the assets subtree ({@code models/block} or {@code models/item})
+     * @param kind the model-id kind segment ({@code block} or {@code item})
+     * @param isItem whether these are item models (drives the {@link Models#rendersNothing} check)
+     * @return the resolved model map, unmodifiable
      */
-    public static @NotNull ConcurrentMap<String, ModelData> loadItemModels(@NotNull ConcurrentList<Path> assetRoots) {
-        ConcurrentMap<String, JsonObject> raw = mergeRawAcrossRoots(assetRoots, VanillaSourcePaths.MODEL_ITEM_DIR, VanillaSourcePaths.MODEL_ITEM_ID_PREFIX);
-        return resolveTypedModels(raw, ModelData.class, "item");
-    }
-
-    /**
-     * Walks every asset root in order, scans its model subtree into a raw JSON map, then merges
-     * across roots into a single map. Roots are visited lowest-priority first so later
-     * ({@code putAll}) roots override earlier entries on a shared model id (later-wins).
-     */
-    private static @NotNull ConcurrentMap<String, JsonObject> mergeRawAcrossRoots(
-        @NotNull ConcurrentList<Path> assetRoots,
-        @NotNull String modelSubdir,
-        @NotNull String idPrefix
+    private static @NotNull ConcurrentMap<String, ModelData> resolveModels(
+        @NotNull PackStack stack, @NotNull String subdir, @NotNull String kind, boolean isItem
     ) {
-        HashMap<String, JsonObject> merged = new HashMap<>();
-        for (Path root : assetRoots)
-            merged.putAll(scanJsonFiles(root.resolve(modelSubdir), idPrefix));
-        return Concurrent.adoptMap(merged);
-    }
+        LinkedHashMap<String, Attributed> raw = mergeRawAcrossStack(stack, subdir, kind);
+        HashMap<String, JsonObject> rawJson = new HashMap<>(raw.size());
+        raw.forEach((id, attributed) -> rawJson.put(id, attributed.json()));
 
-    /**
-     * Resolves a raw model map into typed DTOs by walking each entry's parent chain (against the
-     * fully merged raw map) and Gson-reparsing the merged JSON. Parallel - the read-only chain
-     * walk and thread-safe Gson scale across the FJP common pool.
-     */
-    private static <T> @NotNull ConcurrentMap<String, T> resolveTypedModels(
-        @NotNull ConcurrentMap<String, JsonObject> raw,
-        @NotNull Class<T> dtoClass,
-        @NotNull String kindPrefix
-    ) {
-        return raw.parallelStream().collect(Concurrent.toMap(
+        return raw.entrySet().parallelStream().collect(Concurrent.toMap(
             Map.Entry::getKey,
-            entry -> GSON.fromJson(mergeParentChain(entry.getValue(), raw, kindPrefix), dtoClass)
+            entry -> resolveModel(entry.getKey(), entry.getValue(), rawJson, kind, isItem)
         )).toUnmodifiable();
     }
 
     /**
-     * Scans one model subtree into a raw JSON map keyed by resolved model id. Missing directories
-     * yield an empty map so a pack that omits {@code models/item} (or the whole subtree) is
-     * tolerated rather than fatal.
+     * Merges raw model JSON across the whole stack into an attributed, later-wins map keyed by
+     * resolved model id. Packs are visited ascending; before each pack's rows merge in, its
+     * {@code filter.block} patterns erase matching accumulated rows, then every {@code (root x
+     * namespace)} subtree it owns is scanned. Every winning entry carries its origin pack so
+     * diagnostics can name it.
      */
-    private static @NotNull ConcurrentMap<String, JsonObject> scanJsonFiles(@NotNull Path directory, @NotNull String idPrefix) {
-        if (!Files.isDirectory(directory)) return Concurrent.newMap();
+    private static @NotNull LinkedHashMap<String, Attributed> mergeRawAcrossStack(
+        @NotNull PackStack stack, @NotNull String subdir, @NotNull String kind
+    ) {
+        LinkedHashMap<String, Attributed> merged = new LinkedHashMap<>();
+        for (ResourcePack pack : stack.ascending()) {
+            pack.meta().pack().ifPresent(section -> merged.keySet().removeIf(id -> section.hides(ResourceId.parse(id))));
+            PackContainer container = pack.container();
 
-        // Two-phase walk: collect paths serially (Files.walk spliterators don't split well for
-        // parallel work), then parallelise readString + Gson parse across the FJP common pool.
-        // Concurrent.toMap collects per-shard HashMaps lock-free and adopts the merged result.
-        List<Path> files;
-        try (Stream<Path> stream = Files.walk(directory)) {
-            files = stream
-                .filter(Files::isRegularFile)
-                .filter(p -> p.toString().endsWith(".json"))
-                .toList();
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to scan model directory '%s'", directory);
+            for (PackRoot root : pack.roots()) {
+                for (String namespace : pack.namespaces()) {
+                    String modelsPrefix = root.prefix() + VanillaSourcePaths.assetSubdir(namespace, subdir);
+                    String idPrefix = VanillaSourcePaths.modelIdPrefix(namespace, kind);
+                    scanJsonFiles(container, modelsPrefix, idPrefix, pack.id()).forEach((id, json) -> merged.put(id, new Attributed(json, pack.id())));
+                }
+            }
         }
+        return merged;
+    }
+
+    /**
+     * Resolves one raw entry into a {@link ModelData}: walks its parent chain against the merged raw
+     * map, captures 26.1 object-form texture flags, Gson-reparses the flattened JSON, and warns when
+     * a non-vanilla winner renders nothing (the drop itself stays downstream in the index loaders).
+     */
+    private static @NotNull ModelData resolveModel(
+        @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonObject> rawJson,
+        @NotNull String kindPrefix, boolean isItem
+    ) {
+        JsonObject merged = mergeParentChain(attributed.json(), rawJson, kindPrefix);
+        ConcurrentMap<String, ModelTexture> textureObjects = normalizeTextures(merged);
+        ModelData model = GSON.fromJson(merged, ModelData.class);
+        model.setTextureObjects(textureObjects);
+
+        if (!attributed.origin().equals(PackId.VANILLA)
+            && Models.rendersNothing(model.getElements(), model.getTextures(), isItem))
+            System.err.printf("Model '%s' from pack '%s' renders blank (empty template); it is dropped from the "
+                + "atlas index unless it is a block-entity-backed or special-item id that renders through a code path%n",
+                id, attributed.origin());
+
+        return model;
+    }
+
+    /**
+     * Scans one model subtree into a raw JSON map keyed by resolved model id. A missing subtree
+     * enumerates empty so a pack that omits a namespace's {@code models/item} (or the whole subtree)
+     * is tolerated rather than fatal.
+     */
+    private static @NotNull ConcurrentMap<String, JsonObject> scanJsonFiles(@NotNull PackContainer container, @NotNull String modelsPrefix, @NotNull String idPrefix, @NotNull PackId packId) {
+        // Two-phase walk: enumerate entry paths serially (container walks don't split well for
+        // parallel work), then parallelise the byte read + Gson parse across the FJP common pool.
+        // Concurrent.toMap collects per-shard HashMaps lock-free and adopts the merged result.
+        List<String> files = container.entries(modelsPrefix).filter(p -> p.endsWith(".json")).toList();
 
         return files.parallelStream()
-            .map(p -> parseModelFile(p, directory, idPrefix))
+            .map(p -> parseModelFile(container, p, modelsPrefix, idPrefix, packId))
             .flatMap(Optional::stream)
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**
-     * Parses a single model file into a raw JSON entry keyed by resolved model id (the path
-     * relative to {@code directory}, sans {@code .json}, under {@code idPrefix}, with {@code \}
-     * normalised to {@code /}). Empty for non-JSON, empty-parse, or malformed input so the caller
-     * can drop the entry; an I/O read failure is fatal.
+     * Parses a single model file into a raw JSON entry keyed by resolved model id (the entry path
+     * relative to {@code modelsPrefix}, sans {@code .json}, under {@code idPrefix}). Empty for
+     * non-JSON, empty-parse, or malformed input so the caller can drop the entry; an I/O read failure
+     * (surfaced by the container) is fatal. A malformed winning copy is reported with its owning pack
+     * so the silent fall-back to a lower pack is traceable.
      */
-    private static @NotNull Optional<Map.Entry<String, JsonObject>> parseModelFile(@NotNull Path p, @NotNull Path directory, @NotNull String idPrefix) {
-        String relative = directory.relativize(p).toString().replace('\\', '/');
+    private static @NotNull Optional<Map.Entry<String, JsonObject>> parseModelFile(
+        @NotNull PackContainer container, @NotNull String entry, @NotNull String modelsPrefix, @NotNull String idPrefix, @NotNull PackId packId
+    ) {
+        String relative = entry.substring(modelsPrefix.length() + 1);
         if (!relative.endsWith(".json")) return Optional.empty();
         String id = idPrefix + relative.substring(0, relative.length() - ".json".length());
+        Optional<byte[]> bytes = container.bytes(entry);
+        if (bytes.isEmpty()) return Optional.empty();
         try {
-            String content = Files.readString(p);
-            JsonObject json = GSON.fromJson(content, JsonObject.class);
+            JsonObject json = GSON.fromJson(new String(bytes.get(), StandardCharsets.UTF_8), JsonObject.class);
             return json == null ? Optional.empty() : Optional.of(Map.entry(id, json));
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to read model '%s'", p);
         } catch (JsonSyntaxException ex) {
             // Resource packs occasionally ship malformed or pathologically-nested model JSON. Skip
             // so the merge falls back to a lower-priority pack's version.
-            System.err.printf("Skipping malformed model '%s': %s%n", p, ex.getMessage());
+            System.err.printf("Skipping malformed model '%s' from pack '%s': %s%n", entry, packId, ex.getMessage());
             return Optional.empty();
         }
     }
 
     /**
-     * Recursively merges a model's parent chain, returning a JSON object whose textures and
+     * Recursively merges a model's parent chain, returning a fresh JSON object whose textures and
      * elements inherit from every ancestor. Child keys override parent keys, except {@code textures}
-     * which is deep-merged (child variables win per key). Returns {@code model} unchanged when it
+     * which is deep-merged (child variables win per key). Returns a deep copy of {@code model} when it
      * declares no parent or its parent lives outside this tree (e.g. {@code minecraft:builtin/generated});
-     * otherwise the result is a fresh deep copy so ancestors are never mutated. Cycle detection is
-     * not needed - vanilla chains are acyclic and shallow (at most 3 deep). The {@code kindPrefix}
-     * is preserved for future use in fully-qualifying ambiguous parent ids; today every parent
-     * reference already carries its kind segment ({@code block/} or {@code item/}).
+     * otherwise the result is a fresh deep copy so ancestors are never mutated - which is what makes
+     * the result safe to normalise in place. Cycle detection is not needed - vanilla chains are
+     * acyclic and shallow (at most 3 deep). The {@code kindPrefix} is preserved for future use in
+     * fully-qualifying ambiguous parent ids; today every parent reference already carries its kind
+     * segment ({@code block/} or {@code item/}).
      */
     private static @NotNull JsonObject mergeParentChain(
         @NotNull JsonObject model,
-        @NotNull ConcurrentMap<String, JsonObject> raw,
+        @NotNull Map<String, JsonObject> raw,
         @NotNull String kindPrefix
     ) {
         Optional<String> parentId = Optional.ofNullable(model.get("parent")).map(JsonElement::getAsString);
-        if (parentId.isEmpty()) return model;
+        if (parentId.isEmpty()) return model.deepCopy();
 
         String fqParent = parentId.get().contains(":") ? parentId.get() : VanillaSourcePaths.MINECRAFT_NAMESPACE + parentId.get();
         JsonObject parentJson = raw.get(fqParent);
         if (parentJson == null) {
             // Parent lives outside this tree (e.g. minecraft:builtin/generated) - keep the reference
             // and stop walking.
-            return model;
+            return model.deepCopy();
         }
-        JsonObject merged = mergeParentChain(parentJson, raw, kindPrefix).deepCopy();
+        JsonObject merged = mergeParentChain(parentJson, raw, kindPrefix);
 
-        // Child values override parent for keys present on both sides.
+        // Child values override parent for keys present on both sides. Deep-copy every child value
+        // folded in so the returned object shares no mutable node with the raw map - the parallel
+        // resolve mutates each merged copy in place (normalizeTextures), and an aliased raw texture
+        // object would otherwise be mutated under the shared map. This honours the "ancestors are
+        // never mutated" contract.
         for (String key : model.keySet()) {
             if (key.equals("textures") && merged.has("textures") && model.get("textures").isJsonObject()) {
                 JsonObject mergedTextures = merged.getAsJsonObject("textures").deepCopy();
                 JsonObject childTextures = model.getAsJsonObject("textures");
                 for (String tKey : childTextures.keySet())
-                    mergedTextures.add(tKey, childTextures.get(tKey));
+                    mergedTextures.add(tKey, childTextures.get(tKey).deepCopy());
                 merged.add("textures", mergedTextures);
             } else {
-                merged.add(key, model.get(key));
+                merged.add(key, model.get(key).deepCopy());
             }
         }
 
-        normalizeTextureEntries(merged);
         return merged;
     }
 
     /**
-     * Replaces object-valued texture entries with their {@code sprite} string. MC 26.1 uses
-     * {@code {"force_translucent": true, "sprite": "minecraft:block/glass"}} for translucent
-     * blocks; the renderer only needs the sprite id.
+     * Flattens object-valued texture entries to their {@code sprite} string in place (the render path
+     * consumes the string map) and returns the retained {@link ModelTexture} objects for the flags it
+     * would otherwise discard.
+     * MC 26.1 uses {@code {"force_translucent": true, "sprite": "minecraft:block/glass"}} for
+     * translucent blocks; the sprite string stays the sole render input, the flag is retained on the
+     * side channel. Runs once on the fully-merged object, so every model - including a parent-less
+     * one - normalises consistently.
+     *
+     * @return the object-form entries keyed by texture variable, or an empty map when none were objects
      */
-    private static void normalizeTextureEntries(@NotNull JsonObject model) {
-        if (!model.has("textures") || !model.get("textures").isJsonObject()) return;
+    private static @NotNull ConcurrentMap<String, ModelTexture> normalizeTextures(@NotNull JsonObject model) {
+        if (!model.has("textures") || !model.get("textures").isJsonObject()) return Concurrent.newMap();
 
         JsonObject textures = model.getAsJsonObject("textures");
-        HashMap<String, String> normalized = new HashMap<>();
+        HashMap<String, String> flattened = new HashMap<>();
+        HashMap<String, ModelTexture> objects = new HashMap<>();
 
         for (Map.Entry<String, JsonElement> entry : textures.entrySet()) {
             JsonElement value = entry.getValue();
-            if (value.isJsonObject() && value.getAsJsonObject().has("sprite"))
-                normalized.put(entry.getKey(), value.getAsJsonObject().get("sprite").getAsString());
+            if (value.isJsonObject() && value.getAsJsonObject().has("sprite")) {
+                JsonObject object = value.getAsJsonObject();
+                String sprite = object.get("sprite").getAsString();
+                // A pack may ship a non-boolean force_translucent; read it defensively so a malformed
+                // flag flattens the sprite instead of crashing the whole model load.
+                JsonElement flag = object.get("force_translucent");
+                boolean forceTranslucent = flag != null && flag.isJsonPrimitive()
+                    && flag.getAsJsonPrimitive().isBoolean() && flag.getAsBoolean();
+                flattened.put(entry.getKey(), sprite);
+                objects.put(entry.getKey(), new ModelTexture(sprite, forceTranslucent));
+            }
         }
 
-        for (Map.Entry<String, String> entry : normalized.entrySet())
+        for (Map.Entry<String, String> entry : flattened.entrySet())
             textures.addProperty(entry.getKey(), entry.getValue());
+
+        return objects.isEmpty() ? Concurrent.newMap() : Concurrent.adoptMap(objects).toUnmodifiable();
     }
+
+    /**
+     * One winning raw model file plus the {@link ResourcePack} that supplied it, so a merged entry
+     * can be diagnosed by pack name.
+     *
+     * @param json the raw model JSON
+     * @param origin the id of the pack whose copy won
+     */
+    private record Attributed(@NotNull JsonObject json, @NotNull PackId origin) {}
 
 }

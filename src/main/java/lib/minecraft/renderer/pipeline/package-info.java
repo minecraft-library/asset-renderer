@@ -20,17 +20,19 @@
  *
  * <p><b>Sub-packages.</b>
  * <ul>
+ *   <li>{@link lib.minecraft.renderer.pipeline.pack pack} - the resource-pack model: the
+ *       {@code PackStack} / {@code ResourcePack} / {@code PackContainer} types, the {@code MCMeta} /
+ *       {@code FormatRange} parsers, the {@code PackId} heuristic, and the {@code PackAcquisition}
+ *       materialization + {@code TextureIndexer} resolution seam.</li>
  *   <li>{@link lib.minecraft.renderer.pipeline.loader loader} - one loader per asset family
  *       (JSON / NBT / PNG), each with its own pack-stack merge precedence.</li>
  *   <li>{@link lib.minecraft.renderer.asset.rule rule} - immutable parsed-rule records and
- *       matchers for OptiFine features (CIT / CTM / colormap), plus {@code PackMeta} and the value
- *       types they consume.</li>
+ *       matchers for OptiFine features (CIT / CTM / colormap) and the value types they consume.</li>
  *   <li>{@link lib.minecraft.renderer.pipeline.resolver resolver} - cross-loader resolvers: model
- *       parent inheritance ({@code ModelResolver}) and pack-stack overlay precedence
- *       ({@code PackResolver}).</li>
- *   <li>{@link lib.minecraft.renderer.pipeline.util util} - shared utilities: pack acquire /
- *       download ({@code PackAcquirer} / {@code PackDownloader}), the {@code Models} blank-model
- *       template test, and the {@code VanillaSourcePaths} jar-prefix constants every loader keys off.</li>
+ *       parent inheritance ({@code ModelResolver}).</li>
+ *   <li>{@link lib.minecraft.renderer.pipeline.util util} - shared utilities: the {@code Models}
+ *       blank-model template test and the {@code VanillaSourcePaths} jar-prefix constants every
+ *       loader keys off.</li>
  * </ul>
  *
  * <p><b>Gson.</b> {@link lib.minecraft.renderer.pipeline.PipelineGsonContributor

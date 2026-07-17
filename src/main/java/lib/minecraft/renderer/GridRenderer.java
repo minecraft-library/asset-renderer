@@ -6,6 +6,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
+import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -35,12 +36,6 @@ import org.jetbrains.annotations.NotNull;
  * @see FrameCompositor
  */
 public final class GridRenderer implements Renderer<GridOptions> {
-
-    /**
-     * Default animated-grid output frame rate (frames per second) when promoting a mixed
-     * static / animated composite through {@link FrameCompositor#merge}.
-     */
-    private static final int DEFAULT_FRAME_FPS = 30;
 
     /** {@inheritDoc} */
     @Override
@@ -75,10 +70,10 @@ public final class GridRenderer implements Renderer<GridOptions> {
             placements.parallelStream().forEach(placement ->
                 buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize));
 
-            return FrameCompositor.staticFrame(buffer);
+            return Timeline.still(buffer);
         }
 
-        return FrameCompositor.merge(placements, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackground());
+        return FrameCompositor.merge(placements, canvasW, canvasH, options.getFramesPerSecond(), options.getBackground());
     }
 
 }

@@ -52,6 +52,13 @@ import java.util.Optional;
  *     {@code registerDefaultState}) and baked on at pipeline-context construction. The renderer falls
  *     back to this key when a caller supplies no explicit variant, so blocks with per-state models
  *     render their default rather than whichever state registered first
+ * @param itemBlockId the id of the block whose inventory item this block's icon poses through - the
+ *     block's own id for a block that owns an item, or the standing block's id for a secondary block
+ *     that shares another block's item (wall banner to banner, wall skull to skull, filled cauldron
+ *     to cauldron, {@code big_dripleaf_stem} to {@code big_dripleaf}). Sourced from
+ *     {@code block_items.json} (an ASM walk of the {@code Items} registry) and baked on at
+ *     pipeline-context construction, so the icon renderer resolves the shared item's
+ *     {@code display.gui} the same way the in-game inventory does
  */
 public record Block(
     @NotNull ResourceId id,
@@ -63,7 +70,8 @@ public record Block(
     @NotNull Tint tint,
     @NotNull Optional<Entity> entity,
     @NotNull Source source,
-    @NotNull String defaultStateKey
+    @NotNull String defaultStateKey,
+    @NotNull ResourceId itemBlockId
 ) {
 
     /**

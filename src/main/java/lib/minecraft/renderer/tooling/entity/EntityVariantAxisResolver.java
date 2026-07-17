@@ -223,7 +223,7 @@ final class EntityVariantAxisResolver {
 
     /**
      * Walks every renderer method for the model-map construction pairing each
-     * {@code $ModelType} constant (P20 inner-enum suffix) with the first following
+     * {@code $ModelType} constant (inner-enum suffix) with the first following
      * {@code ModelLayers} reference (the adult layer - the baby pair member is skipped by
      * consuming the pending key). Empty when the renderer builds no such map.
      */

@@ -12,15 +12,19 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.Texture;
-import lib.minecraft.renderer.asset.TexturePack;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.asset.rule.CtmMethod;
-import lib.minecraft.renderer.asset.rule.CtmResolution;
-import lib.minecraft.renderer.asset.rule.CtmRule;
-import lib.minecraft.renderer.asset.rule.PackMeta;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
-import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
+import lib.minecraft.renderer.pipeline.loader.TextureIndexer;
+import lib.minecraft.renderer.pipeline.pack.Capability;
+import lib.minecraft.renderer.pipeline.pack.IndexedTexture;
+import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.pipeline.pack.PackRoot;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import javax.imageio.ImageIO;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -58,7 +63,7 @@ class PipelineRendererContextTest {
 
     /**
      * Stages a minimal on-disk pack (fixture PNG + animation sidecar + grass colormap) in the temp
-     * directory, scans it with the real {@link TexturePackLoader} / {@link ColorMapLoader}, synthesises
+     * directory, scans it with the real {@link TextureIndexer} / {@link ColorMapLoader}, synthesises
      * the remaining {@link Pipeline.Result} maps by hand, and wraps the whole thing in the
      * {@link PipelineRendererContext} under test.
      *
@@ -88,25 +93,30 @@ class PipelineRendererContextTest {
             "{\"animation\":{\"frametime\":4,\"interpolate\":true,\"frames\":[0,1,2,{\"index\":3,\"time\":8}]}}"
         );
 
-        // Tiny 4x4 grass colormap with a recognisable corner pixel so the colormap loader has
-        // something to parse and the context test can verify pass-through.
-        BufferedImage grassMap = new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB);
+        // Vanilla-shaped 256x256 colormaps for all three biome types so the stack-resolved
+        // ColorMapLoader finds them like any other texture. A recognisable grass
+        // corner pixel makes the pass-through visible; foliage / dry_foliage stay blank.
+        BufferedImage grassMap = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
         grassMap.setRGB(0, 0, 0xFF7FB238);
         ImageIO.write(grassMap, "PNG", colormapDir.resolve("grass.png").toFile());
+        ImageIO.write(new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB), "PNG", colormapDir.resolve("foliage.png").toFile());
+        ImageIO.write(new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB), "PNG", colormapDir.resolve("dry_foliage.png").toFile());
 
-        // Scan the fixture pack to derive a realistic TexturePack + texture list. Using the
-        // real TexturePackLoader / ColorMapLoader keeps the test honest about the exact id
-        // format and resource shape the context normalises against.
+        // Assemble a real vanilla ResourcePack over the fixture directory and scan it into the
+        // texture index with the real TextureIndexer / ColorMapLoader, keeping the test honest about
+        // the exact id format and resolution shape the context resolves against.
         //
         // VanillaTintsLoader is intentionally NOT called here: it now parses BlockColors from
         // a real client jar, which the unit test does not have. Tint entries are synthesised
         // directly so the context wiring (Block.tintTarget population, findColorMap pass-through)
         // can still be exercised in isolation. The end-to-end loader is exercised by the
         // slowTest against the cached vanilla 26.1 jar.
-        PackMeta vanillaMeta = new PackMeta(46, "Vanilla Minecraft client", Concurrent.newList());
-        TexturePack vanillaPack = new TexturePack("vanilla", "minecraft", vanillaMeta, Concurrent.newList(packRoot), 0);
-        ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(Concurrent.newList(vanillaPack));
-        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
+        ResourcePack vanillaPack = new ResourcePack(
+            PackId.VANILLA, new PackContainer.Directory(packRoot), MCMeta.EMPTY,
+            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
+        PackStack stack = PackStack.of(Concurrent.newList(vanillaPack))
+            .withTextureIndex(TextureIndexer.index(PackStack.of(Concurrent.newList(vanillaPack))));
+        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
         ConcurrentMap<String, Block.Tint> blockTints = Concurrent.newMap();
         blockTints.put("minecraft:grass_block", new Block.Tint(Block.TintTarget.GRASS, Optional.empty()));
         blockTints.put("minecraft:oak_leaves", new Block.Tint(Block.TintTarget.FOLIAGE, Optional.empty()));
@@ -175,17 +185,14 @@ class PipelineRendererContextTest {
         // the 7 intrinsically-foil items (enchanted_book, nether_star, ...).
         ConcurrentSet<String> glintItems = Concurrent.newSet("minecraft:stick");
 
-        ConcurrentMap<String, TexturePack> packs = Concurrent.newLinkedMap();
-        packs.put(vanillaPack.getId(), vanillaPack);
-
         result = new Pipeline.Result(
             packRoot,
-            vanillaPack,
-            packs,
-            textures, colorMaps, blockTints, blockModels, itemModels,
-            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), itemTints, glintItems,
+            stack,
+            colorMaps, blockTints, blockModels, itemModels,
+            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), itemTints, Concurrent.newMap(), glintItems,
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
-            Concurrent.newMap(), Concurrent.newList(), Concurrent.newList(),
+            RuleSet.empty(PackId.VANILLA),
+            Concurrent.newMap(),
             Concurrent.newMap()
         );
         context = PipelineRendererContext.of(result);
@@ -317,58 +324,10 @@ class PipelineRendererContextTest {
     @Test
     @DisplayName("findPack resolves the vanilla pack and nothing else")
     void findPackResolvesVanillaOnly() {
-        Optional<TexturePack> vanilla = context.findPack("vanilla");
+        Optional<ResourcePack> vanilla = context.findPack(PackId.VANILLA);
         assertThat(vanilla.isPresent(), is(true));
-        assertThat(vanilla.get().getAssetRoots().isEmpty(), is(false));
-        assertThat(context.findPack("nonexistent").isPresent(), is(false));
-    }
-
-    @Test
-    @DisplayName("resolveCtm walks rules in sort order and returns the first applicable resolution")
-    void resolveCtmReturnsFirstApplicableRule() {
-        // Two rules: the first applies to a different block, the second matches our query.
-        // resolveCtm walks in declaration order (which mirrors weight-descending sort upstream)
-        // and returns the second's resolution.
-        CtmRule miss = new CtmRule(
-            "miss.properties", 10, CtmMethod.FIXED,
-            Concurrent.newList("minecraft:cobblestone"),
-            Concurrent.newList(),
-            Concurrent.newList("pack:block/cobblestone_custom"),
-            Concurrent.newList(),
-            java.util.EnumSet.of(CtmRule.Face.ALL)
-        );
-        CtmRule hit = new CtmRule(
-            "hit.properties", 5, CtmMethod.FIXED,
-            Concurrent.newList("minecraft:stone"),
-            Concurrent.newList(),
-            Concurrent.newList("pack:block/stone_custom"),
-            Concurrent.newList(),
-            java.util.EnumSet.of(CtmRule.Face.ALL)
-        );
-
-        Pipeline.Result resultWithCtm = new Pipeline.Result(
-            packRoot,
-            result.getVanillaPack(),
-            result.getPacks(),
-            result.getTextures(), result.getColorMaps(), result.getBlockTints(),
-            result.getBlockModels(), result.getItemModels(),
-            result.getBlockVariants(), result.getBlockMultiparts(),
-            result.getItemDefinitions(), result.getItemTints(), result.getGlintItems(), result.getBlockTags(),
-            result.getPotionEffectColors(), result.getBannerPatterns(),
-            result.getColorOverrides(), result.getCitRules(),
-            Concurrent.newList(miss, hit),
-            result.getBlockDefaultStateKeys()
-        );
-        PipelineRendererContext ctx = PipelineRendererContext.of(resultWithCtm);
-
-        Optional<CtmResolution> resolution = ctx.resolveCtm("minecraft:stone", "minecraft:block/stone", CtmRule.Face.UP);
-        assertThat(resolution.isPresent(), is(true));
-        assertThat(resolution.get().textureId(), equalTo("pack:block/stone_custom"));
-        assertThat(resolution.get().overlayTextureId().isPresent(), is(false));
-
-        // Block id with no matching rule returns empty.
-        Optional<CtmResolution> miss2 = ctx.resolveCtm("minecraft:gravel", "minecraft:block/gravel", CtmRule.Face.UP);
-        assertThat(miss2.isPresent(), is(false));
+        assertThat(vanilla.get().roots().isEmpty(), is(false));
+        assertThat(context.findPack(new PackId("nonexistent")).isPresent(), is(false));
     }
 
     @Test
@@ -431,12 +390,13 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("Texture.animation is populated by the scanner for sidecar-equipped PNGs")
+    @DisplayName("IndexedTexture carries the whole mcmeta sidecar for sidecar-equipped PNGs")
     void textureAnimationFieldIsPopulated() {
-        Texture fixture = result.getTextures().get("minecraft:block/fixture");
+        IndexedTexture fixture = result.getStack().textureIndex().get(ResourceId.parse("minecraft:block/fixture"));
         assertThat(fixture, is(notNullValue()));
-        assertThat(fixture.animation().isPresent(), is(true));
-        assertThat(fixture.animation().get().frametime(), equalTo(4));
+        assertThat(fixture.meta().isPresent(), is(true));
+        assertThat(fixture.meta().get().animation().isPresent(), is(true));
+        assertThat(fixture.meta().get().animation().get().frametime(), equalTo(4));
     }
 
     @Test

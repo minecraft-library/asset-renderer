@@ -33,34 +33,89 @@ public class VanillaSourcePaths {
     public static final @NotNull String VANILLA_DATA_ROOT = "data/minecraft/";
 
     /**
-     * Directory containing vanilla block model JSON files.
+     * Relative subpath (under {@code assets/<namespace>/}) of the block model subtree.
      */
-    public static final @NotNull String MODEL_BLOCK_DIR = VANILLA_ASSET_ROOT + "models/block";
+    public static final @NotNull String MODELS_BLOCK_SUBDIR = "models/block";
 
     /**
-     * Directory containing vanilla item model JSON files.
+     * Relative subpath (under {@code assets/<namespace>/}) of the item model subtree.
      */
-    public static final @NotNull String MODEL_ITEM_DIR = VANILLA_ASSET_ROOT + "models/item";
+    public static final @NotNull String MODELS_ITEM_SUBDIR = "models/item";
 
     /**
-     * Parent-id prefix for block model inheritance chains.
+     * Relative subpath (under {@code assets/<namespace>/}) of the blockstate subtree.
      */
-    public static final @NotNull String MODEL_BLOCK_ID_PREFIX = MINECRAFT_NAMESPACE + "block/";
+    public static final @NotNull String BLOCKSTATES_SUBDIR = "blockstates";
 
     /**
-     * Parent-id prefix for item model inheritance chains.
+     * Relative subpath (under {@code assets/<namespace>/}) of the item definition subtree
+     * (vanilla 26.1+ {@code items/}).
      */
-    public static final @NotNull String MODEL_ITEM_ID_PREFIX = MINECRAFT_NAMESPACE + "item/";
+    public static final @NotNull String ITEMS_SUBDIR = "items";
 
     /**
-     * Directory containing blockstate JSON files.
+     * Relative subpath (under {@code assets/<namespace>/}) of the atlas source subtree
+     * ({@code atlases/}), whose {@code paletted_permutations} entries drive texture synthesis.
      */
-    public static final @NotNull String BLOCKSTATES_DIR = VANILLA_ASSET_ROOT + "blockstates";
+    public static final @NotNull String ATLASES_SUBDIR = "atlases";
 
     /**
-     * Directory containing item definition JSON files (vanilla 26.1+ {@code items/} subtree).
+     * Model kind segment for block model ids ({@code <namespace>:block/...}).
      */
-    public static final @NotNull String ITEMS_DIR = VANILLA_ASSET_ROOT + "items";
+    public static final @NotNull String BLOCK_KIND = "block";
+
+    /**
+     * Model kind segment for item model ids ({@code <namespace>:item/...}).
+     */
+    public static final @NotNull String ITEM_KIND = "item";
+
+    /**
+     * The {@code assets/<namespace>/<subdir>} directory for a pack namespace.
+     *
+     * @param namespace the pack namespace (e.g. {@code minecraft}, {@code hypixel_skyblock})
+     * @param subdir the relative subtree (e.g. {@link #MODELS_BLOCK_SUBDIR})
+     * @return the namespaced assets directory path
+     */
+    public static @NotNull String assetSubdir(@NotNull String namespace, @NotNull String subdir) {
+        return "assets/" + namespace + "/" + subdir;
+    }
+
+    /**
+     * The model-id prefix {@code <namespace>:<kind>/} for inheritance chains and scanned model ids
+     * (e.g. {@code minecraft:block/}, {@code hypixel_skyblock:item/}).
+     *
+     * @param namespace the pack namespace
+     * @param kind the model kind segment ({@link #BLOCK_KIND} or {@link #ITEM_KIND})
+     * @return the model-id prefix
+     */
+    public static @NotNull String modelIdPrefix(@NotNull String namespace, @NotNull String kind) {
+        return namespace + ":" + kind + "/";
+    }
+
+    /**
+     * The flat namespaced-id prefix {@code <namespace>:} used when deriving blockstate block ids and
+     * item-definition item ids from their file paths (e.g. {@code minecraft:}, {@code hypixel_skyblock:}).
+     *
+     * @param namespace the pack namespace
+     * @return the namespaced-id prefix
+     */
+    public static @NotNull String namespacePrefix(@NotNull String namespace) {
+        return namespace + ":";
+    }
+
+    /**
+     * Whether a model reference is a block model - its path segment (after any {@code namespace:}
+     * prefix) starts with {@code block/}. Namespace-agnostic ({@code minecraft:block/x} and
+     * {@code skyblock:block/x} both qualify), so block-item detection carries across packs.
+     *
+     * @param modelRef the model reference (e.g. {@code minecraft:block/piston_inventory})
+     * @return {@code true} when the reference points at a block model
+     */
+    public static boolean isBlockModelRef(@NotNull String modelRef) {
+        int colon = modelRef.indexOf(':');
+        String path = colon < 0 ? modelRef : modelRef.substring(colon + 1);
+        return path.startsWith(BLOCK_KIND + "/");
+    }
 
     /**
      * Root directory for pack texture indexing.

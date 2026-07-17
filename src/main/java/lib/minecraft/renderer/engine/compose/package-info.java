@@ -10,16 +10,16 @@
  * animated loop) and owns the shared frame-to-{@code ImageData} wrapping ({@code wrapFrames} /
  * {@code staticFrame} / {@code emptyFrame}) that every renderer and the terminal pipeline bottom out in.
  *
- * <p><b>Terminal pipeline.</b> {@link lib.minecraft.renderer.engine.compose.Finalize Finalize} is the
- * single spec-driven terminal for the rasterizing renderers: it draws each frame, runs the shared
- * supersample / FXAA / downscale tail, then either scrolls an enchantment glint or bakes an animation
- * strip (the two are mutually exclusive), and wraps the result via {@code FrameCompositor}.
+ * <p><b>Terminal pipeline.</b> {@link lib.minecraft.renderer.engine.compose.Timeline Timeline} is the
+ * render schedule that owns the final bake and wrap terminals: it draws each frame through a
+ * {@link lib.minecraft.renderer.engine.compose.RasterPass RasterPass} (the supersample / FXAA /
+ * downscale tail plus the one finish seam), then wraps the result into {@code ImageData}.
  *
  * <p><b>Per-render context.</b> Renderers that thread bundled per-render inputs into their layers keep
  * that context private to themselves (entity's {@code FeatureContext}, item's {@code Gui2D.LayerContext}),
  * because each is consumed by exactly one renderer - the compose package holds no shared context type.
  *
  * @see lib.minecraft.renderer.engine.compose.layer
- * @see lib.minecraft.renderer.engine.compose.Finalize
+ * @see lib.minecraft.renderer.engine.compose.Timeline
  */
 package lib.minecraft.renderer.engine.compose;

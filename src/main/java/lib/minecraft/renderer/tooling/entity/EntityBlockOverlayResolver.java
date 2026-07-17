@@ -113,9 +113,9 @@ final class EntityBlockOverlayResolver {
 
     /**
      * Classifies how the layer's block resolves: a {@code $Variant} enum on the render
-     * state (P13 {@code DEFAULT} pick - mooshroom), a literal {@code Blocks.X} bind in
-     * {@code extractRenderState} (fixed when presence-gated, selectable when timer-gated -
-     * P17), or fully render-selected (no literal).
+     * state ({@code DEFAULT} pick - mooshroom), a literal {@code Blocks.X} bind in
+     * {@code extractRenderState} (fixed when presence-gated, selectable when timer-gated),
+     * or fully render-selected (no literal).
      */
     private @NotNull BlockSource classifyBlockSource(@NotNull ClassNode cn, @NotNull MethodNode submit) {
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);

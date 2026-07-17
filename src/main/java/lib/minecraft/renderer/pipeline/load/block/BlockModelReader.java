@@ -47,18 +47,44 @@ public final class BlockModelReader {
     private BlockModelReader() {}
 
     /**
-     * Reads the block-entity model catalog natively from the bundled resources.
+     * Reads the block-entity model catalog natively from the bundled classpath snapshot, with no pack
+     * override channel applied.
      *
      * @param diagnostics the scope envelope and read warnings are recorded to
      * @return the primary models keyed by block id plus any per-variant state-conditional models
      * @throws PipelineException if a resource is missing, malformed, or a geometry coordinate dangles
      */
     public static @NotNull BlockModelLoader.LoadResult load(@NotNull Diagnostics diagnostics) {
+        return load(diagnostics, BlockRendererOverrides.EMPTY);
+    }
+
+    /**
+     * Reads the block-entity model catalog from the bundled classpath snapshot, then overlays the
+     * pack-supplied {@code renderer/*.json} override channel per top-level entry:
+     * a pack {@code models} entry replaces the classpath model of the same id, and a pack
+     * {@code geometries} entry replaces the classpath bone tree at the same coordinate. An overridden
+     * id still renders through {@link lib.minecraft.renderer.engine.kit.BlockGeometryKit#buildFromBones}
+     * - same kit, same lighting, same parity locks.
+     *
+     * @param diagnostics the scope envelope and read warnings are recorded to
+     * @param overrides the gathered pack override channel; {@link BlockRendererOverrides#EMPTY} for a
+     *     vanilla-only stack, which leaves the result byte-identical to the classpath snapshot
+     * @return the primary models keyed by block id plus any per-variant state-conditional models
+     * @throws PipelineException if a resource is missing, malformed, or a geometry coordinate dangles
+     */
+    public static @NotNull BlockModelLoader.LoadResult load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
         ResourceDocument modelsDoc = BundledResources.read(MODELS_RESOURCE, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         ResourceDocument geometryDoc = BundledResources.read(GEOMETRY_RESOURCE, BundledResources.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
 
         JsonObject models = modelsDoc.payload().toGson().getAsJsonObject().getAsJsonObject("models");
         JsonObject geometries = geometryDoc.payload().toGson().getAsJsonObject().getAsJsonObject("geometries");
+
+        // Overlay the pack override channel per top-level entry (later-wins), so a pack replaces one
+        // block-entity model or one geometry coordinate without shipping the whole snapshot.
+        for (Map.Entry<String, JsonElement> override : overrides.models().entrySet())
+            models.add(override.getKey(), override.getValue());
+        for (Map.Entry<String, JsonElement> override : overrides.geometries().entrySet())
+            geometries.add(override.getKey(), override.getValue());
 
         HashMap<String, Block.Entity> result = new HashMap<>();
         HashMap<String, HashMap<String, Block.Variant>> variantModels = new HashMap<>();
@@ -112,6 +138,10 @@ public final class BlockModelReader {
      * {@code inventory}, {@code tinted}).
      */
     private static Block.Entity.BoneModel buildBoneModel(@NotNull String modelId, @NotNull JsonObject model, @NotNull JsonObject geometries) {
+        // A block-bearing model entry must name a geometry coordinate; a pack renderer/block_models.json
+        // override that omits it fails clearly (model-id attributed) rather than raising a bare NPE.
+        if (!model.has("geometry") || !model.get("geometry").isJsonPrimitive())
+            throw new PipelineException("Block model '%s' has no 'geometry' coordinate", modelId);
         String coordinate = model.get("geometry").getAsString();
         JsonObject geometry = geometries.getAsJsonObject(coordinate);
         if (geometry == null)
