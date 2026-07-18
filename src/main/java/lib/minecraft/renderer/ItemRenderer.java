@@ -42,8 +42,8 @@ import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelNode;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
 import lib.minecraft.renderer.pipeline.pack.item.SpecialKinds;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
 import lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy;
@@ -149,8 +149,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         ItemModelContext modelContext = options.getItemModel();
         if (modelContext.isNeutral() && cit.model().isEmpty()) return baked;
 
-        ItemModelWalker.Resolution resolution = context.findItemTree(options.getItemId())
-            .map(tree -> ItemModelWalker.resolve(tree, modelContext))
+        ItemModelNode.Resolution resolution = context.findItemTree(options.getItemId())
+            .map(tree -> tree.resolve(modelContext))
             .orElse(null);
         // A special leaf maps onto an existing hardcoded / block-entity render path (parse-and-hold);
         // an unknown special kind is diagnosed and dropped. Either way the baked

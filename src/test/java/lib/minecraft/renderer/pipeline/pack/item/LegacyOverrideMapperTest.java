@@ -172,12 +172,12 @@ class LegacyOverrideMapperTest {
 
     private static String resolveAt(ItemModelNode root, Float customModelData) {
         ItemModelContext context = new ItemModelContext("gui", false, false, null, null, 0f, 0f, customModelData, null);
-        return ItemModelWalker.resolve(root, context).modelId().orElse("<none>");
+        return root.resolve(context).modelId().orElse("<none>");
     }
 
     private static String resolveUsingItem(ItemModelNode root, boolean usingItem) {
         ItemModelContext context = new ItemModelContext("gui", usingItem, false, null, null, 0f, 0f, null, null);
-        return ItemModelWalker.resolve(root, context).modelId().orElse("<none>");
+        return root.resolve(context).modelId().orElse("<none>");
     }
 
     private static JsonNode overrides(String... entries) {

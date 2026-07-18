@@ -84,11 +84,11 @@ class Phase7PackSmokeTest {
         assertThat("legacy overrides synthesised an item tree", sword, notNullValue());
 
         assertThat("neutral context renders the base model",
-            ItemModelWalker.resolve(sword, ItemModelContext.gui()).modelId().orElse("<none>"),
+            sword.resolve(ItemModelContext.gui()).modelId().orElse("<none>"),
             is("minecraft:item/diamond_sword"));
         ItemModelContext cmd1 = new ItemModelContext("gui", false, false, null, null, 0f, 0f, 1f, null);
         assertThat("custom_model_data=1 renders the override frame",
-            ItemModelWalker.resolve(sword, cmd1).modelId().orElse("<none>"),
+            sword.resolve(cmd1).modelId().orElse("<none>"),
             is("minecraft:item/diamond_sword_cmd1"));
     }
 

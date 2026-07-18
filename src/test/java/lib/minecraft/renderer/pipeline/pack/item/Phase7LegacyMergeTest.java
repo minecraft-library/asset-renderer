@@ -64,9 +64,9 @@ class Phase7LegacyMergeTest {
 
         // Neutral -> native default; cmd=1 -> the override frame.
         ItemModelTree tree = trees.get("minecraft:leather_helmet");
-        assertThat(ItemModelWalker.resolve(tree, ItemModelContext.gui()).modelId().orElse("<none>"), is("minecraft:item/leather_helmet"));
+        assertThat(tree.resolve(ItemModelContext.gui()).modelId().orElse("<none>"), is("minecraft:item/leather_helmet"));
         ItemModelContext cmd1 = new ItemModelContext("gui", false, false, null, null, 0f, 0f, 1f, null);
-        assertThat(ItemModelWalker.resolve(tree, cmd1).modelId().orElse("<none>"), is("minecraft:item/custom_helmet"));
+        assertThat(tree.resolve(cmd1).modelId().orElse("<none>"), is("minecraft:item/custom_helmet"));
     }
 
     @Test

@@ -15,7 +15,6 @@ import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelNode;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -250,7 +249,7 @@ public class BlockIndexBuilder {
             return Optional.empty();
 
         String resolved = tree
-            .map(t -> ItemModelWalker.resolve(t, ItemModelContext.gui()))
+            .map(t -> t.resolve(ItemModelContext.gui()))
             .map(resolution -> resolution.special()
                 .map(ItemModelNode.Special::base)
                 .orElseGet(() -> resolution.modelId().orElse(null)))

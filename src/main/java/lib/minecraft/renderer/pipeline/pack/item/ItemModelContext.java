@@ -6,8 +6,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Optional;
 
 /**
- * The immutable evaluation context an item-definition tree is walked against
- * ({@link ItemModelWalker}) - a fixed set of neutral GUI defaults plus the handful of caller
+ * The immutable evaluation context an item-definition tree is walked against by
+ * {@link ItemModelNode#resolve(ItemModelContext)} - a fixed set of neutral GUI defaults plus the handful of caller
  * overrides an icon renderer can honestly supply (trim material, dye colour, clock time, compass
  * angle), mirroring how {@code EntityOptions} carries {@code state}/{@code collarColor}/{@code age}.
  *

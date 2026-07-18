@@ -5,6 +5,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * One node of a parsed {@code items/*.json} dispatch tree. The sealed hierarchy
@@ -14,8 +15,8 @@ import java.util.Map;
  * the parser substitutes for an absent branch or an unknown node type (renders nothing, no fallback).
  *
  * <p>Nodes are immutable records built once at pipeline time by {@link ItemModelParser} and evaluated
- * against an {@link ItemModelContext} by {@link ItemModelWalker}. Absent branches are never
- * {@code null} - {@link Empty#INSTANCE} stands in - so the walker never dereferences a missing case.
+ * against an {@link ItemModelContext} by {@link #resolve(ItemModelContext)}. Absent branches are never
+ * {@code null} - {@link Empty#INSTANCE} stands in - so resolution never dereferences a missing case.
  */
 public sealed interface ItemModelNode
     permits ItemModelNode.Model, ItemModelNode.Condition, ItemModelNode.Select,
@@ -101,7 +102,7 @@ public sealed interface ItemModelNode
 
     /**
      * A {@code minecraft:composite} node - all children evaluated and their output concatenated.
-     * The walker's primary-leaf resolution takes the first child that yields a
+     * Primary-leaf resolution takes the first child that yields a
      * model or special leaf.
      *
      * @param models the child nodes, in paint order
@@ -112,7 +113,7 @@ public sealed interface ItemModelNode
      * A {@code minecraft:special} leaf - a hardcoded render kind ({@code bed}, {@code shield},
      * {@code player_head}, {@code copper_golem_statue}, ...) that maps onto an existing render path,
      * carrying the {@code base} item model, the kind's inline fields, and the
-     * {@link SpecialTransform}. Unknown kinds are diagnosed and dropped by the walker.
+     * {@link SpecialTransform}. Unknown kinds are diagnosed and dropped as unrenderable.
      *
      * @param kind the special kind (the inner {@code model.type}, e.g. {@code minecraft:bed})
      * @param base the base item model id (e.g. {@code minecraft:item/white_bed})
@@ -138,6 +139,90 @@ public sealed interface ItemModelNode
 
         /** The shared empty-node instance. */
         public static final @NotNull Empty INSTANCE = new Empty();
+
+    }
+
+    /**
+     * Resolves this node against a context, walking the single branch that renders to its leaf. One
+     * structural pass: a {@code condition} takes the branch its boolean property selects (unknown &rarr;
+     * {@code on_false}); a {@code select} takes the first case whose key matches the context (no match
+     * or unevaluable property &rarr; {@code fallback}); a {@code range_dispatch} takes the highest
+     * threshold {@code <=} the scaled value (none &rarr; {@code fallback}); a {@code composite} takes
+     * its first non-empty child; a {@code model} / {@code special} is a leaf; a {@code bundle} /
+     * {@code empty} renders nothing.
+     *
+     * <p>The neutral {@link ItemModelContext#gui()} context resolves every vanilla tree to its fallback
+     * branch, giving the derived model id and tint list.
+     *
+     * @param context the evaluation context
+     * @return the resolved branch, {@link Resolution#NOTHING} when the branch renders nothing
+     */
+    default @NotNull Resolution resolve(@NotNull ItemModelContext context) {
+        return switch (this) {
+            case Model model -> new Resolution(Optional.of(model.model()), model.tints(), Optional.empty());
+            case Condition condition ->
+                (context.conditionValue(condition.property()) ? condition.onTrue() : condition.onFalse()).resolve(context);
+            case Select select -> resolveSelect(select, context);
+            case RangeDispatch range -> resolveRange(range, context);
+            case Composite composite -> resolveComposite(composite, context);
+            case Special special -> new Resolution(Optional.empty(), List.of(), Optional.of(special));
+            case Bundle ignored -> Resolution.NOTHING;
+            case Empty ignored -> Resolution.NOTHING;
+        };
+    }
+
+    private static @NotNull Resolution resolveSelect(@NotNull Select select, @NotNull ItemModelContext context) {
+        Optional<String> key = context.selectValue(select.property());
+        if (key.isPresent()) {
+            for (Select.Case option : select.cases())
+                if (option.when().contains(key.get())) return option.model().resolve(context);
+        }
+        return select.fallback().resolve(context);
+    }
+
+    private static @NotNull Resolution resolveRange(@NotNull RangeDispatch range, @NotNull ItemModelContext context) {
+        float scaled = range.scale() * context.rangeValue(range.property());
+        RangeDispatch.Entry best = null;
+        for (RangeDispatch.Entry entry : range.entries())
+            if (entry.threshold() <= scaled && (best == null || entry.threshold() > best.threshold())) best = entry;
+        return best != null ? best.model().resolve(context) : range.fallback().resolve(context);
+    }
+
+    private static @NotNull Resolution resolveComposite(@NotNull Composite composite, @NotNull ItemModelContext context) {
+        for (ItemModelNode child : composite.models()) {
+            Resolution resolution = child.resolve(context);
+            if (!resolution.isEmpty()) return resolution;
+        }
+        return Resolution.NOTHING;
+    }
+
+    /**
+     * The resolved branch: the primary model leaf id (if the branch is a plain model), the per-layer
+     * tints from that branch, and the special leaf (if the branch is a hardcoded-render kind). At most
+     * one of {@link #modelId()} / {@link #special()} is present; both empty means the branch renders
+     * nothing.
+     *
+     * @param modelId the resolved plain-model id, or empty for a special / nothing branch
+     * @param tints the per-layer tints from the resolved model branch, empty when untinted
+     * @param special the resolved special leaf, or empty for a plain-model / nothing branch
+     */
+    record Resolution(
+        @NotNull Optional<String> modelId,
+        @NotNull List<LayerTint> tints,
+        @NotNull Optional<Special> special
+    ) {
+
+        /** The empty resolution - a branch that renders nothing. */
+        public static final @NotNull Resolution NOTHING = new Resolution(Optional.empty(), List.of(), Optional.empty());
+
+        /**
+         * Whether this resolution renders nothing (neither a model nor a special leaf).
+         *
+         * @return whether both the model and special leaves are absent
+         */
+        public boolean isEmpty() {
+            return this.modelId.isEmpty() && this.special.isEmpty();
+        }
 
     }
 

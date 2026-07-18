@@ -207,7 +207,7 @@ public class ItemModelTreeLoader {
         HashMap<String, List<LayerTint>> tintMap = new HashMap<>();
         ItemModelContext neutral = ItemModelContext.gui();
         trees.forEach((itemId, tree) -> {
-            List<LayerTint> tints = ItemModelWalker.resolve(tree, neutral).tints();
+            List<LayerTint> tints = tree.resolve(neutral).tints();
             if (!tints.isEmpty()) tintMap.put(itemId, tints);
         });
         return Concurrent.adoptMap(tintMap).toUnmodifiable();

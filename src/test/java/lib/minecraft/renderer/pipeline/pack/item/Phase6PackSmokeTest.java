@@ -58,7 +58,7 @@ class Phase6PackSmokeTest {
         ItemModelTree known = trees.get(NS + ":item/abiphones/abiphone_basic");
         assertThat("known skyblock item-def tree present", known, notNullValue());
         assertThat("skyblock tree resolves to a model leaf",
-            ItemModelWalker.resolve(known, ItemModelContext.gui()).modelId().isPresent(), is(true));
+            known.resolve(ItemModelContext.gui()).modelId().isPresent(), is(true));
     }
 
 }

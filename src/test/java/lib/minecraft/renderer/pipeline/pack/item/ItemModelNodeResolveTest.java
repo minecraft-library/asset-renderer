@@ -14,20 +14,21 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Per-node-type evaluation of {@link ItemModelWalker} against {@link ItemModelContext}, plus the
- * neutral-default resolutions the parity contract rests on (bow unpulled, leather_boots fallback+dye,
- * clock frame 0, compass neutral frame) and the unknown-property fallback-branch degradation.
+ * Per-node-type evaluation of {@link ItemModelNode#resolve(ItemModelContext)} against
+ * {@link ItemModelContext}, plus the neutral-default resolutions the parity contract rests on (bow
+ * unpulled, leather_boots fallback+dye, clock frame 0, compass neutral frame) and the unknown-property
+ * fallback-branch degradation.
  */
-@DisplayName("ItemModelWalker node evaluation")
-class ItemModelWalkerTest {
+@DisplayName("ItemModelNode resolve evaluation")
+class ItemModelNodeResolveTest {
 
     private static ItemModelNode parse(String json) {
         JsonObject root = JsonParser.parseString(json).getAsJsonObject();
         return ItemModelParser.parse(JsonNode.wrap(root.getAsJsonObject("model")));
     }
 
-    private static ItemModelWalker.Resolution resolveNeutral(String json) {
-        return ItemModelWalker.resolve(parse(json), ItemModelContext.gui());
+    private static ItemModelNode.Resolution resolveNeutral(String json) {
+        return parse(json).resolve(ItemModelContext.gui());
     }
 
     @Nested
@@ -54,9 +55,9 @@ class ItemModelWalkerTest {
         @DisplayName("condition takes on_true when the property is true")
         void conditionOnTrue() {
             ItemModelContext using = new ItemModelContext("gui", true, false, null, null, 0f, 0f, null, null);
-            var r = ItemModelWalker.resolve(parse("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:using_item\","
+            var r = parse("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:using_item\","
                 + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/on\"},"
-                + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/off\"}}}"), using);
+                + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/off\"}}}").resolve(using);
             assertThat(r.modelId().orElseThrow(), is("minecraft:item/on"));
         }
 
@@ -78,9 +79,9 @@ class ItemModelWalkerTest {
         @DisplayName("select honours a matching when-array and a caller trim override")
         void selectWhenArrayAndOverride() {
             ItemModelContext iron = new ItemModelContext("gui", false, false, "minecraft:iron", null, 0f, 0f, null, null);
-            var r = ItemModelWalker.resolve(parse("{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\","
+            var r = parse("{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\","
                 + "\"cases\":[{\"when\":[\"minecraft:gold\",\"minecraft:iron\"],\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/iron_trim\"}}],"
-                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}"), iron);
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}").resolve(iron);
             assertThat(r.modelId().orElseThrow(), is("minecraft:item/iron_trim"));
         }
 
@@ -95,7 +96,7 @@ class ItemModelWalkerTest {
 
             ItemModelContext half = new ItemModelContext("gui", false, false, null, null, 0.5f, 0f, null, null);
             assertThat("time=0.5 (scaled 32 >= 0.5) -> frame 1",
-                ItemModelWalker.resolve(parse(tree), half).modelId().orElseThrow(), is("minecraft:item/f1"));
+                parse(tree).resolve(half).modelId().orElseThrow(), is("minecraft:item/f1"));
         }
 
         @Test

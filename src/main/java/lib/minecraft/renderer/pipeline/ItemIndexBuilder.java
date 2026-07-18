@@ -10,7 +10,6 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelWalker;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -121,7 +120,7 @@ public class ItemIndexBuilder {
             String itemId = entry.getKey();
             if (itemIndex.containsKey(itemId) || beEntries.containsKey(itemId)) continue;
 
-            String modelId = ItemModelWalker.resolve(entry.getValue(), neutral).modelId().orElse(null);
+            String modelId = entry.getValue().resolve(neutral).modelId().orElse(null);
             if (modelId == null) continue;
             Item backing = itemIndex.get(ResourceId.ofModelId(modelId).id());
             if (backing == null) continue;
