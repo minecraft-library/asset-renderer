@@ -1,9 +1,8 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
+import lib.minecraft.renderer.json.JsonNode;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -39,10 +38,10 @@ public final class CatharsisConfig {
      * Parses a config document - the {@code config.catharsis.json} array (or the mcmeta config
      * sub-element) - into its option defaults.
      *
-     * @param root the config JSON root (array or object)
+     * @param root the config JSON root node (array or object)
      * @return the parsed defaults, or {@link #EMPTY} when none are found
      */
-    public static @NotNull CatharsisConfig parse(@NotNull JsonElement root) {
+    public static @NotNull CatharsisConfig parse(@NotNull JsonNode root) {
         Map<String, OptionDefault> options = new LinkedHashMap<>();
         walk(root, options);
         return options.isEmpty() ? EMPTY : new CatharsisConfig(Map.copyOf(options));
@@ -92,41 +91,40 @@ public final class CatharsisConfig {
         return this.options.size();
     }
 
-    private static void walk(@NotNull JsonElement element, @NotNull Map<String, OptionDefault> out) {
-        if (element.isJsonArray()) {
-            for (JsonElement child : element.getAsJsonArray()) walk(child, out);
+    private static void walk(@NotNull JsonNode element, @NotNull Map<String, OptionDefault> out) {
+        if (element.isArray()) {
+            for (JsonNode child : element.elements()) walk(child, out);
             return;
         }
-        if (!element.isJsonObject()) return;
-        JsonObject obj = element.getAsJsonObject();
-        if (isStringPrimitive(obj.get("id")))
-            extractDefault(obj).ifPresent(option -> out.putIfAbsent(obj.get("id").getAsString(), option));
-        for (Map.Entry<String, JsonElement> entry : obj.entrySet()) walk(entry.getValue(), out);
+        if (!element.isObject()) return;
+        if (isStringPrimitive(element.get("id")))
+            extractDefault(element).ifPresent(option -> out.putIfAbsent(element.getString("id"), option));
+        for (Map.Entry<String, JsonNode> entry : element.members()) walk(entry.getValue(), out);
     }
 
-    private static @NotNull Optional<OptionDefault> extractDefault(@NotNull JsonObject obj) {
-        if (obj.has("default") && obj.get("default").isJsonPrimitive()) {
-            JsonPrimitive primitive = obj.get("default").getAsJsonPrimitive();
-            if (primitive.isBoolean()) return Optional.of(new OptionDefault.Bool(primitive.getAsBoolean()));
-            if (primitive.isString()) return Optional.of(new OptionDefault.Choice(primitive.getAsString()));
+    private static @NotNull Optional<OptionDefault> extractDefault(@NotNull JsonNode obj) {
+        JsonNode def = obj.get("default");
+        if (def != null && def.isPrimitive()) {
+            if (def.boolValue().isPresent()) return Optional.of(new OptionDefault.Bool(def.boolValue().get()));
+            if (isStringPrimitive(def)) return Optional.of(new OptionDefault.Choice(def.stringValue().orElseThrow()));
         }
-        if (obj.has("options") && obj.get("options").isJsonArray()) {
-            for (JsonElement optionElement : obj.getAsJsonArray("options")) {
-                if (!optionElement.isJsonObject()) continue;
-                JsonObject option = optionElement.getAsJsonObject();
+        Optional<JsonNode> options = obj.findArray("options");
+        if (options.isPresent()) {
+            for (JsonNode option : options.get().elements()) {
+                if (!option.isObject()) continue;
                 if (isTrue(option.get("default")) && isStringPrimitive(option.get("value")))
-                    return Optional.of(new OptionDefault.Choice(option.get("value").getAsString()));
+                    return Optional.of(new OptionDefault.Choice(option.getString("value")));
             }
         }
         return Optional.empty();
     }
 
-    private static boolean isStringPrimitive(JsonElement element) {
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString();
+    private static boolean isStringPrimitive(@Nullable JsonNode element) {
+        return element != null && element.isPrimitive() && element.boolValue().isEmpty() && element.intValue().isEmpty();
     }
 
-    private static boolean isTrue(JsonElement element) {
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isBoolean() && element.getAsBoolean();
+    private static boolean isTrue(@Nullable JsonNode element) {
+        return element != null && element.boolValue().orElse(false);
     }
 
     private static @NotNull Optional<Boolean> parseBoolean(@NotNull String value) {

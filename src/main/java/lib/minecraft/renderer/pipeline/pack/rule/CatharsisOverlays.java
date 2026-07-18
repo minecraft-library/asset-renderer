@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
+import lib.minecraft.renderer.json.JsonNode;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,19 +38,20 @@ public class CatharsisOverlays {
      * @return the active overlay directory names, in entry order
      */
     public static @NotNull List<String> activeOverlayDirectories(
-        @NotNull JsonObject mcmetaRoot, @NotNull CatharsisConfig config, @NotNull CatharsisTarget target
+        @NotNull JsonNode mcmetaRoot, @NotNull CatharsisConfig config, @NotNull CatharsisTarget target
     ) {
-        if (!mcmetaRoot.has(FABRIC_OVERLAYS) || !mcmetaRoot.get(FABRIC_OVERLAYS).isJsonObject()) return List.of();
-        JsonObject overlays = mcmetaRoot.getAsJsonObject(FABRIC_OVERLAYS);
-        if (!overlays.has("entries") || !overlays.get("entries").isJsonArray()) return List.of();
+        Optional<JsonNode> overlays = mcmetaRoot.findObject(FABRIC_OVERLAYS);
+        if (overlays.isEmpty()) return List.of();
+        Optional<JsonNode> entries = overlays.get().findArray("entries");
+        if (entries.isEmpty()) return List.of();
 
         List<String> active = new ArrayList<>();
-        for (JsonElement entryElement : overlays.getAsJsonArray("entries")) {
-            if (!entryElement.isJsonObject()) continue;
-            JsonObject entry = entryElement.getAsJsonObject();
-            if (!isString(entry.get("directory")) || !entry.has("condition") || !entry.get("condition").isJsonObject()) continue;
-            if (CatharsisCondition.parse(entry.getAsJsonObject("condition")).holds(config, target))
-                active.add(entry.get("directory").getAsString());
+        for (JsonNode entry : entries.get().elements()) {
+            if (!entry.isObject()) continue;
+            Optional<JsonNode> condition = entry.findObject("condition");
+            if (!isString(entry.get("directory")) || condition.isEmpty()) continue;
+            if (CatharsisCondition.parse(condition.get()).holds(config, target))
+                active.add(entry.getString("directory"));
         }
         return active;
     }
@@ -64,23 +65,23 @@ public class CatharsisOverlays {
      * @param mcmetaRoot the pack mcmeta JSON root, carrying the fallback {@code catharsis:pack/v1.config}
      * @return the resolved config defaults
      */
-    public static @NotNull CatharsisConfig loadConfig(@NotNull Optional<JsonElement> configFile, @NotNull JsonObject mcmetaRoot) {
+    public static @NotNull CatharsisConfig loadConfig(@NotNull Optional<JsonNode> configFile, @NotNull JsonNode mcmetaRoot) {
         if (configFile.isPresent()) return CatharsisConfig.parse(configFile.get());
         return mcmetaConfig(mcmetaRoot).map(CatharsisConfig::parse).orElse(CatharsisConfig.EMPTY);
     }
 
-    private static @NotNull Optional<JsonElement> mcmetaConfig(@NotNull JsonObject mcmetaRoot) {
-        for (Map.Entry<String, JsonElement> entry : mcmetaRoot.entrySet()) {
-            if (entry.getKey().startsWith(CATHARSIS_PACK_PREFIX) && entry.getValue().isJsonObject()) {
-                JsonObject catharsisPack = entry.getValue().getAsJsonObject();
+    private static @NotNull Optional<JsonNode> mcmetaConfig(@NotNull JsonNode mcmetaRoot) {
+        for (Map.Entry<String, JsonNode> entry : mcmetaRoot.members()) {
+            if (entry.getKey().startsWith(CATHARSIS_PACK_PREFIX) && entry.getValue().isObject()) {
+                JsonNode catharsisPack = entry.getValue();
                 if (catharsisPack.has("config")) return Optional.of(catharsisPack.get("config"));
             }
         }
         return Optional.empty();
     }
 
-    private static boolean isString(JsonElement element) {
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString();
+    private static boolean isString(@Nullable JsonNode element) {
+        return element != null && element.isPrimitive() && element.boolValue().isEmpty() && element.intValue().isEmpty();
     }
 
 }

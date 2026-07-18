@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.json.JsonNode;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -99,8 +100,8 @@ class CatharsisConditionTest {
     @Test
     @DisplayName("config.catharsis.json fully overrides the mcmeta catharsis:pack/v1.config")
     void configFileOverridesMcmeta() {
-        JsonElement configFile = GSON.fromJson("[{\"type\":\"boolean\",\"id\":\"block.ore\",\"default\":true}]", JsonElement.class);
-        JsonObject mcmeta = obj("{\"catharsis:pack/v1\":{\"config\":[{\"type\":\"boolean\",\"id\":\"block.ore\",\"default\":false}]}}");
+        JsonNode configFile = JsonNode.wrap(GSON.fromJson("[{\"type\":\"boolean\",\"id\":\"block.ore\",\"default\":true}]", JsonElement.class));
+        JsonNode mcmeta = obj("{\"catharsis:pack/v1\":{\"config\":[{\"type\":\"boolean\",\"id\":\"block.ore\",\"default\":false}]}}");
 
         CatharsisConfig withFile = CatharsisOverlays.loadConfig(Optional.of(configFile), mcmeta);
         assertThat(withFile.matches("block.ore", Optional.empty()), is(true));   // file wins: default true
@@ -112,7 +113,7 @@ class CatharsisConditionTest {
     @Test
     @DisplayName("activeOverlayDirectories keeps entry order and skips failing / condition-less entries")
     void activeOverlays() {
-        JsonObject mcmeta = obj("{\"fabric:overlays\":{\"entries\":["
+        JsonNode mcmeta = obj("{\"fabric:overlays\":{\"entries\":["
             + "{\"directory\":\"block_ore\",\"condition\":{\"condition\":\"catharsis:config\",\"id\":\"block.ore\",\"value\":\"on\"}},"
             + "{\"directory\":\"theme_dark\",\"condition\":{\"condition\":\"catharsis:config\",\"id\":\"theme.dark\",\"value\":\"on\"}},"
             + "{\"directory\":\"always_off\",\"condition\":{\"condition\":\"fabric:all\"}},"
@@ -139,11 +140,11 @@ class CatharsisConditionTest {
     }
 
     private static @NotNull CatharsisConfig config(@NotNull String json) {
-        return CatharsisConfig.parse(GSON.fromJson(json, JsonElement.class));
+        return CatharsisConfig.parse(JsonNode.wrap(GSON.fromJson(json, JsonElement.class)));
     }
 
-    private static @NotNull JsonObject obj(@NotNull String json) {
-        return GSON.fromJson(json, JsonObject.class);
+    private static @NotNull JsonNode obj(@NotNull String json) {
+        return JsonNode.wrap(GSON.fromJson(json, JsonObject.class));
     }
 
 }

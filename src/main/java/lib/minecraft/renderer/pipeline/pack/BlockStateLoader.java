@@ -1,17 +1,14 @@
 package lib.minecraft.renderer.pipeline.pack;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.json.JsonException;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
@@ -21,7 +18,6 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,8 +39,7 @@ import java.util.Optional;
  * multipart part's {@code "apply"} value is an array (a weighted-random set), only the FIRST entry is
  * used. This is a parity requirement, not a simplification: the vanilla-reference harness forces
  * {@code FirstVariantRandomSource.nextInt -> 0}, so every ground-truth icon renders the first array
- * entry. Both array sites therefore share one deterministic rule (see {@link #parseVariants} and
- * {@link #parseMultipart}).
+ * entry. Both array sites therefore share one deterministic rule ({@link #firstApply}).
  * <p>
  * The merge runs over the {@link PackStack} effective file set: packs ascending, each pack's
  * {@code filter.block} erasing matching lower-pack ids before its own subtrees merge in, and a
@@ -57,8 +52,6 @@ import java.util.Optional;
  */
 @UtilityClass
 public class BlockStateLoader {
-
-    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
      * Loads blockstate JSON files across the whole pack stack. Packs are visited ascending; before
@@ -184,19 +177,19 @@ public class BlockStateLoader {
         String blockId = VanillaSourcePaths.namespacePrefix(namespace) + blockName;
 
         try {
-            JsonObject root = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
-            if (root == null) return Optional.empty();
+            JsonNode root = JsonNode.parse(container.bytes(entry).orElseThrow());
+            if (!root.isObject()) return Optional.empty();
 
             if (root.has("variants")) {
-                ConcurrentMap<String, Block.Variant> parsed = parseVariants(root.getAsJsonObject("variants"), blockModels);
+                ConcurrentMap<String, Block.Variant> parsed = parseVariants(root.get("variants"), blockModels);
                 if (!parsed.isEmpty()) return Optional.of(new Parsed(blockId, parsed, null));
             } else if (root.has("multipart")) {
-                Block.Multipart parsed = parseMultipart(root.getAsJsonArray("multipart"), blockModels);
+                Block.Multipart parsed = parseMultipart(root.get("multipart"), blockModels);
                 if (!parsed.parts().isEmpty()) return Optional.of(new Parsed(blockId, null, parsed));
             }
             // Valid JSON, nothing renderable: shadow the lower pack's entry (whole-file replace).
             return Optional.of(new Parsed(blockId, null, null));
-        } catch (JsonSyntaxException ex) {
+        } catch (JsonException ex) {
             // Malformed: fall back to a lower pack's copy (no shadow).
             return Optional.empty();
         }
@@ -223,27 +216,25 @@ public class BlockStateLoader {
      * @param blockModels the parsed model set used to bake each variant's resolved {@link ModelData}
      * @return the variant map keyed by property-combination string, unmodifiable
      */
-    private static @NotNull ConcurrentMap<String, Block.Variant> parseVariants(@NotNull JsonObject variants, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+    private static @NotNull ConcurrentMap<String, Block.Variant> parseVariants(@NotNull JsonNode variants, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         HashMap<String, Block.Variant> result = new HashMap<>();
-
-        for (Map.Entry<String, JsonElement> entry : variants.entrySet()) {
-            JsonElement value = entry.getValue();
-
-            // Variants can be a single object or an array (weighted random); take the first
-            JsonObject variantObj;
-            if (value.isJsonArray()) {
-                if (value.getAsJsonArray().isEmpty()) continue;
-                variantObj = value.getAsJsonArray().get(0).getAsJsonObject();
-            } else if (value.isJsonObject()) {
-                variantObj = value.getAsJsonObject();
-            } else {
-                continue;
-            }
-
-            result.put(entry.getKey(), parseApply(variantObj, blockModels));
-        }
-
+        for (Map.Entry<String, JsonNode> entry : variants.members())
+            firstApply(entry.getValue()).ifPresent(obj -> result.put(entry.getKey(), parseApply(obj, blockModels)));
         return Concurrent.adoptMap(result).toUnmodifiable();
+    }
+
+    /**
+     * The applicable variant object for a {@code "variants"} value or a multipart part's {@code "apply"}
+     * value - the shared weighted-array first-entry rule (harness {@code FirstVariantRandomSource -> 0}
+     * parity). An array yields its first element, a bare object yields itself, and anything else (a
+     * non-object, an empty array, or a non-object first element) yields empty so the caller skips it.
+     *
+     * @param value the {@code "variants"} value or {@code "apply"} value
+     * @return the applicable object node, or empty when there is none
+     */
+    private static @NotNull Optional<JsonNode> firstApply(@NotNull JsonNode value) {
+        JsonNode candidate = value.isArray() ? value.at(0) : value;
+        return candidate != null && candidate.isObject() ? Optional.of(candidate) : Optional.empty();
     }
 
     /**
@@ -251,7 +242,7 @@ public class BlockStateLoader {
      * optional {@code "when"} condition object (retained verbatim for runtime property matching) and
      * an {@code "apply"} value - a single variant object or a weighted-random array of them. When the
      * {@code "apply"} value is an array, the FIRST entry is taken, the same normative first-entry rule
-     * {@link #parseVariants} applies to weighted {@code "variants"} arrays (harness
+     * {@link #firstApply} applies to weighted {@code "variants"} arrays (harness
      * {@code FirstVariantRandomSource -> 0} parity). Non-object elements and entries with no
      * {@code "apply"} or an empty {@code "apply"} array are skipped.
      *
@@ -259,31 +250,23 @@ public class BlockStateLoader {
      * @param blockModels the parsed model set used to bake each part's resolved {@link ModelData}
      * @return the assembled multipart block
      */
-    private static @NotNull Block.Multipart parseMultipart(@NotNull JsonArray parts, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+    private static @NotNull Block.Multipart parseMultipart(@NotNull JsonNode parts, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         ArrayList<Block.Multipart.Part> result = new ArrayList<>();
 
-        for (JsonElement element : parts) {
-            if (!element.isJsonObject()) continue;
-            JsonObject partObj = element.getAsJsonObject();
+        for (JsonNode element : parts.elements()) {
+            if (!element.isObject()) continue;
 
-            JsonObject when = partObj.has("when") ? partObj.getAsJsonObject("when") : null;
+            // Block.Multipart.Part carries the raw when-object (typed at a later phase), so hand it the
+            // live insertion-ordered element rather than a re-serialised copy.
+            JsonObject when = element.has("when") ? element.get("when").toGson().getAsJsonObject() : null;
 
             // "apply" can be a single object or an array (weighted random); take the first
-            JsonElement applyElement = partObj.get("apply");
-            if (applyElement == null) continue;
+            JsonNode applyValue = element.get("apply");
+            if (applyValue == null) continue;
+            Optional<JsonNode> applyObj = firstApply(applyValue);
+            if (applyObj.isEmpty()) continue;
 
-            JsonObject applyObj;
-            if (applyElement.isJsonArray()) {
-                JsonArray arr = applyElement.getAsJsonArray();
-                if (arr.isEmpty()) continue;
-                applyObj = arr.get(0).getAsJsonObject();
-            } else if (applyElement.isJsonObject()) {
-                applyObj = applyElement.getAsJsonObject();
-            } else {
-                continue;
-            }
-
-            result.add(new Block.Multipart.Part(when, parseApply(applyObj, blockModels)));
+            result.add(new Block.Multipart.Part(when, parseApply(applyObj.get(), blockModels)));
         }
 
         return new Block.Multipart(Concurrent.adoptList(result).toUnmodifiable());
@@ -300,11 +283,11 @@ public class BlockStateLoader {
      * @param blockModels the parsed model set used to resolve the model id to {@link ModelData}
      * @return the parsed variant with its geometry baked in
      */
-    private static @NotNull Block.Variant parseApply(@NotNull JsonObject obj, @NotNull ConcurrentMap<String, ModelData> blockModels) {
-        String modelId = obj.has("model") ? obj.get("model").getAsString() : "";
-        int x = obj.has("x") ? obj.get("x").getAsInt() : 0;
-        int y = obj.has("y") ? obj.get("y").getAsInt() : 0;
-        boolean uvlock = obj.has("uvlock") && obj.get("uvlock").getAsBoolean();
+    private static @NotNull Block.Variant parseApply(@NotNull JsonNode obj, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+        String modelId = obj.getString("model", "");
+        int x = obj.getInt("x", 0);
+        int y = obj.getInt("y", 0);
+        boolean uvlock = obj.getBool("uvlock", false);
         return new Block.Variant(modelId, x, y, uvlock, new Block.ElementGeometry(resolveVariantModel(modelId, blockModels)));
     }
 

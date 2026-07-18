@@ -1,11 +1,10 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.json.JsonNode;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -40,23 +39,23 @@ public class ItemModelParser {
      * @param model the {@code model} object from an {@code items/*.json} file
      * @return the parsed root node, or {@link ItemModelNode.Empty} for an unknown or too-deep node
      */
-    public static @NotNull ItemModelNode parse(@NotNull JsonObject model) {
+    public static @NotNull ItemModelNode parse(@NotNull JsonNode model) {
         return parse(model, 0);
     }
 
-    private static @NotNull ItemModelNode parse(@NotNull JsonObject node, int depth) {
+    private static @NotNull ItemModelNode parse(@NotNull JsonNode node, int depth) {
         if (depth >= MAX_DEPTH) return ItemModelNode.Empty.INSTANCE;
-        String type = strip(string(node, "type", ""));
+        String type = strip(node.getString("type", ""));
         return switch (type) {
-            case "model" -> new ItemModelNode.Model(string(node, "model", ""), parseTints(node));
+            case "model" -> new ItemModelNode.Model(node.getString("model", ""), parseTints(node));
             case "condition" -> new ItemModelNode.Condition(
-                string(node, "property", ""), string(node, "component", ""),
+                node.getString("property", ""), node.getString("component", ""),
                 child(node, "on_true", depth), child(node, "on_false", depth));
             case "select" -> new ItemModelNode.Select(
-                string(node, "property", ""), string(node, "block_state_property", ""),
+                node.getString("property", ""), node.getString("block_state_property", ""),
                 parseCases(node, depth), child(node, "fallback", depth));
             case "range_dispatch" -> new ItemModelNode.RangeDispatch(
-                string(node, "property", ""), floatValue(node, "scale", 1f), string(node, "target", ""),
+                node.getString("property", ""), floatValue(node, "scale", 1f), node.getString("target", ""),
                 parseEntries(node, depth), child(node, "fallback", depth));
             case "composite" -> new ItemModelNode.Composite(parseModels(node, depth));
             case "special" -> parseSpecial(node);
@@ -66,21 +65,22 @@ public class ItemModelParser {
     }
 
     /** Parses a {@code special} node into a {@link ItemModelNode.Special}, collecting its inline kind fields. */
-    private static @NotNull ItemModelNode parseSpecial(@NotNull JsonObject node) {
-        JsonObject inner = node.has("model") && node.get("model").isJsonObject() ? node.getAsJsonObject("model") : new JsonObject();
-        String kind = string(inner, "type", "");
+    private static @NotNull ItemModelNode parseSpecial(@NotNull JsonNode node) {
+        JsonNode inner = node.findObject("model").orElseGet(JsonNode::object);
+        String kind = inner.getString("type", "");
         Map<String, String> fields = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : inner.entrySet()) {
+        for (Map.Entry<String, JsonNode> entry : inner.members()) {
             if (entry.getKey().equals("type")) continue;
-            if (entry.getValue().isJsonPrimitive()) fields.put(entry.getKey(), entry.getValue().getAsString());
+            JsonNode value = entry.getValue();
+            if (value.isPrimitive()) fields.put(entry.getKey(), value.stringValue().orElseThrow());
         }
-        return new ItemModelNode.Special(kind, string(node, "base", ""), Map.copyOf(fields), parseTransform(node));
+        return new ItemModelNode.Special(kind, node.getString("base", ""), Map.copyOf(fields), parseTransform(node));
     }
 
     /** Parses a node's {@code transformation}, or {@link SpecialTransform#IDENTITY} when absent / malformed. */
-    private static @NotNull SpecialTransform parseTransform(@NotNull JsonObject node) {
-        if (!node.has("transformation") || !node.get("transformation").isJsonObject()) return SpecialTransform.IDENTITY;
-        JsonObject t = node.getAsJsonObject("transformation");
+    private static @NotNull SpecialTransform parseTransform(@NotNull JsonNode node) {
+        JsonNode t = node.get("transformation");
+        if (t == null || !t.isObject()) return SpecialTransform.IDENTITY;
         return new SpecialTransform(
             floatArray(t, "left_rotation", SpecialTransform.IDENTITY.leftRotation()),
             floatArray(t, "right_rotation", SpecialTransform.IDENTITY.rightRotation()),
@@ -88,57 +88,56 @@ public class ItemModelParser {
             floatArray(t, "translation", SpecialTransform.IDENTITY.translation()));
     }
 
-    private static @NotNull List<ItemModelNode.Select.Case> parseCases(@NotNull JsonObject node, int depth) {
+    private static @NotNull List<ItemModelNode.Select.Case> parseCases(@NotNull JsonNode node, int depth) {
         List<ItemModelNode.Select.Case> cases = new ArrayList<>();
-        if (node.has("cases") && node.get("cases").isJsonArray()) {
-            for (JsonElement element : node.getAsJsonArray("cases")) {
-                if (!element.isJsonObject()) continue;
-                JsonObject c = element.getAsJsonObject();
-                cases.add(new ItemModelNode.Select.Case(parseWhen(c.get("when")), child(c, "model", depth)));
+        JsonNode array = node.get("cases");
+        if (array != null && array.isArray())
+            for (JsonNode element : array.elements()) {
+                if (!element.isObject()) continue;
+                cases.add(new ItemModelNode.Select.Case(parseWhen(element.get("when")), child(element, "model", depth)));
             }
-        }
         return List.copyOf(cases);
     }
 
-    private static @NotNull List<ItemModelNode.RangeDispatch.Entry> parseEntries(@NotNull JsonObject node, int depth) {
+    private static @NotNull List<ItemModelNode.RangeDispatch.Entry> parseEntries(@NotNull JsonNode node, int depth) {
         List<ItemModelNode.RangeDispatch.Entry> entries = new ArrayList<>();
-        if (node.has("entries") && node.get("entries").isJsonArray()) {
-            for (JsonElement element : node.getAsJsonArray("entries")) {
-                if (!element.isJsonObject()) continue;
-                JsonObject e = element.getAsJsonObject();
-                entries.add(new ItemModelNode.RangeDispatch.Entry(floatValue(e, "threshold", 0f), child(e, "model", depth)));
+        JsonNode array = node.get("entries");
+        if (array != null && array.isArray())
+            for (JsonNode element : array.elements()) {
+                if (!element.isObject()) continue;
+                entries.add(new ItemModelNode.RangeDispatch.Entry(floatValue(element, "threshold", 0f), child(element, "model", depth)));
             }
-        }
         return List.copyOf(entries);
     }
 
-    private static @NotNull List<ItemModelNode> parseModels(@NotNull JsonObject node, int depth) {
+    private static @NotNull List<ItemModelNode> parseModels(@NotNull JsonNode node, int depth) {
         List<ItemModelNode> models = new ArrayList<>();
-        if (node.has("models") && node.get("models").isJsonArray()) {
-            for (JsonElement element : node.getAsJsonArray("models"))
-                if (element.isJsonObject()) models.add(parse(element.getAsJsonObject(), depth + 1));
-        }
+        JsonNode array = node.get("models");
+        if (array != null && array.isArray())
+            for (JsonNode element : array.elements())
+                if (element.isObject()) models.add(parse(element, depth + 1));
         return List.copyOf(models);
     }
 
     /** Parses a {@code when} value: a single string, or an array of strings. */
-    private static @NotNull List<String> parseWhen(JsonElement when) {
+    private static @NotNull List<String> parseWhen(@Nullable JsonNode when) {
         if (when == null) return List.of();
-        if (when.isJsonArray()) {
+        if (when.isArray()) {
             List<String> keys = new ArrayList<>();
-            for (JsonElement element : when.getAsJsonArray())
-                if (element.isJsonPrimitive()) keys.add(element.getAsString());
+            for (JsonNode element : when.elements())
+                if (element.isPrimitive()) keys.add(element.stringValue().orElseThrow());
             return List.copyOf(keys);
         }
-        return when.isJsonPrimitive() ? List.of(when.getAsString()) : List.of();
+        return when.isPrimitive() ? List.of(when.stringValue().orElseThrow()) : List.of();
     }
 
     /** Parses the {@code tints[]} array of a {@code model} node into ordered per-layer tint rules. */
-    private static @NotNull List<LayerTint> parseTints(@NotNull JsonObject model) {
-        if (!model.has("tints") || !model.get("tints").isJsonArray()) return List.of();
+    private static @NotNull List<LayerTint> parseTints(@NotNull JsonNode model) {
+        JsonNode array = model.get("tints");
+        if (array == null || !array.isArray()) return List.of();
         List<LayerTint> tints = new ArrayList<>();
-        for (JsonElement element : model.getAsJsonArray("tints"))
-            if (element.isJsonObject()) tints.add(parseTint(element.getAsJsonObject()));
+        for (JsonNode element : array.elements())
+            if (element.isObject()) tints.add(parseTint(element));
         return List.copyOf(tints);
     }
 
@@ -147,8 +146,8 @@ public class ItemModelParser {
      * cannot resolve dynamically ({@code grass}, {@code map_color}, {@code custom_model_data}, ...)
      * become a white {@link LayerTint.Constant} - rendered untinted rather than guessing.
      */
-    private static @NotNull LayerTint parseTint(@NotNull JsonObject tint) {
-        return switch (strip(string(tint, "type", ""))) {
+    private static @NotNull LayerTint parseTint(@NotNull JsonNode tint) {
+        return switch (strip(tint.getString("type", ""))) {
             case "dye" -> new LayerTint.Dye(toArgb(tint, "default"));
             case "potion" -> new LayerTint.Potion(toArgb(tint, "default"));
             case "firework" -> new LayerTint.Firework(toArgb(tint, "default"));
@@ -163,41 +162,41 @@ public class ItemModelParser {
      * Defaults to white when the key is absent or non-numeric (a pack author writing the colour as a
      * quoted hex string {@code "#ffffff"} degrades to white rather than aborting the whole load).
      */
-    private static int toArgb(@NotNull JsonObject tint, @NotNull String key) {
-        if (!tint.has(key) || !tint.get(key).isJsonPrimitive()) return 0xFFFFFFFF;
+    private static int toArgb(@NotNull JsonNode tint, @NotNull String key) {
+        JsonNode value = tint.get(key);
+        if (value == null || !value.isPrimitive()) return 0xFFFFFFFF;
         try {
-            return 0xFF000000 | (tint.get(key).getAsInt() & 0xFFFFFF);
+            return 0xFF000000 | (value.toGson().getAsInt() & 0xFFFFFF);
         } catch (NumberFormatException ex) {
             return 0xFFFFFFFF;
         }
     }
 
     /** Parses {@code object[key]} as a child node, or {@link ItemModelNode.Empty} when absent / not an object. */
-    private static @NotNull ItemModelNode child(@NotNull JsonObject object, @NotNull String key, int depth) {
-        return object.has(key) && object.get(key).isJsonObject()
-            ? parse(object.getAsJsonObject(key), depth + 1)
-            : ItemModelNode.Empty.INSTANCE;
+    private static @NotNull ItemModelNode child(@NotNull JsonNode object, @NotNull String key, int depth) {
+        return object.findObject(key).map(child -> parse(child, depth + 1)).orElse(ItemModelNode.Empty.INSTANCE);
     }
 
-    private static @NotNull String string(@NotNull JsonObject object, @NotNull String key, @NotNull String fallback) {
-        return object.has(key) && object.get(key).isJsonPrimitive() ? object.get(key).getAsString() : fallback;
-    }
-
-    private static float floatValue(@NotNull JsonObject object, @NotNull String key, float fallback) {
-        if (!object.has(key) || !object.get(key).isJsonPrimitive()) return fallback;
+    /**
+     * Reads {@code node[key]} as a float, or {@code fallback} when it is absent, a non-primitive, or a
+     * non-numeric primitive (a quoted {@code "min"} threshold degrades rather than aborting the load).
+     */
+    private static float floatValue(@NotNull JsonNode node, @NotNull String key, float fallback) {
+        JsonNode value = node.get(key);
+        if (value == null || !value.isPrimitive()) return fallback;
         try {
-            return object.get(key).getAsFloat();
+            return value.toGson().getAsFloat();
         } catch (NumberFormatException ex) {
             return fallback;
         }
     }
 
-    private static float @NotNull [] floatArray(@NotNull JsonObject object, @NotNull String key, float @NotNull [] fallback) {
-        if (!object.has(key) || !object.get(key).isJsonArray()) return fallback.clone();
-        JsonArray array = object.getAsJsonArray(key);
+    private static float @NotNull [] floatArray(@NotNull JsonNode node, @NotNull String key, float @NotNull [] fallback) {
+        JsonNode array = node.get(key);
+        if (array == null || !array.isArray()) return fallback.clone();
         float[] out = new float[array.size()];
         try {
-            for (int i = 0; i < array.size(); i++) out[i] = array.get(i).getAsFloat();
+            for (int i = 0; i < array.size(); i++) out[i] = array.at(i).toGson().getAsFloat();
         } catch (RuntimeException ex) {
             // A non-numeric or nested element (getAsFloat throws NumberFormatException /
             // UnsupportedOperationException / IllegalStateException): fall back to the default array.

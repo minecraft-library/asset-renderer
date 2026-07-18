@@ -1,8 +1,7 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
+import lib.minecraft.renderer.json.JsonNode;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
@@ -80,13 +79,14 @@ public final class BlockDefaultsLoader {
         // a pack supplying a default state removes any classpath "unresolved" mark for it. A non-object
         // entry (e.g. the author wrote the flat "facing=east" runtime form instead of {"facing":"east"})
         // is skipped with a warning rather than silently dropped.
-        JsonObject defaultOverrides = overrides.defaults();
-        for (String blockId : defaultOverrides.keySet()) {
-            if (!defaultOverrides.get(blockId).isJsonObject()) {
+        JsonNode defaultOverrides = overrides.defaults();
+        for (Map.Entry<String, JsonNode> override : defaultOverrides.members()) {
+            String blockId = override.getKey();
+            if (!override.getValue().isObject()) {
                 System.err.printf("renderer/block_defaults.json override for '%s' is not a {property:value} object; ignored%n", blockId);
                 continue;
             }
-            blocks.put(blockId, toStringMap(blockId, defaultOverrides.getAsJsonObject(blockId)));
+            blocks.put(blockId, toStringMap(blockId, override.getValue()));
             unresolved.remove(blockId);
         }
 
@@ -108,13 +108,13 @@ public final class BlockDefaultsLoader {
      * @return the property-to-value map
      * @throws PipelineException if a property value is not a JSON primitive
      */
-    private static @NotNull Map<String, String> toStringMap(@NotNull String blockId, @NotNull JsonObject state) {
+    private static @NotNull Map<String, String> toStringMap(@NotNull String blockId, @NotNull JsonNode state) {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
-        for (String property : state.keySet()) {
-            JsonElement value = state.get(property);
-            if (!value.isJsonPrimitive())
-                throw new PipelineException("Block-defaults override for '%s' property '%s' is not a scalar value", blockId, property);
-            map.put(property, value.getAsString());
+        for (Map.Entry<String, JsonNode> entry : state.members()) {
+            JsonNode value = entry.getValue();
+            if (!value.isPrimitive())
+                throw new PipelineException("Block-defaults override for '%s' property '%s' is not a scalar value", blockId, entry.getKey());
+            map.put(entry.getKey(), value.stringValue().orElseThrow());
         }
         return map;
     }

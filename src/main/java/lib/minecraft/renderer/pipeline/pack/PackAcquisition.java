@@ -2,13 +2,13 @@ package lib.minecraft.renderer.pipeline.pack;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
@@ -153,7 +153,7 @@ public final class PackAcquisition {
         // InvalidPathException on resolve, ...) must degrade to no Catharsis overlays, never break the
         // acquisition of this or any other pack (overlays inert, never error).
         try {
-            Optional<JsonObject> mcmeta = readJsonObject(container, "pack.mcmeta");
+            Optional<JsonNode> mcmeta = readJsonObject(container, "pack.mcmeta");
             if (mcmeta.isEmpty()) return;
             CatharsisConfig config = CatharsisOverlays.loadConfig(readJson(container, CONFIG_CATHARSIS), mcmeta.get());
             CatharsisTarget catharsisTarget = new CatharsisTarget(target.major(), minecraftVersion);
@@ -164,16 +164,17 @@ public final class PackAcquisition {
         }
     }
 
-    /** Reads and parses a container entry as a JSON object, empty when absent or malformed (Catharsis never errors). */
-    private static @NotNull Optional<JsonObject> readJsonObject(@NotNull PackContainer container, @NotNull String path) {
-        return readJson(container, path).filter(JsonElement::isJsonObject).map(JsonElement::getAsJsonObject);
+    /** Reads and parses a container entry as a JSON object node, empty when absent or malformed (Catharsis never errors). */
+    private static @NotNull Optional<JsonNode> readJsonObject(@NotNull PackContainer container, @NotNull String path) {
+        return readJson(container, path).filter(JsonNode::isObject);
     }
 
-    /** Reads and parses a container entry as a JSON element, empty when absent or malformed. */
-    private static @NotNull Optional<JsonElement> readJson(@NotNull PackContainer container, @NotNull String path) {
+    /** Reads and parses a container entry as a JSON node, empty when absent or malformed. */
+    private static @NotNull Optional<JsonNode> readJson(@NotNull PackContainer container, @NotNull String path) {
         return container.bytes(path).flatMap(bytes -> {
             try {
-                return Optional.ofNullable(GSON.fromJson(new String(bytes, StandardCharsets.UTF_8), JsonElement.class));
+                JsonElement parsed = GSON.fromJson(new String(bytes, StandardCharsets.UTF_8), JsonElement.class);
+                return parsed == null ? Optional.empty() : Optional.of(JsonNode.wrap(parsed));
             } catch (JsonSyntaxException ex) {
                 return Optional.empty();
             }
@@ -225,17 +226,18 @@ public final class PackAcquisition {
     }
 
     /** Whether the pack mcmeta carries a {@code catharsis:pack/v1} section or a {@code fabric:overlays} entry gated on a {@code catharsis:*} condition. */
-    private static boolean hasCatharsisMcmetaSignal(@NotNull JsonObject mcmetaRoot) {
-        if (mcmetaRoot.keySet().stream().anyMatch(key -> key.startsWith("catharsis:pack"))) return true;
-        if (!mcmetaRoot.has("fabric:overlays") || !mcmetaRoot.get("fabric:overlays").isJsonObject()) return false;
-        JsonObject overlays = mcmetaRoot.getAsJsonObject("fabric:overlays");
-        if (!overlays.has("entries") || !overlays.get("entries").isJsonArray()) return false;
-        for (JsonElement entryElement : overlays.getAsJsonArray("entries")) {
-            if (!entryElement.isJsonObject()) continue;
-            JsonObject entry = entryElement.getAsJsonObject();
-            if (!entry.has("condition") || !entry.get("condition").isJsonObject()) continue;
-            JsonElement condition = entry.getAsJsonObject("condition").get("condition");
-            if (condition != null && condition.isJsonPrimitive() && condition.getAsString().startsWith("catharsis:")) return true;
+    private static boolean hasCatharsisMcmetaSignal(@NotNull JsonNode mcmetaRoot) {
+        if (mcmetaRoot.keys().anyMatch(key -> key.startsWith("catharsis:pack"))) return true;
+        Optional<JsonNode> overlays = mcmetaRoot.findObject("fabric:overlays");
+        if (overlays.isEmpty()) return false;
+        Optional<JsonNode> entries = overlays.get().findArray("entries");
+        if (entries.isEmpty()) return false;
+        for (JsonNode entry : entries.get().elements()) {
+            if (!entry.isObject()) continue;
+            Optional<JsonNode> conditionObj = entry.findObject("condition");
+            if (conditionObj.isEmpty()) continue;
+            String condition = conditionObj.get().getString("condition");
+            if (condition != null && condition.startsWith("catharsis:")) return true;
         }
         return false;
     }

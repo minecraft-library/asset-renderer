@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline.load;
 
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
-import com.google.gson.JsonObject;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
@@ -10,6 +10,7 @@ import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -40,9 +41,9 @@ import java.util.Optional;
  * @param defaults block id to structured default-state object, overlaying {@code block_defaults.json}'s {@code blocks}
  */
 public record BlockRendererOverrides(
-    @NotNull JsonObject models,
-    @NotNull JsonObject geometries,
-    @NotNull JsonObject defaults
+    @NotNull JsonNode models,
+    @NotNull JsonNode geometries,
+    @NotNull JsonNode defaults
 ) {
 
     /** Pack-root path of the block-model catalog override, mirroring the classpath {@code block_models.json}. */
@@ -59,7 +60,7 @@ public record BlockRendererOverrides(
      * and used by the no-override reader overloads to keep their output byte-identical.
      */
     public static final @NotNull BlockRendererOverrides EMPTY =
-        new BlockRendererOverrides(new JsonObject(), new JsonObject(), new JsonObject());
+        new BlockRendererOverrides(JsonNode.object(), JsonNode.object(), JsonNode.object());
 
     /**
      * Gathers the block-entity geometry overrides across the whole pack stack.
@@ -70,9 +71,9 @@ public record BlockRendererOverrides(
      * @throws PipelineException if a pack's override file fails format-2 envelope validation
      */
     public static @NotNull BlockRendererOverrides gather(@NotNull PackStack stack, @NotNull Diagnostics diagnostics) {
-        JsonObject models = new JsonObject();
-        JsonObject geometries = new JsonObject();
-        JsonObject defaults = new JsonObject();
+        JsonNode models = JsonNode.object();
+        JsonNode geometries = JsonNode.object();
+        JsonNode defaults = JsonNode.object();
         for (ResourcePack pack : stack.ascending()) {
             overlay(pack, MODELS_PATH, "models", models, diagnostics);
             overlay(pack, GEOMETRY_PATH, "geometries", geometries, diagnostics);
@@ -87,7 +88,7 @@ public record BlockRendererOverrides(
      * @return {@code true} when all three accumulators are empty
      */
     public boolean isEmpty() {
-        return this.models.isEmpty() && this.geometries.isEmpty() && this.defaults.isEmpty();
+        return this.models.size() == 0 && this.geometries.size() == 0 && this.defaults.size() == 0;
     }
 
     /**
@@ -97,7 +98,7 @@ public record BlockRendererOverrides(
      * warning rather than treated as an error - a pack may ship any subset of the three files.
      */
     private static void overlay(@NotNull ResourcePack pack, @NotNull String path, @NotNull String key,
-                                @NotNull JsonObject accumulator, @NotNull Diagnostics diagnostics) {
+                                @NotNull JsonNode accumulator, @NotNull Diagnostics diagnostics) {
         Optional<byte[]> bytes = readAcrossRoots(pack, path);
         if (bytes.isEmpty()) return;
 
@@ -110,14 +111,13 @@ public record BlockRendererOverrides(
             throw new PipelineException(ex, "Pack '%s' renderer override '%s' failed format-2 envelope validation", pack.id(), path);
         }
 
-        JsonObject root = document.payload().toGson().getAsJsonObject();
-        if (!root.has(key) || !root.get(key).isJsonObject()) {
+        Optional<JsonNode> sub = document.payload().findObject(key);
+        if (sub.isEmpty()) {
             System.err.printf("Pack '%s' renderer override '%s' has no '%s' object; ignored%n", pack.id(), path, key);
             return;
         }
-        JsonObject sub = root.getAsJsonObject(key);
-        for (String entryKey : sub.keySet())
-            accumulator.add(entryKey, sub.get(entryKey).deepCopy());
+        for (Map.Entry<String, JsonNode> entry : sub.get().members())
+            accumulator.put(entry.getKey(), entry.getValue().deepCopy());
     }
 
     /**

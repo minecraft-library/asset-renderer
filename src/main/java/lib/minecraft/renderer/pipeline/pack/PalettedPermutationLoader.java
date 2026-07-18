@@ -1,11 +1,8 @@
 package lib.minecraft.renderer.pipeline.pack;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
-import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.engine.texture.PalettedPermutationSource;
+import lib.minecraft.renderer.json.JsonException;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
@@ -14,7 +11,6 @@ import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,8 +32,6 @@ import java.util.Optional;
  */
 @UtilityClass
 public class PalettedPermutationLoader {
-
-    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     private static final @NotNull String PALETTED_PERMUTATIONS_TYPE = "minecraft:paletted_permutations";
 
@@ -74,40 +68,34 @@ public class PalettedPermutationLoader {
     /** Parses one atlas file, appending each {@code paletted_permutations} source it declares. */
     private static void parseAtlas(@NotNull PackContainer container, @NotNull String entry, @NotNull List<PalettedPermutationSource> out) {
         try {
-            JsonObject json = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
-            if (json == null || !json.has("sources") || !json.get("sources").isJsonArray()) return;
-            for (JsonElement element : json.getAsJsonArray("sources")) {
-                if (!element.isJsonObject()) continue;
-                JsonObject source = element.getAsJsonObject();
-                if (!PALETTED_PERMUTATIONS_TYPE.equals(string(source, "type"))) continue;
-                parseSource(source).ifPresent(out::add);
+            JsonNode json = JsonNode.parse(container.bytes(entry).orElseThrow());
+            Optional<JsonNode> sources = json.findArray("sources");
+            if (sources.isEmpty()) return;
+            for (JsonNode element : sources.get().elements()) {
+                if (!element.isObject()) continue;
+                if (!PALETTED_PERMUTATIONS_TYPE.equals(element.getString("type"))) continue;
+                parseSource(element).ifPresent(out::add);
             }
-        } catch (JsonSyntaxException ex) {
+        } catch (JsonException ex) {
             System.err.printf("Skipping malformed atlas '%s': %s%n", entry, ex.getMessage());
         }
     }
 
     /** Parses a single {@code paletted_permutations} source object, or empty when it is malformed. */
-    private static @NotNull Optional<PalettedPermutationSource> parseSource(@NotNull JsonObject source) {
-        String paletteKey = string(source, "palette_key");
-        if (paletteKey == null || !source.has("permutations") || !source.get("permutations").isJsonObject()
-            || !source.has("textures") || !source.get("textures").isJsonArray())
+    private static @NotNull Optional<PalettedPermutationSource> parseSource(@NotNull JsonNode source) {
+        String paletteKey = source.getString("palette_key");
+        Optional<JsonNode> permutationsNode = source.findObject("permutations");
+        if (paletteKey == null || permutationsNode.isEmpty() || source.findArray("textures").isEmpty())
             return Optional.empty();
 
         Map<String, String> permutations = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : source.getAsJsonObject("permutations").entrySet())
-            if (entry.getValue().isJsonPrimitive()) permutations.put(entry.getKey(), entry.getValue().getAsString());
+        for (Map.Entry<String, JsonNode> entry : permutationsNode.get().members())
+            if (entry.getValue().isPrimitive()) permutations.put(entry.getKey(), entry.getValue().stringValue().orElseThrow());
 
-        List<String> textures = new ArrayList<>();
-        for (JsonElement element : source.getAsJsonArray("textures"))
-            if (element.isJsonPrimitive()) textures.add(element.getAsString());
+        List<String> textures = source.getStrings("textures");
 
         if (permutations.isEmpty() || textures.isEmpty()) return Optional.empty();
         return Optional.of(new PalettedPermutationSource(paletteKey, Map.copyOf(permutations), List.copyOf(textures)));
-    }
-
-    private static String string(@NotNull JsonObject object, @NotNull String key) {
-        return object.has(key) && object.get(key).isJsonPrimitive() ? object.get(key).getAsString() : null;
     }
 
 }

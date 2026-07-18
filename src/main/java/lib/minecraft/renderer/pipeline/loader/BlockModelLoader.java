@@ -1,17 +1,13 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
@@ -27,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -58,9 +55,6 @@ public class BlockModelLoader {
     private static final @NotNull String GEOMETRY_RESOURCE = "block_geometry.json";
     private static final @NotNull String TEXTURE_PREFIX = "textures/";
     private static final @NotNull String TEXTURE_SUFFIX = ".png";
-
-    /** Shared Gson configured with the project defaults, used to deserialise geometry entries. */
-    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
      * The result of loading {@code block_models.json}: the per-block-id primary geometry
@@ -147,51 +141,48 @@ public class BlockModelLoader {
         ResourceDocument modelsDoc = BundledResource.read(MODELS_RESOURCE, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         ResourceDocument geometryDoc = BundledResource.read(GEOMETRY_RESOURCE, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
 
-        JsonObject models = modelsDoc.payload().toGson().getAsJsonObject().getAsJsonObject("models");
-        JsonObject geometries = geometryDoc.payload().toGson().getAsJsonObject().getAsJsonObject("geometries");
+        JsonNode models = modelsDoc.payload().get("models");
+        JsonNode geometries = geometryDoc.payload().get("geometries");
 
         // Overlay the pack override channel per top-level entry (later-wins), so a pack replaces one
         // block-entity model or one geometry coordinate without shipping the whole snapshot.
-        for (Map.Entry<String, JsonElement> override : overrides.models().entrySet())
-            models.add(override.getKey(), override.getValue());
-        for (Map.Entry<String, JsonElement> override : overrides.geometries().entrySet())
-            geometries.add(override.getKey(), override.getValue());
+        models.putAll(overrides.models());
+        geometries.putAll(overrides.geometries());
 
         HashMap<String, Block.Entity> result = new HashMap<>();
         HashMap<String, HashMap<String, Block.Variant>> variantModels = new HashMap<>();
 
-        for (Map.Entry<String, JsonElement> entry : models.entrySet()) {
+        for (Map.Entry<String, JsonNode> entry : models.members()) {
             String modelId = entry.getKey();
-            JsonObject model = entry.getValue().getAsJsonObject();
-            JsonArray blocks = model.has("blocks") ? model.getAsJsonArray("blocks") : null;
-            if (blocks == null) continue;   // part-only sub-models carry no blocks[]
+            JsonNode model = entry.getValue();
+            Optional<JsonNode> blocks = model.findArray("blocks");
+            if (blocks.isEmpty()) continue;   // part-only sub-models carry no blocks[]
 
             Block.Entity.BoneModel boneModel = buildBoneModel(modelId, model, geometries);
             int iconRotation = 0;
             boolean additive = false;
-            if (model.has("icon")) {
-                JsonObject icon = model.getAsJsonObject("icon");
-                iconRotation = icon.has("rotation") ? icon.get("rotation").getAsInt() : 0;
-                additive = icon.has("additive") && icon.get("additive").getAsBoolean();
+            JsonNode icon = model.get("icon");
+            if (icon != null) {
+                iconRotation = icon.getInt("rotation", 0);
+                additive = icon.getBool("additive", false);
             }
 
-            for (JsonElement blockEl : blocks) {
-                JsonObject block = blockEl.getAsJsonObject();
-                String blockId = block.get("block").getAsString();
-                String textureId = stripTexture(block.get("texture").getAsString());
+            for (JsonNode block : blocks.get().elements()) {
+                String blockId = block.getString("block");
+                String textureId = stripTexture(block.getString("texture"));
 
                 // A block bound to a blockstate "variant" contributes a state-conditional model, not
                 // the block's primary geometry (e.g. the ceiling hanging sign's straight-chain mesh
                 // under "attached=true"). Rotation/uvlock are unused here, so 0/0/false.
                 if (block.has("variant")) {
                     variantModels.computeIfAbsent(blockId, k -> new HashMap<>())
-                        .put(block.get("variant").getAsString(),
+                        .put(block.getString("variant"),
                             new Block.Variant(modelId, 0, 0, false, new Block.BoneGeometry(boneModel)));
                     continue;
                 }
 
                 ArrayList<Block.Entity.Part> parts = buildParts(models, model, geometries, textureId);
-                int tintArgb = block.has("tint") ? resolveTint(block.get("tint").getAsString(), diagnostics) : ColorMath.WHITE;
+                int tintArgb = block.has("tint") ? resolveTint(block.getString("tint"), diagnostics) : ColorMath.WHITE;
                 result.put(blockId, new Block.Entity(boneModel, textureId, tintArgb, iconRotation, Concurrent.adoptList(parts), additive));
             }
         }
@@ -208,31 +199,32 @@ public class BlockModelLoader {
      * geometry file and reads the entry's presentation metadata ({@code y_axis}, nested
      * {@code inventory}, {@code tinted}).
      */
-    private static Block.Entity.BoneModel buildBoneModel(@NotNull String modelId, @NotNull JsonObject model, @NotNull JsonObject geometries) {
+    private static Block.Entity.BoneModel buildBoneModel(@NotNull String modelId, @NotNull JsonNode model, @NotNull JsonNode geometries) {
         // A block-bearing model entry must name a geometry coordinate; a pack renderer/block_models.json
         // override that omits it fails clearly (model-id attributed) rather than raising a bare NPE.
-        if (!model.has("geometry") || !model.get("geometry").isJsonPrimitive())
+        if (!model.has("geometry") || !model.get("geometry").isPrimitive())
             throw new PipelineException("Block model '%s' has no 'geometry' coordinate", modelId);
-        String coordinate = model.get("geometry").getAsString();
-        JsonObject geometry = geometries.getAsJsonObject(coordinate);
+        String coordinate = model.getString("geometry");
+        JsonNode geometry = geometries.get(coordinate);
         if (geometry == null)
             throw new PipelineException("Block model '%s' references geometry '%s' which is absent from block_geometry", modelId, coordinate);
-        EntityModelData mesh = GSON.fromJson(geometry, EntityModelData.class);
+        EntityModelData mesh = geometry.as(EntityModelData.class);
 
-        boolean sourceYUp = "UP".equals(model.has("y_axis") ? model.get("y_axis").getAsString() : null);
-        boolean tinted = model.has("tinted") && model.get("tinted").getAsBoolean();
+        boolean sourceYUp = "UP".equals(model.getString("y_axis"));
+        boolean tinted = model.getBool("tinted", false);
 
         float inventoryYRotation = 0f;
         boolean entityFlip = false;
         float @Nullable [] inventoryTransform = null;
-        if (model.has("inventory")) {
-            JsonObject inventory = model.getAsJsonObject("inventory");
-            inventoryYRotation = inventory.has("y_rotation") ? inventory.get("y_rotation").getAsFloat() : 0f;
-            entityFlip = inventory.has("flip") && inventory.get("flip").getAsBoolean();
-            if (inventory.has("transform") && inventory.get("transform").isJsonArray()) {
-                JsonArray transform = inventory.getAsJsonArray("transform");
+        JsonNode inventory = model.get("inventory");
+        if (inventory != null) {
+            inventoryYRotation = inventory.getFloat("y_rotation", 0f);
+            entityFlip = inventory.getBool("flip", false);
+            Optional<JsonNode> transformArray = inventory.findArray("transform");
+            if (transformArray.isPresent()) {
+                JsonNode transform = transformArray.get();
                 inventoryTransform = new float[transform.size()];
-                for (int i = 0; i < transform.size(); i++) inventoryTransform[i] = transform.get(i).getAsFloat();
+                for (int i = 0; i < transform.size(); i++) inventoryTransform[i] = transform.at(i).floatValue(0f);
             }
         }
         return new Block.Entity.BoneModel(mesh, sourceYUp, inventoryYRotation, entityFlip, inventoryTransform, tinted);
@@ -243,22 +235,23 @@ public class BlockModelLoader {
      * {@code models} map; its texture is the part's own full path (stripped) when present, else the
      * parent block's texture.
      */
-    private static @NotNull ArrayList<Block.Entity.Part> buildParts(@NotNull JsonObject models, @NotNull JsonObject model, @NotNull JsonObject geometries, @NotNull String parentTextureId) {
+    private static @NotNull ArrayList<Block.Entity.Part> buildParts(@NotNull JsonNode models, @NotNull JsonNode model, @NotNull JsonNode geometries, @NotNull String parentTextureId) {
         ArrayList<Block.Entity.Part> parts = new ArrayList<>();
-        if (!model.has("parts") || !model.get("parts").isJsonArray()) return parts;
+        Optional<JsonNode> partsArray = model.findArray("parts");
+        if (partsArray.isEmpty()) return parts;
 
-        for (JsonElement partEl : model.getAsJsonArray("parts")) {
-            JsonObject part = partEl.getAsJsonObject();
-            String partModelId = part.get("model").getAsString();
-            JsonObject partModel = models.getAsJsonObject(partModelId);
+        for (JsonNode part : partsArray.get().elements()) {
+            String partModelId = part.getString("model");
+            JsonNode partModel = models.get(partModelId);
             if (partModel == null) continue;
 
             Block.Entity.BoneModel partBone = buildBoneModel(partModelId, partModel, geometries);
-            String partTexture = part.has("texture") ? stripTexture(part.get("texture").getAsString()) : parentTextureId;
+            String partTexture = part.has("texture") ? stripTexture(part.getString("texture")) : parentTextureId;
             float[] offset = {0, 0, 0};
-            if (part.has("offset") && part.get("offset").isJsonArray()) {
-                JsonArray off = part.getAsJsonArray("offset");
-                offset = new float[]{off.get(0).getAsFloat(), off.get(1).getAsFloat(), off.get(2).getAsFloat()};
+            Optional<JsonNode> offsetArray = part.findArray("offset");
+            if (offsetArray.isPresent()) {
+                JsonNode off = offsetArray.get();
+                offset = new float[]{off.at(0).floatValue(0f), off.at(1).floatValue(0f), off.at(2).floatValue(0f)};
             }
             parts.add(new Block.Entity.Part(partBone, partTexture, offset));
         }

@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.pack.Capability;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
@@ -63,7 +64,7 @@ class BlockRendererOverridesTest {
         assertThat(overrides.models().has("only_low"), is(true));
         assertThat(overrides.models().has("only_high"), is(true));
         assertThat("higher pack wins per entry",
-            overrides.models().getAsJsonObject("shared").get("mark").getAsString(), is("high"));
+            overrides.models().get("shared").getString("mark"), is("high"));
     }
 
     @Test
@@ -102,7 +103,7 @@ class BlockRendererOverridesTest {
     void missingSubObjectIgnored() throws IOException {
         Path pack = writePack("empty", "renderer/block_models.json", envelope("//", null));
         BlockRendererOverrides overrides = BlockRendererOverrides.gather(stack(pack), NONE);
-        assertThat(overrides.models().isEmpty(), is(true));
+        assertThat(overrides.models().size() == 0, is(true));
         assertThat(overrides.isEmpty(), is(true));
     }
 
@@ -132,7 +133,7 @@ class BlockRendererOverridesTest {
         JsonObject models = new JsonObject();
         models.add("minecraft:foo", entry);
 
-        var overrides = new BlockRendererOverrides(models, new JsonObject(), new JsonObject());
+        var overrides = new BlockRendererOverrides(JsonNode.wrap(models), JsonNode.object(), JsonNode.object());
         lib.minecraft.renderer.exception.PipelineException ex = org.junit.jupiter.api.Assertions.assertThrows(
             lib.minecraft.renderer.exception.PipelineException.class, () -> BlockModelLoader.load(NONE, overrides));
         assertThat(ex.getMessage().contains("minecraft:foo"), is(true));
@@ -144,7 +145,7 @@ class BlockRendererOverridesTest {
     void nonObjectDefaultsEntryWarned() {
         JsonObject blocks = new JsonObject();
         blocks.addProperty("minecraft:conduit", "facing=east"); // flat string, not {property:value}
-        var overrides = new BlockRendererOverrides(new JsonObject(), new JsonObject(), blocks);
+        var overrides = new BlockRendererOverrides(JsonNode.object(), JsonNode.object(), JsonNode.wrap(blocks));
 
         java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
         java.io.PrintStream original = System.err;

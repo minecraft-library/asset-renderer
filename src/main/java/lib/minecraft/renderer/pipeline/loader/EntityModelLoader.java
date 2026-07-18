@@ -1,15 +1,11 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.pipeline.load.ArgbHex;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
@@ -83,9 +79,6 @@ public final class EntityModelLoader {
 
     private static final int WHITE = 0xFFFFFFFF;
 
-    /** Shared Gson configured with the project defaults, used to deserialise geometry entries. */
-    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
-
     private EntityModelLoader() {}
 
     /**
@@ -114,13 +107,13 @@ public final class EntityModelLoader {
 
         Map<String, EntityModelData> geometries = parseGeometries(geometryDoc.get());
         if (geometries.isEmpty()) return Concurrent.newMap();
-        JsonObject models = modelsOf(modelsDoc.get());
+        JsonNode models = modelsOf(modelsDoc.get());
         if (models == null) return Concurrent.newMap();
 
         LinkedHashMap<String, Entity> definitions = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : models.entrySet()) {
-            if (!entry.getValue().isJsonObject()) continue;
-            readDefinition(entry.getKey(), entry.getValue().getAsJsonObject(), geometries, definitions, diagnostics);
+        for (Map.Entry<String, JsonNode> entry : models.members()) {
+            if (!entry.getValue().isObject()) continue;
+            readDefinition(entry.getKey(), entry.getValue(), geometries, definitions, diagnostics);
         }
         attachGroupMembers(models, definitions);
         return Concurrent.adoptMap(definitions);
@@ -135,7 +128,7 @@ public final class EntityModelLoader {
      * @param models the parsed {@code models} object
      * @param definitions the built definitions, mutated in place for grouped entities
      */
-    private static void attachGroupMembers(@NotNull JsonObject models, @NotNull Map<String, Entity> definitions) {
+    private static void attachGroupMembers(@NotNull JsonNode models, @NotNull Map<String, Entity> definitions) {
         for (Map.Entry<String, List<String>> group : groupMembership(models).entrySet()) {
             if (group.getValue().size() <= 1) continue;
             Entity entity = definitions.get(group.getKey());
@@ -153,21 +146,21 @@ public final class EntityModelLoader {
      * @param models the parsed {@code models} object
      * @return group membership keyed by entity id
      */
-    private static @NotNull Map<String, List<String>> groupMembership(@NotNull JsonObject models) {
+    private static @NotNull Map<String, List<String>> groupMembership(@NotNull JsonNode models) {
         // Row id -> its variant_of base (null for a base / plain row) in expansion order, plus the
         // cross-entity group_of table (keyed by the model id).
         Map<String, String> variantOf = new LinkedHashMap<>();
         Map<String, String> crossGroups = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : models.entrySet()) {
-            if (!entry.getValue().isJsonObject()) continue;
+        for (Map.Entry<String, JsonNode> entry : models.members()) {
+            if (!entry.getValue().isObject()) continue;
             String familyId = entry.getKey();
-            JsonObject family = entry.getValue().getAsJsonObject();
-            JsonObject variant = variantAxis(family);
-            boolean idEncoded = variant != null && variant.has("id_encoded") && variant.get("id_encoded").getAsBoolean();
+            JsonNode family = entry.getValue();
+            JsonNode variant = variantAxis(family);
+            boolean idEncoded = variant != null && variant.getBool("id_encoded", false);
             if (variant != null && idEncoded) {
-                String defaultOption = variant.get("default").getAsString();
+                String defaultOption = variant.getString("default");
                 String baseId = familyId + "_" + defaultOption;
-                for (String option : variant.getAsJsonObject("options").keySet()) {
+                for (String option : variant.get("options").keys().toList()) {
                     String rowId = familyId + "_" + option;
                     variantOf.put(rowId, option.equals(defaultOption) ? null : baseId);
                 }
@@ -182,7 +175,7 @@ public final class EntityModelLoader {
             // id-encoding states - id-encoded, its rows are pseudo-ids the model-id-keyed crossGroups
             // never matches; guarding it to non-variant models keeps that inertness once option-encoding
             // makes the base row a plain id, so the coat's group stays itself in both states.
-            if (variant == null && family.has("group_of")) crossGroups.put(familyId, family.get("group_of").getAsString());
+            if (variant == null && family.has("group_of")) crossGroups.put(familyId, family.getString("group_of"));
         }
 
         Map<String, String> entityToFamily = new LinkedHashMap<>();
@@ -211,28 +204,28 @@ public final class EntityModelLoader {
      */
     private static void readDefinition(
         @NotNull String familyId,
-        @NotNull JsonObject family,
+        @NotNull JsonNode family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull Map<String, Entity> definitions,
         @NotNull Diagnostics diagnostics
     ) {
         // The family baseline (primary geometry + adult texture) lives under the
         // mandatory age axis' options.adult, not at top level.
-        JsonObject adult = adultOption(family);
-        String baseCoord = adult.get("geometry").getAsString();
+        JsonNode adult = adultOption(family);
+        String baseCoord = adult.getString("geometry");
 
-        JsonObject render = family.has("render") ? family.getAsJsonObject("render") : null;
-        float rendererScale = render != null && render.has("scale") ? render.get("scale").getAsFloat() : 1f;
-        float setupYawAddend = render != null && render.has("yaw_addend") ? render.get("yaw_addend").getAsFloat() : 0f;
-        int baseTint = render != null && render.has("tint") ? ArgbHex.parse(render.get("tint").getAsString(), diagnostics) : WHITE;
+        JsonNode render = family.findObject("render").orElse(null);
+        float rendererScale = render == null ? 1f : render.getFloat("scale", 1f);
+        float setupYawAddend = render == null ? 0f : render.getFloat("yaw_addend", 0f);
+        int baseTint = render == null ? WHITE : render.findString("tint").map(t -> ArgbHex.parse(t, diagnostics)).orElse(WHITE);
 
-        JsonObject bones = family.has("bones") ? family.getAsJsonObject("bones") : null;
-        JsonArray hiddenBones = bones != null && bones.has("hidden") && bones.get("hidden").isJsonArray() ? bones.getAsJsonArray("hidden") : null;
-        JsonObject boneToggleSpecs = bones != null && bones.has("toggles") && bones.get("toggles").isJsonObject() ? bones.getAsJsonObject("toggles") : null;
+        JsonNode bones = family.findObject("bones").orElse(null);
+        JsonNode hiddenBones = bones == null ? null : bones.findArray("hidden").orElse(null);
+        JsonNode boneToggleSpecs = bones == null ? null : bones.findObject("toggles").orElse(null);
 
-        JsonArray familyOverlays = family.has("overlays") && family.get("overlays").isJsonArray() ? family.getAsJsonArray("overlays") : new JsonArray();
-        List<BlockOverlayLayer> blockOverlays = family.has("block_overlays") && family.get("block_overlays").isJsonArray()
-            ? loadBlockOverlays(family.getAsJsonArray("block_overlays")) : List.of();
+        JsonNode familyOverlays = family.findArray("overlays").orElse(JsonNode.array());
+        List<BlockOverlayLayer> blockOverlays = family.findArray("block_overlays")
+            .map(EntityModelLoader::loadBlockOverlays).orElse(List.of());
 
         Optional<String> collarTexture = collarTextureOf(family);
         List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId, diagnostics);
@@ -241,18 +234,18 @@ public final class EntityModelLoader {
         String babyCoord = babyGeometryOf(family);
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyCoord));
 
-        JsonObject variant = variantAxis(family);
+        JsonNode variant = variantAxis(family);
         if (variant != null) {
-            boolean idEncoded = variant.has("id_encoded") && variant.get("id_encoded").getAsBoolean();
-            String defaultOption = variant.get("default").getAsString();
-            JsonObject options = variant.getAsJsonObject("options");
+            boolean idEncoded = variant.getBool("id_encoded", false);
+            String defaultOption = variant.getString("default");
+            JsonNode options = variant.get("options");
             VariantContext ctx = new VariantContext(baseCoord, geometries, hiddenBones, boneToggleSpecs, familyOverlays,
                 blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, collarTexture, equipment, markings, humanoidArmor);
             if (idEncoded) {
                 // id-encoded: each coat is a first-class render pseudo-id minecraft:<id>_<opt>.
-                for (Map.Entry<String, JsonElement> option : options.entrySet()) {
+                for (Map.Entry<String, JsonNode> option : options.members()) {
                     String rowId = familyId + "_" + option.getKey();
-                    definitions.put(rowId, buildVariantRow(rowId, option.getValue().getAsJsonObject(), ctx, diagnostics));
+                    definitions.put(rowId, buildVariantRow(rowId, option.getValue(), ctx, diagnostics));
                 }
                 return;
             }
@@ -261,8 +254,8 @@ public final class EntityModelLoader {
             // default coat carrying the full option map so the resolver fold + family canvas union reach
             // every coat.
             LinkedHashMap<String, Entity> coats = new LinkedHashMap<>();
-            for (Map.Entry<String, JsonElement> option : options.entrySet())
-                coats.put(option.getKey(), buildVariantRow(familyId, option.getValue().getAsJsonObject(), ctx, diagnostics));
+            for (Map.Entry<String, JsonNode> option : options.members())
+                coats.put(option.getKey(), buildVariantRow(familyId, option.getValue(), ctx, diagnostics));
             Entity base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
             Entity.Axes baseAxes = base.axes();
             definitions.put(familyId, base.toBuilder()
@@ -278,7 +271,7 @@ public final class EntityModelLoader {
         Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, familyId, diagnostics);
         model = applyHiddenBones(model, hiddenBones, familyId, diagnostics);
         List<OverlayLayer> overlays = loadOverlays(familyOverlays, geometries, baseCoord, model, familyId, diagnostics);
-        Optional<String> textureRef = adult.has("texture") ? Optional.of(stripEntity(adult.get("texture").getAsString())) : Optional.empty();
+        Optional<String> textureRef = adult.findString("texture").map(EntityModelLoader::stripEntity);
 
         Map<String, String> stateTextures = new LinkedHashMap<>();
         // Plain families carry their single baby texture on age.baby.texture; expose it under the "baby"
@@ -304,9 +297,9 @@ public final class EntityModelLoader {
     private record VariantContext(
         @NotNull String baseCoord,
         @NotNull Map<String, EntityModelData> geometries,
-        @Nullable JsonArray hiddenBones,
-        @Nullable JsonObject boneToggleSpecs,
-        @NotNull JsonArray familyOverlays,
+        @Nullable JsonNode hiddenBones,
+        @Nullable JsonNode boneToggleSpecs,
+        @NotNull JsonNode familyOverlays,
         @NotNull List<BlockOverlayLayer> blockOverlays,
         int baseTint,
         float setupYawAddend,
@@ -327,11 +320,11 @@ public final class EntityModelLoader {
      */
     private static @NotNull Entity buildVariantRow(
         @NotNull String rowId,
-        @NotNull JsonObject optionObj,
+        @NotNull JsonNode optionObj,
         @NotNull VariantContext ctx,
         @NotNull Diagnostics diagnostics
     ) {
-        String rowCoord = optionObj.has("geometry") ? optionObj.get("geometry").getAsString() : ctx.baseCoord();
+        String rowCoord = optionObj.getString("geometry", ctx.baseCoord());
         EntityModelData model = resolveModel(ctx.geometries(), rowCoord, rowId);
         Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, rowId, diagnostics);
         model = applyHiddenBones(model, ctx.hiddenBones(), rowId, diagnostics);
@@ -360,7 +353,7 @@ public final class EntityModelLoader {
      * to a vanilla {@code retainExactParts} subset before inflate; {@code grow} inflates every cube.
      */
     private static @NotNull List<OverlayLayer> loadOverlays(
-        @NotNull JsonArray overlays,
+        @NotNull JsonNode overlays,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String baseCoord,
         @NotNull EntityModelData baseModel,
@@ -368,10 +361,9 @@ public final class EntityModelLoader {
         @NotNull Diagnostics diagnostics
     ) {
         List<OverlayLayer> out = new ArrayList<>();
-        for (JsonElement el : overlays) {
-            if (!el.isJsonObject()) continue;
-            JsonObject entry = el.getAsJsonObject();
-            String coord = entry.has("geometry") ? entry.get("geometry").getAsString() : baseCoord;
+        for (JsonNode entry : overlays.elements()) {
+            if (!entry.isObject()) continue;
+            String coord = entry.getString("geometry", baseCoord);
             boolean sameGeometry = coord.equals(baseCoord);
             EntityModelData overlayModel;
             if (sameGeometry) {
@@ -383,13 +375,13 @@ public final class EntityModelLoader {
                     continue;
                 }
             }
-            Optional<String> overlayTexture = entry.has("texture") ? Optional.of(stripEntity(entry.get("texture").getAsString())) : Optional.empty();
+            Optional<String> overlayTexture = entry.findString("texture").map(EntityModelLoader::stripEntity);
             // retain_bones (warden pulsating spots) restricts the overlay to a vanilla retainExactParts
             // subset of the shared mesh, so the glow texture draws only where vanilla's subset
             // LayerDefinition does. Applied before inflate so surviving cubes inflate together.
-            EntityModelData retained = entry.has("retain_bones") && entry.get("retain_bones").isJsonArray()
-                ? retainExactParts(overlayModel, entry.getAsJsonArray("retain_bones"))
-                : overlayModel;
+            EntityModelData retained = entry.findArray("retain_bones")
+                .map(rb -> retainExactParts(overlayModel, rb))
+                .orElse(overlayModel);
             boolean hasTint = entry.has("tint");
             boolean hasTintBy = entry.has("tint_by");
             // inflate: an explicit grow (real vanilla CubeDeformation - tropical_fish 0.008, llama carpet
@@ -399,9 +391,9 @@ public final class EntityModelLoader {
             float inflate = entry.has("grow") ? growScalar(entry.get("grow"))
                 : sameGeometry && !hasTint && !hasTintBy ? DEPTH_CLEARANCE_INFLATE : 0f;
             EntityModelData materialised = inflate != 0f ? inflateModel(retained, inflate) : retained;
-            JsonObject pipeline = entry.has("pipeline") ? entry.getAsJsonObject("pipeline") : null;
-            boolean emissive = pipeline != null && pipeline.has("emissive") && pipeline.get("emissive").getAsBoolean();
-            int overlayTint = hasTint ? ArgbHex.parse(entry.get("tint").getAsString(), diagnostics) : WHITE;
+            JsonNode pipeline = entry.findObject("pipeline").orElse(null);
+            boolean emissive = pipeline != null && pipeline.getBool("emissive", false);
+            int overlayTint = hasTint ? ArgbHex.parse(entry.getString("tint"), diagnostics) : WHITE;
             // Same-geometry overlays carrying ONLY the auto-emitted depth-clearance inflate are excluded
             // from the canvas-sizing bounds: they render the IDENTICAL cube tree as the base (vanilla
             // submits the same ModelPart through a second render type with NO inflate), so the base
@@ -409,17 +401,17 @@ public final class EntityModelLoader {
             // CubeDeformation vanilla's own bounds walk includes, so it keeps contributing. An explicit
             // skip_bounds (llama carpet, NO_RENDER_LAYER_SUFFIXES) always wins.
             boolean depthClearanceOnly = sameGeometry && inflate <= DEPTH_CLEARANCE_INFLATE;
-            boolean skipBounds = entry.has("skip_bounds") && entry.get("skip_bounds").getAsBoolean() || depthClearanceOnly;
-            Optional<String> tintBy = entry.has("tint_by") ? Optional.of(entry.get("tint_by").getAsString()) : Optional.empty();
-            Optional<String> textureBy = entry.has("texture_by") ? Optional.of(entry.get("texture_by").getAsString()) : Optional.empty();
+            boolean skipBounds = entry.getBool("skip_bounds", false) || depthClearanceOnly;
+            Optional<String> tintBy = entry.findString("tint_by");
+            Optional<String> textureBy = entry.findString("texture_by");
             // The overlay's render condition, parsed straight from its `when` object into the typed
             // AppearanceGate (flag/charged/tinted). Absent -> unconditional.
-            Optional<AppearanceGate> gate = parseOverlayGate(entry.has("when") ? entry.getAsJsonObject("when") : null, tintBy);
+            Optional<AppearanceGate> gate = parseOverlayGate(entry.findObject("when").orElse(null), tintBy);
             // blend / alpha (default NORMAL / 1.0). `additive` -> the energy-swirl glow; `translucent` /
             // `normal` -> source-over (the slime shell's translucency lives in its texture alpha, not a
             // blend-function difference). An un-annotated overlay keeps the NORMAL / 1.0 default.
-            BlendMode blend = parseBlend(pipeline != null && pipeline.has("blend") ? pipeline.get("blend").getAsString() : null, diagnostics);
-            float alpha = pipeline != null && pipeline.has("alpha") ? pipeline.get("alpha").getAsFloat() : 1f;
+            BlendMode blend = parseBlend(pipeline == null ? null : pipeline.getString("blend"), diagnostics);
+            float alpha = pipeline == null ? 1f : pipeline.getFloat("alpha", 1f);
             out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, textureBy, blend, alpha, gate));
         }
         return out;
@@ -435,13 +427,13 @@ public final class EntityModelLoader {
      * @param tintBy the overlay's tint axis token, used to seed a {@link AppearanceGate.TintedGate}
      * @return the parsed gate, or empty when unconditional
      */
-    private static @NotNull Optional<AppearanceGate> parseOverlayGate(@Nullable JsonObject when, @NotNull Optional<String> tintBy) {
+    private static @NotNull Optional<AppearanceGate> parseOverlayGate(@Nullable JsonNode when, @NotNull Optional<String> tintBy) {
         if (when == null) return Optional.empty();
         if (when.has("flag"))
-            return Optional.of(new AppearanceGate.FlagGate(when.get("flag").getAsString(), when.has("value") && when.get("value").getAsBoolean()));
-        if (when.has("charged") && when.get("charged").getAsBoolean())
+            return Optional.of(new AppearanceGate.FlagGate(when.getString("flag", ""), when.getBool("value", false)));
+        if (when.getBool("charged", false))
             return Optional.of(new AppearanceGate.ChargedGate());
-        if (when.has("tinted") && when.get("tinted").getAsBoolean())
+        if (when.getBool("tinted", false))
             return Optional.of(new AppearanceGate.TintedGate(tintBy.orElse("")));
         return Optional.empty();
     }
@@ -474,30 +466,24 @@ public final class EntityModelLoader {
      * selection, so its {@code block} may be omitted entirely (the enderman carried block). The
      * {@code transforms} entries are the tagged op objects the renderer pattern-matches.
      */
-    private static @NotNull List<BlockOverlayLayer> loadBlockOverlays(@NotNull JsonArray array) {
+    private static @NotNull List<BlockOverlayLayer> loadBlockOverlays(@NotNull JsonNode array) {
         List<BlockOverlayLayer> out = new ArrayList<>();
-        for (JsonElement element : array) {
-            if (!element.isJsonObject()) continue;
-            JsonObject row = element.getAsJsonObject();
-            boolean selectable = row.has("selectable") && row.get("selectable").getAsBoolean();
+        for (JsonNode row : array.elements()) {
+            if (!row.isObject()) continue;
+            boolean selectable = row.getBool("selectable", false);
             if (!row.has("block") && !selectable) continue;
-            String blockId = row.has("block") ? row.get("block").getAsString() : "";
-            String attachedBone = row.has("attached_bone") && !row.get("attached_bone").isJsonNull()
-                ? row.get("attached_bone").getAsString()
-                : null;
+            String blockId = row.getString("block", "");
+            String attachedBone = row.getString("attached_bone");
             List<TransformOp> ops = new ArrayList<>();
-            if (row.has("transforms") && row.get("transforms").isJsonArray()) {
-                for (JsonElement opElement : row.getAsJsonArray("transforms")) {
-                    if (!opElement.isJsonObject()) continue;
-                    JsonObject opObj = opElement.getAsJsonObject();
-                    switch (opObj.has("op") ? opObj.get("op").getAsString() : "") {
-                        case "translate" -> ops.add(new Translate(opObj.get("x").getAsFloat(), opObj.get("y").getAsFloat(), opObj.get("z").getAsFloat()));
-                        case "rotate_y" -> ops.add(new RotateY(opObj.get("degrees").getAsFloat()));
-                        case "rotate_x" -> ops.add(new RotateX(opObj.get("degrees").getAsFloat()));
-                        case "rotate_z" -> ops.add(new RotateZ(opObj.get("degrees").getAsFloat()));
-                        case "scale" -> ops.add(new Scale(opObj.get("x").getAsFloat(), opObj.get("y").getAsFloat(), opObj.get("z").getAsFloat()));
-                        default -> { }
-                    }
+            for (JsonNode opObj : row.findArray("transforms").orElse(JsonNode.array()).elements()) {
+                if (!opObj.isObject()) continue;
+                switch (opObj.getString("op", "")) {
+                    case "translate" -> ops.add(new Translate(opObj.getFloat("x", 0f), opObj.getFloat("y", 0f), opObj.getFloat("z", 0f)));
+                    case "rotate_y" -> ops.add(new RotateY(opObj.getFloat("degrees", 0f)));
+                    case "rotate_x" -> ops.add(new RotateX(opObj.getFloat("degrees", 0f)));
+                    case "rotate_z" -> ops.add(new RotateZ(opObj.getFloat("degrees", 0f)));
+                    case "scale" -> ops.add(new Scale(opObj.getFloat("x", 0f), opObj.getFloat("y", 0f), opObj.getFloat("z", 0f)));
+                    default -> { }
                 }
             }
             out.add(new BlockOverlayLayer(blockId, attachedBone, List.copyOf(ops), selectable));
@@ -515,80 +501,70 @@ public final class EntityModelLoader {
      * a genuine multi-state family (wolf) or an ageable variant (cow). A single-texture option leaves
      * the map empty; the base {@code texture_ref} is the {@code wild} entry either way.
      */
-    private static @NotNull Map<String, String> variantStateTextures(@NotNull JsonObject optionObj) {
+    private static @NotNull Map<String, String> variantStateTextures(@NotNull JsonNode optionObj) {
         Map<String, String> states = new LinkedHashMap<>();
-        if (optionObj.has("textures"))
-            for (Map.Entry<String, JsonElement> texture : optionObj.getAsJsonObject("textures").entrySet())
-                states.put(texture.getKey(), stripEntity(texture.getValue().getAsString()));
-        if (optionObj.has("baby_texture")) states.put("baby", stripEntity(optionObj.get("baby_texture").getAsString()));
+        optionObj.findObject("textures").ifPresent(textures -> {
+            for (Map.Entry<String, JsonNode> texture : textures.members())
+                states.put(texture.getKey(), stripEntity(textures.getString(texture.getKey())));
+        });
+        if (optionObj.has("baby_texture")) states.put("baby", stripEntity(optionObj.getString("baby_texture")));
         return states.size() > 1 ? states : Map.of();
     }
 
     /**
      * Returns a variant option's {@code textures.wild} as the base texture ref, or empty when absent.
      */
-    private static @NotNull Optional<String> variantWildTexture(@NotNull JsonObject optionObj) {
-        if (!optionObj.has("textures")) return Optional.empty();
-        JsonObject textures = optionObj.getAsJsonObject("textures");
-        return textures.has("wild") ? Optional.of(stripEntity(textures.get("wild").getAsString())) : Optional.empty();
+    private static @NotNull Optional<String> variantWildTexture(@NotNull JsonNode optionObj) {
+        return optionObj.findObject("textures").flatMap(t -> t.findString("wild")).map(EntityModelLoader::stripEntity);
     }
 
     /**
      * Returns the mandatory age axis' {@code options.adult} body - the family baseline (primary
      * {@code geometry}, and for non-variant families the adult {@code texture}).
      */
-    private static @NotNull JsonObject adultOption(@NotNull JsonObject family) {
-        return family.getAsJsonObject("axes").getAsJsonObject("age").getAsJsonObject("options").getAsJsonObject("adult");
+    private static @NotNull JsonNode adultOption(@NotNull JsonNode family) {
+        return family.get("axes").get("age").get("options").get("adult");
     }
 
     /** Returns the {@code axes.variant} object when the family carries an id-encoded variant axis. */
-    private static @Nullable JsonObject variantAxis(@NotNull JsonObject family) {
-        if (!family.has("axes")) return null;
-        JsonObject axes = family.getAsJsonObject("axes");
-        return axes.has("variant") ? axes.getAsJsonObject("variant") : null;
+    private static @Nullable JsonNode variantAxis(@NotNull JsonNode family) {
+        JsonNode axes = family.get("axes");
+        return axes == null ? null : axes.findObject("variant").orElse(null);
     }
 
     /** Returns the {@code age.baby} option object, or {@code null} when the family has no age axis. */
-    private static @Nullable JsonObject ageBaby(@NotNull JsonObject family) {
-        if (!family.has("axes")) return null;
-        JsonObject axes = family.getAsJsonObject("axes");
-        if (!axes.has("age")) return null;
-        JsonObject options = axes.getAsJsonObject("age").getAsJsonObject("options");
-        return options.has("baby") ? options.getAsJsonObject("baby") : null;
+    private static @Nullable JsonNode ageBaby(@NotNull JsonNode family) {
+        JsonNode axes = family.get("axes");
+        if (axes == null || !axes.has("age")) return null;
+        return axes.get("age").get("options").findObject("baby").orElse(null);
     }
 
     /** Returns the family's baby geometry coordinate from its {@code age} axis, or {@code null}. */
-    private static @Nullable String babyGeometryOf(@NotNull JsonObject family) {
-        JsonObject baby = ageBaby(family);
-        return baby != null && baby.has("geometry") ? baby.get("geometry").getAsString() : null;
+    private static @Nullable String babyGeometryOf(@NotNull JsonNode family) {
+        JsonNode baby = ageBaby(family);
+        return baby == null ? null : baby.getString("geometry");
     }
 
     /** Returns the family's single stripped baby texture from {@code age.baby.texture}, or {@code null}. */
-    private static @Nullable String babyTextureOf(@NotNull JsonObject family) {
-        JsonObject baby = ageBaby(family);
-        return baby != null && baby.has("texture") ? stripEntity(baby.get("texture").getAsString()) : null;
+    private static @Nullable String babyTextureOf(@NotNull JsonNode family) {
+        JsonNode baby = ageBaby(family);
+        return baby == null ? null : baby.findString("texture").map(EntityModelLoader::stripEntity).orElse(null);
     }
 
     /** Returns the dyed-collar layer's stripped texture, or empty when the family has no collar layer. */
-    private static @NotNull Optional<String> collarTextureOf(@NotNull JsonObject family) {
-        if (!family.has("layers")) return Optional.empty();
-        for (JsonElement element : family.getAsJsonArray("layers")) {
-            JsonObject layer = element.getAsJsonObject();
-            if (layer.has("id") && "collar".equals(layer.get("id").getAsString()) && layer.has("overlay")) {
-                JsonObject overlay = layer.getAsJsonObject("overlay");
-                if (overlay.has("texture")) return Optional.of(stripEntity(overlay.get("texture").getAsString()));
-            }
+    private static @NotNull Optional<String> collarTextureOf(@NotNull JsonNode family) {
+        for (JsonNode layer : family.findArray("layers").orElse(JsonNode.array()).elements()) {
+            if (!"collar".equals(layer.getString("id"))) continue;
+            Optional<String> texture = layer.findObject("overlay").flatMap(o -> o.findString("texture"));
+            if (texture.isPresent()) return texture.map(EntityModelLoader::stripEntity);
         }
         return Optional.empty();
     }
 
     /** Returns whether the family carries a {@code markings} layer (the horse marking overlay). */
-    private static boolean markingsOf(@NotNull JsonObject family) {
-        if (!family.has("layers")) return false;
-        for (JsonElement element : family.getAsJsonArray("layers")) {
-            JsonObject layer = element.getAsJsonObject();
-            if (layer.has("id") && "markings".equals(layer.get("id").getAsString())) return true;
-        }
+    private static boolean markingsOf(@NotNull JsonNode family) {
+        for (JsonNode layer : family.findArray("layers").orElse(JsonNode.array()).elements())
+            if ("markings".equals(layer.getString("id"))) return true;
         return false;
     }
 
@@ -597,12 +573,9 @@ public final class EntityModelLoader {
      * {@code layers} armor row EntityLayersResolver emits off a {@code HumanoidArmorLayer} site.
      * Absence IS {@code none} (the classification is derived off the roster, not a required member).
      */
-    private static boolean humanoidArmorOf(@NotNull JsonObject family) {
-        if (!family.has("layers")) return false;
-        for (JsonElement element : family.getAsJsonArray("layers")) {
-            JsonObject layer = element.getAsJsonObject();
-            if (layer.has("armor_type") && "humanoid".equals(layer.get("armor_type").getAsString())) return true;
-        }
+    private static boolean humanoidArmorOf(@NotNull JsonNode family) {
+        for (JsonNode layer : family.findArray("layers").orElse(JsonNode.array()).elements())
+            if ("humanoid".equals(layer.getString("armor_type"))) return true;
         return false;
     }
 
@@ -613,28 +586,26 @@ public final class EntityModelLoader {
      * substitutes {@code <material>} into; a layer naming an unknown geometry warns and drops.
      */
     private static @NotNull List<EquipmentOverlay> loadEquipment(
-        @NotNull JsonObject family,
+        @NotNull JsonNode family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String entityId,
         @NotNull Diagnostics diagnostics
     ) {
-        if (!family.has("layers")) return List.of();
         List<EquipmentOverlay> out = new ArrayList<>();
-        for (JsonElement element : family.getAsJsonArray("layers")) {
-            JsonObject layer = element.getAsJsonObject();
+        for (JsonNode layer : family.findArray("layers").orElse(JsonNode.array()).elements()) {
             if (!layer.has("when") || !layer.has("overlay")) continue;
-            JsonObject when = layer.getAsJsonObject("when");
+            JsonNode when = layer.get("when");
             if (!when.has("equipment")) continue;
-            JsonObject overlay = layer.getAsJsonObject("overlay");
+            JsonNode overlay = layer.get("overlay");
             if (!overlay.has("geometry") || !overlay.has("texture_template") || !overlay.has("default_material")) continue;
-            String coord = overlay.get("geometry").getAsString();
+            String coord = overlay.getString("geometry");
             EntityModelData model = geometries.get(coord);
             if (model == null) {
                 diagnostics.warn("entity '%s' equipment layer references geometry '%s' absent from entity_geometry", entityId, coord);
                 continue;
             }
-            out.add(new EquipmentOverlay(when.get("equipment").getAsString(), model,
-                overlay.get("texture_template").getAsString(), overlay.get("default_material").getAsString()));
+            out.add(new EquipmentOverlay(when.getString("equipment"), model,
+                overlay.getString("texture_template"), overlay.getString("default_material")));
         }
         return List.copyOf(out);
     }
@@ -645,24 +616,22 @@ public final class EntityModelLoader {
      * geometry. Empty when the family has no shape axis or its large geometry is missing.
      */
     private static @NotNull Optional<LargeShape> buildLargeShape(
-        @NotNull JsonObject family,
+        @NotNull JsonNode family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String entityId,
         @NotNull Diagnostics diagnostics
     ) {
-        if (!family.has("axes")) return Optional.empty();
-        JsonObject axes = family.getAsJsonObject("axes");
-        if (!axes.has("shape")) return Optional.empty();
-        JsonObject options = axes.getAsJsonObject("shape").getAsJsonObject("options");
-        if (!options.has("large")) return Optional.empty();
-        JsonObject large = options.getAsJsonObject("large");
-        if (!large.has("geometry")) return Optional.empty();
-        String coord = large.get("geometry").getAsString();
+        JsonNode axes = family.get("axes");
+        if (axes == null || !axes.has("shape")) return Optional.empty();
+        JsonNode options = axes.get("shape").get("options");
+        JsonNode large = options == null ? null : options.findObject("large").orElse(null);
+        if (large == null || !large.has("geometry")) return Optional.empty();
+        String coord = large.getString("geometry");
         EntityModelData model = geometries.get(coord);
         if (model == null) return Optional.empty();
-        JsonArray largeOverlays = large.has("overlays") && large.get("overlays").isJsonArray() ? large.getAsJsonArray("overlays") : new JsonArray();
+        JsonNode largeOverlays = large.findArray("overlays").orElse(JsonNode.array());
         List<OverlayLayer> overlays = loadOverlays(largeOverlays, geometries, coord, model, entityId, diagnostics);
-        Optional<String> textureRef = large.has("texture") ? Optional.of(stripEntity(large.get("texture").getAsString())) : Optional.of("");
+        Optional<String> textureRef = large.findString("texture").map(EntityModelLoader::stripEntity).or(() -> Optional.of(""));
         return Optional.of(new LargeShape(model, textureRef, overlays));
     }
 
@@ -671,14 +640,14 @@ public final class EntityModelLoader {
      * {@code Size -> mesh}. Options carrying a {@code scale} (not a {@code geometry}) are skipped; the
      * default size is the base mesh and never appears here.
      */
-    private static @NotNull Map<Size, EntityModelData> buildSizeModels(@NotNull JsonObject family, @NotNull Map<String, EntityModelData> geometries) {
-        JsonObject options = sizeOptions(family);
+    private static @NotNull Map<Size, EntityModelData> buildSizeModels(@NotNull JsonNode family, @NotNull Map<String, EntityModelData> geometries) {
+        JsonNode options = sizeOptions(family);
         if (options == null) return Map.of();
         Map<Size, EntityModelData> out = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> option : options.entrySet()) {
-            JsonObject body = option.getValue().getAsJsonObject();
+        for (Map.Entry<String, JsonNode> option : options.members()) {
+            JsonNode body = option.getValue();
             if (!body.has("geometry")) continue;
-            EntityModelData mesh = geometries.get(body.get("geometry").getAsString());
+            EntityModelData mesh = geometries.get(body.getString("geometry"));
             if (mesh != null) out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
         }
         return out;
@@ -688,23 +657,22 @@ public final class EntityModelLoader {
      * Resolves the family's {@code size} axis scale alternatives (salmon / slime / magma_cube) into
      * {@code Size -> factor}. The default size is scale {@code 1.0} and never appears here.
      */
-    private static @NotNull Map<Size, Float> buildSizeScales(@NotNull JsonObject family) {
-        JsonObject options = sizeOptions(family);
+    private static @NotNull Map<Size, Float> buildSizeScales(@NotNull JsonNode family) {
+        JsonNode options = sizeOptions(family);
         if (options == null) return Map.of();
         Map<Size, Float> out = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> option : options.entrySet()) {
-            JsonObject body = option.getValue().getAsJsonObject();
-            if (body.has("scale")) out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), body.get("scale").getAsFloat());
+        for (Map.Entry<String, JsonNode> option : options.members()) {
+            JsonNode body = option.getValue();
+            if (body.has("scale")) out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), body.getFloat("scale", 0f));
         }
         return out;
     }
 
     /** Returns the family's {@code axes.size.options} object, or {@code null} when it has no size axis. */
-    private static @Nullable JsonObject sizeOptions(@NotNull JsonObject family) {
-        if (!family.has("axes")) return null;
-        JsonObject axes = family.getAsJsonObject("axes");
-        if (!axes.has("size")) return null;
-        return axes.getAsJsonObject("size").getAsJsonObject("options");
+    private static @Nullable JsonNode sizeOptions(@NotNull JsonNode family) {
+        JsonNode axes = family.get("axes");
+        if (axes == null || !axes.has("size")) return null;
+        return axes.get("size").get("options");
     }
 
     // ------------------------------------------------------------------------------------
@@ -730,22 +698,24 @@ public final class EntityModelLoader {
      * left with no resolvable bones is omitted.
      */
     private static @NotNull Map<String, BoneToggle> loadBoneToggles(
-        @Nullable JsonObject toggles,
+        @Nullable JsonNode toggles,
         @NotNull EntityModelData fullModel,
         @NotNull String entityId,
         @NotNull Diagnostics diagnostics
     ) {
         if (toggles == null) return Map.of();
         Map<String, BoneToggle> out = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : toggles.entrySet()) {
-            if (!entry.getValue().isJsonObject()) continue;
-            JsonObject spec = entry.getValue().getAsJsonObject();
-            if (!spec.has("bones") || !spec.get("bones").isJsonArray()) continue;
-            boolean defaultVisible = spec.has("default") && spec.get("default").getAsBoolean();
+        for (Map.Entry<String, JsonNode> entry : toggles.members()) {
+            JsonNode spec = entry.getValue();
+            if (!spec.isObject()) continue;
+            Optional<JsonNode> boneArray = spec.findArray("bones");
+            if (boneArray.isEmpty()) continue;
+            boolean defaultVisible = spec.getBool("default", false);
             LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
-            for (JsonElement element : spec.getAsJsonArray("bones")) {
-                if (!element.isJsonPrimitive()) continue;
-                String boneName = element.getAsString();
+            for (JsonNode element : boneArray.get().elements()) {
+                Optional<String> name = element.stringValue();
+                if (name.isEmpty()) continue;
+                String boneName = name.get();
                 EntityModelData.Bone bone = fullModel.getBones().get(boneName);
                 if (bone == null) {
                     diagnostics.warn("entity '%s' bone_toggles '%s' names bone '%s' which is not on the geometry", entityId, entry.getKey(), boneName);
@@ -766,15 +736,16 @@ public final class EntityModelLoader {
      */
     private static @NotNull EntityModelData applyHiddenBones(
         @NotNull EntityModelData model,
-        @Nullable JsonArray hiddenBones,
+        @Nullable JsonNode hiddenBones,
         @NotNull String entityId,
         @NotNull Diagnostics diagnostics
     ) {
         if (hiddenBones == null) return model;
         LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(model.getBones());
-        for (JsonElement el : hiddenBones) {
-            if (!el.isJsonPrimitive()) continue;
-            String name = el.getAsString();
+        for (JsonNode el : hiddenBones.elements()) {
+            Optional<String> n = el.stringValue();
+            if (n.isEmpty()) continue;
+            String name = n.get();
             if (bones.remove(name) == null)
                 diagnostics.warn("entity '%s' hidden_bones names bone '%s' which is not on the geometry", entityId, name);
         }
@@ -787,10 +758,10 @@ public final class EntityModelLoader {
      * {@code clearRecursively} empties a retained part's descendant subtree). Every other bone is kept
      * as a pose-only node so the transform hierarchy stays intact.
      */
-    private static @NotNull EntityModelData retainExactParts(@NotNull EntityModelData source, @NotNull JsonArray retainBones) {
+    private static @NotNull EntityModelData retainExactParts(@NotNull EntityModelData source, @NotNull JsonNode retainBones) {
         Set<String> retain = new LinkedHashSet<>();
-        for (JsonElement el : retainBones)
-            if (el.isJsonPrimitive()) retain.add(el.getAsString());
+        for (JsonNode el : retainBones.elements())
+            el.stringValue().ifPresent(retain::add);
         Map<String, EntityModelData.Bone> bones = source.getBones();
         LinkedHashMap<String, EntityModelData.Bone> out = new LinkedHashMap<>();
         for (Map.Entry<String, EntityModelData.Bone> e : bones.entrySet()) {
@@ -823,10 +794,10 @@ public final class EntityModelLoader {
      * array (an asymmetric grow, absent from 26.1) returns its largest component so the depth-clearance
      * bump never decode-throws. The bump is applied per-axis by {@link #inflateModel}.
      */
-    private static float growScalar(@NotNull JsonElement grow) {
-        if (!grow.isJsonArray()) return grow.getAsFloat();
+    private static float growScalar(@NotNull JsonNode grow) {
+        if (!grow.isArray()) return grow.floatValue(0f);
         float max = 0f;
-        for (JsonElement axis : grow.getAsJsonArray()) max = Math.max(max, axis.getAsFloat());
+        for (JsonNode axis : grow.elements()) max = Math.max(max, axis.floatValue(0f));
         return max;
     }
 
@@ -860,21 +831,19 @@ public final class EntityModelLoader {
 
     /** Parses every {@code geometries} entry (skipping {@code //} comment keys) into a coordinate map. */
     private static @NotNull Map<String, EntityModelData> parseGeometries(@NotNull ResourceDocument geometryDoc) {
-        JsonObject root = geometryDoc.payload().toGson().getAsJsonObject();
-        if (!root.has("geometries")) return Map.of();
-        JsonObject geometriesJson = root.getAsJsonObject("geometries");
+        Optional<JsonNode> geometriesJson = geometryDoc.payload().findObject("geometries");
+        if (geometriesJson.isEmpty()) return Map.of();
         Map<String, EntityModelData> out = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : geometriesJson.entrySet()) {
+        for (Map.Entry<String, JsonNode> entry : geometriesJson.get().members()) {
             if (entry.getKey().startsWith("//")) continue;
-            out.put(entry.getKey(), GSON.fromJson(entry.getValue(), EntityModelData.class));
+            out.put(entry.getKey(), entry.getValue().as(EntityModelData.class));
         }
         return out;
     }
 
     /** Returns the {@code models} object of a parsed models document, or {@code null} when absent. */
-    private static @Nullable JsonObject modelsOf(@NotNull ResourceDocument modelsDoc) {
-        JsonObject root = modelsDoc.payload().toGson().getAsJsonObject();
-        return root.has("models") ? root.getAsJsonObject("models") : null;
+    private static @Nullable JsonNode modelsOf(@NotNull ResourceDocument modelsDoc) {
+        return modelsDoc.payload().findObject("models").orElse(null);
     }
 
     /**

@@ -1,8 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
@@ -10,6 +8,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.json.JsonNode;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -66,7 +65,7 @@ public record MCMeta(
         }
         if (root == null)
             throw new PipelineException("Empty mcmeta for '%s'", id);
-        return parse(root, id);
+        return parse(JsonNode.wrap(root), id);
     }
 
     /**
@@ -78,7 +77,7 @@ public record MCMeta(
      * @return the parsed document
      * @throws PipelineException if a present section carries a malformed encoding
      */
-    public static @NotNull MCMeta parse(@NotNull JsonObject root, @NotNull ResourceId id) {
+    public static @NotNull MCMeta parse(@NotNull JsonNode root, @NotNull ResourceId id) {
         return new MCMeta(
             id,
             readPack(root, id),
@@ -88,9 +87,10 @@ public record MCMeta(
             readVillager(root));
     }
 
-    private static @NotNull Optional<Pack> readPack(@NotNull JsonObject root, @NotNull ResourceId id) {
-        if (!root.has("pack") || !root.get("pack").isJsonObject()) return Optional.empty();
-        JsonObject pack = root.getAsJsonObject("pack");
+    private static @NotNull Optional<Pack> readPack(@NotNull JsonNode root, @NotNull ResourceId id) {
+        Optional<JsonNode> packNode = root.findObject("pack");
+        if (packNode.isEmpty()) return Optional.empty();
+        JsonNode pack = packNode.get();
         String packId = id.namespace();
         FormatRange formats = FormatRange.fromPackObject(pack, packId);
         Description description = pack.has("description")
@@ -99,41 +99,41 @@ public record MCMeta(
         return Optional.of(new Pack(formats, description, readOverlays(root, packId), readFilters(root, packId)));
     }
 
-    private static @NotNull ConcurrentList<Overlay> readOverlays(@NotNull JsonObject root, @NotNull String packId) {
-        if (!root.has("overlays") || !root.get("overlays").isJsonObject()) return Concurrent.newList();
-        JsonObject overlays = root.getAsJsonObject("overlays");
-        if (!overlays.has("entries") || !overlays.get("entries").isJsonArray()) return Concurrent.newList();
+    private static @NotNull ConcurrentList<Overlay> readOverlays(@NotNull JsonNode root, @NotNull String packId) {
+        Optional<JsonNode> overlays = root.findObject("overlays");
+        if (overlays.isEmpty()) return Concurrent.newList();
+        Optional<JsonNode> entries = overlays.get().findArray("entries");
+        if (entries.isEmpty()) return Concurrent.newList();
 
         ArrayList<Overlay> parsed = new ArrayList<>();
-        for (JsonElement entry : overlays.getAsJsonArray("entries")) {
-            if (!entry.isJsonObject()) continue;
-            JsonObject obj = entry.getAsJsonObject();
-            if (!obj.has("directory") || !obj.has("formats")) {
-                System.err.printf("Pack '%s': skipping overlay entry missing directory/formats: %s%n", packId, obj);
+        for (JsonNode entry : entries.get().elements()) {
+            if (!entry.isObject()) continue;
+            if (!entry.has("directory") || !entry.has("formats")) {
+                System.err.printf("Pack '%s': skipping overlay entry missing directory/formats: %s%n", packId, entry.toGson());
                 continue;
             }
-            parsed.add(new Overlay(obj.get("directory").getAsString(), FormatRange.fromFormatsValue(obj.get("formats"), packId)));
+            parsed.add(new Overlay(entry.getString("directory"), FormatRange.fromFormatsValue(entry.get("formats"), packId)));
         }
         return Concurrent.adoptList(parsed).toUnmodifiable();
     }
 
-    private static @NotNull ConcurrentList<Filter> readFilters(@NotNull JsonObject root, @NotNull String packId) {
-        if (!root.has("filter") || !root.get("filter").isJsonObject()) return Concurrent.newList();
-        JsonObject filter = root.getAsJsonObject("filter");
-        if (!filter.has("block") || !filter.get("block").isJsonArray()) return Concurrent.newList();
+    private static @NotNull ConcurrentList<Filter> readFilters(@NotNull JsonNode root, @NotNull String packId) {
+        Optional<JsonNode> filter = root.findObject("filter");
+        if (filter.isEmpty()) return Concurrent.newList();
+        Optional<JsonNode> block = filter.get().findArray("block");
+        if (block.isEmpty()) return Concurrent.newList();
 
         ArrayList<Filter> parsed = new ArrayList<>();
-        for (JsonElement entry : filter.getAsJsonArray("block")) {
-            if (!entry.isJsonObject()) continue;
-            JsonObject obj = entry.getAsJsonObject();
-            parsed.add(new Filter(compile(obj, "namespace", packId), compile(obj, "path", packId)));
+        for (JsonNode entry : block.get().elements()) {
+            if (!entry.isObject()) continue;
+            parsed.add(new Filter(compile(entry, "namespace", packId), compile(entry, "path", packId)));
         }
         return Concurrent.adoptList(parsed).toUnmodifiable();
     }
 
-    private static @NotNull Optional<Pattern> compile(@NotNull JsonObject obj, @NotNull String key, @NotNull String packId) {
-        if (!obj.has(key)) return Optional.empty();
-        String regex = obj.get(key).getAsString();
+    private static @NotNull Optional<Pattern> compile(@NotNull JsonNode obj, @NotNull String key, @NotNull String packId) {
+        String regex = obj.getString(key);
+        if (regex == null) return Optional.empty();
         try {
             return Optional.of(Pattern.compile(regex));
         } catch (PatternSyntaxException ex) {
@@ -141,65 +141,63 @@ public record MCMeta(
         }
     }
 
-    private static @NotNull Optional<Animation> readAnimation(@NotNull JsonObject root) {
-        if (!root.has("animation") || !root.get("animation").isJsonObject()) return Optional.empty();
-        JsonObject a = root.getAsJsonObject("animation");
-        int frametime = a.has("frametime") ? a.get("frametime").getAsInt() : 1;
-        boolean interpolate = a.has("interpolate") && a.get("interpolate").getAsBoolean();
-        int width = a.has("width") ? a.get("width").getAsInt() : -1;
-        int height = a.has("height") ? a.get("height").getAsInt() : -1;
-        ConcurrentList<Frame> frames = a.has("frames") && a.get("frames").isJsonArray()
-            ? parseFrames(a.getAsJsonArray("frames"))
-            : Concurrent.newList();
+    private static @NotNull Optional<Animation> readAnimation(@NotNull JsonNode root) {
+        Optional<JsonNode> animation = root.findObject("animation");
+        if (animation.isEmpty()) return Optional.empty();
+        JsonNode a = animation.get();
+        int frametime = a.getInt("frametime", 1);
+        boolean interpolate = a.getBool("interpolate", false);
+        int width = a.getInt("width", -1);
+        int height = a.getInt("height", -1);
+        ConcurrentList<Frame> frames = a.findArray("frames").map(MCMeta::parseFrames).orElseGet(Concurrent::newList);
         return Optional.of(new Animation(frametime, interpolate, width, height, frames));
     }
 
-    private static @NotNull ConcurrentList<Frame> parseFrames(@NotNull JsonArray elements) {
+    private static @NotNull ConcurrentList<Frame> parseFrames(@NotNull JsonNode elements) {
         ArrayList<Frame> frames = new ArrayList<>(elements.size());
-        for (JsonElement element : elements) {
-            if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber())
-                frames.add(new Frame(element.getAsInt(), -1));
-            else if (element.isJsonObject()) {
-                JsonObject entry = element.getAsJsonObject();
-                int index = entry.has("index") ? entry.get("index").getAsInt() : 0;
-                int time = entry.has("time") ? entry.get("time").getAsInt() : -1;
+        for (JsonNode element : elements.elements()) {
+            if (element.intValue().isPresent())
+                frames.add(new Frame(element.intValue().get(), -1));
+            else if (element.isObject()) {
+                int index = element.getInt("index", 0);
+                int time = element.getInt("time", -1);
                 frames.add(new Frame(index, time));
             }
         }
         return Concurrent.adoptList(frames).toUnmodifiable();
     }
 
-    private static @NotNull Optional<TextureFlags> readTexture(@NotNull JsonObject root) {
-        if (!root.has("texture") || !root.get("texture").isJsonObject()) return Optional.empty();
-        JsonObject t = root.getAsJsonObject("texture");
-        boolean blur = t.has("blur") && t.get("blur").getAsBoolean();
-        boolean clamp = t.has("clamp") && t.get("clamp").getAsBoolean();
+    private static @NotNull Optional<TextureFlags> readTexture(@NotNull JsonNode root) {
+        Optional<JsonNode> texture = root.findObject("texture");
+        if (texture.isEmpty()) return Optional.empty();
+        JsonNode t = texture.get();
+        boolean blur = t.getBool("blur", false);
+        boolean clamp = t.getBool("clamp", false);
         return Optional.of(new TextureFlags(blur, clamp));
     }
 
-    private static @NotNull Optional<GuiScaling> readGui(@NotNull JsonObject root) {
-        if (!root.has("gui") || !root.get("gui").isJsonObject()) return Optional.empty();
-        JsonObject gui = root.getAsJsonObject("gui");
-        JsonObject scaling = gui.has("scaling") && gui.get("scaling").isJsonObject()
-            ? gui.getAsJsonObject("scaling")
-            : new JsonObject();
+    private static @NotNull Optional<GuiScaling> readGui(@NotNull JsonNode root) {
+        Optional<JsonNode> gui = root.findObject("gui");
+        if (gui.isEmpty()) return Optional.empty();
+        JsonNode scaling = gui.get().findObject("scaling").orElseGet(JsonNode::object);
 
         GuiScaling.Type type = GuiScaling.Type.STRETCH;
         if (scaling.has("type"))
-            type = GuiScaling.Type.parse(scaling.get("type").getAsString());
-        int width = scaling.has("width") ? scaling.get("width").getAsInt() : -1;
-        int height = scaling.has("height") ? scaling.get("height").getAsInt() : -1;
+            type = GuiScaling.Type.parse(scaling.getString("type"));
+        int width = scaling.getInt("width", -1);
+        int height = scaling.getInt("height", -1);
         GuiScaling.Border border = scaling.has("border")
             ? GuiScaling.Border.of(scaling.get("border"))
             : new GuiScaling.Border(0, 0, 0, 0);
-        boolean stretchInner = scaling.has("stretch_inner") && scaling.get("stretch_inner").getAsBoolean();
+        boolean stretchInner = scaling.getBool("stretch_inner", false);
         return Optional.of(new GuiScaling(type, width, height, border, stretchInner));
     }
 
-    private static @NotNull Optional<Villager> readVillager(@NotNull JsonObject root) {
-        if (!root.has("villager") || !root.get("villager").isJsonObject()) return Optional.empty();
-        JsonObject v = root.getAsJsonObject("villager");
-        Villager.Hat hat = v.has("hat") ? Villager.Hat.parse(v.get("hat").getAsString()) : Villager.Hat.NONE;
+    private static @NotNull Optional<Villager> readVillager(@NotNull JsonNode root) {
+        Optional<JsonNode> villager = root.findObject("villager");
+        if (villager.isEmpty()) return Optional.empty();
+        JsonNode v = villager.get();
+        Villager.Hat hat = v.has("hat") ? Villager.Hat.parse(v.getString("hat")) : Villager.Hat.NONE;
         return Optional.of(new Villager(hat));
     }
 
@@ -275,37 +273,36 @@ public record MCMeta(
      * A pack description, normalizing the string and text-component encodings.
      *
      * @param plain the depth-first {@code text} concatenation with {@code §} codes preserved
-     * @param raw the original JSON element, round-tripping the structured form
      */
-    public record Description(@NotNull String plain, @NotNull JsonElement raw) {
+    public record Description(@NotNull String plain) {
 
         /** The empty description. */
-        public static final @NotNull Description EMPTY = new Description("", com.google.gson.JsonNull.INSTANCE);
+        public static final @NotNull Description EMPTY = new Description("");
 
         /**
-         * Normalizes a raw description element - a bare string, a text-component object, or an array
-         * of either - into a plain flattened string plus the untouched raw element.
+         * Normalizes a raw description node - a bare string, a text-component object, or an array
+         * of either - into a plain flattened string.
          *
-         * @param raw the raw {@code description} JSON element
+         * @param raw the raw {@code description} JSON node
          * @return the normalized description
          */
-        public static @NotNull Description of(@NotNull JsonElement raw) {
-            return new Description(flatten(raw), raw);
+        public static @NotNull Description of(@NotNull JsonNode raw) {
+            return new Description(flatten(raw));
         }
 
-        private static @NotNull String flatten(@NotNull JsonElement element) {
-            if (element.isJsonPrimitive()) return element.getAsString();
-            if (element.isJsonArray()) {
+        private static @NotNull String flatten(@NotNull JsonNode element) {
+            if (element.isPrimitive()) return element.stringValue().orElseThrow();
+            if (element.isArray()) {
                 StringBuilder sb = new StringBuilder();
-                for (JsonElement child : element.getAsJsonArray()) sb.append(flatten(child));
+                for (JsonNode child : element.elements()) sb.append(flatten(child));
                 return sb.toString();
             }
-            if (element.isJsonObject()) {
-                JsonObject obj = element.getAsJsonObject();
+            if (element.isObject()) {
                 StringBuilder sb = new StringBuilder();
-                if (obj.has("text") && obj.get("text").isJsonPrimitive()) sb.append(obj.get("text").getAsString());
-                if (obj.has("extra") && obj.get("extra").isJsonArray())
-                    for (JsonElement child : obj.getAsJsonArray("extra")) sb.append(flatten(child));
+                if (element.has("text") && element.get("text").isPrimitive()) sb.append(element.getString("text"));
+                Optional<JsonNode> extra = element.findArray("extra");
+                if (extra.isPresent())
+                    for (JsonNode child : extra.get().elements()) sb.append(flatten(child));
                 return sb.toString();
             }
             return "";
@@ -395,17 +392,16 @@ public record MCMeta(
              * @param value the border value
              * @return the parsed border
              */
-            public static @NotNull Border of(@NotNull JsonElement value) {
-                if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber()) {
-                    int all = value.getAsInt();
+            public static @NotNull Border of(@NotNull JsonNode value) {
+                if (value.intValue().isPresent()) {
+                    int all = value.intValue().get();
                     return new Border(all, all, all, all);
                 }
-                JsonObject obj = value.getAsJsonObject();
-                return new Border(side(obj, "left"), side(obj, "top"), side(obj, "right"), side(obj, "bottom"));
+                return new Border(side(value, "left"), side(value, "top"), side(value, "right"), side(value, "bottom"));
             }
 
-            private static int side(@NotNull JsonObject obj, @NotNull String key) {
-                return obj.has(key) ? obj.get(key).getAsInt() : 0;
+            private static int side(@NotNull JsonNode obj, @NotNull String key) {
+                return obj.getInt(key, 0);
             }
         }
     }

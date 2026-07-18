@@ -1,9 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.json.JsonNode;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -46,12 +44,12 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
      * Normalizes a pack root's format declaration, applying newest-generation-wins across the three
      * encodings.
      *
-     * @param pack the {@code pack} object from a {@code pack.mcmeta}
+     * @param pack the {@code pack} object node from a {@code pack.mcmeta}
      * @param packId the pack id, for error messages
      * @return the winning normalized range, or {@link #ANY} when no format key is present
      * @throws PipelineException if a present format key carries a malformed encoding
      */
-    public static @NotNull FormatRange fromPackObject(@NotNull JsonObject pack, @NotNull String packId) {
+    public static @NotNull FormatRange fromPackObject(@NotNull JsonNode pack, @NotNull String packId) {
         if (pack.has("min_format") || pack.has("max_format")) {
             FormatVersion min = pack.has("min_format") ? minBound(pack.get("min_format"), packId) : new FormatVersion(0, 0);
             FormatVersion max = pack.has("max_format")
@@ -72,56 +70,49 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
      * Accepts a bare integer, a length-2 {@code [min,max]} array, and a
      * {@code {min_inclusive,max_inclusive}} object.
      *
-     * @param value the format value
+     * @param value the format value node
      * @param packId the pack id, for error messages
      * @return the normalized range
      * @throws PipelineException if the encoding is unrecognised or malformed
      */
-    public static @NotNull FormatRange fromFormatsValue(@NotNull JsonElement value, @NotNull String packId) {
-        if (isNumber(value))
+    public static @NotNull FormatRange fromFormatsValue(@NotNull JsonNode value, @NotNull String packId) {
+        if (value.intValue().isPresent())
             return new FormatRange(minBound(value, packId), maxBound(value, packId));
 
-        if (value.isJsonArray()) {
-            JsonArray arr = value.getAsJsonArray();
-            if (arr.size() != 2)
-                throw new PipelineException("Pack '%s' has a 'formats' array of size %d (expected 2)", packId, arr.size());
-            return new FormatRange(minBound(arr.get(0), packId), maxBound(arr.get(1), packId));
+        if (value.isArray()) {
+            if (value.size() != 2)
+                throw new PipelineException("Pack '%s' has a 'formats' array of size %d (expected 2)", packId, value.size());
+            return new FormatRange(minBound(value.at(0), packId), maxBound(value.at(1), packId));
         }
 
-        if (value.isJsonObject()) {
-            JsonObject obj = value.getAsJsonObject();
-            if (!obj.has("min_inclusive") || !obj.has("max_inclusive"))
+        if (value.isObject()) {
+            if (!value.has("min_inclusive") || !value.has("max_inclusive"))
                 throw new PipelineException("Pack '%s' 'formats' object missing min_inclusive/max_inclusive", packId);
-            return new FormatRange(minBound(obj.get("min_inclusive"), packId), maxBound(obj.get("max_inclusive"), packId));
+            return new FormatRange(minBound(value.get("min_inclusive"), packId), maxBound(value.get("max_inclusive"), packId));
         }
 
         throw new PipelineException("Pack '%s' has an unrecognised 'formats' encoding", packId);
     }
 
     /** Lower bound of a value: a bare int floors to minor {@code 0}; a {@code [major,minor]} array is exact. */
-    private static @NotNull FormatVersion minBound(@NotNull JsonElement value, @NotNull String packId) {
-        if (isNumber(value)) return new FormatVersion(value.getAsInt(), 0);
+    private static @NotNull FormatVersion minBound(@NotNull JsonNode value, @NotNull String packId) {
+        if (value.intValue().isPresent()) return new FormatVersion(value.intValue().get(), 0);
         return exactArray(value, packId);
     }
 
     /** Upper bound of a value: a bare int widens to {@link FormatVersion#MAX_MINOR}; an array is exact. */
-    private static @NotNull FormatVersion maxBound(@NotNull JsonElement value, @NotNull String packId) {
-        if (isNumber(value)) return new FormatVersion(value.getAsInt(), FormatVersion.MAX_MINOR);
+    private static @NotNull FormatVersion maxBound(@NotNull JsonNode value, @NotNull String packId) {
+        if (value.intValue().isPresent()) return new FormatVersion(value.intValue().get(), FormatVersion.MAX_MINOR);
         return exactArray(value, packId);
     }
 
     /** Reads an exact {@code [major,minor]} array. */
-    private static @NotNull FormatVersion exactArray(@NotNull JsonElement value, @NotNull String packId) {
-        if (!value.isJsonArray())
-            throw new PipelineException("Pack '%s' format bound '%s' is neither an int nor a [major,minor] array", packId, value);
-        JsonArray arr = value.getAsJsonArray();
-        if (arr.size() != 2)
-            throw new PipelineException("Pack '%s' has a [major,minor] array of size %d (expected 2)", packId, arr.size());
-        return new FormatVersion(arr.get(0).getAsInt(), arr.get(1).getAsInt());
-    }
-
-    private static boolean isNumber(@NotNull JsonElement value) {
-        return value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber();
+    private static @NotNull FormatVersion exactArray(@NotNull JsonNode value, @NotNull String packId) {
+        if (!value.isArray())
+            throw new PipelineException("Pack '%s' format bound '%s' is neither an int nor a [major,minor] array", packId, value.toGson());
+        if (value.size() != 2)
+            throw new PipelineException("Pack '%s' has a [major,minor] array of size %d (expected 2)", packId, value.size());
+        return new FormatVersion(value.at(0).toGson().getAsInt(), value.at(1).toGson().getAsInt());
     }
 
     /**

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.pack.item;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.json.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,7 @@ class ItemModelWalkerTest {
 
     private static ItemModelNode parse(String json) {
         JsonObject root = JsonParser.parseString(json).getAsJsonObject();
-        return ItemModelParser.parse(root.getAsJsonObject("model"));
+        return ItemModelParser.parse(JsonNode.wrap(root.getAsJsonObject("model")));
     }
 
     private static ItemModelWalker.Resolution resolveNeutral(String json) {

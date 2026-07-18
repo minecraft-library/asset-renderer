@@ -1,13 +1,10 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
@@ -17,7 +14,6 @@ import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,8 +35,6 @@ import java.util.Optional;
  */
 @UtilityClass
 public class ItemModelTreeLoader {
-
-    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
      * Loads and merges the item-definition trees across the whole pack stack, keyed by item id
@@ -99,9 +93,10 @@ public class ItemModelTreeLoader {
         String itemId = VanillaSourcePaths.namespacePrefix(namespace) + relative.substring(0, relative.length() - ".json".length());
 
         try {
-            JsonObject json = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
-            if (json == null || !json.has("model") || !json.get("model").isJsonObject()) return Optional.empty();
-            ItemModelNode root = ItemModelParser.parse(json.getAsJsonObject("model"));
+            JsonNode json = JsonNode.parse(container.bytes(entry).orElseThrow());
+            Optional<JsonNode> model = json.findObject("model");
+            if (model.isEmpty()) return Optional.empty();
+            ItemModelNode root = ItemModelParser.parse(model.get());
             return Optional.of(Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
         } catch (RuntimeException ex) {
             // Resource packs sometimes ship deeply nested or otherwise malformed item definitions
@@ -166,10 +161,11 @@ public class ItemModelTreeLoader {
             : new ItemModelNode.Model(VanillaSourcePaths.modelIdPrefix(namespace, VanillaSourcePaths.ITEM_KIND) + stem, List.of());
 
         try {
-            JsonObject json = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), JsonObject.class);
-            if (json == null || !json.has("overrides") || !json.get("overrides").isJsonArray()) return Optional.empty();
-            JsonArray overrides = json.getAsJsonArray("overrides");
-            if (overrides.isEmpty()) return Optional.empty();
+            JsonNode json = JsonNode.parse(container.bytes(entry).orElseThrow());
+            Optional<JsonNode> overridesOpt = json.findArray("overrides");
+            if (overridesOpt.isEmpty()) return Optional.empty();
+            JsonNode overrides = overridesOpt.get();
+            if (overrides.size() == 0) return Optional.empty();
             return LegacyOverrideMapper.map(itemId, overrides, packId, fallback)
                 .map(root -> Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
         } catch (RuntimeException ex) {

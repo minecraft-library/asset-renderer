@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
+import lib.minecraft.renderer.json.JsonNode;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
@@ -32,10 +31,10 @@ public sealed interface CatharsisCondition permits CatharsisCondition.Config, Ca
      * malformed field, yields {@link Unknown} so evaluation degrades to {@code false} rather than
      * throwing during pack acquisition.
      *
-     * @param condition the condition JSON object
+     * @param condition the condition JSON node
      * @return the parsed condition
      */
-    static @NotNull CatharsisCondition parse(@NotNull JsonObject condition) {
+    static @NotNull CatharsisCondition parse(@NotNull JsonNode condition) {
         String kind = string(condition, "condition").orElse("");
         return switch (kind) {
             case "catharsis:config" -> new Config(
@@ -135,17 +134,17 @@ public sealed interface CatharsisCondition permits CatharsisCondition.Config, Ca
 
     }
 
-    private static @NotNull CatharsisCondition parseVersion(@NotNull JsonObject condition) {
+    private static @NotNull CatharsisCondition parseVersion(@NotNull JsonNode condition) {
         VersionKind kind = switch (string(condition, "type").orElse("").toUpperCase(Locale.ROOT)) {
             case "MINECRAFT" -> VersionKind.MINECRAFT;
             case "PACK_FORMAT" -> VersionKind.PACK_FORMAT;
             default -> VersionKind.UNKNOWN;
         };
         Optional<PackFormatRange> range = Optional.empty();
-        if (condition.has("packFormatRange") && condition.get("packFormatRange").isJsonObject()) {
-            JsonObject bounds = condition.getAsJsonObject("packFormatRange");
-            Optional<Integer> min = integer(bounds, "min_inclusive");
-            Optional<Integer> max = integer(bounds, "max_inclusive");
+        Optional<JsonNode> bounds = condition.findObject("packFormatRange");
+        if (bounds.isPresent()) {
+            Optional<Integer> min = bounds.get().findInt("min_inclusive");
+            Optional<Integer> max = bounds.get().findInt("max_inclusive");
             if (min.isPresent() && max.isPresent()) range = Optional.of(new PackFormatRange(min.get(), max.get()));
         }
         return new Version(kind, string(condition, "minecraftPredicate"), range);
@@ -202,17 +201,10 @@ public sealed interface CatharsisCondition permits CatharsisCondition.Config, Ca
         }
     }
 
-    private static @NotNull Optional<String> string(@NotNull JsonObject obj, @NotNull String key) {
-        JsonElement element = obj.get(key);
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()
-            ? Optional.of(element.getAsString())
-            : Optional.empty();
-    }
-
-    private static @NotNull Optional<Integer> integer(@NotNull JsonObject obj, @NotNull String key) {
-        JsonElement element = obj.get(key);
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()
-            ? Optional.of(element.getAsInt())
+    private static @NotNull Optional<String> string(@NotNull JsonNode obj, @NotNull String key) {
+        JsonNode element = obj.get(key);
+        return element != null && element.isPrimitive() && element.boolValue().isEmpty() && element.intValue().isEmpty()
+            ? element.stringValue()
             : Optional.empty();
     }
 
