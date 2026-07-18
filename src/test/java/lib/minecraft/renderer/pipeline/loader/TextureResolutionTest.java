@@ -3,7 +3,7 @@ package lib.minecraft.renderer.pipeline.loader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageFactory;
-import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.Capability;

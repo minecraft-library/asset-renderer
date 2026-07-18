@@ -5,7 +5,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
-import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;

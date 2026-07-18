@@ -11,9 +11,11 @@
  * {@link lib.minecraft.renderer.asset.pack.CatsIndex CatsIndex}), its active
  * {@link lib.minecraft.renderer.asset.pack.PackRoot PackRoot} roots, namespaces, and
  * {@link lib.minecraft.renderer.asset.pack.Capability capabilities}.
- * {@link lib.minecraft.renderer.asset.pack.ResolvedTexture ResolvedTexture} is the cached texture
- * index row (winning path plus optional {@link lib.minecraft.renderer.asset.MCMeta MCMeta} sidecar);
- * {@link lib.minecraft.renderer.asset.pack.FormatRange FormatRange} normalizes the three pack-format
+ * {@link lib.minecraft.renderer.asset.pack.MCMeta MCMeta} is the umbrella over every {@code .mcmeta}
+ * section (pack format, texture animation, GUI scaling), with
+ * {@link lib.minecraft.renderer.asset.pack.FormatRange FormatRange} normalizing the three pack-format
  * generations to one inclusive span.
+ * {@link lib.minecraft.renderer.asset.pack.ResolvedTexture ResolvedTexture} is the cached texture
+ * index row (winning path plus optional {@code MCMeta} sidecar).
  */
 package lib.minecraft.renderer.asset.pack;

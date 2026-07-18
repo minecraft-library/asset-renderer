@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.Capability;
 import lib.minecraft.renderer.asset.pack.PackContainer;

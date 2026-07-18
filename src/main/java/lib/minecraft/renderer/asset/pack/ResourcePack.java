@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.asset.pack;
 
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.asset.MCMeta;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

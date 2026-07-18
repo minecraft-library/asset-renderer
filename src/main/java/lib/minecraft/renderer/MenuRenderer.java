@@ -8,7 +8,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.FramePlacement;

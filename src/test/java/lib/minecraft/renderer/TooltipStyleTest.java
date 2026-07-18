@@ -14,7 +14,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;

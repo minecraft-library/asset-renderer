@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.asset.pack;
 
-import lib.minecraft.renderer.asset.MCMeta;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import org.jetbrains.annotations.NotNull;

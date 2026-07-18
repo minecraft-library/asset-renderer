@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;

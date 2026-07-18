@@ -3,6 +3,7 @@ package lib.minecraft.renderer.asset;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -32,7 +33,7 @@ class PackStackTest {
         ConcurrentList<PackRoot> roots = Concurrent.newList();
         roots.add(PackRoot.BASE);
         return new ResourcePack(id, new PackContainer.Directory(Path.of(id.value())), MCMeta.EMPTY,
-            roots.toUnmodifiable(), namespaces, capabilities);
+                                roots.toUnmodifiable(), namespaces, capabilities);
     }
 
     @Test

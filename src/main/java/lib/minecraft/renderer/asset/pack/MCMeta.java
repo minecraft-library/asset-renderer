@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.asset;
+package lib.minecraft.renderer.asset.pack;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -6,7 +6,7 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.pack.FormatRange;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.json.JsonNode;
 import org.jetbrains.annotations.NotNull;

@@ -2,7 +2,7 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.ResourceId;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;

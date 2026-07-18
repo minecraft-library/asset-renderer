@@ -1,10 +1,10 @@
-package lib.minecraft.renderer.asset;
+package lib.minecraft.renderer.asset.pack;
 
-import lib.minecraft.renderer.asset.MCMeta.Animation;
-import lib.minecraft.renderer.asset.MCMeta.GuiScaling;
-import lib.minecraft.renderer.asset.MCMeta.Pack;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.FormatRange.FormatVersion;
-import lib.minecraft.renderer.asset.pack.FormatRange;
+import lib.minecraft.renderer.asset.pack.MCMeta.Animation;
+import lib.minecraft.renderer.asset.pack.MCMeta.GuiScaling;
+import lib.minecraft.renderer.asset.pack.MCMeta.Pack;
 import lib.minecraft.renderer.exception.PipelineException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

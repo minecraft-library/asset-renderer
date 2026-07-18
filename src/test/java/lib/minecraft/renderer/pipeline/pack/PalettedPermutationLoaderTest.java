@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.collection.Concurrent;
-import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.Capability;
 import lib.minecraft.renderer.asset.pack.PackContainer;

@@ -5,7 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.compose.TooltipChrome;
 import lib.minecraft.renderer.exception.RenderException;

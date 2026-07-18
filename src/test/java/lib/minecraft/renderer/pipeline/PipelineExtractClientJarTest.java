@@ -3,7 +3,7 @@ package lib.minecraft.renderer.pipeline;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -9,21 +9,20 @@
  * {@link lib.minecraft.renderer.asset.AnimationData AnimationData},
  * {@link lib.minecraft.renderer.asset.BlockTag BlockTag},
  * {@link lib.minecraft.renderer.asset.ResourceId ResourceId}), plus the pack-model spine the context
- * holds and resolves against ({@link lib.minecraft.renderer.asset.PackStack PackStack},
- * {@link lib.minecraft.renderer.asset.MCMeta MCMeta}).
+ * holds and resolves through ({@link lib.minecraft.renderer.asset.PackStack PackStack}).
  *
  * <p><b>Charter.</b> Pipeline-built, render-consumed data lives here - both the decoded domain
  * definitions and the pack-model layer the renderer resolves through. The package splits:
  * <ul>
  *   <li><b>{@code asset}</b> (this level) - the top-level classes / records a renderer or the
  *       {@code RendererContext} holds directly ({@code Block}, {@code Item}, {@code Entity}, ...,
- *       {@code PackStack}, {@code MCMeta}).</li>
+ *       {@code PackStack}).</li>
  *   <li>{@link lib.minecraft.renderer.asset.model model} - the shapes shared by two or more
  *       {@code asset} classes (the model / element / face / transform types {@code Block} and
  *       {@code Item} both compose).</li>
  *   <li>{@link lib.minecraft.renderer.asset.pack pack} - the pack-model components {@code PackStack}
- *       caches ({@code ResourcePack}, {@code PackContainer}, {@code ResolvedTexture}, {@code PackId},
- *       {@code PackRoot}, {@code Capability}, {@code FormatRange}, {@code CatsIndex}).</li>
+ *       caches ({@code ResourcePack}, {@code MCMeta}, {@code PackContainer}, {@code ResolvedTexture},
+ *       {@code PackId}, {@code PackRoot}, {@code Capability}, {@code FormatRange}, {@code CatsIndex}).</li>
  *   <li>{@link lib.minecraft.renderer.asset.pack.item pack.item} - the {@code items/*.json} dispatch
  *       trees ({@code ItemModelTree} / {@code ItemModelNode}).</li>
  *   <li>{@link lib.minecraft.renderer.asset.pack.rule pack.rule} - the OptiFine CIT / CTM rule family,
