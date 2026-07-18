@@ -5,8 +5,12 @@ import dev.simplified.gson.GsonContributor;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ArgbColor;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
 import lib.minecraft.renderer.pipeline.pack.MultipartWhenDeserializer;
+import lib.minecraft.renderer.pipeline.pack.item.ItemModelNodeDeserializer;
+import lib.minecraft.renderer.pipeline.pack.item.LayerTintDeserializer;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
@@ -29,8 +33,10 @@ public class PipelineGsonContributor implements GsonContributor {
      * into the renderer's value types: the tensor {@link Vector2f} / {@link Vector3f} / {@link Vector4f}
      * vectors, the {@link ArgbColor} hex-colour, and the {@link ResourceId} {@code namespace:name} id
      * for scalar id fields (the model-id-dialect {@link ResourceId.ModelIdAdapter} is applied per field
-     * with {@code @JsonAdapter}, not globally), and the multipart {@link Block.Multipart.When} condition
-     * union (its {@code AND} / {@code OR} recursion resolves through the same registration).
+     * with {@code @JsonAdapter}, not globally), the multipart {@link Block.Multipart.When} condition
+     * union (its {@code AND} / {@code OR} recursion resolves through the same registration), and the item
+     * dispatch tree - the {@link ItemModelNode} type-discriminated tree (recursing through the context)
+     * and its per-layer {@link LayerTint}.
      *
      * @param builder the Gson settings builder to contribute to
      */
@@ -42,7 +48,9 @@ public class PipelineGsonContributor implements GsonContributor {
             .withTypeAdapter(Vector4f.class, new Vector4f.Adapter())
             .withTypeAdapter(ArgbColor.class, new ArgbColor.Adapter())
             .withTypeAdapter(ResourceId.class, new ResourceId.Adapter())
-            .withTypeAdapter(Block.Multipart.When.class, new MultipartWhenDeserializer());
+            .withTypeAdapter(Block.Multipart.When.class, new MultipartWhenDeserializer())
+            .withTypeAdapter(ItemModelNode.class, new ItemModelNodeDeserializer())
+            .withTypeAdapter(LayerTint.class, new LayerTintDeserializer());
     }
 
 }

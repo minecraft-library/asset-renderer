@@ -16,7 +16,7 @@ import java.util.Set;
  * hardcoded-render leaf, the {@link Bundle} selected-item slot marker, and an {@link Empty} sentinel
  * the parser substitutes for an absent branch or an unknown node type (renders nothing, no fallback).
  *
- * <p>Nodes are immutable records built once at pipeline time by {@link ItemModelParser} and evaluated
+ * <p>Nodes are immutable records built once at pipeline time from the item definition JSON and evaluated
  * against an {@link ItemModelContext} by {@link #resolve(ItemModelContext)}. Absent branches are never
  * {@code null} - {@link Empty#INSTANCE} stands in - so resolution never dereferences a missing case.
  */

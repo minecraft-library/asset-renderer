@@ -6,7 +6,7 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * One parsed {@code assets/<ns>/items/<id>.json} dispatch tree - the item's namespaced id plus the
- * root {@link ItemModelNode}. Built once at pipeline time ({@link ItemModelParser}) and evaluated per
+ * root {@link ItemModelNode}. Built once at pipeline time from the item definition JSON and evaluated per
  * render against an {@link ItemModelContext} (via {@link #resolve(ItemModelContext)}); the id is
  * carried so the tree is self-identifying in logs and the debugger even though resolution keys on the
  * map entry.

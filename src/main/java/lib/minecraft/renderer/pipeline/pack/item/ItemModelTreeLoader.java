@@ -1,7 +1,9 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
+import com.google.gson.Gson;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -38,6 +40,8 @@ import java.util.Optional;
  */
 @UtilityClass
 public class ItemModelTreeLoader {
+
+    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
      * Loads and merges the item-definition trees across the whole pack stack, keyed by item id
@@ -99,7 +103,7 @@ public class ItemModelTreeLoader {
             JsonNode json = JsonNode.parse(container.bytes(entry).orElseThrow());
             Optional<JsonNode> model = json.findObject("model");
             if (model.isEmpty()) return Optional.empty();
-            ItemModelNode root = ItemModelParser.parse(model.get());
+            ItemModelNode root = GSON.fromJson(model.get().toGson(), ItemModelNode.class);
             return Optional.of(Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
         } catch (RuntimeException ex) {
             // Resource packs sometimes ship deeply nested or otherwise malformed item definitions

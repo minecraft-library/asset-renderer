@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.asset.pack.item;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Item.LayerTint;
-import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.option.ItemModelContext;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -24,9 +24,11 @@ import static org.hamcrest.Matchers.is;
 @DisplayName("ItemModelNode resolve evaluation")
 class ItemModelNodeResolveTest {
 
+    private static final Gson GSON = GsonSettings.defaults().create();
+
     private static ItemModelNode parse(String json) {
         JsonObject root = JsonParser.parseString(json).getAsJsonObject();
-        return ItemModelParser.parse(JsonNode.wrap(root.getAsJsonObject("model")));
+        return GSON.fromJson(root.getAsJsonObject("model"), ItemModelNode.class);
     }
 
     private static ItemModelNode.Resolution resolveNeutral(String json) {
