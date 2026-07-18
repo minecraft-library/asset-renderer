@@ -1,0 +1,789 @@
+package lib.minecraft.renderer.pipeline.index;
+
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.pixel.BlendMode;
+import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
+import lib.minecraft.renderer.asset.Entity.BoneToggle;
+import lib.minecraft.renderer.asset.Entity.EquipmentOverlay;
+import lib.minecraft.renderer.asset.Entity.LargeShape;
+import lib.minecraft.renderer.asset.Entity.OverlayLayer;
+import lib.minecraft.renderer.asset.Entity.TransformOp;
+import lib.minecraft.renderer.asset.Entity.TransformOp.RotateX;
+import lib.minecraft.renderer.asset.Entity.TransformOp.RotateY;
+import lib.minecraft.renderer.asset.Entity.TransformOp.RotateZ;
+import lib.minecraft.renderer.asset.Entity.TransformOp.Scale;
+import lib.minecraft.renderer.asset.Entity.TransformOp.Translate;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.option.AppearanceGate;
+import lib.minecraft.renderer.option.Size;
+import lib.minecraft.renderer.pipeline.util.ArgbHex;
+import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * Assembles the runtime entity index from the two pure reads: joins each {@link RawModel}'s geometry
+ * coordinate against the geometry table, runs the mesh surgery (hidden-bone strip, {@code retainExactParts}
+ * subset, {@code grow} inflate plus the auto-emitted depth-clearance bump), pivots the option axes into
+ * {@link Entity.Axes}, folds each variant option into a sub-{@link Entity}, and stamps cross-entity
+ * canvas-group membership. The leaf decodes (hex tint, {@code blend} token, texture strip, transform ops)
+ * happen here too, where the {@link Diagnostics} handle is available - the raw records carry them verbatim.
+ *
+ * <p>Id-encoded variant expansion is retained faithfully but is a dead branch in 26.1 - the tooling hardcodes
+ * {@code id_encoded: false}, so every family folds to one base row (option-encoded coats live on
+ * {@code axes.variants}, measured by the group canvas union rather than as separate member rows).
+ */
+public final class EntityIndexBuilder {
+
+    private static final @NotNull String TEXTURE_PREFIX = "minecraft:textures/entity/";
+    private static final @NotNull String TEXTURE_SUFFIX = ".png";
+
+    /**
+     * The auto-emitted depth-clearance inflate applied to same-geometry grow-less overlays (emissive
+     * eyes, {@code texture_by} profession / crackiness layers) so they win the coplanar depth tie against
+     * the base mesh. This is OUR artifact - vanilla submits the identical {@code ModelPart} with no
+     * deformation - so a same-geometry overlay carrying at most this much inflate is excluded from
+     * canvas-sizing bounds. A tinted separate-{@code LayerDefinition} overlay that merely dedupes into the
+     * base mesh (sheep wool undercoat: {@code tint_by wool_color}) is NOT stamped, so the tint gate
+     * excludes it.
+     */
+    private static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
+
+    private static final int WHITE = 0xFFFFFFFF;
+
+    private EntityIndexBuilder() {}
+
+    /**
+     * Assembles the entity index from the raw model tree and the geometry table.
+     *
+     * @param geometries the geometry coordinate to bone tree table
+     * @param rawFile the raw model catalog
+     * @param diagnostics the scope read warnings are recorded to
+     * @return definitions keyed by namespaced entity id, in file order
+     * @throws PipelineException if an entity references a geometry coordinate absent from the geometry file
+     */
+    public static @NotNull ConcurrentMap<String, Entity> assemble(
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull RawEntityModelsFile rawFile,
+        @NotNull Diagnostics diagnostics
+    ) {
+        Map<String, RawModel> models = rawFile.models();
+        if (models == null) return Concurrent.newMap();
+        LinkedHashMap<String, Entity> definitions = new LinkedHashMap<>();
+        for (Map.Entry<String, RawModel> entry : models.entrySet()) {
+            if (entry.getValue() == null) continue;
+            readDefinition(entry.getKey(), entry.getValue(), geometries, definitions, diagnostics);
+        }
+        attachGroupMembers(models, definitions);
+        return Concurrent.adoptMap(definitions);
+    }
+
+    /**
+     * Stamps each grouped entity's canvas-group membership onto its {@link Entity#members()} - the
+     * self-inclusive member list the group-union fit bound iterates. Groups of size one (singletons)
+     * carry no members (the empty default); only genuine groups (size &gt; 1) are rewritten.
+     *
+     * @param models the raw model catalog
+     * @param definitions the built definitions, mutated in place for grouped entities
+     */
+    private static void attachGroupMembers(@NotNull Map<String, RawModel> models, @NotNull Map<String, Entity> definitions) {
+        for (Map.Entry<String, List<String>> group : groupMembership(models).entrySet()) {
+            if (group.getValue().size() <= 1) continue;
+            Entity entity = definitions.get(group.getKey());
+            if (entity == null) continue;
+            definitions.put(group.getKey(), entity.toBuilder().members(group.getValue()).build());
+        }
+    }
+
+    /**
+     * Returns {@code entityId -> groupMembers} keyed by every native entity id, derived from
+     * {@code variant_of} (variant siblings roll up to their base row) plus the cross-entity
+     * {@code group_of} groupings (mooshroom -&gt; cow). Singletons return a single-element list of
+     * themselves so the fold is uniform; {@link #attachGroupMembers} keeps only the genuine groups.
+     *
+     * @param models the raw model catalog
+     * @return group membership keyed by entity id
+     */
+    private static @NotNull Map<String, List<String>> groupMembership(@NotNull Map<String, RawModel> models) {
+        Map<String, String> variantOf = new LinkedHashMap<>();
+        Map<String, String> crossGroups = new LinkedHashMap<>();
+        for (Map.Entry<String, RawModel> entry : models.entrySet()) {
+            if (entry.getValue() == null) continue;
+            String familyId = entry.getKey();
+            RawModel family = entry.getValue();
+            RawVariantAxis variant = variantAxis(family);
+            boolean idEncoded = variant != null && variant.idEncoded();
+            if (variant != null && idEncoded) {
+                String defaultOption = variant.defaultOption();
+                String baseId = familyId + "_" + defaultOption;
+                for (String option : variant.options().keySet()) {
+                    String rowId = familyId + "_" + option;
+                    variantOf.put(rowId, option.equals(defaultOption) ? null : baseId);
+                }
+            } else {
+                // Non-variant OR option-encoded variant model: one base row. Option-encoded coats live on
+                // the base definition's axes.variants and are measured by the group canvas union.
+                variantOf.put(familyId, null);
+            }
+            // group_of groups a non-variant sub-species under its base (camel_husk -> camel). A variant
+            // model's group_of (mooshroom -> cow) is inert at runtime, so it is guarded to non-variant
+            // models to keep that inertness once option-encoding makes the base row a plain id.
+            if (variant == null && family.groupOf() != null) crossGroups.put(familyId, family.groupOf());
+        }
+
+        Map<String, String> entityToFamily = new LinkedHashMap<>();
+        for (Map.Entry<String, String> row : variantOf.entrySet()) {
+            String family = crossGroups.get(row.getKey());
+            if (family == null) family = row.getValue();
+            if (family == null) family = row.getKey();
+            entityToFamily.put(row.getKey(), family);
+        }
+        Map<String, List<String>> familyToMembers = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : entityToFamily.entrySet())
+            familyToMembers.computeIfAbsent(e.getValue(), k -> new ArrayList<>()).add(e.getKey());
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : entityToFamily.entrySet())
+            result.put(e.getKey(), List.copyOf(familyToMembers.get(e.getValue())));
+        return result;
+    }
+
+    // ------------------------------------------------------------------------------------
+    // model read
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Reads one model into one (plain) or many (id-encoded variant) {@link Entity} rows, adding each to
+     * {@code definitions}.
+     */
+    private static void readDefinition(
+        @NotNull String familyId,
+        @NotNull RawModel family,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull Map<String, Entity> definitions,
+        @NotNull Diagnostics diagnostics
+    ) {
+        // The family baseline (primary geometry + adult texture) lives under the mandatory age axis'
+        // options.adult, not at top level.
+        RawAgeOption adult = adultOption(family);
+        String baseCoord = adult.geometry();
+
+        RawRender render = family.render();
+        float rendererScale = render == null || render.scale() == null ? 1f : render.scale();
+        float setupYawAddend = render == null ? 0f : render.yawAddend();
+        int baseTint = render == null || render.tint() == null ? WHITE : ArgbHex.parse(render.tint(), diagnostics);
+
+        RawBones bones = family.bones();
+        List<String> hiddenBones = bones == null ? null : bones.hidden();
+        Map<String, RawToggle> boneToggleSpecs = bones == null ? null : bones.toggles();
+
+        List<RawOverlay> familyOverlays = nullToEmpty(family.overlays());
+        List<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null ? List.of() : loadBlockOverlays(family.blockOverlays());
+
+        Optional<String> collarTexture = collarTextureOf(family);
+        List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId, diagnostics);
+        boolean markings = markingsOf(family);
+        boolean humanoidArmor = humanoidArmorOf(family);
+        String babyCoord = babyGeometryOf(family);
+        Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyCoord));
+
+        RawVariantAxis variant = variantAxis(family);
+        if (variant != null) {
+            boolean idEncoded = variant.idEncoded();
+            String defaultOption = variant.defaultOption();
+            Map<String, RawVariantOption> options = variant.options();
+            VariantContext ctx = new VariantContext(baseCoord, geometries, hiddenBones, boneToggleSpecs, familyOverlays,
+                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, collarTexture, equipment, markings, humanoidArmor);
+            if (idEncoded) {
+                // id-encoded: each coat is a first-class render pseudo-id minecraft:<id>_<opt>.
+                for (Map.Entry<String, RawVariantOption> option : options.entrySet()) {
+                    String rowId = familyId + "_" + option.getKey();
+                    definitions.put(rowId, buildVariantRow(rowId, option.getValue(), ctx, diagnostics));
+                }
+                return;
+            }
+            // option-encoded variant: one base row minecraft:<id>, the coat resolved at render. Every option
+            // is built into a sub-definition; the base row IS the default coat carrying the full option map.
+            LinkedHashMap<String, Entity> coats = new LinkedHashMap<>();
+            for (Map.Entry<String, RawVariantOption> option : options.entrySet())
+                coats.put(option.getKey(), buildVariantRow(familyId, option.getValue(), ctx, diagnostics));
+            Entity base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
+            Entity.Axes baseAxes = base.axes();
+            definitions.put(familyId, base.toBuilder()
+                .axes(new Entity.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.largeShape(),
+                    baseAxes.sizeModels(), baseAxes.sizeScales(), Map.copyOf(coats)))
+                .build());
+            return;
+        }
+
+        // Plain family: one row. The size / shape axes attach only to plain families, so they resolve here.
+        EntityModelData model = resolveModel(geometries, baseCoord, familyId);
+        Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, familyId, diagnostics);
+        model = applyHiddenBones(model, hiddenBones, familyId, diagnostics);
+        List<OverlayLayer> overlays = loadOverlays(familyOverlays, geometries, baseCoord, model, familyId, diagnostics);
+        Optional<String> textureRef = adult.texture() == null ? Optional.empty() : Optional.of(stripEntity(adult.texture()));
+
+        Map<String, String> stateTextures = new LinkedHashMap<>();
+        // Plain families carry their single baby texture on age.baby.texture; expose it under the "baby"
+        // state key so the renderer binds it the same way as variant families' per-option baby_texture.
+        String babyTexture = babyTextureOf(family);
+        if (babyTexture != null) stateTextures.put("baby", babyTexture);
+
+        definitions.put(familyId, Entity.builder()
+            .id(ResourceId.parse(familyId))
+            .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
+            .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
+            .boneToggles(toggles)
+            .axes(new Entity.Axes(stateTextures, babyModel,
+                buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries), buildSizeScales(family), Map.of()))
+            .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
+            .build());
+    }
+
+    /**
+     * The family-level render context shared by every variant option's build, so one coat build serves
+     * both the id-encoded pseudo-id expansion and the option-encoded sub-definition map.
+     */
+    private record VariantContext(
+        @NotNull String baseCoord,
+        @NotNull Map<String, EntityModelData> geometries,
+        @Nullable List<String> hiddenBones,
+        @Nullable Map<String, RawToggle> boneToggleSpecs,
+        @NotNull List<RawOverlay> familyOverlays,
+        @NotNull List<BlockOverlayLayer> blockOverlays,
+        int baseTint,
+        float setupYawAddend,
+        float rendererScale,
+        @NotNull Optional<EntityModelData> babyModel,
+        @NotNull Optional<String> collarTexture,
+        @NotNull List<EquipmentOverlay> equipment,
+        boolean markings,
+        boolean humanoidArmor
+    ) {}
+
+    /**
+     * Builds one variant option's {@link Entity}: the option's geometry (its own coordinate when it
+     * overrides the family mesh, else the base coordinate) with the family's bone toggles, hidden-bone
+     * strip, and overlays materialised on it, plus the option's {@code wild} coat texture and per-state
+     * textures. The built definition carries an empty {@code axes.variants} - it is a leaf coat.
+     */
+    private static @NotNull Entity buildVariantRow(
+        @NotNull String rowId,
+        @NotNull RawVariantOption optionObj,
+        @NotNull VariantContext ctx,
+        @NotNull Diagnostics diagnostics
+    ) {
+        String rowCoord = optionObj.geometry() == null ? ctx.baseCoord() : optionObj.geometry();
+        EntityModelData model = resolveModel(ctx.geometries(), rowCoord, rowId);
+        Map<String, BoneToggle> toggles = loadBoneToggles(ctx.boneToggleSpecs(), model, rowId, diagnostics);
+        model = applyHiddenBones(model, ctx.hiddenBones(), rowId, diagnostics);
+        List<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), rowCoord, model, rowId, diagnostics);
+        Map<String, String> stateTextures = variantStateTextures(optionObj);
+        Optional<String> textureRef = variantWildTexture(optionObj);
+        return Entity.builder()
+            .id(ResourceId.parse(rowId))
+            .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(ctx.blockOverlays())
+            .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
+            .boneToggles(toggles)
+            .axes(new Entity.Axes(stateTextures, ctx.babyModel(), Optional.empty(), Map.of(), Map.of(), Map.of()))
+            .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor()))
+            .build();
+    }
+
+    // ------------------------------------------------------------------------------------
+    // overlays
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Resolves an {@code overlays} list into {@link OverlayLayer}s. An overlay without a {@code geometry}
+     * member (or one naming the base coordinate) inherits the post-hidden-strip base mesh so its cubes
+     * co-register with the base; a distinct coordinate resolves fresh from the geometry table (a missing
+     * coordinate warns and drops). {@code retain_bones} restricts the mesh to a vanilla
+     * {@code retainExactParts} subset before inflate; {@code grow} inflates every cube.
+     */
+    private static @NotNull List<OverlayLayer> loadOverlays(
+        @NotNull List<RawOverlay> overlays,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull String baseCoord,
+        @NotNull EntityModelData baseModel,
+        @NotNull String entityId,
+        @NotNull Diagnostics diagnostics
+    ) {
+        List<OverlayLayer> out = new ArrayList<>();
+        for (RawOverlay entry : overlays) {
+            String coord = entry.geometry() == null ? baseCoord : entry.geometry();
+            boolean sameGeometry = coord.equals(baseCoord);
+            EntityModelData overlayModel;
+            if (sameGeometry) {
+                overlayModel = baseModel;
+            } else {
+                overlayModel = geometries.get(coord);
+                if (overlayModel == null) {
+                    diagnostics.warn("entity '%s' overlay references geometry '%s' absent from entity_geometry", entityId, coord);
+                    continue;
+                }
+            }
+            Optional<String> overlayTexture = entry.texture() == null ? Optional.empty() : Optional.of(stripEntity(entry.texture()));
+            // retain_bones (warden pulsating spots) restricts the overlay to a vanilla retainExactParts
+            // subset of the shared mesh, so the glow texture draws only where vanilla's subset
+            // LayerDefinition does. Applied before inflate so surviving cubes inflate together.
+            EntityModelData retained = entry.retainBones() == null ? overlayModel : retainExactParts(overlayModel, entry.retainBones());
+            boolean hasTint = entry.tint() != null;
+            boolean hasTintBy = entry.tintBy() != null;
+            // inflate: an explicit grow (real vanilla CubeDeformation - tropical_fish 0.008, llama carpet
+            // 0.5) wins; else a same-mesh grow-less overlay that RE-SUBMITS the base geometry with no
+            // colour tint gets the depth-clearance inflate (emissive eyes, texture_by profession /
+            // crackiness); every other overlay carries none.
+            float inflate = entry.grow() != null ? growScalar(entry.grow())
+                : sameGeometry && !hasTint && !hasTintBy ? DEPTH_CLEARANCE_INFLATE : 0f;
+            EntityModelData materialised = inflate != 0f ? inflateModel(retained, inflate) : retained;
+            RawPipeline pipeline = entry.pipeline();
+            boolean emissive = pipeline != null && pipeline.emissive();
+            int overlayTint = hasTint ? ArgbHex.parse(entry.tint(), diagnostics) : WHITE;
+            // Same-geometry overlays carrying ONLY the auto-emitted depth-clearance inflate are excluded
+            // from the canvas-sizing bounds: they render the IDENTICAL cube tree as the base (vanilla
+            // submits the same ModelPart through a second render type with NO inflate), so the base
+            // already contributes their full silhouette extent. A LARGER inflate is a real vanilla
+            // CubeDeformation vanilla's own bounds walk includes, so it keeps contributing. An explicit
+            // skip_bounds (llama carpet, NO_RENDER_LAYER_SUFFIXES) always wins.
+            boolean depthClearanceOnly = sameGeometry && inflate <= DEPTH_CLEARANCE_INFLATE;
+            boolean skipBounds = entry.skipBounds() || depthClearanceOnly;
+            Optional<String> tintBy = Optional.ofNullable(entry.tintBy());
+            Optional<String> textureBy = Optional.ofNullable(entry.textureBy());
+            // The overlay's render condition, parsed straight from its `when` object into the typed
+            // AppearanceGate (flag/charged/tinted). Absent -> unconditional.
+            Optional<AppearanceGate> gate = parseOverlayGate(entry.when(), tintBy);
+            // blend / alpha (default NORMAL / 1.0). `additive` -> the energy-swirl glow; `translucent` /
+            // `normal` -> source-over. An un-annotated overlay keeps the NORMAL / 1.0 default.
+            BlendMode blend = parseBlend(pipeline == null ? null : pipeline.blend(), diagnostics);
+            float alpha = pipeline == null || pipeline.alpha() == null ? 1f : pipeline.alpha();
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, textureBy, blend, alpha, gate));
+        }
+        return out;
+    }
+
+    /**
+     * Parses an overlay's {@code when} object into a typed {@link AppearanceGate}: {@code flag} maps to
+     * {@link AppearanceGate.FlagGate}, {@code charged} to {@link AppearanceGate.ChargedGate}, and
+     * {@code tinted} to {@link AppearanceGate.TintedGate} (carrying the overlay's tint axis token so the
+     * gate is self-contained). Absent or unrecognised yields empty (unconditional).
+     *
+     * @param when the overlay's {@code when} object, or {@code null} when absent
+     * @param tintBy the overlay's tint axis token, used to seed a {@link AppearanceGate.TintedGate}
+     * @return the parsed gate, or empty when unconditional
+     */
+    private static @NotNull Optional<AppearanceGate> parseOverlayGate(@Nullable RawOverlayWhen when, @NotNull Optional<String> tintBy) {
+        if (when == null) return Optional.empty();
+        if (when.flag() != null)
+            return Optional.of(new AppearanceGate.FlagGate(when.flag(), when.value()));
+        if (when.charged())
+            return Optional.of(new AppearanceGate.ChargedGate());
+        if (when.tinted())
+            return Optional.of(new AppearanceGate.TintedGate(tintBy.orElse("")));
+        return Optional.empty();
+    }
+
+    /**
+     * Parses an overlay's optional {@code blend} token into a {@link BlendMode}. {@code "additive"} maps to
+     * {@link BlendMode#ADD}; {@code "translucent"}, {@code "normal"}, and an absent token all map to
+     * {@link BlendMode#NORMAL} source-over. An unrecognised value warns and falls back to
+     * {@link BlendMode#NORMAL}.
+     */
+    private static @NotNull BlendMode parseBlend(@Nullable String blend, @NotNull Diagnostics diagnostics) {
+        if (blend == null) return BlendMode.NORMAL;
+        return switch (blend.toLowerCase(Locale.ROOT)) {
+            case "additive" -> BlendMode.ADD;
+            case "translucent", "normal" -> BlendMode.NORMAL;
+            default -> {
+                diagnostics.warn("unknown overlay blend '%s' (expected normal/additive/translucent); using normal", blend);
+                yield BlendMode.NORMAL;
+            }
+        };
+    }
+
+    // ------------------------------------------------------------------------------------
+    // block overlays
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Resolves a {@code block_overlays} list into {@link BlockOverlayLayer} rows. A fixed row names its
+     * {@code block}; a {@code selectable} row's block is supplied at render from the carried selection, so
+     * its {@code block} may be omitted entirely (the enderman carried block). The {@code transforms} entries
+     * are the tagged op objects the renderer pattern-matches.
+     */
+    private static @NotNull List<BlockOverlayLayer> loadBlockOverlays(@NotNull List<RawBlockOverlay> array) {
+        List<BlockOverlayLayer> out = new ArrayList<>();
+        for (RawBlockOverlay row : array) {
+            boolean selectable = row.selectable();
+            if (row.block() == null && !selectable) continue;
+            String blockId = row.block() == null ? "" : row.block();
+            String attachedBone = row.attachedBone();
+            List<TransformOp> ops = new ArrayList<>();
+            for (RawTransform opObj : nullToEmpty(row.transforms())) {
+                switch (opObj.op() == null ? "" : opObj.op()) {
+                    case "translate" -> ops.add(new Translate(opObj.x(), opObj.y(), opObj.z()));
+                    case "rotate_y" -> ops.add(new RotateY(opObj.degrees()));
+                    case "rotate_x" -> ops.add(new RotateX(opObj.degrees()));
+                    case "rotate_z" -> ops.add(new RotateZ(opObj.degrees()));
+                    case "scale" -> ops.add(new Scale(opObj.x(), opObj.y(), opObj.z()));
+                    default -> { }
+                }
+            }
+            out.add(new BlockOverlayLayer(blockId, attachedBone, List.copyOf(ops), selectable));
+        }
+        return List.copyOf(out);
+    }
+
+    // ------------------------------------------------------------------------------------
+    // axes + layers
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Records a variant option's per-state textures ({@code wild} / {@code tame} / {@code angry} + the
+     * per-option {@code baby_texture} under {@code "baby"}) when the option carries more than one - a genuine
+     * multi-state family (wolf) or an ageable variant (cow). A single-texture option leaves the map empty;
+     * the base {@code texture_ref} is the {@code wild} entry either way.
+     */
+    private static @NotNull Map<String, String> variantStateTextures(@NotNull RawVariantOption optionObj) {
+        Map<String, String> states = new LinkedHashMap<>();
+        if (optionObj.textures() != null)
+            for (Map.Entry<String, String> texture : optionObj.textures().entrySet())
+                states.put(texture.getKey(), stripEntity(texture.getValue()));
+        if (optionObj.babyTexture() != null) states.put("baby", stripEntity(optionObj.babyTexture()));
+        return states.size() > 1 ? states : Map.of();
+    }
+
+    /**
+     * Returns a variant option's {@code textures.wild} as the base texture ref, or empty when absent.
+     */
+    private static @NotNull Optional<String> variantWildTexture(@NotNull RawVariantOption optionObj) {
+        if (optionObj.textures() == null) return Optional.empty();
+        String wild = optionObj.textures().get("wild");
+        return wild == null ? Optional.empty() : Optional.of(stripEntity(wild));
+    }
+
+    /**
+     * Returns the mandatory age axis' {@code options.adult} body - the family baseline (primary
+     * {@code geometry}, and for non-variant families the adult {@code texture}).
+     */
+    private static @NotNull RawAgeOption adultOption(@NotNull RawModel family) {
+        return family.axes().age().options().get("adult");
+    }
+
+    /** Returns the {@code axes.variant} object when the family carries a variant axis. */
+    private static @Nullable RawVariantAxis variantAxis(@NotNull RawModel family) {
+        RawAxes axes = family.axes();
+        return axes == null ? null : axes.variant();
+    }
+
+    /** Returns the {@code age.baby} option object, or {@code null} when the family has no age axis. */
+    private static @Nullable RawAgeOption ageBaby(@NotNull RawModel family) {
+        RawAxes axes = family.axes();
+        if (axes == null || axes.age() == null) return null;
+        return axes.age().options().get("baby");
+    }
+
+    /** Returns the family's baby geometry coordinate from its {@code age} axis, or {@code null}. */
+    private static @Nullable String babyGeometryOf(@NotNull RawModel family) {
+        RawAgeOption baby = ageBaby(family);
+        return baby == null ? null : baby.geometry();
+    }
+
+    /** Returns the family's single stripped baby texture from {@code age.baby.texture}, or {@code null}. */
+    private static @Nullable String babyTextureOf(@NotNull RawModel family) {
+        RawAgeOption baby = ageBaby(family);
+        return baby == null || baby.texture() == null ? null : stripEntity(baby.texture());
+    }
+
+    /** Returns the dyed-collar layer's stripped texture, or empty when the family has no collar layer. */
+    private static @NotNull Optional<String> collarTextureOf(@NotNull RawModel family) {
+        for (RawLayer layer : nullToEmpty(family.layers())) {
+            if (!"collar".equals(layer.id())) continue;
+            if (layer.overlay() != null && layer.overlay().texture() != null)
+                return Optional.of(stripEntity(layer.overlay().texture()));
+        }
+        return Optional.empty();
+    }
+
+    /** Returns whether the family carries a {@code markings} layer (the horse marking overlay). */
+    private static boolean markingsOf(@NotNull RawModel family) {
+        for (RawLayer layer : nullToEmpty(family.layers()))
+            if ("markings".equals(layer.id())) return true;
+        return false;
+    }
+
+    /**
+     * Returns whether the family carries a {@code humanoid} armor classification row. Absence IS
+     * {@code none} (the classification is derived off the roster, not a required member).
+     */
+    private static boolean humanoidArmorOf(@NotNull RawModel family) {
+        for (RawLayer layer : nullToEmpty(family.layers()))
+            if ("humanoid".equals(layer.armorType())) return true;
+        return false;
+    }
+
+    /**
+     * Resolves the family's {@code when.equipment}-gated layers into {@link EquipmentOverlay}s, binding
+     * each overlay's {@code geometry} coordinate to its baked mesh. A layer naming an unknown geometry
+     * warns and drops.
+     */
+    private static @NotNull List<EquipmentOverlay> loadEquipment(
+        @NotNull RawModel family,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull String entityId,
+        @NotNull Diagnostics diagnostics
+    ) {
+        List<EquipmentOverlay> out = new ArrayList<>();
+        for (RawLayer layer : nullToEmpty(family.layers())) {
+            if (layer.when() == null || layer.overlay() == null) continue;
+            if (layer.when().equipment() == null) continue;
+            RawLayerOverlay overlay = layer.overlay();
+            if (overlay.geometry() == null || overlay.textureTemplate() == null || overlay.defaultMaterial() == null) continue;
+            String coord = overlay.geometry();
+            EntityModelData model = geometries.get(coord);
+            if (model == null) {
+                diagnostics.warn("entity '%s' equipment layer references geometry '%s' absent from entity_geometry", entityId, coord);
+                continue;
+            }
+            out.add(new EquipmentOverlay(layer.when().equipment(), model, overlay.textureTemplate(), overlay.defaultMaterial()));
+        }
+        return List.copyOf(out);
+    }
+
+    /**
+     * Resolves the family's {@code shape.large} option (tropical fish) into a {@link LargeShape}: the large
+     * body mesh, its stripped base texture, and the pattern overlays materialised on the large geometry.
+     * Empty when the family has no shape axis or its large geometry is missing.
+     */
+    private static @NotNull Optional<LargeShape> buildLargeShape(
+        @NotNull RawModel family,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull String entityId,
+        @NotNull Diagnostics diagnostics
+    ) {
+        RawAxes axes = family.axes();
+        if (axes == null || axes.shape() == null) return Optional.empty();
+        RawShapeOption large = axes.shape().options().get("large");
+        if (large == null || large.geometry() == null) return Optional.empty();
+        String coord = large.geometry();
+        EntityModelData model = geometries.get(coord);
+        if (model == null) return Optional.empty();
+        List<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), geometries, coord, model, entityId, diagnostics);
+        Optional<String> textureRef = large.texture() != null ? Optional.of(stripEntity(large.texture())) : Optional.of("");
+        return Optional.of(new LargeShape(model, textureRef, overlays));
+    }
+
+    /**
+     * Resolves the family's {@code size} axis geometry alternatives (pufferfish small / medium) into
+     * {@code Size -> mesh}. Options carrying a {@code scale} (not a {@code geometry}) are skipped; the
+     * default size is the base mesh and never appears here.
+     */
+    private static @NotNull Map<Size, EntityModelData> buildSizeModels(@NotNull RawModel family, @NotNull Map<String, EntityModelData> geometries) {
+        Map<String, RawSizeOption> options = sizeOptions(family);
+        if (options == null) return Map.of();
+        Map<Size, EntityModelData> out = new LinkedHashMap<>();
+        for (Map.Entry<String, RawSizeOption> option : options.entrySet()) {
+            RawSizeOption body = option.getValue();
+            if (body.geometry() == null) continue;
+            EntityModelData mesh = geometries.get(body.geometry());
+            if (mesh != null) out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
+        }
+        return out;
+    }
+
+    /**
+     * Resolves the family's {@code size} axis scale alternatives (salmon / slime / magma_cube) into
+     * {@code Size -> factor}. The default size is scale {@code 1.0} and never appears here.
+     */
+    private static @NotNull Map<Size, Float> buildSizeScales(@NotNull RawModel family) {
+        Map<String, RawSizeOption> options = sizeOptions(family);
+        if (options == null) return Map.of();
+        Map<Size, Float> out = new LinkedHashMap<>();
+        for (Map.Entry<String, RawSizeOption> option : options.entrySet()) {
+            RawSizeOption body = option.getValue();
+            if (body.scale() != null) out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), body.scale());
+        }
+        return out;
+    }
+
+    /** Returns the family's {@code axes.size.options} object, or {@code null} when it has no size axis. */
+    private static @Nullable Map<String, RawSizeOption> sizeOptions(@NotNull RawModel family) {
+        RawAxes axes = family.axes();
+        if (axes == null || axes.size() == null) return null;
+        return axes.size().options();
+    }
+
+    // ------------------------------------------------------------------------------------
+    // bones + geometry surgery
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Resolves a family / variant geometry coordinate against the parsed geometry table, failing LOUD on a
+     * dangling coordinate.
+     */
+    private static @NotNull EntityModelData resolveModel(@NotNull Map<String, EntityModelData> geometries, @NotNull String coord, @NotNull String entityId) {
+        EntityModelData model = geometries.get(coord);
+        if (model == null)
+            throw new PipelineException("Entity '%s' references geometry '%s' which is absent from entity_geometry", entityId, coord);
+        return model;
+    }
+
+    /**
+     * Resolves a {@code bones.toggles} object into {@code toggle -> }{@link BoneToggle}, pulling each named
+     * bone's {@link EntityModelData.Bone} from the FULL geometry BEFORE the {@code hidden} strip - so a
+     * default-hidden toggle's bones are still present for the resolver to re-add (donkey / mule / llama
+     * chest). A named bone absent from the geometry warns and drops; a toggle left with no resolvable bones
+     * is omitted.
+     */
+    private static @NotNull Map<String, BoneToggle> loadBoneToggles(
+        @Nullable Map<String, RawToggle> toggles,
+        @NotNull EntityModelData fullModel,
+        @NotNull String entityId,
+        @NotNull Diagnostics diagnostics
+    ) {
+        if (toggles == null) return Map.of();
+        Map<String, BoneToggle> out = new LinkedHashMap<>();
+        for (Map.Entry<String, RawToggle> entry : toggles.entrySet()) {
+            RawToggle spec = entry.getValue();
+            if (spec.bones() == null) continue;
+            boolean defaultVisible = spec.defaultVisible();
+            LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
+            for (String boneName : spec.bones()) {
+                if (boneName == null) continue;
+                EntityModelData.Bone bone = fullModel.getBones().get(boneName);
+                if (bone == null) {
+                    diagnostics.warn("entity '%s' bone_toggles '%s' names bone '%s' which is not on the geometry", entityId, entry.getKey(), boneName);
+                    continue;
+                }
+                bones.put(boneName, bone);
+            }
+            if (!bones.isEmpty()) out.put(entry.getKey(), new BoneToggle(bones, defaultVisible));
+        }
+        return out;
+    }
+
+    /**
+     * Returns a copy of {@code model} with the {@code hidden} bones stripped, or {@code model} verbatim when
+     * there are none. The Java geometries pack every optional render target into one tree and gate them by
+     * entity state at render; the static renderer hides the unwanted ones through this list. A named bone
+     * absent from the geometry warns.
+     */
+    private static @NotNull EntityModelData applyHiddenBones(
+        @NotNull EntityModelData model,
+        @Nullable List<String> hiddenBones,
+        @NotNull String entityId,
+        @NotNull Diagnostics diagnostics
+    ) {
+        if (hiddenBones == null) return model;
+        LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(model.getBones());
+        for (String name : hiddenBones) {
+            if (name == null) continue;
+            if (bones.remove(name) == null)
+                diagnostics.warn("entity '%s' hidden_bones names bone '%s' which is not on the geometry", entityId, name);
+        }
+        return new EntityModelData(model.getTextureSize(), model.getInventoryYRotation(), Concurrent.adoptLinkedMap(bones), model.isCull());
+    }
+
+    /**
+     * Restricts an overlay model to the vanilla {@code retainExactParts} subset named by {@code retainBones}:
+     * a bone keeps its cubes iff it is named AND no ancestor is (vanilla's {@code clearRecursively} empties a
+     * retained part's descendant subtree). Every other bone is kept as a pose-only node so the transform
+     * hierarchy stays intact.
+     */
+    private static @NotNull EntityModelData retainExactParts(@NotNull EntityModelData source, @NotNull List<String> retainBones) {
+        Set<String> retain = new LinkedHashSet<>();
+        for (String el : retainBones)
+            if (el != null) retain.add(el);
+        Map<String, EntityModelData.Bone> bones = source.getBones();
+        LinkedHashMap<String, EntityModelData.Bone> out = new LinkedHashMap<>();
+        for (Map.Entry<String, EntityModelData.Bone> e : bones.entrySet()) {
+            EntityModelData.Bone bone = e.getValue();
+            boolean keepCubes = retain.contains(e.getKey()) && !hasAncestorInSet(bones, bone, retain);
+            if (keepCubes || bone.getCubes().isEmpty()) {
+                out.put(e.getKey(), bone);
+            } else {
+                out.put(e.getKey(), new EntityModelData.Bone(
+                    bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
+                    bone.getScale(), Concurrent.adoptList(new ArrayList<>()), bone.getParent()));
+            }
+        }
+        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(out), source.isCull());
+    }
+
+    /** Reports whether any proper ancestor of {@code bone} is named in {@code retain}. */
+    private static boolean hasAncestorInSet(@NotNull Map<String, EntityModelData.Bone> bones, @NotNull EntityModelData.Bone bone, @NotNull Set<String> retain) {
+        for (String parent = bone.getParent(); parent != null; ) {
+            if (retain.contains(parent)) return true;
+            EntityModelData.Bone p = bones.get(parent);
+            if (p == null) return false;
+            parent = p.getParent();
+        }
+        return false;
+    }
+
+    /**
+     * Reduces an overlay {@code grow} vector to a single inflate delta - the largest component, so a scalar
+     * (broadcast to all axes by {@link EntityModelData.Cube.GrowAdapter}) returns itself and an asymmetric
+     * array returns its dominant axis. The delta is applied per-axis by {@link #inflateModel}.
+     */
+    private static float growScalar(@NotNull Vector3f grow) {
+        return Math.max(grow.x(), Math.max(grow.y(), grow.z()));
+    }
+
+    /**
+     * Returns a deep-cloned copy of {@code model} with every cube's grow bumped by {@code delta} on every
+     * axis - surrounding the base mesh with the inflated overlay instead of z-fighting it. Bones, pivots,
+     * rotations, UVs, and parent links are preserved verbatim.
+     */
+    private static @NotNull EntityModelData inflateModel(@NotNull EntityModelData source, float delta) {
+        LinkedHashMap<String, EntityModelData.Bone> inflated = new LinkedHashMap<>();
+        for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {
+            EntityModelData.Bone bone = e.getValue();
+            ArrayList<EntityModelData.Cube> cubes = new ArrayList<>(bone.getCubes().size());
+            for (EntityModelData.Cube cube : bone.getCubes()) {
+                Vector3f grow = cube.getGrow();
+                cubes.add(new EntityModelData.Cube(
+                    cube.getOrigin(), cube.getSize(), cube.getUv(),
+                    new Vector3f(grow.x() + delta, grow.y() + delta, grow.z() + delta), cube.isMirror(),
+                    cube.getPivot(), cube.getRotation(), cube.getFaceUv()));
+            }
+            inflated.put(e.getKey(), new EntityModelData.Bone(
+                bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
+                bone.getScale(), Concurrent.adoptList(cubes), bone.getParent()));
+        }
+        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(inflated), source.isCull());
+    }
+
+    // ------------------------------------------------------------------------------------
+    // resource + text helpers
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Reduces a full entity texture path to the {@code textures/entity/}-relative sub-path the texture
+     * resolver re-qualifies as {@code minecraft:entity/<ref>} - dropping the {@code minecraft:textures/entity/}
+     * prefix and the {@code .png} suffix.
+     */
+    private static @NotNull String stripEntity(@NotNull String path) {
+        if (!path.startsWith(TEXTURE_PREFIX) || !path.endsWith(TEXTURE_SUFFIX))
+            throw new PipelineException("Unexpected entity texture path '%s' (expected '%s<sub>%s')", path, TEXTURE_PREFIX, TEXTURE_SUFFIX);
+        return path.substring(TEXTURE_PREFIX.length(), path.length() - TEXTURE_SUFFIX.length());
+    }
+
+    /** Returns {@code list} unchanged, or an empty list when it is {@code null} (an absent JSON array). */
+    private static <T> @NotNull List<T> nullToEmpty(@Nullable List<T> list) {
+        return list == null ? List.of() : list;
+    }
+}

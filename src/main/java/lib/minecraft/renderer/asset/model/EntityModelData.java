@@ -312,7 +312,7 @@ public class EntityModelData {
          * broadcasts to {@code (g, g, g)}, an {@code [x, y, z]} array is read per-axis. Writes the
          * uniform form back as a scalar so a round-trip stays byte-compatible with the tooling emit.
          */
-        static final class GrowAdapter extends TypeAdapter<Vector3f> {
+        public static final class GrowAdapter extends TypeAdapter<Vector3f> {
 
             @Override
             public void write(@NotNull JsonWriter out, Vector3f value) throws IOException {
