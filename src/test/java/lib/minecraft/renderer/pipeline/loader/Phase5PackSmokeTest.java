@@ -9,7 +9,7 @@ import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
-import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import org.junit.jupiter.api.DisplayName;

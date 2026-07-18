@@ -5,7 +5,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.asset.PackStack;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

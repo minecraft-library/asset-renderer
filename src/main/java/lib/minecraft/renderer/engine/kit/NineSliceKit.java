@@ -3,7 +3,7 @@ package lib.minecraft.renderer.engine.kit;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.Resample;
-import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.asset.MCMeta;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

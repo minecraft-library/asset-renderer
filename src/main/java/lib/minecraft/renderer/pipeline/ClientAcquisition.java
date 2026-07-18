@@ -16,6 +16,8 @@ import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
+import lib.minecraft.renderer.asset.PackStack;
+import lib.minecraft.renderer.asset.MCMeta;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;

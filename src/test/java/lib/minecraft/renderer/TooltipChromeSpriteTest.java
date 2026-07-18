@@ -9,7 +9,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.compose.TooltipChrome;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.TextOptions;
-import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.asset.MCMeta;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;

@@ -13,7 +13,7 @@ import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityShadowDiagnostics;
 import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
-import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

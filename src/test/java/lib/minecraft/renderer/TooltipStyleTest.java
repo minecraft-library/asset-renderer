@@ -18,7 +18,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.TooltipChrome;
 import lib.minecraft.renderer.option.TextOptions;
-import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.asset.MCMeta;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.text.ColorSegment;

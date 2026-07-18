@@ -14,7 +14,7 @@ import lib.minecraft.renderer.engine.kit.NineSliceKit;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.TextOptions;
 import lib.minecraft.renderer.option.slot.TextSlot;
-import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.asset.MCMeta;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;

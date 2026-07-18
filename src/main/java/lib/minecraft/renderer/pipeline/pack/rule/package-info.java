@@ -2,7 +2,7 @@
  * The pack rule layer - OptiFine CIT / CTM parsing and evaluation, NBT conditionals,
  * {@code color.properties}, and the Catharsis conventions - consuming
  * {@link lib.minecraft.renderer.pipeline.pack pack}'s pinned types
- * ({@link lib.minecraft.renderer.pipeline.pack.PackStack PackStack},
+ * ({@link lib.minecraft.renderer.asset.PackStack PackStack},
  * {@link lib.minecraft.renderer.asset.pack.PackId PackId}) without redefining them.
  *
  * <p><b>NBT conditionals.</b> The nbt-factory dependency supplies the tag model

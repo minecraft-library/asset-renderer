@@ -3,7 +3,7 @@ package lib.minecraft.renderer.asset.pack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.asset.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.MCMeta;
+import lib.minecraft.renderer.asset.MCMeta;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

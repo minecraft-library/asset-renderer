@@ -1,16 +1,17 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.asset.pack;
 
 import lombok.experimental.UtilityClass;
+import lib.minecraft.renderer.asset.PackStack;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Shared container-path templates for the {@code assets/<namespace>/textures} tree. The single
- * source of the directory shape both the forward probe ({@link PackStack} - id to
- * {@code <dir>/<path>.png}) and the reverse scan ({@link TextureIndexer} - {@code <dir>} prefix
+ * source of the directory shape both the forward probe ({@code PackStack} - id to
+ * {@code <dir>/<path>.png}) and the reverse scan ({@code TextureIndexer} - {@code <dir>} prefix
  * stripped back to an id) build against, so the two stay in lockstep.
  */
 @UtilityClass
-class PackPaths {
+public class PackPaths {
 
     /**
      * The pack-relative {@code textures} directory for a namespace - {@code assets/<namespace>/textures}.
@@ -19,7 +20,7 @@ class PackPaths {
      * @param namespace the resource namespace
      * @return the pack-relative textures directory for the namespace
      */
-    static @NotNull String texturesDir(@NotNull String namespace) {
+    public static @NotNull String texturesDir(@NotNull String namespace) {
         return "assets/" + namespace + "/textures";
     }
 

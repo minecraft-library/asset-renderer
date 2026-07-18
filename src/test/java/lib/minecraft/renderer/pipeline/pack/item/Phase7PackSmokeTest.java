@@ -13,7 +13,7 @@ import lib.minecraft.renderer.pipeline.loader.BlockEntityShadowDiagnostics;
 import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
-import lib.minecraft.renderer.pipeline.pack.PackStack;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

@@ -21,6 +21,8 @@ import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.PackStack;
+import lib.minecraft.renderer.asset.MCMeta;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
