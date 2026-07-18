@@ -5,7 +5,7 @@
  * identity, derived from a pack's naming inputs by
  * {@link lib.minecraft.renderer.pipeline.pack.PackIdDeriver PackIdDeriver} (a four-rung ladder plus
  * loud letter-ordinal collision suffixes).
- * {@link lib.minecraft.renderer.pipeline.pack.PackContainer PackContainer} is the read-only byte
+ * {@link lib.minecraft.renderer.asset.pack.PackContainer PackContainer} is the read-only byte
  * access - an exploded {@code Directory}, a plain {@code Zip}, or a Catharsis {@code Cats} archive
  * decoded by {@link lib.minecraft.renderer.asset.pack.CatsIndex CatsIndex} - detected by content,
  * orthogonal to content capability. {@link lib.minecraft.renderer.pipeline.pack.MCMeta MCMeta} is the

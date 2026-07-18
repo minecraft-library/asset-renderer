@@ -6,6 +6,8 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.asset.pack.Capability;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

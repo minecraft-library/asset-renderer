@@ -19,6 +19,8 @@ import lib.minecraft.renderer.asset.pack.Capability;
 import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;

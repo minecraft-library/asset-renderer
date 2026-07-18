@@ -6,13 +6,15 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.BannerPattern;
-import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

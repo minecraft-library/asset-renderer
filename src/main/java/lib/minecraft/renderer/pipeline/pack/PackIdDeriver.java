@@ -6,6 +6,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import lombok.experimental.UtilityClass;
 import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackContainer;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;

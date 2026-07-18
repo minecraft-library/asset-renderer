@@ -8,13 +8,15 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.json.JsonException;
 import lib.minecraft.renderer.json.JsonNode;
-import lib.minecraft.renderer.pipeline.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

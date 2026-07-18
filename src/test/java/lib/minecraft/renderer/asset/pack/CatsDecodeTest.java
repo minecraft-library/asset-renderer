@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.asset.pack;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

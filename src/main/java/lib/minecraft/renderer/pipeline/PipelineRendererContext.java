@@ -39,7 +39,7 @@ import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
-import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
+import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.CitRule;
 import lib.minecraft.renderer.asset.pack.rule.CitType;

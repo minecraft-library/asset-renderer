@@ -12,6 +12,8 @@ import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.PackContainer;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;

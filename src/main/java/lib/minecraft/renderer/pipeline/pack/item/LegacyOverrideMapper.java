@@ -5,7 +5,7 @@ import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

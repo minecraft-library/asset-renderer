@@ -1,9 +1,10 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.asset.pack;
 
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.pack.Capability;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
