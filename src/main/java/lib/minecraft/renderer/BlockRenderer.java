@@ -1,8 +1,5 @@
 package lib.minecraft.renderer;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -47,7 +44,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -437,7 +433,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             RasterEngine raster = new RasterEngine(this.context);
 
             for (Block.Multipart.Part part : multipart.parts()) {
-                if (!matchesCondition(part.when(), properties)) continue;
+                if (!part.when().matches(properties)) continue;
 
                 Block.Variant apply = part.apply();
                 // A multipart apply is always an element model (resolved from the full model set at
@@ -504,50 +500,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             }
 
             return result;
-        }
-
-        /**
-         * Evaluates a multipart condition against blockstate properties. Supports simple
-         * property matching, pipe-delimited multi-value OR ({@code "side|up"}), and compound
-         * AND/OR operators.
-         */
-        private static boolean matchesCondition(@Nullable JsonObject when, @NotNull ConcurrentMap<String, String> properties) {
-            if (when == null) return true;
-
-            if (when.has("AND")) {
-                JsonArray conditions = when.getAsJsonArray("AND");
-
-                for (JsonElement el : conditions) {
-                    if (!matchesCondition(el.getAsJsonObject(), properties)) return false;
-                }
-
-                return true;
-            }
-            if (when.has("OR")) {
-                JsonArray conditions = when.getAsJsonArray("OR");
-
-                for (JsonElement el : conditions) {
-                    if (matchesCondition(el.getAsJsonObject(), properties))
-                        return true;
-                }
-
-                return false;
-            }
-
-            // Simple property matching
-            for (Map.Entry<String, JsonElement> entry : when.entrySet()) {
-                String required = entry.getValue().getAsString();
-                String actual = properties.getOrDefault(entry.getKey(), "");
-
-                if (required.contains("|")) {
-                    if (!Arrays.asList(required.split("\\|")).contains(actual))
-                        return false;
-                } else {
-                    if (!required.equals(actual))
-                        return false;
-                }
-            }
-            return true;
         }
 
         /**

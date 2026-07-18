@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.pipeline.pack;
 
-import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
@@ -16,10 +15,10 @@ import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -140,17 +139,21 @@ public class BlockStateLoader {
             .toList();
 
         for (Parsed p : parsedAll) {
-            if (p.variants != null) {
-                variants.put(p.blockId, p.variants);
-                multiparts.remove(p.blockId);
-            } else if (p.multipart != null) {
-                multiparts.put(p.blockId, p.multipart);
-                variants.remove(p.blockId);
-            } else {
-                // A valid but non-renderable higher-pack file still shadows the lower pack's entry -
-                // vanilla presents only the topmost file, so its presence must erase the lower rows.
-                variants.remove(p.blockId);
-                multiparts.remove(p.blockId);
+            switch (p) {
+                case Parsed.Variants v -> {
+                    variants.put(v.blockId(), v.variants());
+                    multiparts.remove(v.blockId());
+                }
+                case Parsed.Multipart m -> {
+                    multiparts.put(m.blockId(), m.multipart());
+                    variants.remove(m.blockId());
+                }
+                case Parsed.Shadow s -> {
+                    // A valid but non-renderable higher-pack file still shadows the lower pack's entry -
+                    // vanilla presents only the topmost file, so its presence must erase the lower rows.
+                    variants.remove(s.blockId());
+                    multiparts.remove(s.blockId());
+                }
             }
         }
     }
@@ -182,13 +185,13 @@ public class BlockStateLoader {
 
             if (root.has("variants")) {
                 ConcurrentMap<String, Block.Variant> parsed = parseVariants(root.get("variants"), blockModels);
-                if (!parsed.isEmpty()) return Optional.of(new Parsed(blockId, parsed, null));
+                if (!parsed.isEmpty()) return Optional.of(new Parsed.Variants(blockId, parsed));
             } else if (root.has("multipart")) {
                 Block.Multipart parsed = parseMultipart(root.get("multipart"), blockModels);
-                if (!parsed.parts().isEmpty()) return Optional.of(new Parsed(blockId, null, parsed));
+                if (!parsed.parts().isEmpty()) return Optional.of(new Parsed.Multipart(blockId, parsed));
             }
             // Valid JSON, nothing renderable: shadow the lower pack's entry (whole-file replace).
-            return Optional.of(new Parsed(blockId, null, null));
+            return Optional.of(new Parsed.Shadow(blockId));
         } catch (JsonException ex) {
             // Malformed: fall back to a lower pack's copy (no shadow).
             return Optional.empty();
@@ -196,15 +199,44 @@ public class BlockStateLoader {
     }
 
     /**
-     * One parsed blockstate file, carrying at most one of {@code variants} or {@code multipart} so
-     * the merge pass can route it to the matching per-id map. Both {@code null} is a shadow record:
-     * a valid but non-renderable file that must still erase the lower pack's rows for its block id.
-     *
-     * @param blockId the namespaced block id derived from the file name
-     * @param variants the parsed variant map, or {@code null} when the file is multipart or a shadow
-     * @param multipart the parsed multipart block, or {@code null} when the file is variant-based or a shadow
+     * One parsed blockstate file, routed by the merge pass to the matching per-id map. A file is
+     * exactly one of three states, each named rather than encoded in nullable fields: a {@link Variants}
+     * or {@link Multipart} definition, or a {@link Shadow} - a valid but non-renderable file that must
+     * still erase the lower pack's rows for its block id (vanilla topmost-file-wins).
      */
-    private record Parsed(@NotNull String blockId, @Nullable ConcurrentMap<String, Block.Variant> variants, @Nullable Block.Multipart multipart) {}
+    private sealed interface Parsed permits Parsed.Variants, Parsed.Multipart, Parsed.Shadow {
+
+        /**
+         * The namespaced block id derived from the file name.
+         *
+         * @return the block id
+         */
+        @NotNull String blockId();
+
+        /**
+         * A variant-form file: a {@code variantKey -> }{@link Block.Variant} map.
+         *
+         * @param blockId the namespaced block id
+         * @param variants the parsed variant map
+         */
+        record Variants(@NotNull String blockId, @NotNull ConcurrentMap<String, Block.Variant> variants) implements Parsed {}
+
+        /**
+         * A multipart-form file: a composite conditional block.
+         *
+         * @param blockId the namespaced block id
+         * @param multipart the parsed multipart block
+         */
+        record Multipart(@NotNull String blockId, @NotNull Block.Multipart multipart) implements Parsed {}
+
+        /**
+         * A valid but non-renderable file (no renderable definition), retained so a higher pack's
+         * presence still erases the lower pack's rows for its block id.
+         *
+         * @param blockId the namespaced block id
+         */
+        record Shadow(@NotNull String blockId) implements Parsed {}
+    }
 
     /**
      * Parses a {@code "variants"} object into a {@code variantKey -> }{@link Block.Variant} map.
@@ -239,8 +271,9 @@ public class BlockStateLoader {
 
     /**
      * Parses a {@code "multipart"} array into a {@link Block.Multipart}. Each element carries an
-     * optional {@code "when"} condition object (retained verbatim for runtime property matching) and
-     * an {@code "apply"} value - a single variant object or a weighted-random array of them. When the
+     * optional {@code "when"} condition (parsed into a {@link Block.Multipart.When} by
+     * {@link #parseWhen}, {@link Block.Multipart.When.Always} when absent) and an {@code "apply"}
+     * value - a single variant object or a weighted-random array of them. When the
      * {@code "apply"} value is an array, the FIRST entry is taken, the same normative first-entry rule
      * {@link #firstApply} applies to weighted {@code "variants"} arrays (harness
      * {@code FirstVariantRandomSource -> 0} parity). Non-object elements and entries with no
@@ -256,9 +289,9 @@ public class BlockStateLoader {
         for (JsonNode element : parts.elements()) {
             if (!element.isObject()) continue;
 
-            // Block.Multipart.Part carries the raw when-object (typed at a later phase), so hand it the
-            // live insertion-ordered element rather than a re-serialised copy.
-            JsonObject when = element.has("when") ? element.get("when").toGson().getAsJsonObject() : null;
+            Block.Multipart.When when = element.has("when")
+                ? parseWhen(element.get("when"))
+                : new Block.Multipart.When.Always();
 
             // "apply" can be a single object or an array (weighted random); take the first
             JsonNode applyValue = element.get("apply");
@@ -270,6 +303,42 @@ public class BlockStateLoader {
         }
 
         return new Block.Multipart(Concurrent.adoptList(result).toUnmodifiable());
+    }
+
+    /**
+     * Parses one multipart {@code "when"} condition into a {@link Block.Multipart.When}. An
+     * {@code "AND"} array becomes {@link Block.Multipart.When.All}, an {@code "OR"} array a
+     * {@link Block.Multipart.When.Any} (each recursively parsed), and any other object a
+     * {@link Block.Multipart.When.Match} whose values are {@code |}-split into their allowed sets.
+     * {@code AND} is checked first and {@code OR} second, matching the render-time precedence: a
+     * {@code when} carrying {@code AND} ignores any sibling {@code OR} or plain property.
+     *
+     * @param when the {@code "when"} JSON
+     * @return the parsed condition
+     */
+    private static @NotNull Block.Multipart.When parseWhen(@NotNull JsonNode when) {
+        if (when.has("AND")) return new Block.Multipart.When.All(parseWhenTerms(when.get("AND")));
+        if (when.has("OR")) return new Block.Multipart.When.Any(parseWhenTerms(when.get("OR")));
+
+        LinkedHashMap<String, List<String>> required = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonNode> entry : when.members())
+            required.put(entry.getKey(), List.of(entry.getValue().stringValue().orElse("").split("\\|")));
+        return new Block.Multipart.When.Match(required);
+    }
+
+    /**
+     * Parses the sub-condition array of an {@code "AND"} / {@code "OR"} form into an ordered list of
+     * {@link Block.Multipart.When}, recursing through {@link #parseWhen}. Non-object elements are
+     * skipped.
+     *
+     * @param terms the {@code "AND"} or {@code "OR"} array
+     * @return the parsed sub-conditions, in author order
+     */
+    private static @NotNull List<Block.Multipart.When> parseWhenTerms(@NotNull JsonNode terms) {
+        ArrayList<Block.Multipart.When> parsed = new ArrayList<>();
+        for (JsonNode term : terms.elements())
+            if (term.isObject()) parsed.add(parseWhen(term));
+        return parsed;
     }
 
     /**

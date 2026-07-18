@@ -519,57 +519,49 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject part(@NotNull Block.Multipart.Part part) {
         JsonObject root = new JsonObject();
         root.add("apply", variant(part.apply()));
-        if (part.when() != null) root.add("when", condition(part.when()));
+        // An unconditional part (Always) omits the "when" key, staying distinguishable from a
+        // present-but-empty condition.
+        if (!(part.when() instanceof Block.Multipart.When.Always)) root.add("when", condition(part.when()));
         return root;
     }
 
     /**
-     * Returns a multipart {@code when} in canonical PARSED form - a three-case tagged union.
+     * Returns a multipart {@code when} in canonical PARSED form - a three-case tagged union mirroring
+     * {@link Block.Multipart.When}: {@link Block.Multipart.When.All} as {@code and},
+     * {@link Block.Multipart.When.Any} as {@code or}, and {@link Block.Multipart.When.Match} as
+     * {@code props}. Both the {@code and} and {@code or} branches recurse, so the form nests.
      * <p>
-     * The loaded field is a raw {@code JsonObject} held verbatim, so a naive dump would serialize the
-     * author's JSON rather than the condition the renderer actually evaluates, and the gate would report
-     * a diff on every cosmetic re-spelling while missing a real change in meaning. The matcher's own
-     * precedence is reproduced here instead:
-     * <ul>
-     * <li><b>{@code AND} is checked first and returns</b> - a {@code when} carrying {@code AND} ignores
-     * any sibling {@code OR} AND any sibling plain properties entirely. Exclusive and absorbing.</li>
-     * <li><b>{@code OR} only when no {@code AND}</b>, and likewise absorbing over plain properties.</li>
-     * <li><b>properties</b> only when neither key is present - an implicit AND across every entry.</li>
-     * </ul>
-     * Both branches recurse, so the form nests. Property values are read through {@code getAsString},
-     * which makes a JSON {@code true} and the string {@code "true"} indistinguishable to the renderer -
-     * they are coerced here for the same reason. {@code |} alternatives are pre-split, in author order:
-     * the test is a membership check so order carries no meaning, but the source is stable JSON and
+     * The condition is parsed at load, so this emits the loaded structure directly - the renderer's
+     * AND-first / OR-second precedence and the {@code getAsString} coercion of a JSON {@code true} to
+     * {@code "true"} already happened there. The {@code |} alternatives are pre-split in author order:
+     * the match is a membership test so order carries no meaning, but the source is stable JSON and
      * sorting it would discard the signal of a parser that reordered them.
      * <p>
-     * A {@code when} that is absent is a key omitted by the caller, which stays distinguishable from a
-     * {@code when} that is present but empty.
+     * {@link Block.Multipart.When.Always} never reaches here - {@link #part} omits the {@code when} key
+     * for an unconditional part, keeping it distinguishable from a present-but-empty condition.
      *
-     * @param when the raw condition object
-     * @return the parsed condition object
+     * @param when the parsed condition
+     * @return the canonical condition object
      */
-    private static @NotNull JsonObject condition(@NotNull JsonObject when) {
+    private static @NotNull JsonObject condition(@NotNull Block.Multipart.When when) {
         JsonObject root = new JsonObject();
-        if (when.has("AND")) {
-            root.add("and", CanonicalJson.ordered(
-                when.getAsJsonArray("AND").asList(), element -> condition(element.getAsJsonObject())));
-            return root;
+        switch (when) {
+            case Block.Multipart.When.All all ->
+                root.add("and", CanonicalJson.ordered(all.terms(), PipelineParityDump::condition));
+            case Block.Multipart.When.Any any ->
+                root.add("or", CanonicalJson.ordered(any.terms(), PipelineParityDump::condition));
+            case Block.Multipart.When.Match match -> {
+                JsonObject props = new JsonObject();
+                match.required().forEach((property, alternatives) -> {
+                    JsonArray array = new JsonArray();
+                    alternatives.forEach(array::add);
+                    props.add(property, array);
+                });
+                root.add("props", props);
+            }
+            case Block.Multipart.When.Always ignored ->
+                throw new IllegalStateException("Always is emitted as an absent when, not a condition");
         }
-        if (when.has("OR")) {
-            root.add("or", CanonicalJson.ordered(
-                when.getAsJsonArray("OR").asList(), element -> condition(element.getAsJsonObject())));
-            return root;
-        }
-
-        JsonObject props = new JsonObject();
-        for (Map.Entry<String, JsonElement> entry : when.entrySet()) {
-            String required = entry.getValue().getAsString();
-            JsonArray alternatives = new JsonArray();
-            for (String alternative : required.split("\\|"))
-                alternatives.add(alternative);
-            props.add(entry.getKey(), alternatives);
-        }
-        root.add("props", props);
         return root;
     }
 

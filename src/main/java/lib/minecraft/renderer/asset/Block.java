@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.asset;
 
-import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
@@ -15,6 +14,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -247,10 +248,87 @@ public record Block(
         /**
          * A single entry in a multipart blockstate.
          *
-         * @param when the raw condition JSON, or {@code null} for unconditional parts
+         * @param when the parsed condition, {@link When.Always} for unconditional parts
          * @param apply the model reference and rotation to render when the condition matches
          */
-        public record Part(@Nullable JsonObject when, @NotNull Variant apply) {}
+        public record Part(@NotNull When when, @NotNull Variant apply) {}
+
+        /**
+         * A parsed multipart {@code "when"} condition, evaluated against a block's resolved property
+         * map. The vanilla forms map one-to-one: an {@code "AND"} array to {@link All}, an {@code "OR"}
+         * array to {@link Any}, a property object to {@link Match} (each value's {@code |} alternation
+         * pre-split at load), and an absent condition to {@link Always}. {@code AND} takes precedence
+         * over {@code OR}, which takes precedence over a plain property object.
+         */
+        public sealed interface When permits When.All, When.Any, When.Match, When.Always {
+
+            /**
+             * Reports whether this condition holds for a block's resolved properties. A property the
+             * block does not declare reads as the empty string.
+             *
+             * @param properties the block's {@code property -> value} map
+             * @return whether the condition matches
+             */
+            boolean matches(@NotNull ConcurrentMap<String, String> properties);
+
+            /**
+             * All sub-conditions must match - the {@code "AND"} form.
+             *
+             * @param terms the conjoined sub-conditions, in author order
+             */
+            record All(@NotNull List<When> terms) implements When {
+
+                @Override
+                public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
+                    for (When term : this.terms)
+                        if (!term.matches(properties)) return false;
+                    return true;
+                }
+            }
+
+            /**
+             * At least one sub-condition must match - the {@code "OR"} form.
+             *
+             * @param terms the alternative sub-conditions, in author order
+             */
+            record Any(@NotNull List<When> terms) implements When {
+
+                @Override
+                public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
+                    for (When term : this.terms)
+                        if (term.matches(properties)) return true;
+                    return false;
+                }
+            }
+
+            /**
+             * Every named property must equal one of its allowed values - a property object. Each
+             * value's {@code |} alternation is pre-split at load, so {@code "side|up"} becomes
+             * {@code ["side", "up"]} and a lone {@code "true"} becomes {@code ["true"]}.
+             *
+             * @param required each property name to its allowed values
+             */
+            record Match(@NotNull Map<String, List<String>> required) implements When {
+
+                @Override
+                public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
+                    for (Map.Entry<String, List<String>> entry : this.required.entrySet())
+                        if (!entry.getValue().contains(properties.getOrDefault(entry.getKey(), ""))) return false;
+                    return true;
+                }
+            }
+
+            /**
+             * The unconditional part - no {@code "when"} key; always matches.
+             */
+            record Always() implements When {
+
+                @Override
+                public boolean matches(@NotNull ConcurrentMap<String, String> properties) {
+                    return true;
+                }
+            }
+        }
 
     }
 
