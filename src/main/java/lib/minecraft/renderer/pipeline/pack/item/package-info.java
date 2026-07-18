@@ -1,24 +1,15 @@
 /**
- * The item-definition dispatch-tree layer - the {@code assets/<ns>/items/*.json} selection trees
- * (26.1+) parsed into immutable id-carrying record nodes at pipeline time and evaluated at render
- * time against a neutral {@link lib.minecraft.renderer.option.ItemModelContext
- * ItemModelContext}. A single resolve pass selects the branch actually rendered.
+ * The item-definition dispatch-tree loaders - read {@code assets/<ns>/items/*.json} into the
+ * {@link lib.minecraft.renderer.asset.pack.item asset.pack.item} DTOs at pipeline time. Pipeline-only;
+ * the parsed trees are render-consumed from {@code asset.pack.item}.
  *
- * <p><b>Node model.</b> {@link lib.minecraft.renderer.asset.pack.item.ItemModelNode ItemModelNode}
- * is the sealed tree: {@code Model} leaves, the {@code Condition}/{@code Select}/{@code RangeDispatch}
- * dispatch nodes, {@code Composite} concatenation, {@code Special} (block-entity / hardcoded render
- * kinds carrying a {@link lib.minecraft.renderer.asset.pack.item.SpecialTransform SpecialTransform}),
- * and the {@code Bundle} slot marker.
- * {@link lib.minecraft.renderer.pipeline.pack.item.ItemModelParser ItemModelParser} builds the tree
- * (depth-capped against pathological pack nesting) and
- * {@link lib.minecraft.renderer.asset.pack.item.ItemModelNode ItemModelNode}'s resolve pass evaluates it,
- * taking the fallback / {@code on_false} / no-case-match branch for any unknown or unevaluable
- * property - which is the Catharsis degradation contract.
- *
- * <p><b>Resolution.</b> With the neutral {@code gui} context every vanilla item resolves to its
- * fallback branch (bow &rarr; {@code item/bow}, leather_boots &rarr; fallback + dye), giving the
- * derived block-item projection and tint list; items with no same-named {@code models/item/*.json}
- * (clock, compass) gain an index entry. Caller-suppliable non-neutral contexts (trim material, dye,
- * time) are opt-in and re-evaluate the same tree at render time.
+ * <p>{@link lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader ItemModelTreeLoader} scans
+ * and merges each pack's trees (ascending priority, {@code filter.block} erasure) and derives the
+ * block-item and tint projections the index builders consume;
+ * {@link lib.minecraft.renderer.pipeline.pack.item.ItemModelParser ItemModelParser} parses one
+ * {@code model} object into a node tree (depth-capped against pathological pack nesting);
+ * {@link lib.minecraft.renderer.pipeline.pack.item.LegacyOverrideMapper LegacyOverrideMapper}
+ * tolerate-and-maps a pre-format-46 {@code models/item} {@code overrides} array onto the same node
+ * vocabulary so a legacy pack resolves like a native items file.
  */
 package lib.minecraft.renderer.pipeline.pack.item;
