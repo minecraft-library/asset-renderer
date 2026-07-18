@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.pack;
 
+import lib.minecraft.renderer.asset.pack.cats.CatsIndex;
 import lib.minecraft.renderer.exception.PipelineException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

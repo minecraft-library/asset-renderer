@@ -1,7 +1,8 @@
-package lib.minecraft.renderer.asset.pack;
+package lib.minecraft.renderer.asset.pack.cats;
 
 import dev.simplified.util.compression.Compression;
 import dev.simplified.util.compression.exception.CompressionException;
+import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -193,15 +194,5 @@ public final class CatsIndex {
         if (at < 0 || at + n > blob.length)
             throw new PipelineException("Truncated CATS container: need %d bytes at offset %d of %d", n, at, blob.length);
     }
-
-    /**
-     * One file record in a {@link CatsIndex}.
-     *
-     * @param path the full {@code /}-separated path
-     * @param offset the byte offset within the data region (relative to the header end)
-     * @param size the stored byte length within the data region
-     * @param compression the {@link Compression} the stored bytes carry ({@link Compression#NONE} or {@link Compression#GZIP})
-     */
-    public record CatsEntry(@NotNull String path, int offset, int size, @NotNull Compression compression) {}
 
 }

@@ -28,7 +28,7 @@ public record ResourcePack(
     @NotNull MCMeta meta,
     @NotNull ConcurrentList<PackRoot> roots,
     @NotNull Set<String> namespaces,
-    @NotNull Set<Capability> capabilities
+    @NotNull Set<PackCapability> capabilities
 ) {
 
     /**
@@ -50,7 +50,7 @@ public record ResourcePack(
      * @param capability the capability to test
      * @return {@code true} when detected on this pack
      */
-    public boolean has(@NotNull Capability capability) {
+    public boolean has(@NotNull PackCapability capability) {
         return this.capabilities.contains(capability);
     }
 

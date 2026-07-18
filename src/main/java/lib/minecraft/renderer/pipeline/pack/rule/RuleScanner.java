@@ -3,7 +3,7 @@ package lib.minecraft.renderer.pipeline.pack.rule;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -30,7 +30,7 @@ import java.util.Properties;
 /**
  * Scans one {@link ResourcePack} into its per-pack {@link RuleSet}, folding the pack's
  * OptiFine / MCPatcher CIT and CTM trees and its per-root {@code color.properties} into one payload.
- * Capability-gated: a pack without {@link Capability#OPTIFINE_RULES} returns
+ * PackCapability-gated: a pack without {@link PackCapability#OPTIFINE_RULES} returns
  * {@link RuleSet#empty(PackId)} without touching disk, so a vanilla-only stack scans to nothing and
  * the whole rule layer stays inert. Walks the pack's active roots (base first, overlays after) so an
  * overlay's rules win within the pack.
@@ -52,7 +52,7 @@ public class RuleScanner {
      * @return the pack's rules, or {@link RuleSet#empty(PackId)} when it carries no OptiFine tree
      */
     public static @NotNull RuleSet scan(@NotNull ResourcePack pack) {
-        if (!pack.has(Capability.OPTIFINE_RULES)) return RuleSet.empty(pack.id());
+        if (!pack.has(PackCapability.OPTIFINE_RULES)) return RuleSet.empty(pack.id());
 
         PackContainer container = pack.container();
         List<CitRule> citRules = new ArrayList<>();

@@ -3,7 +3,7 @@ package lib.minecraft.renderer.pipeline.pack.rule;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -99,7 +99,7 @@ class RuleScannerMergeTest {
         writeCit(PackId.VANILLA, "z.properties", "items=diamond_sword\ntexture=z");
         ResourcePack vanillaOnly = new ResourcePack(PackId.VANILLA,
             new PackContainer.Directory(this.tmp.resolve(PackId.VANILLA.value())), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
 
         RuleSet scanned = RuleScanner.scan(vanillaOnly);
         assertThat(scanned.citRules().isEmpty(), is(true));
@@ -120,7 +120,7 @@ class RuleScannerMergeTest {
         Path root = this.tmp.resolve(id.value());
         Files.createDirectories(root);
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE, Capability.OPTIFINE_RULES));
+            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES));
     }
 
     private void writeCit(@NotNull PackId id, @NotNull String name, @NotNull String content) throws IOException {

@@ -7,7 +7,7 @@ import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTexture;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -142,7 +142,7 @@ class ModelResolverTest {
             "{\"pack\":{\"pack_format\":84},\"filter\":{\"block\":[{\"path\":\"block/hideme\"}]}}",
             new ResourceId("userpack", "pack"));
         ResourcePack filterPack = new ResourcePack(new PackId("userpack"), new PackContainer.Directory(user),
-            filtering, Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("testns"), Set.of(Capability.VANILLA_CORE));
+            filtering, Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("testns"), Set.of(PackCapability.VANILLA_CORE));
 
         PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft")), filterPack));
         ConcurrentMap<String, ModelData> blocks = ResolvedModels.load(stack).blocks();
@@ -183,7 +183,7 @@ class ModelResolverTest {
             "{\"pack\":{\"pack_format\":84},\"filter\":{\"block\":[{\"path\":\"target\"}]}}",
             new ResourceId("userpack", "pack"));
         ResourcePack filterPack = new ResourcePack(new PackId("userpack"), new PackContainer.Directory(user),
-            filtering, Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("testns"), Set.of(Capability.VANILLA_CORE));
+            filtering, Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("testns"), Set.of(PackCapability.VANILLA_CORE));
 
         PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft")), filterPack));
         ConcurrentMap<String, ModelData> blocks = ResolvedModels.load(stack).blocks();
@@ -194,7 +194,7 @@ class ModelResolverTest {
 
     private static ResourcePack pack(PackId id, Path root, Set<String> namespaces) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), namespaces, Set.of(Capability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), namespaces, Set.of(PackCapability.VANILLA_CORE));
     }
 
     private static void write(Path path, String content) throws IOException {

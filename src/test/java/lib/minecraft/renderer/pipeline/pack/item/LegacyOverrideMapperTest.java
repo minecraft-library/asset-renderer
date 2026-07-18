@@ -6,7 +6,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -195,7 +195,7 @@ class LegacyOverrideMapperTest {
 
     private static ResourcePack packWithMeta(MCMeta meta) {
         return new ResourcePack(new PackId("legacypack"), new PackContainer.Directory(Path.of("nonexistent")), meta,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
     }
 
 }

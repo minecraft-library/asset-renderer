@@ -5,7 +5,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -57,7 +57,7 @@ class ColorMapLoaderTest {
         png(colormap.resolve("dry_foliage.png"));
 
         ResourcePack vanilla = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
         PackStack bare = PackStack.of(Concurrent.newList(vanilla));
         PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
 
@@ -78,7 +78,7 @@ class ColorMapLoaderTest {
         png(colormap.resolve("grass.png"));
 
         ResourcePack vanilla = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
         PackStack bare = PackStack.of(Concurrent.newList(vanilla));
         PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
 

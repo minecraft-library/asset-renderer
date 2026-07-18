@@ -4,7 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
@@ -64,25 +64,25 @@ class PackAcquisitionIntegrationTest {
         ResourcePack vanilla = stack.vanilla();
         assertThat(vanilla.id(), is(PackId.VANILLA));
         assertThat(vanilla.namespaces(), hasItem("minecraft"));
-        assertThat(vanilla.has(Capability.VANILLA_CORE), is(true));
+        assertThat(vanilla.has(PackCapability.VANILLA_CORE), is(true));
 
         // defrosted: kebab dir id, three namespaces, optifine capability
         ResourcePack def = stack.byId(new PackId("defrosted")).orElseThrow();
         assertThat(def.namespaces(), hasItems("minecraft", "lunar", "skybox"));
-        assertThat(def.has(Capability.OPTIFINE_RULES), is(true));
-        assertThat(def.has(Capability.CATHARSIS_CONVENTIONS), is(false));
+        assertThat(def.has(PackCapability.OPTIFINE_RULES), is(true));
+        assertThat(def.has(PackCapability.CATHARSIS_CONVENTIONS), is(false));
 
         // hypixel-skyblock: kebab dir / snake namespace duality, plain vanilla-core only
         ResourcePack hyp = stack.byId(new PackId("hypixel-skyblock")).orElseThrow();
         assertThat(hyp.namespaces(), hasItems("minecraft", "hypixel_skyblock"));
         assertThat(hyp.primaryNamespace().orElseThrow(), is("hypixel_skyblock"));
-        assertThat(hyp.has(Capability.OPTIFINE_RULES), is(false));
-        assertThat(hyp.has(Capability.CATHARSIS_CONVENTIONS), is(false));
+        assertThat(hyp.has(PackCapability.OPTIFINE_RULES), is(false));
+        assertThat(hyp.has(PackCapability.CATHARSIS_CONVENTIONS), is(false));
 
         // eureka: .cats filename id, catharsis capability, served virtually from its .cats container
         // (no extraction to disk - the render path reads bytes straight from the archive).
         ResourcePack eur = stack.byId(new PackId("eureka")).orElseThrow();
-        assertThat(eur.has(Capability.CATHARSIS_CONVENTIONS), is(true));
+        assertThat(eur.has(PackCapability.CATHARSIS_CONVENTIONS), is(true));
         assertThat(eur.container(), is(org.hamcrest.Matchers.instanceOf(PackContainer.Cats.class)));
         assertThat("the pack mcmeta is reachable through the container without extraction",
             eur.container().bytes("pack.mcmeta").isPresent(), is(true));

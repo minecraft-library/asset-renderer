@@ -22,7 +22,9 @@
  *       {@code Item} both compose).</li>
  *   <li>{@link lib.minecraft.renderer.asset.pack pack} - the pack-model components {@code PackStack}
  *       caches ({@code ResourcePack}, {@code MCMeta}, {@code PackContainer}, {@code ResolvedTexture},
- *       {@code PackId}, {@code PackRoot}, {@code Capability}, {@code FormatRange}, {@code CatsIndex}).</li>
+ *       {@code PackId}, {@code PackRoot}, {@code PackCapability}, {@code FormatRange}).</li>
+ *   <li>{@link lib.minecraft.renderer.asset.pack.cats pack.cats} - the Catharsis {@code pack.cats}
+ *       container decoder ({@code CatsIndex} / {@code CatsEntry}) behind {@code PackContainer.Cats}.</li>
  *   <li>{@link lib.minecraft.renderer.asset.pack.item pack.item} - the {@code items/*.json} dispatch
  *       trees ({@code ItemModelTree} / {@code ItemModelNode}).</li>
  *   <li>{@link lib.minecraft.renderer.asset.pack.rule pack.rule} - the OptiFine CIT / CTM rule family,

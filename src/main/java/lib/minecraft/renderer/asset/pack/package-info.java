@@ -8,9 +8,9 @@
  * {@link lib.minecraft.renderer.asset.pack.ResourcePack ResourcePack} binds an id to its
  * {@link lib.minecraft.renderer.asset.pack.PackContainer PackContainer} (read-only byte access - an
  * exploded {@code Directory}, a plain {@code Zip}, or a Catharsis {@code Cats} archive decoded by
- * {@link lib.minecraft.renderer.asset.pack.CatsIndex CatsIndex}), its active
+ * {@link lib.minecraft.renderer.asset.pack.cats.CatsIndex CatsIndex}), its active
  * {@link lib.minecraft.renderer.asset.pack.PackRoot PackRoot} roots, namespaces, and
- * {@link lib.minecraft.renderer.asset.pack.Capability capabilities}.
+ * {@link lib.minecraft.renderer.asset.pack.PackCapability capabilities}.
  * {@link lib.minecraft.renderer.asset.pack.MCMeta MCMeta} is the umbrella over every {@code .mcmeta}
  * section (pack format, texture animation, GUI scaling), with
  * {@link lib.minecraft.renderer.asset.pack.FormatRange FormatRange} normalizing the three pack-format

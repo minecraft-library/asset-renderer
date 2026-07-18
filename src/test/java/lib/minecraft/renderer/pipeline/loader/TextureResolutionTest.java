@@ -6,7 +6,7 @@ import dev.simplified.image.ImageFactory;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -143,7 +143,7 @@ class TextureResolutionTest {
             new ResourceId("filterpack", "pack"));
         ResourcePack filterPack = new ResourcePack(new PackId("filterpack"),
             new PackContainer.Directory(top), filtering, Concurrent.newList(PackRoot.BASE),
-            Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
+            Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
 
         PackStack bare = PackStack.of(Concurrent.newList(lower, filterPack));
         PackStack filtered = bare.withTextureIndex(TextureIndexer.index(bare));
@@ -163,7 +163,7 @@ class TextureResolutionTest {
     private static @org.jetbrains.annotations.NotNull ResourcePack pack(PackId id, Path root, Set<String> namespaces,
                                                                         ConcurrentList<PackRoot> roots) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            roots.toUnmodifiable(), namespaces, Set.of(Capability.VANILLA_CORE));
+            roots.toUnmodifiable(), namespaces, Set.of(PackCapability.VANILLA_CORE));
     }
 
     private static void png(Path path, int width, int height) throws IOException {

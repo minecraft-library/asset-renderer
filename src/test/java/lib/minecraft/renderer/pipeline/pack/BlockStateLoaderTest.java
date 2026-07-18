@@ -7,7 +7,7 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -111,7 +111,7 @@ class BlockStateLoaderTest {
             "{\"pack\":{\"pack_format\":84},\"filter\":{\"block\":[{\"path\":\"hideme\"}]}}",
             new ResourceId("userpack", "pack"));
         ResourcePack filterPack = new ResourcePack(new PackId("userpack"), new PackContainer.Directory(user),
-            filtering, Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
+            filtering, Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
 
         PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft")), filterPack));
         BlockStateLoader.BlockStates result = BlockStateLoader.load(stack, NO_MODELS);
@@ -161,7 +161,7 @@ class BlockStateLoaderTest {
 
     private static ResourcePack pack(PackId id, Path root, Set<String> namespaces) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), namespaces, Set.of(Capability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE).toUnmodifiable(), namespaces, Set.of(PackCapability.VANILLA_CORE));
     }
 
     private static void write(Path path, String content) throws IOException {

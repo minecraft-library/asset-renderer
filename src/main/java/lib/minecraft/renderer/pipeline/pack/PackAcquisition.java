@@ -9,7 +9,7 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.FormatRange.FormatVersion;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
@@ -96,7 +96,7 @@ public final class PackAcquisition {
             throw new PipelineException("Vanilla pack root '%s' does not exist or is not a directory", vanillaPackRoot);
         PackContainer container = new PackContainer.Directory(vanillaPackRoot);
         MCMeta meta = readMeta(container, PackId.VANILLA);
-        Set<Capability> capabilities = detectCapabilities(container, meta);
+        Set<PackCapability> capabilities = detectCapabilities(container, meta);
         ConcurrentList<PackRoot> roots = resolveRoots(container, meta, rendererTargetFrom(meta), minecraftVersion, capabilities);
         return new ResourcePack(PackId.VANILLA, container, meta, roots, namespaces(container, roots), capabilities);
     }
@@ -108,14 +108,14 @@ public final class PackAcquisition {
     private static @NotNull ResourcePack userPack(@NotNull PackContainer container, @NotNull PackId id,
                                                   @NotNull FormatVersion target, @NotNull String minecraftVersion) {
         MCMeta meta = readMeta(container, id);
-        Set<Capability> capabilities = detectCapabilities(container, meta);
+        Set<PackCapability> capabilities = detectCapabilities(container, meta);
         ConcurrentList<PackRoot> roots = resolveRoots(container, meta, target, minecraftVersion, capabilities);
         return new ResourcePack(id, container, meta, roots, namespaces(container, roots), capabilities);
     }
 
     /**
      * Resolves the active roots: base first, then every vanilla {@code overlays.entries} overlay whose
-     * format range contains the target, then - for a pack carrying {@link Capability#CATHARSIS_CONVENTIONS}
+     * format range contains the target, then - for a pack carrying {@link PackCapability#CATHARSIS_CONVENTIONS}
      * - every Catharsis {@code fabric:overlays} entry whose condition holds under the pack's config
      * defaults. Each active overlay's directory must exist. Both overlay families stack
      * over the root in list order (later wins), the vanilla {@code CompositePackResources} semantics
@@ -123,7 +123,7 @@ public final class PackAcquisition {
      */
     private static @NotNull ConcurrentList<PackRoot> resolveRoots(@NotNull PackContainer container,
                                                                   @NotNull MCMeta meta, @NotNull FormatVersion target,
-                                                                  @NotNull String minecraftVersion, @NotNull Set<Capability> capabilities) {
+                                                                  @NotNull String minecraftVersion, @NotNull Set<PackCapability> capabilities) {
         ArrayList<PackRoot> roots = new ArrayList<>();
         roots.add(PackRoot.BASE);
         meta.pack().ifPresent(pack -> {
@@ -132,7 +132,7 @@ public final class PackAcquisition {
                 if (containsAny(container, overlay.directory())) roots.add(PackRoot.overlay(overlay.directory()));
             }
         });
-        if (capabilities.contains(Capability.CATHARSIS_CONVENTIONS))
+        if (capabilities.contains(PackCapability.CATHARSIS_CONVENTIONS))
             addCatharsisOverlays(container, target, minecraftVersion, roots);
         return Concurrent.adoptList(roots).toUnmodifiable();
     }
@@ -211,15 +211,15 @@ public final class PackAcquisition {
      * condition). MCMeta's typed parse does not retain the Catharsis / Fabric sections, so the mcmeta
      * signals are read from the raw JSON (degrade-safe - a malformed mcmeta simply contributes no signal).
      */
-    private static @NotNull Set<Capability> detectCapabilities(@NotNull PackContainer container, @NotNull MCMeta meta) {
-        LinkedHashSet<Capability> capabilities = new LinkedHashSet<>();
+    private static @NotNull Set<PackCapability> detectCapabilities(@NotNull PackContainer container, @NotNull MCMeta meta) {
+        LinkedHashSet<PackCapability> capabilities = new LinkedHashSet<>();
         if (container.entries("").anyMatch(p -> p.startsWith("assets/") || p.contains("/assets/")))
-            capabilities.add(Capability.VANILLA_CORE);
+            capabilities.add(PackCapability.VANILLA_CORE);
         if (container.entries("").anyMatch(p -> p.contains("/optifine/") || p.contains("/mcpatcher/")))
-            capabilities.add(Capability.OPTIFINE_RULES);
+            capabilities.add(PackCapability.OPTIFINE_RULES);
         if (container.entries("").anyMatch(PackAcquisition::isCatharsisPathSignal)
             || readJsonObject(container, "pack.mcmeta").filter(PackAcquisition::hasCatharsisMcmetaSignal).isPresent())
-            capabilities.add(Capability.CATHARSIS_CONVENTIONS);
+            capabilities.add(PackCapability.CATHARSIS_CONVENTIONS);
         return Set.copyOf(capabilities);
     }
 

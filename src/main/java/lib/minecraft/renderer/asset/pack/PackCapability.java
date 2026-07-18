@@ -9,7 +9,7 @@ package lib.minecraft.renderer.asset.pack;
  * owned by the rule layer; this pack layer only records the detected set on each
  * {@link ResourcePack}.
  */
-public enum Capability {
+public enum PackCapability {
 
     /** Standard {@code assets/<ns>/} content - the vanilla resource-pack layout. */
     VANILLA_CORE,

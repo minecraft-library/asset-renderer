@@ -5,7 +5,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -100,7 +100,7 @@ class BannerPatternLoaderTest {
     /** Loads banner patterns from a single-pack (vanilla) stack rooted at the given directory. */
     private static ConcurrentMap<String, BannerPattern> load(Path packRoot) {
         ResourcePack vanilla = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(packRoot), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE));
+            Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
         return BannerPatternLoader.load(PackStack.of(Concurrent.newList(vanilla)));
     }
 

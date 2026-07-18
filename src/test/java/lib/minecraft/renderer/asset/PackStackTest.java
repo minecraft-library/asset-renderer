@@ -2,7 +2,7 @@ package lib.minecraft.renderer.asset;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @DisplayName("PackStack assembly + ResourcePack accessors")
 class PackStackTest {
 
-    private static ResourcePack pack(PackId id, Set<String> namespaces, Set<Capability> capabilities) {
+    private static ResourcePack pack(PackId id, Set<String> namespaces, Set<PackCapability> capabilities) {
         ConcurrentList<PackRoot> roots = Concurrent.newList();
         roots.add(PackRoot.BASE);
         return new ResourcePack(id, new PackContainer.Directory(Path.of(id.value())), MCMeta.EMPTY,
@@ -42,7 +42,7 @@ class PackStackTest {
         assertThrows(PipelineException.class, () -> PackStack.of(Concurrent.newList()));
 
         ConcurrentList<ResourcePack> userFirst = Concurrent.newList();
-        userFirst.add(pack(new PackId("eureka"), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE)));
+        userFirst.add(pack(new PackId("eureka"), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE)));
         assertThrows(PipelineException.class, () -> PackStack.of(userFirst.toUnmodifiable()));
     }
 
@@ -50,8 +50,8 @@ class PackStackTest {
     @DisplayName("byId, namespaces union, and packIds reflect the whole stack")
     void lookups() {
         ConcurrentList<ResourcePack> ascending = Concurrent.newList();
-        ascending.add(pack(PackId.VANILLA, Set.of("minecraft"), Set.of(Capability.VANILLA_CORE)));
-        ascending.add(pack(new PackId("hypixel-skyblock"), Set.of("minecraft", "hypixel_skyblock"), Set.of(Capability.VANILLA_CORE)));
+        ascending.add(pack(PackId.VANILLA, Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE)));
+        ascending.add(pack(new PackId("hypixel-skyblock"), Set.of("minecraft", "hypixel_skyblock"), Set.of(PackCapability.VANILLA_CORE)));
         PackStack stack = PackStack.of(ascending.toUnmodifiable());
 
         assertThat(stack.size(), is(2));
@@ -65,7 +65,7 @@ class PackStackTest {
     @Test
     @DisplayName("primaryNamespace resolves the kebab-dir / snake-namespace duality")
     void primaryNamespace() {
-        ResourcePack hypixel = pack(new PackId("hypixel-skyblock"), Set.of("minecraft", "hypixel_skyblock"), Set.of(Capability.VANILLA_CORE));
+        ResourcePack hypixel = pack(new PackId("hypixel-skyblock"), Set.of("minecraft", "hypixel_skyblock"), Set.of(PackCapability.VANILLA_CORE));
         assertThat(hypixel.primaryNamespace(), is(Optional.of("hypixel_skyblock")));
 
         ResourcePack defrosted = pack(new PackId("defrosted"), Set.of("minecraft", "lunar", "skybox"), Set.of());
@@ -75,9 +75,9 @@ class PackStackTest {
     @Test
     @DisplayName("has() queries the detected capability set")
     void has() {
-        ResourcePack p = pack(new PackId("defrosted"), Set.of("minecraft"), Set.of(Capability.VANILLA_CORE, Capability.OPTIFINE_RULES));
-        assertThat(p.has(Capability.OPTIFINE_RULES), is(true));
-        assertThat(p.has(Capability.CATHARSIS_CONVENTIONS), is(false));
+        ResourcePack p = pack(new PackId("defrosted"), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES));
+        assertThat(p.has(PackCapability.OPTIFINE_RULES), is(true));
+        assertThat(p.has(PackCapability.CATHARSIS_CONVENTIONS), is(false));
     }
 
 }

@@ -2,7 +2,7 @@ package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.PackStack;
-import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -66,7 +66,7 @@ class PackAcquisitionTest {
         assertThat("only the format-matching, on-disk overlay activates",
             mypack.roots(), contains(PackRoot.BASE, PackRoot.overlay("ov_hi")));
         assertThat(mypack.namespaces(), containsInAnyOrder("minecraft", "testns"));
-        assertThat(mypack.capabilities(), containsInAnyOrder(Capability.VANILLA_CORE, Capability.OPTIFINE_RULES));
+        assertThat(mypack.capabilities(), containsInAnyOrder(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES));
 
         // directory source is served in place (virtual - no extraction, no cache copy)
         assertThat(mypack.container(), is(org.hamcrest.Matchers.instanceOf(PackContainer.Directory.class)));
@@ -101,7 +101,7 @@ class PackAcquisitionTest {
         PackStack stack = PackAcquisition.acquire(new ClientAssets(options, vanilla));
         ResourcePack catpack = stack.byId(new PackId("catpack")).orElseThrow();
 
-        assertThat(catpack.capabilities(), hasItem(Capability.CATHARSIS_CONVENTIONS));
+        assertThat(catpack.capabilities(), hasItem(PackCapability.CATHARSIS_CONVENTIONS));
         assertThat("only the config-active, on-disk Catharsis overlay stacks over the base root",
             catpack.roots(), contains(PackRoot.BASE, PackRoot.overlay("block_ore")));
     }
@@ -127,7 +127,7 @@ class PackAcquisitionTest {
             .build();
         PackStack stack = PackAcquisition.acquire(new ClientAssets(options, vanilla));
         ResourcePack catpack = stack.byId(new PackId("catpack")).orElseThrow();
-        assertThat("detected via the mcmeta signal (no path signal present)", catpack.capabilities(), hasItem(Capability.CATHARSIS_CONVENTIONS));
+        assertThat("detected via the mcmeta signal (no path signal present)", catpack.capabilities(), hasItem(PackCapability.CATHARSIS_CONVENTIONS));
         assertThat("overlay activated from the mcmeta catharsis:pack/v1.config fallback",
             catpack.roots(), contains(PackRoot.BASE, PackRoot.overlay("block_ore")));
     }
@@ -153,7 +153,7 @@ class PackAcquisitionTest {
             .build();
         PackStack stack = PackAcquisition.acquire(new ClientAssets(options, vanilla)); // must not throw
         ResourcePack catpack = stack.byId(new PackId("catpack")).orElseThrow();
-        assertThat("mcmeta fabric:overlays catharsis condition is a detection signal", catpack.capabilities(), hasItem(Capability.CATHARSIS_CONVENTIONS));
+        assertThat("mcmeta fabric:overlays catharsis condition is a detection signal", catpack.capabilities(), hasItem(PackCapability.CATHARSIS_CONVENTIONS));
         assertThat("no config defaults -> the condition fails -> no overlays activate", catpack.roots(), contains(PackRoot.BASE));
     }
 
