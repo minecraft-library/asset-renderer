@@ -12,9 +12,13 @@ import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
-import lib.minecraft.renderer.pipeline.pack.FormatRange.FormatVersion;
+import lib.minecraft.renderer.asset.pack.FormatRange.FormatVersion;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleScanner;
 import lombok.experimental.UtilityClass;
+import lib.minecraft.renderer.asset.pack.Capability;
+import lib.minecraft.renderer.asset.pack.FormatRange;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackRoot;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;

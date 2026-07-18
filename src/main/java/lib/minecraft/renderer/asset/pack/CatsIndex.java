@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.asset.pack;
 
 import dev.simplified.util.compression.Compression;
 import dev.simplified.util.compression.exception.CompressionException;

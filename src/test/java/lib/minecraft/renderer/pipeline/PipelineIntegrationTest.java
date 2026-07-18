@@ -15,7 +15,7 @@ import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
-import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

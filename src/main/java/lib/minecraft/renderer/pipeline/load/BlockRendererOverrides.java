@@ -4,7 +4,7 @@ import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;

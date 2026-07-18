@@ -1,10 +1,10 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.asset.pack;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.json.JsonNode;
-import lib.minecraft.renderer.pipeline.pack.FormatRange.FormatVersion;
+import lib.minecraft.renderer.asset.pack.FormatRange.FormatVersion;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

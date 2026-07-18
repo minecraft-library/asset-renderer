@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.asset.pack;
 
 /**
  * A content layer a pack carries, orthogonal to its {@link PackContainer} kind.

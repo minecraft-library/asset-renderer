@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.asset.pack;
 
 import lib.minecraft.renderer.exception.PipelineException;
 import org.junit.jupiter.api.DisplayName;

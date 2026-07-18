@@ -58,7 +58,7 @@ class ItemContextTest {
     private static CitRule ruleOn(String itemId, NbtRule nbtRule) {
         return new CitRule(
             new lib.minecraft.renderer.asset.ResourceId("minecraft", "x.properties"),
-            lib.minecraft.renderer.pipeline.pack.PackId.VANILLA,
+            lib.minecraft.renderer.asset.pack.PackId.VANILLA,
             CitType.ITEM,
             dev.simplified.collection.Concurrent.newList(lib.minecraft.renderer.asset.ResourceId.parse(itemId)),
             java.util.Optional.empty(),

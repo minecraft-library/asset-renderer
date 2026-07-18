@@ -34,7 +34,7 @@ import lib.minecraft.renderer.pipeline.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
-import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;

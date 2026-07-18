@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.asset.pack;
 
 import org.jetbrains.annotations.NotNull;
 

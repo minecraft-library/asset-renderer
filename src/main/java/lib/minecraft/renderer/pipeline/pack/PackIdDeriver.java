@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import lombok.experimental.UtilityClass;
+import lib.minecraft.renderer.asset.pack.PackId;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;

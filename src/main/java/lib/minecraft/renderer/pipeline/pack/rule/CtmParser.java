@@ -4,7 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackId;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

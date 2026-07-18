@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.asset.pack.CatsIndex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

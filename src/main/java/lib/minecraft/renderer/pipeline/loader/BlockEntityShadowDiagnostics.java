@@ -2,8 +2,8 @@ package lib.minecraft.renderer.pipeline.loader;
 
 import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.pipeline.pack.PackId;
-import lib.minecraft.renderer.pipeline.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;

@@ -2,7 +2,7 @@ package lib.minecraft.renderer.pipeline.pack.rule;
 
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.pipeline.pack.PackId;
+import lib.minecraft.renderer.asset.pack.PackId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
