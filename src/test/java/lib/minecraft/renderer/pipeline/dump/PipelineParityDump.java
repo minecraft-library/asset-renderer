@@ -6,6 +6,7 @@ import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.ArgbColor;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
@@ -478,7 +479,7 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject tint(@NotNull Block.Tint tint) {
         JsonObject root = new JsonObject();
         root.addProperty("target", tint.target().name());
-        CanonicalJson.put(root, "constant", tint.constant(), CanonicalJson::argb);
+        CanonicalJson.put(root, "constant", tint.constant().map(ArgbColor::argb), CanonicalJson::argb);
         return root;
     }
 

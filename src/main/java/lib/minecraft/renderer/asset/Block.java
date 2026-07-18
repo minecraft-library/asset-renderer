@@ -176,7 +176,13 @@ public record Block(
      * @param constant the hardcoded ARGB value, present only when {@code target} is
      *     {@link TintTarget#CONSTANT CONSTANT} and empty otherwise
      */
-    public record Tint(@NotNull TintTarget target, @NotNull Optional<Integer> constant) {}
+    public record Tint(@NotNull TintTarget target, @NotNull Optional<ArgbColor> constant) {
+
+        /** Normalises an absent {@code constant} (a colormap-target tint, or a Gson-omitted member) to empty. */
+        public Tint {
+            if (constant == null) constant = Optional.empty();
+        }
+    }
 
     /**
      * The geometry a {@link Variant} carries - either a resolved element model (plain blockstate

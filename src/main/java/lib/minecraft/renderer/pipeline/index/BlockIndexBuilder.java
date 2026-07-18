@@ -78,7 +78,7 @@ public class BlockIndexBuilder {
      */
     public static @NotNull ConcurrentMap<String, Block> load(
         @NotNull ConcurrentMap<String, ModelData> blockModels,
-        @NotNull ConcurrentMap<String, Block.Tint> blockTints,
+        @NotNull Map<String, Block.Tint> blockTints,
         @NotNull ConcurrentMap<String, String> itemDefinitions,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
@@ -129,7 +129,7 @@ public class BlockIndexBuilder {
      */
     static @NotNull ConcurrentMap<String, Block> buildUnfiltered(
         @NotNull ConcurrentMap<String, ModelData> blockModels,
-        @NotNull ConcurrentMap<String, Block.Tint> blockTints,
+        @NotNull Map<String, Block.Tint> blockTints,
         @NotNull ConcurrentMap<String, String> itemDefinitions,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
@@ -294,7 +294,7 @@ public class BlockIndexBuilder {
      */
     private static @NotNull ConcurrentMap<String, Block> buildPrimaryBlockIndex(
         @NotNull ConcurrentMap<String, ModelData> blockModels,
-        @NotNull ConcurrentMap<String, Block.Tint> blockTints,
+        @NotNull Map<String, Block.Tint> blockTints,
         @NotNull ConcurrentMap<String, String> itemDefinitions,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
@@ -306,7 +306,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, ModelData> itemModels
     ) {
-        ConcurrentMap<String, Block.Tint> tints = blockTints;
+        Map<String, Block.Tint> tints = blockTints;
         ConcurrentMap<String, String> itemDefs = itemDefinitions;
         ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = blockVariants;
         ConcurrentMap<String, Block.Multipart> multipartMap = blockMultiparts;
@@ -485,7 +485,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, Block> blockIndex,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
         @NotNull ConcurrentMap<String, ModelData> blockModels,
-        @NotNull ConcurrentMap<String, Block.Tint> blockTints,
+        @NotNull Map<String, Block.Tint> blockTints,
         @NotNull ConcurrentMap<String, String> itemDefinitions,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
@@ -495,7 +495,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, ModelData> itemModels
     ) {
-        ConcurrentMap<String, Block.Tint> tints = blockTints;
+        Map<String, Block.Tint> tints = blockTints;
         ConcurrentMap<String, String> itemDefs = itemDefinitions;
         ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = blockVariants;
         ConcurrentMap<String, Block.Multipart> multipartMap = blockMultiparts;

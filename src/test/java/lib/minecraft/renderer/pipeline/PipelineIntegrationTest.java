@@ -27,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -64,7 +65,7 @@ class PipelineIntegrationTest {
     private static ResolvedModels models;
 
     /** The loaded block-tint table, probed by the {@code block_tints.json} assertion. */
-    private static ConcurrentMap<String, Block.Tint> blockTints;
+    private static Map<String, Block.Tint> blockTints;
 
     /** The stack-resolved biome colormaps, probed by the colormap byte-parity assertion. */
     private static ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
@@ -186,7 +187,7 @@ class PipelineIntegrationTest {
         System.out.println("Loaded " + tints.size() + " Block.Tint entries from block_tints.json:");
         tints.forEach((blockId, tint) -> {
             String constant = tint.constant()
-                .map(v -> String.format(" 0x%08X", v))
+                .map(v -> String.format(" 0x%08X", v.argb()))
                 .orElse("");
             System.out.println("  " + blockId + " -> " + tint.target() + constant);
         });
@@ -205,7 +206,7 @@ class PipelineIntegrationTest {
         assertThat(spruceLeaves, is(notNullValue()));
         assertThat(spruceLeaves.target(), equalTo(Block.TintTarget.CONSTANT));
         assertThat(spruceLeaves.constant().isPresent(), is(true));
-        assertThat("spruce constant ARGB", spruceLeaves.constant().get(), equalTo(0xFF619961));
+        assertThat("spruce constant ARGB", spruceLeaves.constant().get().argb(), equalTo(0xFF619961));
 
         var leafLitter = tints.get("minecraft:leaf_litter");
         assertThat(leafLitter, is(notNullValue()));

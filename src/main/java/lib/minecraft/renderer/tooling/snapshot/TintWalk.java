@@ -118,8 +118,8 @@ public final class TintWalk {
             }
         }
 
-        JsonNode tints = root.childArray("tints");
-        for (JsonNode row : tintRows.values()) tints.add(row);
+        JsonNode tints = root.child("tints");
+        tintRows.forEach(tints::put);
         if (!droppedRows.isEmpty()) {
             JsonNode dropped = root.childArray("dropped");
             for (JsonNode row : droppedRows) dropped.add(row);
@@ -160,7 +160,7 @@ public final class TintWalk {
                     .put("reason", resolution.dropReason()));
                 continue;
             }
-            JsonNode row = JsonNode.object().put("block", blockId).put("target", resolution.target());
+            JsonNode row = JsonNode.object().put("target", resolution.target());
             if (resolution.constant() != null) row.putHex("constant", resolution.constant());
             row.put("source", resolution.sourceLabel());
             tintRows.put(blockId, row);

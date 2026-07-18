@@ -117,7 +117,7 @@ public final class PipelineRendererContext implements RendererContext {
         Map<String, String> blockItemAliases = BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.CONSOLE, null));
 
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
-        ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
+        Map<String, Block.Tint> blockTints = BlockTintsLoader.load();
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
         ConcurrentMap<String, List<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);

@@ -63,7 +63,7 @@ class TemplateFilterParityTest {
 
     // The explicit block-index loader inputs (the same set of() computes over the stack).
     private static ConcurrentMap<String, ModelData> blockModels;
-    private static ConcurrentMap<String, Block.Tint> blockTints;
+    private static Map<String, Block.Tint> blockTints;
     private static ConcurrentMap<String, String> itemDefinitions;
     private static ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants;
     private static ConcurrentMap<String, Block.Multipart> blockMultiparts;
