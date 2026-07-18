@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -15,6 +16,8 @@ import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.option.ItemModelContext;
+import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.ApplyDto;
+import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.MultipartPart;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -65,8 +68,10 @@ public class BlockIndexBuilder {
      * @param blockModels the parsed block model data keyed by full model id
      * @param blockTints the block tint bindings keyed by stripped block id
      * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
-     * @param blockVariants the blockstate variant maps keyed by stripped block id
-     * @param blockMultiparts the multipart descriptors keyed by stripped block id
+     * @param blockVariants the raw blockstate variant applies keyed by stripped block id, baked to
+     *     resolved variants here
+     * @param blockMultiparts the raw multipart parts keyed by stripped block id, baked to resolved
+     *     multiparts here
      * @param blockTags the block-tag membership descriptors keyed by tag id
      * @param blockDefaultStates the default-state property maps keyed by namespaced block id
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
@@ -80,8 +85,8 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ModelData> blockModels,
         @NotNull Map<String, Block.Tint> blockTints,
         @NotNull ConcurrentMap<String, String> itemDefinitions,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
-        @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, ApplyDto>> blockVariants,
+        @NotNull ConcurrentMap<String, ConcurrentList<MultipartPart>> blockMultiparts,
         @NotNull ConcurrentMap<String, BlockTag> blockTags,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
         @NotNull Map<String, String> blockItemAliases,
@@ -116,8 +121,8 @@ public class BlockIndexBuilder {
      * @param blockModels the parsed block model data keyed by full model id
      * @param blockTints the block tint bindings keyed by stripped block id
      * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
-     * @param blockVariants the blockstate variant maps keyed by stripped block id
-     * @param blockMultiparts the multipart descriptors keyed by stripped block id
+     * @param rawVariants the raw blockstate variant applies keyed by stripped block id
+     * @param rawMultiparts the raw multipart parts keyed by stripped block id
      * @param blockTags the block-tag membership descriptors keyed by tag id
      * @param blockDefaultStates the default-state property maps keyed by namespaced block id
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
@@ -131,8 +136,8 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ModelData> blockModels,
         @NotNull Map<String, Block.Tint> blockTints,
         @NotNull ConcurrentMap<String, String> itemDefinitions,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
-        @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, ApplyDto>> rawVariants,
+        @NotNull ConcurrentMap<String, ConcurrentList<MultipartPart>> rawMultiparts,
         @NotNull ConcurrentMap<String, BlockTag> blockTags,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
         @NotNull Map<String, String> blockItemAliases,
@@ -141,12 +146,92 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, ModelData> itemModels
     ) {
+        // Bake the raw blockstate applies into resolved Block.Variant / Block.Multipart here, where the
+        // resolved model set (blockModels) lives, so BlockStateLoader stays a pure read plus pack merge.
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants = bakeVariants(rawVariants, blockModels);
+        ConcurrentMap<String, Block.Multipart> blockMultiparts = bakeMultiparts(rawMultiparts, blockModels);
         ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = buildReverseTagIndex(blockTags);
         ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStates, blockItemAliases, beEntries, beVariants, reverseTagIndex, itemTrees, itemModels);
         attachOrphanBlockEntities(blockIndex, beEntries, beVariants, blockVariants, blockMultiparts, blockDefaultStates, blockItemAliases, reverseTagIndex, itemTrees, itemModels);
         Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, beEntries, blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStates, blockItemAliases, reverseTagIndex, itemTrees, itemModels);
         System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
         return blockIndex;
+    }
+
+    /**
+     * Bakes the raw blockstate variant applies into resolved {@link Block.Variant} maps: each
+     * {@link ApplyDto} joins its model id to a {@link Block.ElementGeometry} through the resolved model
+     * set, and its variant key parses once into a property map. Runs here, in the index builder, so the
+     * blockstate loader carries only the raw model reference.
+     *
+     * @param rawVariants block id to its {@code variantKey -> }{@link ApplyDto} map
+     * @param blockModels the parsed model set keyed by full model id
+     * @return block id to its resolved {@code variantKey -> }{@link Block.Variant} map, unmodifiable
+     */
+    private static @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> bakeVariants(
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, ApplyDto>> rawVariants,
+        @NotNull ConcurrentMap<String, ModelData> blockModels
+    ) {
+        HashMap<String, ConcurrentMap<String, Block.Variant>> baked = new HashMap<>();
+        rawVariants.forEach((blockId, applies) -> {
+            HashMap<String, Block.Variant> variants = new HashMap<>();
+            applies.forEach((key, apply) -> variants.put(key, bakeVariant(apply, BlockStateKey.parse(key), blockModels)));
+            baked.put(blockId, Concurrent.adoptMap(variants).toUnmodifiable());
+        });
+        return Concurrent.adoptMap(baked).toUnmodifiable();
+    }
+
+    /**
+     * Bakes the raw multipart parts into resolved {@link Block.Multipart} blocks: each part keeps its
+     * {@code when} condition and joins its apply to geometry (a multipart apply carries no key, so its
+     * property map is empty), preserving author order.
+     *
+     * @param rawMultiparts block id to its ordered {@link MultipartPart} list
+     * @param blockModels the parsed model set keyed by full model id
+     * @return block id to its assembled {@link Block.Multipart}, unmodifiable
+     */
+    private static @NotNull ConcurrentMap<String, Block.Multipart> bakeMultiparts(
+        @NotNull ConcurrentMap<String, ConcurrentList<MultipartPart>> rawMultiparts,
+        @NotNull ConcurrentMap<String, ModelData> blockModels
+    ) {
+        HashMap<String, Block.Multipart> baked = new HashMap<>();
+        rawMultiparts.forEach((blockId, parts) -> {
+            ArrayList<Block.Multipart.Part> result = new ArrayList<>();
+            for (MultipartPart part : parts)
+                result.add(new Block.Multipart.Part(part.when(), bakeVariant(part.apply(), Concurrent.newMap(), blockModels)));
+            baked.put(blockId, new Block.Multipart(Concurrent.adoptList(result).toUnmodifiable()));
+        });
+        return Concurrent.adoptMap(baked).toUnmodifiable();
+    }
+
+    /**
+     * Bakes one raw {@link ApplyDto} into a {@link Block.Variant}, resolving its model id to a
+     * {@link Block.ElementGeometry} and carrying the supplied pre-parsed property map (empty for a
+     * multipart apply).
+     *
+     * @param apply the raw apply
+     * @param properties the apply's blockstate key pre-parsed into a property map
+     * @param blockModels the parsed model set keyed by full model id
+     * @return the resolved variant with its geometry baked in
+     */
+    private static @NotNull Block.Variant bakeVariant(@NotNull ApplyDto apply, @NotNull ConcurrentMap<String, String> properties, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+        return new Block.Variant(apply.model(), apply.x(), apply.y(), apply.uvlock(),
+            new Block.ElementGeometry(resolveVariantModel(apply.model(), blockModels)), properties);
+    }
+
+    /**
+     * Resolves a variant's {@code modelId} against the full model set, returning the parsed
+     * {@link ModelData} or an element-less placeholder when the id is blank or unresolved. This is the
+     * single point where the 1:1 block-to-model link is established.
+     *
+     * @param modelId the full namespaced model id (e.g. {@code "minecraft:block/furnace"})
+     * @param blockModels the full parsed-model set keyed by model id
+     * @return the resolved model, or an element-less {@link ModelData} when absent
+     */
+    private static @NotNull ModelData resolveVariantModel(@NotNull String modelId, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+        if (modelId.isEmpty()) return new ModelData();
+        ModelData model = blockModels.get(modelId);
+        return model != null ? model : new ModelData();
     }
 
     /**

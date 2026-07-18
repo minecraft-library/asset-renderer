@@ -110,7 +110,7 @@ public final class PipelineRendererContext implements RendererContext {
         PackStack stack = PackAcquisition.acquire(assets);
 
         ResolvedModels models = ResolvedModels.load(stack);
-        BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack, models.blocks());
+        BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack);
 
         Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.CONSOLE, null);
         ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates = BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));

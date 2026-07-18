@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.index;
 
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
@@ -16,6 +17,8 @@ import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader;
+import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.ApplyDto;
+import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.MultipartPart;
 import lib.minecraft.renderer.pipeline.pack.BlockTagLoader;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
@@ -65,8 +68,8 @@ class TemplateFilterParityTest {
     private static ConcurrentMap<String, ModelData> blockModels;
     private static Map<String, Block.Tint> blockTints;
     private static ConcurrentMap<String, String> itemDefinitions;
-    private static ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants;
-    private static ConcurrentMap<String, Block.Multipart> blockMultiparts;
+    private static ConcurrentMap<String, ConcurrentMap<String, ApplyDto>> blockVariants;
+    private static ConcurrentMap<String, ConcurrentList<MultipartPart>> blockMultiparts;
     private static ConcurrentMap<String, BlockTag> blockTags;
     private static ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates;
     private static Map<String, String> blockItemAliases;
@@ -84,7 +87,7 @@ class TemplateFilterParityTest {
         PackStack stack = PackAcquisition.acquire(assets);
 
         ResolvedModels models = ResolvedModels.load(stack);
-        BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack, models.blocks());
+        BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack);
         blockModels = models.blocks();
         itemModels = models.items();
         blockVariants = blockStates.variants();
