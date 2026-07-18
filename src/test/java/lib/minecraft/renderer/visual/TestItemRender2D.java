@@ -8,7 +8,7 @@ import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
+import lib.minecraft.renderer.option.ItemModelContext;
 import dev.simplified.image.ImageData;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

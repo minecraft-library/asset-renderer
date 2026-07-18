@@ -8,7 +8,7 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
+import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

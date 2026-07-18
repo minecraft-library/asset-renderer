@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.json.JsonNode;
+import lib.minecraft.renderer.option.ItemModelContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.option.ItemModelContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;

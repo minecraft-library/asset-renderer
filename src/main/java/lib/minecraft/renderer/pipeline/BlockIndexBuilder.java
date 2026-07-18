@@ -12,7 +12,7 @@ import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
+import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelNode;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
 import lombok.experimental.UtilityClass;

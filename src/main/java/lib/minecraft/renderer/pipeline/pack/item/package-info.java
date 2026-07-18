@@ -1,7 +1,7 @@
 /**
  * The item-definition dispatch-tree layer - the {@code assets/<ns>/items/*.json} selection trees
  * (26.1+) parsed into immutable id-carrying record nodes at pipeline time and evaluated at render
- * time against a neutral {@link lib.minecraft.renderer.pipeline.pack.item.ItemModelContext
+ * time against a neutral {@link lib.minecraft.renderer.option.ItemModelContext
  * ItemModelContext}. A single resolve pass selects the branch actually rendered.
  *
  * <p><b>Node model.</b> {@link lib.minecraft.renderer.pipeline.pack.item.ItemModelNode ItemModelNode}
