@@ -1,18 +1,18 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageFactory;
+import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.Capability;
-import lib.minecraft.renderer.asset.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
-import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

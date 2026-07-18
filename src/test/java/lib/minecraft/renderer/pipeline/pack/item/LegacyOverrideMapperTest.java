@@ -2,18 +2,18 @@ package lib.minecraft.renderer.pipeline.pack.item;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
-import lib.minecraft.renderer.json.JsonNode;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
-import lib.minecraft.renderer.option.ItemModelContext;
-import lib.minecraft.renderer.asset.pack.Capability;
 import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.pack.Capability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
+import lib.minecraft.renderer.json.JsonNode;
+import lib.minecraft.renderer.option.ItemModelContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

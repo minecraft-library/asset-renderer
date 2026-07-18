@@ -1,11 +1,10 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
-import lib.minecraft.renderer.asset.pack.PackRoot;
-import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

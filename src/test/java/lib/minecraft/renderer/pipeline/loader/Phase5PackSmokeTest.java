@@ -1,16 +1,16 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
-import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
+import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

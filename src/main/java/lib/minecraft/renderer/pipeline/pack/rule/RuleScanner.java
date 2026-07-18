@@ -1,19 +1,18 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.Capability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
-import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lombok.experimental.UtilityClass;
 import lib.minecraft.renderer.asset.pack.rule.CitRule;
 import lib.minecraft.renderer.asset.pack.rule.ColorProperties;
 import lib.minecraft.renderer.asset.pack.rule.CtmRule;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.ByteArrayInputStream;

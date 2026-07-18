@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.asset.pack;
 
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.asset.pack.CatsIndex;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;

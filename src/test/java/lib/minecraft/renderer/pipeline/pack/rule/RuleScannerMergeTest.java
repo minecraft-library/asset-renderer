@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
 import dev.simplified.collection.Concurrent;
-import lib.minecraft.renderer.asset.pack.Capability;
 import lib.minecraft.renderer.asset.MCMeta;
+import lib.minecraft.renderer.asset.PackStack;
+import lib.minecraft.renderer.asset.pack.Capability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
-import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.rule.CitRule;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;

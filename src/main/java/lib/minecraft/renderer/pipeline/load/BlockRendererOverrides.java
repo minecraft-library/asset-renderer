@@ -1,12 +1,11 @@
 package lib.minecraft.renderer.pipeline.load;
 
-import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
-import lib.minecraft.renderer.json.JsonNode;
-import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.PackStack;
+import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.json.JsonNode;
+import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 

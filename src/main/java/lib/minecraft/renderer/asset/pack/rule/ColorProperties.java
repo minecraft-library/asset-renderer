@@ -3,8 +3,8 @@ package lib.minecraft.renderer.asset.pack.rule;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.exception.PipelineException;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;

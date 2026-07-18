@@ -5,7 +5,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
-import lombok.experimental.UtilityClass;
 import lib.minecraft.renderer.asset.pack.rule.CitOutput;
 import lib.minecraft.renderer.asset.pack.rule.CitRule;
 import lib.minecraft.renderer.asset.pack.rule.CitType;
@@ -16,6 +15,7 @@ import lib.minecraft.renderer.asset.pack.rule.IntRanges;
 import lib.minecraft.renderer.asset.pack.rule.NbtPath;
 import lib.minecraft.renderer.asset.pack.rule.NbtPredicate;
 import lib.minecraft.renderer.asset.pack.rule.NbtRule;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
