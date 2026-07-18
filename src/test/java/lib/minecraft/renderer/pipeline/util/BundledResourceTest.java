@@ -1,7 +1,7 @@
-package lib.minecraft.renderer.pipeline.load;
+package lib.minecraft.renderer.pipeline.util;
 
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.load.BundledResource.MissingPolicy;
+import lib.minecraft.renderer.pipeline.util.BundledResource.MissingPolicy;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;

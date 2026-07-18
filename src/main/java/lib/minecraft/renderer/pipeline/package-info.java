@@ -32,7 +32,7 @@
  *       parent inheritance ({@code ModelResolver}).</li>
  * </ul>
  *
- * <p><b>Gson.</b> {@link lib.minecraft.renderer.pipeline.PipelineGsonContributor
+ * <p><b>Gson.</b> {@link lib.minecraft.renderer.pipeline.util.PipelineGsonContributor
  * PipelineGsonContributor} registers the tensor {@code Vector2f/3f/4f} adapters through the
  * {@code GsonContributor} {@link java.util.ServiceLoader ServiceLoader} SPI, so any downstream
  * {@code GsonSettings.defaults()} build deserializes asset JSON automatically.

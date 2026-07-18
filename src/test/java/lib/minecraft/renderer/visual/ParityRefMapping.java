@@ -2,8 +2,8 @@ package lib.minecraft.renderer.visual;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.load.BundledResource;
+import lib.minecraft.renderer.pipeline.util.ResourceDocument;
+import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 

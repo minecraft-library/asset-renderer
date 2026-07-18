@@ -25,6 +25,8 @@ import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
+import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder;
+import lib.minecraft.renderer.pipeline.index.ItemIndexBuilder;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.pack.ColorMapLoader;

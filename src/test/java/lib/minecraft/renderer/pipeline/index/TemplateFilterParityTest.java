@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline;
+package lib.minecraft.renderer.pipeline.index;
 
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
@@ -8,7 +8,9 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
-import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.pipeline.ClientAssets;
+import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockItemsLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
@@ -19,6 +21,7 @@ import lib.minecraft.renderer.pipeline.pack.BlockTagLoader;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTreeLoader;
+import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

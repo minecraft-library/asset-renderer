@@ -4,8 +4,8 @@ import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
+import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.load;
+package lib.minecraft.renderer.pipeline.util;
 
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;

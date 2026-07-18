@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import lib.minecraft.renderer.pipeline.load.BlockRendererOverrides;
+import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.json.JsonNode;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.load.ResourceDocument;
-import lib.minecraft.renderer.pipeline.load.BundledResource;
+import lib.minecraft.renderer.pipeline.util.ResourceDocument;
+import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
