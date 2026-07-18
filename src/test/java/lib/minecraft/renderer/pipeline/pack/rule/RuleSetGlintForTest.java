@@ -17,18 +17,18 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link GlintEvaluator} - the CIT glint decision: the highest-precedence matching
- * {@code type=enchantment} rule wins with {@link GlintPolicy.Replaced}, else a merged
+ * Verifies {@link RuleSet#glintFor(ItemContext)} - the CIT glint decision: the highest-precedence
+ * matching {@code type=enchantment} rule wins with {@link GlintPolicy.Replaced}, else a merged
  * {@code useGlint == false} suppresses, else the default vanilla glint. Also pins the
  * empty-{@code items} match that a {@code type=enchantment} glint rule relies on.
  */
-class GlintEvaluatorTest {
+class RuleSetGlintForTest {
 
     @Test
     @DisplayName("a matching type=enchantment rule replaces the glint texture")
     void enchantmentRuleReplaces() {
         RuleSet rules = rules(Optional.empty(), cit("enchantment", "enchantments", "sharpness", "texture", "custom_glint"));
-        GlintPolicy policy = GlintEvaluator.evaluate(rules, sword().enchantment("minecraft:sharpness", 3).build());
+        GlintPolicy policy = rules.glintFor(sword().enchantment("minecraft:sharpness", 3).build());
         assertThat(policy, is(instanceOf(GlintPolicy.Replaced.class)));
         assertThat(((GlintPolicy.Replaced) policy).texture().id(), is("minecraft:optifine/cit/custom_glint"));
     }
@@ -38,7 +38,7 @@ class GlintEvaluatorTest {
     void enchantmentRuleEmptyItemsMatchesAny() {
         RuleSet rules = rules(Optional.empty(), cit("enchantment", "enchantments", "sharpness", "texture", "g"));
         // No items= filter on the rule, yet it applies to the diamond sword via the enchantment.
-        GlintPolicy policy = GlintEvaluator.evaluate(rules, sword().enchantment("minecraft:sharpness", 1).build());
+        GlintPolicy policy = rules.glintFor(sword().enchantment("minecraft:sharpness", 1).build());
         assertThat(policy, is(instanceOf(GlintPolicy.Replaced.class)));
     }
 
@@ -46,22 +46,22 @@ class GlintEvaluatorTest {
     @DisplayName("useGlint=false with no matching enchantment rule suppresses the glint")
     void useGlintFalseSuppresses() {
         RuleSet rules = rules(Optional.of(false));
-        assertThat(GlintEvaluator.evaluate(rules, sword().build()), is(GlintPolicy.SUPPRESSED));
+        assertThat(rules.glintFor(sword().build()), is(GlintPolicy.SUPPRESSED));
     }
 
     @Test
     @DisplayName("no glint inputs leaves the default vanilla glint")
     void noInputsDefault() {
-        assertThat(GlintEvaluator.evaluate(rules(Optional.empty()), sword().build()), is(GlintPolicy.DEFAULT));
+        assertThat(rules(Optional.empty()).glintFor(sword().build()), is(GlintPolicy.DEFAULT));
         // useGlint=true is not a suppression signal.
-        assertThat(GlintEvaluator.evaluate(rules(Optional.of(true)), sword().build()), is(GlintPolicy.DEFAULT));
+        assertThat(rules(Optional.of(true)).glintFor(sword().build()), is(GlintPolicy.DEFAULT));
     }
 
     @Test
     @DisplayName("a matching enchantment rule beats a useGlint=false suppression")
     void enchantmentBeatsSuppression() {
         RuleSet rules = rules(Optional.of(false), cit("enchantment", "enchantments", "sharpness", "texture", "g"));
-        assertThat(GlintEvaluator.evaluate(rules, sword().enchantment("minecraft:sharpness", 2).build()),
+        assertThat(rules.glintFor(sword().enchantment("minecraft:sharpness", 2).build()),
             is(instanceOf(GlintPolicy.Replaced.class)));
     }
 
@@ -70,7 +70,7 @@ class GlintEvaluatorTest {
     void nonMatchingEnchantmentFallsThrough() {
         RuleSet rules = rules(Optional.of(false), cit("enchantment", "enchantments", "smite", "texture", "g"));
         // Item has sharpness, rule wants smite -> no replace -> useGlint=false suppresses.
-        assertThat(GlintEvaluator.evaluate(rules, sword().enchantment("minecraft:sharpness", 2).build()), is(GlintPolicy.SUPPRESSED));
+        assertThat(rules.glintFor(sword().enchantment("minecraft:sharpness", 2).build()), is(GlintPolicy.SUPPRESSED));
     }
 
     @Test
@@ -79,7 +79,7 @@ class GlintEvaluatorTest {
         CitRule first = cit("enchantment", "enchantments", "sharpness", "texture", "first_glint");
         CitRule second = cit("enchantment", "enchantments", "sharpness", "texture", "second_glint");
         RuleSet rules = rules(Optional.empty(), first, second);
-        GlintPolicy policy = GlintEvaluator.evaluate(rules, sword().enchantment("minecraft:sharpness", 1).build());
+        GlintPolicy policy = rules.glintFor(sword().enchantment("minecraft:sharpness", 1).build());
         assertThat(((GlintPolicy.Replaced) policy).texture().id(), is("minecraft:optifine/cit/first_glint"));
     }
 
@@ -87,7 +87,7 @@ class GlintEvaluatorTest {
     @DisplayName("item-type rules are ignored by the glint walk")
     void itemRulesIgnored() {
         RuleSet rules = rules(Optional.empty(), cit("item", "items", "diamond_sword", "texture", "reskin"));
-        assertThat(GlintEvaluator.evaluate(rules, sword().build()), is(GlintPolicy.DEFAULT));
+        assertThat(rules.glintFor(sword().build()), is(GlintPolicy.DEFAULT));
     }
 
     @Test
@@ -95,14 +95,14 @@ class GlintEvaluatorTest {
     void useGlintSuppressesEmptyContext() {
         // Regression pin for the resolveCit fix: a plainly-enchanted item renders with the default
         // ItemContext.EMPTY (no item NBT), yet the global useGlint=false must still suppress.
-        assertThat(GlintEvaluator.evaluate(rules(Optional.of(false)), ItemContext.EMPTY), is(GlintPolicy.SUPPRESSED));
+        assertThat(rules(Optional.of(false)).glintFor(ItemContext.EMPTY), is(GlintPolicy.SUPPRESSED));
     }
 
     @Test
     @DisplayName("an item-list-less type=enchantment rule replaces the glint even for the EMPTY context")
     void filterlessEnchantmentReplacesEmptyContext() {
         RuleSet rules = rules(Optional.empty(), cit("enchantment", "texture", "global_glint"));
-        assertThat(GlintEvaluator.evaluate(rules, ItemContext.EMPTY), is(instanceOf(GlintPolicy.Replaced.class)));
+        assertThat(rules.glintFor(ItemContext.EMPTY), is(instanceOf(GlintPolicy.Replaced.class)));
     }
 
     private static @NotNull ItemContext.Builder sword() {

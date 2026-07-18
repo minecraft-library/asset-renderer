@@ -43,9 +43,9 @@ import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
 import lib.minecraft.renderer.pipeline.pack.rule.CitRule;
 import lib.minecraft.renderer.pipeline.pack.rule.CitType;
-import lib.minecraft.renderer.pipeline.pack.rule.GlintEvaluator;
 import lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
+import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -322,7 +322,7 @@ public final class PipelineRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * Resolves the glint decision once via {@link GlintEvaluator} (the highest-precedence matching
+     * Resolves the glint decision once via {@link RuleSet#glintFor(ItemContext)} (the highest-precedence matching
      * {@code type=enchantment} rule, else the merged {@code useGlint} toggle), then walks the merged CIT
      * rule list first-match-wins, skipping non-{@link CitType#ITEM} rules (only item rules retexture
      * icons), and grafts the glint onto the winning rule's effect. When no item rule matches the glint
@@ -331,7 +331,7 @@ public final class PipelineRendererContext implements RendererContext {
      */
     @Override
     public @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
-        GlintPolicy glint = GlintEvaluator.evaluate(this.stack.rules(), context);
+        GlintPolicy glint = this.stack.rules().glintFor(context);
         for (CitRule rule : this.stack.rules().citRules()) {
             if (rule.type() != CitType.ITEM) continue;
             if (rule.matches(context)) return CitResult.of(rule.output(), glint);

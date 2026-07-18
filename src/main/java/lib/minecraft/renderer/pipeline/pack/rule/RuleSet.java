@@ -38,4 +38,26 @@ public record RuleSet(
             new ColorProperties(new ResourceId("minecraft", "color.properties"), pack, Concurrent.<String, Integer>newMap().toUnmodifiable()), Optional.empty());
     }
 
+    /**
+     * Resolves the glint decision for one item render - the highest-precedence matching
+     * {@code type=enchantment} CIT rule replaces the glint texture; else a merged
+     * {@code useGlint == false} suppresses it; else the default. Rules DECIDE, the compose terminal
+     * APPLIES; the enchantment walk reuses the merged, weight-ordered {@link #citRules()}, so
+     * "highest-precedence" is first-match in that order.
+     *
+     * @param context the per-render item context
+     * @return the glint decision the compose terminal applies
+     */
+    public @NotNull GlintPolicy glintFor(@NotNull ItemContext context) {
+        for (CitRule rule : citRules()) {
+            if (rule.type() != CitType.ENCHANTMENT) continue;
+            // A type=enchantment rule replaces the glint texture; a rule that matched but carries no
+            // texture (only a model / sub-textures) cannot replace it, so it is skipped rather than
+            // suppressing the search for a later replacer.
+            if (rule.matches(context) && rule.output().texture().isPresent())
+                return new GlintPolicy.Replaced(rule.output().texture().get());
+        }
+        return useGlint().equals(Optional.of(false)) ? GlintPolicy.SUPPRESSED : GlintPolicy.DEFAULT;
+    }
+
 }

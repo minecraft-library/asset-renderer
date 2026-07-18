@@ -9,7 +9,7 @@ import org.jetbrains.annotations.NotNull;
  * the finalize stage, which stays the sole applier of glint x animation.
  *
  * <p>The evaluation that chooses {@link Suppressed} / {@link Replaced} (matched {@code type=enchantment}
- * rules, the global {@code useGlint=false} toggle) lives in {@link GlintEvaluator}; the
+ * rules, the global {@code useGlint=false} toggle) lives in {@link RuleSet#glintFor(ItemContext)}; the
  * result rides {@link CitResult} and the item renderer translates it into a {@code GlintKit.Foil}.
  */
 public sealed interface GlintPolicy permits GlintPolicy.Default, GlintPolicy.Suppressed, GlintPolicy.Replaced {

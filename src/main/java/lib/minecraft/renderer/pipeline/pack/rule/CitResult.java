@@ -34,7 +34,7 @@ public record CitResult(
 
     /**
      * Builds a result from a matched rule's declared output with the given glint decision - the
-     * {@link GlintEvaluator} decides the policy once per render and the item walk grafts it onto the
+     * {@link RuleSet#glintFor(ItemContext)} decides the policy once per render and the item walk grafts it onto the
      * winning output.
      *
      * @param output the matched rule's output
