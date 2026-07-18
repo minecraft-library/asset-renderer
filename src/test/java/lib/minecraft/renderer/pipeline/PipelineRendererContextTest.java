@@ -24,7 +24,7 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.ItemIndexBuilder;
 import lib.minecraft.renderer.pipeline.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
-import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
+import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.Capability;
 import lib.minecraft.renderer.pipeline.pack.ResolvedTexture;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;

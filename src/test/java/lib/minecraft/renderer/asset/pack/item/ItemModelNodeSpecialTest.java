@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack.item;
+package lib.minecraft.renderer.asset.pack.item;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

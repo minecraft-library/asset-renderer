@@ -4,14 +4,14 @@
  * time against a neutral {@link lib.minecraft.renderer.option.ItemModelContext
  * ItemModelContext}. A single resolve pass selects the branch actually rendered.
  *
- * <p><b>Node model.</b> {@link lib.minecraft.renderer.pipeline.pack.item.ItemModelNode ItemModelNode}
+ * <p><b>Node model.</b> {@link lib.minecraft.renderer.asset.pack.item.ItemModelNode ItemModelNode}
  * is the sealed tree: {@code Model} leaves, the {@code Condition}/{@code Select}/{@code RangeDispatch}
  * dispatch nodes, {@code Composite} concatenation, {@code Special} (block-entity / hardcoded render
- * kinds carrying a {@link lib.minecraft.renderer.pipeline.pack.item.SpecialTransform SpecialTransform}),
+ * kinds carrying a {@link lib.minecraft.renderer.asset.pack.item.SpecialTransform SpecialTransform}),
  * and the {@code Bundle} slot marker.
  * {@link lib.minecraft.renderer.pipeline.pack.item.ItemModelParser ItemModelParser} builds the tree
  * (depth-capped against pathological pack nesting) and
- * {@link lib.minecraft.renderer.pipeline.pack.item.ItemModelNode ItemModelNode}'s resolve pass evaluates it,
+ * {@link lib.minecraft.renderer.asset.pack.item.ItemModelNode ItemModelNode}'s resolve pass evaluates it,
  * taking the fallback / {@code on_false} / no-case-match branch for any unknown or unevaluable
  * property - which is the Catharsis degradation contract.
  *

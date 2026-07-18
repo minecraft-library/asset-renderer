@@ -3,6 +3,8 @@ package lib.minecraft.renderer.pipeline.pack.item;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
+import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.pack.Capability;
 import lib.minecraft.renderer.pipeline.pack.MCMeta;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;

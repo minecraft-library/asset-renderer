@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack.item;
+package lib.minecraft.renderer.asset.pack.item;
 
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.option.ItemModelContext;
@@ -71,7 +71,7 @@ public sealed interface ItemModelNode
          * @param when the case keys this branch matches (a single string or an array in the JSON)
          * @param model the branch model
          */
-        record Case(@NotNull List<String> when, @NotNull ItemModelNode model) {}
+        public record Case(@NotNull List<String> when, @NotNull ItemModelNode model) {}
 
     }
 
@@ -98,7 +98,7 @@ public sealed interface ItemModelNode
          * @param threshold the lower bound (inclusive) on the scaled property value
          * @param model the branch model
          */
-        record Entry(float threshold, @NotNull ItemModelNode model) {}
+        public record Entry(float threshold, @NotNull ItemModelNode model) {}
 
     }
 

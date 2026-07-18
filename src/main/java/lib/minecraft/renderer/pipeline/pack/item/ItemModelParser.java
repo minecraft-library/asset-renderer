@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.pipeline.pack.item;
 
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
+import lib.minecraft.renderer.asset.pack.item.SpecialTransform;
 import lib.minecraft.renderer.json.JsonNode;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.pack.item;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;

@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack.item;
+package lib.minecraft.renderer.asset.pack.item;
 
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.option.ItemModelContext;
