@@ -44,7 +44,6 @@ import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelNode;
 import lib.minecraft.renderer.pipeline.pack.item.ItemModelTree;
-import lib.minecraft.renderer.pipeline.pack.item.SpecialKinds;
 import lib.minecraft.renderer.pipeline.pack.rule.CitResult;
 import lib.minecraft.renderer.pipeline.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.pipeline.pack.rule.ItemContext;
@@ -156,7 +155,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         // an unknown special kind is diagnosed and dropped. Either way the baked
         // item - already served by its own path - is returned.
         if (resolution != null && resolution.modelId().isEmpty() && resolution.special().isPresent()) {
-            SpecialKinds.resolveOrDrop(resolution.special().get());
+            resolution.special().get().resolveOrDrop();
             return baked;
         }
         // CIT whole-model override wins over the tree-resolved model.

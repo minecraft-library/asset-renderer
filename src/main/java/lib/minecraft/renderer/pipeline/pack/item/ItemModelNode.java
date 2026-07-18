@@ -6,6 +6,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * One node of a parsed {@code items/*.json} dispatch tree. The sealed hierarchy
@@ -113,7 +114,14 @@ public sealed interface ItemModelNode
      * A {@code minecraft:special} leaf - a hardcoded render kind ({@code bed}, {@code shield},
      * {@code player_head}, {@code copper_golem_statue}, ...) that maps onto an existing render path,
      * carrying the {@code base} item model, the kind's inline fields, and the
-     * {@link SpecialTransform}. Unknown kinds are diagnosed and dropped as unrenderable.
+     * {@link SpecialTransform}. Unknown kinds are diagnosed and dropped by {@link #resolveOrDrop()} -
+     * the no-fallback contract for special nodes.
+     *
+     * <p>Every 26.1 vanilla special kind maps onto an existing dispatcher: {@code bed} / {@code chest}
+     * / {@code shulker_box} / {@code banner} / {@code conduit} / {@code decorated_pot} render through
+     * the block-entity bone geometry; {@code shield} / {@code head} / {@code player_head} through the
+     * hardcoded {@code ItemRenderer} paths; {@code copper_golem_statue} / {@code trident} through their
+     * special renderers.
      *
      * @param kind the special kind (the inner {@code model.type}, e.g. {@code minecraft:bed})
      * @param base the base item model id (e.g. {@code minecraft:item/white_bed})
@@ -123,7 +131,52 @@ public sealed interface ItemModelNode
     record Special(
         @NotNull String kind, @NotNull String base,
         @NotNull Map<String, String> fields, @NotNull SpecialTransform transform
-    ) implements ItemModelNode {}
+    ) implements ItemModelNode {
+
+        /** The special kinds vanilla 26.1 ships, each mapped onto an existing render path. */
+        private static final @NotNull Set<String> KNOWN = Set.of(
+            "bed", "chest", "shulker_box", "banner", "conduit", "decorated_pot",
+            "shield", "head", "player_head", "copper_golem_statue", "trident");
+
+        /**
+         * Whether this leaf's kind maps onto an existing render path.
+         *
+         * @return whether this renderer knows how to dispatch the kind
+         */
+        public boolean isRenderable() {
+            return isRenderable(this.kind);
+        }
+
+        /**
+         * Whether the given special kind maps onto an existing render path.
+         *
+         * @param kind the special-node kind (the inner {@code model.type}, with or without the
+         *     {@code minecraft:} prefix)
+         * @return whether this renderer knows how to dispatch the kind
+         */
+        public static boolean isRenderable(@NotNull String kind) {
+            return KNOWN.contains(strip(kind));
+        }
+
+        /**
+         * Returns this leaf when its kind is renderable, else logs a pack-facing diagnostic and drops
+         * it (empty) - the no-fallback contract for special nodes.
+         *
+         * @return this leaf when renderable, or empty (dropped with a diagnostic) for an unknown kind
+         */
+        public @NotNull Optional<Special> resolveOrDrop() {
+            if (isRenderable()) return Optional.of(this);
+            System.err.printf("Dropping item special-node of unknown kind '%s' (base '%s')%n", this.kind, this.base);
+            return Optional.empty();
+        }
+
+        /** Strips a leading {@code minecraft:} namespace so kind matching accepts both id forms. */
+        private static @NotNull String strip(@NotNull String kind) {
+            int colon = kind.indexOf(':');
+            return colon < 0 ? kind : kind.substring(colon + 1);
+        }
+
+    }
 
     /**
      * A {@code minecraft:bundle/selected_item} slot marker - the bundle-contents placeholder that
