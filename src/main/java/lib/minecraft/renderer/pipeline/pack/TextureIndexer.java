@@ -11,7 +11,6 @@ import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.MCMeta;
-import lib.minecraft.renderer.asset.pack.PackPaths;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
@@ -72,7 +71,7 @@ public class TextureIndexer {
         LinkedHashMap<ResourceId, ResolvedTexture> rows = new LinkedHashMap<>();
         for (PackRoot root : pack.roots()) {
             for (String namespace : pack.namespaces()) {
-                String texturesPrefix = root.prefix() + PackPaths.texturesDir(namespace);
+                String texturesPrefix = root.prefix() + pack.texturesDir(namespace);
                 rows.putAll(scanTexturesDir(container, texturesPrefix, namespace, pack.id()));
             }
         }

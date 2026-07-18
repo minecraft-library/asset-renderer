@@ -15,7 +15,6 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
-import lib.minecraft.renderer.asset.pack.PackPaths;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
@@ -282,7 +281,7 @@ public final class PackStack {
     private @NotNull Optional<ResolvedTexture> probeInPack(@NotNull ResourcePack pack, @NotNull String path) {
         PackContainer container = pack.container();
         for (String namespace : searchOrder(pack)) {
-            String relativePath = PackPaths.texturesDir(namespace) + "/" + path + ".png";
+            String relativePath = pack.texturesDir(namespace) + "/" + path + ".png";
             String winning = null;
             for (PackRoot root : pack.roots()) {
                 String candidate = root.prefix() + relativePath;

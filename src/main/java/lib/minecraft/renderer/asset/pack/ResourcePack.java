@@ -58,4 +58,16 @@ public record ResourcePack(
         return this.capabilities.contains(capability);
     }
 
+    /**
+     * This pack's {@code textures} directory for a namespace - {@code assets/<namespace>/textures}. A
+     * {@link PackRoot#prefix() root prefix} goes in front (the reverse scan) and a {@code /<path>.png}
+     * leaf goes after (the forward probe), so both build against one directory shape.
+     *
+     * @param namespace the resource namespace
+     * @return the pack-relative textures directory for the namespace
+     */
+    public @NotNull String texturesDir(@NotNull String namespace) {
+        return "assets/" + namespace + "/textures";
+    }
+
 }

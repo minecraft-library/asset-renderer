@@ -14,8 +14,6 @@
  * {@link lib.minecraft.renderer.asset.pack.ResolvedTexture ResolvedTexture} is the cached texture
  * index row (winning path plus optional {@link lib.minecraft.renderer.asset.MCMeta MCMeta} sidecar);
  * {@link lib.minecraft.renderer.asset.pack.FormatRange FormatRange} normalizes the three pack-format
- * generations to one inclusive span;
- * {@link lib.minecraft.renderer.asset.pack.PackPaths PackPaths} is the single source of the
- * {@code assets/<namespace>/textures} directory shape both the probe and the scan build against.
+ * generations to one inclusive span.
  */
 package lib.minecraft.renderer.asset.pack;
