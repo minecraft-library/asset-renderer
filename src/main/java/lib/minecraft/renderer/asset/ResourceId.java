@@ -1,6 +1,14 @@
 package lib.minecraft.renderer.asset;
 
+import com.google.gson.TypeAdapter;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
+import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.io.IOException;
 
 /**
  * A namespaced resource identifier - a {@code namespace:name} pair such as
@@ -77,6 +85,67 @@ public record ResourceId(@NotNull String namespace, @NotNull String name) {
         if (slash >= 0) return modelId.substring(slash + 1);
         int colon = modelId.lastIndexOf(':');
         return colon >= 0 ? modelId.substring(colon + 1) : modelId;
+    }
+
+    /**
+     * Gson adapter reading a {@link ResourceId} from its {@code namespace:name} string form (via
+     * {@link #parse(String)}) and writing it back through {@link #id()}. Registered for scalar
+     * {@code ResourceId} fields on the asset DTOs - never map keys, which stay {@code String}.
+     */
+    @NoArgsConstructor
+    public static final class Adapter extends TypeAdapter<ResourceId> {
+
+        @Override
+        public void write(@NotNull JsonWriter out, @Nullable ResourceId value) throws IOException {
+            if (value == null) {
+                out.nullValue();
+                return;
+            }
+
+            out.value(value.id());
+        }
+
+        @Override
+        public @Nullable ResourceId read(@NotNull JsonReader in) throws IOException {
+            if (in.peek() == JsonToken.NULL) {
+                in.nextNull();
+                return null;
+            }
+
+            return parse(in.nextString());
+        }
+
+    }
+
+    /**
+     * Gson adapter reading a {@link ResourceId} from a namespaced model id (via
+     * {@link #ofModelId(String)}), collapsing {@code namespace:block/name} to {@code (namespace, name)}.
+     * Applied per field with {@code @JsonAdapter} where a DTO carries a model-id-dialect id; it is not
+     * registered globally, so a plain {@code ResourceId} field goes through {@link Adapter}.
+     */
+    @NoArgsConstructor
+    public static final class ModelIdAdapter extends TypeAdapter<ResourceId> {
+
+        @Override
+        public void write(@NotNull JsonWriter out, @Nullable ResourceId value) throws IOException {
+            if (value == null) {
+                out.nullValue();
+                return;
+            }
+
+            out.value(value.id());
+        }
+
+        @Override
+        public @Nullable ResourceId read(@NotNull JsonReader in) throws IOException {
+            if (in.peek() == JsonToken.NULL) {
+                in.nextNull();
+                return null;
+            }
+
+            return ofModelId(in.nextString());
+        }
+
     }
 
 }

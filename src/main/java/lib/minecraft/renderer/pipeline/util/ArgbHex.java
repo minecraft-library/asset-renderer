@@ -1,24 +1,26 @@
 package lib.minecraft.renderer.pipeline.util;
 
+import lib.minecraft.renderer.asset.ArgbColor;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+
+import java.util.OptionalInt;
 
 /**
- * The single ARGB hex-string parser, dissolving the divergent per-loader parsers into one policy.
+ * The diagnostics-aware entry point onto the {@link ArgbColor} hex-string policy, dissolving the
+ * divergent per-loader parsers into one place.
  *
- * <p>Accepts {@code 0x} / {@code #} / bare forms in 6- or 8-hex-digit lengths: a value of 6 or fewer
- * digits is forced fully opaque (alpha {@code FF}), a longer value carries its own alpha. A malformed
- * value falls back to opaque {@link #WHITE} - the no-op {@code MULTIPLY} tint - so a typo never tints
- * a subject black. Banner tints stay {@code DyeColor} names and are resolved elsewhere, never through
- * this parser.
+ * <p>The parse policy itself - {@code 0x} / {@code #} / bare forms in 6- or 8-hex-digit lengths, a
+ * 6-or-fewer-digit value forced fully opaque, the malformed-value opaque-{@link #WHITE} fallback -
+ * lives on {@link ArgbColor}; this class only adds the warn-on-malformed overload the loaders use.
+ * Banner tints stay {@code DyeColor} names and are resolved elsewhere, never through this parser.
  */
 @UtilityClass
 public final class ArgbHex {
 
     /** Opaque white - the malformed-value fallback and the no-op {@code MULTIPLY} tint. */
-    public static final int WHITE = 0xFFFFFFFF;
+    public static final int WHITE = ArgbColor.WHITE.argb();
 
     /**
      * Parses an ARGB hex string, falling back to {@link #WHITE} when the value is malformed.
@@ -27,7 +29,7 @@ public final class ArgbHex {
      * @return the parsed ARGB int, or {@link #WHITE} when {@code hex} is not valid hex
      */
     public static int parse(@NotNull String hex) {
-        return parseOrWhite(hex, null);
+        return ArgbColor.parse(hex).argb();
     }
 
     /**
@@ -39,21 +41,9 @@ public final class ArgbHex {
      * @return the parsed ARGB int, or {@link #WHITE} when {@code hex} is not valid hex
      */
     public static int parse(@NotNull String hex, @NotNull Diagnostics diagnostics) {
-        return parseOrWhite(hex, diagnostics);
-    }
-
-    private static int parseOrWhite(@NotNull String hex, @Nullable Diagnostics diagnostics) {
-        String digits = hex.startsWith("0x") || hex.startsWith("0X") ? hex.substring(2)
-            : hex.startsWith("#") ? hex.substring(1)
-            : hex;
-        try {
-            long value = Long.parseLong(digits, 16);
-            if (digits.length() <= 6) value |= 0xFF000000L;
-            return (int) value;
-        } catch (NumberFormatException ex) {
-            if (diagnostics != null)
-                diagnostics.warn("malformed hex colour '%s' (expected 0xAARRGGBB / #RRGGBB); using white 0xFFFFFFFF", hex);
-            return WHITE;
-        }
+        OptionalInt value = ArgbColor.tryParse(hex);
+        if (value.isPresent()) return value.getAsInt();
+        diagnostics.warn("malformed hex colour '%s' (expected 0xAARRGGBB / #RRGGBB); using white 0xFFFFFFFF", hex);
+        return WHITE;
     }
 }
