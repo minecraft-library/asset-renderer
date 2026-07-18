@@ -7,7 +7,7 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
+import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lib.minecraft.renderer.asset.pack.PackId;

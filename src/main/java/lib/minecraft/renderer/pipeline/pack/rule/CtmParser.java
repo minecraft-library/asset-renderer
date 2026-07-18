@@ -6,6 +6,13 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lombok.experimental.UtilityClass;
+import lib.minecraft.renderer.asset.pack.rule.BlockMatch;
+import lib.minecraft.renderer.asset.pack.rule.CtmExtras;
+import lib.minecraft.renderer.asset.pack.rule.CtmFace;
+import lib.minecraft.renderer.asset.pack.rule.CtmMethod;
+import lib.minecraft.renderer.asset.pack.rule.CtmRule;
+import lib.minecraft.renderer.asset.pack.rule.CtmTarget;
+import lib.minecraft.renderer.asset.pack.rule.TileRef;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

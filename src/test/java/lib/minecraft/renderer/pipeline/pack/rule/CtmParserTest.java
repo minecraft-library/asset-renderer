@@ -2,6 +2,12 @@ package lib.minecraft.renderer.pipeline.pack.rule;
 
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.asset.pack.rule.BlockMatch;
+import lib.minecraft.renderer.asset.pack.rule.CtmFace;
+import lib.minecraft.renderer.asset.pack.rule.CtmMethod;
+import lib.minecraft.renderer.asset.pack.rule.CtmRule;
+import lib.minecraft.renderer.asset.pack.rule.CtmTarget;
+import lib.minecraft.renderer.asset.pack.rule.TileRef;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

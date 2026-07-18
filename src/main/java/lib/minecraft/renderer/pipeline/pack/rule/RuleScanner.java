@@ -10,6 +10,10 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lombok.experimental.UtilityClass;
+import lib.minecraft.renderer.asset.pack.rule.CitRule;
+import lib.minecraft.renderer.asset.pack.rule.ColorProperties;
+import lib.minecraft.renderer.asset.pack.rule.CtmRule;
+import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.ByteArrayInputStream;
