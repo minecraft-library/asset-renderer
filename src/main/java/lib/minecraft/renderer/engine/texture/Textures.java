@@ -334,10 +334,10 @@ public class Textures {
      * means {@code "texture": "#all"}). Cycle-guarded so a malformed pack cannot hang the caller.
      *
      * @param reference the texture reference, possibly starting with {@code #}
-     * @param variables the variable map to resolve against
+     * @param variables the variable map to resolve against, valued by {@link ModelTexture}
      * @return the resolved namespaced texture id, or the last unresolvable {@code #variable}
      */
-    public static @NotNull String resolveTextureReference(@NotNull String reference, @NotNull ConcurrentMap<String, String> variables) {
+    public static @NotNull String resolveTextureReference(@NotNull String reference, @NotNull ConcurrentMap<String, ModelTexture> variables) {
         String current = reference;
 
         if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
@@ -346,9 +346,9 @@ public class Textures {
         ConcurrentSet<String> visited = Concurrent.newSet();
         while (current.startsWith("#")) {
             if (!visited.add(current)) return current;
-            String next = variables.get(current.substring(1));
+            ModelTexture next = variables.get(current.substring(1));
             if (next == null) return current;
-            current = next;
+            current = next.sprite();
         }
 
         return current;
@@ -374,7 +374,7 @@ public class Textures {
      */
     public static @NotNull ConcurrentMap<String, PixelBuffer> loadElementFaceTextures(
         @NotNull Iterable<ModelElement> elements,
-        @NotNull ConcurrentMap<String, String> textureVars,
+        @NotNull ConcurrentMap<String, ModelTexture> textureVars,
         @NotNull Function<String, Optional<PixelBuffer>> resolve
     ) {
         ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
@@ -400,41 +400,37 @@ public class Textures {
      * force-translucent when any variable in its deref chain is flagged.
      *
      * @param elements the model's element boxes
-     * @param textureVars the model's {@code #variable} bindings
-     * @param textureObjects the retained object-form entries keyed by variable name
+     * @param textureVars the model's {@code #variable} bindings, valued by {@link ModelTexture}
      * @return the raw face refs to force into the translucent pass, empty when nothing is flagged
      */
     public static @NotNull ConcurrentSet<String> resolveForceTranslucentRefs(
         @NotNull Iterable<ModelElement> elements,
-        @NotNull ConcurrentMap<String, String> textureVars,
-        @NotNull ConcurrentMap<String, ModelTexture> textureObjects
+        @NotNull ConcurrentMap<String, ModelTexture> textureVars
     ) {
         ConcurrentSet<String> refs = Concurrent.newSet();
-        if (textureObjects.isEmpty()) return refs;
+        if (textureVars.values().stream().noneMatch(ModelTexture::forceTranslucent)) return refs;
 
         for (ModelElement element : elements) {
             for (ModelFace face : element.getFaces().values()) {
                 String ref = face.getTexture();
                 if (ref.isBlank() || refs.contains(ref)) continue;
-                if (isForceTranslucent(ref, textureVars, textureObjects)) refs.add(ref);
+                if (isForceTranslucent(ref, textureVars)) refs.add(ref);
             }
         }
         return refs;
     }
 
     /**
-     * Walks the {@code #variable} chain of a face ref, reporting whether any hop resolves to an
-     * object-form entry flagged {@code force_translucent}.
+     * Walks the {@code #variable} chain of a face ref, reporting whether any hop resolves to a
+     * texture flagged {@code force_translucent}.
      *
      * @param reference the raw face-texture ref, possibly starting with {@code #}
-     * @param variables the variable map to resolve against
-     * @param textureObjects the retained object-form entries keyed by variable name
+     * @param variables the variable map to resolve against, valued by {@link ModelTexture}
      * @return {@code true} when any variable in the chain carried {@code force_translucent}
      */
     private static boolean isForceTranslucent(
         @NotNull String reference,
-        @NotNull ConcurrentMap<String, String> variables,
-        @NotNull ConcurrentMap<String, ModelTexture> textureObjects
+        @NotNull ConcurrentMap<String, ModelTexture> variables
     ) {
         String current = reference;
         if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
@@ -443,12 +439,10 @@ public class Textures {
         ConcurrentSet<String> visited = Concurrent.newSet();
         while (current.startsWith("#")) {
             if (!visited.add(current)) return false;
-            String name = current.substring(1);
-            ModelTexture object = textureObjects.get(name);
-            if (object != null && object.forceTranslucent()) return true;
-            String next = variables.get(name);
-            if (next == null) return false;
-            current = next;
+            ModelTexture texture = variables.get(current.substring(1));
+            if (texture == null) return false;
+            if (texture.forceTranslucent()) return true;
+            current = texture.sprite();
         }
         return false;
     }

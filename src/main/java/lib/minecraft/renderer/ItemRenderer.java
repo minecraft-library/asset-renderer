@@ -12,6 +12,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
@@ -178,7 +179,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         ModelData resolved = model.get();
         List<LayerTint> tints = resolution != null ? resolution.tints() : baked.tints();
-        return new Item(baked.id(), resolved, Concurrent.adoptMap(new HashMap<>(resolved.getTextures())),
+        HashMap<String, String> sprites = new HashMap<>();
+        resolved.getTextures().forEach((slot, texture) -> sprites.put(slot, texture.sprite()));
+        return new Item(baked.id(), resolved, Concurrent.adoptMap(sprites),
             baked.maxDurability(), tints, baked.alwaysGlinted());
     }
 
@@ -480,9 +483,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             return layerIndex;
         }
 
-        ConcurrentMap<String, String> variables = item.model().getTextures();
+        ConcurrentMap<String, ModelTexture> variables = item.model().getTextures();
         String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
-        String layerRef = variables.get(layerKey);
+        ModelTexture layerTexture = variables.get(layerKey);
+        String layerRef = layerTexture == null ? null : layerTexture.sprite();
         for (ModelElement element : elements) {
             for (ModelFace face : element.getFaces().values()) {
                 String faceRef = face.getTexture();
@@ -734,7 +738,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (!item.model().getElements().isEmpty()) {
                 Map<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item, tick);
                 var forceRefs = Textures.resolveForceTranslucentRefs(
-                    item.model().getElements(), item.model().getTextures(), item.model().getTextureObjects());
+                    item.model().getElements(), item.model().getTextures());
                 return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint, tint, forceRefs);
             }
             PixelBuffer texture = composeTintedLayers(this.context, engine, item, options, cit, tick);

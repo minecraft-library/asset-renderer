@@ -1697,26 +1697,19 @@ public final class PipelineParityDump {
     /**
      * Returns a model's texture slots as {@code slot -> {sprite, force_translucent}}.
      * <p>
-     * The loaded form is two maps, not one: the parser flattens every slot to its sprite string in
-     * {@code textures}, and parks the 26.1 object form's flags in the sparse {@code textureObjects}
-     * side-channel (populated ONLY for slots authored as objects - usually empty on a vanilla stack).
-     * They are joined here so the pair reads as one value and the later merge of the two into a single
-     * map is a no-op in the dump.
-     * <p>
-     * An absent {@code textureObjects} entry means the slot was authored in string form, which is
-     * {@code force_translucent: false} - not unknown. So the flag is defaulted, never omitted.
+     * The loaded form is one map: both authored shapes (bare string, and the 26.1
+     * {@code {sprite, force_translucent}} object) parse to a {@link ModelTexture}, a string-form slot
+     * carrying {@code force_translucent: false}. So the flag is loaded state, never omitted.
      *
      * @param model the model whose textures to emit
      * @return the texture-slot object
      */
     private static @NotNull JsonObject modelTextures(@NotNull ModelData model) {
-        Map<String, ModelTexture> objects = model.getTextureObjects();
         JsonObject root = new JsonObject();
-        model.getTextures().forEach((slot, sprite) -> {
-            ModelTexture object = objects.get(slot);
+        model.getTextures().forEach((slot, texture) -> {
             JsonObject entry = new JsonObject();
-            entry.addProperty("sprite", object == null ? sprite : object.sprite());
-            entry.addProperty("force_translucent", object != null && object.forceTranslucent());
+            entry.addProperty("sprite", texture.sprite());
+            entry.addProperty("force_translucent", texture.forceTranslucent());
             root.add(slot, entry);
         });
         return root;

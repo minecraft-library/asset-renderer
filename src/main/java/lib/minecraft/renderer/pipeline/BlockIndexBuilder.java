@@ -327,7 +327,7 @@ public class BlockIndexBuilder {
                     modelToUse = override;
             }
 
-            HashMap<String, String> textures = new HashMap<>(modelToUse.getTextures());
+            HashMap<String, String> textures = spriteBindings(modelToUse);
             flattenElementFaces(modelToUse, textures);
 
             Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Block.TintTarget.NONE, Optional.empty()));
@@ -513,7 +513,7 @@ public class BlockIndexBuilder {
             ResolvedBlockModel hit = resolved.get();
 
             ModelData modelToUse = hit.model();
-            HashMap<String, String> textures = new HashMap<>(modelToUse.getTextures());
+            HashMap<String, String> textures = spriteBindings(modelToUse);
             flattenElementFaces(modelToUse, textures);
 
             Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Block.TintTarget.NONE, Optional.empty()));
@@ -629,6 +629,19 @@ public class BlockIndexBuilder {
      * @param model the block model whose first element's faces are flattened
      * @param textures the direction-to-texture map to write resolved bindings into, mutated in place
      */
+    /**
+     * Flattens a model's texture bindings to a fresh mutable {@code slot -> sprite id} map, dropping
+     * the 26.1 object-form sampler flags the block index does not carry.
+     *
+     * @param model the model whose texture bindings to flatten
+     * @return a fresh mutable map from texture slot to sprite id
+     */
+    private static @NotNull HashMap<String, String> spriteBindings(@NotNull ModelData model) {
+        HashMap<String, String> sprites = new HashMap<>();
+        model.getTextures().forEach((slot, texture) -> sprites.put(slot, texture.sprite()));
+        return sprites;
+    }
+
     private static void flattenElementFaces(@NotNull ModelData model, @NotNull Map<String, String> textures) {
         if (model.getElements().isEmpty()) return;
         ModelElement element = model.getElements().getFirst();

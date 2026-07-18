@@ -57,7 +57,7 @@ class ModelResolverTest {
         ConcurrentMap<String, ModelData> items = ResolvedModels.load(stack).items();
         assertThat(items.containsKey("minecraft:item/apple"), is(true));
         assertThat(items.containsKey("testns:item/gizmo"), is(true));
-        assertThat(items.get("testns:item/gizmo").getTextures().get("layer0"), is("testns:item/gizmo"));
+        assertThat(items.get("testns:item/gizmo").getTextures().get("layer0").sprite(), is("testns:item/gizmo"));
     }
 
     @Test
@@ -77,14 +77,14 @@ class ModelResolverTest {
 
         ModelData child = ResolvedModels.load(stack).blocks().get("testns:block/child");
         assertThat("inherited the vanilla-only parent's elements", child.getElements().isEmpty(), is(false));
-        assertThat(child.getTextures().get("all"), is("testns:block/x"));
+        assertThat(child.getTextures().get("all").sprite(), is("testns:block/x"));
     }
 
     @Test
-    @DisplayName("object-form {sprite, force_translucent} flattens to the sprite string and retains the flag")
+    @DisplayName("object-form {sprite, force_translucent} parses to a ModelTexture carrying the flag")
     void objectFormTextureRetained() throws IOException {
         Path van = tmp.resolve("vanilla");
-        // Parent-less object-form model: proves the retain runs for every model, not only parented ones.
+        // Parent-less object-form model: proves the parse runs for every model, not only parented ones.
         write(van.resolve("assets/minecraft/models/block/glass.json"),
             "{\"textures\":{\"all\":{\"sprite\":\"minecraft:block/glass\",\"force_translucent\":true},"
                 + "\"plain\":\"minecraft:block/stone\"}}");
@@ -92,12 +92,9 @@ class ModelResolverTest {
         PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft"))));
         ModelData glass = ResolvedModels.load(stack).blocks().get("minecraft:block/glass");
 
-        // The render-path string map keeps the flattened sprite form.
-        assertThat(glass.getTextures().get("all"), is("minecraft:block/glass"));
-        assertThat(glass.getTextures().get("plain"), is("minecraft:block/stone"));
-        // The flag is retained on the side channel, keyed by the same variable name; string entries are absent.
-        assertThat(glass.getTextureObjects().get("all"), is(new ModelTexture("minecraft:block/glass", true)));
-        assertThat(glass.getTextureObjects().containsKey("plain"), is(false));
+        // Object form parses to a ModelTexture carrying the flag; string form to (sprite, false).
+        assertThat(glass.getTextures().get("all"), is(new ModelTexture("minecraft:block/glass", true)));
+        assertThat(glass.getTextures().get("plain"), is(new ModelTexture("minecraft:block/stone", false)));
     }
 
     @Test
@@ -155,7 +152,7 @@ class ModelResolverTest {
     }
 
     @Test
-    @DisplayName("a malformed force_translucent flag flattens the sprite instead of crashing")
+    @DisplayName("a malformed force_translucent flag degrades to false instead of crashing")
     void objectFormMalformedFlagIsSafe() throws IOException {
         Path van = tmp.resolve("vanilla");
         write(van.resolve("assets/minecraft/models/block/weird.json"),
@@ -167,10 +164,9 @@ class ModelResolverTest {
         PackStack stack = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft"))));
         ModelData weird = ResolvedModels.load(stack).blocks().get("minecraft:block/weird"); // must not throw
 
-        assertThat(weird.getTextures().get("a"), is("minecraft:block/a"));
-        assertThat("string flag -> false", weird.getTextureObjects().get("a"), is(new ModelTexture("minecraft:block/a", false)));
-        assertThat("null flag -> false", weird.getTextureObjects().get("b"), is(new ModelTexture("minecraft:block/b", false)));
-        assertThat("boolean true -> true", weird.getTextureObjects().get("c"), is(new ModelTexture("minecraft:block/c", true)));
+        assertThat("string flag -> false", weird.getTextures().get("a"), is(new ModelTexture("minecraft:block/a", false)));
+        assertThat("null flag -> false", weird.getTextures().get("b"), is(new ModelTexture("minecraft:block/b", false)));
+        assertThat("boolean true -> true", weird.getTextures().get("c"), is(new ModelTexture("minecraft:block/c", true)));
     }
 
     @Test

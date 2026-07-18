@@ -76,7 +76,8 @@ public class ItemIndexBuilder {
             ResourceId itemResource = ResourceId.ofModelId(modelId);
             String itemId = itemResource.id();
             if (beEntries.containsKey(itemId)) continue;
-            HashMap<String, String> textures = new HashMap<>(model.getTextures());
+            HashMap<String, String> textures = new HashMap<>();
+            model.getTextures().forEach((slot, texture) -> textures.put(slot, texture.sprite()));
             List<LayerTint> tints = itemTints.getOrDefault(itemId, List.of());
             boolean alwaysGlinted = glintItems.contains(itemId);
             itemIndex.put(itemId, new Item(itemResource, model, Concurrent.adoptMap(textures), 0, tints, alwaysGlinted));

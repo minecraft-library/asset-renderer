@@ -449,7 +449,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     partModel.getElements(), partModel.getTextures(),
                     id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
                 var forceRefs = Textures.resolveForceTranslucentRefs(
-                    partModel.getElements(), partModel.getTextures(), partModel.getTextureObjects());
+                    partModel.getElements(), partModel.getTextures());
 
                 ConcurrentList<VisibleTriangle> partTriangles = apply.uvlock()
                     ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, apply.x(), apply.y(), true, forceRefs)
@@ -565,7 +565,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 model.getElements(), model.getTextures(),
                 id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
             var forceRefs = Textures.resolveForceTranslucentRefs(
-                model.getElements(), model.getTextures(), model.getTextureObjects());
+                model.getElements(), model.getTextures());
 
             // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
             // texture stays world-aligned (the position rotation is applied separately by the
@@ -684,7 +684,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 partModel.getElements(), partModel.getTextures(),
                 id -> Optional.of(raster.textures().resolveTextureAtTick(id, tick)));
             var forceRefs = Textures.resolveForceTranslucentRefs(
-                partModel.getElements(), partModel.getTextures(), partModel.getTextureObjects());
+                partModel.getElements(), partModel.getTextures());
 
             ConcurrentList<VisibleTriangle> triangles = first.uvlock()
                 ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, first.x(), first.y(), true, forceRefs)

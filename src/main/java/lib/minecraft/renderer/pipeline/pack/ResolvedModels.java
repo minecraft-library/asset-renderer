@@ -111,17 +111,16 @@ public record ResolvedModels(
 
     /**
      * Resolves one raw entry into a {@link ModelData}: walks its parent chain against the merged raw
-     * map, captures 26.1 object-form texture flags, Gson-reparses the flattened JSON, and warns when
-     * a non-vanilla winner renders nothing (the drop itself stays downstream in the index loaders).
+     * map, Gson-reparses the merged JSON (the {@link ModelTexture} adapter reads both the string and
+     * the 26.1 object texture forms), and warns when a non-vanilla winner renders nothing (the drop
+     * itself stays downstream in the index loaders).
      */
     private static @NotNull ModelData resolveModel(
         @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonNode> rawJson,
         @NotNull String kindPrefix, boolean isItem
     ) {
         JsonNode merged = mergeParentChain(attributed.json(), rawJson, kindPrefix);
-        ConcurrentMap<String, ModelTexture> textureObjects = normalizeTextures(merged);
         ModelData model = merged.as(ModelData.class);
-        model.setTextureObjects(textureObjects);
 
         if (!attributed.origin().equals(PackId.VANILLA)
             && model.rendersNothing(isItem))
@@ -180,8 +179,7 @@ public record ResolvedModels(
      * elements inherit from every ancestor. Child keys override parent keys, except {@code textures}
      * which is deep-merged (child variables win per key). Returns a deep copy of {@code model} when it
      * declares no parent or its parent lives outside this tree (e.g. {@code minecraft:builtin/generated});
-     * otherwise the result is a fresh deep copy so ancestors are never mutated - which is what makes
-     * the result safe to normalise in place. Cycle detection is not needed - vanilla chains are
+     * otherwise the result is a fresh deep copy so ancestors are never mutated. Cycle detection is not needed - vanilla chains are
      * acyclic and shallow (at most 3 deep). The {@code kindPrefix} is preserved for future use in
      * fully-qualifying ambiguous parent ids; today every parent reference already carries its kind
      * segment ({@code block/} or {@code item/}).
@@ -204,10 +202,8 @@ public record ResolvedModels(
         JsonNode merged = mergeParentChain(parentJson, raw, kindPrefix);
 
         // Child values override parent for keys present on both sides. Deep-copy every child value
-        // folded in so the returned object shares no mutable node with the raw map - the parallel
-        // resolve mutates each merged copy in place (normalizeTextures), and an aliased raw texture
-        // object would otherwise be mutated under the shared map. This honours the "ancestors are
-        // never mutated" contract.
+        // folded in so the returned object shares no mutable node with the raw map, honouring the
+        // "ancestors are never mutated" contract even though this method mutates the merged copy.
         for (Map.Entry<String, JsonNode> entry : model.members()) {
             String key = entry.getKey();
             JsonNode value = entry.getValue();
@@ -222,43 +218,6 @@ public record ResolvedModels(
         }
 
         return merged;
-    }
-
-    /**
-     * Flattens object-valued texture entries to their {@code sprite} string in place (the render path
-     * consumes the string map) and returns the retained {@link ModelTexture} objects for the flags it
-     * would otherwise discard.
-     * MC 26.1 uses {@code {"force_translucent": true, "sprite": "minecraft:block/glass"}} for
-     * translucent blocks; the sprite string stays the sole render input, the flag is retained on the
-     * side channel. Runs once on the fully-merged object, so every model - including a parent-less
-     * one - normalises consistently.
-     *
-     * @return the object-form entries keyed by texture variable, or an empty map when none were objects
-     */
-    private static @NotNull ConcurrentMap<String, ModelTexture> normalizeTextures(@NotNull JsonNode model) {
-        Optional<JsonNode> texturesOpt = model.findObject("textures");
-        if (texturesOpt.isEmpty()) return Concurrent.newMap();
-
-        JsonNode textures = texturesOpt.get();
-        HashMap<String, String> flattened = new HashMap<>();
-        HashMap<String, ModelTexture> objects = new HashMap<>();
-
-        for (Map.Entry<String, JsonNode> entry : textures.members()) {
-            JsonNode value = entry.getValue();
-            if (value.isObject() && value.has("sprite")) {
-                String sprite = value.getString("sprite");
-                // A pack may ship a non-boolean force_translucent; read it defensively so a malformed
-                // flag flattens the sprite instead of crashing the whole model load.
-                boolean forceTranslucent = value.findBool("force_translucent").orElse(false);
-                flattened.put(entry.getKey(), sprite);
-                objects.put(entry.getKey(), new ModelTexture(sprite, forceTranslucent));
-            }
-        }
-
-        for (Map.Entry<String, String> entry : flattened.entrySet())
-            textures.put(entry.getKey(), entry.getValue());
-
-        return objects.isEmpty() ? Concurrent.newMap() : Concurrent.adoptMap(objects).toUnmodifiable();
     }
 
     /**

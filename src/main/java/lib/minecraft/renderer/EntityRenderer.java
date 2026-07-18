@@ -769,7 +769,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // context for a held block); untinted (tintindex -1) faces keep white.
         int blockTint = BlockRenderer.resolveBlockTint(context, block.get(), Biome.Vanilla.PLAINS);
         var forceRefs = Textures.resolveForceTranslucentRefs(
-            block.get().model().getElements(), block.get().model().getTextures(), block.get().model().getTextureObjects());
+            block.get().model().getElements(), block.get().model().getTextures());
         ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(
             block.get().model().getElements(), faceTextures, blockTint, ColorMath.WHITE, forceRefs);
         if (blockTris.isEmpty()) return Concurrent.newList();
