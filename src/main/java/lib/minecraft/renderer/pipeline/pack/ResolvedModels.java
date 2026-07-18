@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline.pack;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
@@ -15,7 +16,6 @@ import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lib.minecraft.renderer.json.JsonNode;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
@@ -80,7 +80,7 @@ public record ResolvedModels(
         @NotNull PackStack stack, @NotNull String subdir, @NotNull String kind, boolean isItem
     ) {
         LinkedHashMap<String, Attributed> raw = mergeRawAcrossStack(stack, subdir, kind);
-        HashMap<String, JsonNode> rawJson = new HashMap<>(raw.size());
+        HashMap<String, JsonObject> rawJson = new HashMap<>(raw.size());
         raw.forEach((id, attributed) -> rawJson.put(id, attributed.json()));
 
         return raw.entrySet().parallelStream().collect(Concurrent.toMap(
@@ -122,11 +122,11 @@ public record ResolvedModels(
      * itself stays downstream in the index loaders).
      */
     private static @NotNull ModelData resolveModel(
-        @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonNode> rawJson,
+        @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonObject> rawJson,
         @NotNull String kindPrefix, boolean isItem
     ) {
-        JsonNode merged = mergeParentChain(attributed.json(), rawJson, kindPrefix);
-        ModelData model = merged.as(ModelData.class);
+        JsonObject merged = mergeParentChain(attributed.json(), rawJson, kindPrefix);
+        ModelData model = GSON.fromJson(merged, ModelData.class);
 
         if (!attributed.origin().equals(PackId.VANILLA)
             && model.rendersNothing(isItem))
@@ -142,7 +142,7 @@ public record ResolvedModels(
      * enumerates empty so a pack that omits a namespace's {@code models/item} (or the whole subtree)
      * is tolerated rather than fatal.
      */
-    private static @NotNull ConcurrentMap<String, JsonNode> scanJsonFiles(@NotNull PackContainer container, @NotNull String modelsPrefix, @NotNull String idPrefix, @NotNull PackId packId) {
+    private static @NotNull ConcurrentMap<String, JsonObject> scanJsonFiles(@NotNull PackContainer container, @NotNull String modelsPrefix, @NotNull String idPrefix, @NotNull PackId packId) {
         // Two-phase walk: enumerate entry paths serially (container walks don't split well for
         // parallel work), then parallelise the byte read + Gson parse across the FJP common pool.
         // Concurrent.toMap collects per-shard HashMaps lock-free and adopts the merged result.
@@ -161,7 +161,7 @@ public record ResolvedModels(
      * (surfaced by the container) is fatal. A malformed winning copy is reported with its owning pack
      * so the silent fall-back to a lower pack is traceable.
      */
-    private static @NotNull Optional<Map.Entry<String, JsonNode>> parseModelFile(
+    private static @NotNull Optional<Map.Entry<String, JsonObject>> parseModelFile(
         @NotNull PackContainer container, @NotNull String entry, @NotNull String modelsPrefix, @NotNull String idPrefix, @NotNull PackId packId
     ) {
         String relative = entry.substring(modelsPrefix.length() + 1);
@@ -171,7 +171,7 @@ public record ResolvedModels(
         if (bytes.isEmpty()) return Optional.empty();
         try {
             JsonObject json = GSON.fromJson(new String(bytes.get(), StandardCharsets.UTF_8), JsonObject.class);
-            return json == null ? Optional.empty() : Optional.of(Map.entry(id, JsonNode.wrap(json)));
+            return json == null ? Optional.empty() : Optional.of(Map.entry(id, json));
         } catch (JsonSyntaxException ex) {
             // Resource packs occasionally ship malformed or pathologically-nested model JSON. Skip
             // so the merge falls back to a lower-priority pack's version.
@@ -190,36 +190,37 @@ public record ResolvedModels(
      * fully-qualifying ambiguous parent ids; today every parent reference already carries its kind
      * segment ({@code block/} or {@code item/}).
      */
-    private static @NotNull JsonNode mergeParentChain(
-        @NotNull JsonNode model,
-        @NotNull Map<String, JsonNode> raw,
+    private static @NotNull JsonObject mergeParentChain(
+        @NotNull JsonObject model,
+        @NotNull Map<String, JsonObject> raw,
         @NotNull String kindPrefix
     ) {
-        Optional<String> parentId = model.findString("parent");
-        if (parentId.isEmpty()) return model.deepCopy();
+        JsonElement parent = model.get("parent");
+        if (parent == null || !parent.isJsonPrimitive()) return model.deepCopy();
 
-        String fqParent = parentId.get().contains(":") ? parentId.get() : VanillaSourcePaths.MINECRAFT_NAMESPACE + parentId.get();
-        JsonNode parentJson = raw.get(fqParent);
+        String parentId = parent.getAsString();
+        String fqParent = parentId.contains(":") ? parentId : VanillaSourcePaths.MINECRAFT_NAMESPACE + parentId;
+        JsonObject parentJson = raw.get(fqParent);
         if (parentJson == null) {
             // Parent lives outside this tree (e.g. minecraft:builtin/generated) - keep the reference
             // and stop walking.
             return model.deepCopy();
         }
-        JsonNode merged = mergeParentChain(parentJson, raw, kindPrefix);
+        JsonObject merged = mergeParentChain(parentJson, raw, kindPrefix);
 
         // Child values override parent for keys present on both sides. Deep-copy every child value
         // folded in so the returned object shares no mutable node with the raw map, honouring the
         // "ancestors are never mutated" contract even though this method mutates the merged copy.
-        for (Map.Entry<String, JsonNode> entry : model.members()) {
+        for (Map.Entry<String, JsonElement> entry : model.entrySet()) {
             String key = entry.getKey();
-            JsonNode value = entry.getValue();
-            if (key.equals("textures") && merged.has("textures") && value.isObject()) {
-                JsonNode mergedTextures = merged.get("textures").deepCopy();
-                for (Map.Entry<String, JsonNode> texture : value.members())
-                    mergedTextures.put(texture.getKey(), texture.getValue().deepCopy());
-                merged.put("textures", mergedTextures);
+            JsonElement value = entry.getValue();
+            if (key.equals("textures") && merged.has("textures") && value.isJsonObject()) {
+                JsonObject mergedTextures = merged.getAsJsonObject("textures").deepCopy();
+                for (Map.Entry<String, JsonElement> texture : value.getAsJsonObject().entrySet())
+                    mergedTextures.add(texture.getKey(), texture.getValue().deepCopy());
+                merged.add("textures", mergedTextures);
             } else {
-                merged.put(key, value.deepCopy());
+                merged.add(key, value.deepCopy());
             }
         }
 
@@ -233,6 +234,6 @@ public record ResolvedModels(
      * @param json the raw model JSON
      * @param origin the id of the pack whose copy won
      */
-    private record Attributed(@NotNull JsonNode json, @NotNull PackId origin) {}
+    private record Attributed(@NotNull JsonObject json, @NotNull PackId origin) {}
 
 }
