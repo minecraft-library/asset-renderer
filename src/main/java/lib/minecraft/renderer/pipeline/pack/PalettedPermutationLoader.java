@@ -1,17 +1,20 @@
 package lib.minecraft.renderer.pipeline.pack;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.annotations.SerializedName;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.engine.texture.PalettedPermutationSource;
-import lib.minecraft.renderer.json.JsonException;
-import lib.minecraft.renderer.json.JsonNode;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +34,8 @@ import java.util.Optional;
  */
 @UtilityClass
 public class PalettedPermutationLoader {
+
+    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     private static final @NotNull String PALETTED_PERMUTATIONS_TYPE = "minecraft:paletted_permutations";
 
@@ -67,34 +72,37 @@ public class PalettedPermutationLoader {
     /** Parses one atlas file, appending each {@code paletted_permutations} source it declares. */
     private static void parseAtlas(@NotNull PackContainer container, @NotNull String entry, @NotNull List<PalettedPermutationSource> out) {
         try {
-            JsonNode json = JsonNode.parse(container.bytes(entry).orElseThrow());
-            Optional<JsonNode> sources = json.findArray("sources");
-            if (sources.isEmpty()) return;
-            for (JsonNode element : sources.get().elements()) {
-                if (!element.isObject()) continue;
-                if (!PALETTED_PERMUTATIONS_TYPE.equals(element.getString("type"))) continue;
-                parseSource(element).ifPresent(out::add);
+            AtlasFile atlas = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), AtlasFile.class);
+            if (atlas == null || atlas.sources() == null) return;
+            for (SourceDto source : atlas.sources()) {
+                if (source == null || !PALETTED_PERMUTATIONS_TYPE.equals(source.type())) continue;
+                parseSource(source).ifPresent(out::add);
             }
-        } catch (JsonException ex) {
+        } catch (JsonSyntaxException ex) {
             System.err.printf("Skipping malformed atlas '%s': %s%n", entry, ex.getMessage());
         }
     }
 
-    /** Parses a single {@code paletted_permutations} source object, or empty when it is malformed. */
-    private static @NotNull Optional<PalettedPermutationSource> parseSource(@NotNull JsonNode source) {
-        String paletteKey = source.getString("palette_key");
-        Optional<JsonNode> permutationsNode = source.findObject("permutations");
-        if (paletteKey == null || permutationsNode.isEmpty() || source.findArray("textures").isEmpty())
+    /** Builds a {@link PalettedPermutationSource} from a source object, or empty when it is malformed. */
+    private static @NotNull Optional<PalettedPermutationSource> parseSource(@NotNull SourceDto source) {
+        if (source.paletteKey() == null
+            || source.permutations() == null || source.permutations().isEmpty()
+            || source.textures() == null || source.textures().isEmpty())
             return Optional.empty();
-
-        Map<String, String> permutations = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonNode> entry : permutationsNode.get().members())
-            if (entry.getValue().isPrimitive()) permutations.put(entry.getKey(), entry.getValue().stringValue().orElseThrow());
-
-        List<String> textures = source.getStrings("textures");
-
-        if (permutations.isEmpty() || textures.isEmpty()) return Optional.empty();
-        return Optional.of(new PalettedPermutationSource(paletteKey, Map.copyOf(permutations), List.copyOf(textures)));
+        return Optional.of(new PalettedPermutationSource(source.paletteKey(), Map.copyOf(source.permutations()), List.copyOf(source.textures())));
     }
 
+    /** One atlas file's payload: the {@code sources} list ({@code type}-tagged entries). */
+    record AtlasFile(@Nullable List<SourceDto> sources) {}
+
+    /**
+     * One atlas {@code sources[]} entry; only {@code minecraft:paletted_permutations} entries are kept.
+     *
+     * @param type the source type discriminator
+     * @param paletteKey the palette-key texture the permutation recolours against
+     * @param permutations the suffix to palette-swap texture map
+     * @param textures the base texture list the permutations apply to
+     */
+    record SourceDto(@Nullable String type, @SerializedName("palette_key") @Nullable String paletteKey,
+                     @Nullable Map<String, String> permutations, @Nullable List<String> textures) {}
 }
