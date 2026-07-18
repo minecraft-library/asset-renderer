@@ -6,8 +6,12 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.json.JsonException;
 import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Optional;
 
 /**
  * Envelope-aware reader for a bundled {@code *.json} asset resource.
@@ -20,6 +24,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>Reading reuses the {@link JsonNode} read surface rather than a bespoke navigator.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ResourceDocument {
 
     /** The version stamp every 26.1 resource carries; mirrors {@code ClientOptions.version}. */
@@ -36,11 +41,6 @@ public final class ResourceDocument {
 
     private final @NotNull JsonNode payload;
     private final @NotNull ResourceEnvelope envelope;
-
-    private ResourceDocument(@NotNull JsonNode payload, @NotNull ResourceEnvelope envelope) {
-        this.payload = payload;
-        this.envelope = envelope;
-    }
 
     /**
      * Parses and envelope-validates a resource's UTF-8 bytes.
@@ -67,7 +67,8 @@ public final class ResourceDocument {
         if (!EXPECTED_SOURCE_VERSION.equals(sourceVersion))
             diagnostics.warn("Resource source_version '%s' does not match expected '%s'", sourceVersion, EXPECTED_SOURCE_VERSION);
 
-        return new ResourceDocument(payload, new ResourceEnvelope(payload.getString("//"), format, sourceVersion));
+        return new ResourceDocument(payload,
+            new ResourceEnvelope(Optional.ofNullable(payload.getString("//")), format, Optional.ofNullable(sourceVersion)));
     }
 
     /**
@@ -87,18 +88,8 @@ public final class ResourceDocument {
         return this.payload;
     }
 
-    /** The {@code format} discriminator this resource declared. */
-    public int format() {
-        return this.envelope.format();
-    }
-
-    /** The {@code source_version} stamp this resource declared, or {@code null} when absent. */
-    public @Nullable String sourceVersion() {
-        return this.envelope.sourceVersion();
-    }
-
-    /** The {@code //} provenance header this resource declared, or {@code null} when absent. */
-    public @Nullable String header() {
-        return this.envelope.header();
+    /** The parsed envelope - the {@code //} header, {@code format} discriminator, and {@code source_version} stamp. */
+    public @NotNull ResourceEnvelope envelope() {
+        return this.envelope;
     }
 }

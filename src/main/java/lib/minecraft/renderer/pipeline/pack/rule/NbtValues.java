@@ -6,6 +6,7 @@ import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.NumericalTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -13,9 +14,8 @@ import org.jetbrains.annotations.NotNull;
  * scalar-literal parsing, SNBT boolean coercion, and cross-type numeric
  * equality. All rule-side; item-side tags come from binary NBT where these are already resolved.
  */
+@UtilityClass
 final class NbtValues {
-
-    private NbtValues() {}
 
     /**
      * Parses a rule-side scalar literal into a {@link Tag}. nbt-factory's {@code fromSnbt} accepts

@@ -17,6 +17,7 @@ import lib.minecraft.renderer.pipeline.pack.rule.CatharsisConfig;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisOverlays;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisTarget;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -41,12 +42,11 @@ import java.util.TreeSet;
  * downstream loader reads through the container SPI. The vanilla base pack is a real
  * {@link PackContainer.Directory} over the tree {@code ClientAcquisition.extractClientJar} produces.
  */
+@UtilityClass
 public final class PackAcquisition {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
     private static final @NotNull String CONFIG_CATHARSIS = "config.catharsis.json";
-
-    private PackAcquisition() {}
 
     /**
      * Compiles the full, fully-indexed pack stack for the given client assets: build the vanilla base

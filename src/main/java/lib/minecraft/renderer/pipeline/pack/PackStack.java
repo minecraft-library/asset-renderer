@@ -8,6 +8,8 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
@@ -31,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * stack into an index and re-derives the stack through {@link #withTextureIndex}. Both spellings share
  * the pack list, id map, and namespace union; only the index differs.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class PackStack {
 
     private final @NotNull ConcurrentList<ResourcePack> ascending;
@@ -48,16 +51,6 @@ public final class PackStack {
      * texture, so a stack-wide and a pack-restricted lookup that land on the same file share one buffer.
      */
     private final @NotNull ConcurrentMap<PixelKey, PixelBuffer> pixelCache = Concurrent.newMap();
-
-    private PackStack(@NotNull ConcurrentList<ResourcePack> ascending, @NotNull Map<PackId, ResourcePack> byId,
-                      @NotNull Set<String> namespaces, @NotNull ConcurrentMap<ResourceId, ResolvedTexture> textureIndex,
-                      @NotNull RuleSet rules) {
-        this.ascending = ascending;
-        this.byId = byId;
-        this.namespaces = namespaces;
-        this.textureIndex = textureIndex;
-        this.rules = rules;
-    }
 
     /**
      * Builds a stack from packs in ascending-priority order; the first must be the vanilla pack. The

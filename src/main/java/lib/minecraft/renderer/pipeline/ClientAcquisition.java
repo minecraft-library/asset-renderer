@@ -198,9 +198,8 @@ public class ClientAcquisition {
                 if (isRootMcmeta) extractedRootMcmeta = true;
             }
 
-            if (!extractedRootMcmeta && versionJsonBytes != null) {
+            if (!extractedRootMcmeta && versionJsonBytes != null)
                 synthesiseVanillaPackMeta(versionJsonBytes, packRoot);
-            }
         } catch (IOException ex) {
             throw new PipelineException(ex, "Failed to extract '%s' into '%s'", jarPath, packRoot);
         }

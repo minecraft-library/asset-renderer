@@ -154,9 +154,8 @@ public sealed interface CatharsisCondition permits CatharsisCondition.Config, Ca
     private static boolean matchesVersion(@NotNull String actual, @NotNull String predicate) {
         String trimmed = predicate.trim();
         if (trimmed.isEmpty()) return false;
-        for (String clause : trimmed.split("[,\\s]+")) {
+        for (String clause : trimmed.split("[,\\s]+"))
             if (!clause.isBlank() && !matchesClause(actual, clause.trim())) return false;
-        }
         return true;
     }
 

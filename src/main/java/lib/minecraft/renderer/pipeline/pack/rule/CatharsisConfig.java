@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
 import lib.minecraft.renderer.json.JsonNode;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,16 +25,13 @@ import java.util.Optional;
  * Unknown container shapes are traversed, not rejected - a config element the renderer does not model
  * simply contributes no default.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class CatharsisConfig {
 
     /** The empty config - no option carries a default, so every {@code catharsis:config} condition degrades to false. */
     public static final @NotNull CatharsisConfig EMPTY = new CatharsisConfig(Map.of());
 
     private final @NotNull Map<String, OptionDefault> options;
-
-    private CatharsisConfig(@NotNull Map<String, OptionDefault> options) {
-        this.options = options;
-    }
 
     /**
      * Parses a config document - the {@code config.catharsis.json} array (or the mcmeta config

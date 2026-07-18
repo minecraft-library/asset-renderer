@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -34,9 +35,9 @@ class ResourceDocumentTest {
         ResourceDocument doc = ResourceDocument.open(
             bytes("{\"//\":\"provenance\",\"format\":2,\"source_version\":\"26.1\",\"effects\":[]}"), diag);
 
-        assertEquals(2, doc.format());
-        assertEquals("provenance", doc.header());
-        assertEquals("26.1", doc.sourceVersion());
+        assertEquals(2, doc.envelope().format());
+        assertEquals(Optional.of("provenance"), doc.envelope().header());
+        assertEquals(Optional.of("26.1"), doc.envelope().sourceVersion());
         assertEquals(0, diag.count(Diagnostics.Severity.WARN), "a matching source_version must not warn");
     }
 
@@ -67,7 +68,7 @@ class ResourceDocumentTest {
         Diagnostics diag = diagnostics();
         ResourceDocument doc = ResourceDocument.open(bytes("{\"format\":2,\"source_version\":\"99.9\"}"), diag);
 
-        assertEquals("99.9", doc.sourceVersion());
+        assertEquals(Optional.of("99.9"), doc.envelope().sourceVersion());
         assertEquals(1, diag.count(Diagnostics.Severity.WARN), "a mismatched source_version must warn once");
     }
 

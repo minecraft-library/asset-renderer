@@ -6,6 +6,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
@@ -21,11 +22,10 @@ import java.util.Map;
  * aliased block's inventory icon poses through the shared item's {@code display.gui} rather than the
  * default iso pose, matching the in-game inventory.
  */
+@UtilityClass
 public final class BlockItemsLoader {
 
     private static final @NotNull String RESOURCE_NAME = "block_items.json";
-
-    private BlockItemsLoader() {}
 
     /**
      * Reads the secondary-to-standing block-item alias map from {@code block_items.json}.

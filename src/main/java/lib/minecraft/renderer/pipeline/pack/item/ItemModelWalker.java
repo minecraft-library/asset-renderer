@@ -66,9 +66,8 @@ public class ItemModelWalker {
     private static @NotNull Resolution resolveRange(@NotNull ItemModelNode.RangeDispatch range, @NotNull ItemModelContext context) {
         float scaled = range.scale() * context.rangeValue(range.property());
         ItemModelNode.RangeDispatch.Entry best = null;
-        for (ItemModelNode.RangeDispatch.Entry entry : range.entries()) {
+        for (ItemModelNode.RangeDispatch.Entry entry : range.entries())
             if (entry.threshold() <= scaled && (best == null || entry.threshold() > best.threshold())) best = entry;
-        }
         return best != null ? resolve(best.model(), context) : resolve(range.fallback(), context);
     }
 

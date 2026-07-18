@@ -31,7 +31,7 @@ class BundledResourceTest {
         Optional<ResourceDocument> doc = BundledResource.read("potion_colors.json", MissingPolicy.REQUIRED, diagnostics());
 
         assertTrue(doc.isPresent(), "the bundled potion_colors.json must be present");
-        assertEquals(2, doc.get().format());
+        assertEquals(2, doc.get().envelope().format());
     }
 
     @Test

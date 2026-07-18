@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline.load;
 
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -13,12 +14,11 @@ import org.jetbrains.annotations.Nullable;
  * a subject black. Banner tints stay {@code DyeColor} names and are resolved elsewhere, never through
  * this parser.
  */
+@UtilityClass
 public final class ArgbHex {
 
     /** Opaque white - the malformed-value fallback and the no-op {@code MULTIPLY} tint. */
     public static final int WHITE = 0xFFFFFFFF;
-
-    private ArgbHex() {}
 
     /**
      * Parses an ARGB hex string, falling back to {@link #WHITE} when the value is malformed.

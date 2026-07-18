@@ -8,6 +8,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.load.ResourceDocument;
 import lib.minecraft.renderer.pipeline.load.BundledResource;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,11 +32,10 @@ import java.util.StringJoiner;
  * string), and omits every {@code unresolved} id. The empty-vs-absent distinction is first-class in
  * the structured source but collapses to the same runtime key here.
  */
+@UtilityClass
 public final class BlockDefaultsLoader {
 
     private static final @NotNull String RESOURCE_NAME = "block_defaults.json";
-
-    private BlockDefaultsLoader() {}
 
     /**
      * Reads the per-block default-state key map natively from {@code block_defaults.json}, with no pack
