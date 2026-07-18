@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack.rule;
+package lib.minecraft.renderer.pipeline.pack;
 
 import lib.minecraft.renderer.json.JsonNode;
 import lombok.AccessLevel;

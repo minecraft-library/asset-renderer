@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack.rule;
+package lib.minecraft.renderer.pipeline.pack;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
