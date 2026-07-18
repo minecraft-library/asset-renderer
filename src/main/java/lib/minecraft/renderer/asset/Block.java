@@ -47,12 +47,11 @@ import java.util.Optional;
  * @param source where this block's registration originated. Used by atlas tile classification to
  *     label the source path (block-model file, blockstate-only fallback, or block-entity geometry
  *     override) without forcing consumers to type-check the renderer-context implementation
- * @param defaultStateKey the block's canonical default blockstate key as {@code property=value} pairs
- *     sorted alphabetically (e.g.
- *     {@code "facing=north,half=lower,hinge=left,open=false,powered=false"}), or empty when the block
- *     has no properties. Sourced from {@code block_defaults.json} (an ASM bytewalk of
+ * @param defaultState the block's default blockstate as a parsed {@code property -> value} map (e.g.
+ *     {@code {facing=north, half=lower, hinge=left, open=false, powered=false}}), or empty when the
+ *     block has no properties. Sourced from {@code block_defaults.json} (an ASM bytewalk of
  *     {@code registerDefaultState}) and baked on at pipeline-context construction. The renderer falls
- *     back to this key when a caller supplies no explicit variant, so blocks with per-state models
+ *     back to this state when a caller supplies no explicit variant, so blocks with per-state models
  *     render their default rather than whichever state registered first
  * @param itemBlockId the id of the block whose inventory item this block's icon poses through - the
  *     block's own id for a block that owns an item, or the standing block's id for a secondary block
@@ -77,10 +76,22 @@ public record Block(
     @NotNull Tint tint,
     @NotNull Optional<Entity> entity,
     @NotNull Source source,
-    @NotNull String defaultStateKey,
+    @NotNull ConcurrentMap<String, String> defaultState,
     @NotNull ResourceId itemBlockId,
     @NotNull Optional<ModelTransform> iconGui
 ) {
+
+    /**
+     * The canonical joined default-state key ({@code "prop=val,.."}, property-sorted; {@code ""} when
+     * the block declares no properties) - the serialized projection of {@link #defaultState()} kept for
+     * the parity dump and back-compat callers. The renderer reads {@link #defaultState()} directly, so
+     * this join runs only off the hot path.
+     *
+     * @return the joined default-state key
+     */
+    public @NotNull String defaultStateKey() {
+        return BlockStateKey.join(this.defaultState);
+    }
 
     /**
      * Returns this block's texture reference for the first of {@code directionKeys} that is bound in
@@ -228,8 +239,12 @@ public record Block(
      * @param y the whole-model Y rotation in degrees (0, 90, 180, or 270)
      * @param uvlock whether UVs should be locked to the block grid during rotation
      * @param geometry the variant's geometry - an {@link ElementGeometry} or a {@link BoneGeometry}
+     * @param properties the variant's blockstate key parsed once at load into a {@code property -> value}
+     *     map ({@code facing=east,half=lower} to {@code {facing=east, half=lower}}); empty for a
+     *     multipart apply, which matches through its {@code when} condition rather than a key
      */
-    public record Variant(@NotNull String modelId, int x, int y, boolean uvlock, @NotNull VariantGeometry geometry) {
+    public record Variant(@NotNull String modelId, int x, int y, boolean uvlock,
+                          @NotNull VariantGeometry geometry, @NotNull ConcurrentMap<String, String> properties) {
 
         /**
          * Reports whether this variant applies a whole-model rotation.

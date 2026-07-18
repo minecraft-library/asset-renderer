@@ -10,6 +10,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.ArgbColor;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
@@ -182,13 +183,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int tint = resolveRenderTint(block, be, options);
             int untintedTint = ColorMath.WHITE;
 
-            // Fall back to the block's tooling-derived default blockstate key when the caller
-            // supplies no explicit variant, so blocks with per-state models
+            // Fall back to the block's tooling-derived default blockstate when the caller supplies no
+            // explicit variant, so blocks with per-state models
             // ({@code sweet_berry_bush}, doors, {@code furnace}, glazed terracotta, crops) render
             // their canonical default rather than whichever model registered first. Property-less
-            // blocks have an empty default key, which resolves to the raw model pose. This replaces
-            // the harness {@code .variant} sidecar the parity test used to consume.
-            String effectiveVariant = options.getVariant().isEmpty() ? block.defaultStateKey() : options.getVariant();
+            // blocks have an empty default state, which resolves to the raw model pose. This replaces
+            // the harness {@code .variant} sidecar the parity test used to consume. The default path
+            // reads the pre-parsed default-state map directly; the ONLY surviving string->map parse is
+            // the explicit public RenderOptions.variant, parsed once here.
+            ConcurrentMap<String, String> effectiveProps = options.getVariant().isEmpty()
+                ? block.defaultState()
+                : BlockStateKey.parse(options.getVariant());
 
             // Per-frame rebuild: variant resolution, face-texture resolution,
             // geometry assembly, and the inventory relight ALL run inside the rasterizer callback at
@@ -212,7 +217,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return timeline.bake(
                 RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) ->
                     new ModelEngine(this.context, resolved.camera()).rasterize(
-                        buildRelitTriangles(tick, block, be, effectiveVariant, tint, untintedTint, lighting, options),
+                        buildRelitTriangles(tick, block, be, effectiveProps, tint, untintedTint, lighting, options),
                         target)));
         }
 
@@ -316,7 +321,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * gated on {@code be == null}.
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildRelitTriangles(
-            int tick, @NotNull Block block, @Nullable Block.Entity be, @NotNull String effectiveVariant,
+            int tick, @NotNull Block block, @Nullable Block.Entity be, @NotNull ConcurrentMap<String, String> effectiveProps,
             int tint, int untintedTint, @NotNull LightingFrame lighting, @NotNull BlockOptions options
         ) {
             // Block geometry is assembled through a GeometryLayer stack - primary model, then additive
@@ -328,7 +333,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             LayerStack<GeometryLayer> stack = new LayerStack<>();
 
             stack.append(BlockSlot.PRIMARY,
-                sink -> sink.addAll(buildPrimaryGeometry(block, be, effectiveVariant, tint, untintedTint, tick)));
+                sink -> sink.addAll(buildPrimaryGeometry(block, be, effectiveProps, tint, untintedTint, tick)));
 
             // Atlas-time composition: merge Block.Entity parts into the primary geometry (bed foot onto
             // head, decorated_pot sides onto base, banner flag onto post). Gated on mergeParts - scene
@@ -394,9 +399,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * straight-chain mesh under {@code attached=true}) overrides the default bone geometry; the
          * blockstate variant rotation still applies (matching the element path).
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildPrimaryGeometry(@NotNull Block block, @Nullable Block.Entity be, @NotNull String effectiveVariant, int tint, int untintedTint, int tick) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildPrimaryGeometry(@NotNull Block block, @Nullable Block.Entity be, @NotNull ConcurrentMap<String, String> effectiveProps, int tint, int untintedTint, int tick) {
             if (be != null && !be.additive()) {
-                Block.Variant boneVariant = resolveVariant(block, effectiveVariant);
+                Block.Variant boneVariant = resolveVariant(block, effectiveProps);
                 Block.Entity.BoneModel boneToUse = boneVariant != null && boneVariant.geometry() instanceof Block.BoneGeometry(Block.Entity.BoneModel boneModel)
                     ? boneModel
                     : be.boneModel();
@@ -406,14 +411,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 return boneTriangles;
             }
             if (block.multipart().isPresent())
-                return assembleMultipart(block.multipart().get(), effectiveVariant, tint, untintedTint, tick);
+                return assembleMultipart(block.multipart().get(), effectiveProps, tint, untintedTint, tick);
             // Resolve the blockstate variant BEFORE building geometry so its model id can override
             // Block#model() (sweet_berry_bush age stages, doors). The variant key is the caller's
             // when supplied, else the block's default state key; property-less blocks fall through to
             // the raw model pose. TILE_ENTITY blocks point the variant at an empty template, so the
             // non-empty-elements check keeps the geometry-bearing BE model - while still letting a BE
             // inject a geometry variant for a mesh-varying state (hanging sign).
-            Block.Variant variant = resolveVariant(block, effectiveVariant);
+            Block.Variant variant = resolveVariant(block, effectiveProps);
             ModelData modelToUse = block.model();
             if (variant != null && variant.geometry() instanceof Block.ElementGeometry(ModelData model) && !model.getElements().isEmpty())
                 modelToUse = model;
@@ -428,13 +433,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * each part's condition against the variant properties and builds triangles for every
          * matching model, applying per-part rotation where specified.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull Block.Multipart multipart, @NotNull String variantKey, int tint, int untintedTint, int tick) {
-            ConcurrentMap<String, String> properties = parseProperties(variantKey);
+        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull Block.Multipart multipart, @NotNull ConcurrentMap<String, String> callerProps, int tint, int untintedTint, int tick) {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             RasterEngine raster = new RasterEngine(this.context);
 
             for (Block.Multipart.Part part : multipart.parts()) {
-                if (!part.when().matches(properties)) continue;
+                if (!part.when().matches(callerProps)) continue;
 
                 Block.Variant apply = part.apply();
                 // A multipart apply is always an element model (resolved from the full model set at
@@ -486,22 +490,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return rotated;
         }
 
-        /**
-         * Parses a variant properties string ({@code "facing=south,lit=false"}) into a map.
-         */
-        private static @NotNull ConcurrentMap<String, String> parseProperties(@NotNull String variant) {
-            ConcurrentMap<String, String> result = Concurrent.newMap();
-            if (variant.isBlank()) return result;
-
-            for (String pair : variant.split(",")) {
-                int eq = pair.indexOf('=');
-
-                if (eq > 0)
-                    result.put(pair.substring(0, eq), pair.substring(eq + 1));
-            }
-
-            return result;
-        }
 
         /**
          * Builds triangles from all elements in a multi-element block model. Walks every
@@ -681,38 +669,33 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * oriented blocks matches what vanilla inventory shows, since vanilla's inventory
          * pipeline never consults the blockstate.
          */
-        private static @Nullable Block.Variant resolveVariant(@NotNull Block block, @NotNull String variantKey) {
-            // A property-less block maps to its unconditional {@code ""} blockstate variant, whose
+        private static @Nullable Block.Variant resolveVariant(@NotNull Block block, @NotNull ConcurrentMap<String, String> callerProps) {
+            // A property-less caller maps to the unconditional {@code ""} blockstate variant, whose
             // model is authoritative and need NOT equal {@link Block#model()} (the by-id
             // {@code block/<id>} guess). mud_bricks points {@code ""} at
             // {@code block/mud_bricks_north_west_mirrored} (north/west faces UV-flipped) where
             // {@code getModel()} is the plain {@code block/mud_bricks} cube_all - falling through to
             // {@code getModel()} dropped the mirror. The caller only swaps in the variant's geometry
             // when it carries real elements, so an empty particle-only template (TILE_ENTITY blocks
-            // whose mesh comes from the block-entity model) still falls back to the BE model.
-            if (variantKey.isEmpty()) return block.variants().get("");
-            // Exact key hit (caller knows the precise variant). Fast path.
-            Block.Variant exact = block.variants().get(variantKey);
-            if (exact != null) return exact;
-            // Partial-superset match: the caller supplied a fully-qualified blockstate
-            // (e.g. `facing=north,half=lower,hinge=left,open=false,powered=false` from the
-            // harness's defaultBlockState dump) but the JSON variant keys only list the
-            // properties that actually affect the model (`facing/half/hinge/open` for doors,
-            // omitting `powered`). Walk the variants map and pick the entry whose props are
-            // a SUBSET of the caller's props. Returns the variant whose conditions are all
-            // satisfied by the caller's blockstate.
-            // Most-specific subset wins: among the variants whose props are all satisfied by the
-            // caller's blockstate, pick the one matching the most properties. This lets a
-            // geometry-bearing {@code attached=true} variant (injected for the ceiling hanging
-            // sign) beat the unconditional {@code ""} catch-all that also subset-matches every
-            // state; for blocks with equal-specificity variants the first encountered still wins.
-            ConcurrentMap<String, String> callerProps = parseProperties(variantKey);
+            // whose mesh comes from the block-entity model) still falls back to the BE model. Retained
+            // as a direct string lookup on the string-keyed variants map - byte-identical to today.
+            if (callerProps.isEmpty()) return block.variants().get("");
+            // Most-specific subset wins; first-encountered wins on ties. The caller may supply a
+            // fully-qualified blockstate (e.g. `facing=north,half=lower,hinge=left,open=false,powered=false`
+            // from the harness's defaultBlockState dump) while the JSON variant keys list only the
+            // properties that actually affect the model (`facing/half/hinge/open` for doors, omitting
+            // `powered`); the entry whose props are a SUBSET of the caller's and match the most
+            // properties wins. This lets a geometry-bearing {@code attached=true} variant (injected for
+            // the ceiling hanging sign) beat the unconditional {@code ""} catch-all. An exact match is
+            // simply the maximal-specificity case of this same loop (vanilla keys are sorted, so no two
+            // distinct keys parse to equal maps), so no separate exact fast path is needed. Each
+            // variant's properties are PRE-PARSED at load - no per-render parse.
             Block.Variant best = null;
             int bestSpecificity = -1;
-            for (Map.Entry<String, Block.Variant> entry : block.variants().entrySet()) {
-                ConcurrentMap<String, String> variantProps = parseProperties(entry.getKey());
+            for (Block.Variant variant : block.variants().values()) {
+                ConcurrentMap<String, String> variantProps = variant.properties();
                 if (isSubsetMatch(variantProps, callerProps) && variantProps.size() > bestSpecificity) {
-                    best = entry.getValue();
+                    best = variant;
                     bestSpecificity = variantProps.size();
                 }
             }

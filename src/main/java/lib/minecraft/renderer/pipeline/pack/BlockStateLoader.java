@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.pack;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -249,7 +250,7 @@ public class BlockStateLoader {
     private static @NotNull ConcurrentMap<String, Block.Variant> parseVariants(@NotNull JsonNode variants, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         HashMap<String, Block.Variant> result = new HashMap<>();
         for (Map.Entry<String, JsonNode> entry : variants.members())
-            firstApply(entry.getValue()).ifPresent(obj -> result.put(entry.getKey(), parseApply(obj, blockModels)));
+            firstApply(entry.getValue()).ifPresent(obj -> result.put(entry.getKey(), parseApply(obj, blockModels, BlockStateKey.parse(entry.getKey()))));
         return Concurrent.adoptMap(result).toUnmodifiable();
     }
 
@@ -297,7 +298,7 @@ public class BlockStateLoader {
             Optional<JsonNode> applyObj = firstApply(applyValue);
             if (applyObj.isEmpty()) continue;
 
-            result.add(new Block.Multipart.Part(when, parseApply(applyObj.get(), blockModels)));
+            result.add(new Block.Multipart.Part(when, parseApply(applyObj.get(), blockModels, Concurrent.newMap())));
         }
 
         return new Block.Multipart(Concurrent.adoptList(result).toUnmodifiable());
@@ -348,14 +349,17 @@ public class BlockStateLoader {
      *
      * @param obj the {@code "apply"} JSON object
      * @param blockModels the parsed model set used to resolve the model id to {@link ModelData}
+     * @param properties the apply's blockstate key pre-parsed into a property map (empty for a multipart
+     *     apply, which carries no key)
      * @return the parsed variant with its geometry baked in
      */
-    private static @NotNull Block.Variant parseApply(@NotNull JsonNode obj, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+    private static @NotNull Block.Variant parseApply(@NotNull JsonNode obj, @NotNull ConcurrentMap<String, ModelData> blockModels,
+                                                     @NotNull ConcurrentMap<String, String> properties) {
         String modelId = obj.getString("model", "");
         int x = obj.getInt("x", 0);
         int y = obj.getInt("y", 0);
         boolean uvlock = obj.getBool("uvlock", false);
-        return new Block.Variant(modelId, x, y, uvlock, new Block.ElementGeometry(resolveVariantModel(modelId, blockModels)));
+        return new Block.Variant(modelId, x, y, uvlock, new Block.ElementGeometry(resolveVariantModel(modelId, blockModels)), properties);
     }
 
     /**

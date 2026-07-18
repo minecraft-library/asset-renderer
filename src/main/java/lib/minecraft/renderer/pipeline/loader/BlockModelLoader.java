@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
@@ -176,7 +177,8 @@ public class BlockModelLoader {
                 if (block.has("variant")) {
                     variantModels.computeIfAbsent(blockId, k -> new HashMap<>())
                         .put(block.getString("variant"),
-                            new Block.Variant(modelId, 0, 0, false, new Block.BoneGeometry(boneModel)));
+                            new Block.Variant(modelId, 0, 0, false, new Block.BoneGeometry(boneModel),
+                                BlockStateKey.parse(block.getString("variant"))));
                     continue;
                 }
 

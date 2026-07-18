@@ -68,7 +68,7 @@ public class BlockIndexBuilder {
      * @param blockVariants the blockstate variant maps keyed by stripped block id
      * @param blockMultiparts the multipart descriptors keyed by stripped block id
      * @param blockTags the block-tag membership descriptors keyed by tag id
-     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
+     * @param blockDefaultStates the default-state property maps keyed by namespaced block id
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param beEntries the block-entity geometry table from {@link BlockModelLoader}
      * @param beVariants the block-entity state-conditional variants from {@link BlockModelLoader}
@@ -83,14 +83,14 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
         @NotNull ConcurrentMap<String, BlockTag> blockTags,
-        @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
         @NotNull Map<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, ModelData> itemModels
     ) {
-        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockTags, blockDefaultStateKeys, blockItemAliases, beEntries, beVariants, itemTrees, itemModels);
+        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockTags, blockDefaultStates, blockItemAliases, beEntries, beVariants, itemTrees, itemModels);
 
         int before = blockIndex.size();
         blockIndex.entrySet().removeIf(entry -> {
@@ -119,7 +119,7 @@ public class BlockIndexBuilder {
      * @param blockVariants the blockstate variant maps keyed by stripped block id
      * @param blockMultiparts the multipart descriptors keyed by stripped block id
      * @param blockTags the block-tag membership descriptors keyed by tag id
-     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
+     * @param blockDefaultStates the default-state property maps keyed by namespaced block id
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param beEntries the block-entity geometry table
      * @param beVariants the block-entity state-conditional variants
@@ -134,7 +134,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
         @NotNull ConcurrentMap<String, BlockTag> blockTags,
-        @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
         @NotNull Map<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
@@ -142,9 +142,9 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ModelData> itemModels
     ) {
         ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = buildReverseTagIndex(blockTags);
-        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, beEntries, beVariants, reverseTagIndex, itemTrees, itemModels);
-        attachOrphanBlockEntities(blockIndex, beEntries, beVariants, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, reverseTagIndex, itemTrees, itemModels);
-        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, beEntries, blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStateKeys, blockItemAliases, reverseTagIndex, itemTrees, itemModels);
+        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStates, blockItemAliases, beEntries, beVariants, reverseTagIndex, itemTrees, itemModels);
+        attachOrphanBlockEntities(blockIndex, beEntries, beVariants, blockVariants, blockMultiparts, blockDefaultStates, blockItemAliases, reverseTagIndex, itemTrees, itemModels);
+        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, beEntries, blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStates, blockItemAliases, reverseTagIndex, itemTrees, itemModels);
         System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
         return blockIndex;
     }
@@ -201,12 +201,12 @@ public class BlockIndexBuilder {
      * Returns the bundled default-state key for a block id, or empty when the block has no
      * entry in {@code block_defaults.json} (an empty-property block).
      *
-     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
+     * @param blockDefaultStates the default-state property maps keyed by namespaced block id
      * @param blockId the namespaced block id
-     * @return the default-state key, or empty
+     * @return the default-state property map, or the empty map when absent
      */
-    private static @NotNull String defaultKeyFor(@NotNull ConcurrentMap<String, String> blockDefaultStateKeys, @NotNull String blockId) {
-        return blockDefaultStateKeys.getOrDefault(blockId, "");
+    private static @NotNull ConcurrentMap<String, String> defaultStateFor(@NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates, @NotNull String blockId) {
+        return blockDefaultStates.getOrDefault(blockId, Concurrent.newMap());
     }
 
     /**
@@ -283,7 +283,7 @@ public class BlockIndexBuilder {
      * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
      * @param blockVariants the blockstate variant maps keyed by stripped block id
      * @param blockMultiparts the multipart descriptors keyed by stripped block id
-     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
+     * @param blockDefaultStates the default-state property maps keyed by namespaced block id
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param blockEntityEntries the block-entity geometry table from {@link BlockModelLoader}
      * @param beVariants the block-entity state-conditional variants from {@link BlockModelLoader}
@@ -298,7 +298,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, String> itemDefinitions,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
-        @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
         @NotNull Map<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
@@ -358,7 +358,7 @@ public class BlockIndexBuilder {
                 tint,
                 Optional.ofNullable(entity),
                 source,
-                defaultKeyFor(blockDefaultStateKeys, blockId),
+                defaultStateFor(blockDefaultStates, blockId),
                 itemBlockId,
                 iconGuiFor(itemBlockId, modelToUse, itemTrees, itemModels)
             ));
@@ -381,7 +381,7 @@ public class BlockIndexBuilder {
      * @param beVariants the block-entity state-conditional variants from {@link BlockModelLoader}
      * @param blockVariants the blockstate variant maps keyed by stripped block id
      * @param blockMultiparts the multipart descriptors keyed by stripped block id
-     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
+     * @param blockDefaultStates the default-state property maps keyed by namespaced block id
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
      * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
@@ -393,7 +393,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
-        @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
         @NotNull Map<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
@@ -424,7 +424,7 @@ public class BlockIndexBuilder {
                 new Block.Tint(Block.TintTarget.NONE, Optional.empty()),
                 Optional.of(be),
                 Block.Source.TILE_ENTITY,
-                defaultKeyFor(blockDefaultStateKeys, blockId),
+                defaultStateFor(blockDefaultStates, blockId),
                 itemBlockId,
                 iconGuiFor(itemBlockId, model, itemTrees, itemModels)
             ));
@@ -473,7 +473,7 @@ public class BlockIndexBuilder {
      * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
      * @param blockVariants the blockstate variant maps keyed by stripped block id
      * @param blockMultiparts the multipart descriptors keyed by stripped block id
-     * @param blockDefaultStateKeys the default-state keys keyed by namespaced block id
+     * @param blockDefaultStates the default-state property maps keyed by namespaced block id
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
      * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
      * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
@@ -489,7 +489,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, String> itemDefinitions,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
-        @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
         @NotNull Map<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
@@ -535,7 +535,7 @@ public class BlockIndexBuilder {
                 tint,
                 attachedEntity,
                 source,
-                defaultKeyFor(blockDefaultStateKeys, blockId),
+                defaultStateFor(blockDefaultStates, blockId),
                 itemBlockId,
                 iconGuiFor(itemBlockId, modelToUse, itemTrees, itemModels)));
             blockstateOnlyIds.add(blockId);

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.PackCapability;
@@ -117,7 +118,7 @@ class BlockRendererOverridesTest {
         Path pack = writePack("defaults", "renderer/block_defaults.json", envelope("blocks", blocks));
 
         var defaults = BlockDefaultsLoader.load(NONE, BlockRendererOverrides.gather(stack(pack), NONE));
-        assertThat(defaults.get("minecraft:conduit"), is("facing=east"));
+        assertThat(BlockStateKey.join(defaults.get("minecraft:conduit")), is("facing=east"));
     }
 
     @Test
@@ -149,7 +150,7 @@ class BlockRendererOverridesTest {
 
         java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
         java.io.PrintStream original = System.err;
-        dev.simplified.collection.ConcurrentMap<String, String> defaults;
+        dev.simplified.collection.ConcurrentMap<String, dev.simplified.collection.ConcurrentMap<String, String>> defaults;
         try {
             System.setErr(new java.io.PrintStream(buffer, true, java.nio.charset.StandardCharsets.UTF_8));
             defaults = BlockDefaultsLoader.load(NONE, overrides);
@@ -158,7 +159,7 @@ class BlockRendererOverridesTest {
         }
         assertThat(buffer.toString(java.nio.charset.StandardCharsets.UTF_8).contains("minecraft:conduit"), is(true));
         // The classpath default is untouched (the malformed override was ignored, not applied).
-        assertThat(defaults.get("minecraft:conduit"), is(not("facing=east")));
+        assertThat(BlockStateKey.join(defaults.get("minecraft:conduit")), is(not("facing=east")));
     }
 
     private static JsonObject mark(String value) {

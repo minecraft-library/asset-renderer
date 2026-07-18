@@ -68,7 +68,7 @@ class TemplateFilterParityTest {
     private static ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants;
     private static ConcurrentMap<String, Block.Multipart> blockMultiparts;
     private static ConcurrentMap<String, BlockTag> blockTags;
-    private static ConcurrentMap<String, String> blockDefaultStateKeys;
+    private static ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates;
     private static Map<String, String> blockItemAliases;
 
     // The explicit item-index loader inputs.
@@ -98,7 +98,7 @@ class TemplateFilterParityTest {
         blockTags = BlockTagLoader.load(stack);
 
         Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.NONE, null);
-        blockDefaultStateKeys = BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));
+        blockDefaultStates = BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));
         blockItemAliases = BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.NONE, null));
 
         be = BlockModelLoader.load();
@@ -109,11 +109,11 @@ class TemplateFilterParityTest {
     void blockFilter() {
         Set<String> built = new HashSet<>(BlockIndexBuilder.buildUnfiltered(
             blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts,
-            blockTags, blockDefaultStateKeys, blockItemAliases, be.models(), be.variants(),
+            blockTags, blockDefaultStates, blockItemAliases, be.models(), be.variants(),
             itemTrees, itemModels).keySet());
         Set<String> kept = new HashSet<>(BlockIndexBuilder.load(
             blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts,
-            blockTags, blockDefaultStateKeys, blockItemAliases, be.models(), be.variants(),
+            blockTags, blockDefaultStates, blockItemAliases, be.models(), be.variants(),
             itemTrees, itemModels).keySet());
         System.out.printf("[block] built=%d kept=%d dropped=%d%n", built.size(), kept.size(), built.size() - kept.size());
 

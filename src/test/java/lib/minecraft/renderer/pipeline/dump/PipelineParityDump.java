@@ -8,6 +8,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.ArgbColor;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -740,7 +741,7 @@ public final class PipelineParityDump {
         root.add("glint_items", CanonicalJson.strings(GlintItemsLoader.load()));
 
         Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.NONE, null);
-        root.add("block_default_state_keys", CanonicalJson.map(BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag)), JsonPrimitive::new));
+        root.add("block_default_state_keys", CanonicalJson.map(BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag)), m -> new JsonPrimitive(BlockStateKey.join(m))));
         root.add("block_item_aliases", CanonicalJson.map(BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.NONE, null)), JsonPrimitive::new));
 
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);

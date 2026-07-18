@@ -12,14 +12,12 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.StringJoiner;
 
 /**
  * The reader for per-block default states.
@@ -27,10 +25,9 @@ import java.util.StringJoiner;
  * <p>{@code block_defaults.json} carries the structured shape: {@code blocks{}} maps
  * each block id to a {@code {property:"value"}} object (an empty {@code {}} means "resolved, declares
  * no properties"), and {@code unresolved[]} lists the block ids whose default state could not be
- * ASM-resolved. This reader flattens each block's structured state into the canonical
- * property-sorted {@code "prop=val,prop=val"} key the runtime consumes (empty {@code {}} to the empty
- * string), and omits every {@code unresolved} id. The empty-vs-absent distinction is first-class in
- * the structured source but collapses to the same runtime key here.
+ * ASM-resolved. This reader loads each block's structured state as a parsed {@code property -> value}
+ * map (Tier-0 reflective, no join), and omits every {@code unresolved} id. The canonical
+ * {@code "prop=val,.."} projection is derived on demand through {@code BlockStateKey.join}.
  */
 @UtilityClass
 public final class BlockDefaultsLoader {
@@ -38,33 +35,33 @@ public final class BlockDefaultsLoader {
     private static final @NotNull String RESOURCE_NAME = "block_defaults.json";
 
     /**
-     * Reads the per-block default-state key map natively from {@code block_defaults.json}, with no pack
+     * Reads the per-block default-state map natively from {@code block_defaults.json}, with no pack
      * override channel applied.
      *
      * @param diagnostics the scope envelope warnings are recorded to
-     * @return block id to its canonical default-state key (e.g. {@code "facing=north,lit=false"}),
-     *     wrapped unmodifiable; {@code unresolved} ids are absent
+     * @return block id to its parsed default-state {@code property -> value} map (empty when the block
+     *     declares no properties), wrapped unmodifiable; {@code unresolved} ids are absent
      * @throws PipelineException if the resource is missing or has no {@code blocks} object
      */
-    public static @NotNull ConcurrentMap<String, String> load(@NotNull Diagnostics diagnostics) {
+    public static @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> load(@NotNull Diagnostics diagnostics) {
         return load(diagnostics, BlockRendererOverrides.EMPTY);
     }
 
     /**
-     * Reads the per-block default-state key map from {@code block_defaults.json}, then overlays the
+     * Reads the per-block default-state map from {@code block_defaults.json}, then overlays the
      * pack-supplied {@code renderer/block_defaults.json} override channel: each
      * pack {@code blocks} entry replaces the classpath default state of the same id and resolves it (so
-     * a pack can change a default state key that a vanilla-format pack cannot). This is the only way
+     * a pack can change a default state that a vanilla-format pack cannot). This is the only way
      * any pack can override an ASM-derived default state.
      *
      * @param diagnostics the scope envelope warnings are recorded to
      * @param overrides the gathered pack override channel; {@link BlockRendererOverrides#EMPTY} for a
      *     vanilla-only stack, which leaves the result byte-identical to the classpath snapshot
-     * @return block id to its canonical default-state key, wrapped unmodifiable; {@code unresolved} ids
-     *     are absent unless a pack override resolves them
+     * @return block id to its parsed default-state {@code property -> value} map, wrapped unmodifiable;
+     *     {@code unresolved} ids are absent unless a pack override resolves them
      * @throws PipelineException if the resource is missing or has no {@code blocks} object
      */
-    public static @NotNull ConcurrentMap<String, String> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
+    public static @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         DefaultsDoc doc = document.as(DefaultsDoc.class);
         if (doc.blocks() == null)
@@ -90,10 +87,10 @@ public final class BlockDefaultsLoader {
             unresolved.remove(blockId);
         }
 
-        HashMap<String, String> defaults = new HashMap<>();
+        HashMap<String, ConcurrentMap<String, String>> defaults = new HashMap<>();
         for (String blockId : blocks.keySet()) {
             if (unresolved.contains(blockId)) continue;
-            defaults.put(blockId, joinProperties(blocks.get(blockId)));
+            defaults.put(blockId, Concurrent.adoptMap(new LinkedHashMap<>(blocks.get(blockId))).toUnmodifiable());
         }
         return Concurrent.adoptMap(defaults).toUnmodifiable();
     }
@@ -117,22 +114,6 @@ public final class BlockDefaultsLoader {
             map.put(entry.getKey(), value.stringValue().orElseThrow());
         }
         return map;
-    }
-
-    /**
-     * Joins a structured default-state map into the legacy {@code prop=val,prop=val} key,
-     * property-name-sorted; an empty map joins to the empty string.
-     *
-     * @param state the {@code property -> value} default state
-     * @return the comma-joined property key
-     */
-    private static @NotNull String joinProperties(@NotNull Map<String, String> state) {
-        List<String> properties = new ArrayList<>(state.keySet());
-        properties.sort(null);
-        StringJoiner joiner = new StringJoiner(",");
-        for (String property : properties)
-            joiner.add(property + "=" + state.get(property));
-        return joiner.toString();
     }
 
     /**
