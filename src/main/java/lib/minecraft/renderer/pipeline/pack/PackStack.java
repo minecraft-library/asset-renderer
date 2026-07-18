@@ -98,7 +98,7 @@ public final class PackStack {
 
     /**
      * The merged pack rule payload the renderer consults - CIT rules, CTM rules, per-key colour
-     * overrides, and the global glint policy, folded across the stack by {@link RuleSet#merge}.
+     * overrides, and the global glint policy, folded across the stack at acquisition time.
      *
      * @return the merged rules
      */

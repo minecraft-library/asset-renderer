@@ -7,6 +7,7 @@ import lib.minecraft.renderer.pipeline.pack.Capability;
 import lib.minecraft.renderer.pipeline.pack.PackContainer;
 import lib.minecraft.renderer.pipeline.pack.PackId;
 import lib.minecraft.renderer.pipeline.pack.PackRoot;
+import lib.minecraft.renderer.pipeline.pack.PackStack;
 import lib.minecraft.renderer.pipeline.pack.ResourcePack;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -14,8 +15,12 @@ import org.jetbrains.annotations.NotNull;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 
@@ -47,8 +52,8 @@ public class RuleScanner {
         if (!pack.has(Capability.OPTIFINE_RULES)) return RuleSet.empty(pack.id());
 
         PackContainer container = pack.container();
-        List<CitRule> citRules = new java.util.ArrayList<>();
-        List<CtmRule> ctmRules = new java.util.ArrayList<>();
+        List<CitRule> citRules = new ArrayList<>();
+        List<CtmRule> ctmRules = new ArrayList<>();
         LinkedHashMap<String, Integer> colors = new LinkedHashMap<>();
         Optional<Boolean> useGlint = Optional.empty();
 
@@ -66,6 +71,70 @@ public class RuleScanner {
 
         ColorProperties merged = new ColorProperties(new ResourceId("minecraft", "color.properties"), pack.id(), Concurrent.adoptMap(colors).toUnmodifiable());
         return new RuleSet(pack.id(), Concurrent.adoptList(citRules).toUnmodifiable(), Concurrent.adoptList(ctmRules).toUnmodifiable(), merged, useGlint);
+    }
+
+    /**
+     * Builds the merged view over a resolved stack - scans every pack and folds their rules into one
+     * deterministically-ordered payload.
+     *
+     * <p>Merge order: CIT rules by weight DESC, then FILENAME (a platform-deterministic tie-break), then
+     * higher-priority pack; CTM rules partitioned tile-target before block-target then the same key;
+     * {@code color.properties} merged per-KEY with the highest-priority pack winning each key;
+     * {@code useGlint} taken from the highest pack shipping it.
+     *
+     * @param stack the resolved pack stack
+     * @return the merged rule set
+     */
+    public static @NotNull RuleSet mergeAll(@NotNull PackStack stack) {
+        Map<PackId, Integer> priority = new HashMap<>();
+        List<RuleSet> perPack = new ArrayList<>();
+        int index = 0;
+        for (ResourcePack pack : stack.ascending()) {
+            priority.put(pack.id(), index++);
+            perPack.add(scan(pack));
+        }
+
+        List<CitRule> cit = new ArrayList<>();
+        for (RuleSet rules : perPack) cit.addAll(rules.citRules());
+        cit.sort(citComparator(priority));
+
+        List<CtmRule> tiles = new ArrayList<>();
+        List<CtmRule> blocks = new ArrayList<>();
+        for (RuleSet rules : perPack)
+            for (CtmRule rule : rules.ctmRules()) (rule.isTileTarget() ? tiles : blocks).add(rule);
+        Comparator<CtmRule> ctmComparator = ctmComparator(priority);
+        tiles.sort(ctmComparator);
+        blocks.sort(ctmComparator);
+        List<CtmRule> ctm = new ArrayList<>(tiles);
+        ctm.addAll(blocks);
+
+        LinkedHashMap<String, Integer> colors = new LinkedHashMap<>();
+        Optional<Boolean> useGlint = Optional.empty();
+        for (RuleSet rules : perPack) {
+            colors.putAll(rules.colors().overrides());
+            if (rules.useGlint().isPresent()) useGlint = rules.useGlint();
+        }
+
+        ColorProperties mergedColors = new ColorProperties(
+            new ResourceId("minecraft", "color.properties"), PackId.VANILLA, Concurrent.adoptMap(colors).toUnmodifiable());
+        return new RuleSet(PackId.VANILLA,
+            Concurrent.adoptList(cit).toUnmodifiable(), Concurrent.adoptList(ctm).toUnmodifiable(), mergedColors, useGlint);
+    }
+
+    /** Weight DESC, then filename ASC, then higher-priority pack, then full id - a total, deterministic order. */
+    private static @NotNull Comparator<CitRule> citComparator(@NotNull Map<PackId, Integer> priority) {
+        return Comparator.comparingInt(CitRule::weight).reversed()
+            .thenComparing(CitRule::filename)
+            .thenComparing(rule -> priority.getOrDefault(rule.pack(), 0), Comparator.<Integer>reverseOrder())
+            .thenComparing(rule -> rule.id().name());
+    }
+
+    /** Weight DESC, then filename ASC, then higher-priority pack, then full id (partition is applied before this). */
+    private static @NotNull Comparator<CtmRule> ctmComparator(@NotNull Map<PackId, Integer> priority) {
+        return Comparator.comparingInt(CtmRule::weight).reversed()
+            .thenComparing(CtmRule::filename)
+            .thenComparing(rule -> priority.getOrDefault(rule.pack(), 0), Comparator.<Integer>reverseOrder())
+            .thenComparing(rule -> rule.id().name());
     }
 
     private static void scanCit(@NotNull PackContainer container, @NotNull String base, @NotNull String citRoot, @NotNull PackId pack, @NotNull List<CitRule> out) {

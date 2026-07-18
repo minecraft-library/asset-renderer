@@ -16,7 +16,7 @@ import lib.minecraft.renderer.pipeline.pack.FormatRange.FormatVersion;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisConfig;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisOverlays;
 import lib.minecraft.renderer.pipeline.pack.rule.CatharsisTarget;
-import lib.minecraft.renderer.pipeline.pack.rule.RuleSet;
+import lib.minecraft.renderer.pipeline.pack.rule.RuleScanner;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -84,7 +84,7 @@ public final class PackAcquisition {
 
         PackStack base = PackStack.of(Concurrent.adoptList(packs).toUnmodifiable());
         PackStack indexed = base.withTextureIndex(TextureIndexer.index(base));
-        return indexed.withRules(RuleSet.merge(indexed));
+        return indexed.withRules(RuleScanner.mergeAll(indexed));
     }
 
     /** Builds the vanilla base pack from its already-extracted tree (in place, no materialization). */
