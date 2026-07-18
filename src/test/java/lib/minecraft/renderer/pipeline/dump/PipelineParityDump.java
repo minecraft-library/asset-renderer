@@ -735,7 +735,7 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject misc(@NotNull PackStack stack) {
         JsonObject root = new JsonObject();
         root.add("block_tints", CanonicalJson.map(BlockTintsLoader.load(), PipelineParityDump::tint));
-        root.add("potion_effect_colors", CanonicalJson.map(PotionColorLoader.load(), CanonicalJson::argb));
+        root.add("potion_effect_colors", CanonicalJson.map(PotionColorLoader.load(), color -> CanonicalJson.argb(color.argb())));
         root.add("glint_items", CanonicalJson.strings(GlintItemsLoader.load()));
 
         Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.NONE, null);

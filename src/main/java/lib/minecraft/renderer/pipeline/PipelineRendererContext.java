@@ -50,6 +50,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -122,7 +123,9 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, List<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
         Set<String> glintItems = GlintItemsLoader.load();
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(stack);
-        ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
+        HashMap<String, Integer> potionColors = new HashMap<>();
+        PotionColorLoader.load().forEach((effectId, color) -> potionColors.put(effectId, color.argb()));
+        ConcurrentMap<String, Integer> potionEffectColors = Concurrent.adoptMap(potionColors).toUnmodifiable();
         ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(stack);
 
         BlockModelLoader.LoadResult beResult = BlockModelLoader.load(stack);

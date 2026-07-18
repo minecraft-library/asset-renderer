@@ -7,7 +7,6 @@ import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
@@ -109,16 +108,9 @@ public final class PotionColorWalk {
             }
         }
 
-        JsonNode effects = root.childArray("effects");
-        colors.forEach((effectId, color) -> effects.add(row(effectId, color)));
+        JsonNode effects = root.child("effects");
+        colors.forEach((effectId, color) -> effects.putHex(effectId, color | 0xFF000000));
         diagnostics.info("%d effect colour rows from %s.<clinit>", colors.size(), VanillaSourceClasses.Types.MOB_EFFECTS);
-    }
-
-    /** One {@code {effect, color}} row with the colour forced fully opaque. */
-    private static @NotNull JsonNode row(@NotNull String effectId, int color) {
-        JsonNode row = JsonNode.object().put("effect", effectId);
-        row.putHex("color", color | 0xFF000000);
-        return row;
     }
 
 }
