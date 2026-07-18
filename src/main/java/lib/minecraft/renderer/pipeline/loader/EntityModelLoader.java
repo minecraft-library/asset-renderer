@@ -829,17 +829,14 @@ public final class EntityModelLoader {
     // resource + text helpers
     // ------------------------------------------------------------------------------------
 
-    /** Parses every {@code geometries} entry (skipping {@code //} comment keys) into a coordinate map. */
+    /** Reads the {@code geometries} coordinate map straight into {@link EntityModelData} values. */
     private static @NotNull Map<String, EntityModelData> parseGeometries(@NotNull ResourceDocument geometryDoc) {
-        Optional<JsonNode> geometriesJson = geometryDoc.payload().findObject("geometries");
-        if (geometriesJson.isEmpty()) return Map.of();
-        Map<String, EntityModelData> out = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonNode> entry : geometriesJson.get().members()) {
-            if (entry.getKey().startsWith("//")) continue;
-            out.put(entry.getKey(), entry.getValue().as(EntityModelData.class));
-        }
-        return out;
+        Map<String, EntityModelData> geometries = geometryDoc.as(EntityGeometryFile.class).geometries();
+        return geometries == null ? Map.of() : geometries;
     }
+
+    /** The {@code entity_geometry.json} payload: geometry coordinate to its bone tree. */
+    private record EntityGeometryFile(@NotNull Map<String, EntityModelData> geometries) {}
 
     /** Returns the {@code models} object of a parsed models document, or {@code null} when absent. */
     private static @Nullable JsonNode modelsOf(@NotNull ResourceDocument modelsDoc) {
