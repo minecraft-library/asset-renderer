@@ -2,7 +2,6 @@ package lib.minecraft.renderer.pipeline.index;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
@@ -16,6 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Materialises the renderer's item index from the parsed item asset tables and the block-entity
@@ -63,7 +63,7 @@ public class ItemIndexBuilder {
      */
     public static @NotNull ConcurrentMap<String, Item> load(
         @NotNull ConcurrentMap<String, List<LayerTint>> itemTints,
-        @NotNull ConcurrentSet<String> glintItems,
+        @NotNull Set<String> glintItems,
         @NotNull ConcurrentMap<String, ModelData> itemModels,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries
@@ -110,7 +110,7 @@ public class ItemIndexBuilder {
     private static void addDispatchOnlyItems(
         @NotNull HashMap<String, Item> itemIndex,
         @NotNull ConcurrentMap<String, List<LayerTint>> itemTints,
-        @NotNull ConcurrentSet<String> glintItems,
+        @NotNull Set<String> glintItems,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries
     ) {

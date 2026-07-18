@@ -84,7 +84,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
         @NotNull ConcurrentMap<String, BlockTag> blockTags,
         @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
-        @NotNull ConcurrentMap<String, String> blockItemAliases,
+        @NotNull Map<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
@@ -135,7 +135,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
         @NotNull ConcurrentMap<String, BlockTag> blockTags,
         @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
-        @NotNull ConcurrentMap<String, String> blockItemAliases,
+        @NotNull Map<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> beEntries,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
@@ -218,7 +218,7 @@ public class BlockIndexBuilder {
      * @param blockId the namespaced block id
      * @return the item-block id, defaulting to {@code blockId} when the block owns its own item
      */
-    private static @NotNull ResourceId itemBlockIdFor(@NotNull ConcurrentMap<String, String> blockItemAliases, @NotNull String blockId) {
+    private static @NotNull ResourceId itemBlockIdFor(@NotNull Map<String, String> blockItemAliases, @NotNull String blockId) {
         return ResourceId.parse(blockItemAliases.getOrDefault(blockId, blockId));
     }
 
@@ -299,7 +299,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
         @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
-        @NotNull ConcurrentMap<String, String> blockItemAliases,
+        @NotNull Map<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex,
@@ -394,7 +394,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
         @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
-        @NotNull ConcurrentMap<String, String> blockItemAliases,
+        @NotNull Map<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, ModelData> itemModels
@@ -490,7 +490,7 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
         @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
         @NotNull ConcurrentMap<String, String> blockDefaultStateKeys,
-        @NotNull ConcurrentMap<String, String> blockItemAliases,
+        @NotNull Map<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, ModelData> itemModels

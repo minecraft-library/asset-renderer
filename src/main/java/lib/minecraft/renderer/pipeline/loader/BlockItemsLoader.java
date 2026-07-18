@@ -1,7 +1,5 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
@@ -9,7 +7,6 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -31,16 +28,16 @@ public final class BlockItemsLoader {
      * Reads the secondary-to-standing block-item alias map from {@code block_items.json}.
      *
      * @param diagnostics the scope envelope warnings are recorded to
-     * @return secondary block id to the standing block id whose item it shares, wrapped unmodifiable;
-     *     blocks that own their own item are absent
+     * @return secondary block id to the standing block id whose item it shares; blocks that own their
+     *     own item are absent
      * @throws PipelineException if the resource is missing or has no {@code aliases} object
      */
-    public static @NotNull ConcurrentMap<String, String> load(@NotNull Diagnostics diagnostics) {
+    public static @NotNull Map<String, String> load(@NotNull Diagnostics diagnostics) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         AliasDoc doc = document.as(AliasDoc.class);
         if (doc.aliases() == null)
             throw new PipelineException("Block-items resource '%s' has no 'aliases' object", RESOURCE_NAME);
-        return Concurrent.adoptMap(new HashMap<>(doc.aliases())).toUnmodifiable();
+        return doc.aliases();
     }
 
     /** The {@code block_items.json} payload: the secondary-to-standing block-item alias map. */

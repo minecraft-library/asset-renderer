@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.pipeline.index;
 
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.Item.LayerTint;
@@ -31,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -69,11 +69,11 @@ class TemplateFilterParityTest {
     private static ConcurrentMap<String, Block.Multipart> blockMultiparts;
     private static ConcurrentMap<String, BlockTag> blockTags;
     private static ConcurrentMap<String, String> blockDefaultStateKeys;
-    private static ConcurrentMap<String, String> blockItemAliases;
+    private static Map<String, String> blockItemAliases;
 
     // The explicit item-index loader inputs.
     private static ConcurrentMap<String, List<LayerTint>> itemTints;
-    private static ConcurrentSet<String> glintItems;
+    private static Set<String> glintItems;
     private static ConcurrentMap<String, ModelData> itemModels;
     private static ConcurrentMap<String, ItemModelTree> itemTrees;
 

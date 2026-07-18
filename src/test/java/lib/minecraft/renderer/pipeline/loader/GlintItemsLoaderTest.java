@@ -1,8 +1,9 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import dev.simplified.collection.ConcurrentSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -17,7 +18,7 @@ class GlintItemsLoaderTest {
     @Test
     @DisplayName("loads the bundled snapshot with exactly the seven vanilla always-glinted items")
     void loadsTheSevenGlintItems() {
-        ConcurrentSet<String> ids = GlintItemsLoader.load();
+        Set<String> ids = GlintItemsLoader.load();
         assertThat(ids.size(), is(7));
         assertThat(ids.contains("minecraft:enchanted_book"), is(true));
         assertThat(ids.contains("minecraft:written_book"), is(true));
@@ -31,7 +32,7 @@ class GlintItemsLoaderTest {
     @Test
     @DisplayName("plain items are absent from the always-glinted set")
     void plainItemsAbsent() {
-        ConcurrentSet<String> ids = GlintItemsLoader.load();
+        Set<String> ids = GlintItemsLoader.load();
         assertThat(ids.contains("minecraft:stick"), is(false));
         assertThat(ids.contains("minecraft:diamond_sword"), is(false));
         assertThat(ids.contains("minecraft:golden_apple"), is(false));

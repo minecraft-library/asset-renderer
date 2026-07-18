@@ -1,7 +1,5 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
@@ -10,8 +8,7 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashSet;
-import java.util.List;
+import java.util.Set;
 
 /**
  * A loader that reads the bundled "always glinted" vanilla item set from the
@@ -37,10 +34,10 @@ public class GlintItemsLoader {
     /**
      * Loads the bundled always-glinted item set natively.
      *
-     * @return the set of namespaced item ids that carry an always-on glint override, unmodifiable
+     * @return the set of namespaced item ids that carry an always-on glint override
      * @throws PipelineException if the classpath resource is missing or malformed
      */
-    public static @NotNull ConcurrentSet<String> load() {
+    public static @NotNull Set<String> load() {
         return loadNative(Diagnostics.root("glintItems", Diagnostics.Output.CONSOLE, null));
     }
 
@@ -49,16 +46,15 @@ public class GlintItemsLoader {
      * read layer. Exposed for tests.
      *
      * @param diagnostics the scope envelope warnings are recorded to
-     * @return the set of namespaced item ids, unmodifiable
+     * @return the set of namespaced item ids
      * @throws PipelineException if the resource is missing or malformed
      */
-    static @NotNull ConcurrentSet<String> loadNative(@NotNull Diagnostics diagnostics) {
+    static @NotNull Set<String> loadNative(@NotNull Diagnostics diagnostics) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
-        HashSet<String> ids = new HashSet<>(document.as(GlintItemTable.class).items());
-        return Concurrent.adoptSet(ids).toUnmodifiable();
+        return document.as(GlintItemTable.class).items();
     }
 
     /** The {@code glint_items.json} payload: the sorted always-glinted item ids. */
-    private record GlintItemTable(@NotNull List<String> items) {}
+    private record GlintItemTable(@NotNull Set<String> items) {}
 
 }

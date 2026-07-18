@@ -3,7 +3,6 @@ package lib.minecraft.renderer.pipeline;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.BannerPattern;
@@ -52,7 +51,9 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The production {@link RendererContext} implementation, built once at bootstrap from the extracted
@@ -112,14 +113,14 @@ public final class PipelineRendererContext implements RendererContext {
 
         Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.CONSOLE, null);
         ConcurrentMap<String, String> blockDefaultStateKeys = BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));
-        ConcurrentMap<String, String> blockItemAliases = BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.CONSOLE, null));
+        Map<String, String> blockItemAliases = BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.CONSOLE, null));
 
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load(stack);
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
         ConcurrentMap<String, List<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
-        ConcurrentSet<String> glintItems = GlintItemsLoader.load();
+        Set<String> glintItems = GlintItemsLoader.load();
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(stack);
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
         ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(stack);
