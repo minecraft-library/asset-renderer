@@ -1,39 +1,29 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.json.JsonNode;
-import lib.minecraft.renderer.option.spec.DyeColor;
+import lib.minecraft.renderer.pipeline.loader.BlockModelReader.BlockModelEntry;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
-import lib.minecraft.renderer.pipeline.util.BundledResource;
-import lib.minecraft.renderer.pipeline.util.ResourceDocument;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /**
- * Loads block-entity model geometry from {@code /lib/minecraft/renderer/block_models.json}, the
- * tooling-generated catalog keyed by block-entity-model id, joined against
- * {@code block_geometry.json} (the bone trees). Each entry carries the ASM-extracted geometry, y_axis
+ * Loads block-entity model geometry, orchestrating two pure reads and one assembler:
+ * {@link BlockModelReader} decodes {@code block_models.json} into raw model entries,
+ * {@link BlockGeometryReader} decodes {@code block_geometry.json} into bone trees, and
+ * {@link BlockEntityAssembler} joins them by {@code geometry} coordinate and pivots the model-id-keyed
+ * catalog into a block-id-keyed runtime map. Each entry carries the ASM-extracted geometry, y_axis
  * source convention, inventory transform, tinted flag, optional sub-model parts, and the list of block
- * variants + entity-texture paths that render as this entity model. The pattern-derived per-block
- * fields ({@code iconRotation} on beds, {@code additive} on bells, {@code tint} on banners) are
- * emitted directly into the block entries by the tooling's id-pattern walker.
+ * variants + entity-texture paths that render as this entity model.
  *
  * <p>The output is a flat map of block id to {@link Block.Entity} carrying its geometry as a
  * parent-relative bone tree ({@link Block.Entity.BoneModel}, the same schema as
@@ -41,20 +31,9 @@ import java.util.Set;
  * reference. These blocks render hierarchically through {@link BlockGeometryKit#buildFromBones} with
  * a presentation transform, rather than the plain-block {@link BlockGeometryKit#buildFromElements}
  * path.
- *
- * <p>Reads every {@code models} entry through one generic path - {@code enchanting_table} and
- * {@code lectern} included, with no per-entry roster filtering. Each entry's {@code geometry}
- * coordinate resolves into {@code block_geometry.geometries}; a dangling coordinate fails LOUD
- * ({@link PipelineException}). Texture paths are reduced to the runtime {@code minecraft:<sub-path>}
- * form the texture resolver indexes on.
  */
 @UtilityClass
 public class BlockModelLoader {
-
-    private static final @NotNull String MODELS_RESOURCE = "block_models.json";
-    private static final @NotNull String GEOMETRY_RESOURCE = "block_geometry.json";
-    private static final @NotNull String TEXTURE_PREFIX = "textures/";
-    private static final @NotNull String TEXTURE_SUFFIX = ".png";
 
     /**
      * The result of loading {@code block_models.json}: the per-block-id primary geometry
@@ -138,149 +117,9 @@ public class BlockModelLoader {
      * @throws PipelineException if a resource is missing, malformed, or a geometry coordinate dangles
      */
     public static @NotNull LoadResult load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
-        ResourceDocument modelsDoc = BundledResource.read(MODELS_RESOURCE, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
-        ResourceDocument geometryDoc = BundledResource.read(GEOMETRY_RESOURCE, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
-
-        JsonNode models = modelsDoc.payload().get("models");
-        JsonNode geometries = geometryDoc.payload().get("geometries");
-
-        // Overlay the pack override channel per top-level entry (later-wins), so a pack replaces one
-        // block-entity model or one geometry coordinate without shipping the whole snapshot.
-        models.putAll(overrides.models());
-        geometries.putAll(overrides.geometries());
-
-        HashMap<String, Block.Entity> result = new HashMap<>();
-        HashMap<String, HashMap<String, Block.Variant>> variantModels = new HashMap<>();
-
-        for (Map.Entry<String, JsonNode> entry : models.members()) {
-            String modelId = entry.getKey();
-            JsonNode model = entry.getValue();
-            Optional<JsonNode> blocks = model.findArray("blocks");
-            if (blocks.isEmpty()) continue;   // part-only sub-models carry no blocks[]
-
-            Block.Entity.BoneModel boneModel = buildBoneModel(modelId, model, geometries);
-            int iconRotation = 0;
-            boolean additive = false;
-            JsonNode icon = model.get("icon");
-            if (icon != null) {
-                iconRotation = icon.getInt("rotation", 0);
-                additive = icon.getBool("additive", false);
-            }
-
-            for (JsonNode block : blocks.get().elements()) {
-                String blockId = block.getString("block");
-                String textureId = stripTexture(block.getString("texture"));
-
-                // A block bound to a blockstate "variant" contributes a state-conditional model, not
-                // the block's primary geometry (e.g. the ceiling hanging sign's straight-chain mesh
-                // under "attached=true"). Rotation/uvlock are unused here, so 0/0/false.
-                if (block.has("variant")) {
-                    variantModels.computeIfAbsent(blockId, k -> new HashMap<>())
-                        .put(block.getString("variant"),
-                            new Block.Variant(modelId, 0, 0, false, new Block.BoneGeometry(boneModel),
-                                BlockStateKey.parse(block.getString("variant"))));
-                    continue;
-                }
-
-                ArrayList<Block.Entity.Part> parts = buildParts(models, model, geometries, textureId);
-                int tintArgb = block.has("tint") ? resolveTint(block.getString("tint"), diagnostics) : ColorMath.WHITE;
-                result.put(blockId, new Block.Entity(boneModel, textureId, tintArgb, iconRotation, Concurrent.adoptList(parts), additive));
-            }
-        }
-
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants = Concurrent.newMap();
-        for (Map.Entry<String, HashMap<String, Block.Variant>> variant : variantModels.entrySet())
-            variants.put(variant.getKey(), Concurrent.adoptMap(variant.getValue()).toUnmodifiable());
-
-        return new LoadResult(Concurrent.adoptMap(result).toUnmodifiable(), variants.toUnmodifiable());
-    }
-
-    /**
-     * Builds a bone model from a model entry: resolves its {@code geometry} coordinate into the
-     * geometry file and reads the entry's presentation metadata ({@code y_axis}, nested
-     * {@code inventory}, {@code tinted}).
-     */
-    private static Block.Entity.BoneModel buildBoneModel(@NotNull String modelId, @NotNull JsonNode model, @NotNull JsonNode geometries) {
-        // A block-bearing model entry must name a geometry coordinate; a pack renderer/block_models.json
-        // override that omits it fails clearly (model-id attributed) rather than raising a bare NPE.
-        if (!model.has("geometry") || !model.get("geometry").isPrimitive())
-            throw new PipelineException("Block model '%s' has no 'geometry' coordinate", modelId);
-        String coordinate = model.getString("geometry");
-        JsonNode geometry = geometries.get(coordinate);
-        if (geometry == null)
-            throw new PipelineException("Block model '%s' references geometry '%s' which is absent from block_geometry", modelId, coordinate);
-        EntityModelData mesh = geometry.as(EntityModelData.class);
-
-        boolean sourceYUp = "UP".equals(model.getString("y_axis"));
-        boolean tinted = model.getBool("tinted", false);
-
-        float inventoryYRotation = 0f;
-        boolean entityFlip = false;
-        float @Nullable [] inventoryTransform = null;
-        JsonNode inventory = model.get("inventory");
-        if (inventory != null) {
-            inventoryYRotation = inventory.getFloat("y_rotation", 0f);
-            entityFlip = inventory.getBool("flip", false);
-            Optional<JsonNode> transformArray = inventory.findArray("transform");
-            if (transformArray.isPresent()) {
-                JsonNode transform = transformArray.get();
-                inventoryTransform = new float[transform.size()];
-                for (int i = 0; i < transform.size(); i++) inventoryTransform[i] = transform.at(i).floatValue(0f);
-            }
-        }
-        return new Block.Entity.BoneModel(mesh, sourceYUp, inventoryYRotation, entityFlip, inventoryTransform, tinted);
-    }
-
-    /**
-     * Builds the sub-model parts of a model entry. Each part references a sibling model id in the same
-     * {@code models} map; its texture is the part's own full path (stripped) when present, else the
-     * parent block's texture.
-     */
-    private static @NotNull ArrayList<Block.Entity.Part> buildParts(@NotNull JsonNode models, @NotNull JsonNode model, @NotNull JsonNode geometries, @NotNull String parentTextureId) {
-        ArrayList<Block.Entity.Part> parts = new ArrayList<>();
-        Optional<JsonNode> partsArray = model.findArray("parts");
-        if (partsArray.isEmpty()) return parts;
-
-        for (JsonNode part : partsArray.get().elements()) {
-            String partModelId = part.getString("model");
-            JsonNode partModel = models.get(partModelId);
-            if (partModel == null) continue;
-
-            Block.Entity.BoneModel partBone = buildBoneModel(partModelId, partModel, geometries);
-            String partTexture = part.has("texture") ? stripTexture(part.getString("texture")) : parentTextureId;
-            float[] offset = {0, 0, 0};
-            Optional<JsonNode> offsetArray = part.findArray("offset");
-            if (offsetArray.isPresent()) {
-                JsonNode off = offsetArray.get();
-                offset = new float[]{off.at(0).floatValue(0f), off.at(1).floatValue(0f), off.at(2).floatValue(0f)};
-            }
-            parts.add(new Block.Entity.Part(partBone, partTexture, offset));
-        }
-        return parts;
-    }
-
-    /**
-     * Reduces a full asset texture path to the runtime {@code minecraft:<sub-path>} id the texture
-     * resolver indexes on - dropping {@code textures/} and {@code .png}, keeping the namespace.
-     */
-    private static @NotNull String stripTexture(@NotNull String path) {
-        int colon = path.indexOf(':');
-        String namespace = path.substring(0, colon + 1);
-        String rest = path.substring(colon + 1);
-        if (rest.startsWith(TEXTURE_PREFIX)) rest = rest.substring(TEXTURE_PREFIX.length());
-        if (rest.endsWith(TEXTURE_SUFFIX)) rest = rest.substring(0, rest.length() - TEXTURE_SUFFIX.length());
-        return namespace + rest;
-    }
-
-    /**
-     * Resolves a banner {@code tint} DyeColor name to its ARGB; an unknown name warns and falls back
-     * to white. The {@code tint} is always a DyeColor name, never a hex.
-     */
-    private static int resolveTint(@NotNull String name, @NotNull Diagnostics diagnostics) {
-        DyeColor dye = DyeColor.ofName(name);
-        if (dye != null) return dye.argb();
-        diagnostics.warn("unknown block tint dye '%s' - using white", name);
-        return ColorMath.WHITE;
+        Map<String, BlockModelEntry> models = BlockModelReader.load(diagnostics, overrides);
+        Map<String, EntityModelData> geometries = BlockGeometryReader.load(diagnostics, overrides);
+        return BlockEntityAssembler.assemble(models, geometries, diagnostics);
     }
 
 }
