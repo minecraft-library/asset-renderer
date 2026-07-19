@@ -223,7 +223,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         ItemOptions fillerOptions = switch (options.getFill()) {
             case BLACK_STAINED_GLASS_PANE -> ItemOptions.builder()
                 .itemId("minecraft:black_stained_glass_pane")
-                .type(ItemOptions.Type.GUI_2D)
+                .type(ItemOptions.Type.GUI_ICON)
                 .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SLOT_SIZE - 4).build())
                 .build();
             case EMPTY -> throw new RenderException("EMPTY handled above");
@@ -1092,7 +1092,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
             ItemOptions redPaneOptions = ItemOptions.builder()
                 .itemId("minecraft:red_stained_glass_pane")
-                .type(ItemOptions.Type.GUI_2D)
+                .type(ItemOptions.Type.GUI_ICON)
                 .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SLOT_SIZE - 4).build())
                 .build();
             ImageData redPane = itemRenderer.render(redPaneOptions);
