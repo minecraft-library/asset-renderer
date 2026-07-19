@@ -6,7 +6,7 @@ import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -63,7 +63,7 @@ final class EntityBoneResolver {
      *
      * @return the node, or {@code null} to omit
      */
-    @Nullable JsonNode resolve() {
+    @Nullable JsonTree resolve() {
         var entry = this.geometryRef.resolvedEntry();
         if (entry == null) return null;
         HierarchyScan scan = scanModelHierarchy(entry.factoryClass());
@@ -101,12 +101,12 @@ final class EntityBoneResolver {
         if (hidden.isEmpty() && toggles.isEmpty()) return null;
         if (!toggles.isEmpty()) expandToggleSubtrees(toggles);
 
-        JsonNode node = JsonNode.object();
+        JsonTree node = JsonTree.object();
         if (!hidden.isEmpty()) node.putStrings("hidden", hidden.toArray(String[]::new));
         if (!toggles.isEmpty()) {
-            JsonNode togglesNode = node.child("toggles");
+            JsonTree togglesNode = node.child("toggles");
             for (Map.Entry<String, Toggle> toggle : toggles.entrySet())
-                togglesNode.put(toggle.getKey(), JsonNode.object()
+                togglesNode.put(toggle.getKey(), JsonTree.object()
                     .putStrings("bones", toggle.getValue().bones().toArray(String[]::new))
                     .put("default", toggle.getValue().defaultVisible()));
         }
@@ -350,13 +350,13 @@ final class EntityBoneResolver {
     private void expandToggleSubtrees(@NotNull Map<String, Toggle> toggles) {
         GeometryRequest request = this.geometryRef.registeredRequest();
         if (request == null) return;
-        JsonNode parsed = GeometryParser.parse(this.cache, request, this.diagnostics.child("toggle-expansion"));
-        JsonNode bones = parsed == null ? null : parsed.get("bones");
+        JsonTree parsed = GeometryParser.parse(this.cache, request, this.diagnostics.child("toggle-expansion"));
+        JsonTree bones = parsed == null ? null : parsed.get("bones");
         if (bones == null) return;
 
         // name -> parent, insertion order preserved.
         Map<String, String> parents = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonNode> bone : bones.members())
+        for (Map.Entry<String, JsonTree> bone : bones.members())
             parents.put(bone.getKey(), bone.getValue().getString("parent"));
 
         for (Map.Entry<String, Toggle> entry : toggles.entrySet()) {

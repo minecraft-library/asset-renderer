@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling;
 
 import lib.minecraft.renderer.tooling.defaults.BlockDefaultsWalk;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -33,7 +33,7 @@ public final class ToolingBlockDefaults {
     public static void main(String[] args) {
         try (ToolingSession session = ToolingPipeline.openSession("blockDefaults", Diagnostics.Output.CONSOLE)) {
             BlockRegistryIndex index = BlockRegistryIndex.build(session);
-            JsonNode root = session.envelope(
+            JsonTree root = session.envelope(
                 "block ids sorted; properties sorted within each default object");
             BlockDefaultsWalk.run(session, index, root);
             Path out = RESOURCE_DIR.resolve("block_defaults.json");

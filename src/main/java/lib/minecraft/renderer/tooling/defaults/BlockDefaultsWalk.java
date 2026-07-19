@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.defaults;
 
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import org.jetbrains.annotations.NotNull;
@@ -29,10 +29,10 @@ public final class BlockDefaultsWalk {
      * @param index the block registry index (field / id / class per registered block)
      * @param root the envelope root owning the {@code blocks} + {@code unresolved} nodes
      */
-    public static void run(@NotNull ToolingSession session, @NotNull BlockRegistryIndex index, @NotNull JsonNode root) {
+    public static void run(@NotNull ToolingSession session, @NotNull BlockRegistryIndex index, @NotNull JsonTree root) {
         // blocks before unresolved; both created upfront so unresolved is always present.
-        JsonNode blocks = root.child("blocks");
-        JsonNode unresolved = root.childArray("unresolved");
+        JsonTree blocks = root.child("blocks");
+        JsonTree unresolved = root.childArray("unresolved");
 
         PropertyDefinitionResolver properties = new PropertyDefinitionResolver(session.cache());
         BlockDefaultStateResolver decoder = new BlockDefaultStateResolver(session.cache(), properties);
@@ -48,7 +48,7 @@ public final class BlockDefaultsWalk {
                 scope.warn("registration walk bound no block class (plain register(String, Properties)) - unresolved");
                 continue;
             }
-            JsonNode defaults = JsonNode.object();
+            JsonTree defaults = JsonTree.object();
             for (Map.Entry<String, String> pair : decoder.resolve(entry.blockClass()).entrySet())
                 defaults.put(pair.getKey(), pair.getValue());
             blocks.put(entry.id(), defaults);

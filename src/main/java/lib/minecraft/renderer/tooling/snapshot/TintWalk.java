@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.snapshot;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
@@ -55,7 +55,7 @@ public final class TintWalk {
      * @param index the shared block-registry index (block-id derivation)
      * @param root the envelope root
      */
-    public static void run(@NotNull ToolingSession session, @NotNull BlockRegistryIndex index, @NotNull JsonNode root) {
+    public static void run(@NotNull ToolingSession session, @NotNull BlockRegistryIndex index, @NotNull JsonTree root) {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("tints");
 
@@ -71,8 +71,8 @@ public final class TintWalk {
             return;
         }
 
-        Map<String, JsonNode> tintRows = new LinkedHashMap<>();
-        List<JsonNode> droppedRows = new ArrayList<>();
+        Map<String, JsonTree> tintRows = new LinkedHashMap<>();
+        List<JsonTree> droppedRows = new ArrayList<>();
 
         String pendingSource = null;
         Integer pendingInHand = null;
@@ -118,11 +118,11 @@ public final class TintWalk {
             }
         }
 
-        JsonNode tints = root.child("tints");
+        JsonTree tints = root.child("tints");
         tintRows.forEach(tints::put);
         if (!droppedRows.isEmpty()) {
-            JsonNode dropped = root.childArray("dropped");
-            for (JsonNode row : droppedRows) dropped.add(row);
+            JsonTree dropped = root.childArray("dropped");
+            for (JsonTree row : droppedRows) dropped.add(row);
         }
         diagnostics.info("%d tint rows, %d dropped rows from %s.%s",
             tintRows.size(), droppedRows.size(), VanillaSourceClasses.Types.BLOCK_COLORS, VanillaSourceClasses.Methods.CREATE_DEFAULT);
@@ -140,8 +140,8 @@ public final class TintWalk {
         @Nullable Integer pendingInHand,
         boolean multiSource,
         @NotNull List<String> pendingBlocks,
-        @NotNull Map<String, JsonNode> tintRows,
-        @NotNull List<JsonNode> droppedRows
+        @NotNull Map<String, JsonTree> tintRows,
+        @NotNull List<JsonTree> droppedRows
     ) {
         if (pendingBlocks.isEmpty()) return;
         if (pendingSource == null) {
@@ -154,13 +154,13 @@ public final class TintWalk {
 
         for (String blockId : pendingBlocks) {
             if (resolution.isDrop()) {
-                droppedRows.add(JsonNode.object()
+                droppedRows.add(JsonTree.object()
                     .put("block", blockId)
                     .put("source", resolution.sourceLabel())
                     .put("reason", resolution.dropReason()));
                 continue;
             }
-            JsonNode row = JsonNode.object().put("target", resolution.target());
+            JsonTree row = JsonTree.object().put("target", resolution.target());
             if (resolution.constant() != null) row.putHex("constant", resolution.constant());
             row.put("source", resolution.sourceLabel());
             tintRows.put(blockId, row);

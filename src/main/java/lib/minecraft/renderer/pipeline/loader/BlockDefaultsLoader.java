@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
@@ -76,8 +76,8 @@ public final class BlockDefaultsLoader {
         // a pack supplying a default state removes any classpath "unresolved" mark for it. A non-object
         // entry (e.g. the author wrote the flat "facing=east" runtime form instead of {"facing":"east"})
         // is skipped with a warning rather than silently dropped.
-        JsonNode defaultOverrides = overrides.defaults();
-        for (Map.Entry<String, JsonNode> override : defaultOverrides.members()) {
+        JsonTree defaultOverrides = overrides.defaults();
+        for (Map.Entry<String, JsonTree> override : defaultOverrides.members()) {
             String blockId = override.getKey();
             if (!override.getValue().isObject()) {
                 System.err.printf("renderer/block_defaults.json override for '%s' is not a {property:value} object; ignored%n", blockId);
@@ -105,10 +105,10 @@ public final class BlockDefaultsLoader {
      * @return the property-to-value map
      * @throws PipelineException if a property value is not a JSON primitive
      */
-    private static @NotNull Map<String, String> toStringMap(@NotNull String blockId, @NotNull JsonNode state) {
+    private static @NotNull Map<String, String> toStringMap(@NotNull String blockId, @NotNull JsonTree state) {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonNode> entry : state.members()) {
-            JsonNode value = entry.getValue();
+        for (Map.Entry<String, JsonTree> entry : state.members()) {
+            JsonTree value = entry.getValue();
             if (!value.isPrimitive())
                 throw new PipelineException("Block-defaults override for '%s' property '%s' is not a scalar value", blockId, entry.getKey());
             map.put(entry.getKey(), value.stringValue().orElseThrow());

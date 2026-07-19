@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling;
 
 import lib.minecraft.renderer.tooling.colormap.ColorMapWalk;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -30,7 +30,7 @@ public final class ToolingColorMaps {
      */
     public static void main(String[] args) {
         try (ToolingSession session = ToolingPipeline.openSession("colorMaps", Diagnostics.Output.CONSOLE)) {
-            JsonNode root = session.envelope("ColorMapPolicies declaration order");
+            JsonTree root = session.envelope("ColorMapPolicies declaration order");
             ColorMapWalk.run(session, root);
             Path out = RESOURCE_DIR.resolve("color_maps.json");
             root.write(out);

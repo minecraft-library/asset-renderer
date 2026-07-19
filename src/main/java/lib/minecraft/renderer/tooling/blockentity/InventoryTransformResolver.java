@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -37,7 +37,7 @@ final class InventoryTransformResolver {
      * @param splitId the models key
      * @return the transform float array node, or {@code null}
      */
-    @Nullable JsonNode resolve(@NotNull String rendererClass, @NotNull String splitId) {
+    @Nullable JsonTree resolve(@NotNull String rendererClass, @NotNull String splitId) {
         String entry = BlockTransformPolicies.rendererEntry(rendererClass);
         if (entry == null) return null;
 
@@ -45,7 +45,7 @@ final class InventoryTransformResolver {
         String key = rendererClass + "|" + attachment;
         float[] tuple = this.memo.computeIfAbsent(key, ignored -> this.walker.decompose(rendererClass, entry, attachment));
         if (tuple == null) return null;
-        JsonNode array = JsonNode.array();
+        JsonTree array = JsonTree.array();
         for (float value : tuple) array.add(value);
         return array;
     }

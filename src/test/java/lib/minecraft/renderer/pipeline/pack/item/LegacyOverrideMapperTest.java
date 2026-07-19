@@ -12,7 +12,7 @@ import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.option.ItemModelContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,7 +47,7 @@ class LegacyOverrideMapperTest {
     @Test
     @DisplayName("custom_model_data maps to a flat range_dispatch, dispatched by the caller value")
     void customModelDataToRangeDispatch() {
-        JsonNode overrides = overrides(
+        JsonTree overrides = overrides(
             "{\"predicate\":{\"custom_model_data\":1},\"model\":\"item/sword_cmd1\"}",
             "{\"predicate\":{\"custom_model_data\":2},\"model\":\"item/sword_cmd2\"}");
 
@@ -67,7 +67,7 @@ class LegacyOverrideMapperTest {
     @Test
     @DisplayName("pulling/pull maps to condition(using_item) wrapping range_dispatch(use_duration), matching bow.json")
     void pullingPullToConditionRangeDispatch() {
-        JsonNode overrides = overrides(
+        JsonTree overrides = overrides(
             "{\"predicate\":{\"pulling\":1},\"model\":\"item/bow_pulling_0\"}",
             "{\"predicate\":{\"pulling\":1,\"pull\":0.65},\"model\":\"item/bow_pulling_1\"}",
             "{\"predicate\":{\"pulling\":1,\"pull\":0.9},\"model\":\"item/bow_pulling_2\"}");
@@ -96,7 +96,7 @@ class LegacyOverrideMapperTest {
     @Test
     @DisplayName("blocking maps to condition(using_item) selecting the blocking model")
     void blockingToCondition() {
-        JsonNode overrides = overrides("{\"predicate\":{\"blocking\":1},\"model\":\"item/shield_blocking\"}");
+        JsonTree overrides = overrides("{\"predicate\":{\"blocking\":1},\"model\":\"item/shield_blocking\"}");
         ItemModelNode root = map(overrides).orElseThrow();
         assertThat(root, instanceOf(ItemModelNode.Condition.class));
         assertThat(resolveUsingItem(root, true), is("minecraft:item/shield_blocking"));
@@ -106,7 +106,7 @@ class LegacyOverrideMapperTest {
     @Test
     @DisplayName("an unmapped predicate skips that entry with a diagnostic; the rest of the file still maps")
     void unmappedPredicateSkippedWithDiagnostic() {
-        JsonNode overrides = overrides(
+        JsonTree overrides = overrides(
             "{\"predicate\":{\"custom_model_data\":1},\"model\":\"item/sword_cmd1\"}",
             "{\"predicate\":{\"lefthanded\":1},\"model\":\"item/should_not_map\"}");
 
@@ -132,7 +132,7 @@ class LegacyOverrideMapperTest {
     @Test
     @DisplayName("two overrides with the same threshold honour last-declared (last-satisfied)")
     void equalThresholdLastWins() {
-        JsonNode overrides = overrides(
+        JsonTree overrides = overrides(
             "{\"predicate\":{\"custom_model_data\":5},\"model\":\"item/first\"}",
             "{\"predicate\":{\"custom_model_data\":5},\"model\":\"item/second\"}");
         ItemModelNode root = map(overrides).orElseThrow();
@@ -142,7 +142,7 @@ class LegacyOverrideMapperTest {
     @Test
     @DisplayName("the caller-supplied fallback is the tree's default branch (preserves the native tree)")
     void fallbackIsTheDefaultBranch() {
-        JsonNode overrides = overrides("{\"predicate\":{\"custom_model_data\":1},\"model\":\"item/cmd1\"}");
+        JsonTree overrides = overrides("{\"predicate\":{\"custom_model_data\":1},\"model\":\"item/cmd1\"}");
         // A stand-in native tree carrying a distinct model - the mapper must fall back to it, not to BASE_REF.
         ItemModelNode nativeTree = new ItemModelNode.Model("minecraft:item/native_default", List.of());
         ItemModelNode root = LegacyOverrideMapper.map(ITEM_ID, overrides, PACK, nativeTree).orElseThrow();
@@ -153,7 +153,7 @@ class LegacyOverrideMapperTest {
     @Test
     @DisplayName("a file with no mappable overrides synthesises no tree")
     void noMappableOverridesYieldsEmpty() {
-        JsonNode overrides = overrides("{\"predicate\":{\"lefthanded\":1},\"model\":\"item/x\"}");
+        JsonTree overrides = overrides("{\"predicate\":{\"lefthanded\":1},\"model\":\"item/x\"}");
         assertThat(map(overrides).isPresent(), is(false));
     }
 
@@ -168,7 +168,7 @@ class LegacyOverrideMapperTest {
         assertThat(LegacyOverrideMapper.isLegacyPack(packWithMeta(MCMeta.EMPTY)), is(false));
     }
 
-    private static Optional<ItemModelNode> map(JsonNode overrides) {
+    private static Optional<ItemModelNode> map(JsonTree overrides) {
         return LegacyOverrideMapper.map(ITEM_ID, overrides, PACK, new ItemModelNode.Model(BASE_REF, List.of()));
     }
 
@@ -182,10 +182,10 @@ class LegacyOverrideMapperTest {
         return root.resolve(context).modelId().orElse("<none>");
     }
 
-    private static JsonNode overrides(String... entries) {
+    private static JsonTree overrides(String... entries) {
         JsonArray array = new JsonArray();
         for (String entry : entries) array.add(GSON.fromJson(entry, com.google.gson.JsonObject.class));
-        return JsonNode.wrap(array);
+        return JsonTree.wrap(array);
     }
 
     private static ResourcePack packWithFormat(int format) {

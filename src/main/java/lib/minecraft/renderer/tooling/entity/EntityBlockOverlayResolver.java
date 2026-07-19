@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import org.jetbrains.annotations.NotNull;
@@ -62,8 +62,8 @@ final class EntityBlockOverlayResolver {
      *
      * @return the rows, or {@code null} when no layer qualifies
      */
-    @Nullable JsonNode resolve() {
-        List<JsonNode> rows = new ArrayList<>();
+    @Nullable JsonTree resolve() {
+        List<JsonTree> rows = new ArrayList<>();
         for (EntityRendererResolver.LayerSite site : this.roster) {
             ClassNode cn = this.cache.load(site.layerClass());
             if (cn == null) continue;
@@ -71,15 +71,15 @@ final class EntityBlockOverlayResolver {
             resolveLayer(site, cn, rows);
         }
         if (rows.isEmpty()) return null;
-        JsonNode out = JsonNode.array();
-        for (JsonNode row : rows) out.add(row);
+        JsonTree out = JsonTree.array();
+        for (JsonTree row : rows) out.add(row);
         return out;
     }
 
     private void resolveLayer(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn,
-        @NotNull List<JsonNode> rows
+        @NotNull List<JsonTree> rows
     ) {
         MethodNode submit = EntityOverlayResolver.typedSubmit(cn);
         if (submit == null) return;
@@ -89,8 +89,8 @@ final class EntityBlockOverlayResolver {
                 EntityOverlayResolver.simpleName(site.layerClass()));
             return;
         }
-        for (JsonNode transforms : extractPoseBlocks(submit)) {
-            JsonNode row = JsonNode.object()
+        for (JsonTree transforms : extractPoseBlocks(submit)) {
+            JsonTree row = JsonTree.object()
                 .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
                 .putInt("layer_index", site.layerIndex())
                 .putIf("block", source.blockId());
@@ -266,10 +266,10 @@ final class EntityBlockOverlayResolver {
      * pose-stack ops in bytecode order. The float pseudo-stack consumes literal pushes
      * most-recent-first for each op.
      */
-    private @NotNull List<JsonNode> extractPoseBlocks(@NotNull MethodNode submit) {
-        List<JsonNode> out = new ArrayList<>();
+    private @NotNull List<JsonTree> extractPoseBlocks(@NotNull MethodNode submit) {
+        List<JsonTree> out = new ArrayList<>();
         boolean insideBlock = false;
-        JsonNode transforms = null;
+        JsonTree transforms = null;
         String attachedBone = null;
         List<Float> floats = new ArrayList<>();
         int opCount = 0;
@@ -284,7 +284,7 @@ final class EntityBlockOverlayResolver {
 
             if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.PUSH_POSE)) {
                 insideBlock = true;
-                transforms = JsonNode.array();
+                transforms = JsonTree.array();
                 attachedBone = null;
                 floats.clear();
                 opCount = 0;
@@ -292,7 +292,7 @@ final class EntityBlockOverlayResolver {
             }
             if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.POP_POSE)) {
                 if (insideBlock && opCount > 0) {
-                    JsonNode carrier = JsonNode.object();
+                    JsonTree carrier = JsonTree.object();
                     carrier.putIf("attached_bone", attachedBone);
                     carrier.put("transforms", transforms);
                     out.add(carrier);
@@ -310,7 +310,7 @@ final class EntityBlockOverlayResolver {
                 float z = floats.removeLast();
                 float y = floats.removeLast();
                 float x = floats.removeLast();
-                transforms.add(JsonNode.object().put("op", "translate").put("x", x).put("y", y).put("z", z));
+                transforms.add(JsonTree.object().put("op", "translate").put("x", x).put("y", y).put("z", z));
                 opCount++;
                 continue;
             }
@@ -319,7 +319,7 @@ final class EntityBlockOverlayResolver {
                 float z = floats.removeLast();
                 float y = floats.removeLast();
                 float x = floats.removeLast();
-                transforms.add(JsonNode.object().put("op", "scale").put("x", x).put("y", y).put("z", z));
+                transforms.add(JsonTree.object().put("op", "scale").put("x", x).put("y", y).put("z", z));
                 opCount++;
                 continue;
             }
@@ -344,7 +344,7 @@ final class EntityBlockOverlayResolver {
                     this.diagnostics.warn("unrecognised rotation axis field '%s' - op skipped", axis);
                     continue;
                 }
-                transforms.add(JsonNode.object().put("op", op).put("degrees", degrees));
+                transforms.add(JsonTree.object().put("op", op).put("degrees", degrees));
                 opCount++;
                 continue;
             }

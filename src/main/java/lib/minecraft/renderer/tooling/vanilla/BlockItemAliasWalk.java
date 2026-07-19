@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling.vanilla;
 
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
@@ -71,7 +71,7 @@ public final class BlockItemAliasWalk {
      * @param index the block registry index, used to convert {@code Blocks} field names to namespaced ids
      * @param root the envelope root the {@code aliases} object is written into
      */
-    public static void run(@NotNull ToolingSession session, @NotNull BlockRegistryIndex index, @NotNull JsonNode root) {
+    public static void run(@NotNull ToolingSession session, @NotNull BlockRegistryIndex index, @NotNull JsonTree root) {
         Diagnostics diagnostics = session.diagnostics().child("blockItems");
         TreeMap<String, String> aliases = new TreeMap<>();
 
@@ -181,8 +181,8 @@ public final class BlockItemAliasWalk {
         aliases.put(secondary.id(), primary.id());
     }
 
-    private static void writeAliases(@NotNull JsonNode root, @NotNull TreeMap<String, String> aliases) {
-        JsonNode node = root.child("aliases");
+    private static void writeAliases(@NotNull JsonTree root, @NotNull TreeMap<String, String> aliases) {
+        JsonTree node = root.child("aliases");
         for (Map.Entry<String, String> alias : aliases.entrySet())
             node.put(alias.getKey(), alias.getValue());
     }

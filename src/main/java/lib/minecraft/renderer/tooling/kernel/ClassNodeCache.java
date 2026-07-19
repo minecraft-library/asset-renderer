@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.kernel;
 
 import dev.simplified.gson.exception.JsonException;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ClassReader;
@@ -169,11 +169,11 @@ public final class ClassNodeCache implements AutoCloseable {
      * @return the parsed node, or {@code null} when absent
      * @throws ToolingException if the entry exists but cannot be read or parsed
      */
-    public @Nullable JsonNode readJson(@NotNull String entryPath) {
+    public @Nullable JsonTree readJson(@NotNull String entryPath) {
         byte[] bytes = readBytes(entryPath);
         if (bytes == null) return null;
         try {
-            return JsonNode.parse(bytes);
+            return JsonTree.parse(bytes);
         } catch (JsonException ex) {
             throw new ToolingException(ex, "Failed to parse JSON entry '%s' from jar", entryPath);
         }

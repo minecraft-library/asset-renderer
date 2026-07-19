@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.atlas;
 
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -55,14 +55,14 @@ public record AtlasSidecar(int tileSize, int columns, int count, @NotNull List<T
      * @param root the parsed sidecar JSON
      * @return the typed sidecar
      */
-    public static @NotNull AtlasSidecar parse(@NotNull JsonNode root) {
+    public static @NotNull AtlasSidecar parse(@NotNull JsonTree root) {
         int tileSize = root.getInt("tileSize", 0);
         int columns = root.getInt("columns", 0);
         int count = root.getInt("count", 0);
         List<Tile> tiles = new ArrayList<>();
-        JsonNode array = root.get("tiles");
+        JsonTree array = root.get("tiles");
         if (array != null)
-            for (JsonNode tile : array.elements())
+            for (JsonTree tile : array.elements())
                 tiles.add(new Tile(
                     tile.getString("id", ""),
                     tile.getString("kind", ""),
@@ -81,14 +81,14 @@ public record AtlasSidecar(int tileSize, int columns, int count, @NotNull List<T
      *
      * @return the sidecar JSON node
      */
-    public @NotNull JsonNode toJson() {
-        JsonNode root = JsonNode.object()
+    public @NotNull JsonTree toJson() {
+        JsonTree root = JsonTree.object()
             .putInt("tileSize", this.tileSize)
             .putInt("columns", this.columns)
             .putInt("count", this.count);
-        JsonNode array = root.childArray("tiles");
+        JsonTree array = root.childArray("tiles");
         for (Tile tile : this.tiles)
-            array.add(JsonNode.object()
+            array.add(JsonTree.object()
                 .put("id", tile.id())
                 .put("kind", tile.kind())
                 .put("source", tile.source())

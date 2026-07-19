@@ -4,7 +4,7 @@ import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
@@ -69,8 +69,8 @@ final class EntityLayersResolver {
      *
      * @return the rows, or {@code null} when no site emits
      */
-    @Nullable JsonNode resolve() {
-        List<JsonNode> rows = new ArrayList<>();
+    @Nullable JsonTree resolve() {
+        List<JsonTree> rows = new ArrayList<>();
         Map<MethodNode, AbstractInsnNode> lastAddLayer = new HashMap<>();
         for (EntityRendererResolver.LayerSite site : this.roster) {
             // The call-site window opens at the previous same-method site's addLayer (else
@@ -88,7 +88,7 @@ final class EntityLayersResolver {
             ClassNode cn = this.cache.load(site.layerClass());
             if (cn == null) continue;
             if (EntityOverlayResolver.isCollarShaped(cn)) {
-                JsonNode collar = resolveCollar(site, cn);
+                JsonTree collar = resolveCollar(site, cn);
                 if (collar != null) rows.add(collar);
                 continue;
             }
@@ -98,16 +98,16 @@ final class EntityLayersResolver {
                 continue;
             }
             if (EntityOverlayResolver.referencesEquipmentLayerType(cn)) {
-                JsonNode bespoke = this.equipment.resolveBespoke(site, cn);
+                JsonTree bespoke = this.equipment.resolveBespoke(site, cn);
                 if (bespoke != null) rows.add(bespoke);
                 continue;
             }
-            JsonNode callSite = this.equipment.resolveCallSite(site, windowStart);
+            JsonTree callSite = this.equipment.resolveCallSite(site, windowStart);
             if (callSite != null) rows.add(callSite);
         }
         if (rows.isEmpty()) return null;
-        JsonNode out = JsonNode.array();
-        for (JsonNode row : rows) out.add(row);
+        JsonTree out = JsonTree.array();
+        for (JsonTree row : rows) out.add(row);
         return out;
     }
 
@@ -140,7 +140,7 @@ final class EntityLayersResolver {
      * tint is render-supplied via {@code tint_by}; the gate mirrors vanilla's actual
      * {@code collarColor != null} check rather than {@code state=tame}.
      */
-    private @Nullable JsonNode resolveCollar(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
+    private @Nullable JsonTree resolveCollar(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
         String texture = EntityOverlayResolver.findFirstNonBabyTextureLiteral(cn);
         if (texture == null) {
             this.diagnostics.warn("collar layer '%s' has no clinit texture - row dropped",
@@ -148,32 +148,32 @@ final class EntityLayersResolver {
             return null;
         }
         this.diagnostics.info("collar row via null-gated DyeColor read [P6, D42]");
-        return JsonNode.object()
+        return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
             .put("id", "collar")
-            .put("when", JsonNode.object().put("collar_color", "set"))
-            .put("overlay", JsonNode.object()
+            .put("when", JsonTree.object().put("collar_color", "set"))
+            .put("overlay", JsonTree.object()
                 .put("texture", VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + texture)
                 .put("tint_by", "collar_color"));
     }
 
     /** The markings row: the full value map travels with the row. */
-    private @NotNull JsonNode resolveMarkings(
+    private @NotNull JsonTree resolveMarkings(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull EntityOverlayResolver.EnumMapOverlay enumMap
     ) {
-        JsonNode byValue = JsonNode.object();
+        JsonTree byValue = JsonTree.object();
         for (Map.Entry<String, String> entry : enumMap.textures().entrySet())
             byValue.put(entry.getKey().toLowerCase(Locale.ROOT),
                 VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + entry.getValue());
         this.diagnostics.info("markings row: %d values [D43]", enumMap.textures().size());
-        return JsonNode.object()
+        return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
             .put("id", MARKINGS_TOKEN)
-            .put("when", JsonNode.object().put(MARKINGS_TOKEN, "selected"))
-            .put("overlay", JsonNode.object()
+            .put("when", JsonTree.object().put(MARKINGS_TOKEN, "selected"))
+            .put("overlay", JsonTree.object()
                 .put("texture_by", MARKINGS_TOKEN)
                 .put("textures_by_value", byValue));
     }
@@ -185,9 +185,9 @@ final class EntityLayersResolver {
      * native reader reads it off this row. A {@code none} family emits no armor row - absence IS
      * {@code none}.
      */
-    private @NotNull JsonNode armorRow(@NotNull EntityRendererResolver.LayerSite site) {
+    private @NotNull JsonTree armorRow(@NotNull EntityRendererResolver.LayerSite site) {
         this.diagnostics.info("armor row: humanoid [LOCKED 3]");
-        return JsonNode.object()
+        return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
             .put("id", "armor")

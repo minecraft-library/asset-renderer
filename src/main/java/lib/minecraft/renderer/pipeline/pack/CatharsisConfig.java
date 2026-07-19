@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack;
 
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -40,7 +40,7 @@ public final class CatharsisConfig {
      * @param root the config JSON root node (array or object)
      * @return the parsed defaults, or {@link #EMPTY} when none are found
      */
-    public static @NotNull CatharsisConfig parse(@NotNull JsonNode root) {
+    public static @NotNull CatharsisConfig parse(@NotNull JsonTree root) {
         Map<String, OptionDefault> options = new LinkedHashMap<>();
         walk(root, options);
         return options.isEmpty() ? EMPTY : new CatharsisConfig(Map.copyOf(options));
@@ -90,26 +90,26 @@ public final class CatharsisConfig {
         return this.options.size();
     }
 
-    private static void walk(@NotNull JsonNode element, @NotNull Map<String, OptionDefault> out) {
+    private static void walk(@NotNull JsonTree element, @NotNull Map<String, OptionDefault> out) {
         if (element.isArray()) {
-            for (JsonNode child : element.elements()) walk(child, out);
+            for (JsonTree child : element.elements()) walk(child, out);
             return;
         }
         if (!element.isObject()) return;
         if (isStringPrimitive(element.get("id")))
             extractDefault(element).ifPresent(option -> out.putIfAbsent(element.getString("id"), option));
-        for (Map.Entry<String, JsonNode> entry : element.members()) walk(entry.getValue(), out);
+        for (Map.Entry<String, JsonTree> entry : element.members()) walk(entry.getValue(), out);
     }
 
-    private static @NotNull Optional<OptionDefault> extractDefault(@NotNull JsonNode obj) {
-        JsonNode def = obj.get("default");
+    private static @NotNull Optional<OptionDefault> extractDefault(@NotNull JsonTree obj) {
+        JsonTree def = obj.get("default");
         if (def != null && def.isPrimitive()) {
             if (def.boolValue().isPresent()) return Optional.of(new OptionDefault.Bool(def.boolValue().get()));
             if (isStringPrimitive(def)) return Optional.of(new OptionDefault.Choice(def.stringValue().orElseThrow()));
         }
-        Optional<JsonNode> options = obj.findArray("options");
+        Optional<JsonTree> options = obj.findArray("options");
         if (options.isPresent()) {
-            for (JsonNode option : options.get().elements()) {
+            for (JsonTree option : options.get().elements()) {
                 if (!option.isObject()) continue;
                 if (isTrue(option.get("default")) && isStringPrimitive(option.get("value")))
                     return Optional.of(new OptionDefault.Choice(option.getString("value")));
@@ -118,11 +118,11 @@ public final class CatharsisConfig {
         return Optional.empty();
     }
 
-    private static boolean isStringPrimitive(@Nullable JsonNode element) {
+    private static boolean isStringPrimitive(@Nullable JsonTree element) {
         return element != null && element.isPrimitive() && element.boolValue().isEmpty() && element.intValue().isEmpty();
     }
 
-    private static boolean isTrue(@Nullable JsonNode element) {
+    private static boolean isTrue(@Nullable JsonTree element) {
         return element != null && element.boolValue().orElse(false);
     }
 

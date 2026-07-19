@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
@@ -26,7 +26,7 @@ final class EntityAxesResolver {
     private final @NotNull EntityShapeAxisResolver shape;
 
     /** The variant node held between the two resolve steps. */
-    private @Nullable JsonNode variantNode;
+    private @Nullable JsonTree variantNode;
 
     EntityAxesResolver(
         @NotNull ToolingSession session,
@@ -54,7 +54,7 @@ final class EntityAxesResolver {
      *
      * @return the variant node, or {@code null} when the family has no variant axis
      */
-    @Nullable JsonNode resolveVariant() {
+    @Nullable JsonTree resolveVariant() {
         this.variantNode = this.variant.resolve();
         return this.variantNode;
     }
@@ -71,8 +71,8 @@ final class EntityAxesResolver {
      * @param overlays the family's resolved {@code overlays} rows, or {@code null}
      * @return the axes node
      */
-    @NotNull JsonNode resolve(@Nullable String baseGeometry, @Nullable String adultTexture, @Nullable JsonNode overlays) {
-        return JsonNode.object()
+    @NotNull JsonTree resolve(@Nullable String baseGeometry, @Nullable String adultTexture, @Nullable JsonTree overlays) {
+        return JsonTree.object()
             .putIf("variant", this.variantNode)
             .putIf("state", this.state.resolve())
             .put("age", this.age.resolve(baseGeometry, adultTexture, this.variantNode != null))

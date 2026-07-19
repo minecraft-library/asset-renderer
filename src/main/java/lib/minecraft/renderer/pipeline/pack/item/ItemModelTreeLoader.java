@@ -13,7 +13,7 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
@@ -100,8 +100,8 @@ public class ItemModelTreeLoader {
         String itemId = VanillaSourcePaths.namespacePrefix(namespace) + relative.substring(0, relative.length() - ".json".length());
 
         try {
-            JsonNode json = JsonNode.parse(container.bytes(entry).orElseThrow());
-            Optional<JsonNode> model = json.findObject("model");
+            JsonTree json = JsonTree.parse(container.bytes(entry).orElseThrow());
+            Optional<JsonTree> model = json.findObject("model");
             if (model.isEmpty()) return Optional.empty();
             ItemModelNode root = GSON.fromJson(model.get().toGson(), ItemModelNode.class);
             return Optional.of(Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
@@ -168,10 +168,10 @@ public class ItemModelTreeLoader {
             : new ItemModelNode.Model(VanillaSourcePaths.modelIdPrefix(namespace, VanillaSourcePaths.ITEM_KIND) + stem, List.of());
 
         try {
-            JsonNode json = JsonNode.parse(container.bytes(entry).orElseThrow());
-            Optional<JsonNode> overridesOpt = json.findArray("overrides");
+            JsonTree json = JsonTree.parse(container.bytes(entry).orElseThrow());
+            Optional<JsonTree> overridesOpt = json.findArray("overrides");
             if (overridesOpt.isEmpty()) return Optional.empty();
-            JsonNode overrides = overridesOpt.get();
+            JsonTree overrides = overridesOpt.get();
             if (overrides.size() == 0) return Optional.empty();
             return LegacyOverrideMapper.map(itemId, overrides, packId, fallback)
                 .map(root -> Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));

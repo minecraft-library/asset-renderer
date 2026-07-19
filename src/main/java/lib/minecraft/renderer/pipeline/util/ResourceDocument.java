@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.PipelineException;
 import dev.simplified.gson.exception.JsonException;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,7 @@ import java.util.Optional;
  * silent proceed. The parsed node is exposed through {@link #payload()} for structural reads and
  * {@link #as(Class)} for whole-document deserialisation into a typed DTO.
  *
- * <p>Reading reuses the {@link JsonNode} read surface rather than a bespoke navigator.
+ * <p>Reading reuses the {@link JsonTree} read surface rather than a bespoke navigator.
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ResourceDocument {
@@ -33,13 +33,13 @@ public final class ResourceDocument {
     /** The {@code format} discriminator every resource carries. */
     private static final int EXPECTED_FORMAT = 2;
 
-    /** Sentinel returned by {@link JsonNode#getInt} when the {@code format} member is absent. */
+    /** Sentinel returned by {@link JsonTree#getInt} when the {@code format} member is absent. */
     private static final int NO_FORMAT = -1;
 
     /** Shared Gson configured with the project defaults, used by {@link #as(Class)}. */
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
-    private final @NotNull JsonNode payload;
+    private final @NotNull JsonTree payload;
     private final @NotNull ResourceEnvelope envelope;
 
     /**
@@ -52,9 +52,9 @@ public final class ResourceDocument {
      *     than {@value #EXPECTED_FORMAT}
      */
     public static @NotNull ResourceDocument open(byte @NotNull [] utf8, @NotNull Diagnostics diagnostics) {
-        JsonNode payload;
+        JsonTree payload;
         try {
-            payload = JsonNode.parse(utf8);
+            payload = JsonTree.parse(utf8);
         } catch (JsonException ex) {
             throw new PipelineException(ex, "Malformed JSON resource (%d bytes)", utf8.length);
         }
@@ -83,8 +83,8 @@ public final class ResourceDocument {
         return GSON.fromJson(payload.toGson(), type);
     }
 
-    /** The validated payload node, carrying the tooling {@link JsonNode} read surface. */
-    public @NotNull JsonNode payload() {
+    /** The validated payload node, carrying the tooling {@link JsonTree} read surface. */
+    public @NotNull JsonTree payload() {
         return this.payload;
     }
 

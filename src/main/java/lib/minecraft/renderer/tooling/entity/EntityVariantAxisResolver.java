@@ -5,7 +5,7 @@ import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -87,7 +87,7 @@ final class EntityVariantAxisResolver {
      *
      * @return the node, or {@code null} to omit
      */
-    @Nullable JsonNode resolve() {
+    @Nullable JsonTree resolve() {
         List<VariantIndex.Variant> table = this.variants.table(this.subject.localId());
         if (table != null) return resolveDataDriven(table);
         return resolveEnumMap();
@@ -97,7 +97,7 @@ final class EntityVariantAxisResolver {
     // data-driven arm
     // ------------------------------------------------------------------------------------
 
-    private @NotNull JsonNode resolveDataDriven(@NotNull List<VariantIndex.Variant> table) {
+    private @NotNull JsonTree resolveDataDriven(@NotNull List<VariantIndex.Variant> table) {
         String stem = this.subject.localId();
         String dflt = this.variants.holderDefault(stem);
         if (dflt == null) {
@@ -111,10 +111,10 @@ final class EntityVariantAxisResolver {
         }
 
         Map<String, String> modelTypeLayers = modelTypeToModelLayerField();
-        JsonNode node = JsonNode.object().put("id_encoded", false).put("default", dflt);
-        JsonNode options = node.child("options");
+        JsonTree node = JsonTree.object().put("id_encoded", false).put("default", dflt);
+        JsonTree options = node.child("options");
         for (VariantIndex.Variant variant : table) {
-            JsonNode option = JsonNode.object()
+            JsonTree option = JsonTree.object()
                 .put("textures", texturesNode(variant.textures()))
                 .putIf("baby_texture", fullPath(pickByStatePrecedence(variant.babyTextures())))
                 .putIf("geometry", resolveModelDiscriminator(variant, modelTypeLayers))
@@ -140,9 +140,9 @@ final class EntityVariantAxisResolver {
     }
 
     /** Whether every spawn-condition entry lacks a {@code condition} sub-object (absent list = unconditional). */
-    private static boolean isUnconditional(@Nullable JsonNode spawnConditions) {
+    private static boolean isUnconditional(@Nullable JsonTree spawnConditions) {
         if (spawnConditions == null) return true;
-        for (JsonNode entry : spawnConditions.elements())
+        for (JsonTree entry : spawnConditions.elements())
             if (entry.get(VanillaSourceClasses.DataKeys.CONDITION) != null) return false;
         return true;
     }
@@ -152,8 +152,8 @@ final class EntityVariantAxisResolver {
      * folds onto the legacy {@code wild} key), then the remaining state keys in table walk
      * order, values as full namespaced paths.
      */
-    private static @NotNull JsonNode texturesNode(@NotNull Map<String, String> textures) {
-        JsonNode node = JsonNode.object();
+    private static @NotNull JsonTree texturesNode(@NotNull Map<String, String> textures) {
+        JsonTree node = JsonTree.object();
         String precedentKey = null;
         for (String state : EntityAxisPolicies.STATE_PRECEDENCE.strings())
             if (textures.containsKey(state)) {
@@ -253,7 +253,7 @@ final class EntityVariantAxisResolver {
     // enum-map arm
     // ------------------------------------------------------------------------------------
 
-    private @Nullable JsonNode resolveEnumMap() {
+    private @Nullable JsonTree resolveEnumMap() {
         ClassNode cn = this.cache.load(this.subject.rendererClass());
         if (cn == null) return null;
 
@@ -269,12 +269,12 @@ final class EntityVariantAxisResolver {
             if (defaultConstant == null)
                 this.diagnostics.info("variant default '%s' via first map key [D1] (enum has no DEFAULT)", dflt);
 
-            JsonNode node = JsonNode.object().put("id_encoded", false).put("default", dflt);
-            JsonNode options = node.child("options");
+            JsonTree node = JsonTree.object().put("id_encoded", false).put("default", dflt);
+            JsonTree options = node.child("options");
             for (Map.Entry<String, List<String>> coat : coats.byConstant().entrySet()) {
                 String id = variantId(coat.getKey(), ids);
-                options.put(id, JsonNode.object()
-                    .put("textures", JsonNode.object().put("wild", fullPath(coat.getValue().getFirst())))
+                options.put(id, JsonTree.object()
+                    .put("textures", JsonTree.object().put("wild", fullPath(coat.getValue().getFirst())))
                     .putIf("baby_texture", fullPath(coat.getValue().size() > 1 ? coat.getValue().get(1) : null)));
             }
             this.diagnostics.info("variant axis (enum-map '%s'): %d options, default '%s' [D1]",

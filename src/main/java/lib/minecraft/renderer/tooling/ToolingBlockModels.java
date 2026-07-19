@@ -6,7 +6,7 @@ import lib.minecraft.renderer.tooling.blockentity.BlockEntitySubject;
 import lib.minecraft.renderer.tooling.geometry.GeometryFlow;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -39,7 +39,7 @@ public final class ToolingBlockModels {
     public static void main(String[] args) {
         try (ToolingSession session = ToolingPipeline.openSession("blockModels", Diagnostics.Output.CONSOLE)) {
             List<BlockEntitySubject> subjects = BlockEntityRegistryDiscovery.discover(session);
-            JsonNode root = session.envelope(
+            JsonTree root = session.envelope(
                 "BlockEntityRenderers.<clinit> registration order x BlockFamilyPolicies split order");
             GeometryManifest manifest = new GeometryManifest();
             BlockEntityRegistryWalk.run(session, subjects, manifest, root);

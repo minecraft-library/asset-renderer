@@ -4,7 +4,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import lib.minecraft.renderer.asset.pack.FormatRange.FormatVersion;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +26,7 @@ class FormatRangeTest {
 
     private static FormatRange fromPack(String json) {
         JsonObject root = JsonParser.parseString(json).getAsJsonObject();
-        return FormatRange.fromPackObject(JsonNode.wrap(root.getAsJsonObject("pack")), "test");
+        return FormatRange.fromPackObject(JsonTree.wrap(root.getAsJsonObject("pack")), "test");
     }
 
     private static FormatRange expect(int minMajor, int minMinor, int maxMajor, int maxMinor) {

@@ -11,7 +11,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -43,11 +43,11 @@ import java.util.Set;
 /**
  * Shared ASM bytecode walker for vanilla {@code LayerDefinition.create / CubeListBuilder /
  * PartPose / addOrReplaceChild} geometry: cache-fed, {@link GeometryRequest} in,
- * {@link JsonNode} out, 3-component grow. Consumed by {@code GeometryFlow} for both the
+ * {@link JsonTree} out, 3-component grow. Consumed by {@code GeometryFlow} for both the
  * entity and block flows - the bytecode shape is identical; only the requests differ.
  *
- * <p>Internal JSON assembly deliberately stays on Gson types rather than {@link JsonNode};
- * {@link JsonNode#wrap} adapts the output edge.
+ * <p>Internal JSON assembly deliberately stays on Gson types rather than {@link JsonTree};
+ * {@link JsonTree#wrap} adapts the output edge.
  *
  * <p>Parses the {@code createSingleBodyLayer()} / {@code createBodyLayer()} methods of
  * model classes to extract cube definitions, UV offsets, pivot points, and texture
@@ -84,7 +84,7 @@ public final class GeometryParser {
     /**
      * Parses one {@link GeometryRequest}'s factory bytecode and returns the raw parse
      * product - {@code textureWidth}, {@code textureHeight}, {@code bones} - as a
-     * {@link JsonNode}, or {@code null} when the parse produced no bone with cubes.
+     * {@link JsonTree}, or {@code null} when the parse produced no bone with cubes.
      * Schema assembly (the {@code source} twin, {@code texture_size} pairing, overrides,
      * {@code y_axis}, {@code cull}) is {@code GeometryFlow}'s job; missing classes /
      * methods (typically a MC version bump rename) and parse failures are ERRORs on
@@ -96,7 +96,7 @@ public final class GeometryParser {
      * @return the parse product ({@code textureWidth}, {@code textureHeight},
      *     {@code bones}), or {@code null} when nothing was emitted
      */
-    public static @Nullable JsonNode parse(@NotNull ClassNodeCache cache, @NotNull GeometryRequest request, @NotNull Diagnostics diagnostics) {
+    public static @Nullable JsonTree parse(@NotNull ClassNodeCache cache, @NotNull GeometryRequest request, @NotNull Diagnostics diagnostics) {
         ClassNode classNode = cache.load(request.factoryClass());
         if (classNode == null) {
             diagnostics.error("%s: class '%s' not found in client jar (renamed in MC version bump?)", request.subjectId(), request.factoryClass());
@@ -109,7 +109,7 @@ public final class GeometryParser {
         }
         try {
             JsonObject model = parseLayerMethod(method.instructions, cache, request, diagnostics);
-            return model == null ? null : JsonNode.wrap(model);
+            return model == null ? null : JsonTree.wrap(model);
         } catch (Exception ex) {
             diagnostics.error("%s: parse failure - %s", request.subjectId(), ex.getMessage());
             return null;

@@ -5,7 +5,7 @@ import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -77,13 +77,13 @@ final class EntityAgeAxisResolver {
      *     live per-option as {@code baby_texture} - the adult / baby options emit geometry only)
      * @return the age node (always non-null)
      */
-    @NotNull JsonNode resolve(@Nullable String baseGeometry, @Nullable String adultTexture, boolean variantFamily) {
-        JsonNode adult = JsonNode.object().putIf("geometry", baseGeometry);
+    @NotNull JsonTree resolve(@Nullable String baseGeometry, @Nullable String adultTexture, boolean variantFamily) {
+        JsonTree adult = JsonTree.object().putIf("geometry", baseGeometry);
         if (!variantFamily) adult.putIf("texture", adultTexture);
-        JsonNode node = JsonNode.object().put("default", "adult");
-        JsonNode options = node.child("options");
+        JsonTree node = JsonTree.object().put("default", "adult");
+        JsonTree options = node.child("options");
         options.put("adult", adult);
-        JsonNode baby = resolveBaby(adultTexture, variantFamily);
+        JsonTree baby = resolveBaby(adultTexture, variantFamily);
         if (baby != null) options.put("baby", baby);
         return node;
     }
@@ -92,7 +92,7 @@ final class EntityAgeAxisResolver {
      * The {@code options.baby} delta body, or {@code null} when no dedicated baby mesh resolves
      * (the baby field is unindexed, or the baby bakes from the adult model class).
      */
-    private @Nullable JsonNode resolveBaby(@Nullable String adultTexture, boolean variantFamily) {
+    private @Nullable JsonTree resolveBaby(@Nullable String adultTexture, boolean variantFamily) {
         String babyField = pickBabyLayerField();
         if (babyField == null) return null;
         LayerDefinitionIndex.Entry babyEntry = this.layerDefinitions.get(babyField);
@@ -114,7 +114,7 @@ final class EntityAgeAxisResolver {
             babyEntry.texWidthOverride(), babyEntry.texHeightOverride(),
             babyEntry.floatParam(), babyEntry.appliedMeshTransformerScale()));
 
-        JsonNode baby = JsonNode.object().put("geometry", key);
+        JsonTree baby = JsonTree.object().put("geometry", key);
         if (!variantFamily) baby.putIf("texture", resolveBabyTexture(adultTexture));
         this.diagnostics.info("age axis: baby mesh ModelLayers.%s -> %s", babyField, key);
         return baby;

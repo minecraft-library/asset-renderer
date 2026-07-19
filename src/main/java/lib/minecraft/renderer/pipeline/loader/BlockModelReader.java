@@ -2,7 +2,7 @@ package lib.minecraft.renderer.pipeline.loader;
 
 import com.google.gson.annotations.SerializedName;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
@@ -40,7 +40,7 @@ public final class BlockModelReader {
     static @NotNull Map<String, BlockModelEntry> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         Map<String, BlockModelEntry> models = new LinkedHashMap<>(document.as(BlockModelsFile.class).models());
-        for (Map.Entry<String, JsonNode> override : overrides.models().members())
+        for (Map.Entry<String, JsonTree> override : overrides.models().members())
             models.put(override.getKey(), override.getValue().as(BlockModelEntry.class));
         return models;
     }

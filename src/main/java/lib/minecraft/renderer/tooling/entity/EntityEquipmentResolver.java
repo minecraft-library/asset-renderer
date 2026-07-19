@@ -5,7 +5,7 @@ import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -61,7 +61,7 @@ final class EntityEquipmentResolver {
      * @param windowStart the first instruction of the site's call-site window
      * @return the row, or {@code null} when the window carries no equipment candidate
      */
-    @Nullable JsonNode resolveCallSite(
+    @Nullable JsonTree resolveCallSite(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull AbstractInsnNode windowStart
     ) {
@@ -88,7 +88,7 @@ final class EntityEquipmentResolver {
      * @param cn the bespoke layer class
      * @return the row, or {@code null} when the pair cannot be resolved
      */
-    @Nullable JsonNode resolveBespoke(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
+    @Nullable JsonTree resolveBespoke(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
         String layerType = null;
         String meshField = null;
         for (MethodNode method : cn.methods)
@@ -110,7 +110,7 @@ final class EntityEquipmentResolver {
      * adult mesh, the {@code equipment/<subdir>/<material>} template, the derived or
      * declared default material, and the captured baby mesh.
      */
-    private @Nullable JsonNode buildRow(
+    private @Nullable JsonTree buildRow(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull String layerTypeConstant,
         @NotNull String adultField,
@@ -134,7 +134,7 @@ final class EntityEquipmentResolver {
             this.diagnostics.info("equipment mesh ModelLayers.%s unresolved - row dropped", adultField);
             return null;
         }
-        JsonNode overlay = JsonNode.object()
+        JsonTree overlay = JsonTree.object()
             .put("geometry", adultKey)
             .put("texture_template", VanillaSourceClasses.Paths.EQUIPMENT_DIR + subdir + "/<material>")
             .put("default_material", defaultMaterial(subdir));
@@ -143,11 +143,11 @@ final class EntityEquipmentResolver {
             if (babyKey != null) overlay.put("baby_geometry", babyKey);
         }
         this.diagnostics.info("equipment row '%s' (%s) meshes adult=%s baby=%s", slot, subdir, adultField, babyField);
-        return JsonNode.object()
+        return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
             .put("id", slot)
-            .put("when", JsonNode.object().put("equipment", slot))
+            .put("when", JsonTree.object().put("equipment", slot))
             .put("overlay", overlay);
     }
 

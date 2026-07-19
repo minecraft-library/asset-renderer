@@ -4,7 +4,7 @@ import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
@@ -40,9 +40,9 @@ import java.util.Optional;
  * @param defaults block id to structured default-state object, overlaying {@code block_defaults.json}'s {@code blocks}
  */
 public record BlockRendererOverrides(
-    @NotNull JsonNode models,
-    @NotNull JsonNode geometries,
-    @NotNull JsonNode defaults
+    @NotNull JsonTree models,
+    @NotNull JsonTree geometries,
+    @NotNull JsonTree defaults
 ) {
 
     /** Pack-root path of the block-model catalog override, mirroring the classpath {@code block_models.json}. */
@@ -59,7 +59,7 @@ public record BlockRendererOverrides(
      * and used by the no-override reader overloads to keep their output byte-identical.
      */
     public static final @NotNull BlockRendererOverrides EMPTY =
-        new BlockRendererOverrides(JsonNode.object(), JsonNode.object(), JsonNode.object());
+        new BlockRendererOverrides(JsonTree.object(), JsonTree.object(), JsonTree.object());
 
     /**
      * Gathers the block-entity geometry overrides across the whole pack stack.
@@ -70,9 +70,9 @@ public record BlockRendererOverrides(
      * @throws PipelineException if a pack's override file fails format-2 envelope validation
      */
     public static @NotNull BlockRendererOverrides gather(@NotNull PackStack stack, @NotNull Diagnostics diagnostics) {
-        JsonNode models = JsonNode.object();
-        JsonNode geometries = JsonNode.object();
-        JsonNode defaults = JsonNode.object();
+        JsonTree models = JsonTree.object();
+        JsonTree geometries = JsonTree.object();
+        JsonTree defaults = JsonTree.object();
         for (ResourcePack pack : stack.ascending()) {
             overlay(pack, MODELS_PATH, "models", models, diagnostics);
             overlay(pack, GEOMETRY_PATH, "geometries", geometries, diagnostics);
@@ -97,7 +97,7 @@ public record BlockRendererOverrides(
      * warning rather than treated as an error - a pack may ship any subset of the three files.
      */
     private static void overlay(@NotNull ResourcePack pack, @NotNull String path, @NotNull String key,
-                                @NotNull JsonNode accumulator, @NotNull Diagnostics diagnostics) {
+                                @NotNull JsonTree accumulator, @NotNull Diagnostics diagnostics) {
         Optional<byte[]> bytes = readAcrossRoots(pack, path);
         if (bytes.isEmpty()) return;
 
@@ -110,12 +110,12 @@ public record BlockRendererOverrides(
             throw new PipelineException(ex, "Pack '%s' renderer override '%s' failed format-2 envelope validation", pack.id(), path);
         }
 
-        Optional<JsonNode> sub = document.payload().findObject(key);
+        Optional<JsonTree> sub = document.payload().findObject(key);
         if (sub.isEmpty()) {
             System.err.printf("Pack '%s' renderer override '%s' has no '%s' object; ignored%n", pack.id(), path, key);
             return;
         }
-        for (Map.Entry<String, JsonNode> entry : sub.get().members())
+        for (Map.Entry<String, JsonTree> entry : sub.get().members())
             accumulator.put(entry.getKey(), entry.getValue().deepCopy());
     }
 

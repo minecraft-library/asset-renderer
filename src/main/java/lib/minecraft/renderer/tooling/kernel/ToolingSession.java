@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.kernel;
 
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import org.jetbrains.annotations.NotNull;
 
@@ -35,9 +35,9 @@ public record ToolingSession(
      * @param orderingSource the declared ordering source stamped into the header
      * @return the envelope root, ready for its payload member
      */
-    public @NotNull JsonNode envelope(@NotNull String orderingSource) {
+    public @NotNull JsonTree envelope(@NotNull String orderingSource) {
         String flow = this.diagnostics.path();
-        return JsonNode.object()
+        return JsonTree.object()
             .put("//", "tooling." + flow + " · regen: ./gradlew " + flow + " · order: " + orderingSource)
             .putInt("format", 2)
             .put("source_version", this.options.getVersion());

@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -59,7 +59,7 @@ final class EntityRenderTraitsResolver {
      *
      * @return the node, or {@code null} to omit
      */
-    @Nullable JsonNode resolve() {
+    @Nullable JsonTree resolve() {
         ClassNode cn = this.cache.load(this.subject.rendererClass());
         if (cn == null) return null;
 
@@ -68,7 +68,7 @@ final class EntityRenderTraitsResolver {
         int tint = resolveBaseTint(cn);
 
         if (scale == null && yawAddend == 0f && tint == NO_TINT) return null;
-        JsonNode node = JsonNode.object();
+        JsonTree node = JsonTree.object();
         if (scale != null) node.put("scale", (float) scale);
         if (yawAddend != 0f) node.put("yaw_addend", yawAddend);
         if (tint != NO_TINT) node.putHex("tint", tint);

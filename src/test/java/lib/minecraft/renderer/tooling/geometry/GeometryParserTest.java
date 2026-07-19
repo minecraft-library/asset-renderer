@@ -9,7 +9,7 @@ import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
@@ -116,7 +116,7 @@ class GeometryParserTest {
     private static void assertParsesExactly(@NotNull GeometryRequest request, @NotNull String key) {
         JsonObject reference = referenceGeometries.getAsJsonObject(key);
         assertNotNull(reference, key + " missing from the checked-in resource");
-        JsonNode parsedNode = GeometryParser.parse(cache, request,
+        JsonTree parsedNode = GeometryParser.parse(cache, request,
             Diagnostics.root("geometryParserTest", Diagnostics.Output.NONE, null));
         assertNotNull(parsedNode, request.subjectId() + " parse returned null");
         JsonObject parsed = parsedNode.toGson().getAsJsonObject();

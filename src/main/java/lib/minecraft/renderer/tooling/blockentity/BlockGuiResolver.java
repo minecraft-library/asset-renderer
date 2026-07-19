@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -66,11 +66,11 @@ final class BlockGuiResolver {
      * @param splitId the models key
      * @return the {@code {rotation?, additive?}} node, or {@code null}
      */
-    @Nullable JsonNode icon(@NotNull String splitId) {
+    @Nullable JsonTree icon(@NotNull String splitId) {
         Integer rotation = BlockTransformPolicies.iconRotation(splitId);
         boolean additive = BlockTransformPolicies.isIconAdditive(splitId);
         if (rotation == null && !additive) return null;
-        JsonNode icon = JsonNode.object();
+        JsonTree icon = JsonTree.object();
         if (rotation != null) icon.putInt("rotation", rotation);
         if (additive) icon.put("additive", true);
         return icon;
@@ -86,7 +86,7 @@ final class BlockGuiResolver {
 
     /** Reads the item definition, reduces its model component, and walks the parent chain for the roll. */
     private @Nullable Float resolveRoll(@NotNull String localId) {
-        JsonNode item = this.cache.readJson(VanillaSourceClasses.Paths.ITEM_MODEL_DIR + localId + VanillaSourceClasses.Paths.JSON_SUFFIX);
+        JsonTree item = this.cache.readJson(VanillaSourceClasses.Paths.ITEM_MODEL_DIR + localId + VanillaSourceClasses.Paths.JSON_SUFFIX);
         if (item == null) return null;
         String modelRef = resolveModelRef(item.get(VanillaSourceClasses.DataKeys.MODEL));
         return modelRef == null ? null : readDisplayGuiRoll(modelRef);
@@ -98,7 +98,7 @@ final class BlockGuiResolver {
      * {@code minecraft:select} -> its fallback (recursively). Other component types (the pose
      * selectors, never reached at the reference pose) yield {@code null}.
      */
-    private @Nullable String resolveModelRef(@Nullable JsonNode component) {
+    private @Nullable String resolveModelRef(@Nullable JsonTree component) {
         if (component == null) return null;
         String type = component.getString(VanillaSourceClasses.DataKeys.TYPE);
         if (type == null) return null;
@@ -114,12 +114,12 @@ final class BlockGuiResolver {
     private @Nullable Float readDisplayGuiRoll(@NotNull String modelRef) {
         String path = stripNamespace(modelRef);
         for (int depth = 0; depth < MAX_MODEL_PARENT_DEPTH; depth++) {
-            JsonNode model = this.cache.readJson(VanillaSourceClasses.Paths.MODEL_DIR + path + VanillaSourceClasses.Paths.JSON_SUFFIX);
+            JsonTree model = this.cache.readJson(VanillaSourceClasses.Paths.MODEL_DIR + path + VanillaSourceClasses.Paths.JSON_SUFFIX);
             if (model == null) return null;
-            JsonNode display = model.get(VanillaSourceClasses.DataKeys.DISPLAY);
-            JsonNode gui = display == null ? null : display.get(VanillaSourceClasses.DataKeys.GUI);
-            JsonNode rotation = gui == null ? null : gui.get(VanillaSourceClasses.DataKeys.ROTATION);
-            JsonNode roll = rotation == null ? null : rotation.at(2);   // [pitch, yaw, roll]
+            JsonTree display = model.get(VanillaSourceClasses.DataKeys.DISPLAY);
+            JsonTree gui = display == null ? null : display.get(VanillaSourceClasses.DataKeys.GUI);
+            JsonTree rotation = gui == null ? null : gui.get(VanillaSourceClasses.DataKeys.ROTATION);
+            JsonTree roll = rotation == null ? null : rotation.at(2);   // [pitch, yaw, roll]
             if (roll != null) return roll.floatValue(0f);
             String parent = model.getString(VanillaSourceClasses.DataKeys.PARENT);
             if (parent == null) return null;

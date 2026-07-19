@@ -5,7 +5,7 @@ import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -101,8 +101,8 @@ final class EntityOverlayResolver {
      *
      * @return the rows, or {@code null} when no site emits
      */
-    @Nullable JsonNode resolve() {
-        List<JsonNode> rows = new ArrayList<>();
+    @Nullable JsonTree resolve() {
+        List<JsonTree> rows = new ArrayList<>();
         boolean sameGeometryEmissive = false;
         for (EntityRendererResolver.LayerSite site : this.roster) {
             ClassNode cn = this.cache.load(site.layerClass());
@@ -115,48 +115,48 @@ final class EntityOverlayResolver {
             if (referencesEquipmentLayerType(cn)) {
                 // Bespoke equipment is handled elsewhere; only its DEFAULT decor (an
                 // EquipmentAssets constant gated on a truthy entity predicate) overlays here.
-                JsonNode decor = resolveDefaultDecor(site, cn);
+                JsonTree decor = resolveDefaultDecor(site, cn);
                 if (decor != null) rows.add(decor);
                 continue;
             }
             EnumMapOverlay enumMap = findEnumMapOverlay(this.cache, cn);
             if (enumMap != null && EntityLayersResolver.isLayersRowToken(enumMap.token())) continue;
 
-            List<JsonNode> emitted = resolveSite(site, cn, enumMap);
-            for (JsonNode row : emitted) {
+            List<JsonTree> emitted = resolveSite(site, cn, enumMap);
+            for (JsonTree row : emitted) {
                 rows.add(row);
-                JsonNode pipeline = row.get("pipeline");
+                JsonTree pipeline = row.get("pipeline");
                 if (pipeline != null && pipeline.getBool("emissive", false)
                     && Objects.equals(row.getString("geometry"), this.geometryRef.primaryKey()))
                     sameGeometryEmissive = true;
             }
         }
         if (!sameGeometryEmissive) {
-            JsonNode tail = resolveRendererTailEyes();
+            JsonTree tail = resolveRendererTailEyes();
             if (tail != null) rows.add(tail);
         }
         if (rows.isEmpty()) return null;
-        JsonNode out = JsonNode.array();
-        for (JsonNode row : rows) out.add(row);
+        JsonTree out = JsonTree.array();
+        for (JsonTree row : rows) out.add(row);
         return out;
     }
 
     /** Dispatches one roster site through the structural arms; first claim wins. */
-    private @NotNull List<JsonNode> resolveSite(
+    private @NotNull List<JsonTree> resolveSite(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn,
         @Nullable EnumMapOverlay enumMap
     ) {
-        List<JsonNode> emissive = resolveEmissiveProviderSite(site, cn);
+        List<JsonTree> emissive = resolveEmissiveProviderSite(site, cn);
         if (emissive != null) return emissive;
-        JsonNode eyes = resolveEyesBinding(site.layerClass(), site.layerIndex(), cn);
+        JsonTree eyes = resolveEyesBinding(site.layerClass(), site.layerIndex(), cn);
         if (eyes != null) return List.of(eyes);
         if (enumMap != null) return List.of(resolveEnumMapRow(site, enumMap));
-        List<JsonNode> villager = resolveVillagerPasses(site, cn);
+        List<JsonTree> villager = resolveVillagerPasses(site, cn);
         if (villager != null) return villager;
-        JsonNode parameterized = resolveParameterizedBinding(site, cn);
+        JsonTree parameterized = resolveParameterizedBinding(site, cn);
         if (parameterized != null) return List.of(parameterized);
-        JsonNode composite = resolveComposite(site, cn);
+        JsonTree composite = resolveComposite(site, cn);
         if (composite != null) return List.of(composite);
         return List.of();
     }
@@ -269,8 +269,8 @@ final class EntityOverlayResolver {
     // ------------------------------------------------------------------------------------
 
     /** A fresh row carrying its source-class and layer-index provenance pair. */
-    private static @NotNull JsonNode row(@NotNull String sourceClass, int layerIndex) {
-        return JsonNode.object()
+    private static @NotNull JsonTree row(@NotNull String sourceClass, int layerIndex) {
+        return JsonTree.object()
             .put("source", simpleName(sourceClass))
             .putInt("layer_index", layerIndex);
     }
@@ -316,7 +316,7 @@ final class EntityOverlayResolver {
     }
 
     /** Emits {@code grow} as a scalar when uniform, a triplet when asymmetric. */
-    private static void putGrow(@NotNull JsonNode row, float @Nullable [] grow) {
+    private static void putGrow(@NotNull JsonTree row, float @Nullable [] grow) {
         if (grow == null) return;
         if (grow[0] == grow[1] && grow[1] == grow[2]) row.put("grow", grow[0]);
         else row.putFloats("grow", grow[0], grow[1], grow[2]);
@@ -328,9 +328,9 @@ final class EntityOverlayResolver {
      * normal), {@code alpha} the fractional frozen-frame opacity (absent = 1.0). Null when
      * every member is at its default.
      */
-    private static @Nullable JsonNode pipelineNode(boolean emissive, @Nullable String blend, float alpha) {
+    private static @Nullable JsonTree pipelineNode(boolean emissive, @Nullable String blend, float alpha) {
         if (!emissive && blend == null && alpha >= 1f) return null;
-        JsonNode node = JsonNode.object();
+        JsonTree node = JsonTree.object();
         if (emissive) node.put("emissive", true);
         if (blend != null) node.put("blend", blend);
         if (alpha < 1f) node.put("alpha", alpha);
@@ -368,7 +368,7 @@ final class EntityOverlayResolver {
      * by SHAPE and classified by pipeline traits, never by a class or field name match.
      * Works unchanged on a renderer's own {@code <clinit>} (the dragon tail).
      */
-    private @Nullable JsonNode resolveEyesBinding(@NotNull String sourceClass, int layerIndex, @NotNull ClassNode cn) {
+    private @Nullable JsonTree resolveEyesBinding(@NotNull String sourceClass, int layerIndex, @NotNull ClassNode cn) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         String renderTypeReturn = ")" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RENDER_TYPE);
@@ -389,7 +389,7 @@ final class EntityOverlayResolver {
                 // A default-pipeline factory (the dragon's dying entityCutoutDissolve) never
                 // pre-builds a glow overlay - skip it without consuming the pending texture.
                 if (factoryTraits.isEmpty()) continue;
-                JsonNode node = row(sourceClass, layerIndex)
+                JsonTree node = row(sourceClass, layerIndex)
                     .putIf("geometry", this.geometryRef.primaryKey())
                     .put("texture", namespaced(pendingTexture));
                 node.putIf("pipeline", pipelineNode(
@@ -408,7 +408,7 @@ final class EntityOverlayResolver {
      * site. Runs only when no same-geometry emissive row emitted, with no {@code layer_index}
      * - the row is not in vanilla's addLayer list (empty-vs-absent).
      */
-    private @Nullable JsonNode resolveRendererTailEyes() {
+    private @Nullable JsonTree resolveRendererTailEyes() {
         ClassNode renderer = this.cache.load(this.subject.rendererClass());
         if (renderer == null) return null;
         MethodNode clinit = AsmKit.findMethod(renderer, AsmKit.CLINIT);
@@ -429,7 +429,7 @@ final class EntityOverlayResolver {
                 && hasEyeStem(pendingTexture)) {
                 var factoryTraits = this.traits.traitsOf(mi.name);
                 if (factoryTraits.isEmpty()) continue;   // default pipeline - not a glow binding
-                JsonNode node = JsonNode.object()
+                JsonTree node = JsonTree.object()
                     .put("source", simpleName(this.subject.rendererClass()))
                     .putIf("geometry", this.geometryRef.primaryKey())
                     .put("texture", namespaced(pendingTexture));
@@ -452,14 +452,14 @@ final class EntityOverlayResolver {
      * from the map, so the default draws nothing - with the full value-to-path map and a
      * bounds skip (a zero-state-none overlay never contributes silhouette).
      */
-    private @NotNull JsonNode resolveEnumMapRow(
+    private @NotNull JsonTree resolveEnumMapRow(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull EnumMapOverlay enumMap
     ) {
-        JsonNode node = row(site.layerClass(), site.layerIndex())
+        JsonTree node = row(site.layerClass(), site.layerIndex())
             .putIf("geometry", this.geometryRef.primaryKey())
             .put("texture_by", axisToken(enumMap.token()));
-        JsonNode byValue = JsonNode.object();
+        JsonTree byValue = JsonTree.object();
         for (Map.Entry<String, String> entry : enumMap.textures().entrySet())
             byValue.put(entry.getKey().toLowerCase(Locale.ROOT), namespaced(entry.getValue()));
         node.put("textures_by_value", byValue);
@@ -493,7 +493,7 @@ final class EntityOverlayResolver {
      * energy-swirl subclasses a class-name-only gate would reject. Emits one row with the
      * walked gates, tint, pipeline, and mesh reference.
      */
-    private @Nullable JsonNode resolveComposite(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
+    private @Nullable JsonTree resolveComposite(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
         String bakedField = findCtorBakedField(cn);
         if (bakedField == null) return null;
         if (!compositeGateAccepts(cn)) return null;
@@ -505,7 +505,7 @@ final class EntityOverlayResolver {
         }
 
         boolean additive = this.traits.layerInvokes(cn.name, EntityPipelineTraits.Trait.ADDITIVE);
-        JsonNode node = row(site.layerClass(), site.layerIndex());
+        JsonTree node = row(site.layerClass(), site.layerIndex());
         node.putIf("when", compositeWhen(cn, additive));
         MeshRef mesh = overlayMesh(bakedField);
         node.putIf("geometry", mesh.key());
@@ -568,8 +568,8 @@ final class EntityOverlayResolver {
      * {@code isSheared} - {@code isBaby} / {@code isInvisible} are universal render gates,
      * not option axes, and fall out of the vocabulary filter).
      */
-    private @Nullable JsonNode compositeWhen(@NotNull ClassNode cn, boolean additive) {
-        if (additive) return JsonNode.object().put("charged", true);
+    private @Nullable JsonTree compositeWhen(@NotNull ClassNode cn, boolean additive) {
+        if (additive) return JsonTree.object().put("charged", true);
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return null;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
@@ -579,7 +579,7 @@ final class EntityOverlayResolver {
             if (next != null && (next.getOpcode() == Opcodes.IF_ACMPEQ || next.getOpcode() == Opcodes.IF_ACMPNE)) {
                 AbstractInsnNode before = AsmKit.previousReal(in);
                 if (before instanceof FieldInsnNode read && dyeRef.equals(read.desc))
-                    return JsonNode.object().put("tinted", true);
+                    return JsonTree.object().put("tinted", true);
             }
         }
         for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
@@ -593,7 +593,7 @@ final class EntityOverlayResolver {
             if (!EntityAxisPolicies.AXIS_NAME_VOCABULARY.strings().contains(token)) continue;
             // IFEQ skips the RETURN when the flag is false - the row renders at flag ==
             // false (the wool renders UNsheared); IFNE is the inverse shape.
-            return JsonNode.object().put("flag", token).put("value", branch.getOpcode() != Opcodes.IFEQ);
+            return JsonTree.object().put("flag", token).put("value", branch.getOpcode() != Opcodes.IFEQ);
         }
         return null;
     }
@@ -860,7 +860,7 @@ final class EntityOverlayResolver {
      *
      * @return the emitted rows, or {@code null} when the site is not provider-shaped
      */
-    private @Nullable List<JsonNode> resolveEmissiveProviderSite(
+    private @Nullable List<JsonTree> resolveEmissiveProviderSite(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn
     ) {
@@ -917,7 +917,7 @@ final class EntityOverlayResolver {
         String blend = EntityPipelineTraits.blendToken(factoryTraits);
 
         boolean primaryMesh = modelField == null || modelField.equals(this.geometryRef.primaryFieldName());
-        JsonNode node = row(site.layerClass(), site.layerIndex());
+        JsonTree node = row(site.layerClass(), site.layerIndex());
         if (primaryMesh) {
             node.putIf("geometry", this.geometryRef.primaryKey())
                 .put("texture", texture.path())
@@ -951,7 +951,7 @@ final class EntityOverlayResolver {
             .putIf("texture_by", texture.textureBy())
             .putIf("pipeline", pipelineNode(emissive, blend, alpha))
             .put("skip_bounds", true);
-        JsonNode bones = node.childArray("retain_bones");
+        JsonTree bones = node.childArray("retain_bones");
         for (String bone : retain) bones.add(bone);
         return List.of(node);
     }
@@ -1202,7 +1202,7 @@ final class EntityOverlayResolver {
      *
      * @return the pass rows, or {@code null} when the site is not category-shaped
      */
-    private @Nullable List<JsonNode> resolveVillagerPasses(
+    private @Nullable List<JsonTree> resolveVillagerPasses(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn
     ) {
@@ -1217,7 +1217,7 @@ final class EntityOverlayResolver {
             return List.of();
         }
         List<String> defaultIds = dataClassDefaultIds(submit);
-        List<JsonNode> rows = new ArrayList<>(categories.size());
+        List<JsonTree> rows = new ArrayList<>(categories.size());
         for (String category : categories) {
             String texture = null;
             for (String id : defaultIds) {
@@ -1227,7 +1227,7 @@ final class EntityOverlayResolver {
                     break;
                 }
             }
-            JsonNode node = row(site.layerClass(), site.layerIndex())
+            JsonTree node = row(site.layerClass(), site.layerIndex())
                 .putIf("geometry", this.geometryRef.primaryKey())
                 .putIf("texture", texture == null ? null : namespaced(texture))
                 .put("texture_by", category);
@@ -1349,7 +1349,7 @@ final class EntityOverlayResolver {
      * and texture come from the call-site region, order-independent by type. Any future
      * layer wired to the shape auto-resolves without an allowlist.
      */
-    private @Nullable JsonNode resolveParameterizedBinding(
+    private @Nullable JsonTree resolveParameterizedBinding(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn
     ) {
@@ -1373,7 +1373,7 @@ final class EntityOverlayResolver {
         String texture = chaseTextureFieldOwner(textureOwner, textureField);
         if (texture == null) return null;
 
-        JsonNode node = row(site.layerClass(), site.layerIndex());
+        JsonTree node = row(site.layerClass(), site.layerIndex());
         MeshRef mesh = overlayMesh(modelLayerField);
         node.putIf("geometry", mesh.key());
         node.put("texture", namespaced(texture));
@@ -1425,7 +1425,7 @@ final class EntityOverlayResolver {
      * the renderer). The decor row renders unconditionally at zero state, so the harness
      * reference keeps its carpet.
      */
-    private @Nullable JsonNode resolveDefaultDecor(
+    private @Nullable JsonTree resolveDefaultDecor(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn
     ) {
@@ -1461,7 +1461,7 @@ final class EntityOverlayResolver {
             return null;
         }
 
-        JsonNode node = row(site.layerClass(), site.layerIndex());
+        JsonTree node = row(site.layerClass(), site.layerIndex());
         MeshRef mesh = overlayMesh(findCtorBakedField(cn));
         node.putIf("geometry", mesh.key());
         node.put("texture", namespaced(VanillaSourceClasses.Paths.TEXTURES_ENTITY

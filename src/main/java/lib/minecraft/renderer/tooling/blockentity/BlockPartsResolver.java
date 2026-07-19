@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,12 +27,12 @@ final class BlockPartsResolver {
      * @param splitId the models key
      * @return the {@code parts} array node, or {@code null}
      */
-    static @Nullable JsonNode resolve(@NotNull String splitId) {
+    static @Nullable JsonTree resolve(@NotNull String splitId) {
         List<BlockTransformPolicies.PartSpec> specs = BlockTransformPolicies.partsOf(splitId);
         if (specs == null) return null;
-        JsonNode parts = JsonNode.array();
+        JsonTree parts = JsonTree.array();
         for (BlockTransformPolicies.PartSpec spec : specs) {
-            JsonNode part = JsonNode.object().put("model", spec.model());
+            JsonTree part = JsonTree.object().put("model", spec.model());
             if (spec.offset() != null) part.putInts("offset", spec.offset());
             part.putIf("texture", spec.texture());
             parts.add(part);

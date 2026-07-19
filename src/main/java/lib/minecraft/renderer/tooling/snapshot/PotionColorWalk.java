@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.snapshot;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
@@ -43,7 +43,7 @@ public final class PotionColorWalk {
      * @param session the live session
      * @param root the envelope root
      */
-    public static void run(@NotNull ToolingSession session, @NotNull JsonNode root) {
+    public static void run(@NotNull ToolingSession session, @NotNull JsonTree root) {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("effects");
 
@@ -108,7 +108,7 @@ public final class PotionColorWalk {
             }
         }
 
-        JsonNode effects = root.child("effects");
+        JsonTree effects = root.child("effects");
         colors.forEach((effectId, color) -> effects.putHex(effectId, color | 0xFF000000));
         diagnostics.info("%d effect colour rows from %s.<clinit>", colors.size(), VanillaSourceClasses.Types.MOB_EFFECTS);
     }

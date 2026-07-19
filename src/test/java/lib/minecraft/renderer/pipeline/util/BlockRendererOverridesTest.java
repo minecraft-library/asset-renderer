@@ -13,7 +13,7 @@ import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -134,7 +134,7 @@ class BlockRendererOverridesTest {
         JsonObject models = new JsonObject();
         models.add("minecraft:foo", entry);
 
-        var overrides = new BlockRendererOverrides(JsonNode.wrap(models), JsonNode.object(), JsonNode.object());
+        var overrides = new BlockRendererOverrides(JsonTree.wrap(models), JsonTree.object(), JsonTree.object());
         lib.minecraft.renderer.exception.PipelineException ex = org.junit.jupiter.api.Assertions.assertThrows(
             lib.minecraft.renderer.exception.PipelineException.class, () -> BlockModelLoader.load(NONE, overrides));
         assertThat(ex.getMessage().contains("minecraft:foo"), is(true));
@@ -146,7 +146,7 @@ class BlockRendererOverridesTest {
     void nonObjectDefaultsEntryWarned() {
         JsonObject blocks = new JsonObject();
         blocks.addProperty("minecraft:conduit", "facing=east"); // flat string, not {property:value}
-        var overrides = new BlockRendererOverrides(JsonNode.object(), JsonNode.object(), JsonNode.wrap(blocks));
+        var overrides = new BlockRendererOverrides(JsonTree.object(), JsonTree.object(), JsonTree.wrap(blocks));
 
         java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
         java.io.PrintStream original = System.err;

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.geometry;
 
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import org.jetbrains.annotations.NotNull;
 
@@ -10,7 +10,7 @@ import java.util.Map;
 
 /**
  * The shared geometry pipeline: consumes the manifest a models walk populated in the same
- * session and emits the paired geometry file - own JsonNode tree, own file, recycled
+ * session and emits the paired geometry file - own JsonTree tree, own file, recycled
  * discovery, so a manifest key and its geometry entry can never desync across tasks.
  *
  * <p>Per deduped request: parse, stamp the {@code source} twin + {@code texture_size} +
@@ -34,17 +34,17 @@ public final class GeometryFlow {
      */
     public static void emit(@NotNull ToolingSession session, @NotNull GeometryManifest manifest, @NotNull Path out) {
         Diagnostics diagnostics = session.diagnostics().child("geometry");
-        JsonNode root = session.envelope(
+        JsonTree root = session.envelope(
             "GeometryManifest registration order (walk order; append-last as a data-structure property)");
-        JsonNode geometries = root.child("geometries");
+        JsonTree geometries = root.child("geometries");
         for (Map.Entry<String, GeometryRequest> entry : manifest.entries().entrySet()) {
             String key = entry.getKey();
             GeometryRequest request = entry.getValue();
             Diagnostics scope = diagnostics.child(key);
-            JsonNode parsed = GeometryParser.parse(session.cache(), request, scope);
+            JsonTree parsed = GeometryParser.parse(session.cache(), request, scope);
             if (parsed == null) continue;                       // ERROR already recorded by the parser
 
-            JsonNode node = JsonNode.object();
+            JsonTree node = JsonTree.object();
             node.put("source", sourceTwin(request));
             int texWidth = request.texWidthOverride() != null
                 ? request.texWidthOverride() : parsed.getInt("textureWidth", 64);
@@ -65,8 +65,8 @@ public final class GeometryFlow {
      * The structured {@code source} twin of the factory-coordinate key: the full class
      * coordinate plus the same discriminators the key encodes, machine-readable.
      */
-    private static @NotNull JsonNode sourceTwin(@NotNull GeometryRequest request) {
-        JsonNode source = JsonNode.object()
+    private static @NotNull JsonTree sourceTwin(@NotNull GeometryRequest request) {
+        JsonTree source = JsonTree.object()
             .put("class", request.factoryClass())
             .put("method", request.factoryMethod());
         float[] grow = request.grow();
@@ -81,7 +81,7 @@ public final class GeometryFlow {
             source.put("scaled", request.appliedMeshTransformerScale());
         int[] intParams = request.paramIntValues();
         if (intParams != null) {
-            JsonNode bound = source.childArray("iparam");
+            JsonTree bound = source.childArray("iparam");
             boolean any = false;
             for (int slot = 0; slot < intParams.length; slot++) {
                 if (intParams[slot] == 0) continue;

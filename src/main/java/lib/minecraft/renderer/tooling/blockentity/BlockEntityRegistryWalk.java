@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
@@ -35,7 +35,7 @@ public final class BlockEntityRegistryWalk {
         @NotNull ToolingSession session,
         @NotNull List<BlockEntitySubject> subjects,
         @NotNull GeometryManifest manifest,
-        @NotNull JsonNode root
+        @NotNull JsonTree root
     ) {
         LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
         BlockRegistryIndex blockRegistry = BlockRegistryIndex.build(session);
@@ -43,7 +43,7 @@ public final class BlockEntityRegistryWalk {
         BlockGuiResolver gui = new BlockGuiResolver(session.cache());
         InventoryTransformResolver transform = new InventoryTransformResolver(session.cache());
 
-        JsonNode models = root.child("models");
+        JsonTree models = root.child("models");
         for (BlockEntitySubject subject : subjects) {
             BlockGeometrySourceResolver geometry = new BlockGeometrySourceResolver(
                 session, subject, layerDefinitions, manifest, session.diagnostics().child(subject.beTypeId()));

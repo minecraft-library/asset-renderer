@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack;
 
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
@@ -34,7 +34,7 @@ public sealed interface CatharsisCondition permits CatharsisCondition.Config, Ca
      * @param condition the condition JSON node
      * @return the parsed condition
      */
-    static @NotNull CatharsisCondition parse(@NotNull JsonNode condition) {
+    static @NotNull CatharsisCondition parse(@NotNull JsonTree condition) {
         String kind = string(condition, "condition").orElse("");
         return switch (kind) {
             case "catharsis:config" -> new Config(
@@ -134,14 +134,14 @@ public sealed interface CatharsisCondition permits CatharsisCondition.Config, Ca
 
     }
 
-    private static @NotNull CatharsisCondition parseVersion(@NotNull JsonNode condition) {
+    private static @NotNull CatharsisCondition parseVersion(@NotNull JsonTree condition) {
         VersionKind kind = switch (string(condition, "type").orElse("").toUpperCase(Locale.ROOT)) {
             case "MINECRAFT" -> VersionKind.MINECRAFT;
             case "PACK_FORMAT" -> VersionKind.PACK_FORMAT;
             default -> VersionKind.UNKNOWN;
         };
         Optional<PackFormatRange> range = Optional.empty();
-        Optional<JsonNode> bounds = condition.findObject("packFormatRange");
+        Optional<JsonTree> bounds = condition.findObject("packFormatRange");
         if (bounds.isPresent()) {
             Optional<Integer> min = bounds.get().findInt("min_inclusive");
             Optional<Integer> max = bounds.get().findInt("max_inclusive");
@@ -200,8 +200,8 @@ public sealed interface CatharsisCondition permits CatharsisCondition.Config, Ca
         }
     }
 
-    private static @NotNull Optional<String> string(@NotNull JsonNode obj, @NotNull String key) {
-        JsonNode element = obj.get(key);
+    private static @NotNull Optional<String> string(@NotNull JsonTree obj, @NotNull String key) {
+        JsonTree element = obj.get(key);
         return element != null && element.isPrimitive() && element.boolValue().isEmpty() && element.intValue().isEmpty()
             ? element.stringValue()
             : Optional.empty();

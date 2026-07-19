@@ -4,7 +4,7 @@ import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -102,7 +102,7 @@ public class LegacyOverrideMapper {
      *     its fallback as before)
      */
     public static @NotNull Optional<ItemModelNode> map(
-        @NotNull String itemId, @NotNull JsonNode overrides, @NotNull PackId packId, @NotNull ItemModelNode fallback
+        @NotNull String itemId, @NotNull JsonTree overrides, @NotNull PackId packId, @NotNull ItemModelNode fallback
     ) {
         String namespace = itemId.contains(":") ? itemId.substring(0, itemId.indexOf(':')) : "minecraft";
 
@@ -110,7 +110,7 @@ public class LegacyOverrideMapper {
         // first-appearance order of groups. A file is almost always one group (all custom_model_data,
         // or all pulling/pull); multiple groups fold safely below.
         LinkedHashMap<TreeMap<String, Boolean>, List<MappedOverride>> groups = new LinkedHashMap<>();
-        for (JsonNode element : overrides.elements()) {
+        for (JsonTree element : overrides.elements()) {
             if (!element.isObject()) continue;
             MappedOverride mapped = parseOverride(element, itemId, namespace, packId);
             if (mapped == null) continue;
@@ -137,18 +137,18 @@ public class LegacyOverrideMapper {
      * silently dropped.
      */
     private static @Nullable MappedOverride parseOverride(
-        @NotNull JsonNode override, @NotNull String itemId, @NotNull String namespace, @NotNull PackId packId
+        @NotNull JsonTree override, @NotNull String itemId, @NotNull String namespace, @NotNull PackId packId
     ) {
         Optional<String> modelRef = override.findString("model");
         if (modelRef.isEmpty()) {
             System.err.printf("Pack '%s' item '%s': skipping legacy override with no model%n", packId, itemId);
             return null;
         }
-        JsonNode predicate = override.findObject("predicate").orElseGet(JsonNode::object);
+        JsonTree predicate = override.findObject("predicate").orElseGet(JsonTree::object);
 
         TreeMap<String, Boolean> gates = new TreeMap<>();
         RangeConstraint range = null;
-        for (Map.Entry<String, JsonNode> entry : predicate.members()) {
+        for (Map.Entry<String, JsonTree> entry : predicate.members()) {
             String key = entry.getKey();
             Optional<Float> parsed = predicate.findFloat(key);
             if (parsed.isEmpty()) {

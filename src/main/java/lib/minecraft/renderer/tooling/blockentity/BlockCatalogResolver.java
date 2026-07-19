@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import org.jetbrains.annotations.NotNull;
@@ -46,7 +46,7 @@ final class BlockCatalogResolver {
     private final @NotNull List<String> splitIds;
     private final @NotNull Diagnostics diagnostics;
 
-    private @Nullable Map<String, JsonNode> bySplitId;
+    private @Nullable Map<String, JsonTree> bySplitId;
 
     BlockCatalogResolver(
         @NotNull ClassNodeCache cache,
@@ -69,13 +69,13 @@ final class BlockCatalogResolver {
      * @param splitId the models key
      * @return the {@code blocks} array node, or {@code null}
      */
-    @Nullable JsonNode blocks(@NotNull String splitId) {
+    @Nullable JsonTree blocks(@NotNull String splitId) {
         if (this.bySplitId == null) this.bySplitId = build();
         return this.bySplitId.get(splitId);
     }
 
     /** Dispatches the subject to its family builder, producing split id -> block rows. */
-    private @NotNull Map<String, JsonNode> build() {
+    private @NotNull Map<String, JsonTree> build() {
         Map<String, List<Row>> rows = new LinkedHashMap<>();
         BlockFamilyPolicies.CatalogFamily family = BlockFamilyPolicies.catalogFamily(this.subject.localId());
         if (family != null)                 // no catalog family (enchanting_table / lectern) = no catalog
@@ -93,7 +93,7 @@ final class BlockCatalogResolver {
                 case BANNER -> banner(rows);
             }
 
-        Map<String, JsonNode> out = new LinkedHashMap<>();
+        Map<String, JsonTree> out = new LinkedHashMap<>();
         rows.forEach((splitId, list) -> out.put(splitId, toArray(list)));
         return out;
     }
@@ -512,10 +512,10 @@ final class BlockCatalogResolver {
     }
 
     /** Materialises a row list into the {@code blocks} array node, wrapping stems in the full asset grammar. */
-    private static @NotNull JsonNode toArray(@NotNull List<Row> rows) {
-        JsonNode array = JsonNode.array();
+    private static @NotNull JsonTree toArray(@NotNull List<Row> rows) {
+        JsonTree array = JsonTree.array();
         for (Row row : rows)
-            array.add(JsonNode.object()
+            array.add(JsonTree.object()
                 .put("block", row.block())
                 .put("texture", assetPath(row.texture()))
                 .putIf("variant", row.variant())

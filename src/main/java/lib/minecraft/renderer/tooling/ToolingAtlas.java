@@ -12,7 +12,7 @@ import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tooling.atlas.AtlasSidecar;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import dev.simplified.gson.exception.JsonException;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 
 import java.io.File;
@@ -67,7 +67,7 @@ public final class ToolingAtlas {
 
         AtlasSidecar sidecar;
         try {
-            sidecar = AtlasSidecar.parse(JsonNode.parse(atlas.sidecarJson().getBytes(StandardCharsets.UTF_8)));
+            sidecar = AtlasSidecar.parse(JsonTree.parse(atlas.sidecarJson().getBytes(StandardCharsets.UTF_8)));
         } catch (JsonException ex) {
             throw new ToolingException(ex, "Failed to parse atlas sidecar JSON");
         }

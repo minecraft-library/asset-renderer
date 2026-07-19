@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling;
 
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -34,7 +34,7 @@ public final class ToolingBlockItems {
     public static void main(String[] args) {
         try (ToolingSession session = ToolingPipeline.openSession("blockItems", Diagnostics.Output.CONSOLE)) {
             BlockRegistryIndex index = BlockRegistryIndex.build(session);
-            JsonNode root = session.envelope("secondary block ids sorted; each maps to its standing block's item id");
+            JsonTree root = session.envelope("secondary block ids sorted; each maps to its standing block's item id");
             BlockItemAliasWalk.run(session, index, root);
             Path out = RESOURCE_DIR.resolve("block_items.json");
             root.write(out);

@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.snapshot;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
@@ -38,7 +38,7 @@ public final class GlintItemsWalk {
      * @param session the live session
      * @param root the envelope root
      */
-    public static void run(@NotNull ToolingSession session, @NotNull JsonNode root) {
+    public static void run(@NotNull ToolingSession session, @NotNull JsonTree root) {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("items");
 
@@ -83,7 +83,7 @@ public final class GlintItemsWalk {
             }
         }
 
-        JsonNode itemsNode = root.childArray("items");
+        JsonTree itemsNode = root.childArray("items");
         glintItems.forEach(itemsNode::add);
         diagnostics.info("%d always-glinted items from %s.<clinit>", glintItems.size(), VanillaSourceClasses.Types.ITEMS);
     }

@@ -6,7 +6,7 @@ import lib.minecraft.renderer.tooling.entity.EntitySubject;
 import lib.minecraft.renderer.tooling.geometry.GeometryFlow;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -36,7 +36,7 @@ public final class ToolingEntityModels {
     public static void main(String[] args) {
         try (ToolingSession session = ToolingPipeline.openSession("entityModels", Diagnostics.Output.CONSOLE)) {
             List<EntitySubject> subjects = EntityRegistryDiscovery.discover(session);
-            JsonNode root = session.envelope(
+            JsonTree root = session.envelope(
                 "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain");
             GeometryManifest manifest = new GeometryManifest();
             EntityRegistryWalk.run(session, subjects, manifest, root);

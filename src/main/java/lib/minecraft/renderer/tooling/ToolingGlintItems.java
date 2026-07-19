@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling;
 
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -30,7 +30,7 @@ public final class ToolingGlintItems {
      */
     public static void main(String[] args) {
         try (ToolingSession session = ToolingPipeline.openSession("glintItems", Diagnostics.Output.CONSOLE)) {
-            JsonNode root = session.envelope("item id sort order");
+            JsonTree root = session.envelope("item id sort order");
             GlintItemsWalk.run(session, root);
             Path out = RESOURCE_DIR.resolve("glint_items.json");
             root.write(out);

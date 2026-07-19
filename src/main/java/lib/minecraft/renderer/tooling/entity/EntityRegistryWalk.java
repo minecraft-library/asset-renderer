@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
@@ -33,7 +33,7 @@ public final class EntityRegistryWalk {
         @NotNull ToolingSession session,
         @NotNull List<EntitySubject> subjects,
         @NotNull GeometryManifest manifest,
-        @NotNull JsonNode root
+        @NotNull JsonTree root
     ) {
         LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
         VariantIndex variants = VariantIndex.build(session);
@@ -41,7 +41,7 @@ public final class EntityRegistryWalk {
         EntityPipelineTraits pipelineTraits = new EntityPipelineTraits(session.cache());
         Set<String> nonBaseSuffixes = EntityTextureResolver.deriveNonBaseSuffixes(session);
 
-        JsonNode models = root.child("models");
+        JsonTree models = root.child("models");
         for (EntitySubject subject : subjects)
             models.put(subject.entityId(),
                 new EntityRendererResolver(session, subject, layerDefinitions, variants, nonBaseSuffixes,

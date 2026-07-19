@@ -4,7 +4,7 @@ import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
@@ -71,7 +71,7 @@ final class VariantIndex {
         @NotNull Map<String, String> textures,
         @NotNull Map<String, String> babyTextures,
         @Nullable String model,
-        @Nullable JsonNode spawnConditions
+        @Nullable JsonTree spawnConditions
     ) {}
 
     private final @NotNull Map<String, List<Variant>> tables;
@@ -174,7 +174,7 @@ final class VariantIndex {
         @NotNull String variantId,
         @NotNull Diagnostics diagnostics
     ) {
-        JsonNode root = cache.readJson(entryPath);
+        JsonTree root = cache.readJson(entryPath);
         if (root == null) return null;
 
         Map<String, String> textures = new LinkedHashMap<>();
@@ -198,10 +198,10 @@ final class VariantIndex {
     }
 
     /** Folds {@code root.<field>}'s string members into {@code out} as texture paths. */
-    private static void collectAssetMap(@NotNull JsonNode root, @NotNull String field, @NotNull Map<String, String> out) {
-        JsonNode map = root.get(field);
+    private static void collectAssetMap(@NotNull JsonTree root, @NotNull String field, @NotNull Map<String, String> out) {
+        JsonTree map = root.get(field);
         if (map == null) return;
-        for (Map.Entry<String, JsonNode> member : map.members()) {
+        for (Map.Entry<String, JsonTree> member : map.members()) {
             String assetId = map.getString(member.getKey());
             if (assetId != null) out.put(member.getKey(), texturePath(assetId));
         }

@@ -2,7 +2,7 @@ package lib.minecraft.renderer.pipeline.loader;
 
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
@@ -37,7 +37,7 @@ public final class BlockGeometryReader {
     static @NotNull Map<String, EntityModelData> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         Map<String, EntityModelData> geometries = new LinkedHashMap<>(document.as(BlockGeometryFile.class).geometries());
-        for (Map.Entry<String, JsonNode> override : overrides.geometries().members())
+        for (Map.Entry<String, JsonTree> override : overrides.geometries().members())
             geometries.put(override.getKey(), override.getValue().as(EntityModelData.class));
         return geometries;
     }

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -37,7 +37,7 @@ final class EntityStateAxisResolver {
      *
      * @return the node, or {@code null} to omit
      */
-    @Nullable JsonNode resolve() {
+    @Nullable JsonTree resolve() {
         List<VariantIndex.Variant> table = this.variants.table(this.subject.localId());
         if (table == null) return null;
 
@@ -57,11 +57,11 @@ final class EntityStateAxisResolver {
             }
         if (dflt == null) dflt = stateKeys.iterator().next();
 
-        JsonNode node = JsonNode.object().put("default", dflt);
-        JsonNode options = node.child("options");
-        options.put(dflt, JsonNode.object());
+        JsonTree node = JsonTree.object().put("default", dflt);
+        JsonTree options = node.child("options");
+        options.put(dflt, JsonTree.object());
         for (String state : stateKeys)
-            if (!state.equals(dflt)) options.put(state, JsonNode.object());
+            if (!state.equals(dflt)) options.put(state, JsonTree.object());
         this.diagnostics.info("state axis: %s, default '%s' [P22]", stateKeys, dflt);
         return node;
     }

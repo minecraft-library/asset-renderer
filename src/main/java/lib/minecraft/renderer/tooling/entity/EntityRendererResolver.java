@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
@@ -85,17 +85,17 @@ final class EntityRendererResolver {
      * and adult texture feed the mandatory age axis' {@code options.adult}, and the overlays
      * resolve ahead of the axes (the shape-axis clone) - the put order is unaffected.
      */
-    @NotNull JsonNode resolve() {
+    @NotNull JsonTree resolve() {
         // The primary geometry is registered FIRST (manifest order) but is not emitted at
         // top level: it moves the model baseline (base geometry + adult texture) into
         // the mandatory age axis' options.adult (EntityAgeAxisResolver).
         String baseGeometry = this.geometryRef.resolve();                               // -> manifest key
         // armor_type is not a top-level member: EntityLayersResolver emits the humanoid
         // classification as a `layers` row derived off the same addLayer roster.
-        JsonNode node = JsonNode.object()
+        JsonTree node = JsonTree.object()
             .put("renderer", this.subject.rendererClass());                             // provenance scalar (resolver-owned)
         String texturePath = this.axes.resolveVariant() == null ? this.texture.resolve() : null;
-        JsonNode overlays = this.overlays.resolve();
+        JsonTree overlays = this.overlays.resolve();
         return node
             .putIf("render", this.renderTraits.resolve())                               // {scale?, yaw_addend?, tint?}
             .putIf("bones", this.bones.resolve())                                       // {hidden?, toggles?}

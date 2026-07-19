@@ -5,7 +5,7 @@ import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -70,12 +70,12 @@ final class EntityShapeAxisResolver {
      * @param overlays the family's resolved {@code overlays} rows to clone, or {@code null}
      * @return the node, or {@code null} to omit
      */
-    @Nullable JsonNode resolve(@Nullable String adultTexture, @Nullable JsonNode overlays) {
+    @Nullable JsonTree resolve(@Nullable String adultTexture, @Nullable JsonTree overlays) {
         if (!"shape".equals(EntityAxisPolicies.shapeSizeAxisFor(this.subject.entityId()))) return null;
         String primaryField = this.geometryRef.primaryFieldName();
         if (primaryField == null) return null;
 
-        JsonNode options = null;
+        JsonTree options = null;
         for (String field : new LinkedHashSet<>(this.geometryRef.tripleSites())) {
             if (field.equals(primaryField)) continue;
             String option = field.substring(field.lastIndexOf('_') + 1).toLowerCase(Locale.ROOT);
@@ -87,10 +87,10 @@ final class EntityShapeAxisResolver {
                 entry.texWidthOverride(), entry.texHeightOverride(),
                 entry.floatParam(), entry.grow(), entry.appliedMeshTransformerScale()));
             String optionTexture = optionClinitTexture(option);
-            JsonNode body = JsonNode.object().put("geometry", key)
+            JsonTree body = JsonTree.object().put("geometry", key)
                 .putIf("texture", optionTexture);
             body.putIf("overlays", cloneOverlays(overlays, key, adultTexture, optionTexture));
-            if (options == null) options = JsonNode.object();
+            if (options == null) options = JsonTree.object();
             options.put(option, body);
             this.diagnostics.info("shape axis: option '%s' mesh ModelLayers.%s -> %s [D2]", option, field, key);
         }
@@ -99,7 +99,7 @@ final class EntityShapeAxisResolver {
             return null;
         }
 
-        JsonNode node = JsonNode.object().put("default", DOMAIN.getFirst());
+        JsonTree node = JsonTree.object().put("default", DOMAIN.getFirst());
         node.put("options", options);
         return node;
     }
@@ -110,8 +110,8 @@ final class EntityShapeAxisResolver {
      * family texture's stem swaps to the option stem when the swapped path exists in the
      * jar; every other member copies verbatim. {@code null} when there is nothing to clone.
      */
-    private @Nullable JsonNode cloneOverlays(
-        @Nullable JsonNode overlays,
+    private @Nullable JsonTree cloneOverlays(
+        @Nullable JsonTree overlays,
         @NotNull String optionKey,
         @Nullable String familyTexture,
         @Nullable String optionTexture
@@ -120,9 +120,9 @@ final class EntityShapeAxisResolver {
         String familyKey = this.geometryRef.primaryKey();
         String familyStem = textureStem(familyTexture);
         String optionStem = textureStem(optionTexture);
-        JsonNode out = null;
-        for (JsonNode row : overlays.elements()) {
-            JsonNode clone = JsonNode.object();
+        JsonTree out = null;
+        for (JsonTree row : overlays.elements()) {
+            JsonTree clone = JsonTree.object();
             for (var member : row.members()) {
                 if ("geometry".equals(member.getKey()) && Objects.equals(row.getString("geometry"), familyKey)) {
                     clone.put("geometry", optionKey);
@@ -140,7 +140,7 @@ final class EntityShapeAxisResolver {
                 }
                 clone.put(member.getKey(), member.getValue());
             }
-            if (out == null) out = JsonNode.array();
+            if (out == null) out = JsonTree.array();
             out.add(clone);
         }
         return out;

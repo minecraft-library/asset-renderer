@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.atlas;
 
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +37,7 @@ class AtlasSidecarTest {
               { "id": "minecraft:oak_sign", "kind": "block", "source": "tile_entity", "col": 1, "row": 0, "x": 64, "y": 0, "width": 64, "height": 64 },
               { "id": "minecraft:apple", "kind": "item", "source": "item_model", "col": 0, "row": 1, "x": 0, "y": 64, "width": 64, "height": 64 } ] }
             """;
-        AtlasSidecar parsed = AtlasSidecar.parse(JsonNode.parse(raw.getBytes(StandardCharsets.UTF_8)));
+        AtlasSidecar parsed = AtlasSidecar.parse(JsonTree.parse(raw.getBytes(StandardCharsets.UTF_8)));
         assertEquals(FIXTURE, parsed);
     }
 

@@ -16,7 +16,7 @@ import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.pack.rule.RuleScanner;
@@ -156,7 +156,7 @@ public final class PackAcquisition {
         // InvalidPathException on resolve, ...) must degrade to no Catharsis overlays, never break the
         // acquisition of this or any other pack (overlays inert, never error).
         try {
-            Optional<JsonNode> mcmeta = readJsonObject(container, "pack.mcmeta");
+            Optional<JsonTree> mcmeta = readJsonObject(container, "pack.mcmeta");
             if (mcmeta.isEmpty()) return;
             CatharsisConfig config = CatharsisOverlays.loadConfig(readJson(container, CONFIG_CATHARSIS), mcmeta.get());
             CatharsisTarget catharsisTarget = new CatharsisTarget(target.major(), minecraftVersion);
@@ -168,16 +168,16 @@ public final class PackAcquisition {
     }
 
     /** Reads and parses a container entry as a JSON object node, empty when absent or malformed (Catharsis never errors). */
-    private static @NotNull Optional<JsonNode> readJsonObject(@NotNull PackContainer container, @NotNull String path) {
-        return readJson(container, path).filter(JsonNode::isObject);
+    private static @NotNull Optional<JsonTree> readJsonObject(@NotNull PackContainer container, @NotNull String path) {
+        return readJson(container, path).filter(JsonTree::isObject);
     }
 
     /** Reads and parses a container entry as a JSON node, empty when absent or malformed. */
-    private static @NotNull Optional<JsonNode> readJson(@NotNull PackContainer container, @NotNull String path) {
+    private static @NotNull Optional<JsonTree> readJson(@NotNull PackContainer container, @NotNull String path) {
         return container.bytes(path).flatMap(bytes -> {
             try {
                 JsonElement parsed = GSON.fromJson(new String(bytes, StandardCharsets.UTF_8), JsonElement.class);
-                return parsed == null ? Optional.empty() : Optional.of(JsonNode.wrap(parsed));
+                return parsed == null ? Optional.empty() : Optional.of(JsonTree.wrap(parsed));
             } catch (JsonSyntaxException ex) {
                 return Optional.empty();
             }
@@ -229,15 +229,15 @@ public final class PackAcquisition {
     }
 
     /** Whether the pack mcmeta carries a {@code catharsis:pack/v1} section or a {@code fabric:overlays} entry gated on a {@code catharsis:*} condition. */
-    private static boolean hasCatharsisMcmetaSignal(@NotNull JsonNode mcmetaRoot) {
+    private static boolean hasCatharsisMcmetaSignal(@NotNull JsonTree mcmetaRoot) {
         if (mcmetaRoot.keys().anyMatch(key -> key.startsWith("catharsis:pack"))) return true;
-        Optional<JsonNode> overlays = mcmetaRoot.findObject("fabric:overlays");
+        Optional<JsonTree> overlays = mcmetaRoot.findObject("fabric:overlays");
         if (overlays.isEmpty()) return false;
-        Optional<JsonNode> entries = overlays.get().findArray("entries");
+        Optional<JsonTree> entries = overlays.get().findArray("entries");
         if (entries.isEmpty()) return false;
-        for (JsonNode entry : entries.get().elements()) {
+        for (JsonTree entry : entries.get().elements()) {
             if (!entry.isObject()) continue;
-            Optional<JsonNode> conditionObj = entry.findObject("condition");
+            Optional<JsonTree> conditionObj = entry.findObject("condition");
             if (conditionObj.isEmpty()) continue;
             String condition = conditionObj.get().getString("condition");
             if (condition != null && condition.startsWith("catharsis:")) return true;

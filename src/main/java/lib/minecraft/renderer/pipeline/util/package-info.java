@@ -10,7 +10,7 @@
  * {@link lib.minecraft.renderer.pipeline.util.ArgbHex} is the one ARGB hex parser with the one
  * white-fallback policy.
  *
- * <p>The read side reuses the tooling {@code JsonNode} and {@code Diagnostics} core rather than
+ * <p>The read side reuses the tooling {@code JsonTree} and {@code Diagnostics} core rather than
  * duplicating it.
  *
  * <p><b>Gson.</b> {@link lib.minecraft.renderer.pipeline.util.PipelineGsonContributor

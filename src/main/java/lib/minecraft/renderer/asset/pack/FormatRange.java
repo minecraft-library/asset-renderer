@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.asset.pack;
 
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -49,7 +49,7 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
      * @return the winning normalized range, or {@link #ANY} when no format key is present
      * @throws PipelineException if a present format key carries a malformed encoding
      */
-    public static @NotNull FormatRange fromPackObject(@NotNull JsonNode pack, @NotNull String packId) {
+    public static @NotNull FormatRange fromPackObject(@NotNull JsonTree pack, @NotNull String packId) {
         if (pack.has("min_format") || pack.has("max_format")) {
             FormatVersion min = pack.has("min_format") ? minBound(pack.get("min_format"), packId) : new FormatVersion(0, 0);
             FormatVersion max = pack.has("max_format")
@@ -75,7 +75,7 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
      * @return the normalized range
      * @throws PipelineException if the encoding is unrecognised or malformed
      */
-    public static @NotNull FormatRange fromFormatsValue(@NotNull JsonNode value, @NotNull String packId) {
+    public static @NotNull FormatRange fromFormatsValue(@NotNull JsonTree value, @NotNull String packId) {
         if (value.intValue().isPresent())
             return new FormatRange(minBound(value, packId), maxBound(value, packId));
 
@@ -95,19 +95,19 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
     }
 
     /** Lower bound of a value: a bare int floors to minor {@code 0}; a {@code [major,minor]} array is exact. */
-    private static @NotNull FormatVersion minBound(@NotNull JsonNode value, @NotNull String packId) {
+    private static @NotNull FormatVersion minBound(@NotNull JsonTree value, @NotNull String packId) {
         if (value.intValue().isPresent()) return new FormatVersion(value.intValue().get(), 0);
         return exactArray(value, packId);
     }
 
     /** Upper bound of a value: a bare int widens to {@link FormatVersion#MAX_MINOR}; an array is exact. */
-    private static @NotNull FormatVersion maxBound(@NotNull JsonNode value, @NotNull String packId) {
+    private static @NotNull FormatVersion maxBound(@NotNull JsonTree value, @NotNull String packId) {
         if (value.intValue().isPresent()) return new FormatVersion(value.intValue().get(), FormatVersion.MAX_MINOR);
         return exactArray(value, packId);
     }
 
     /** Reads an exact {@code [major,minor]} array. */
-    private static @NotNull FormatVersion exactArray(@NotNull JsonNode value, @NotNull String packId) {
+    private static @NotNull FormatVersion exactArray(@NotNull JsonTree value, @NotNull String packId) {
         if (!value.isArray())
             throw new PipelineException("Pack '%s' format bound '%s' is neither an int nor a [major,minor] array", packId, value.toGson());
         if (value.size() != 2)

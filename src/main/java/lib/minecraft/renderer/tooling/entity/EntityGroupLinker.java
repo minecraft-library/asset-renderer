@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -43,10 +43,10 @@ final class EntityGroupLinker {
      * @param variants the data-variant index (the non-root membership bar)
      * @param diagnostics the post-pass scope
      */
-    static void link(@NotNull JsonNode root, @NotNull VariantIndex variants, @NotNull Diagnostics diagnostics) {
-        JsonNode models = root.child("models");
+    static void link(@NotNull JsonTree root, @NotNull VariantIndex variants, @NotNull Diagnostics diagnostics) {
+        JsonTree models = root.child("models");
         Map<String, List<String>> clusters = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonNode> model : models.members()) {
+        for (Map.Entry<String, JsonTree> model : models.members()) {
             String geometry = primaryGeometry(model.getValue());
             if (geometry != null)
                 clusters.computeIfAbsent(geometry, key -> new ArrayList<>()).add(model.getKey());
@@ -95,11 +95,11 @@ final class EntityGroupLinker {
      * (the model baseline), or {@code null} when any node on that path is absent (an unresolvable
      * model links nothing).
      */
-    private static @Nullable String primaryGeometry(@NotNull JsonNode model) {
-        JsonNode axes = model.get("axes");
-        JsonNode age = axes == null ? null : axes.get("age");
-        JsonNode options = age == null ? null : age.get("options");
-        JsonNode adult = options == null ? null : options.get("adult");
+    private static @Nullable String primaryGeometry(@NotNull JsonTree model) {
+        JsonTree axes = model.get("axes");
+        JsonTree age = axes == null ? null : axes.get("age");
+        JsonTree options = age == null ? null : age.get("options");
+        JsonTree adult = options == null ? null : options.get("adult");
         return adult == null ? null : adult.getString("geometry");
     }
 

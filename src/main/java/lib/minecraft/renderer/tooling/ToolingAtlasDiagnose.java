@@ -4,7 +4,7 @@ import lib.minecraft.renderer.tooling.atlas.AtlasScan;
 import lib.minecraft.renderer.tooling.atlas.AtlasSidecar;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import dev.simplified.gson.exception.JsonException;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -71,7 +71,7 @@ public final class ToolingAtlasDiagnose {
 
         AtlasSidecar sidecar;
         try {
-            sidecar = AtlasSidecar.parse(JsonNode.parse(Files.readAllBytes(atlasJson)));
+            sidecar = AtlasSidecar.parse(JsonTree.parse(Files.readAllBytes(atlasJson)));
         } catch (JsonException ex) {
             throw new ToolingException(ex, "Failed to parse atlas sidecar '%s'", atlasJson.toAbsolutePath());
         }
@@ -92,7 +92,7 @@ public final class ToolingAtlasDiagnose {
         int total = sidecar.tiles().size();
         diagnostics.info("slicing %d tiles into %s", total, sliceDir);
 
-        JsonNode flagged = JsonNode.array();
+        JsonTree flagged = JsonTree.array();
         int fully = 0;
         int sparse = 0;
         for (int i = 0; i < total; i++) {
@@ -112,7 +112,7 @@ public final class ToolingAtlasDiagnose {
             if ((i + 1) % PROGRESS_INTERVAL == 0) diagnostics.info("sliced %d/%d", i + 1, total);
         }
 
-        JsonNode report = JsonNode.object()
+        JsonTree report = JsonTree.object()
             .putInt("atlasTileCount", total)
             .putInt("missingCount", fully + sparse)
             .putInt("fullyTransparent", fully)
@@ -144,7 +144,7 @@ public final class ToolingAtlasDiagnose {
         int rows = (matching.size() + columns - 1) / columns;
         BufferedImage mini = new BufferedImage(columns * tileSize, rows * tileSize, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = mini.createGraphics();
-        JsonNode miniTiles = JsonNode.array();
+        JsonTree miniTiles = JsonTree.array();
         List<String> ids = new ArrayList<>(matching.size());
         for (int i = 0; i < matching.size(); i++) {
             AtlasSidecar.Tile tile = matching.get(i);
@@ -158,7 +158,7 @@ public final class ToolingAtlasDiagnose {
         graphics.dispose();
 
         ImageIO.write(mini, "PNG", outDir.resolve("atlas.png").toFile());
-        JsonNode miniRoot = JsonNode.object()
+        JsonTree miniRoot = JsonTree.object()
             .putInt("tileSize", tileSize)
             .putInt("columns", columns)
             .putInt("count", matching.size())
@@ -174,8 +174,8 @@ public final class ToolingAtlasDiagnose {
     }
 
     /** One tile's grid + pixel fields as a JSON object (the flagged / mini-atlas row prefix). */
-    private static @NotNull JsonNode tileJson(@NotNull AtlasSidecar.Tile tile) {
-        return JsonNode.object()
+    private static @NotNull JsonTree tileJson(@NotNull AtlasSidecar.Tile tile) {
+        return JsonTree.object()
             .put("id", tile.id())
             .put("kind", tile.kind())
             .put("source", tile.source())

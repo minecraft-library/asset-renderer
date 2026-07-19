@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling;
 
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonNode;
+import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -33,7 +33,7 @@ public final class ToolingBlockTints {
     public static void main(String[] args) {
         try (ToolingSession session = ToolingPipeline.openSession("blockTints", Diagnostics.Output.CONSOLE)) {
             BlockRegistryIndex index = BlockRegistryIndex.build(session);
-            JsonNode root = session.envelope("BlockColors.createDefault() walk order");
+            JsonTree root = session.envelope("BlockColors.createDefault() walk order");
             TintWalk.run(session, index, root);
             Path out = RESOURCE_DIR.resolve("block_tints.json");
             root.write(out);
