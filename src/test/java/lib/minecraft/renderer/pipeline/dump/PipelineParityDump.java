@@ -6,7 +6,6 @@ import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.AnimationData;
-import lib.minecraft.renderer.asset.ArgbColor;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.Entity;
@@ -69,6 +68,7 @@ import lib.minecraft.renderer.tensor.Vector4f;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -480,7 +480,7 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject tint(@NotNull Block.Tint tint) {
         JsonObject root = new JsonObject();
         root.addProperty("target", tint.target().name());
-        CanonicalJson.put(root, "constant", tint.constant().map(ArgbColor::argb), CanonicalJson::argb);
+        CanonicalJson.put(root, "constant", tint.constant().map(Color::getRGB), CanonicalJson::argb);
         return root;
     }
 
@@ -737,7 +737,7 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject misc(@NotNull PackStack stack) {
         JsonObject root = new JsonObject();
         root.add("block_tints", CanonicalJson.map(BlockTintsLoader.load(), PipelineParityDump::tint));
-        root.add("potion_effect_colors", CanonicalJson.map(PotionColorLoader.load(), color -> CanonicalJson.argb(color.argb())));
+        root.add("potion_effect_colors", CanonicalJson.map(PotionColorLoader.load(), color -> CanonicalJson.argb(color.getRGB())));
         root.add("glint_items", CanonicalJson.strings(GlintItemsLoader.load()));
 
         Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.NONE, null);

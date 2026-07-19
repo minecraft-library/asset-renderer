@@ -29,12 +29,12 @@ class BlockTintsLoaderTest {
     }
 
     @Test
-    @DisplayName("native load decodes a constant tint through the ArgbColor adapter")
+    @DisplayName("native load decodes a constant tint through the Color codec")
     void decodesConstantTint() {
         Block.Tint lilyPad = BlockTintsLoader.load().get("minecraft:lily_pad");
 
         assertEquals(Block.TintTarget.CONSTANT, lilyPad.target());
-        assertEquals(0xFF71C35C, lilyPad.constant().orElseThrow().argb());
+        assertEquals(0xFF71C35C, lilyPad.constant().orElseThrow().getRGB());
     }
 
     @Test

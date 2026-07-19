@@ -124,7 +124,7 @@ public final class PipelineRendererContext implements RendererContext {
         Set<String> glintItems = GlintItemsLoader.load();
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(stack);
         HashMap<String, Integer> potionColors = new HashMap<>();
-        PotionColorLoader.load().forEach((effectId, color) -> potionColors.put(effectId, color.argb()));
+        PotionColorLoader.load().forEach((effectId, color) -> potionColors.put(effectId, color.getRGB()));
         ConcurrentMap<String, Integer> potionEffectColors = Concurrent.adoptMap(potionColors).toUnmodifiable();
         ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(stack);
 

@@ -3,7 +3,6 @@ package lib.minecraft.renderer.pipeline.util;
 import com.google.gson.Gson;
 import dev.simplified.gson.GsonContributor;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.ArgbColor;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -31,7 +30,7 @@ public class PipelineGsonContributor implements GsonContributor {
     /**
      * Registers the shared renderer type adapters on the given builder so asset JSON deserialises
      * into the renderer's value types: the tensor {@link Vector2f} / {@link Vector3f} / {@link Vector4f}
-     * vectors, the {@link ArgbColor} hex-colour, and the {@link ResourceId} {@code namespace:name} id
+     * vectors, the {@link ResourceId} {@code namespace:name} id
      * for scalar id fields (the model-id-dialect {@link ResourceId.ModelIdAdapter} is applied per field
      * with {@code @JsonAdapter}, not globally), the multipart {@link Block.Multipart.When} condition
      * union (its {@code AND} / {@code OR} recursion resolves through the same registration), and the item
@@ -46,7 +45,6 @@ public class PipelineGsonContributor implements GsonContributor {
             .withTypeAdapter(Vector2f.class, new Vector2f.Adapter())
             .withTypeAdapter(Vector3f.class, new Vector3f.Adapter())
             .withTypeAdapter(Vector4f.class, new Vector4f.Adapter())
-            .withTypeAdapter(ArgbColor.class, new ArgbColor.Adapter())
             .withTypeAdapter(ResourceId.class, new ResourceId.Adapter())
             .withTypeAdapter(Block.Multipart.When.class, new MultipartWhenDeserializer())
             .withTypeAdapter(ItemModelNode.class, new ItemModelNodeDeserializer())

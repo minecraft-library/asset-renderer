@@ -8,7 +8,6 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
-import lib.minecraft.renderer.asset.ArgbColor;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -45,6 +44,7 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -140,7 +140,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return ColorMath.WHITE;
 
         if (target == Block.TintTarget.CONSTANT)
-            return block.tint().constant().map(ArgbColor::argb).orElse(ColorMath.WHITE);
+            return block.tint().constant().map(Color::getRGB).orElse(ColorMath.WHITE);
 
         return new Textures(context).sampleBiomeTint(target, biome);
     }

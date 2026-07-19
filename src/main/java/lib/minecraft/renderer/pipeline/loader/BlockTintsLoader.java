@@ -9,6 +9,7 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.Color;
 import java.util.Map;
 
 /**
@@ -24,8 +25,8 @@ import java.util.Map;
  * <p>
  * Each value is a block-keyed {@code {target, constant?}} object that reflects straight into a
  * {@link Block.Tint}: {@code target} resolves by name and {@code constant} decodes through the shared
- * {@link lib.minecraft.renderer.asset.ArgbColor} hex adapter. The {@code source} provenance and the
- * top-level {@code dropped} list stay in the file for humans and are ignored at load.
+ * {@link Color} codec. The {@code source} provenance and the top-level {@code dropped} list stay in
+ * the file for humans and are ignored at load.
  *
  * @see Block.Tint
  */

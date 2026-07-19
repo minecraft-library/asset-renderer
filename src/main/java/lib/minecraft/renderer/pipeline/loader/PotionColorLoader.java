@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.pipeline.loader;
 
-import lib.minecraft.renderer.asset.ArgbColor;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;
@@ -9,6 +8,7 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.Color;
 import java.util.Map;
 
 /**
@@ -21,8 +21,8 @@ import java.util.Map;
  * {@code potionColors} Gradle task; the runtime pipeline never invokes the ASM walker directly.
  * <p>
  * Colours are stored as {@code 0x}-prefixed hex strings in an effect-keyed object because Gson cannot
- * round-trip {@code 0xFF000000}-class signed integers literally; each value reflects straight into an
- * {@link ArgbColor} through its shared hex adapter.
+ * round-trip {@code 0xFF000000}-class signed integers literally; each value reflects straight into a
+ * {@link Color} through the shared codec.
  */
 @UtilityClass
 public class PotionColorLoader {
@@ -38,24 +38,24 @@ public class PotionColorLoader {
      * @return a map of namespaced effect id to ARGB colour
      * @throws PipelineException if the classpath resource is missing or malformed
      */
-    public static @NotNull Map<String, ArgbColor> load() {
+    public static @NotNull Map<String, Color> load() {
         return loadNative(Diagnostics.root("potionColors", Diagnostics.Output.CONSOLE, null));
     }
 
     /**
      * Reads the effect colour table from {@code potion_colors.json} natively through the shared
-     * read layer, decoding each value through the {@link ArgbColor} adapter. Exposed for tests.
+     * read layer, decoding each value through the {@link Color} codec. Exposed for tests.
      *
      * @param diagnostics the scope envelope warnings are recorded to
      * @return a map of namespaced effect id to ARGB colour
      * @throws PipelineException if the resource is missing or malformed
      */
-    static @NotNull Map<String, ArgbColor> loadNative(@NotNull Diagnostics diagnostics) {
+    static @NotNull Map<String, Color> loadNative(@NotNull Diagnostics diagnostics) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         return document.as(PotionColorTable.class).effects();
     }
 
     /** The {@code potion_colors.json} payload: the effect-keyed colour map. */
-    private record PotionColorTable(@NotNull Map<String, ArgbColor> effects) {}
+    private record PotionColorTable(@NotNull Map<String, Color> effects) {}
 
 }

@@ -7,7 +7,6 @@ import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.AnimationData;
-import lib.minecraft.renderer.asset.ArgbColor;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ColorMap;
@@ -38,6 +37,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -131,7 +131,7 @@ class PipelineRendererContextTest {
         blockTints = Concurrent.newMap();
         blockTints.put("minecraft:grass_block", new Block.Tint(Block.TintTarget.GRASS, Optional.empty()));
         blockTints.put("minecraft:oak_leaves", new Block.Tint(Block.TintTarget.FOLIAGE, Optional.empty()));
-        blockTints.put("minecraft:spruce_leaves", new Block.Tint(Block.TintTarget.CONSTANT, Optional.of(new ArgbColor(0xFF619961))));
+        blockTints.put("minecraft:spruce_leaves", new Block.Tint(Block.TintTarget.CONSTANT, Optional.of(new Color(0xFF619961, true))));
 
         // Synthetic model maps. Each model references the fixture texture so resolveTexture
         // has a meaningful lookup target. Gson is used in place of reflective setters because
@@ -442,7 +442,7 @@ class PipelineRendererContextTest {
         Block spruceLeaves = context.findBlock("minecraft:spruce_leaves").orElseThrow();
         assertThat(spruceLeaves.tint().target(), equalTo(Block.TintTarget.CONSTANT));
         assertThat(spruceLeaves.tint().constant().isPresent(), is(true));
-        assertThat(spruceLeaves.tint().constant().get().argb(), equalTo(0xFF619961));
+        assertThat(spruceLeaves.tint().constant().get().getRGB(), equalTo(0xFF619961));
     }
 
     @Test

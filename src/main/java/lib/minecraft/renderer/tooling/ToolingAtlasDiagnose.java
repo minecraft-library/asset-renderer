@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling;
 import lib.minecraft.renderer.tooling.atlas.AtlasScan;
 import lib.minecraft.renderer.tooling.atlas.AtlasSidecar;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.json.JsonException;
+import dev.simplified.gson.exception.JsonException;
 import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;

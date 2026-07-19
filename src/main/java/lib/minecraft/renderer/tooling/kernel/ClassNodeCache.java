@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.kernel;
 
-import lib.minecraft.renderer.json.JsonException;
+import dev.simplified.gson.exception.JsonException;
 import lib.minecraft.renderer.json.JsonNode;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

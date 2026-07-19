@@ -3,7 +3,7 @@ package lib.minecraft.renderer.pipeline.util;
 import com.google.gson.Gson;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.json.JsonException;
+import dev.simplified.gson.exception.JsonException;
 import lib.minecraft.renderer.json.JsonNode;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.AccessLevel;

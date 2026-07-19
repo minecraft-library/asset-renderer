@@ -13,6 +13,7 @@ import lib.minecraft.renderer.tensor.Matrix4f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.awt.Color;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -187,7 +188,7 @@ public record Block(
      * @param constant the hardcoded ARGB value, present only when {@code target} is
      *     {@link TintTarget#CONSTANT CONSTANT} and empty otherwise
      */
-    public record Tint(@NotNull TintTarget target, @NotNull Optional<ArgbColor> constant) {
+    public record Tint(@NotNull TintTarget target, @NotNull Optional<Color> constant) {
 
         /** Normalises an absent {@code constant} (a colormap-target tint, or a Gson-omitted member) to empty. */
         public Tint {

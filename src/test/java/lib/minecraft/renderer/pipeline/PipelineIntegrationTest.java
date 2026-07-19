@@ -187,7 +187,7 @@ class PipelineIntegrationTest {
         System.out.println("Loaded " + tints.size() + " Block.Tint entries from block_tints.json:");
         tints.forEach((blockId, tint) -> {
             String constant = tint.constant()
-                .map(v -> String.format(" 0x%08X", v.argb()))
+                .map(v -> String.format(" 0x%08X", v.getRGB()))
                 .orElse("");
             System.out.println("  " + blockId + " -> " + tint.target() + constant);
         });
@@ -206,7 +206,7 @@ class PipelineIntegrationTest {
         assertThat(spruceLeaves, is(notNullValue()));
         assertThat(spruceLeaves.target(), equalTo(Block.TintTarget.CONSTANT));
         assertThat(spruceLeaves.constant().isPresent(), is(true));
-        assertThat("spruce constant ARGB", spruceLeaves.constant().get().argb(), equalTo(0xFF619961));
+        assertThat("spruce constant ARGB", spruceLeaves.constant().get().getRGB(), equalTo(0xFF619961));
 
         var leafLitter = tints.get("minecraft:leaf_litter");
         assertThat(leafLitter, is(notNullValue()));
