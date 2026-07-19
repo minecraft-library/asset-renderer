@@ -3,6 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -40,12 +41,14 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.SixFaces;
+import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.slot.ItemSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -60,8 +63,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Renders an {@link Item} as either a flat 2D GUI icon or a held 3D view by dispatching to one
- * of two sub-renderers based on {@link ItemOptions#getType()}.
+ * Renders an {@link Item} as a flat 2D GUI icon, a held 3D view, or the faithful inventory icon by
+ * dispatching on {@link ItemOptions#getType()}.
  * <p>
  * Each sub-renderer is a {@code public static final} inner class implementing
  * {@link Renderer Renderer&lt;ItemOptions&gt;}:
@@ -75,9 +78,13 @@ import java.util.Optional;
  * build real cubes via {@link BlockGeometryKit#buildFromElements}, flat sprite items composite
  * their tinted layer stack onto a thin textured slab. Both paths route through
  * {@link ModelEngine} with the item model's {@code thirdperson_righthand} display transform applied.</li>
+ * <li>{@link GuiIcon} renders the faithful inventory icon by index membership: an id with a flat
+ * item entry through {@link Gui2D}, a block-backed id with no flat icon (plain blocks and
+ * block-entities alike) through the isometric {@link BlockRenderer}. It adds no rendering of its own -
+ * both branches reuse an existing renderer.</li>
  * </ul>
  * Shared item lookup, the glint-finalization tail, and the per-layer tint resolution live as
- * package-private static helpers on this class so both sub-renderers can reach them without
+ * package-private static helpers on this class so the sub-renderers can reach them without
  * duplicating logic.
  */
 public final class ItemRenderer implements Renderer<ItemOptions> {
@@ -93,18 +100,24 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     private final @NotNull Held3D held3D;
 
     /**
-     * Constructs a new {@code ItemRenderer} bound to the given renderer context, eagerly building
-     * both sub-renderers so each {@link #render} call is a plain dispatch.
+     * The faithful inventory-icon sub-renderer ({@link ItemOptions.Type#GUI_ICON}).
+     */
+    private final @NotNull GuiIcon guiIcon;
+
+    /**
+     * Constructs a new {@code ItemRenderer} bound to the given renderer context, eagerly building the
+     * three sub-renderers so each {@link #render} call is a plain dispatch.
      *
      * @param context the renderer context supplying pack / model / texture lookups
      */
     public ItemRenderer(@NotNull RendererContext context) {
         this.gui2D = new Gui2D(context);
         this.held3D = new Held3D(context);
+        this.guiIcon = new GuiIcon(context, this.gui2D);
     }
 
     /**
-     * Dispatches to the {@link Gui2D} or {@link Held3D} sub-renderer keyed by
+     * Dispatches to the {@link Gui2D}, {@link Held3D}, or {@link GuiIcon} sub-renderer keyed by
      * {@link ItemOptions#getType()}, then composites the result over the options'
      * {@link ItemOptions#getBackground() background}.
      *
@@ -116,6 +129,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         ImageData rendered = switch (options.getType()) {
             case GUI_2D -> this.gui2D.render(options);
             case HELD_3D -> this.held3D.render(options);
+            case GUI_ICON -> this.guiIcon.render(options);
         };
         return options.getBackground().composite(rendered);
     }
@@ -357,7 +371,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Renders the plain {@code minecraft:shield} item as its vanilla 3D {@code ShieldModel} into
-     * {@code buffer}. Mirrors the block-icon path ({@link lib.minecraft.renderer.BlockRenderer}'s
+     * {@code buffer}. Mirrors the block-icon path ({@link BlockRenderer}'s
      * {@code Isometric3D}): {@link ShieldKit} builds the plate + handle geometry, the
      * {@code display.gui} pose drives a {@code T * R * S} model transform (translation, then the
      * {@code [15, -25, -5]} rotation, then the {@code 0.65} scale - vanilla's
@@ -794,6 +808,94 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     transform.getTranslationY() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
                     transform.getTranslationZ() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK
                 );
+        }
+
+    }
+
+    /**
+     * Faithful inventory-icon renderer ({@link ItemOptions.Type#GUI_ICON}): the representation a GUI
+     * slot shows, routed by index membership rather than rendered anew. An id with a flat item entry
+     * renders through the shared {@link Gui2D} path unchanged; an id absent from the item index but
+     * backing a block (plain blocks and block-entities alike) renders through the isometric
+     * {@link BlockRenderer}, which already distinguishes a plain block model from a
+     * {@code BlockEntityRenderer} pose; an id backing neither raises {@link RenderException}.
+     * <p>
+     * The mode adds no rendering of its own - both branches reuse an existing renderer - so a
+     * flat-sprite icon is byte-identical to {@link ItemOptions.Type#GUI_2D} and a block-backed icon to
+     * the isometric block render at the same output frame.
+     */
+    public static final class GuiIcon implements Renderer<ItemOptions> {
+
+        /**
+         * Renderer context supplying the item / block index lookups that pick the branch.
+         */
+        private final @NotNull RendererContext context;
+
+        /**
+         * The shared flat 2D sub-renderer the flat-sprite branch delegates to.
+         */
+        private final @NotNull Gui2D gui2D;
+
+        /**
+         * The isometric block renderer the block / block-entity branch delegates to, built from the
+         * shared context.
+         */
+        private final @NotNull BlockRenderer blockRenderer;
+
+        /**
+         * Constructs the faithful-icon sub-renderer, reusing the owning {@link ItemRenderer}'s flat 2D
+         * sub-renderer and building an isometric {@link BlockRenderer} from the shared context.
+         *
+         * @param context the renderer context supplying pack / model / texture lookups
+         * @param gui2D the shared flat 2D GUI icon sub-renderer
+         */
+        public GuiIcon(@NotNull RendererContext context, @NotNull Gui2D gui2D) {
+            this.context = context;
+            this.gui2D = gui2D;
+            this.blockRenderer = new BlockRenderer(context);
+        }
+
+        /**
+         * Renders the faithful inventory icon: the {@link Gui2D} flat sprite for an item-index id,
+         * else the isometric {@link BlockRenderer} for a block-backed id. The block delegate renders
+         * on a transparent background so {@link ItemRenderer#render} composites the caller's own
+         * background exactly once.
+         *
+         * @param options the item render options
+         * @return the faithful inventory icon, before the shared background composite
+         */
+        @Override
+        public @NotNull ImageData render(@NotNull ItemOptions options) {
+            if (this.context.findItem(options.getItemId()).isPresent())
+                return this.gui2D.render(options);
+            if (this.context.findBlock(options.getItemId()).isPresent())
+                return this.blockRenderer.render(adaptToBlock(options));
+            throw new RenderException("No item or block registered for id '%s'", options.getItemId());
+        }
+
+        /**
+         * Adapts item options into the {@link BlockOptions} the block branch renders: the output size
+         * and anti-aliasing knobs carried onto the neutral iso output frame (default projection /
+         * facing / rotation) so the block honours its authored {@code display.gui} pose - the vanilla
+         * inventory look - rather than the item icon's {@code VANILLA_GUI_ITEM} projection. Renders on
+         * a transparent background so the caller composites its own background once.
+         *
+         * @param options the item render options
+         * @return the block options for the isometric block render
+         */
+        private static @NotNull BlockOptions adaptToBlock(@NotNull ItemOptions options) {
+            OutputOptions itemOutput = options.getOutput();
+            return BlockOptions.builder()
+                .blockId(options.getItemId())
+                .type(BlockOptions.Type.ISOMETRIC_3D)
+                .output(OutputOptions.builder()
+                    .canvasSize(itemOutput.getCanvasSize())
+                    .supersample(itemOutput.getSupersample())
+                    .antiAlias(itemOutput.isAntiAlias())
+                    .build())
+                .animation(options.getAnimation())
+                .background(Background.TRANSPARENT)
+                .build();
         }
 
     }

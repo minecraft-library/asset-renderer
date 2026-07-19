@@ -192,7 +192,15 @@ public class ItemOptions implements RenderOptions {
         /**
          * 2D flat GUI inventory icon.
          */
-        GUI_2D
+        GUI_2D,
+
+        /**
+         * Faithful inventory icon - the representation a GUI slot shows, auto-selected per id: a flat
+         * {@code item/generated} sprite (through the {@link #GUI_2D} path), a 3D block icon, or a
+         * block-entity render (both through the isometric block renderer). Lets a caller request the
+         * vanilla inventory look without choosing the geometry mode.
+         */
+        GUI_ICON
 
     }
 
