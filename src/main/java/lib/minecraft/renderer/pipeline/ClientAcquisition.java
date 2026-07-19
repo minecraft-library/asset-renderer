@@ -4,6 +4,7 @@ import api.simplified.mojang.MojangContract;
 import api.simplified.mojang.exception.MojangApiException;
 import api.simplified.mojang.response.PistonMetadata;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
@@ -207,8 +208,12 @@ public class ClientAcquisition {
 
     /**
      * Writes a minimal {@code pack.mcmeta} to {@code packRoot} from the supplied
-     * {@code version.json} bytes - reads {@code pack_version.resource_major} for the
-     * {@code pack_format} and the {@code name} field for a human-readable description.
+     * {@code version.json} bytes - reads {@code pack_version.resource_major} and {@code resource_minor}
+     * into a {@code min_format} / {@code max_format} range mirroring vanilla's builtin pack
+     * ({@code PackFormat.minorRange}): {@code min_format} is the exact {@code [major, minor]} so the
+     * resolved renderer target carries the full {@code major.minor} (a bare {@code pack_format} int
+     * would floor the minor to {@code 0}), and {@code max_format} is the bare major, widening to that
+     * major's highest minor. The {@code name} field supplies a human-readable description.
      * No-op when the JSON is malformed or missing the required keys - downstream
      * {@code PackAcquisition.acquire} will then read an empty {@code MCMeta} for the vanilla pack.
      * <p>
@@ -231,27 +236,34 @@ public class ClientAcquisition {
         if (versionJson == null || !versionJson.has("pack_version") || !versionJson.get("pack_version").isJsonObject()) return;
         JsonObject packVersion = versionJson.getAsJsonObject("pack_version");
 
-        // Modern jars (26.1+) use {resource_major, resource_minor, data_major, data_minor};
-        // legacy jars (verified on 1.21.4) use the flat {resource, data} shape. Prefer the
+        // Modern jars (26.1+) use {resource_major, resource_minor, data_major, data_minor}; legacy
+        // jars (verified on 1.21.4) use the flat {resource, data} shape with no minor. Prefer the
         // newer key when both are present.
-        JsonElement formatElement;
-        if (packVersion.has("resource_major")) formatElement = packVersion.get("resource_major");
-        else if (packVersion.has("resource")) formatElement = packVersion.get("resource");
+        JsonElement majorElement;
+        if (packVersion.has("resource_major")) majorElement = packVersion.get("resource_major");
+        else if (packVersion.has("resource")) majorElement = packVersion.get("resource");
         else return;
 
-        int packFormat;
+        int major;
         try {
-            packFormat = formatElement.getAsInt();
+            major = majorElement.getAsInt();
         } catch (UnsupportedOperationException | IllegalStateException ex) {
             return;
         }
+        int minor = readMinor(packVersion);
 
         String name = versionJson.has("name") && versionJson.get("name").isJsonPrimitive()
             ? versionJson.get("name").getAsString()
             : "vanilla";
 
+        // Mirror vanilla's builtin pack metadata (PackFormat.minorRange): min_format is the exact
+        // current version (major.minor) - the value the renderer target resolves against, matching the
+        // client's getPackVersion() used for overlay activation - and max_format is the bare major,
+        // widening to that major's highest minor. For 26.1 (minor 0) this is (84.0)..(84.MAX), the same
+        // range a bare pack_format: 84 already produced.
         JsonObject pack = new JsonObject();
-        pack.addProperty("pack_format", packFormat);
+        pack.add("min_format", formatArray(major, minor));
+        pack.addProperty("max_format", major);
         pack.addProperty("description", "Minecraft " + name + " vanilla resources (synthesised by asset-renderer Pipeline.extractClientJar)");
         JsonObject mcmeta = new JsonObject();
         mcmeta.add("pack", pack);
@@ -259,6 +271,25 @@ public class ClientAcquisition {
         Path destination = packRoot.resolve("pack.mcmeta");
         Files.createDirectories(packRoot);
         Files.writeString(destination, MCMETA_GSON.toJson(mcmeta));
+    }
+
+    /** Builds a {@code [major, minor]} pack-format array for the {@code min_format} key. */
+    private static @NotNull JsonArray formatArray(int major, int minor) {
+        JsonArray array = new JsonArray();
+        array.add(major);
+        array.add(minor);
+        return array;
+    }
+
+    /** The {@code resource_minor} from a modern {@code pack_version}, or {@code 0} for legacy flat shapes, absent, or non-numeric values. */
+    private static int readMinor(@NotNull JsonObject packVersion) {
+        JsonElement minor = packVersion.get("resource_minor");
+        if (minor == null || !minor.isJsonPrimitive()) return 0;
+        try {
+            return minor.getAsInt();
+        } catch (UnsupportedOperationException | IllegalStateException ex) {
+            return 0;
+        }
     }
 
 }

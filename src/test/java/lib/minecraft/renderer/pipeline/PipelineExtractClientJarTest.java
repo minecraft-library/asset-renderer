@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.ResourceId;
 import org.junit.jupiter.api.DisplayName;
@@ -71,11 +72,48 @@ class PipelineExtractClientJarTest {
         assertThat(Files.isRegularFile(mcmeta), is(true));
         MCMeta parsed = MCMeta.parse(Files.readString(mcmeta), new ResourceId("vanilla", "pack"));
         assertThat(parsed.pack().orElseThrow().formats().min().major(), is(84));
+        assertThat(parsed.pack().orElseThrow().formats().min().minor(), is(0));
         assertThat(parsed.pack().orElseThrow().description().plain(), containsString("Test Pack"));
         assertThat(Files.isRegularFile(packRoot.resolve("assets/minecraft/textures/block/stone.png")), is(true));
 
         // version.json is captured in memory for synthesis - it must NOT be extracted to disk.
         assertThat(Files.exists(packRoot.resolve("version.json")), is(false));
+    }
+
+    @Test
+    @DisplayName("Captures resource_minor into min_format; max_format widens to the major's minorRange ceiling")
+    void capturesResourceMinorIntoFormatRange(@TempDir Path tempDir) throws IOException {
+        Path jarPath = tempDir.resolve("client.jar");
+        Path packRoot = tempDir.resolve("pack");
+
+        writeZip(jarPath, zip -> {
+            zip.putNextEntry(new ZipEntry("version.json"));
+            zip.write(json(o -> {
+                o.addProperty("name", "future");
+                JsonObject pv = new JsonObject();
+                pv.addProperty("resource_major", 84);
+                pv.addProperty("resource_minor", 3);
+                o.add("pack_version", pv);
+            }).getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+
+            zip.putNextEntry(new ZipEntry("assets/minecraft/textures/block/stone.png"));
+            zip.write(new byte[]{1, 2, 3});
+            zip.closeEntry();
+        });
+
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
+
+        // The resolved renderer target is formats().min(); it must carry the full major.minor (matching
+        // vanilla's getPackVersion), while max widens to the major's highest minor - vanilla's builtin
+        // pack range PackFormat.minorRange = [(major, minor), (major, MAX)]. A bare pack_format int would
+        // have floored the minor to 0.
+        FormatRange formats = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"))
+            .pack().orElseThrow().formats();
+        assertThat(formats.min().major(), is(84));
+        assertThat(formats.min().minor(), is(3));
+        assertThat(formats.max().major(), is(84));
+        assertThat(formats.max().minor(), is(FormatRange.FormatVersion.MAX_MINOR));
     }
 
     @Test
