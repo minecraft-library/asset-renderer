@@ -14,10 +14,10 @@ import java.util.Optional;
 /**
  * The Catharsis config-option defaults an overlay's {@code catharsis:config} condition evaluates
  * against. A Catharsis pack declares its options in a root
- * {@code config.catharsis.json} (which fully overrides any {@code catharsis:pack/v1.config} in the
- * mcmeta) as a menu tree of {@code boolean} / {@code dropdown} / {@code tab} / {@code separator}
- * elements. A headless renderer has no user config store, so each option's declared {@code default} is
- * the baseline.
+ * {@code config.catharsis.json} (which replaces any {@code catharsis:pack/v1.config} in the mcmeta
+ * wholesale when it declares options) as a menu tree of {@code boolean} / {@code dropdown} /
+ * {@code tab} / {@code separator} elements. A headless renderer has no user config store, so each
+ * option's declared {@code default} is the baseline.
  *
  * <p>The parse is intentionally structure-tolerant: it walks the whole JSON tree and registers any
  * object carrying a string {@code id}, reading its default from a primitive {@code default} (boolean

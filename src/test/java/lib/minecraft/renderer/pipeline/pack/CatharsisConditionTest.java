@@ -20,8 +20,10 @@ import static org.hamcrest.Matchers.is;
 /**
  * Verifies the Catharsis overlay-activation evaluator: {@code catharsis:config} against
  * boolean and dropdown defaults, {@code catharsis:version} against the pack format and Minecraft
- * version, unknown-namespace degradation to false, the {@code config.catharsis.json}-overrides-mcmeta
- * precedence, and {@link CatharsisOverlays#activeOverlayDirectories} over a {@code fabric:overlays} block.
+ * version, unknown-namespace degradation to false, the {@code config.catharsis.json}-replaces-mcmeta
+ * precedence (including the fall-back when the file declares no options), and
+ * {@link CatharsisOverlays#activeOverlayDirectories} over a {@code fabric:overlays} block, preserving
+ * entry order so the last-declared active overlay wins an overlapping path.
  */
 class CatharsisConditionTest {
 
@@ -111,6 +113,18 @@ class CatharsisConditionTest {
     }
 
     @Test
+    @DisplayName("a config.catharsis.json that declares no option falls back to the mcmeta config")
+    void emptyConfigFileFallsBackToMcmeta() {
+        // Matching Catharsis (options?.takeUnless(isEmpty) ?: meta.config): the root file wins only when
+        // it contributes an option default; a present-but-empty file must not shadow the mcmeta config.
+        JsonTree emptyFile = JsonTree.wrap(GSON.fromJson("[]", JsonElement.class));
+        JsonTree mcmeta = obj("{\"catharsis:pack/v1\":{\"config\":[{\"type\":\"boolean\",\"id\":\"block.ore\",\"default\":true}]}}");
+
+        CatharsisConfig resolved = CatharsisOverlays.loadConfig(Optional.of(emptyFile), mcmeta);
+        assertThat(resolved.matches("block.ore", Optional.empty()), is(true)); // mcmeta default true, not the empty file
+    }
+
+    @Test
     @DisplayName("activeOverlayDirectories keeps entry order and skips failing / condition-less entries")
     void activeOverlays() {
         JsonTree mcmeta = obj("{\"fabric:overlays\":{\"entries\":["
@@ -123,6 +137,22 @@ class CatharsisConditionTest {
 
         List<String> active = CatharsisOverlays.activeOverlayDirectories(mcmeta, config, TARGET);
         assertThat(active, contains("block_ore"));
+    }
+
+    @Test
+    @DisplayName("activeOverlayDirectories keeps entry order so the last-declared active overlay wins")
+    void activeOverlaysEntryOrderLastWins() {
+        // fabric:overlays entries are applied in listed order (Fabric appends entries forward; vanilla
+        // CompositePackResources then reverses once so the last entry is highest priority). The returned
+        // list must keep declaration order - the pack layer stacks it base-first, last root winning, so
+        // the later entry (theme_dark) outranks the earlier (block_ore) on an overlapping path.
+        JsonTree mcmeta = obj("{\"fabric:overlays\":{\"entries\":["
+            + "{\"directory\":\"block_ore\",\"condition\":{\"condition\":\"catharsis:config\",\"id\":\"block.ore\",\"value\":\"on\"}},"
+            + "{\"directory\":\"theme_dark\",\"condition\":{\"condition\":\"catharsis:config\",\"id\":\"theme.dark\",\"value\":\"on\"}}]}}");
+        CatharsisConfig config = config("[{\"type\":\"boolean\",\"id\":\"block.ore\",\"default\":true},"
+            + "{\"type\":\"boolean\",\"id\":\"theme.dark\",\"default\":true}]");
+
+        assertThat(CatharsisOverlays.activeOverlayDirectories(mcmeta, config, TARGET), contains("block_ore", "theme_dark"));
     }
 
     @Test

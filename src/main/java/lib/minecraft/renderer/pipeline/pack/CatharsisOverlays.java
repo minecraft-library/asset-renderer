@@ -57,17 +57,20 @@ public class CatharsisOverlays {
     }
 
     /**
-     * Resolves the config-option defaults for a pack: the root {@code config.catharsis.json} fully
-     * overrides any {@code catharsis:pack/v1.config} in the mcmeta (treated as full
-     * replacement - the merge-vs-replace detail is untested upstream). Empty when neither is present.
+     * Resolves the config-option defaults for a pack. This is a whole-source replacement, not a
+     * per-key merge, matching the Catharsis mod: the root {@code config.catharsis.json} wins outright
+     * when it contributes at least one option default, and only when it is absent or contributes none
+     * does the {@code catharsis:pack/v1.config} block in the mcmeta supply the defaults. Empty when
+     * neither carries an option.
      *
      * @param configFile the parsed {@code config.catharsis.json} JSON, if the pack ships one
      * @param mcmetaRoot the pack mcmeta JSON root, carrying the fallback {@code catharsis:pack/v1.config}
      * @return the resolved config defaults
      */
     public static @NotNull CatharsisConfig loadConfig(@NotNull Optional<JsonTree> configFile, @NotNull JsonTree mcmetaRoot) {
-        if (configFile.isPresent()) return CatharsisConfig.parse(configFile.get());
-        return mcmetaConfig(mcmetaRoot).map(CatharsisConfig::parse).orElse(CatharsisConfig.EMPTY);
+        return configFile.map(CatharsisConfig::parse)
+            .filter(config -> !config.isEmpty())
+            .orElseGet(() -> mcmetaConfig(mcmetaRoot).map(CatharsisConfig::parse).orElse(CatharsisConfig.EMPTY));
     }
 
     private static @NotNull Optional<JsonTree> mcmetaConfig(@NotNull JsonTree mcmetaRoot) {
