@@ -110,7 +110,7 @@ public class LegacyOverrideMapper {
         // first-appearance order of groups. A file is almost always one group (all custom_model_data,
         // or all pulling/pull); multiple groups fold safely below.
         LinkedHashMap<TreeMap<String, Boolean>, List<MappedOverride>> groups = new LinkedHashMap<>();
-        for (JsonTree element : overrides.elements()) {
+        for (JsonTree element : overrides.elements().toList()) {
             if (!element.isObject()) continue;
             MappedOverride mapped = parseOverride(element, itemId, namespace, packId);
             if (mapped == null) continue;
@@ -148,7 +148,7 @@ public class LegacyOverrideMapper {
 
         TreeMap<String, Boolean> gates = new TreeMap<>();
         RangeConstraint range = null;
-        for (Map.Entry<String, JsonTree> entry : predicate.members()) {
+        for (Map.Entry<String, JsonTree> entry : predicate.members().toList()) {
             String key = entry.getKey();
             Optional<Float> parsed = predicate.findFloat(key);
             if (parsed.isEmpty()) {

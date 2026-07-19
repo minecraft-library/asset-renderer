@@ -351,13 +351,13 @@ final class EntityBoneResolver {
         GeometryRequest request = this.geometryRef.registeredRequest();
         if (request == null) return;
         JsonTree parsed = GeometryParser.parse(this.cache, request, this.diagnostics.child("toggle-expansion"));
-        JsonTree bones = parsed == null ? null : parsed.get("bones");
+        JsonTree bones = parsed == null ? null : parsed.find("bones").orElse(null);
         if (bones == null) return;
 
         // name -> parent, insertion order preserved.
         Map<String, String> parents = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonTree> bone : bones.members())
-            parents.put(bone.getKey(), bone.getValue().getString("parent"));
+        for (Map.Entry<String, JsonTree> bone : bones.members().toList())
+            parents.put(bone.getKey(), bone.getValue().findString("parent").orElse(null));
 
         for (Map.Entry<String, Toggle> entry : toggles.entrySet()) {
             LinkedHashSet<String> members = new LinkedHashSet<>(entry.getValue().bones());

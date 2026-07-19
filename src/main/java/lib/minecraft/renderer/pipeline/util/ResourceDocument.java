@@ -63,12 +63,12 @@ public final class ResourceDocument {
         if (format != EXPECTED_FORMAT)
             throw new PipelineException("Resource declares format '%d', expected '%d'", format, EXPECTED_FORMAT);
 
-        @Nullable String sourceVersion = payload.getString("source_version");
+        @Nullable String sourceVersion = payload.findString("source_version").orElse(null);
         if (!EXPECTED_SOURCE_VERSION.equals(sourceVersion))
             diagnostics.warn("Resource source_version '%s' does not match expected '%s'", sourceVersion, EXPECTED_SOURCE_VERSION);
 
         return new ResourceDocument(payload,
-            new ResourceEnvelope(Optional.ofNullable(payload.getString("//")), format, Optional.ofNullable(sourceVersion)));
+            new ResourceEnvelope(Optional.ofNullable(payload.findString("//").orElse(null)), format, Optional.ofNullable(sourceVersion)));
     }
 
     /**

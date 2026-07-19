@@ -88,7 +88,7 @@ final class BlockGuiResolver {
     private @Nullable Float resolveRoll(@NotNull String localId) {
         JsonTree item = this.cache.readJson(VanillaSourceClasses.Paths.ITEM_MODEL_DIR + localId + VanillaSourceClasses.Paths.JSON_SUFFIX);
         if (item == null) return null;
-        String modelRef = resolveModelRef(item.get(VanillaSourceClasses.DataKeys.MODEL));
+        String modelRef = resolveModelRef(item.find(VanillaSourceClasses.DataKeys.MODEL).orElse(null));
         return modelRef == null ? null : readDisplayGuiRoll(modelRef);
     }
 
@@ -100,12 +100,12 @@ final class BlockGuiResolver {
      */
     private @Nullable String resolveModelRef(@Nullable JsonTree component) {
         if (component == null) return null;
-        String type = component.getString(VanillaSourceClasses.DataKeys.TYPE);
+        String type = component.findString(VanillaSourceClasses.DataKeys.TYPE).orElse(null);
         if (type == null) return null;
         return switch (type) {
-            case VanillaSourceClasses.DataKeys.MODEL_COMPONENT -> component.getString(VanillaSourceClasses.DataKeys.MODEL);
-            case VanillaSourceClasses.DataKeys.SPECIAL_COMPONENT -> component.getString(VanillaSourceClasses.DataKeys.BASE);
-            case VanillaSourceClasses.DataKeys.SELECT_COMPONENT -> resolveModelRef(component.get(VanillaSourceClasses.DataKeys.FALLBACK));
+            case VanillaSourceClasses.DataKeys.MODEL_COMPONENT -> component.findString(VanillaSourceClasses.DataKeys.MODEL).orElse(null);
+            case VanillaSourceClasses.DataKeys.SPECIAL_COMPONENT -> component.findString(VanillaSourceClasses.DataKeys.BASE).orElse(null);
+            case VanillaSourceClasses.DataKeys.SELECT_COMPONENT -> resolveModelRef(component.find(VanillaSourceClasses.DataKeys.FALLBACK).orElse(null));
             default -> null;
         };
     }
@@ -116,12 +116,12 @@ final class BlockGuiResolver {
         for (int depth = 0; depth < MAX_MODEL_PARENT_DEPTH; depth++) {
             JsonTree model = this.cache.readJson(VanillaSourceClasses.Paths.MODEL_DIR + path + VanillaSourceClasses.Paths.JSON_SUFFIX);
             if (model == null) return null;
-            JsonTree display = model.get(VanillaSourceClasses.DataKeys.DISPLAY);
-            JsonTree gui = display == null ? null : display.get(VanillaSourceClasses.DataKeys.GUI);
-            JsonTree rotation = gui == null ? null : gui.get(VanillaSourceClasses.DataKeys.ROTATION);
-            JsonTree roll = rotation == null ? null : rotation.at(2);   // [pitch, yaw, roll]
-            if (roll != null) return roll.floatValue(0f);
-            String parent = model.getString(VanillaSourceClasses.DataKeys.PARENT);
+            JsonTree display = model.find(VanillaSourceClasses.DataKeys.DISPLAY).orElse(null);
+            JsonTree gui = display == null ? null : display.find(VanillaSourceClasses.DataKeys.GUI).orElse(null);
+            JsonTree rotation = gui == null ? null : gui.find(VanillaSourceClasses.DataKeys.ROTATION).orElse(null);
+            JsonTree roll = rotation == null ? null : rotation.findAt(2).orElse(null);   // [pitch, yaw, roll]
+            if (roll != null) return roll.asFloat(0f);
+            String parent = model.findString(VanillaSourceClasses.DataKeys.PARENT).orElse(null);
             if (parent == null) return null;
             path = stripNamespace(parent);
         }

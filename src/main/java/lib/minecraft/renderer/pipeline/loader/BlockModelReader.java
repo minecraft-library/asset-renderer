@@ -40,7 +40,7 @@ public final class BlockModelReader {
     static @NotNull Map<String, BlockModelEntry> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         Map<String, BlockModelEntry> models = new LinkedHashMap<>(document.as(BlockModelsFile.class).models());
-        for (Map.Entry<String, JsonTree> override : overrides.models().members())
+        for (Map.Entry<String, JsonTree> override : overrides.models().members().toList())
             models.put(override.getKey(), override.getValue().as(BlockModelEntry.class));
         return models;
     }

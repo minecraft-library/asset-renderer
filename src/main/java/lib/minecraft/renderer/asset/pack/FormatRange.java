@@ -51,16 +51,16 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
      */
     public static @NotNull FormatRange fromPackObject(@NotNull JsonTree pack, @NotNull String packId) {
         if (pack.has("min_format") || pack.has("max_format")) {
-            FormatVersion min = pack.has("min_format") ? minBound(pack.get("min_format"), packId) : new FormatVersion(0, 0);
+            FormatVersion min = pack.has("min_format") ? minBound(pack.find("min_format").orElse(null), packId) : new FormatVersion(0, 0);
             FormatVersion max = pack.has("max_format")
-                ? maxBound(pack.get("max_format"), packId)
+                ? maxBound(pack.find("max_format").orElse(null), packId)
                 : new FormatVersion(FormatVersion.MAX_MINOR, FormatVersion.MAX_MINOR);
             return new FormatRange(min, max);
         }
         if (pack.has("supported_formats"))
-            return fromFormatsValue(pack.get("supported_formats"), packId);
+            return fromFormatsValue(pack.find("supported_formats").orElse(null), packId);
         if (pack.has("pack_format"))
-            return fromFormatsValue(pack.get("pack_format"), packId);
+            return fromFormatsValue(pack.find("pack_format").orElse(null), packId);
         return ANY;
     }
 
@@ -76,19 +76,19 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
      * @throws PipelineException if the encoding is unrecognised or malformed
      */
     public static @NotNull FormatRange fromFormatsValue(@NotNull JsonTree value, @NotNull String packId) {
-        if (value.intValue().isPresent())
+        if (value.asInt().isPresent())
             return new FormatRange(minBound(value, packId), maxBound(value, packId));
 
         if (value.isArray()) {
             if (value.size() != 2)
                 throw new PipelineException("Pack '%s' has a 'formats' array of size %d (expected 2)", packId, value.size());
-            return new FormatRange(minBound(value.at(0), packId), maxBound(value.at(1), packId));
+            return new FormatRange(minBound(value.findAt(0).orElse(null), packId), maxBound(value.findAt(1).orElse(null), packId));
         }
 
         if (value.isObject()) {
             if (!value.has("min_inclusive") || !value.has("max_inclusive"))
                 throw new PipelineException("Pack '%s' 'formats' object missing min_inclusive/max_inclusive", packId);
-            return new FormatRange(minBound(value.get("min_inclusive"), packId), maxBound(value.get("max_inclusive"), packId));
+            return new FormatRange(minBound(value.find("min_inclusive").orElse(null), packId), maxBound(value.find("max_inclusive").orElse(null), packId));
         }
 
         throw new PipelineException("Pack '%s' has an unrecognised 'formats' encoding", packId);
@@ -96,13 +96,13 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
 
     /** Lower bound of a value: a bare int floors to minor {@code 0}; a {@code [major,minor]} array is exact. */
     private static @NotNull FormatVersion minBound(@NotNull JsonTree value, @NotNull String packId) {
-        if (value.intValue().isPresent()) return new FormatVersion(value.intValue().get(), 0);
+        if (value.asInt().isPresent()) return new FormatVersion(value.asInt().get(), 0);
         return exactArray(value, packId);
     }
 
     /** Upper bound of a value: a bare int widens to {@link FormatVersion#MAX_MINOR}; an array is exact. */
     private static @NotNull FormatVersion maxBound(@NotNull JsonTree value, @NotNull String packId) {
-        if (value.intValue().isPresent()) return new FormatVersion(value.intValue().get(), FormatVersion.MAX_MINOR);
+        if (value.asInt().isPresent()) return new FormatVersion(value.asInt().get(), FormatVersion.MAX_MINOR);
         return exactArray(value, packId);
     }
 
@@ -112,7 +112,7 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
             throw new PipelineException("Pack '%s' format bound '%s' is neither an int nor a [major,minor] array", packId, value.toGson());
         if (value.size() != 2)
             throw new PipelineException("Pack '%s' has a [major,minor] array of size %d (expected 2)", packId, value.size());
-        return new FormatVersion(value.at(0).toGson().getAsInt(), value.at(1).toGson().getAsInt());
+        return new FormatVersion(value.findAt(0).orElse(null).toGson().getAsInt(), value.findAt(1).orElse(null).toGson().getAsInt());
     }
 
     /**

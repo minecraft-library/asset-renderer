@@ -94,7 +94,7 @@ public record MCMeta(
         String packId = id.namespace();
         FormatRange formats = FormatRange.fromPackObject(pack, packId);
         Description description = pack.has("description")
-            ? Description.of(pack.get("description"))
+            ? Description.of(pack.find("description").orElse(null))
             : Description.EMPTY;
         return Optional.of(new Pack(formats, description, readOverlays(root, packId), readFilters(root, packId)));
     }
@@ -106,13 +106,13 @@ public record MCMeta(
         if (entries.isEmpty()) return Concurrent.newList();
 
         ArrayList<Overlay> parsed = new ArrayList<>();
-        for (JsonTree entry : entries.get().elements()) {
+        for (JsonTree entry : entries.get().elements().toList()) {
             if (!entry.isObject()) continue;
             if (!entry.has("directory") || !entry.has("formats")) {
                 System.err.printf("Pack '%s': skipping overlay entry missing directory/formats: %s%n", packId, entry.toGson());
                 continue;
             }
-            parsed.add(new Overlay(entry.getString("directory"), FormatRange.fromFormatsValue(entry.get("formats"), packId)));
+            parsed.add(new Overlay(entry.findString("directory").orElse(null), FormatRange.fromFormatsValue(entry.find("formats").orElse(null), packId)));
         }
         return Concurrent.adoptList(parsed).toUnmodifiable();
     }
@@ -124,7 +124,7 @@ public record MCMeta(
         if (block.isEmpty()) return Concurrent.newList();
 
         ArrayList<Filter> parsed = new ArrayList<>();
-        for (JsonTree entry : block.get().elements()) {
+        for (JsonTree entry : block.get().elements().toList()) {
             if (!entry.isObject()) continue;
             parsed.add(new Filter(compile(entry, "namespace", packId), compile(entry, "path", packId)));
         }
@@ -132,7 +132,7 @@ public record MCMeta(
     }
 
     private static @NotNull Optional<Pattern> compile(@NotNull JsonTree obj, @NotNull String key, @NotNull String packId) {
-        String regex = obj.getString(key);
+        String regex = obj.findString(key).orElse(null);
         if (regex == null) return Optional.empty();
         try {
             return Optional.of(Pattern.compile(regex));
@@ -146,7 +146,7 @@ public record MCMeta(
         if (animation.isEmpty()) return Optional.empty();
         JsonTree a = animation.get();
         int frametime = a.getInt("frametime", 1);
-        boolean interpolate = a.getBool("interpolate", false);
+        boolean interpolate = a.getBoolean("interpolate", false);
         int width = a.getInt("width", -1);
         int height = a.getInt("height", -1);
         ConcurrentList<Frame> frames = a.findArray("frames").map(MCMeta::parseFrames).orElseGet(Concurrent::newList);
@@ -155,9 +155,9 @@ public record MCMeta(
 
     private static @NotNull ConcurrentList<Frame> parseFrames(@NotNull JsonTree elements) {
         ArrayList<Frame> frames = new ArrayList<>(elements.size());
-        for (JsonTree element : elements.elements()) {
-            if (element.intValue().isPresent())
-                frames.add(new Frame(element.intValue().get(), -1));
+        for (JsonTree element : elements.elements().toList()) {
+            if (element.asInt().isPresent())
+                frames.add(new Frame(element.asInt().get(), -1));
             else if (element.isObject()) {
                 int index = element.getInt("index", 0);
                 int time = element.getInt("time", -1);
@@ -171,8 +171,8 @@ public record MCMeta(
         Optional<JsonTree> texture = root.findObject("texture");
         if (texture.isEmpty()) return Optional.empty();
         JsonTree t = texture.get();
-        boolean blur = t.getBool("blur", false);
-        boolean clamp = t.getBool("clamp", false);
+        boolean blur = t.getBoolean("blur", false);
+        boolean clamp = t.getBoolean("clamp", false);
         return Optional.of(new TextureFlags(blur, clamp));
     }
 
@@ -183,13 +183,13 @@ public record MCMeta(
 
         GuiScaling.Type type = GuiScaling.Type.STRETCH;
         if (scaling.has("type"))
-            type = GuiScaling.Type.parse(scaling.getString("type"));
+            type = GuiScaling.Type.parse(scaling.findString("type").orElse(null));
         int width = scaling.getInt("width", -1);
         int height = scaling.getInt("height", -1);
         GuiScaling.Border border = scaling.has("border")
-            ? GuiScaling.Border.of(scaling.get("border"))
+            ? GuiScaling.Border.of(scaling.find("border").orElse(null))
             : new GuiScaling.Border(0, 0, 0, 0);
-        boolean stretchInner = scaling.getBool("stretch_inner", false);
+        boolean stretchInner = scaling.getBoolean("stretch_inner", false);
         return Optional.of(new GuiScaling(type, width, height, border, stretchInner));
     }
 
@@ -197,7 +197,7 @@ public record MCMeta(
         Optional<JsonTree> villager = root.findObject("villager");
         if (villager.isEmpty()) return Optional.empty();
         JsonTree v = villager.get();
-        Villager.Hat hat = v.has("hat") ? Villager.Hat.parse(v.getString("hat")) : Villager.Hat.NONE;
+        Villager.Hat hat = v.has("hat") ? Villager.Hat.parse(v.findString("hat").orElse(null)) : Villager.Hat.NONE;
         return Optional.of(new Villager(hat));
     }
 
@@ -291,18 +291,18 @@ public record MCMeta(
         }
 
         private static @NotNull String flatten(@NotNull JsonTree element) {
-            if (element.isPrimitive()) return element.stringValue().orElseThrow();
+            if (element.isPrimitive()) return element.asString().orElseThrow();
             if (element.isArray()) {
                 StringBuilder sb = new StringBuilder();
-                for (JsonTree child : element.elements()) sb.append(flatten(child));
+                for (JsonTree child : element.elements().toList()) sb.append(flatten(child));
                 return sb.toString();
             }
             if (element.isObject()) {
                 StringBuilder sb = new StringBuilder();
-                if (element.has("text") && element.get("text").isPrimitive()) sb.append(element.getString("text"));
+                if (element.has("text") && element.find("text").orElse(null).isPrimitive()) sb.append(element.findString("text").orElse(null));
                 Optional<JsonTree> extra = element.findArray("extra");
                 if (extra.isPresent())
-                    for (JsonTree child : extra.get().elements()) sb.append(flatten(child));
+                    for (JsonTree child : extra.get().elements().toList()) sb.append(flatten(child));
                 return sb.toString();
             }
             return "";
@@ -393,8 +393,8 @@ public record MCMeta(
              * @return the parsed border
              */
             public static @NotNull Border of(@NotNull JsonTree value) {
-                if (value.intValue().isPresent()) {
-                    int all = value.intValue().get();
+                if (value.asInt().isPresent()) {
+                    int all = value.asInt().get();
                     return new Border(all, all, all, all);
                 }
                 return new Border(side(value, "left"), side(value, "top"), side(value, "right"), side(value, "bottom"));

@@ -180,9 +180,9 @@ final class VariantIndex {
         Map<String, String> textures = new LinkedHashMap<>();
         Map<String, String> babyTextures = new LinkedHashMap<>();
 
-        String singleAsset = root.getString(VanillaSourceClasses.DataKeys.ASSET_ID);
+        String singleAsset = root.findString(VanillaSourceClasses.DataKeys.ASSET_ID).orElse(null);
         if (singleAsset != null) textures.put("primary", texturePath(singleAsset));
-        String singleBabyAsset = root.getString(VanillaSourceClasses.DataKeys.BABY_ASSET_ID);
+        String singleBabyAsset = root.findString(VanillaSourceClasses.DataKeys.BABY_ASSET_ID).orElse(null);
         if (singleBabyAsset != null) babyTextures.put("primary", texturePath(singleBabyAsset));
 
         collectAssetMap(root, VanillaSourceClasses.DataKeys.ASSETS, textures);
@@ -193,16 +193,16 @@ final class VariantIndex {
             return null;
         }
         return new Variant(variantId, textures, babyTextures,
-            root.getString(VanillaSourceClasses.DataKeys.MODEL),
-            root.get(VanillaSourceClasses.DataKeys.SPAWN_CONDITIONS));
+            root.findString(VanillaSourceClasses.DataKeys.MODEL).orElse(null),
+            root.find(VanillaSourceClasses.DataKeys.SPAWN_CONDITIONS).orElse(null));
     }
 
     /** Folds {@code root.<field>}'s string members into {@code out} as texture paths. */
     private static void collectAssetMap(@NotNull JsonTree root, @NotNull String field, @NotNull Map<String, String> out) {
-        JsonTree map = root.get(field);
+        JsonTree map = root.find(field).orElse(null);
         if (map == null) return;
-        for (Map.Entry<String, JsonTree> member : map.members()) {
-            String assetId = map.getString(member.getKey());
+        for (Map.Entry<String, JsonTree> member : map.members().toList()) {
+            String assetId = map.findString(member.getKey()).orElse(null);
             if (assetId != null) out.put(member.getKey(), texturePath(assetId));
         }
     }

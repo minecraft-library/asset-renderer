@@ -46,12 +46,12 @@ public class CatharsisOverlays {
         if (entries.isEmpty()) return List.of();
 
         List<String> active = new ArrayList<>();
-        for (JsonTree entry : entries.get().elements()) {
+        for (JsonTree entry : entries.get().elements().toList()) {
             if (!entry.isObject()) continue;
             Optional<JsonTree> condition = entry.findObject("condition");
-            if (!isString(entry.get("directory")) || condition.isEmpty()) continue;
+            if (!isString(entry.find("directory").orElse(null)) || condition.isEmpty()) continue;
             if (CatharsisCondition.parse(condition.get()).holds(config, target))
-                active.add(entry.getString("directory"));
+                active.add(entry.findString("directory").orElse(null));
         }
         return active;
     }
@@ -71,17 +71,17 @@ public class CatharsisOverlays {
     }
 
     private static @NotNull Optional<JsonTree> mcmetaConfig(@NotNull JsonTree mcmetaRoot) {
-        for (Map.Entry<String, JsonTree> entry : mcmetaRoot.members()) {
+        for (Map.Entry<String, JsonTree> entry : mcmetaRoot.members().toList()) {
             if (entry.getKey().startsWith(CATHARSIS_PACK_PREFIX) && entry.getValue().isObject()) {
                 JsonTree catharsisPack = entry.getValue();
-                if (catharsisPack.has("config")) return Optional.of(catharsisPack.get("config"));
+                if (catharsisPack.has("config")) return Optional.of(catharsisPack.find("config").orElse(null));
             }
         }
         return Optional.empty();
     }
 
     private static boolean isString(@Nullable JsonTree element) {
-        return element != null && element.isPrimitive() && element.boolValue().isEmpty() && element.intValue().isEmpty();
+        return element != null && element.isPrimitive() && element.asBool().isEmpty() && element.asInt().isEmpty();
     }
 
 }

@@ -201,9 +201,9 @@ public sealed interface CatharsisCondition permits CatharsisCondition.Config, Ca
     }
 
     private static @NotNull Optional<String> string(@NotNull JsonTree obj, @NotNull String key) {
-        JsonTree element = obj.get(key);
-        return element != null && element.isPrimitive() && element.boolValue().isEmpty() && element.intValue().isEmpty()
-            ? element.stringValue()
+        JsonTree element = obj.find(key).orElse(null);
+        return element != null && element.isPrimitive() && element.asBool().isEmpty() && element.asInt().isEmpty()
+            ? element.asString()
             : Optional.empty();
     }
 

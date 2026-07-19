@@ -92,38 +92,38 @@ public final class CatharsisConfig {
 
     private static void walk(@NotNull JsonTree element, @NotNull Map<String, OptionDefault> out) {
         if (element.isArray()) {
-            for (JsonTree child : element.elements()) walk(child, out);
+            for (JsonTree child : element.elements().toList()) walk(child, out);
             return;
         }
         if (!element.isObject()) return;
-        if (isStringPrimitive(element.get("id")))
-            extractDefault(element).ifPresent(option -> out.putIfAbsent(element.getString("id"), option));
-        for (Map.Entry<String, JsonTree> entry : element.members()) walk(entry.getValue(), out);
+        if (isStringPrimitive(element.find("id").orElse(null)))
+            extractDefault(element).ifPresent(option -> out.putIfAbsent(element.findString("id").orElse(null), option));
+        for (Map.Entry<String, JsonTree> entry : element.members().toList()) walk(entry.getValue(), out);
     }
 
     private static @NotNull Optional<OptionDefault> extractDefault(@NotNull JsonTree obj) {
-        JsonTree def = obj.get("default");
+        JsonTree def = obj.find("default").orElse(null);
         if (def != null && def.isPrimitive()) {
-            if (def.boolValue().isPresent()) return Optional.of(new OptionDefault.Bool(def.boolValue().get()));
-            if (isStringPrimitive(def)) return Optional.of(new OptionDefault.Choice(def.stringValue().orElseThrow()));
+            if (def.asBool().isPresent()) return Optional.of(new OptionDefault.Bool(def.asBool().get()));
+            if (isStringPrimitive(def)) return Optional.of(new OptionDefault.Choice(def.asString().orElseThrow()));
         }
         Optional<JsonTree> options = obj.findArray("options");
         if (options.isPresent()) {
-            for (JsonTree option : options.get().elements()) {
+            for (JsonTree option : options.get().elements().toList()) {
                 if (!option.isObject()) continue;
-                if (isTrue(option.get("default")) && isStringPrimitive(option.get("value")))
-                    return Optional.of(new OptionDefault.Choice(option.getString("value")));
+                if (isTrue(option.find("default").orElse(null)) && isStringPrimitive(option.find("value").orElse(null)))
+                    return Optional.of(new OptionDefault.Choice(option.findString("value").orElse(null)));
             }
         }
         return Optional.empty();
     }
 
     private static boolean isStringPrimitive(@Nullable JsonTree element) {
-        return element != null && element.isPrimitive() && element.boolValue().isEmpty() && element.intValue().isEmpty();
+        return element != null && element.isPrimitive() && element.asBool().isEmpty() && element.asInt().isEmpty();
     }
 
     private static boolean isTrue(@Nullable JsonTree element) {
-        return element != null && element.boolValue().orElse(false);
+        return element != null && element.asBool().orElse(false);
     }
 
     private static @NotNull Optional<Boolean> parseBoolean(@NotNull String value) {

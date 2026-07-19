@@ -125,9 +125,9 @@ final class EntityOverlayResolver {
             List<JsonTree> emitted = resolveSite(site, cn, enumMap);
             for (JsonTree row : emitted) {
                 rows.add(row);
-                JsonTree pipeline = row.get("pipeline");
-                if (pipeline != null && pipeline.getBool("emissive", false)
-                    && Objects.equals(row.getString("geometry"), this.geometryRef.primaryKey()))
+                JsonTree pipeline = row.find("pipeline").orElse(null);
+                if (pipeline != null && pipeline.getBoolean("emissive", false)
+                    && Objects.equals(row.findString("geometry").orElse(null), this.geometryRef.primaryKey()))
                     sameGeometryEmissive = true;
             }
         }

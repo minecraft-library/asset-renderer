@@ -37,7 +37,7 @@ public final class BlockGeometryReader {
     static @NotNull Map<String, EntityModelData> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         Map<String, EntityModelData> geometries = new LinkedHashMap<>(document.as(BlockGeometryFile.class).geometries());
-        for (Map.Entry<String, JsonTree> override : overrides.geometries().members())
+        for (Map.Entry<String, JsonTree> override : overrides.geometries().members().toList())
             geometries.put(override.getKey(), override.getValue().as(EntityModelData.class));
         return geometries;
     }

@@ -115,7 +115,7 @@ public record BlockRendererOverrides(
             System.err.printf("Pack '%s' renderer override '%s' has no '%s' object; ignored%n", pack.id(), path, key);
             return;
         }
-        for (Map.Entry<String, JsonTree> entry : sub.get().members())
+        for (Map.Entry<String, JsonTree> entry : sub.get().members().toList())
             accumulator.put(entry.getKey(), entry.getValue().deepCopy());
     }
 

@@ -235,11 +235,11 @@ public final class PackAcquisition {
         if (overlays.isEmpty()) return false;
         Optional<JsonTree> entries = overlays.get().findArray("entries");
         if (entries.isEmpty()) return false;
-        for (JsonTree entry : entries.get().elements()) {
+        for (JsonTree entry : entries.get().elements().toList()) {
             if (!entry.isObject()) continue;
             Optional<JsonTree> conditionObj = entry.findObject("condition");
             if (conditionObj.isEmpty()) continue;
-            String condition = conditionObj.get().getString("condition");
+            String condition = conditionObj.get().findString("condition").orElse(null);
             if (condition != null && condition.startsWith("catharsis:")) return true;
         }
         return false;

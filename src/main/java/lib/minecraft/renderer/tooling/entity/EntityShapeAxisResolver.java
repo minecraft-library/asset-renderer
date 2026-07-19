@@ -121,14 +121,14 @@ final class EntityShapeAxisResolver {
         String familyStem = textureStem(familyTexture);
         String optionStem = textureStem(optionTexture);
         JsonTree out = null;
-        for (JsonTree row : overlays.elements()) {
+        for (JsonTree row : overlays.elements().toList()) {
             JsonTree clone = JsonTree.object();
-            for (var member : row.members()) {
-                if ("geometry".equals(member.getKey()) && Objects.equals(row.getString("geometry"), familyKey)) {
+            for (var member : row.members().toList()) {
+                if ("geometry".equals(member.getKey()) && Objects.equals(row.findString("geometry").orElse(null), familyKey)) {
                     clone.put("geometry", optionKey);
                     continue;
                 }
-                String texture = "texture".equals(member.getKey()) ? row.getString("texture") : null;
+                String texture = "texture".equals(member.getKey()) ? row.findString("texture").orElse(null) : null;
                 if (texture != null && familyStem != null && optionStem != null && texture.startsWith(familyStem)) {
                     String swapped = optionStem + texture.substring(familyStem.length());
                     String rawPath = swapped.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length());

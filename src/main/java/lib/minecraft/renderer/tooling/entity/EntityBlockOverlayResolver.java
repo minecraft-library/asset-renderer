@@ -94,10 +94,10 @@ final class EntityBlockOverlayResolver {
                 .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
                 .putInt("layer_index", site.layerIndex())
                 .putIf("block", source.blockId());
-            String bone = transforms.getString("attached_bone");
+            String bone = transforms.findString("attached_bone").orElse(null);
             row.putIf("attached_bone", bone);
             if (source.selectable()) row.put("selectable", true);
-            row.put("transforms", transforms.get("transforms"));
+            row.put("transforms", transforms.find("transforms").orElse(null));
             rows.add(row);
         }
     }

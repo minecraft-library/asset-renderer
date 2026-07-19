@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Node {@code group_of} - the cross-entity grouping post-pass (mooshroom to cow, stray to
@@ -46,11 +47,9 @@ final class EntityGroupLinker {
     static void link(@NotNull JsonTree root, @NotNull VariantIndex variants, @NotNull Diagnostics diagnostics) {
         JsonTree models = root.child("models");
         Map<String, List<String>> clusters = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonTree> model : models.members()) {
-            String geometry = primaryGeometry(model.getValue());
-            if (geometry != null)
-                clusters.computeIfAbsent(geometry, key -> new ArrayList<>()).add(model.getKey());
-        }
+        models.members().forEach((id, model) ->
+            primaryGeometry(model).ifPresent(geometry ->
+                clusters.computeIfAbsent(geometry, key -> new ArrayList<>()).add(id)));
 
         for (Map.Entry<String, List<String>> cluster : clusters.entrySet()) {
             List<String> members = cluster.getValue();
@@ -91,16 +90,13 @@ final class EntityGroupLinker {
     }
 
     /**
-     * The model's primary geometry manifest key, read from the mandatory age axis' {@code options.adult}
-     * (the model baseline), or {@code null} when any node on that path is absent (an unresolvable
-     * model links nothing).
+     * The model's primary geometry manifest key, read from the mandatory age axis'
+     * {@code options.adult} (the model baseline), or empty when any node on that path is absent (an
+     * unresolvable model links nothing).
      */
-    private static @Nullable String primaryGeometry(@NotNull JsonTree model) {
-        JsonTree axes = model.get("axes");
-        JsonTree age = axes == null ? null : axes.get("age");
-        JsonTree options = age == null ? null : age.get("options");
-        JsonTree adult = options == null ? null : options.get("adult");
-        return adult == null ? null : adult.getString("geometry");
+    private static @NotNull Optional<String> primaryGeometry(@NotNull JsonTree model) {
+        return model.findPath("axes", "age", "options", "adult")
+            .flatMap(adult -> adult.findString("geometry"));
     }
 
     /** The namespace-stripped local id of a model key. */

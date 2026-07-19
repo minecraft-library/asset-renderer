@@ -65,7 +65,7 @@ class BlockRendererOverridesTest {
         assertThat(overrides.models().has("only_low"), is(true));
         assertThat(overrides.models().has("only_high"), is(true));
         assertThat("higher pack wins per entry",
-            overrides.models().get("shared").getString("mark"), is("high"));
+            overrides.models().find("shared").orElseThrow().findString("mark").orElseThrow(), is("high"));
     }
 
     @Test

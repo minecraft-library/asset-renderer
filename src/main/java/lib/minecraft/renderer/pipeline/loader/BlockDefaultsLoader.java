@@ -77,7 +77,7 @@ public final class BlockDefaultsLoader {
         // entry (e.g. the author wrote the flat "facing=east" runtime form instead of {"facing":"east"})
         // is skipped with a warning rather than silently dropped.
         JsonTree defaultOverrides = overrides.defaults();
-        for (Map.Entry<String, JsonTree> override : defaultOverrides.members()) {
+        for (Map.Entry<String, JsonTree> override : defaultOverrides.members().toList()) {
             String blockId = override.getKey();
             if (!override.getValue().isObject()) {
                 System.err.printf("renderer/block_defaults.json override for '%s' is not a {property:value} object; ignored%n", blockId);
@@ -107,11 +107,11 @@ public final class BlockDefaultsLoader {
      */
     private static @NotNull Map<String, String> toStringMap(@NotNull String blockId, @NotNull JsonTree state) {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonTree> entry : state.members()) {
+        for (Map.Entry<String, JsonTree> entry : state.members().toList()) {
             JsonTree value = entry.getValue();
             if (!value.isPrimitive())
                 throw new PipelineException("Block-defaults override for '%s' property '%s' is not a scalar value", blockId, entry.getKey());
-            map.put(entry.getKey(), value.stringValue().orElseThrow());
+            map.put(entry.getKey(), value.asString().orElseThrow());
         }
         return map;
     }

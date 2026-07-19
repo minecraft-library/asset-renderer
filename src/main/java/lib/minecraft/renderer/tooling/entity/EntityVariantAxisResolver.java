@@ -142,8 +142,8 @@ final class EntityVariantAxisResolver {
     /** Whether every spawn-condition entry lacks a {@code condition} sub-object (absent list = unconditional). */
     private static boolean isUnconditional(@Nullable JsonTree spawnConditions) {
         if (spawnConditions == null) return true;
-        for (JsonTree entry : spawnConditions.elements())
-            if (entry.get(VanillaSourceClasses.DataKeys.CONDITION) != null) return false;
+        for (JsonTree entry : spawnConditions.elements().toList())
+            if (entry.find(VanillaSourceClasses.DataKeys.CONDITION).orElse(null) != null) return false;
         return true;
     }
 

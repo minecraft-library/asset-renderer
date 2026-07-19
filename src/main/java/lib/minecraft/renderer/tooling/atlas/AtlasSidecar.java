@@ -60,9 +60,9 @@ public record AtlasSidecar(int tileSize, int columns, int count, @NotNull List<T
         int columns = root.getInt("columns", 0);
         int count = root.getInt("count", 0);
         List<Tile> tiles = new ArrayList<>();
-        JsonTree array = root.get("tiles");
+        JsonTree array = root.find("tiles").orElse(null);
         if (array != null)
-            for (JsonTree tile : array.elements())
+            for (JsonTree tile : array.elements().toList())
                 tiles.add(new Tile(
                     tile.getString("id", ""),
                     tile.getString("kind", ""),
