@@ -54,7 +54,7 @@ public final class GeometryFlow {
             node.put("y_axis", request.yAxis().name());
             if (GeometryCullResolver.usesCullRenderType(session.cache(), request.factoryClass()))
                 node.put("cull", true);
-            node.putIf("bones", parsed.find("bones").orElse(null));
+            node.putIf("bones", parsed.find("bones"));
             geometries.put(key, node);
         }
         root.write(out);

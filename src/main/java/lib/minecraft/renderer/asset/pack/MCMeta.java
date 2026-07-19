@@ -93,9 +93,7 @@ public record MCMeta(
         JsonTree pack = packNode.get();
         String packId = id.namespace();
         FormatRange formats = FormatRange.fromPackObject(pack, packId);
-        Description description = pack.has("description")
-            ? Description.of(pack.find("description").orElse(null))
-            : Description.EMPTY;
+        Description description = pack.find("description").map(Description::of).orElse(Description.EMPTY);
         return Optional.of(new Pack(formats, description, readOverlays(root, packId), readFilters(root, packId)));
     }
 
@@ -186,9 +184,9 @@ public record MCMeta(
             type = GuiScaling.Type.parse(scaling.findString("type").orElse(null));
         int width = scaling.getInt("width", -1);
         int height = scaling.getInt("height", -1);
-        GuiScaling.Border border = scaling.has("border")
-            ? GuiScaling.Border.of(scaling.find("border").orElse(null))
-            : new GuiScaling.Border(0, 0, 0, 0);
+        GuiScaling.Border border = scaling.find("border")
+            .map(GuiScaling.Border::of)
+            .orElse(new GuiScaling.Border(0, 0, 0, 0));
         boolean stretchInner = scaling.getBoolean("stretch_inner", false);
         return Optional.of(new GuiScaling(type, width, height, border, stretchInner));
     }

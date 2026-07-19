@@ -68,7 +68,7 @@ public final class ResourceDocument {
             diagnostics.warn("Resource source_version '%s' does not match expected '%s'", sourceVersion, EXPECTED_SOURCE_VERSION);
 
         return new ResourceDocument(payload,
-            new ResourceEnvelope(Optional.ofNullable(payload.findString("//").orElse(null)), format, Optional.ofNullable(sourceVersion)));
+            new ResourceEnvelope(payload.findString("//"), format, Optional.ofNullable(sourceVersion)));
     }
 
     /**

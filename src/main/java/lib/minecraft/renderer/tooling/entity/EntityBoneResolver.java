@@ -356,8 +356,8 @@ final class EntityBoneResolver {
 
         // name -> parent, insertion order preserved.
         Map<String, String> parents = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonTree> bone : bones.members().toList())
-            parents.put(bone.getKey(), bone.getValue().findString("parent").orElse(null));
+        bones.members().forEach((name, bone) ->
+            parents.put(name, bone.findString("parent").orElse(null)));
 
         for (Map.Entry<String, Toggle> entry : toggles.entrySet()) {
             LinkedHashSet<String> members = new LinkedHashSet<>(entry.getValue().bones());

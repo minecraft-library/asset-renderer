@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import dev.simplified.gson.node.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,6 +22,7 @@ import java.util.Map;
  * flip) via {@link ClassNodeCache#readJson}, with the bell suppressed and a flat-sprite default of
  * TRUE. Per-renderer icon rolls are memoised.
  */
+@RequiredArgsConstructor
 final class BlockGuiResolver {
 
     /** The parent-chain depth bound the model walk follows. */
@@ -30,10 +32,6 @@ final class BlockGuiResolver {
 
     /** split id -> resolved display.gui roll (absent = not yet computed; present-null = unresolved). */
     private final @NotNull Map<String, Float> rollBySplitId = new HashMap<>();
-
-    BlockGuiResolver(@NotNull ClassNodeCache cache) {
-        this.cache = cache;
-    }
 
     /**
      * The split's inventory yaw (the camera-facing convention).
@@ -102,6 +100,7 @@ final class BlockGuiResolver {
         if (component == null) return null;
         String type = component.findString(VanillaSourceClasses.DataKeys.TYPE).orElse(null);
         if (type == null) return null;
+
         return switch (type) {
             case VanillaSourceClasses.DataKeys.MODEL_COMPONENT -> component.findString(VanillaSourceClasses.DataKeys.MODEL).orElse(null);
             case VanillaSourceClasses.DataKeys.SPECIAL_COMPONENT -> component.findString(VanillaSourceClasses.DataKeys.BASE).orElse(null);
@@ -116,15 +115,17 @@ final class BlockGuiResolver {
         for (int depth = 0; depth < MAX_MODEL_PARENT_DEPTH; depth++) {
             JsonTree model = this.cache.readJson(VanillaSourceClasses.Paths.MODEL_DIR + path + VanillaSourceClasses.Paths.JSON_SUFFIX);
             if (model == null) return null;
-            JsonTree display = model.find(VanillaSourceClasses.DataKeys.DISPLAY).orElse(null);
-            JsonTree gui = display == null ? null : display.find(VanillaSourceClasses.DataKeys.GUI).orElse(null);
-            JsonTree rotation = gui == null ? null : gui.find(VanillaSourceClasses.DataKeys.ROTATION).orElse(null);
-            JsonTree roll = rotation == null ? null : rotation.findAt(2).orElse(null);   // [pitch, yaw, roll]
-            if (roll != null) return roll.asFloat(0f);
+            var roll = model.findPath(
+                VanillaSourceClasses.DataKeys.DISPLAY,
+                VanillaSourceClasses.DataKeys.GUI,
+                VanillaSourceClasses.DataKeys.ROTATION)
+                .flatMap(rotation -> rotation.findAt(2));   // [pitch, yaw, roll]
+            if (roll.isPresent()) return roll.get().asFloat(0f);
             String parent = model.findString(VanillaSourceClasses.DataKeys.PARENT).orElse(null);
             if (parent == null) return null;
             path = stripNamespace(parent);
         }
+
         return null;
     }
 

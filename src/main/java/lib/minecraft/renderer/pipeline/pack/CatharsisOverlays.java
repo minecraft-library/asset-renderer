@@ -74,7 +74,7 @@ public class CatharsisOverlays {
         for (Map.Entry<String, JsonTree> entry : mcmetaRoot.members().toList()) {
             if (entry.getKey().startsWith(CATHARSIS_PACK_PREFIX) && entry.getValue().isObject()) {
                 JsonTree catharsisPack = entry.getValue();
-                if (catharsisPack.has("config")) return Optional.of(catharsisPack.find("config").orElse(null));
+                if (catharsisPack.has("config")) return catharsisPack.find("config");
             }
         }
         return Optional.empty();

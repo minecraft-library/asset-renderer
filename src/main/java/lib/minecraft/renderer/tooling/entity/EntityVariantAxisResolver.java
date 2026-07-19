@@ -143,7 +143,7 @@ final class EntityVariantAxisResolver {
     private static boolean isUnconditional(@Nullable JsonTree spawnConditions) {
         if (spawnConditions == null) return true;
         for (JsonTree entry : spawnConditions.elements().toList())
-            if (entry.find(VanillaSourceClasses.DataKeys.CONDITION).orElse(null) != null) return false;
+            if (entry.find(VanillaSourceClasses.DataKeys.CONDITION).isPresent()) return false;
         return true;
     }
 
