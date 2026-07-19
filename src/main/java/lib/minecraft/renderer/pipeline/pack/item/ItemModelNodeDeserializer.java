@@ -44,7 +44,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
                 cases(node, context), child(node, "fallback", context));
             case "range_dispatch" -> new ItemModelNode.RangeDispatch(
                 string(node, "property"), floatValue(node, "scale", 1f), string(node, "target"),
-                entries(node, context), child(node, "fallback", context));
+                intValue(node, "index", 0), entries(node, context), child(node, "fallback", context));
             case "composite" -> new ItemModelNode.Composite(models(node, context));
             case "special" -> special(node);
             case "bundle/selected_item" -> new ItemModelNode.Bundle();
@@ -150,6 +150,17 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         if (value == null || !value.isJsonPrimitive()) return fallback;
         try {
             return value.getAsFloat();
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
+    }
+
+    /** Reads {@code node[key]} as an int, or {@code fallback} when it is absent, a non-primitive, or a non-numeric primitive. */
+    private static int intValue(@NotNull JsonObject node, @NotNull String key, int fallback) {
+        JsonElement value = node.get(key);
+        if (value == null || !value.isJsonPrimitive()) return fallback;
+        try {
+            return value.getAsInt();
         } catch (NumberFormatException ex) {
             return fallback;
         }

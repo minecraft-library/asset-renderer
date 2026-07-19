@@ -4,6 +4,9 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.FloatTag;
+import lib.minecraft.nbt.tag.ListTag;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.option.ItemModelContext;
 import org.junit.jupiter.api.DisplayName;
@@ -138,6 +141,77 @@ class ItemModelNodeResolveTest {
             assertThat(special.kind(), is("minecraft:player_head"));
             assertThat(special.base(), is("minecraft:item/template_skull"));
             assertThat(special.transform().translation(), is(new float[]{0.5f, 0f, 0.5f}));
+        }
+    }
+
+    @Nested
+    @DisplayName("component-driven dispatch (rung 3)")
+    class ComponentDispatch {
+
+        @Test
+        @DisplayName("has_component takes on_true when the component map carries it")
+        void hasComponentTrue() {
+            CompoundTag components = new CompoundTag();
+            components.put("minecraft:damage", 5);
+            var r = parse(HAS_COMPONENT_TREE).resolve(withComponents(components));
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/has"));
+        }
+
+        @Test
+        @DisplayName("has_component takes on_false when the map lacks it (present but empty)")
+        void hasComponentAbsent() {
+            var r = parse(HAS_COMPONENT_TREE).resolve(withComponents(new CompoundTag()));
+            assertThat(r.modelId().orElseThrow(), is("minecraft:item/lacks"));
+        }
+
+        @Test
+        @DisplayName("custom_model_data reads floats[0] from the component tree")
+        void customModelDataFromComponents() {
+            assertThat("floats[0]=2 -> threshold 2 -> custom",
+                parse(CMD_TREE).resolve(withComponents(customModelData(2f))).modelId().orElseThrow(), is("minecraft:item/custom"));
+            assertThat("floats[0]=0 -> base",
+                parse(CMD_TREE).resolve(withComponents(customModelData(0f))).modelId().orElseThrow(), is("minecraft:item/base"));
+        }
+
+        @Test
+        @DisplayName("an explicit custom_model_data override wins over the component tree")
+        void customModelDataOverrideWins() {
+            ItemModelContext override = new ItemModelContext("gui", false, false, null, null, 0f, 0f, 2f, customModelData(0f));
+            assertThat(parse(CMD_TREE).resolve(override).modelId().orElseThrow(), is("minecraft:item/custom"));
+        }
+
+        @Test
+        @DisplayName("range_dispatch index selects the floats entry the node points at")
+        void customModelDataIndex() {
+            String indexed = CMD_TREE.replace("\"scale\":1.0,", "\"scale\":1.0,\"index\":1,");
+            // floats[0]=0 (would pick base), floats[1]=2 (picks custom) - so index 1 must be honoured.
+            assertThat(parse(indexed).resolve(withComponents(customModelData(0f, 2f))).modelId().orElseThrow(), is("minecraft:item/custom"));
+        }
+
+        private static final String HAS_COMPONENT_TREE =
+            "{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:has_component\",\"component\":\"minecraft:damage\","
+                + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/has\"},"
+                + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/lacks\"}}}";
+
+        private static final String CMD_TREE =
+            "{\"model\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:custom_model_data\",\"scale\":1.0,"
+                + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/base\"}},"
+                + "{\"threshold\":2.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/custom\"}}],"
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/fb\"}}}";
+
+        private static ItemModelContext withComponents(CompoundTag components) {
+            return new ItemModelContext("gui", false, false, null, null, 0f, 0f, null, components);
+        }
+
+        /** Builds a component map carrying a {@code minecraft:custom_model_data} component with the given {@code floats} list. */
+        private static CompoundTag customModelData(float... floats) {
+            ListTag<FloatTag> list = new ListTag<>();
+            for (float value : floats) list.add(new FloatTag(value));
+            CompoundTag customModelData = new CompoundTag();
+            customModelData.put("floats", list);
+            CompoundTag components = new CompoundTag();
+            components.put("minecraft:custom_model_data", customModelData);
+            return components;
         }
     }
 

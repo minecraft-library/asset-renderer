@@ -206,7 +206,7 @@ public class LegacyOverrideMapper {
         ItemModelNode rangeFallback = plain.isEmpty()
             ? fallback
             : new ItemModelNode.Model(plain.getLast().modelRef(), List.of());
-        return new ItemModelNode.RangeDispatch(first.property(), first.scale(), "", List.copyOf(entries), rangeFallback);
+        return new ItemModelNode.RangeDispatch(first.property(), first.scale(), "", 0, List.copyOf(entries), rangeFallback);
     }
 
     /**

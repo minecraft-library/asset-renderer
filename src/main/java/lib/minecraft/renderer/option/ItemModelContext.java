@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.option;
 
+import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.FloatTag;
+import lib.minecraft.nbt.tag.ListTag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -25,8 +28,8 @@ import java.util.Optional;
  * @param dyeColor the dye colour override, or {@code null} so tint sources use their declared defaults
  * @param time the {@code minecraft:time} range input; {@code 0} selects clock frame 0
  * @param compassAngle the {@code minecraft:compass} range input; {@code 0} selects the neutral compass frame
- * @param customModelData the {@code custom_model_data} range input, or {@code null} to fall back on every such dispatch
- * @param components the render-time NBT component tree (nbt-factory {@code CompoundTag}); parsed and held here, component matching not yet evaluated
+ * @param customModelData an explicit {@code custom_model_data} float override that wins over the component tree, or {@code null} to read it from {@link #components}
+ * @param components the render-time item component map (an nbt-factory {@code CompoundTag} keyed by component id, e.g. {@code minecraft:custom_model_data}); {@code null} when the caller supplies no stack, leaving {@code has_component} and {@code custom_model_data} unevaluable
  */
 public record ItemModelContext(
     @NotNull String displayContext,
@@ -37,7 +40,7 @@ public record ItemModelContext(
     float time,
     float compassAngle,
     @Nullable Float customModelData,
-    @Nullable Object components
+    @Nullable CompoundTag components
 ) {
 
     /** The GUI display-context key every icon renders at. */
@@ -64,10 +67,11 @@ public record ItemModelContext(
     }
 
     /**
-     * Resolves a {@code condition} node's boolean property. Only the properties an icon can honestly
-     * evaluate are wired ({@code using_item}, {@code broken}); every other property - and any live
-     * gameplay flag ({@code has_component}, {@code damaged}, {@code fishing_rod/cast}, ...) - reads
-     * {@code false}, so the walker takes the {@code on_false} branch.
+     * Resolves a {@code condition} node's boolean property from the property id alone. Only the
+     * properties an icon can honestly evaluate without further inputs are wired ({@code using_item},
+     * {@code broken}); {@code has_component} needs the tested component id (see
+     * {@link #conditionValue(String, String)}), and every other live gameplay flag ({@code damaged},
+     * {@code fishing_rod/cast}, ...) reads {@code false}, so the walker takes the {@code on_false} branch.
      *
      * @param property the node's {@code property} id, with or without the {@code minecraft:} prefix
      * @return the boolean value, {@code false} when unevaluable
@@ -78,6 +82,31 @@ public record ItemModelContext(
             case "broken" -> this.broken;
             default -> false;
         };
+    }
+
+    /**
+     * Resolves a {@code condition} node against both its property and, for {@code has_component}, the
+     * component id it tests. {@code has_component} consults the {@link #components} map; every other
+     * property delegates to {@link #conditionValue(String)}.
+     *
+     * @param property the node's {@code property} id, with or without the {@code minecraft:} prefix
+     * @param component the {@code has_component} target component id, ignored for other properties
+     * @return the boolean value, {@code false} when unevaluable
+     */
+    public boolean conditionValue(@NotNull String property, @NotNull String component) {
+        return strip(property).equals("has_component") ? hasComponent(component) : conditionValue(property);
+    }
+
+    /**
+     * Whether the render-time {@link #components} map carries the named component - the
+     * {@code minecraft:has_component} evaluation. Unevaluable (no component map supplied) reads
+     * {@code false}, taking the {@code on_false} branch.
+     *
+     * @param component the component id, with or without the {@code minecraft:} prefix
+     * @return whether the component is present
+     */
+    public boolean hasComponent(@NotNull String component) {
+        return this.components != null && this.components.containsKey(normalizeComponentId(component));
     }
 
     /**
@@ -97,20 +126,56 @@ public record ItemModelContext(
     }
 
     /**
-     * Resolves a {@code range_dispatch} node's numeric input. {@code time} and {@code compass} read
-     * their caller overrides ({@code 0} by default); {@code custom_model_data} reads its override when
-     * present; every other property reads {@code 0} (the neutral use-duration / charge / cast input).
+     * Resolves a {@code range_dispatch} node's numeric input at {@code custom_model_data} index
+     * {@code 0} - the shorthand for nodes that carry no index ({@code time}, {@code compass}).
      *
      * @param property the node's {@code property} id, with or without the {@code minecraft:} prefix
      * @return the numeric dispatch input
      */
     public float rangeValue(@NotNull String property) {
+        return rangeValue(property, 0);
+    }
+
+    /**
+     * Resolves a {@code range_dispatch} node's numeric input at a component index. {@code time} and
+     * {@code compass} read their caller overrides ({@code 0} by default); {@code custom_model_data}
+     * reads the explicit {@link #customModelData} override, else the {@code floats[index]} entry of the
+     * item's {@code minecraft:custom_model_data} component, else {@code 0}; every other property reads
+     * {@code 0} (the neutral use-duration / charge / cast input).
+     *
+     * @param property the node's {@code property} id, with or without the {@code minecraft:} prefix
+     * @param index the {@code custom_model_data} float-list index the node selects ({@code 0} for the others)
+     * @return the numeric dispatch input
+     */
+    public float rangeValue(@NotNull String property, int index) {
         return switch (strip(property)) {
             case "time" -> this.time;
             case "compass" -> this.compassAngle;
-            case "custom_model_data" -> this.customModelData != null ? this.customModelData : 0f;
+            case "custom_model_data" -> customModelDataFloat(index);
             default -> 0f;
         };
+    }
+
+    /** The {@code custom_model_data} float at an index: the explicit override, else the component's {@code floats[index]}, else {@code 0}. */
+    private float customModelDataFloat(int index) {
+        if (this.customModelData != null) return this.customModelData;
+        if (index < 0) return 0f;
+        Optional<CompoundTag> customModelData = component("minecraft:custom_model_data");
+        if (customModelData.isEmpty()) return 0f;
+        ListTag<?> floats = customModelData.get().getListTag("floats");
+        if (floats == null || index >= floats.size()) return 0f;
+        return floats.get(index) instanceof FloatTag value ? value.floatValue() : 0f;
+    }
+
+    /** The component sub-compound under a (normalized) id, or empty when no map is supplied or the entry is not a compound. */
+    private @NotNull Optional<CompoundTag> component(@NotNull String id) {
+        if (this.components == null) return Optional.empty();
+        return this.components.get(normalizeComponentId(id)) instanceof CompoundTag tag ? Optional.of(tag) : Optional.empty();
+    }
+
+    /** Prepends the implicit {@code minecraft:} namespace to an unqualified component id. */
+    private static @NotNull String normalizeComponentId(@NotNull String id) {
+        return id.indexOf(':') < 0 ? "minecraft:" + id : id;
     }
 
     /** Strips a leading {@code minecraft:} namespace so property matching accepts both id forms. */

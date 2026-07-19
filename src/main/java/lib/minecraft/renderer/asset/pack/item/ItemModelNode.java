@@ -37,7 +37,8 @@ public sealed interface ItemModelNode
     /**
      * A {@code minecraft:condition} node - a boolean property selecting {@link #onTrue} or
      * {@link #onFalse}. The optional {@link #component} names the NBT component a
-     * {@code has_component} condition tests (parse-and-hold; component matching not yet evaluated).
+     * {@code has_component} condition tests, evaluated against the render-time component map via
+     * {@link ItemModelContext#hasComponent}.
      *
      * @param property the dispatch property id
      * @param component the tested component id, or empty string when absent
@@ -83,11 +84,12 @@ public sealed interface ItemModelNode
      * @param property the dispatch property id
      * @param scale the multiplier applied to the property value before threshold comparison
      * @param target the {@code compass} target (spawn / lodestone), or empty string when absent
+     * @param index the {@code custom_model_data} float-list index this dispatch reads ({@code 0} for other properties)
      * @param entries the threshold entries (any order; the walker picks the highest satisfied)
      * @param fallback the branch when no threshold is satisfied
      */
     record RangeDispatch(
-        @NotNull String property, float scale, @NotNull String target,
+        @NotNull String property, float scale, @NotNull String target, int index,
         @NotNull List<Entry> entries, @NotNull ItemModelNode fallback
     ) implements ItemModelNode {
 
@@ -215,7 +217,7 @@ public sealed interface ItemModelNode
         return switch (this) {
             case Model model -> new Resolution(Optional.of(model.model()), model.tints(), Optional.empty());
             case Condition condition ->
-                (context.conditionValue(condition.property()) ? condition.onTrue() : condition.onFalse()).resolve(context);
+                (context.conditionValue(condition.property(), condition.component()) ? condition.onTrue() : condition.onFalse()).resolve(context);
             case Select select -> resolveSelect(select, context);
             case RangeDispatch range -> resolveRange(range, context);
             case Composite composite -> resolveComposite(composite, context);
@@ -235,7 +237,7 @@ public sealed interface ItemModelNode
     }
 
     private static @NotNull Resolution resolveRange(@NotNull RangeDispatch range, @NotNull ItemModelContext context) {
-        float scaled = range.scale() * context.rangeValue(range.property());
+        float scaled = range.scale() * context.rangeValue(range.property(), range.index());
         RangeDispatch.Entry best = null;
         for (RangeDispatch.Entry entry : range.entries())
             if (entry.threshold() <= scaled && (best == null || entry.threshold() > best.threshold())) best = entry;
