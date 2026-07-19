@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.pack.rule;
 
+import lib.minecraft.renderer.face.BlockFace;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumSet;
@@ -11,20 +12,34 @@ import java.util.Optional;
  */
 public enum CtmFace {
 
-    /** The north face. */
+    /**
+     * The north face.
+     */
     NORTH,
-    /** The south face. */
+    /**
+     * The south face.
+     */
     SOUTH,
-    /** The east face. */
+    /**
+     * The east face.
+     */
     EAST,
-    /** The west face. */
+    /**
+     * The west face.
+     */
     WEST,
-    /** The top face - the grammar name, never renderer {@code UP}. */
+    /**
+     * The top face - the grammar name, never renderer {@code UP}.
+     */
     TOP,
-    /** The bottom face - the grammar name, never renderer {@code DOWN}. */
+    /**
+     * The bottom face - the grammar name, never renderer {@code DOWN}.
+     */
     BOTTOM;
 
-    /** The four horizontal side faces. */
+    /**
+     * The four horizontal side faces.
+     */
     private static final @NotNull EnumSet<CtmFace> SIDES = EnumSet.of(NORTH, SOUTH, EAST, WEST);
 
     /**
@@ -56,6 +71,25 @@ public enum CtmFace {
             }
         }
         return faces.isEmpty() ? Optional.of(EnumSet.allOf(CtmFace.class)) : Optional.of(faces);
+    }
+
+    /**
+     * Maps a renderer {@link BlockFace} onto its CTM grammar face - {@code UP} to {@link #TOP},
+     * {@code DOWN} to {@link #BOTTOM}, every horizontal face to the same name. This is the load-bearing
+     * translation that lets a {@code faces=top} rule paint only the icon's visible top face.
+     *
+     * @param face the renderer block face
+     * @return the corresponding CTM grammar face
+     */
+    public static @NotNull CtmFace fromBlockFace(@NotNull BlockFace face) {
+        return switch (face) {
+            case UP -> TOP;
+            case DOWN -> BOTTOM;
+            case NORTH -> NORTH;
+            case SOUTH -> SOUTH;
+            case EAST -> EAST;
+            case WEST -> WEST;
+        };
     }
 
 }

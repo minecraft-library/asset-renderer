@@ -11,20 +11,26 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
+import lib.minecraft.renderer.asset.pack.rule.RuleSet;
+import lib.minecraft.renderer.engine.kit.NineSliceKit;
+import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
  * The engine's resource-provider port: the read-only view of active texture packs, biome
  * colormaps, model repositories, and other lookup-side state that every renderer and engine
  * subsystem consumes, without coupling consumers to a specific implementation. The
- * {@link lib.minecraft.renderer.pipeline.ClientAcquisition pipeline} supplies the production implementation;
+ * {@link ClientAcquisition pipeline} supplies the production implementation;
  * tests and in-memory callers supply lightweight stubs directly.
  * <p>
  * Method naming follows two prefixes for {@link Optional}-returning lookups:
@@ -57,7 +63,7 @@ public interface RendererContext {
 
     /**
      * Looks up the parsed {@code gui.scaling} sidecar for a GUI-sprite texture, if any - the
-     * nine-slice / tile / stretch metadata {@link lib.minecraft.renderer.engine.kit.NineSliceKit}
+     * nine-slice / tile / stretch metadata {@link NineSliceKit}
      * consumes for tooltip and menu chrome. The default returns empty so non-pack contexts do not need
      * to override it; the production context forwards the texture's index-row sidecar's
      * {@code gui.scaling} section.
@@ -223,15 +229,39 @@ public interface RendererContext {
      * named sub-texture replacements, a model override, and the glint policy. The default returns
      * {@link CitResult#NONE} so test stubs need not override it.
      *
-     * <p>Connected Textures (CTM) has no render seam: it renders nothing, so the
-     * merged CTM rules are parse-and-store only, with zero render-path callers (see
-     * {@code CtmNeighborResolver}).
+     * <p>Connected Textures resolve through {@link #resolveConnectedTexture} - the base-replacing methods
+     * substitute a matched face's tile for an isolated block icon; overlays and world-state predicates
+     * stay inert.
      *
      * @param context the per-render item context (item id + NBT + enchantments + display name)
      * @return the CIT effect, or {@link CitResult#NONE} when no rule matches
      */
     default @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
         return CitResult.NONE;
+    }
+
+    /**
+     * Resolves the Connected Textures substitution for one face of an isolated block icon - the
+     * highest-precedence matching non-overlay rule replaces the face's base texture with its no-neighbor
+     * tile. Walks the merged CTM rules first-match-wins (see
+     * {@link RuleSet#connectedTextureFor}); the base-replacing
+     * methods ({@code ctm} family / {@code fixed} / {@code random} / {@code repeat} / {@code top})
+     * substitute a matched face's tile, while overlays and world-state predicates stay inert. The default
+     * returns empty so every stub and vanilla-only stack is inert.
+     *
+     * <p>{@code faces} targeting uses the model-local face, which equals the world face for the full-cube
+     * blocks CTM applies to; the flat {@code BlockFace2D} sprite path is not wired.
+     *
+     * @param blockId the rendered block's namespaced id
+     * @param state the rendered block state, keyed by property name to its value
+     * @param baseTextureId the concrete resolved texture id of the face
+     * @param face the renderer block face being drawn
+     * @return the substitute texture id, or empty when no rule replaces the base
+     */
+    default @NotNull Optional<ResourceId> resolveConnectedTexture(
+        @NotNull String blockId, @NotNull Map<String, String> state,
+        @NotNull String baseTextureId, @NotNull BlockFace face) {
+        return Optional.empty();
     }
 
     /**
@@ -341,6 +371,13 @@ public interface RendererContext {
         /** {@inheritDoc} */
         @Override default @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
             return delegate().resolveItemTextureOverride(context);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<ResourceId> resolveConnectedTexture(
+            @NotNull String blockId, @NotNull Map<String, String> state,
+            @NotNull String baseTextureId, @NotNull BlockFace face) {
+            return delegate().resolveConnectedTexture(blockId, state, baseTextureId, face);
         }
 
         /** {@inheritDoc} */

@@ -6,41 +6,71 @@ import java.util.Optional;
 
 /**
  * The OptiFine / MCPatcher Connected Textures method - all fifteen grammar constants, with the
- * {@code overlay_*} family first-class. CTM renders nothing in this headless renderer, so a method is
- * parse-and-store only; the constant exists to validate tile counts and pin the no-neighbor table on
- * {@link CtmNeighborResolver}.
+ * {@code overlay_*} family first-class. The constant validates tile counts ({@link #expectedTileCount})
+ * and drives isolated-block tile selection ({@link CtmNeighborResolver#select}); {@link #isOverlay()}
+ * gates the overlay family out of base replacement.
  */
 public enum CtmMethod {
 
-    /** Standard 47-tile connected map. */
+    /**
+     * Standard 47-tile connected map.
+     */
     CTM,
-    /** Reduced 5-tile connected map. */
+    /**
+     * Reduced 5-tile connected map.
+     */
     CTM_COMPACT,
-    /** 4-tile horizontal connection. */
+    /**
+     * 4-tile horizontal connection.
+     */
     HORIZONTAL,
-    /** 4-tile vertical connection. */
+    /**
+     * 4-tile vertical connection.
+     */
     VERTICAL,
-    /** 7-tile horizontal-then-vertical connection. */
+    /**
+     * 7-tile horizontal-then-vertical connection.
+     */
     HORIZONTAL_VERTICAL,
-    /** 7-tile vertical-then-horizontal connection. */
+    /**
+     * 7-tile vertical-then-horizontal connection.
+     */
     VERTICAL_HORIZONTAL,
-    /** 1-tile top-connection variant. */
+    /**
+     * 1-tile top-connection variant.
+     */
     TOP,
-    /** Weighted random pick from the tile list. */
+    /**
+     * Weighted random pick from the tile list.
+     */
     RANDOM,
-    /** Position-indexed pick from a {@code width x height} grid. */
+    /**
+     * Position-indexed pick from a {@code width x height} grid.
+     */
     REPEAT,
-    /** Always the single tile. */
+    /**
+     * Always the single tile.
+     */
     FIXED,
-    /** Base-preserving overlay whose tiles composite on top. */
+    /**
+     * Base-preserving overlay whose tiles composite on top.
+     */
     OVERLAY,
-    /** Overlay driven by 47-tile connectivity. */
+    /**
+     * Overlay driven by 47-tile connectivity.
+     */
     OVERLAY_CTM,
-    /** Overlay driven by a weighted random pick. */
+    /**
+     * Overlay driven by a weighted random pick.
+     */
     OVERLAY_RANDOM,
-    /** Overlay driven by a {@code width x height} grid. */
+    /**
+     * Overlay driven by a {@code width x height} grid.
+     */
     OVERLAY_REPEAT,
-    /** Overlay of a single fixed tile. */
+    /**
+     * Overlay of a single fixed tile.
+     */
     OVERLAY_FIXED;
 
     /**
@@ -89,6 +119,20 @@ public enum CtmMethod {
             case TOP, FIXED, OVERLAY_FIXED -> 1;
             case REPEAT, OVERLAY_REPEAT -> repeatWidth * repeatHeight;
             case RANDOM, OVERLAY_RANDOM, OVERLAY -> -1;
+        };
+    }
+
+    /**
+     * Whether this is an overlay method - a transition compositor that adds a tile only where a
+     * neighbor creates a border. Overlays never replace the base texture, so they contribute nothing to
+     * an isolated subject and are skipped by the isolated-block resolver.
+     *
+     * @return {@code true} for the five {@code overlay_*} constants
+     */
+    public boolean isOverlay() {
+        return switch (this) {
+            case OVERLAY, OVERLAY_CTM, OVERLAY_RANDOM, OVERLAY_REPEAT, OVERLAY_FIXED -> true;
+            default -> false;
         };
     }
 

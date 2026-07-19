@@ -10,8 +10,9 @@ import java.util.EnumSet;
 /**
  * A parsed OptiFine / MCPatcher Connected Textures rule. Fully typed and validated at parse
  * (range-expanded tiles, correct {@code top} / {@code bottom} face names, per-method tile-count
- * check), yet never evaluated: CTM renders nothing, so this is a parse-and-store record whose store
- * has zero render-path callers (see {@link CtmNeighborResolver}).
+ * check). For an isolated block icon the non-overlay methods resolve their no-neighbor tile (via
+ * {@link CtmNeighborResolver#select}, walked by {@link RuleSet#connectedTextureFor}); overlay methods
+ * and world-state predicates ({@code connect} / biomes / heights) stay parse-and-store.
  *
  * @param id the source {@code .properties} path - ordering and weight-tie key
  * @param pack the owning pack

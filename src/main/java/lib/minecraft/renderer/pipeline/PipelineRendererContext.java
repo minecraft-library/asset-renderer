@@ -12,20 +12,23 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.CitRule;
 import lib.minecraft.renderer.asset.pack.rule.CitType;
+import lib.minecraft.renderer.asset.pack.rule.CtmContext;
+import lib.minecraft.renderer.asset.pack.rule.CtmFace;
 import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
+import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder;
 import lib.minecraft.renderer.pipeline.index.ItemIndexBuilder;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
@@ -90,10 +93,14 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntities;
     private final @NotNull TextureSynthesizer synthesizer;
 
-    /** The block ids in atlas-grouping order (primary tag then id), precomputed once, shared unmodifiable. */
+    /**
+     * The block ids in atlas-grouping order (primary tag then id), precomputed once, shared unmodifiable.
+     */
     private final @NotNull ConcurrentList<String> knownBlockIds;
 
-    /** The item ids in atlas-grouping order (material prefix then id), precomputed once, shared unmodifiable. */
+    /**
+     * The item ids in atlas-grouping order (material prefix then id), precomputed once, shared unmodifiable.
+     */
     private final @NotNull ConcurrentList<String> knownItemIds;
 
     /**
@@ -238,7 +245,9 @@ public final class PipelineRendererContext implements RendererContext {
             .flatMap(MCMeta::gui);
     }
 
-    /** Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationData} the renderer consumes. */
+    /**
+     * Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationData} the renderer consumes.
+     */
     private static @NotNull AnimationData toAnimationData(@NotNull MCMeta.Animation animation) {
         ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
         for (MCMeta.Frame frame : animation.frames())
@@ -257,7 +266,9 @@ public final class PipelineRendererContext implements RendererContext {
         return this.knownBlockIds;
     }
 
-    /** Sorts the block ids by primary tag then id (both case-insensitive); the shared, precomputed order. */
+    /**
+     * Sorts the block ids by primary tag then id (both case-insensitive); the shared, precomputed order.
+     */
     private static @NotNull ConcurrentList<String> sortedBlockIds(
         @NotNull ConcurrentMap<String, Block> blockIndex, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
         ArrayList<String> ids = new ArrayList<>(blockIndex.keySet());
@@ -280,7 +291,9 @@ public final class PipelineRendererContext implements RendererContext {
         return this.knownItemIds;
     }
 
-    /** Sorts the item ids by material prefix then id (both case-insensitive); the shared, precomputed order. */
+    /**
+     * Sorts the item ids by material prefix then id (both case-insensitive); the shared, precomputed order.
+     */
     private static @NotNull ConcurrentList<String> sortedItemIds(@NotNull ConcurrentMap<String, Item> itemIndex) {
         ArrayList<String> ids = new ArrayList<>(itemIndex.keySet());
         ids.sort((a, b) -> {
@@ -338,6 +351,21 @@ public final class PipelineRendererContext implements RendererContext {
             if (rule.matches(context)) return CitResult.of(rule.output(), glint);
         }
         return glint == GlintPolicy.DEFAULT ? CitResult.NONE : CitResult.NONE.withGlint(glint);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Delegates to {@link RuleSet#connectedTextureFor(CtmContext)} on the merged rules, mapping the
+     * renderer {@link BlockFace} onto its CTM grammar face. Empty on a vanilla-only stack (no
+     * {@code optifine/} tree, so no CTM rules), which keeps the block render byte-identical.
+     */
+    @Override
+    public @NotNull Optional<ResourceId> resolveConnectedTexture(
+        @NotNull String blockId, @NotNull Map<String, String> state,
+        @NotNull String baseTextureId, @NotNull BlockFace face) {
+        return this.stack.rules().connectedTextureFor(
+            new CtmContext(blockId, state, baseTextureId, CtmFace.fromBlockFace(face)));
     }
 
     /**

@@ -7,9 +7,12 @@
  * <p>{@link lib.minecraft.renderer.asset.pack.rule.RuleSet RuleSet} is the merged per-stack payload -
  * the weight-ordered {@link lib.minecraft.renderer.asset.pack.rule.CitRule CitRule} list (each
  * self-evaluating via {@code matches(ItemContext)}), the
- * {@link lib.minecraft.renderer.asset.pack.rule.CtmRule CtmRule} store (parse-and-hold; CTM renders
- * nothing), the merged {@link lib.minecraft.renderer.asset.pack.rule.ColorProperties ColorProperties}
- * overrides, and the global glint toggle - plus
+ * {@link lib.minecraft.renderer.asset.pack.rule.CtmRule CtmRule} store (its non-overlay methods
+ * resolved for an isolated block icon by
+ * {@link lib.minecraft.renderer.asset.pack.rule.RuleSet#connectedTextureFor(lib.minecraft.renderer.asset.pack.rule.CtmContext)
+ * connectedTextureFor}; overlays and world-state predicates parse-and-hold), the merged
+ * {@link lib.minecraft.renderer.asset.pack.rule.ColorProperties ColorProperties} overrides, and the
+ * global glint toggle - plus
  * {@link lib.minecraft.renderer.asset.pack.rule.RuleSet#glintFor(lib.minecraft.renderer.asset.pack.rule.ItemContext)
  * glintFor}, which folds a matching {@code type=enchantment} rule and the {@code useGlint} flag into a
  * {@link lib.minecraft.renderer.asset.pack.rule.GlintPolicy GlintPolicy}.

@@ -1,23 +1,57 @@
 package lib.minecraft.renderer.asset.pack.rule;
 
+import lombok.experimental.UtilityClass;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Optional;
+
 /**
- * CTM-STUB SEAM - neighbor resolution deliberately unimplemented (world-space only; this renderer
- * draws isolated subjects). A future world renderer plugs in here by supplying per-face neighbor
- * occupancy under the rule's connect predicate. Until then NOTHING calls the {@link CtmRule} store
- * from a render path - the store is parse-and-store, zero render callers, by design rather than
- * omission.
+ * Selects the tile a matched CTM rule contributes for a given neighbor occupancy - the isolated
+ * (no-neighbor) branch of Connected Textures, resolved for the single subject this headless renderer
+ * draws.
  *
- * <p>If icon consultation is ever enabled, the documented no-neighbor resolution per method is:
- * <ul>
- * <li><b>ctm / horizontal / vertical / top</b> - tile 0 ("no connection" in the OptiFine template).</li>
- * <li><b>ctm_compact</b> - tile 0.</li>
- * <li><b>fixed</b> - {@code tiles[0]}.</li>
- * <li><b>random</b> - weighted pick.</li>
- * <li><b>repeat</b> - grid cell {@code (0, 0)}.</li>
- * <li><b>overlay_*</b> - NO output (base renders unmodified; overlays composite on top only when
- * neighbors exist), so an overlay method can never map onto a base-replacing method.</li>
- * </ul>
+ * <p>Only {@link CtmNeighborhood#ISOLATED} is ever supplied, so only the no-connection resolution is
+ * implemented: for every non-overlay method the isolated tile is {@code tiles[0]} - the OptiFine
+ * template's all-borders / standalone tile, which coincides with grid cell {@code (0, 0)} for
+ * {@code repeat} and the single tile for {@code fixed}/{@code top}. {@code random} instead takes a
+ * deterministic pick over the tile list; overlay methods composite only on a neighbor transition and
+ * so contribute nothing to an isolated subject (they resolve to empty and never replace the base).
+ *
+ * <p>The {@code random} pick is seeded from {@code variantSeed} rather than a world block position
+ * (which an icon has none of) - a deliberate, documented divergence from OptiFine's position seeding;
+ * per-tile {@code weights=} are not modelled, so the pick is uniform over the tile list.
+ *
+ * <p>The {@code switch} over {@link CtmNeighborhood} is exhaustive against its sealed permits: a
+ * future {@code Connected} occupancy would force a transition-table branch here at compile time.
  */
-public interface CtmNeighborResolver {
-    // No methods yet - seam marker only.
+@UtilityClass
+public class CtmNeighborResolver {
+
+    /**
+     * Selects the isolated tile a matched non-overlay rule contributes, or empty for an overlay rule,
+     * a rule with no tiles, or a {@code random} rule whose seed is folded over an empty list.
+     *
+     * @param rule the matched CTM rule
+     * @param neighborhood the neighbor occupancy - always {@link CtmNeighborhood#ISOLATED} today
+     * @param variantSeed the deterministic seed for a {@code random} pick (a world-positionless
+     *     convention, e.g. the subject id hash)
+     * @return the selected tile reference, or empty when the rule contributes nothing
+     */
+    public static @NotNull Optional<TileRef> select(
+        @NotNull CtmRule rule, @NotNull CtmNeighborhood neighborhood, long variantSeed) {
+        if (rule.method().isOverlay() || rule.tiles().isEmpty()) return Optional.empty();
+        return switch (neighborhood) {
+            case CtmNeighborhood.Isolated ignored -> isolatedTile(rule, variantSeed);
+        };
+    }
+
+    /**
+     * The no-neighbor slot - {@code tiles[0]} for every method except {@code random}'s seeded pick.
+     */
+    private static @NotNull Optional<TileRef> isolatedTile(@NotNull CtmRule rule, long variantSeed) {
+        if (rule.method() == CtmMethod.RANDOM)
+            return Optional.of(rule.tiles().get(Math.floorMod(variantSeed, rule.tiles().size())));
+        return Optional.of(rule.tiles().getFirst());
+    }
+
 }

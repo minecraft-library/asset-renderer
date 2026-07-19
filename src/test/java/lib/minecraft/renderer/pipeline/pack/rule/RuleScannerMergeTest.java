@@ -1,14 +1,17 @@
 package lib.minecraft.renderer.pipeline.pack.rule;
 
 import dev.simplified.collection.Concurrent;
-import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.rule.CitRule;
+import lib.minecraft.renderer.asset.pack.rule.CtmContext;
+import lib.minecraft.renderer.asset.pack.rule.CtmFace;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +22,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -80,6 +84,20 @@ class RuleScannerMergeTest {
         assertThat(merged.ctmRules().size(), equalTo(2));
         assertThat(merged.ctmRules().getFirst().isTileTarget(), is(true));
         assertThat(merged.ctmRules().get(1).isTileTarget(), is(false));
+    }
+
+    @Test
+    @DisplayName("a scanned + merged ctm rule resolves its tile for the targeted face and nothing for others")
+    void connectedTextureResolvesThroughMergedRules() throws IOException {
+        writeFile(PackId.VANILLA, "assets/minecraft/optifine/ctm/glass.properties",
+            "method=fixed\nmatchTiles=glass\ntiles=custom\nfaces=top");
+
+        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))));
+        ResourceId top = merged.connectedTextureFor(
+            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", CtmFace.TOP)).orElseThrow();
+        assertThat(top.name(), equalTo("optifine/ctm/custom"));
+        assertThat(merged.connectedTextureFor(
+            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", CtmFace.NORTH)).isPresent(), is(false));
     }
 
     @Test

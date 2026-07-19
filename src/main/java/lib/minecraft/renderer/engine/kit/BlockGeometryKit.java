@@ -24,6 +24,7 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -244,10 +245,35 @@ public class BlockGeometryKit {
     }
 
     /**
+     * Resolves a per-face texture substitution, letting a caller swap the pre-loaded texture of a
+     * given face for another (the Connected Textures block-face hook). The kit calls it per face with
+     * the face direction and its raw {@code #ref}; an empty return leaves the pre-loaded texture in
+     * place, so {@link #NONE} keeps every build byte-identical.
+     */
+    @FunctionalInterface
+    public interface FaceTextureResolver {
+
+        /**
+         * The inert resolver - every face falls through to its pre-loaded texture.
+         */
+        @NotNull FaceTextureResolver NONE = (face, rawRef) -> Optional.empty();
+
+        /**
+         * Resolves a substitute texture for one face, or empty to keep the pre-loaded one.
+         *
+         * @param face the face direction being built
+         * @param rawRef the face's raw texture ref (the {@link ModelFace#getTexture()} key)
+         * @return the substitute texture, or empty to fall through to the pre-loaded texture
+         */
+        @NotNull Optional<PixelBuffer> resolve(@NotNull BlockFace face, @NotNull String rawRef);
+
+    }
+
+    /**
      * Per-build parameters for {@link #buildFromElements(ConcurrentList, Map, ElementBuildParams)}:
-     * the per-face tints, the blockstate variant rotation, the {@code uvlock} flag, and the
-     * force-translucent face refs. Bundles the values that vary per build so callers name them
-     * instead of threading a positional overload cascade.
+     * the per-face tints, the blockstate variant rotation, the {@code uvlock} flag, the
+     * force-translucent face refs, and the per-face texture resolver. Bundles the values that vary per
+     * build so callers name them instead of threading a positional overload cascade.
      *
      * @param tintedArgb ARGB applied to faces with {@code tintindex >= 0}
      * @param untintedArgb ARGB applied to faces with {@code tintindex = -1}
@@ -256,6 +282,8 @@ public class BlockGeometryKit {
      * @param uvLock whether the blockstate variant requested {@code uvlock}
      * @param forceTranslucentRefs raw face-texture refs whose model entry carried
      *     {@code force_translucent}, sorted into the translucent pass regardless of texel alpha
+     * @param ctm the per-face texture resolver - {@link FaceTextureResolver#NONE} unless a block render
+     *     supplies a Connected Textures resolver
      */
     public record ElementBuildParams(
         int tintedArgb,
@@ -263,7 +291,8 @@ public class BlockGeometryKit {
         int variantRotationX,
         int variantRotationY,
         boolean uvLock,
-        @NotNull Set<String> forceTranslucentRefs
+        @NotNull Set<String> forceTranslucentRefs,
+        @NotNull FaceTextureResolver ctm
     ) {}
 
     /**
@@ -298,7 +327,7 @@ public class BlockGeometryKit {
         @NotNull Map<String, PixelBuffer> faceTextures,
         int tintArgb
     ) {
-        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintArgb, tintArgb, 0, 0, false, Set.of()));
+        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintArgb, tintArgb, 0, 0, false, Set.of(), FaceTextureResolver.NONE));
     }
 
     /**
@@ -322,7 +351,7 @@ public class BlockGeometryKit {
         int tintedArgb,
         int untintedArgb
     ) {
-        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, Set.of()));
+        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, Set.of(), FaceTextureResolver.NONE));
     }
 
     /**
@@ -357,7 +386,7 @@ public class BlockGeometryKit {
         boolean uvLock
     ) {
         return buildFromElements(elements, faceTextures,
-            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, Set.of()));
+            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, Set.of(), FaceTextureResolver.NONE));
     }
 
     /**
@@ -374,7 +403,7 @@ public class BlockGeometryKit {
         @NotNull Set<String> forceTranslucentRefs
     ) {
         return buildFromElements(elements, faceTextures,
-            new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, forceTranslucentRefs));
+            new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, forceTranslucentRefs, FaceTextureResolver.NONE));
     }
 
     /**
@@ -395,7 +424,7 @@ public class BlockGeometryKit {
         @NotNull Set<String> forceTranslucentRefs
     ) {
         return buildFromElements(elements, faceTextures,
-            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, forceTranslucentRefs));
+            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, forceTranslucentRefs, FaceTextureResolver.NONE));
     }
 
     /**
@@ -422,6 +451,7 @@ public class BlockGeometryKit {
         int variantRotationY = params.variantRotationY();
         boolean uvLock = params.uvLock();
         Set<String> forceTranslucentRefs = params.forceTranslucentRefs();
+        FaceTextureResolver ctm = params.ctm();
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
@@ -484,7 +514,8 @@ public class BlockGeometryKit {
                 if (blockFace == null) continue;
 
                 ModelFace face = entry.getValue();
-                PixelBuffer texture = faceTextures.get(face.getTexture());
+                PixelBuffer texture = ctm.resolve(blockFace, face.getTexture())
+                    .orElseGet(() -> faceTextures.get(face.getTexture()));
                 if (texture == null) continue;
 
                 int uvLockTurns = uvLock ? uvLockQuarterTurns(blockFace, variantRotationX, variantRotationY) : 0;

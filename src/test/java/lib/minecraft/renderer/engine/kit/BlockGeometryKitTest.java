@@ -6,12 +6,13 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -123,6 +124,33 @@ class BlockGeometryKitTest {
             BlockGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
 
         assertThat(triangles.size(), equalTo(2));
+    }
+
+    @Test
+    @DisplayName("a FaceTextureResolver substitutes exactly the faces it targets; others keep the base texture")
+    void faceTextureResolver_substitutesTargetedFace() {
+        ModelElement element = new ModelElement();
+        for (String dir : new String[]{ "down", "up", "north", "south", "west", "east" })
+            element.getFaces().put(dir, face("#all"));
+
+        PixelBuffer base = texture1x1();
+        PixelBuffer substitute = solid(2, 2);
+        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
+        faceTextures.put("#all", base);
+
+        // Swap only the UP face (the CTM per-face hook); every other face falls through to the base.
+        BlockGeometryKit.FaceTextureResolver resolver = (blockFace, rawRef) ->
+            blockFace == BlockFace.UP ? Optional.of(substitute) : Optional.empty();
+        BlockGeometryKit.ElementBuildParams params = new BlockGeometryKit.ElementBuildParams(
+            TINT_ARGB, TINT_ARGB, 0, 0, false, Set.of(), resolver);
+
+        ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(one(element), faceTextures, params);
+
+        assertThat(triangles.size(), equalTo(12));
+        for (VisibleTriangle t : triangles) {
+            boolean up = cardinal(t.normal()).equals("+y");
+            assertThat(t.texture(), sameInstance(up ? substitute : base));
+        }
     }
 
     @Test
