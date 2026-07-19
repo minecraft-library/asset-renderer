@@ -34,6 +34,15 @@ class GlintKitTest {
     }
 
     @Test
+    @DisplayName("GLINT_ALPHA matches vanilla's default Glint Strength (0.75)")
+    void glintAlphaDefault() {
+        // Vanilla's GlintAlpha shader uniform is the player's Glint Strength video option; its default
+        // (0.75) is what the reference harness renders with, so byte-exact glint parity depends on this
+        // exact value.
+        assertThat(GlintKit.GLINT_ALPHA, is(0.75f));
+    }
+
+    @Test
     @DisplayName("texture ids match the extracted client jar paths")
     void textureIds() {
         assertThat(GlintKit.ITEM_GLINT_TEXTURE_ID, equalTo("minecraft:misc/enchanted_glint_item"));
