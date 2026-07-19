@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.atlas;
 
-import dev.simplified.gson.node.JsonTree;
+import dev.simplified.gson.JsonTree;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

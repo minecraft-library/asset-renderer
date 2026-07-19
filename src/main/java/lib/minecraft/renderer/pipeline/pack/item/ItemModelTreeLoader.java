@@ -13,7 +13,7 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
-import dev.simplified.gson.node.JsonTree;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;

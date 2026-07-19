@@ -4,7 +4,7 @@ import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.exception.PipelineException;
-import dev.simplified.gson.node.JsonTree;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;

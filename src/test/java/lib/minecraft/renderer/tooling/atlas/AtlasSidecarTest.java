@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.atlas;
 
-import dev.simplified.gson.node.JsonTree;
+import dev.simplified.gson.JsonTree;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

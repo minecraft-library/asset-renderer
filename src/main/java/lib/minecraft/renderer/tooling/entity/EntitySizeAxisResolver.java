@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import dev.simplified.gson.node.JsonTree;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

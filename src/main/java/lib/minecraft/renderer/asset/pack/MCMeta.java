@@ -8,7 +8,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
-import dev.simplified.gson.node.JsonTree;
+import dev.simplified.gson.JsonTree;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

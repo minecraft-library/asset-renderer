@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.pipeline.pack;
 
-import dev.simplified.gson.node.JsonTree;
+import dev.simplified.gson.JsonTree;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;

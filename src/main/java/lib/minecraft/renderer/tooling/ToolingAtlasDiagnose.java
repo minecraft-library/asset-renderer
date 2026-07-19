@@ -4,7 +4,7 @@ import lib.minecraft.renderer.tooling.atlas.AtlasScan;
 import lib.minecraft.renderer.tooling.atlas.AtlasSidecar;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import dev.simplified.gson.exception.JsonException;
-import dev.simplified.gson.node.JsonTree;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

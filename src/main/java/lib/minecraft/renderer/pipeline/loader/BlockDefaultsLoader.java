@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
-import dev.simplified.gson.node.JsonTree;
+import dev.simplified.gson.JsonTree;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;

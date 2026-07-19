@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.PipelineException;
 import dev.simplified.gson.exception.JsonException;
-import dev.simplified.gson.node.JsonTree;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;

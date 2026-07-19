@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.kernel;
 
-import dev.simplified.gson.node.JsonTree;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import org.jetbrains.annotations.NotNull;
 
