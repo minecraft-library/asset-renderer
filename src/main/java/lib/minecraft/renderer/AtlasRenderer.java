@@ -171,8 +171,10 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     /**
      * Iterates every block id the context knows about (sorted for deterministic output) and
      * renders each via {@link BlockRenderer.Isometric3D}, except {@link #FLUID_BLOCK_IDS} which
-     * dispatch to {@link FluidRenderer.FluidFace2D}. Failures are caught per-tile and logged
-     * when {@link AtlasOptions#isProgressLogging()} is set.
+     * dispatch to {@link FluidRenderer.FluidFace2D}. Block ids whose faithful inventory icon is a
+     * flat item sprite ({@link #hasFlatItemIcon}) are skipped here - the item pass owns that icon,
+     * so an isometric 3D tile the inventory never shows would only duplicate it. Failures are caught
+     * per-tile and logged when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
         // end_gateway has no block-model file, and water/lava carry an empty (particle-only) model
@@ -190,6 +192,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         AtomicInteger completed = new AtomicInteger();
         List<TileSpec> orderedTiles = blockIds.parallelStream()
             .filter(blockId -> options.getFilter().map(f -> f.test(blockId)).orElse(true))
+            .filter(blockId -> !hasFlatItemIcon(blockId))
             .map(blockId -> renderBlockTile(blockId, options, renderer, fluids, portals, completed))
             .flatMap(Optional::stream)
             .toList();
@@ -299,9 +302,27 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Iterates every item id the context knows about (sorted for deterministic output) and
-     * renders each via {@link ItemRenderer.Gui2D}. Failures are caught per-tile and logged
-     * when {@link AtlasOptions#isProgressLogging()} is set.
+     * Whether an id's faithful inventory icon is a flat item sprite - i.e. it carries an item-index
+     * entry. Every item-index entry is a flat {@code item/generated} sprite by construction (a
+     * block-item whose vanilla model is the block model ships no {@code models/item/*.json} and is
+     * absent here; block-entities are filtered out upstream), so for such an id the item pass renders
+     * the vanilla inventory icon and the isometric block pass skips it to avoid a redundant 3D tile.
+     * This is the same item-vs-block signal the {@link ItemOptions.Type#GUI_ICON} render mode routes
+     * on, applied here as a de-duplication of the atlas block pass.
+     *
+     * @param id the block id being considered for the block pass
+     * @return whether the id already renders its faithful icon through the item pass
+     */
+    private boolean hasFlatItemIcon(@NotNull String id) {
+        return this.context.findItem(id).isPresent();
+    }
+
+    /**
+     * Iterates every item id the context knows about (sorted for deterministic output) and renders
+     * each via the faithful {@link ItemOptions.Type#GUI_ICON} path. Every atlas item id is a flat
+     * sprite by construction, so this is byte-identical to {@link ItemRenderer.Gui2D} today; the
+     * faithful mode is used so a future 3D item entry would still render its inventory icon. Failures
+     * are caught per-tile and logged when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private @NotNull ConcurrentList<TileSpec> renderItems(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer) {
         // Tile-entity items (beds, chests, banners, shulkers, signs, skulls, conduit,
@@ -331,11 +352,12 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Renders a single item tile through {@link ItemRenderer.Gui2D}. Returns
-     * {@link Optional#empty()} on {@link RendererException} so one failing item never aborts
-     * the atlas batch. Increments the shared completed-tile counter and logs per-
-     * {@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic under
-     * parallel dispatch but counts are accurate.
+     * Renders a single item tile through the faithful {@link ItemOptions.Type#GUI_ICON} path -
+     * byte-identical to {@link ItemRenderer.Gui2D} for every atlas item id, which is a flat sprite by
+     * construction. Returns {@link Optional#empty()} on {@link RendererException} so one failing item
+     * never aborts the atlas batch. Increments the shared completed-tile counter and logs per-
+     * {@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic under parallel
+     * dispatch but counts are accurate.
      */
     private @NotNull Optional<TileSpec> renderItemTile(
         @NotNull String itemId,
@@ -349,7 +371,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         // atlas into an animated one; the atlas wants exactly one frame per tile.
         ItemOptions itemOptions = ItemOptions.builder()
             .itemId(itemId)
-            .type(ItemOptions.Type.GUI_2D)
+            .type(ItemOptions.Type.GUI_ICON)
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(options.getTileSize()).build())
             .animateGlint(false)
             .build();
