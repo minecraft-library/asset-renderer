@@ -162,12 +162,32 @@ The three `Map.copyOf` collections that would have flapped silently: `Entity.Axe
    `ResourcePack`/`PackStack`/`Result`; only `size()` is reachable, and only by duplicating acquisition's
    private byte reads. Its observable effect already surfaces in `packs.json` as `PackRoot.overlay(...)`
    entries.
-5. **`gui_light` is not loaded and cannot be dumped** (deferred as PC2). The field can never bind (JSON
-   key is `gui_light` carrying `"front"`/`"side"`; Gson is on identity naming) and nothing reads it. It is
-   emitted as the constant `false` it actually holds, under the honest name `gui_light_3d`, as a canary
-   for a Gson-configuration regression.
+5. **`gui_light` is not loaded, and its dead field was deleted (PC2, RESOLVED 2026-07-19).** The field
+   `ModelData.guiLight3D` could never bind (JSON key is `gui_light` carrying `"front"`/`"side"`; Gson is on
+   identity naming) and nothing read it, so it - and the `gui_light_3d` dump canary that used to guard it -
+   were removed. The dump delta is exactly that removal plus the model-content digests it feeds:
+   `gui_light_3d` drops from every entry in `block-models.json` / `item-models.json`, and each recomputed
+   model `digest` cascades into the `model` / `geometry_model` hashes those entries carry and the model
+   references in `blocks.json` / `items.json` - nothing else moves (verified by a stashed before/after dump:
+   0 changed lines were anything but a `gui_light_3d` removal or a recomputed 64-hex digest). This shifts the
+   current dump off the phase-0 and series-end oracles by that registered delta only; the pinned oracles are
+   left as-is (they are commit-pinned checkpoints with checkout-and-diff restore recipes). `gui_light`
+   belongs to a future GUI-display-context render path (alongside R1 / R6), where it would be re-added as a
+   bound `GuiLight { FRONT, SIDE }` enum consumed at the GUI-lighting step.
 
-## PC1 (`PackAcquisition.namespaces()`) — checked, still latent, NOT fixed
+## PC1 (`PackAcquisition.namespaces()`) — was latent at P0; FIXED 2026-07-19
+
+**RESOLVED 2026-07-19.** `namespaces()` now returns `Collections.unmodifiableSortedSet(...)` instead of
+`Set.copyOf`, so the deliberate sort survives into `ResourcePack.namespaces`. That makes
+`primaryNamespace()`'s `findFirst` and the `PalettedPermutationLoader` iteration that feeds
+`TextureSynthesizer`'s last-write-wins `registry.put` deterministic across JVM runs — the fix is in
+production, where the salt actually decided the collision winner. Byte-neutral on both fixtures (the P0
+dump was already salt-immune by design, so `before`/`after` dumps are byte-identical; this moves no
+artifact). The `resolveIn` guard below was retired in the same change: its `candidates > 1` branch was
+unreachable on these fixtures (every pack reports ≤1), so dropping it is byte-neutral, and
+`namespace_candidates` stays as a plain diagnostic. Locked by `PackAcquisitionIntegrationTest` (the
+3-namespace `defrosted` pack's `namespaces()` is now a `SortedSet` in natural order). The P0-time
+analysis below is kept for provenance.
 
 The pre-flight was the decision procedure for the deferred PC1 defect (`namespaces()` builds a `TreeSet`
 then returns `Set.copyOf`, discarding the sort; `TextureSynthesizer` does last-write-wins `registry.put`

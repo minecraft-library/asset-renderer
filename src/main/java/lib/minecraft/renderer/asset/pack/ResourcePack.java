@@ -19,7 +19,7 @@ import java.util.Set;
  * @param container read-only byte access to the pack's materialized tree
  * @param meta the parsed root {@code pack.mcmeta}, or {@link MCMeta#EMPTY} when absent
  * @param roots the active roots, base first then matched overlays in declaration order
- * @param namespaces the directories under {@code assets/} across the active roots
+ * @param namespaces the directories under {@code assets/} across the active roots, in natural (sorted) order
  * @param capabilities the detected content layers
  */
 public record ResourcePack(
@@ -35,6 +35,10 @@ public record ResourcePack(
      * The pack's primary namespace - the one whose {@link PackId#normalize} equals this pack's id
      * ({@code hypixel_skyblock} for {@code hypixel-skyblock}). Front-runs the within-pack search
      * order for pack-restricted lookups.
+     *
+     * <p>When more than one namespace normalizes to this id the natural-order first is chosen: because
+     * {@link #namespaces} is a sorted set, this {@code findFirst} is deterministic across JVM runs
+     * rather than salted.
      *
      * @return the primary namespace, or empty when no namespace normalizes to this id
      */

@@ -28,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -189,6 +190,13 @@ public final class PackAcquisition {
      * the container's file entries so a zip / {@code .cats} pack enumerates identically to an exploded
      * directory. A namespace directory that ships no files contributes nothing to rendering and is not
      * reported (it was inert under the old directory listing too).
+     *
+     * <p>Returned in natural (sorted) namespace order, not via {@code Set.copyOf}: a {@code Set.copyOf}
+     * snapshot is a {@code java.util.ImmutableCollections} set whose iteration order is salted from
+     * {@code System.nanoTime()} at class-init, which would discard this sort and let downstream
+     * last-write-wins consumers - {@code TextureSynthesizer} over colliding {@code <base>_<permutation>}
+     * keys, {@link ResourcePack#primaryNamespace()}'s {@code findFirst} - pick a different winner per
+     * JVM run.
      */
     private static @NotNull Set<String> namespaces(@NotNull PackContainer container, @NotNull ConcurrentList<PackRoot> roots) {
         TreeSet<String> namespaces = new TreeSet<>();
@@ -200,7 +208,7 @@ public final class PackAcquisition {
                 if (slash > 0) namespaces.add(rest.substring(0, slash));
             });
         }
-        return Set.copyOf(namespaces);
+        return Collections.unmodifiableSortedSet(namespaces);
     }
 
     /**

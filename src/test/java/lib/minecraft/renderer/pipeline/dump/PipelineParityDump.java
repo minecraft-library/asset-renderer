@@ -247,10 +247,11 @@ public final class PipelineParityDump {
      * Returns the pack section - every pack in ascending priority order.
      * <p>
      * The pack list is ORDERED (it is the priority order, and element 0 is always vanilla), so it is
-     * emitted verbatim. Everything hanging off a pack is not: {@code namespaces} and
-     * {@code capabilities} are {@code Set.copyOf} instances whose iteration order is randomized per
-     * JVM run, so they are sorted here. {@code primaryNamespace} is deliberately NOT dumped - it is
-     * a {@code findFirst} over one of those randomized sets, so it can flap between runs.
+     * emitted verbatim. {@code capabilities} is a {@code Set.copyOf} whose iteration order is randomized
+     * per JVM run, and {@code namespaces} is a sorted set; both are (re-)sorted here so the emit never
+     * depends on a field's runtime iteration order. {@code primaryNamespace} is deterministic (the
+     * natural-order first of that sorted set) but still NOT dumped - redundant with {@code namespaces}
+     * and the {@code resolve_in} probe.
      *
      * @param stack the resolved pack stack
      * @param base the directory to relativize container paths against
@@ -631,13 +632,13 @@ public final class PipelineParityDump {
      * Returns the pack-restricted resolution probe - a genuinely different code path from
      * {@code resolve}, which consults the texture index while this one probes the container directly.
      * <p>
-     * Guarded rather than trusted. A resolved id's namespace is chosen by a within-pack search order
-     * that leads with the pack's primary namespace, and that is a {@code findFirst} over a per-run-salted
-     * set: when TWO namespaces normalize to the pack's id, which one leads flaps between runs. The dump
-     * already refuses to emit {@code primaryNamespace} for exactly this reason, and this probe would
-     * smuggle it back in through the resolved id. So the candidate count is emitted for every pack - it
-     * is a count, always deterministic - and the samples are emitted only where that count cannot flap.
-     * A pack that trips the guard says so in the artifact rather than diffing at random.
+     * A resolved id's namespace is chosen by a within-pack search order that leads with the pack's
+     * primary namespace. That lead was once a {@code findFirst} over a per-run-salted set - when two
+     * namespaces normalize to the pack's id, which one led flapped between runs - so this probe formerly
+     * omitted its samples for such packs. Now that {@code PackAcquisition.namespaces()} returns a sorted
+     * set, {@code primaryNamespace} is deterministic and the samples are always emitted; the
+     * {@code namespace_candidates} count is retained as a plain diagnostic (how many namespaces normalize
+     * to the pack id).
      *
      * @param stack the resolved pack stack
      * @return the resolve-in probe
@@ -652,12 +653,6 @@ public final class PipelineParityDump {
                 .filter(namespace -> PackId.normalize(namespace).filter(pack.id()::equals).isPresent())
                 .count();
             entry.addProperty("namespace_candidates", candidates);
-
-            if (candidates > 1) {
-                entry.addProperty("samples_omitted", "primary namespace is ambiguous, so the resolved id's "
-                    + "namespace is picked by a findFirst over a per-run-salted set and would flap");
-                return entry;
-            }
 
             JsonObject samples = new JsonObject();
             stack.textureIndex().entrySet().stream()
@@ -1668,11 +1663,6 @@ public final class PipelineParityDump {
 
     /**
      * Returns one resolved model.
-     * <p>
-     * {@code gui_light_3d} is dumped despite being provably constant {@code false} - the field can never
-     * bind (the JSON key is {@code gui_light} carrying {@code "front"}/{@code "side"}, and Gson is on
-     * identity naming here) and nothing reads it. It stays in as a canary: it is the cheapest thing in
-     * the dump that would move if a phase changed the Gson naming configuration underneath every DTO.
      *
      * @param model the model to emit
      * @return the model object
@@ -1680,7 +1670,6 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject model(@NotNull ModelData model) {
         JsonObject root = new JsonObject();
         root.addProperty("ambient_occlusion", model.isAmbientocclusion());
-        root.addProperty("gui_light_3d", model.isGuiLight3D());
         root.add("textures", modelTextures(model));
         root.add("elements", CanonicalJson.ordered(model.getElements(), PipelineParityDump::element));
         root.add("display", CanonicalJson.map(model.getDisplay(), PipelineParityDump::transform));

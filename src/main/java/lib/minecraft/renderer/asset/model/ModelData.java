@@ -20,8 +20,8 @@ import java.util.Objects;
  * needed to render. No lazy resolution happens at render time.
  * <p>
  * Block and item models share the same shape ({@code textures}, {@code elements},
- * {@code display}); the two domain-specific flags ({@link #ambientocclusion} for blocks,
- * {@link #guiLight3D} for items) default such that each is a no-op for the other domain's models.
+ * {@code display}), plus the block-domain {@link #ambientocclusion} flag, which defaults to a no-op
+ * for item models.
  */
 @Getter
 @NoArgsConstructor
@@ -50,12 +50,6 @@ public class ModelData {
      * Display transforms keyed by display slot: {@code gui}, {@code head}, {@code thirdperson_righthand}, etc.
      */
     private @NotNull ConcurrentMap<String, ModelTransform> display = Concurrent.newMap();
-
-    /**
-     * Whether this item should render its GUI icon using the 3D {@code elements} pipeline.
-     * Item-domain field.
-     */
-    private boolean guiLight3D = false;
 
     /**
      * Whether this model would render nothing: no element face resolves to a concrete texture, and
@@ -102,7 +96,6 @@ public class ModelData {
         if (o == null || getClass() != o.getClass()) return false;
         ModelData that = (ModelData) o;
         return ambientocclusion == that.ambientocclusion
-            && guiLight3D == that.guiLight3D
             && Objects.equals(textures, that.textures)
             && Objects.equals(elements, that.elements)
             && Objects.equals(display, that.display);
@@ -110,7 +103,7 @@ public class ModelData {
 
     @Override
     public int hashCode() {
-        return Objects.hash(ambientocclusion, textures, elements, display, guiLight3D);
+        return Objects.hash(ambientocclusion, textures, elements, display);
     }
 
 }

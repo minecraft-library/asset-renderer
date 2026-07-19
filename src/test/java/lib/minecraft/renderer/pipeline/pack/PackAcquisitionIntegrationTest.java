@@ -20,11 +20,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.SortedSet;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -69,6 +71,10 @@ class PackAcquisitionIntegrationTest {
         // defrosted: kebab dir id, three namespaces, optifine capability
         ResourcePack def = stack.byId(new PackId("defrosted")).orElseThrow();
         assertThat(def.namespaces(), hasItems("minecraft", "lunar", "skybox"));
+        // namespaces() returns a sorted set (not a salted Set.copyOf), so primaryNamespace()'s findFirst
+        // and the paletted-permutation iteration resolve the same winner on every JVM run.
+        assertThat(def.namespaces(), is(instanceOf(SortedSet.class)));
+        assertThat(new ArrayList<>(def.namespaces()), is(def.namespaces().stream().sorted().toList()));
         assertThat(def.has(PackCapability.OPTIFINE_RULES), is(true));
         assertThat(def.has(PackCapability.CATHARSIS_CONVENTIONS), is(false));
 
