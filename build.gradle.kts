@@ -406,6 +406,13 @@ tasks {
         args = if (itemId != null) listOf(itemId) else listOf()
     }
 
+    register<JavaExec>("playerParityVanilla") {
+        description = "Per-scope player parity report (FULL + SKULL) comparing Java PlayerRenderer 3D vs vanilla-reference-harness ground truth (ENTITY_IN_UI lighting). Bbox-aligned diff panels -> cache/visual/player-parity-vanilla/<scope>/. Run :asset-renderer:renderVanillaPlayerReferences first if the cache is missing."
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestPlayerParityVanilla")
+        classpath = sourceSets["test"].runtimeClasspath
+    }
+
     register<JavaExec>("glintParityVanilla") {
         description = "Animated enchantment-glint parity: renders the 7 always-foil GUI items (+ 4 worn leather-armor diagnostics) frame-by-frame against the harness glint references at cache/.../references/glint/. Writes per-frame diffs, contact sheets, GIFs, and a TSV to cache/visual/glint-parity-vanilla/. Run :asset-renderer:renderVanillaGlintReferences first. -PitemId=minecraft:nether_star"
         group = "visual"
@@ -522,6 +529,34 @@ tasks {
         commandLine = baseArgs
         doFirst {
             println("renderVanillaGlintReferences: writing glint refs to ${outputDir.asFile.absolutePath}/glint")
+            outputDir.asFile.mkdirs()
+        }
+    }
+
+    // Players-only variant: drives the harness with -PrefharnessPlayersOnly=true so it renders ONLY the
+    // vanilla player references (FULL + SKULL steve, ENTITY_IN_UI lighting) under references/players/,
+    // skipping the ~5-minute full sweep. Then run playerParityVanilla.
+    //   ./gradlew :asset-renderer:renderVanillaPlayerReferences
+    register<Exec>("renderVanillaPlayerReferences") {
+        description = "Runs the sibling vanilla-reference-harness mod in players-only mode, writing vanilla player references to asset-renderer's vanilla cache (references/players/). Then run playerParityVanilla."
+        group = "tooling"
+        workingDir = file("../vanilla-reference-harness")
+        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val baseArgs = mutableListOf<String>()
+        if (isWindows) {
+            baseArgs.add("cmd")
+            baseArgs.add("/c")
+        }
+        baseArgs.add(gradlewPath)
+        baseArgs.add("runRenderReferences")
+        baseArgs.add("--no-daemon")
+        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
+        baseArgs.add("-PrefharnessPlayersOnly=true")
+        commandLine = baseArgs
+        doFirst {
+            println("renderVanillaPlayerReferences: writing player refs to ${outputDir.asFile.absolutePath}/players")
             outputDir.asFile.mkdirs()
         }
     }
