@@ -18,8 +18,8 @@ import lib.minecraft.renderer.engine.compose.RasterPass;
 import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
-import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
@@ -31,9 +31,9 @@ import lib.minecraft.renderer.face.SkinFace;
 import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.slot.PlayerSlot2D;
 import lib.minecraft.renderer.option.slot.PlayerSlot3D;
-import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
+import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -521,13 +521,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                         new Vector3f(0.52f, 0.52f, 0.52f),
                         SkinFace.HEAD.cropAll(skin, true), ColorMath.WHITE));
             });
-            stack.append(PlayerSlot3D.ARMOR, sink -> {
-                Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
-                bp.put(SkinFace.HEAD, new Vector3f[]{ SKULL_HEAD_MIN, SKULL_HEAD_MAX });
-                sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                    options.getArmor().getHelmet(), options.getArmor().getChestplate(),
-                    options.getArmor().getLeggings(), options.getArmor().getBoots(), engine.textures()));
-            });
+            appendArmor(stack, PlayerOptions.Type.SKULL, options, engine);
 
             Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
@@ -564,16 +558,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 addBodyPart(sink, skin, SkinFace.RIGHT_ARM, BUST_R_ARM_MIN, BUST_R_ARM_MAX, options);
                 addBodyPart(sink, skin, SkinFace.LEFT_ARM, BUST_L_ARM_MIN, BUST_L_ARM_MAX, options);
             });
-            stack.append(PlayerSlot3D.ARMOR, sink -> {
-                Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
-                bp.put(SkinFace.HEAD, new Vector3f[]{ BUST_HEAD_MIN, BUST_HEAD_MAX });
-                bp.put(SkinFace.TORSO, new Vector3f[]{ BUST_TORSO_MIN, BUST_TORSO_MAX });
-                bp.put(SkinFace.RIGHT_ARM, new Vector3f[]{ BUST_R_ARM_MIN, BUST_R_ARM_MAX });
-                bp.put(SkinFace.LEFT_ARM, new Vector3f[]{ BUST_L_ARM_MIN, BUST_L_ARM_MAX });
-                sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                    options.getArmor().getHelmet(), options.getArmor().getChestplate(),
-                    options.getArmor().getLeggings(), options.getArmor().getBoots(), engine.textures()));
-            });
+            appendArmor(stack, PlayerOptions.Type.BUST, options, engine);
             resolveCape(this.parent, options)
                 .ifPresent(cape -> stack.append(PlayerSlot3D.CAPE,
                     sink -> addCape(sink, cape, BUST_TORSO_MIN, BUST_TORSO_MAX)));
@@ -615,18 +600,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 addBodyPart(sink, skin, SkinFace.RIGHT_LEG, FULL_R_LEG_MIN, FULL_R_LEG_MAX, options);
                 addBodyPart(sink, skin, SkinFace.LEFT_LEG, FULL_L_LEG_MIN, FULL_L_LEG_MAX, options);
             });
-            stack.append(PlayerSlot3D.ARMOR, sink -> {
-                Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
-                bp.put(SkinFace.HEAD, new Vector3f[]{ FULL_HEAD_MIN, FULL_HEAD_MAX });
-                bp.put(SkinFace.TORSO, new Vector3f[]{ FULL_TORSO_MIN, FULL_TORSO_MAX });
-                bp.put(SkinFace.RIGHT_ARM, new Vector3f[]{ FULL_R_ARM_MIN, FULL_R_ARM_MAX });
-                bp.put(SkinFace.LEFT_ARM, new Vector3f[]{ FULL_L_ARM_MIN, FULL_L_ARM_MAX });
-                bp.put(SkinFace.RIGHT_LEG, new Vector3f[]{ FULL_R_LEG_MIN, FULL_R_LEG_MAX });
-                bp.put(SkinFace.LEFT_LEG, new Vector3f[]{ FULL_L_LEG_MIN, FULL_L_LEG_MAX });
-                sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                    options.getArmor().getHelmet(), options.getArmor().getChestplate(),
-                    options.getArmor().getLeggings(), options.getArmor().getBoots(), engine.textures()));
-            });
+            appendArmor(stack, PlayerOptions.Type.FULL, options, engine);
             resolveCape(this.parent, options)
                 .ifPresent(cape -> stack.append(PlayerSlot3D.CAPE,
                     sink -> addCape(sink, cape, FULL_TORSO_MIN, FULL_TORSO_MAX)));
@@ -680,6 +654,55 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 new Vector3f(min.x() - OVERLAY_INFLATE, min.y() - OVERLAY_INFLATE, min.z() - OVERLAY_INFLATE),
                 new Vector3f(max.x() + OVERLAY_INFLATE, max.y() + OVERLAY_INFLATE, max.z() + OVERLAY_INFLATE),
                 part.cropAll(skin, true), ColorMath.WHITE));
+    }
+
+    /**
+     * The worn-armor body-part bounds map for a player scope - the head only ({@link
+     * PlayerOptions.Type#SKULL}), head + torso + arms ({@link PlayerOptions.Type#BUST}), or all six
+     * parts ({@link PlayerOptions.Type#FULL}), each from that scope's own bounds constants. Extracted
+     * so the three 3D renderers assemble the armor input once rather than inline per scope.
+     *
+     * @param type the player render scope
+     * @return the body-part to {@code [min, max]} bounds map the armor kit inflates around
+     */
+    private static @NotNull Map<SkinFace, Vector3f[]> armorBoundsFor(@NotNull PlayerOptions.Type type) {
+        Map<SkinFace, Vector3f[]> bounds = new EnumMap<>(SkinFace.class);
+        switch (type) {
+            case SKULL -> bounds.put(SkinFace.HEAD, new Vector3f[]{ SKULL_HEAD_MIN, SKULL_HEAD_MAX });
+            case BUST -> {
+                bounds.put(SkinFace.HEAD, new Vector3f[]{ BUST_HEAD_MIN, BUST_HEAD_MAX });
+                bounds.put(SkinFace.TORSO, new Vector3f[]{ BUST_TORSO_MIN, BUST_TORSO_MAX });
+                bounds.put(SkinFace.RIGHT_ARM, new Vector3f[]{ BUST_R_ARM_MIN, BUST_R_ARM_MAX });
+                bounds.put(SkinFace.LEFT_ARM, new Vector3f[]{ BUST_L_ARM_MIN, BUST_L_ARM_MAX });
+            }
+            case FULL -> {
+                bounds.put(SkinFace.HEAD, new Vector3f[]{ FULL_HEAD_MIN, FULL_HEAD_MAX });
+                bounds.put(SkinFace.TORSO, new Vector3f[]{ FULL_TORSO_MIN, FULL_TORSO_MAX });
+                bounds.put(SkinFace.RIGHT_ARM, new Vector3f[]{ FULL_R_ARM_MIN, FULL_R_ARM_MAX });
+                bounds.put(SkinFace.LEFT_ARM, new Vector3f[]{ FULL_L_ARM_MIN, FULL_L_ARM_MAX });
+                bounds.put(SkinFace.RIGHT_LEG, new Vector3f[]{ FULL_R_LEG_MIN, FULL_R_LEG_MAX });
+                bounds.put(SkinFace.LEFT_LEG, new Vector3f[]{ FULL_L_LEG_MIN, FULL_L_LEG_MAX });
+            }
+        }
+        return bounds;
+    }
+
+    /**
+     * Appends the worn-armor layer for a player scope: the scope's {@link #armorBoundsFor bounds map}
+     * handed to {@link ArmorKit#buildHumanoidArmor3D} with the four equipped slots. Shared by the
+     * SKULL / BUST / FULL 3D renderers so the append and armor call live here once.
+     *
+     * @param stack the geometry layer stack to append the armor layer to
+     * @param type the player render scope
+     * @param options the render options carrying the equipped armor
+     * @param engine the model engine supplying the texture service
+     */
+    private static void appendArmor(@NotNull LayerStack<GeometryLayer> stack, @NotNull PlayerOptions.Type type,
+                                    @NotNull PlayerOptions options, @NotNull ModelEngine engine) {
+        stack.append(PlayerSlot3D.ARMOR, sink -> sink.addAll(ArmorKit.buildHumanoidArmor3D(
+            armorBoundsFor(type),
+            options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+            options.getArmor().getLeggings(), options.getArmor().getBoots(), engine.textures())));
     }
 
 }
