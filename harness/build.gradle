@@ -47,6 +47,11 @@ loom {
             if (project.hasProperty('refharnessGlintOnly')) {
                 property 'refharness.glintOnly', project.property('refharnessGlintOnly').toString()
             }
+            // Players-only fast path: render just the vanilla player references under players/,
+            // skipping the full block/item/entity sweep. Driven by renderVanillaPlayerReferences.
+            if (project.hasProperty('refharnessPlayersOnly')) {
+                property 'refharness.playersOnly', project.property('refharnessPlayersOnly').toString()
+            }
             if (project.hasProperty('refharnessBoundsDump')) {
                 property 'refharness.boundsDump', project.property('refharnessBoundsDump').toString()
             }

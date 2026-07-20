@@ -22,6 +22,7 @@ public final class RefHarnessRenderer {
     private static BlockSweeper blockSweeper;
     private static ItemSweeper itemSweeper;
     private static EntitySweeper entitySweeper;
+    private static PlayerSweeper playerSweeper;
     private static GlintSweeper glintSweeper;
 
     private RefHarnessRenderer() {}
@@ -51,9 +52,16 @@ public final class RefHarnessRenderer {
             return;
         }
 
+        if (HarnessConfig.PLAYERS_ONLY) {
+            // Decoupled fast path: render only the player references, skip the full sweep.
+            playerSweeper = PlayerSweeper.build();
+            return;
+        }
+
         blockSweeper = BlockSweeper.build();
         itemSweeper = ItemSweeper.build();
         entitySweeper = EntitySweeper.build();
+        playerSweeper = PlayerSweeper.build();
     }
 
     /**
@@ -91,14 +99,21 @@ public final class RefHarnessRenderer {
     static boolean isDone() {
         if (HarnessConfig.GLINT_ONLY)
             return glintSweeper != null && glintSweeper.isDone();
+        if (HarnessConfig.PLAYERS_ONLY)
+            return playerSweeper != null && playerSweeper.isDone();
         return blockSweeper != null && blockSweeper.isDone()
             && itemSweeper != null && itemSweeper.isDone()
-            && entitySweeper != null && entitySweeper.isDone();
+            && entitySweeper != null && entitySweeper.isDone()
+            && playerSweeper != null && playerSweeper.isDone();
     }
 
     static void tick(Minecraft client) {
         if (HarnessConfig.GLINT_ONLY) {
             if (glintSweeper != null && !glintSweeper.isDone()) glintSweeper.step(client);
+            return;
+        }
+        if (HarnessConfig.PLAYERS_ONLY) {
+            if (playerSweeper != null && !playerSweeper.isDone()) playerSweeper.step(client);
             return;
         }
         if (blockSweeper != null && !blockSweeper.isDone()) {
@@ -111,6 +126,10 @@ public final class RefHarnessRenderer {
         }
         if (entitySweeper != null && !entitySweeper.isDone()) {
             entitySweeper.step(client);
+            return;
+        }
+        if (playerSweeper != null && !playerSweeper.isDone()) {
+            playerSweeper.step(client);
         }
     }
 }

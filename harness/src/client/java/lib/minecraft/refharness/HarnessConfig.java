@@ -69,6 +69,14 @@ public final class HarnessConfig {
     public static final boolean GLINT_ONLY = Boolean.getBoolean("refharness.glintOnly");
 
     /**
+     * When {@code true}, the harness runs <em>only</em> the {@link PlayerSweeper} (the vanilla player
+     * FULL + SKULL references under {@code players/}), skipping the block / item / entity sweeps.
+     * Keeps player-lighting iteration fast and decoupled from the full reference sweep. Pair with
+     * {@code -PrefharnessPlayersOnly=true} on {@code renderVanillaPlayerReferences}.
+     */
+    public static final boolean PLAYERS_ONLY = Boolean.getBoolean("refharness.playersOnly");
+
+    /**
      * Diagnostic flag: when {@code true}, the entity sweeper renders the first filtered
      * target {@code 24 * 24 = 576} times - every combination of pitch (0°-345° in 15°
      * steps) and roll (0°-345° in 15° steps), holding yaw at the
