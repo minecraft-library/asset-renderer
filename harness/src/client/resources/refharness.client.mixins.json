@@ -7,6 +7,7 @@
     "BannerFlagModelMixin",
     "BeeStateMixin",
     "DonkeyModelMixin",
+    "EnchantTableRendererMixin",
     "EnderDragonModelMixin",
     "FlipFaceShadingMixin",
     "FreezeAnimationStateMixin",
