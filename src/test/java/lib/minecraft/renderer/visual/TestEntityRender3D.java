@@ -18,6 +18,9 @@ import lib.minecraft.renderer.option.TropicalFishPattern;
 import lib.minecraft.renderer.option.VillagerLevel;
 import lib.minecraft.renderer.option.VillagerProfession;
 import lib.minecraft.renderer.option.VillagerType;
+import lib.minecraft.renderer.option.spec.ArmorMaterial;
+import lib.minecraft.renderer.option.spec.ArmorOptions;
+import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
@@ -166,6 +169,26 @@ public final class TestEntityRender3D {
                 return map;
             })
             .orElse(java.util.Map.of());
+        // -Dasset.entity.armor=iron|leather|... wears a full set of that material's humanoid armor
+        // (helmet/chestplate/leggings/boots); default unarmored. -Dasset.entity.armor_dye=RRGGBB
+        // dyes leather armor (ignored for other materials).
+        Optional<ArmorMaterial> armorMaterial = Optional.ofNullable(System.getProperty("asset.entity.armor"))
+            .filter(s -> !s.isBlank())
+            .map(s -> ArmorMaterial.valueOf(s.toUpperCase(java.util.Locale.ROOT)));
+        Optional<Integer> armorDye = Optional.ofNullable(System.getProperty("asset.entity.armor_dye"))
+            .filter(s -> !s.isBlank())
+            .map(s -> 0xFF000000 | Integer.parseInt(s, 16));
+        ArmorOptions armor = armorMaterial
+            .map(mat -> mat == ArmorMaterial.LEATHER && armorDye.isPresent()
+                ? ArmorPiece.dyedLeather(armorDye.get())
+                : ArmorPiece.of(mat))
+            .map(piece -> ArmorOptions.builder()
+                .helmet(Optional.of(piece))
+                .chestplate(Optional.of(piece))
+                .leggings(Optional.of(piece))
+                .boots(Optional.of(piece))
+                .build())
+            .orElseGet(ArmorOptions::defaults);
 
         for (String entityId : entityIds) {
             String safeName = entityId.replace(':', '_')
@@ -179,6 +202,8 @@ public final class TestEntityRender3D {
                 + (sheared ? "_sheared" : "")
                 + (charged ? "_charged" : "")
                 + (elytra ? "_elytra" : "")
+                + armorMaterial.map(m -> "_armor-" + m.name().toLowerCase(java.util.Locale.ROOT)
+                    + armorDye.map(d -> String.format("-dye%06x", d & 0xFFFFFF)).orElse("")).orElse("")
                 + sizeOpt.map(s -> "_size-" + s.name().toLowerCase(java.util.Locale.ROOT)).orElse("")
                 + (markings == HorseMarking.NONE ? "" : "_markings-" + markings.name().toLowerCase(java.util.Locale.ROOT))
                 + (crackiness == IronGolemCrackiness.NONE ? "" : "_crackiness-" + crackiness.name().toLowerCase(java.util.Locale.ROOT))
@@ -213,6 +238,7 @@ public final class TestEntityRender3D {
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))
                 .appearance(appearance)
+                .armor(armor)
                 .output(OutputOptions.builder()
                     .canvasSize(size)
                     .supersample(2)

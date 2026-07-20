@@ -10,6 +10,7 @@ import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
+import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
@@ -258,13 +259,62 @@ public class ArmorKit {
         @NotNull Map<ArmorTrim.Slot, ItemContext> items,
         @NotNull Textures engine
     ) {
+        // The armor is textured with the SkinFace skin unwrap, authored for the upright player frame
+        // (the player applies a plain R_Y(180) facing). An entity's bone geometry lives in the Y-down
+        // model frame and is turned upright by the renderer's ENTITY_FACING = R_Z(180), which also flips
+        // Y - so the two frames differ by a 180-degree turn about X (Y and Z negated). Building the armor
+        // in the upright player frame (bounds turned about X) and turning the result back into the entity
+        // frame lands it correctly once ENTITY_FACING is applied, with the geometry, normals, and inventory
+        // shading all resolved in the final frame.
         Map<SkinFace, Vector3f[]> bodyPositions = new EnumMap<>(SkinFace.class);
         for (var entry : boneBounds.entrySet()) {
             SkinFace part = HUMANOID_BONE_MAP.get(entry.getKey());
             if (part != null)
-                bodyPositions.put(part, entry.getValue());
+                bodyPositions.put(part, turnAboutXBounds(entry.getValue()));
         }
-        return buildHumanoidArmor3D(bodyPositions, helmet, chestplate, leggings, boots, items, engine);
+        ConcurrentList<VisibleTriangle> armor =
+            buildHumanoidArmor3D(bodyPositions, helmet, chestplate, leggings, boots, items, engine);
+
+        ConcurrentList<VisibleTriangle> entityArmor = Concurrent.newList();
+        for (VisibleTriangle triangle : armor)
+            entityArmor.add(turnAboutX(triangle));
+        return entityArmor;
+    }
+
+    /**
+     * Turns a point 180 degrees about the X axis - negating Y and Z. Its own inverse.
+     */
+    private static @NotNull Vector3f turnAboutX(@NotNull Vector3f point) {
+        return new Vector3f(point.x(), -point.y(), -point.z());
+    }
+
+    /**
+     * Turns a {@code [min, max]} bounding box 180 degrees about the X axis, re-sorting the negated Y and
+     * Z extents so the result stays a valid {@code [min, max]} pair.
+     */
+    private static @NotNull Vector3f @NotNull [] turnAboutXBounds(@NotNull Vector3f @NotNull [] bounds) {
+        Vector3f min = bounds[0];
+        Vector3f max = bounds[1];
+        return new Vector3f[]{
+            new Vector3f(min.x(), -max.y(), -max.z()),
+            new Vector3f(max.x(), -min.y(), -min.z())
+        };
+    }
+
+    /**
+     * Turns a built armor triangle 180 degrees about the X axis - the counterpart to
+     * {@link #turnAboutXBounds} that maps the player-frame armor back into the entity's Y-down model
+     * frame. Positions and the stored normal turn together (a pure rotation preserves winding, so
+     * culling is unaffected), and the inventory shade is recomputed from the turned normal so lighting
+     * resolves in the final frame.
+     */
+    private static @NotNull VisibleTriangle turnAboutX(@NotNull VisibleTriangle triangle) {
+        Vector3f normal = turnAboutX(triangle.normal());
+        return new VisibleTriangle(
+            turnAboutX(triangle.position0()), turnAboutX(triangle.position1()), turnAboutX(triangle.position2()),
+            triangle.uv0(), triangle.uv1(), triangle.uv2(),
+            triangle.texture(), triangle.tintArgb(), normal,
+            Lighting.inventory(normal), triangle.traits(), triangle.debugTag());
     }
 
     // ---------------------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
@@ -14,6 +15,7 @@ import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.SkinFace;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
@@ -86,6 +88,35 @@ class ArmorKitCitCompositeTest {
             Optional.empty(), Optional.empty(), Optional.empty(), Map.of(), new Textures(ctx));
 
         assertThat(ctx.resolved, equalTo(List.of("minecraft:entity/equipment/humanoid/iron")));
+    }
+
+    @Test
+    @DisplayName("entity armor sits on its bone bounds - the 180-about-X round trip preserves position")
+    void entityArmorPositionPreserved() {
+        List<EquipmentModel.Layer> iron = List.of(
+            new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
+        RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
+        // A head bone whose y-range sits well away from the origin, so a stray single (non-round-trip)
+        // turn about X would land the armor near -3..-2 instead of on the bone.
+        Map<String, Vector3f[]> bones = Map.of("head",
+            new Vector3f[]{ new Vector3f(0, 2, 0), new Vector3f(1, 3, 1) });
+
+        ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(bones,
+            Optional.of(ArmorPiece.of(ArmorMaterial.IRON)),
+            Optional.empty(), Optional.empty(), Optional.empty(), Map.of(), new Textures(ctx));
+
+        assertThat(armor.isEmpty(), equalTo(false));
+        float minY = Float.MAX_VALUE;
+        float maxY = -Float.MAX_VALUE;
+        for (VisibleTriangle triangle : armor)
+            for (Vector3f vertex : List.of(triangle.position0(), triangle.position1(), triangle.position2())) {
+                minY = Math.min(minY, vertex.y());
+                maxY = Math.max(maxY, vertex.y());
+            }
+        // The armor box spans the bone's own [2, 3] y-range (plus the small inflate), not a flipped
+        // negative range - the double turn cancels on position and only re-seats the texture.
+        assertThat(minY > 1.5f, equalTo(true));
+        assertThat(maxY < 3.5f, equalTo(true));
     }
 
     private static void buildHelmet(@NotNull RecordingContext ctx, @NotNull Map<ArmorTrim.Slot, ItemContext> items) {
