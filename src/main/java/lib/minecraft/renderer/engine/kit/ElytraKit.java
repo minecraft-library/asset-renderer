@@ -10,9 +10,11 @@ import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.TextureSize;
+import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -40,6 +42,14 @@ public class ElytraKit {
 
     /** The elytra equipment asset id whose {@code equipment/elytra.json} supplies the wing texture. */
     private static final @NotNull ResourceId ELYTRA_ASSET = new ResourceId(ResourceId.DEFAULT_NAMESPACE, "elytra");
+
+    /**
+     * The armor material handed to the CIT override seam for the wings. The elytra carries no armor
+     * material; the seam dispatches on the {@link LayerType#WINGS} layer type (to {@code type=elytra}
+     * rules) and matches by the equipped item's identity, so this argument is a placeholder the walk
+     * ignores.
+     */
+    private static final @NotNull ArmorMaterial CIT_MATERIAL_PLACEHOLDER = ArmorMaterial.LEATHER;
 
     /**
      * The whole-model back shift of both wings in model pixels - vanilla {@code WingsLayer.submit}
@@ -95,14 +105,16 @@ public class ElytraKit {
      * @param modelAnchor the model-space anchor that maps to the canvas centre (the body's fit anchor)
      * @param ndcScale the model-units-to-NDC scale (the body's fit scale)
      * @param modelScale the per-render vertex pre-scale (the body's renderer-scale chain)
+     * @param item the equipped elytra item identity, for the pack-rule (CIT) {@code type=elytra} override;
+     *     empty leaves the wings on the equipment-model texture
      * @param tick the current animation tick
      * @return the wing triangles, empty when the wings do not resolve
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildWings3D(
         @NotNull Textures engine, boolean baby, @Nullable Vector3f[] bodyBounds,
-        @NotNull Vector3f modelAnchor, float ndcScale, float modelScale, int tick
+        @NotNull Vector3f modelAnchor, float ndcScale, float modelScale, @NotNull Optional<ItemContext> item, int tick
     ) {
-        Optional<PixelBuffer> texture = resolveWingTexture(engine, tick);
+        Optional<PixelBuffer> texture = citWingTexture(engine, item, tick).or(() -> resolveWingTexture(engine, tick));
         if (texture.isEmpty()) return Concurrent.newList();
 
         ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(
@@ -157,14 +169,18 @@ public class ElytraKit {
      * @param torsoMin the player torso's minimum-corner bounds
      * @param torsoMax the player torso's maximum-corner bounds
      * @param playerTexture the wearer's cape / elytra texture, or empty to use the static elytra skin
+     * @param item the equipped elytra item identity, for the pack-rule (CIT) {@code type=elytra} override,
+     *     which wins over the wearer texture; empty leaves the wings on the wearer / static texture
      * @param tick the current animation tick
      * @return the wing triangles in the player model frame, empty when the wings do not resolve
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildPlayerWings3D(
         @NotNull Textures engine, @NotNull Vector3f torsoMin, @NotNull Vector3f torsoMax,
-        @NotNull Optional<PixelBuffer> playerTexture, int tick
+        @NotNull Optional<PixelBuffer> playerTexture, @NotNull Optional<ItemContext> item, int tick
     ) {
-        Optional<PixelBuffer> texture = playerTexture.or(() -> resolveWingTexture(engine, tick));
+        Optional<PixelBuffer> texture = citWingTexture(engine, item, tick)
+            .or(() -> playerTexture)
+            .or(() -> resolveWingTexture(engine, tick));
         if (texture.isEmpty()) return Concurrent.newList();
 
         ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(
@@ -203,6 +219,19 @@ public class ElytraKit {
         List<EquipmentModel.Layer> layers = engine.getContext().resolveEquipmentLayers(ELYTRA_ASSET, LayerType.WINGS);
         if (layers.isEmpty()) return Optional.empty();
         return engine.tryResolveTextureAtTick(layers.getFirst().textureLocation(LayerType.WINGS).id(), tick);
+    }
+
+    /**
+     * Resolves the pack-rule (CIT) {@code type=elytra} wing override for an equipped item, or empty when
+     * no item is supplied or no rule matches. Dormant on a vanilla stack (no {@code optifine/} tree) and
+     * whenever the caller passes no item, so the wings keep their equipment-model / wearer texture.
+     */
+    private static @NotNull Optional<PixelBuffer> citWingTexture(
+        @NotNull Textures engine, @NotNull Optional<ItemContext> item, int tick) {
+        return item
+            .map(context -> engine.getContext().resolveArmorTextureOverride(CIT_MATERIAL_PLACEHOLDER, LayerType.WINGS, context))
+            .flatMap(cit -> cit.textureFor("layer0"))
+            .flatMap(id -> engine.tryResolveTextureAtTick(id.id(), tick));
     }
 
     /**

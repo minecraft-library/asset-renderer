@@ -580,7 +580,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 Vector3f[] bodyBounds = ctx.buildResult().boneBounds().get("body");
                 stack.append(this.slot, sink ->
                     sink.addAll(ElytraKit.buildWings3D(ctx.textures(), appearance.isBaby(), bodyBounds,
-                        ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale(), ctx.tick())));
+                        ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale(), Optional.empty(), ctx.tick())));
             }
         },
 

@@ -317,7 +317,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (options.getSkin().isRenderElytra()) {
             Optional<PixelBuffer> playerTexture = resolveCape(parent, options).or(() -> resolveElytraSource(parent, options));
             stack.append(PlayerSlot3D.CAPE, sink ->
-                sink.addAll(ElytraKit.buildPlayerWings3D(engine.textures(), torsoMin, torsoMax, playerTexture, 0)));
+                sink.addAll(ElytraKit.buildPlayerWings3D(engine.textures(), torsoMin, torsoMax, playerTexture, Optional.empty(), 0)));
             return;
         }
         resolveCape(parent, options).ifPresent(cape ->
