@@ -192,6 +192,15 @@ public class EntityAppearance {
     private final @NotNull java.util.Map<String, String> equipment = java.util.Map.of();
 
     /**
+     * Whether the entity wears an elytra. When {@code true} the two elytra wings render on the back as
+     * a model overlay; {@code false} (default) draws no wings. Only meaningful for the humanoid roster
+     * that can equip a chest item; a headless render draws the static {@code minecraft:elytra} wing
+     * texture (there is no wearer cape / elytra skin source).
+     */
+    @lombok.Builder.Default
+    private final boolean elytra = false;
+
+    /**
      * The dye selected for a {@link TintAxis tint axis}, or empty when the axis uses its baked
      * default.
      *

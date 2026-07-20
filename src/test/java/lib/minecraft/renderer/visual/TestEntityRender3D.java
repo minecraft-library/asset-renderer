@@ -3,6 +3,7 @@ package lib.minecraft.renderer.visual;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Age;
@@ -12,17 +13,16 @@ import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.IronGolemCrackiness;
 import lib.minecraft.renderer.option.Size;
+import lib.minecraft.renderer.option.TintAxis;
+import lib.minecraft.renderer.option.TropicalFishPattern;
 import lib.minecraft.renderer.option.VillagerLevel;
 import lib.minecraft.renderer.option.VillagerProfession;
 import lib.minecraft.renderer.option.VillagerType;
+import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.option.spec.DyeColor;
-import lib.minecraft.renderer.option.TintAxis;
-import lib.minecraft.renderer.option.TropicalFishPattern;
-import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lombok.experimental.UtilityClass;
@@ -144,6 +144,8 @@ public final class TestEntityRender3D {
         VillagerLevel villagerLevel = villagerLevelName.map(VillagerLevel::ofName).orElse(VillagerLevel.NONE);
         boolean sheared = Boolean.getBoolean("asset.entity.sheared");
         boolean charged = Boolean.getBoolean("asset.entity.charged");
+        // -Dasset.entity.elytra=true wears an elytra (the WINGS model overlay); default false.
+        boolean elytra = Boolean.getBoolean("asset.entity.elytra");
         java.util.Set<String> toggles = Optional.ofNullable(System.getProperty("asset.entity.toggles")).filter(s -> !s.isBlank())
             .map(s -> java.util.Arrays.stream(s.split(",")).map(String::trim).filter(t -> !t.isEmpty())
                 .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new)))
@@ -176,6 +178,7 @@ public final class TestEntityRender3D {
                 + patternName.map(c -> "_pattern-" + c).orElse("")
                 + (sheared ? "_sheared" : "")
                 + (charged ? "_charged" : "")
+                + (elytra ? "_elytra" : "")
                 + sizeOpt.map(s -> "_size-" + s.name().toLowerCase(java.util.Locale.ROOT)).orElse("")
                 + (markings == HorseMarking.NONE ? "" : "_markings-" + markings.name().toLowerCase(java.util.Locale.ROOT))
                 + (crackiness == IronGolemCrackiness.NONE ? "" : "_crackiness-" + crackiness.name().toLowerCase(java.util.Locale.ROOT))
@@ -202,6 +205,7 @@ public final class TestEntityRender3D {
                 .villagerLevel(villagerLevel)
                 .sheared(sheared)
                 .charged(charged)
+                .elytra(elytra)
                 .size(sizeOpt)
                 .toggles(toggles)
                 .equipment(equipment)

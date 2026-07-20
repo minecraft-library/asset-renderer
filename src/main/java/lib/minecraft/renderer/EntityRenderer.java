@@ -20,31 +20,32 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.RasterPass;
 import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
-import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.ElytraKit;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.CopperWeathering;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.HorseMarking;
+import lib.minecraft.renderer.option.TintAxis;
+import lib.minecraft.renderer.option.TropicalFishPattern;
 import lib.minecraft.renderer.option.slot.EntitySlot;
-import lib.minecraft.renderer.option.AppearanceGate;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.spec.OutputOptions;
-import lib.minecraft.renderer.tensor.EulerRotation;
-import lib.minecraft.renderer.option.TintAxis;
-import lib.minecraft.renderer.option.TropicalFishPattern;
+import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Box;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
@@ -191,6 +192,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             if (!equipmentSelected(equipment, options.getAppearance())) continue;
             baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(equipment.model()));
         }
+        // Fold the elytra wings into the bounds union so the protruding wings can't crop at the canvas
+        // edge. Gated on the elytra selection, so the default (no elytra) render is unchanged.
+        if (options.getAppearance().isElytra())
+            baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(ElytraKit.wingsMesh(options.getAppearance().isBaby())));
 
         EulerRotation user = options.getOutput().getRotation();
         EulerRotation effective = new EulerRotation(
@@ -253,6 +258,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 screenBounds = unionBoxes(screenBounds,
                     EntityGeometryKit.computeScreenBounds(equipment.model(), renderOrient, modelScale, null));
             }
+            if (options.getAppearance().isElytra())
+                screenBounds = unionBoxes(screenBounds, EntityGeometryKit.computeScreenBounds(
+                    ElytraKit.wingsMesh(options.getAppearance().isBaby()), renderOrient, modelScale, null));
             RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
             canvasW = fit.canvasW();
@@ -556,6 +564,22 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                             ctx.ndcScale(), ctx.modelScale(), ColorMath.WHITE).triangles());
                     });
                 }
+            }
+        },
+
+        /**
+         * Elytra wings: the two-bone {@code ElytraModel} mesh rendered on the back as a model overlay,
+         * gated on the {@code elytra} appearance selection. Resolves to no triangles when the entity
+         * wears no elytra or the pack ships no elytra wing texture (no fallback).
+         */
+        WINGS(EntitySlot.MODEL_OVERLAY) {
+            @Override
+            void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
+                EntityAppearance appearance = ctx.options().getAppearance();
+                if (!appearance.isElytra()) return;
+                stack.append(this.slot, sink ->
+                    sink.addAll(ElytraKit.buildWings3D(ctx.textures(), appearance.isBaby(),
+                        ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale(), ctx.tick())));
             }
         },
 
