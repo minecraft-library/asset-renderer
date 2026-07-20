@@ -320,8 +320,8 @@ public record Entity(
      *     {@link lib.minecraft.renderer.option.HorseMarking}); the default marking draws nothing
      * @param humanoidArmor whether a vanilla {@code HumanoidArmorLayer} classifies this entity
      *     (skeletons, zombies, piglins) - the {@code armor_type: "humanoid"} classification the
-     *     {@code layers} armor row carries, read off it at load. No 26.1 render consumes it (humanoid
-     *     armor is not drawn)
+     *     {@code layers} armor row carries, read off it at load. Gates the worn-armor render feature so
+     *     only these entities draw equipped armor
      */
     public record Layers(
         @NotNull Optional<String> collar,
