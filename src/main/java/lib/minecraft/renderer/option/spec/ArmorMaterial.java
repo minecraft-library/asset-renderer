@@ -1,13 +1,14 @@
 package lib.minecraft.renderer.option.spec;
 
+import lib.minecraft.renderer.asset.ResourceId;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The vanilla armor materials, each backed by a 64x32 texture atlas in the pack under
- * {@code entity/equipment/humanoid/} (helmet, chestplate, arms, boots) and
- * {@code entity/equipment/humanoid_leggings/} (leggings).
+ * The vanilla armor materials. Each names an equipment asset ({@link #assetId()}) whose
+ * {@code equipment/*.json} model supplies the per-layer texture paths, dye tint, and overlay; the
+ * enum carries only the stable material key.
  */
 @Getter
 @RequiredArgsConstructor
@@ -36,55 +37,15 @@ public enum ArmorMaterial {
     private final @NotNull String key;
 
     /**
-     * Resolves the namespaced texture id for the humanoid layer 1 atlas (helmet, chestplate, arms,
-     * boots).
+     * The equipment-asset id (the {@code equipment/*.json} filename stem, equal to the texture stem)
+     * feeding {@code RendererContext.resolveEquipmentLayers} - {@code minecraft:iron},
+     * {@code minecraft:leather}, {@code minecraft:gold}. The equipment model supplies the texture
+     * paths, dye, and overlay per layer, so the material carries only this key.
      *
-     * @return the layer 1 texture id under {@code entity/equipment/humanoid/}
+     * @return the equipment-asset id in the {@code minecraft} namespace
      */
-    public @NotNull String humanoidTextureId() {
-        return "minecraft:entity/equipment/humanoid/" + this.key;
-    }
-
-    /**
-     * Resolves the namespaced texture id for the humanoid leggings layer 2 atlas.
-     *
-     * @return the layer 2 texture id under {@code entity/equipment/humanoid_leggings/}
-     */
-    public @NotNull String leggingsTextureId() {
-        return "minecraft:entity/equipment/humanoid_leggings/" + this.key;
-    }
-
-    /**
-     * Resolves the namespaced texture id for the layer 1 undyed overlay (vanilla
-     * {@code leather_overlay}), composited untinted on top of the dye-tinted base. Only
-     * {@link #LEATHER} ships this texture.
-     *
-     * @return the layer 1 overlay texture id ({@link #humanoidTextureId()} with an
-     *     {@code _overlay} suffix)
-     */
-    public @NotNull String humanoidOverlayTextureId() {
-        return humanoidTextureId() + "_overlay";
-    }
-
-    /**
-     * Resolves the namespaced texture id for the layer 2 leggings undyed overlay, composited
-     * untinted on top of the dye-tinted base. Only {@link #LEATHER} ships this texture.
-     *
-     * @return the layer 2 overlay texture id ({@link #leggingsTextureId()} with an
-     *     {@code _overlay} suffix)
-     */
-    public @NotNull String leggingsOverlayTextureId() {
-        return leggingsTextureId() + "_overlay";
-    }
-
-    /**
-     * Reports whether this material is dye-tinted (a grayscale base recoloured by an ARGB dye plus
-     * an undyed overlay). Vanilla dyes leather only.
-     *
-     * @return {@code true} if this material accepts a dye tint - only {@link #LEATHER}
-     */
-    public boolean dyeable() {
-        return this == LEATHER;
+    public @NotNull ResourceId assetId() {
+        return new ResourceId(ResourceId.DEFAULT_NAMESPACE, this.key);
     }
 
 }

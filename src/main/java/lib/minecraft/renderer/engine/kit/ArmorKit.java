@@ -5,11 +5,12 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
+import lib.minecraft.renderer.asset.equipment.EquipmentModel;
+import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.face.SkinFace;
-import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -18,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -64,12 +66,6 @@ public class ArmorKit {
      * Additional inflate for trim so it sits above the armor base and avoids z-fighting.
      */
     private static final float TRIM_INFLATE = 0.003f;
-
-    /**
-     * Vanilla's default {@code minecraft:dye} colour for undyed leather armour ({@code #A06540}),
-     * applied to the leather base layer when an {@link ArmorPiece} carries no explicit dye.
-     */
-    private static final int DEFAULT_LEATHER_COLOR = 0xFFA06540;
 
     // ---------------------------------------------------------------------------------------
     // 3D armor (triangles for ModelEngine rasterization).
@@ -140,7 +136,7 @@ public class ArmorKit {
         // not the bare skin. Absent when the caller records no mask - then stampMaskScaled is a no-op.
         PixelMask mask = target.mask().orElse(null);
         boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
-        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer);
+        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID);
         armorTexture.ifPresent(tex -> {
             PixelBuffer face = part.crop(tex, BlockFace.SOUTH, false);
             target.blitScaled(face, x, y, w, h);
@@ -277,7 +273,7 @@ public class ArmorKit {
         boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
         float baseInflate = useLeggingsLayer ? LEGGINGS_INFLATE : ARMOR_INFLATE;
 
-        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer);
+        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID);
         if (armorTexture.isEmpty()) return;
 
         for (SkinFace part : parts) {
@@ -317,41 +313,51 @@ public class ArmorKit {
     }
 
     /**
-     * Resolves the base armor texture for a slot, applying leather dye when the piece's material is
-     * {@link ArmorMaterial#LEATHER}: the grayscale base layer is tinted by the piece's
-     * {@link ArmorPiece#dyeColor() dye} (or {@link #DEFAULT_LEATHER_COLOR} when absent), then the
-     * undyed {@code leather_overlay} is composited on top untinted. Non-dyeable materials resolve to
-     * their flat base texture unchanged.
+     * Resolves the composited armor texture for a slot from the data-driven equipment model: the
+     * ordered {@code equipment/*.json} layers for the piece's {@link ArmorPiece#material() material}
+     * asset under the given layer type, each resolved to a texture and, when the layer is
+     * {@link EquipmentModel.Dyeable dyeable}, tinted by the piece's {@link ArmorPiece#dyeColor() dye}
+     * (or the layer's undyed fallback colour when absent). A dyeable layer with no fallback resolves
+     * to colour 0 undyed and is skipped. A single flat layer is returned unchanged; multiple layers
+     * (a dyed leather base plus its undyed overlay) composite in list order.
      *
      * @param engine the texture engine for pack-aware texture resolution
      * @param piece the armor piece
-     * @param leggingsLayer whether to resolve the layer 2 leggings atlas instead of layer 1
-     * @return the resolved (and, for leather, dye-tinted + overlaid) texture, or empty when the base
-     *     texture is not present in the active pack
+     * @param layerType the equipment layer the slot maps to ({@link LayerType#HUMANOID} or
+     *     {@link LayerType#HUMANOID_LEGGINGS})
+     * @return the composited texture, or empty when the asset ships no layers or none resolve
      */
     private static @NotNull Optional<PixelBuffer> resolveArmorTexture(
         @NotNull Textures engine,
         @NotNull ArmorPiece piece,
-        boolean leggingsLayer
+        @NotNull LayerType layerType
     ) {
-        ArmorMaterial material = piece.material();
-        String baseId = leggingsLayer ? material.leggingsTextureId() : material.humanoidTextureId();
-        Optional<PixelBuffer> base = engine.tryResolveTexture(baseId);
-        if (base.isEmpty() || !material.dyeable())
-            return base;
+        List<EquipmentModel.Layer> layers = engine.getContext().resolveEquipmentLayers(piece.material().assetId(), layerType);
+        if (layers.isEmpty()) return Optional.empty();
 
-        int dye = piece.dyeColor().orElse(DEFAULT_LEATHER_COLOR);
-        PixelBuffer tinted = ColorMath.tint(base.get(), dye);
+        // A single flat (non-dyeable) layer returns its resolved buffer directly - the exact
+        // pre-model path, so byte-identity does not rest on a blit onto a fresh buffer.
+        if (layers.size() == 1 && layers.getFirst().dyeable().isEmpty())
+            return engine.tryResolveTexture(layers.getFirst().textureLocation(layerType).id());
 
-        String overlayId = leggingsLayer ? material.leggingsOverlayTextureId() : material.humanoidOverlayTextureId();
-        Optional<PixelBuffer> overlay = engine.tryResolveTexture(overlayId);
-        if (overlay.isEmpty())
-            return Optional.of(tinted);
+        PixelBuffer combined = null;
+        for (EquipmentModel.Layer layer : layers) {
+            Optional<PixelBuffer> texture = engine.tryResolveTexture(layer.textureLocation(layerType).id());
+            if (texture.isEmpty()) continue;
 
-        PixelBuffer combined = PixelBuffer.create(tinted.width(), tinted.height());
-        combined.blit(tinted, 0, 0);
-        combined.blit(overlay.get(), 0, 0);
-        return Optional.of(combined);
+            PixelBuffer painted;
+            if (layer.dyeable().isPresent()) {
+                int color = piece.dyeColor().orElse(layer.dyeable().get().colorWhenUndyed().orElse(0));
+                if (color == 0) continue;   // dyeable layer with no undyed fallback: skip when undyed
+                painted = ColorMath.tint(texture.get(), color);
+            } else {
+                painted = texture.get();
+            }
+
+            if (combined == null) combined = PixelBuffer.create(painted.width(), painted.height());
+            combined.blit(painted, 0, 0);
+        }
+        return Optional.ofNullable(combined);
     }
 
     /**
