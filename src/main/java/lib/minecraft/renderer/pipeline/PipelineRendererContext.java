@@ -14,6 +14,9 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.EquipmentAssets;
+import lib.minecraft.renderer.asset.equipment.EquipmentModel;
+import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
@@ -42,6 +45,7 @@ import lib.minecraft.renderer.pipeline.pack.BannerPatternLoader;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader;
 import lib.minecraft.renderer.pipeline.pack.BlockTagLoader;
 import lib.minecraft.renderer.pipeline.pack.ColorMapLoader;
+import lib.minecraft.renderer.pipeline.pack.EquipmentModelLoader;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.pipeline.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.pipeline.pack.ResolvedModels;
@@ -92,6 +96,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntities;
     private final @NotNull TextureSynthesizer synthesizer;
+    private final @NotNull EquipmentAssets equipmentAssets;
 
     /**
      * The block ids in atlas-grouping order (primary tag then id), precomputed once, shared unmodifiable.
@@ -146,6 +151,7 @@ public final class PipelineRendererContext implements RendererContext {
             itemTints, glintItems, models.items(), itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
+        EquipmentAssets equipmentAssets = EquipmentModelLoader.load(stack);
 
         return new PipelineRendererContext(
             stack,
@@ -160,6 +166,7 @@ public final class PipelineRendererContext implements RendererContext {
             bannerPatterns,
             blockEntities,
             synthesizer,
+            equipmentAssets,
             sortedBlockIds(blockIndex, blockTags),
             sortedItemIds(itemIndex)
         );
@@ -366,6 +373,19 @@ public final class PipelineRendererContext implements RendererContext {
         @NotNull String baseTextureId, @NotNull BlockFace face) {
         return this.stack.rules().connectedTextureFor(
             new CtmContext(blockId, state, baseTextureId, CtmFace.fromBlockFace(face)));
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Serves the parsed {@code equipment/*.json} index: the ordered layers for the asset under the
+     * layer type, or an empty list when the stack ships no such asset (an unresolvable id yields
+     * {@link EquipmentModel#MISSING}). The index is held internal, exposed only through this seam.
+     */
+    @Override
+    public @NotNull List<EquipmentModel.Layer> resolveEquipmentLayers(
+        @NotNull ResourceId assetId, @NotNull LayerType layerType) {
+        return this.equipmentAssets.get(assetId).getLayers(layerType);
     }
 
     /**

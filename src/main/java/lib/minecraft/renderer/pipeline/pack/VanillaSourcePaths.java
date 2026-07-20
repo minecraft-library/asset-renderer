@@ -60,6 +60,12 @@ public class VanillaSourcePaths {
     public static final @NotNull String ATLASES_SUBDIR = "atlases";
 
     /**
+     * Relative subpath (under {@code assets/<namespace>/}) of the equipment model subtree
+     * ({@code equipment/}), one json per equipment asset (armor material, elytra, mob saddle / body).
+     */
+    public static final @NotNull String EQUIPMENT_SUBDIR = "equipment";
+
+    /**
      * Model kind segment for block model ids ({@code <namespace>:block/...}).
      */
     public static final @NotNull String BLOCK_KIND = "block";

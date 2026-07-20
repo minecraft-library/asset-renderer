@@ -12,6 +12,8 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.EquipmentModel;
+import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
@@ -23,6 +25,7 @@ import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -265,6 +268,22 @@ public interface RendererContext {
     }
 
     /**
+     * Resolves the ordered equipment texture layers for an asset id under a layer type - the
+     * data-driven source for worn-armor, elytra, and mob-equipment textures, exposing the parsed
+     * {@code equipment/*.json} model the way {@link #resolveTexture} exposes pack bytes. The default
+     * returns an empty list, so every stub and a stack with no equipment index resolves to no layers;
+     * a slot with no layers simply does not texture (the no-missing-texture-fallback contract).
+     *
+     * @param assetId the equipment asset id (e.g. {@code minecraft:iron}, {@code minecraft:elytra})
+     * @param layerType the render layer whose subdir the textures sit under
+     * @return the ordered base-to-overlay layers, or an empty list when the stack ships no such asset
+     */
+    default @NotNull List<EquipmentModel.Layer> resolveEquipmentLayers(
+        @NotNull ResourceId assetId, @NotNull LayerType layerType) {
+        return List.of();
+    }
+
+    /**
      * Resolves a texture id to a decoded {@link PixelBuffer} by walking the active packs in
      * priority order. Returns empty only when no pack provides the texture.
      *
@@ -378,6 +397,12 @@ public interface RendererContext {
             @NotNull String blockId, @NotNull Map<String, String> state,
             @NotNull String baseTextureId, @NotNull BlockFace face) {
             return delegate().resolveConnectedTexture(blockId, state, baseTextureId, face);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull List<EquipmentModel.Layer> resolveEquipmentLayers(
+            @NotNull ResourceId assetId, @NotNull LayerType layerType) {
+            return delegate().resolveEquipmentLayers(assetId, layerType);
         }
 
         /** {@inheritDoc} */

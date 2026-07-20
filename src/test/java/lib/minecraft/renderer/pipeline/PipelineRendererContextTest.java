@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.EquipmentAssets;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackContainer;
@@ -214,6 +215,7 @@ class PipelineRendererContextTest {
         context = new PipelineRendererContext(
             stack, blockIndex, itemIndex, itemTrees, itemModels, entityIndex, colorMaps,
             blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, synthesizer,
+            EquipmentAssets.EMPTY,
             Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
     }
 
