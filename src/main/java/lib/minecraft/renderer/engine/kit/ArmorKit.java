@@ -5,8 +5,11 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
+import lib.minecraft.renderer.asset.pack.rule.CitResult;
+import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
@@ -79,6 +82,8 @@ public class ArmorKit {
      * @param chestplate equipped chestplate, or empty
      * @param leggings equipped leggings, or empty
      * @param boots equipped boots, or empty
+     * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override; empty
+     *     leaves each slot on its equipment-model texture
      * @param engine the texture engine for pack-aware texture resolution
      * @return the armor + trim triangles, empty when no armor is equipped
      */
@@ -88,20 +93,30 @@ public class ArmorKit {
         @NotNull Optional<ArmorPiece> chestplate,
         @NotNull Optional<ArmorPiece> leggings,
         @NotNull Optional<ArmorPiece> boots,
+        @NotNull Map<ArmorTrim.Slot, ItemContext> items,
         @NotNull Textures engine
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
         helmet.ifPresent(piece ->
-            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.HELMET, engine));
+            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.HELMET, itemFor(items, ArmorTrim.Slot.HELMET), engine));
         chestplate.ifPresent(piece ->
-            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.CHESTPLATE, engine));
+            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.CHESTPLATE, itemFor(items, ArmorTrim.Slot.CHESTPLATE), engine));
         leggings.ifPresent(piece ->
-            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.LEGGINGS, engine));
+            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.LEGGINGS, itemFor(items, ArmorTrim.Slot.LEGGINGS), engine));
         boots.ifPresent(piece ->
-            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.BOOTS, engine));
+            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.BOOTS, itemFor(items, ArmorTrim.Slot.BOOTS), engine));
 
         return triangles;
+    }
+
+    /**
+     * The equipped item context for a slot, or empty when the caller supplied none - the pack-rule
+     * (CIT) override is consulted only for a present item, so an empty map keeps the override dormant.
+     */
+    private static @NotNull Optional<ItemContext> itemFor(
+        @NotNull Map<ArmorTrim.Slot, ItemContext> items, @NotNull ArmorTrim.Slot slot) {
+        return Optional.ofNullable(items.get(slot));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -121,6 +136,8 @@ public class ArmorKit {
      * @param y the destination Y on the buffer
      * @param w the destination width
      * @param h the destination height
+     * @param item the equipped item identity, for the pack-rule (CIT) texture override; empty leaves the
+     *     slot on its equipment-model texture
      * @param engine the texture engine for pack-aware texture resolution
      */
     public static void compositeSlot2D(
@@ -129,6 +146,7 @@ public class ArmorKit {
         @NotNull ArmorTrim.Slot slot,
         @NotNull ArmorPiece piece,
         int x, int y, int w, int h,
+        @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
         // The target buffer owns the coverage mask (enabled by the caller when the armor is enchanted);
@@ -136,7 +154,7 @@ public class ArmorKit {
         // not the bare skin. Absent when the caller records no mask - then stampMaskScaled is a no-op.
         PixelMask mask = target.mask().orElse(null);
         boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
-        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID);
+        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID, item);
         armorTexture.ifPresent(tex -> {
             PixelBuffer face = part.crop(tex, BlockFace.SOUTH, false);
             target.blitScaled(face, x, y, w, h);
@@ -226,6 +244,8 @@ public class ArmorKit {
      * @param chestplate equipped chestplate, or empty
      * @param leggings equipped leggings, or empty
      * @param boots equipped boots, or empty
+     * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override; empty
+     *     leaves each slot on its equipment-model texture
      * @param engine the texture engine for pack-aware texture resolution
      * @return the armor + trim triangles
      */
@@ -235,6 +255,7 @@ public class ArmorKit {
         @NotNull Optional<ArmorPiece> chestplate,
         @NotNull Optional<ArmorPiece> leggings,
         @NotNull Optional<ArmorPiece> boots,
+        @NotNull Map<ArmorTrim.Slot, ItemContext> items,
         @NotNull Textures engine
     ) {
         Map<SkinFace, Vector3f[]> bodyPositions = new EnumMap<>(SkinFace.class);
@@ -243,7 +264,7 @@ public class ArmorKit {
             if (part != null)
                 bodyPositions.put(part, entry.getValue());
         }
-        return buildHumanoidArmor3D(bodyPositions, helmet, chestplate, leggings, boots, engine);
+        return buildHumanoidArmor3D(bodyPositions, helmet, chestplate, leggings, boots, items, engine);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -267,13 +288,14 @@ public class ArmorKit {
         @NotNull Map<SkinFace, Vector3f[]> bodyPositions,
         @NotNull ArmorPiece piece,
         @NotNull ArmorTrim.Slot slot,
+        @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
         SkinFace[] parts = partsForSlot(slot);
         boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
         float baseInflate = useLeggingsLayer ? LEGGINGS_INFLATE : ARMOR_INFLATE;
 
-        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID);
+        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID, item);
         if (armorTexture.isEmpty()) return;
 
         for (SkinFace part : parts) {
@@ -321,28 +343,48 @@ public class ArmorKit {
      * to colour 0 undyed and is skipped. A single flat layer is returned unchanged; multiple layers
      * (a dyed leather base plus its undyed overlay) composite in list order.
      *
+     * <p>A present {@code item} first consults the pack-rule (CIT) override
+     * ({@link lib.minecraft.renderer.engine.RendererContext#resolveArmorTextureOverride}); a matching
+     * rule replaces each layer's texture ({@code layer0} the base, {@code layerN} the overlays) before
+     * the equipment-model path. On a vanilla stack with no item the override is {@link CitResult#NONE}
+     * and every layer resolves through the model, so the render is byte-identical to the model-only path.
+     *
      * @param engine the texture engine for pack-aware texture resolution
      * @param piece the armor piece
      * @param layerType the equipment layer the slot maps to ({@link LayerType#HUMANOID} or
      *     {@link LayerType#HUMANOID_LEGGINGS})
+     * @param item the equipped item identity, for the pack-rule override; empty leaves the layers on
+     *     the equipment model
      * @return the composited texture, or empty when the asset ships no layers or none resolve
      */
     private static @NotNull Optional<PixelBuffer> resolveArmorTexture(
         @NotNull Textures engine,
         @NotNull ArmorPiece piece,
-        @NotNull LayerType layerType
+        @NotNull LayerType layerType,
+        @NotNull Optional<ItemContext> item
     ) {
-        List<EquipmentModel.Layer> layers = engine.getContext().resolveEquipmentLayers(piece.material().assetId(), layerType);
-        if (layers.isEmpty()) return Optional.empty();
+        CitResult cit = item
+            .map(context -> engine.getContext().resolveArmorTextureOverride(piece.material(), layerType, context))
+            .orElse(CitResult.NONE);
 
-        // A single flat (non-dyeable) layer returns its resolved buffer directly - the exact
-        // pre-model path, so byte-identity does not rest on a blit onto a fresh buffer.
-        if (layers.size() == 1 && layers.getFirst().dyeable().isEmpty())
+        List<EquipmentModel.Layer> layers = engine.getContext().resolveEquipmentLayers(piece.material().assetId(), layerType);
+        if (layers.isEmpty() && cit == CitResult.NONE) return Optional.empty();
+
+        // A single flat (non-dyeable) layer with no pack-rule override returns its resolved buffer
+        // directly - the exact model-only path, so byte-identity does not rest on a blit onto a fresh buffer.
+        if (cit == CitResult.NONE && layers.size() == 1 && layers.getFirst().dyeable().isEmpty())
             return engine.tryResolveTexture(layers.getFirst().textureLocation(layerType).id());
 
         PixelBuffer combined = null;
-        for (EquipmentModel.Layer layer : layers) {
-            Optional<PixelBuffer> texture = engine.tryResolveTexture(layer.textureLocation(layerType).id());
+        for (int i = 0; i < layers.size(); i++) {
+            EquipmentModel.Layer layer = layers.get(i);
+            // A matching CIT rule replaces this layer's texture (layer0 the base, layerN the overlays);
+            // absent an override the equipment model's own path resolves. NONE returns empty for every
+            // layer, so the fallback is byte-identical to the model-only path.
+            String textureId = cit.textureFor("layer" + i)
+                .map(ResourceId::id)
+                .orElseGet(() -> layer.textureLocation(layerType).id());
+            Optional<PixelBuffer> texture = engine.tryResolveTexture(textureId);
             if (texture.isEmpty()) continue;
 
             PixelBuffer painted;

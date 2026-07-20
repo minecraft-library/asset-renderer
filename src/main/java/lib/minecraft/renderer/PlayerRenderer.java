@@ -483,7 +483,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 if (slotPart == part) { partInSlot = true; break; }
             if (!partInSlot) continue;
 
-            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h, engine.textures());
+            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h,
+                Optional.ofNullable(options.getArmor().getItems().get(slot)), engine.textures());
         }
     }
 
@@ -702,7 +703,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         stack.append(PlayerSlot3D.ARMOR, sink -> sink.addAll(ArmorKit.buildHumanoidArmor3D(
             armorBoundsFor(type),
             options.getArmor().getHelmet(), options.getArmor().getChestplate(),
-            options.getArmor().getLeggings(), options.getArmor().getBoots(), engine.textures())));
+            options.getArmor().getLeggings(), options.getArmor().getBoots(),
+            options.getArmor().getItems(), engine.textures())));
     }
 
 }

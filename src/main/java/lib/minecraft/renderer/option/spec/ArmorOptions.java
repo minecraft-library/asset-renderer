@@ -1,10 +1,12 @@
 package lib.minecraft.renderer.option.spec;
 
+import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -41,6 +43,15 @@ public class ArmorOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> boots = Optional.empty();
+
+    /**
+     * The equipped item identity per slot, driving the pack-rule (CIT) armor texture override. Empty
+     * by default, which leaves each slot's equipment-model texture in force; a populated entry lets a
+     * {@code type=armor} rule retexture that slot. Kept beside the {@link ArmorPiece} slots rather than
+     * on the piece so every {@code ArmorPiece.of(...)} call site stays untouched.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Map<ArmorTrim.Slot, ItemContext> items = Map.of();
 
     /**
      * Opens a builder seeded from this instance's current values, for deriving a variant with a

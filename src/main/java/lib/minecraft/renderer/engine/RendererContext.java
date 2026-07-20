@@ -22,6 +22,7 @@ import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.engine.kit.NineSliceKit;
 import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import org.jetbrains.annotations.NotNull;
 
@@ -244,6 +245,24 @@ public interface RendererContext {
     }
 
     /**
+     * Resolves the highest-precedence CIT armor / elytra retexture for an equipped piece - the
+     * {@code type=armor} / {@code type=elytra} analogue of {@link #resolveItemTextureOverride}, walking
+     * the merged CIT rule list first-match-wins for the layer type's subject and returning the winning
+     * rule's effect. The default returns {@link CitResult#NONE} so every stub and a vanilla-only stack
+     * leaves the equipment model's own texture in force.
+     *
+     * @param material the equipped piece's armor material
+     * @param layerType the render layer being textured; {@link LayerType#WINGS} selects the elytra
+     *     subject, any other the armor subject
+     * @param item the per-render item context (the equipped item's id + NBT) the rule matches against
+     * @return the CIT effect, or {@link CitResult#NONE} when no rule matches
+     */
+    default @NotNull CitResult resolveArmorTextureOverride(
+        @NotNull ArmorMaterial material, @NotNull LayerType layerType, @NotNull ItemContext item) {
+        return CitResult.NONE;
+    }
+
+    /**
      * Resolves the Connected Textures substitution for one face of an isolated block icon - the
      * highest-precedence matching non-overlay rule replaces the face's base texture with its no-neighbor
      * tile. Walks the merged CTM rules first-match-wins (see
@@ -390,6 +409,12 @@ public interface RendererContext {
         /** {@inheritDoc} */
         @Override default @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
             return delegate().resolveItemTextureOverride(context);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull CitResult resolveArmorTextureOverride(
+            @NotNull ArmorMaterial material, @NotNull LayerType layerType, @NotNull ItemContext item) {
+            return delegate().resolveArmorTextureOverride(material, layerType, item);
         }
 
         /** {@inheritDoc} */

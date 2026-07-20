@@ -32,6 +32,7 @@ import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
 import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder;
 import lib.minecraft.renderer.pipeline.index.ItemIndexBuilder;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
@@ -358,6 +359,27 @@ public final class PipelineRendererContext implements RendererContext {
             if (rule.matches(context)) return CitResult.of(rule.output(), glint);
         }
         return glint == GlintPolicy.DEFAULT ? CitResult.NONE : CitResult.NONE.withGlint(glint);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Walks the merged CIT rule list first-match-wins for the layer type's subject
+     * ({@code type=elytra} for {@link LayerType#WINGS}, else {@code type=armor}), returning the winning
+     * rule's output. Empty on a vanilla-only stack (no {@code optifine/} tree, so no rules). The glint
+     * stays {@link GlintPolicy#DEFAULT}: armor enchant glint rides {@code ArmorPiece.enchanted} onto a
+     * separate {@code PixelMask} channel, not the CIT glint the item override grafts, so a
+     * {@code type=enchantment} rule never colours a CIT-armor override.
+     */
+    @Override
+    public @NotNull CitResult resolveArmorTextureOverride(
+        @NotNull ArmorMaterial material, @NotNull LayerType layerType, @NotNull ItemContext item) {
+        CitType want = layerType == LayerType.WINGS ? CitType.ELYTRA : CitType.ARMOR;
+        for (CitRule rule : this.stack.rules().citRules()) {
+            if (rule.type() != want) continue;
+            if (rule.matches(item)) return CitResult.of(rule.output(), GlintPolicy.DEFAULT);
+        }
+        return CitResult.NONE;
     }
 
     /**
