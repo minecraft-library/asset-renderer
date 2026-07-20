@@ -17,6 +17,7 @@ import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
@@ -53,20 +54,15 @@ public class ElytraKit {
     /** The half-body scale vanilla {@code ElytraModel.BABY_TRANSFORMER} applies for a baby wearer. */
     private static final float BABY_SCALE = 0.5f;
 
-    /**
-     * The model-space feet Y (in the Y-down frame) vanilla {@code MeshTransformer.scaling} anchors its
-     * scale about - {@code pose.scaled(F).translated(0, 24.016*(1-F), 0)} - so a shrunk baby model stays
-     * planted at the feet rather than shrinking toward the origin (the upper back).
-     */
-    private static final float MODEL_FEET_Y = 24.016f;
-
-    /** The adult wing mesh at full scale. */
+    /** The adult wing mesh at full scale, authored in vanilla's model frame (shoulders at y 0). */
     private static final @NotNull EntityModelData WINGS = buildWingsMesh(false);
 
     /**
-     * The baby wing mesh - vanilla {@code ElytraModel.BABY_TRANSFORMER}
-     * ({@code MeshTransformer.scaling(0.5)}) scales the whole wing model to half and re-anchors it at
-     * the feet, so the wings seat on the baby's smaller back rather than floating at the adult shoulder.
+     * The baby wing mesh at half scale (vanilla {@code ElytraModel.BABY_TRANSFORMER} =
+     * {@code MeshTransformer.scaling(0.5)}). The vanilla transform re-anchors the shrunk mesh at the
+     * feet, but a headless render draws a dedicated baby body mesh whose shoulder height is not the
+     * adult feet-anchor value, so {@link #buildWings3D} instead re-seats the baby wings on the rendered
+     * body's actual shoulder bounds.
      */
     private static final @NotNull EntityModelData WINGS_BABY = buildWingsMesh(true);
 
@@ -89,6 +85,9 @@ public class ElytraKit {
      *
      * @param engine the texture engine for pack-aware texture resolution
      * @param baby whether to render the half-scale baby wings
+     * @param bodyBounds the rendered body bone's {@code [min, max]} bounds (the {@code body} bone), used
+     *     to re-seat the baby wings on the actual shoulder height, or {@code null} to leave the wings at
+     *     their authored position
      * @param modelAnchor the model-space anchor that maps to the canvas centre (the body's fit anchor)
      * @param ndcScale the model-units-to-NDC scale (the body's fit scale)
      * @param modelScale the per-render vertex pre-scale (the body's renderer-scale chain)
@@ -96,7 +95,7 @@ public class ElytraKit {
      * @return the wing triangles, empty when the wings do not resolve
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildWings3D(
-        @NotNull Textures engine, boolean baby,
+        @NotNull Textures engine, boolean baby, @Nullable Vector3f[] bodyBounds,
         @NotNull Vector3f modelAnchor, float ndcScale, float modelScale, int tick
     ) {
         List<EquipmentModel.Layer> layers = engine.getContext().resolveEquipmentLayers(ELYTRA_ASSET, LayerType.WINGS);
@@ -104,39 +103,62 @@ public class ElytraKit {
 
         EquipmentModel.Layer wing = layers.getFirst();
         Optional<PixelBuffer> texture = engine.tryResolveTextureAtTick(wing.textureLocation(LayerType.WINGS).id(), tick);
-        return texture.map(pixelBuffer -> EntityGeometryKit.buildTriangles(
-            wingsMesh(baby),
-            pixelBuffer,
-            modelAnchor,
-            false,
-            ndcScale,
-            modelScale,
-            ColorMath.WHITE).triangles()
-            )
-            .orElseGet(Concurrent::newList);
+        if (texture.isEmpty()) return Concurrent.newList();
+
+        ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(
+            wingsMesh(baby), texture.get(), modelAnchor, false, ndcScale, modelScale, ColorMath.WHITE).triangles();
+
+        // The adult wing mesh is authored in vanilla's frame (shoulders at y 0), so it already seats on
+        // the adult body. The baby draws a dedicated smaller body mesh whose shoulders sit lower, so
+        // drop the half-scale wings by the gap between their authored top and the body's actual top (in
+        // the Y-down frame the top edge is the minimum y).
+        if (baby && bodyBounds != null && !wings.isEmpty())
+            return shiftY(wings, bodyBounds[0].y() - minY(wings));
+
+        return wings;
+    }
+
+    /** The minimum y across every vertex of the triangles - the top edge in the Y-down model frame. */
+    private static float minY(@NotNull ConcurrentList<VisibleTriangle> triangles) {
+        float min = Float.POSITIVE_INFINITY;
+        for (VisibleTriangle triangle : triangles)
+            min = Math.min(min, Math.min(triangle.position0().y(), Math.min(triangle.position1().y(), triangle.position2().y())));
+        return min;
+    }
+
+    /** Returns a copy of the triangles translated by {@code dy} along Y, leaving normals and UVs intact. */
+    private static @NotNull ConcurrentList<VisibleTriangle> shiftY(@NotNull ConcurrentList<VisibleTriangle> triangles, float dy) {
+        ConcurrentList<VisibleTriangle> shifted = Concurrent.newList();
+        for (VisibleTriangle t : triangles)
+            shifted.add(new VisibleTriangle(
+                addY(t.position0(), dy), addY(t.position1(), dy), addY(t.position2(), dy),
+                t.uv0(), t.uv1(), t.uv2(), t.texture(), t.tintArgb(), t.normal(), t.shading(), t.traits(), t.debugTag()));
+        return shifted;
+    }
+
+    /** The vector with {@code dy} added to its Y component. */
+    private static @NotNull Vector3f addY(@NotNull Vector3f v, float dy) {
+        return new Vector3f(v.x(), v.y() + dy, v.z());
     }
 
     /**
      * Builds the two-bone wing mesh, transcribed from {@code ElytraModel.createLayer}: left wing box
      * origin {@code (-10,0,0)} size {@code (10,20,2)} texOffs {@code (22,0)} at pivot {@code (5,0,2)}
-     * rotated {@code (15,0,-15)}, right wing mirrored. For a baby the whole model is scaled to half
-     * about the feet (vanilla {@code BABY_TRANSFORMER} = {@code MeshTransformer.scaling(0.5)}): each
-     * bone carries the {@code 0.5} per-vertex scale and its pivot is folded through
-     * {@code p' = F*p + (0, 24.016*(1-F), 0)}, the feet-anchor translate, so the shrunk wings drop to
-     * the baby's back rather than floating at the adult shoulder.
+     * rotated {@code (15,0,-15)}, right wing mirrored. A baby carries the {@code 0.5} per-vertex scale
+     * (vanilla {@code BABY_TRANSFORMER}) with its pivot offsets halved to match; the vanilla feet-anchor
+     * re-seat is applied at render against the actual body bounds ({@link #buildWings3D}).
      */
     private static @NotNull EntityModelData buildWingsMesh(boolean baby) {
         float scale = baby ? BABY_SCALE : 1f;
-        float feetShift = MODEL_FEET_Y * (1f - scale);
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("left_wing", wingBone(
-            wingPivot(5f, scale, feetShift),
+            wingPivot(5f, scale),
             new EulerRotation(15f, 0f, -15f),
             scale,
             wingCube(new Vector3f(-10f, 0f, 0f), false)
         ));
         bones.put("right_wing", wingBone(
-            wingPivot(-5f, scale, feetShift),
+            wingPivot(-5f, scale),
             new EulerRotation(15f, 0f, 15f),
             scale,
             wingCube(new Vector3f(0f, 0f, 0f), true)
@@ -145,12 +167,12 @@ public class ElytraKit {
     }
 
     /**
-     * The feet-anchored wing pivot: the createLayer pivot {@code (x, 0, WING_BACK_OFFSET)} scaled by
-     * {@code scale} about the origin with the feet-anchor Y shift added, so an adult
-     * ({@code scale == 1}) keeps its exact createLayer pivot.
+     * The wing pivot: the createLayer pivot {@code (x, 0, WING_BACK_OFFSET)} with its X and Z offsets
+     * scaled by {@code scale} (Y stays at the shoulder line), so an adult ({@code scale == 1}) keeps its
+     * exact createLayer pivot and a baby's pivots shrink toward the body centre.
      */
-    private static @NotNull Vector3f wingPivot(float x, float scale, float feetShift) {
-        return new Vector3f(x * scale, feetShift, WING_BACK_OFFSET * scale);
+    private static @NotNull Vector3f wingPivot(float x, float scale) {
+        return new Vector3f(x * scale, 0f, WING_BACK_OFFSET * scale);
     }
 
     /** A wing bone owning one cube, at the given pivot, rotation, and per-vertex scale. */

@@ -577,8 +577,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 EntityAppearance appearance = ctx.options().getAppearance();
                 if (!appearance.isElytra()) return;
+                Vector3f[] bodyBounds = ctx.buildResult().boneBounds().get("body");
                 stack.append(this.slot, sink ->
-                    sink.addAll(ElytraKit.buildWings3D(ctx.textures(), appearance.isBaby(),
+                    sink.addAll(ElytraKit.buildWings3D(ctx.textures(), appearance.isBaby(), bodyBounds,
                         ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale(), ctx.tick())));
             }
         },
