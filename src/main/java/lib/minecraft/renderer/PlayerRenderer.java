@@ -22,6 +22,7 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.ElytraKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.exception.RenderException;
@@ -276,6 +277,51 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * Resolves the caller-supplied elytra wing texture ({@code SkinOptions.elytra}) using the same
+     * source priority chain as the cape, or empty when it supplies no source (the wings then fall back
+     * to the wearer's cape or the static elytra skin).
+     */
+    static @NotNull Optional<PixelBuffer> resolveElytraSource(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
+        if (options.getSkin().getElytra().getBytes().isPresent())
+            return Optional.of(parent.imageFactory.fromByteArray(options.getSkin().getElytra().getBytes().get()).toPixelBuffer());
+
+        if (options.getSkin().getElytra().getUrl().isPresent()) {
+            String url = options.getSkin().getElytra().getUrl().get();
+            return Optional.of(parent.skinCache.computeIfAbsent("elytra:" + url, ignored -> {
+                byte[] bytes = fetchTexture(url);
+                return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
+            }));
+        }
+
+        if (options.getSkin().getElytra().getId().isPresent()) {
+            RasterEngine engine = new RasterEngine(parent.context);
+            return engine.textures().tryResolveTexture(options.getSkin().getElytra().getId().get());
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Appends the back layer for a 3D player scope: the elytra wings when {@code renderElytra}, else the
+     * flat cape when {@code renderCape}. An equipped elytra supersedes the cape (matching vanilla) and
+     * draws the wearer's cape texture when present - vanilla's {@code use_player_texture}, so a caped
+     * player's elytra shows the cape design - degrading to a caller-supplied or static elytra skin.
+     */
+    private static void appendBackLayer(
+        @NotNull PlayerRenderer parent, @NotNull LayerStack<GeometryLayer> stack, @NotNull PlayerOptions options,
+        @NotNull ModelEngine engine, @NotNull Vector3f torsoMin, @NotNull Vector3f torsoMax
+    ) {
+        if (options.getSkin().isRenderElytra()) {
+            Optional<PixelBuffer> playerTexture = resolveCape(parent, options).or(() -> resolveElytraSource(parent, options));
+            stack.append(PlayerSlot3D.CAPE, sink ->
+                sink.addAll(ElytraKit.buildPlayerWings3D(engine.textures(), torsoMin, torsoMax, playerTexture, 0)));
+            return;
+        }
+        resolveCape(parent, options).ifPresent(cape ->
+            stack.append(PlayerSlot3D.CAPE, sink -> addCape(sink, cape, torsoMin, torsoMax)));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -560,9 +606,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 addBodyPart(sink, skin, SkinFace.LEFT_ARM, BUST_L_ARM_MIN, BUST_L_ARM_MAX, options);
             });
             appendArmor(stack, PlayerOptions.Type.BUST, options, engine);
-            resolveCape(this.parent, options)
-                .ifPresent(cape -> stack.append(PlayerSlot3D.CAPE,
-                    sink -> addCape(sink, cape, BUST_TORSO_MIN, BUST_TORSO_MAX)));
+            appendBackLayer(this.parent, stack, options, engine, BUST_TORSO_MIN, BUST_TORSO_MAX);
 
             Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
@@ -602,9 +646,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 addBodyPart(sink, skin, SkinFace.LEFT_LEG, FULL_L_LEG_MIN, FULL_L_LEG_MAX, options);
             });
             appendArmor(stack, PlayerOptions.Type.FULL, options, engine);
-            resolveCape(this.parent, options)
-                .ifPresent(cape -> stack.append(PlayerSlot3D.CAPE,
-                    sink -> addCape(sink, cape, FULL_TORSO_MIN, FULL_TORSO_MAX)));
+            appendBackLayer(this.parent, stack, options, engine, FULL_TORSO_MIN, FULL_TORSO_MAX);
 
             Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 

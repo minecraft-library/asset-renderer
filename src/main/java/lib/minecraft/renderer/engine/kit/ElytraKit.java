@@ -10,6 +10,7 @@ import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.TextureSize;
+import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -53,6 +54,9 @@ public class ElytraKit {
 
     /** The half-body scale vanilla {@code ElytraModel.BABY_TRANSFORMER} applies for a baby wearer. */
     private static final float BABY_SCALE = 0.5f;
+
+    /** The vanilla humanoid body cube width in model pixels, the per-pixel scale the player frame divides by. */
+    private static final float VANILLA_BODY_WIDTH = 8f;
 
     /** The adult wing mesh at full scale, authored in vanilla's model frame (shoulders at y 0). */
     private static final @NotNull EntityModelData WINGS = buildWingsMesh(false);
@@ -98,11 +102,7 @@ public class ElytraKit {
         @NotNull Textures engine, boolean baby, @Nullable Vector3f[] bodyBounds,
         @NotNull Vector3f modelAnchor, float ndcScale, float modelScale, int tick
     ) {
-        List<EquipmentModel.Layer> layers = engine.getContext().resolveEquipmentLayers(ELYTRA_ASSET, LayerType.WINGS);
-        if (layers.isEmpty()) return Concurrent.newList();
-
-        EquipmentModel.Layer wing = layers.getFirst();
-        Optional<PixelBuffer> texture = engine.tryResolveTextureAtTick(wing.textureLocation(LayerType.WINGS).id(), tick);
+        Optional<PixelBuffer> texture = resolveWingTexture(engine, tick);
         if (texture.isEmpty()) return Concurrent.newList();
 
         ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(
@@ -139,6 +139,70 @@ public class ElytraKit {
     /** The vector with {@code dy} added to its Y component. */
     private static @NotNull Vector3f addY(@NotNull Vector3f v, float dy) {
         return new Vector3f(v.x(), v.y() + dy, v.z());
+    }
+
+    /**
+     * Builds the elytra wing triangles for a player scope, seated behind the torso in the player's
+     * normalized model frame. The wings render the {@code playerTexture} when present (the wearer's
+     * cape - vanilla's {@code use_player_texture}, so a caped player's elytra shows the cape design) and
+     * degrade to the static {@code minecraft:elytra} wing skin otherwise. Empty when neither resolves.
+     *
+     * <p>The wings are built once in the vanilla entity frame, then each triangle is folded into the
+     * player frame ({@code R_X(180)} scaled about the torso's shoulder line, matching how the cape hangs
+     * on the {@code -Z} back) and its shade re-baked from the reoriented normal via
+     * {@link Lighting#inventory}, so the wings light with the same cardinal-shade model as the body and
+     * cape they sit against.
+     *
+     * @param engine the texture engine for pack-aware texture resolution
+     * @param torsoMin the player torso's minimum-corner bounds
+     * @param torsoMax the player torso's maximum-corner bounds
+     * @param playerTexture the wearer's cape / elytra texture, or empty to use the static elytra skin
+     * @param tick the current animation tick
+     * @return the wing triangles in the player model frame, empty when the wings do not resolve
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildPlayerWings3D(
+        @NotNull Textures engine, @NotNull Vector3f torsoMin, @NotNull Vector3f torsoMax,
+        @NotNull Optional<PixelBuffer> playerTexture, int tick
+    ) {
+        Optional<PixelBuffer> texture = playerTexture.or(() -> resolveWingTexture(engine, tick));
+        if (texture.isEmpty()) return Concurrent.newList();
+
+        ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(
+            WINGS, texture.get(), Vector3f.ZERO, false, 1f, 1f, ColorMath.WHITE).triangles();
+
+        float scale = (torsoMax.x() - torsoMin.x()) / VANILLA_BODY_WIDTH;
+        float centreX = (torsoMin.x() + torsoMax.x()) * 0.5f;
+        float centreZ = (torsoMin.z() + torsoMax.z()) * 0.5f;
+        float shoulderY = torsoMax.y();
+
+        ConcurrentList<VisibleTriangle> out = Concurrent.newList();
+        for (VisibleTriangle t : wings) {
+            Vector3f normal = new Vector3f(t.normal().x(), -t.normal().y(), -t.normal().z()).normalize();
+            float shade = Lighting.inventory(normal);
+            out.add(new VisibleTriangle(
+                toPlayerFrame(t.position0(), scale, centreX, shoulderY, centreZ),
+                toPlayerFrame(t.position1(), scale, centreX, shoulderY, centreZ),
+                toPlayerFrame(t.position2(), scale, centreX, shoulderY, centreZ),
+                t.uv0(), t.uv1(), t.uv2(), t.texture(), t.tintArgb(), normal, shade, t.traits(), t.debugTag()));
+        }
+        return out;
+    }
+
+    /**
+     * Folds a vanilla-frame wing vertex into the player model frame: the vanilla model (Y-down, back at
+     * {@code +Z}) is flipped through {@code R_X(180)}, scaled to the torso's per-pixel size, and anchored
+     * at the shoulder line (torso top centre), so the wings hang on the {@code -Z} back like the cape.
+     */
+    private static @NotNull Vector3f toPlayerFrame(
+        @NotNull Vector3f v, float scale, float centreX, float shoulderY, float centreZ) {
+        return new Vector3f(centreX + v.x() * scale, shoulderY - v.y() * scale, centreZ - v.z() * scale);
+    }
+
+    /** Resolves the elytra wing texture from the {@code equipment/elytra.json} {@link LayerType#WINGS} layer. */
+    private static @NotNull Optional<PixelBuffer> resolveWingTexture(@NotNull Textures engine, int tick) {
+        List<EquipmentModel.Layer> layers = engine.getContext().resolveEquipmentLayers(ELYTRA_ASSET, LayerType.WINGS);
+        if (layers.isEmpty()) return Optional.empty();
+        return engine.tryResolveTextureAtTick(layers.getFirst().textureLocation(LayerType.WINGS).id(), tick);
     }
 
     /**
