@@ -12,10 +12,11 @@ import java.util.Optional;
 
 /**
  * A dye-tint axis - one independent dimension along which a render selects a {@link DyeColor} to tint
- * a target (the body base tint, or a named overlay). Each axis owns the {@code tint_by} token an
- * overlay names in the model form ({@code entity_models.json}) to source its multiplicative tint
- * from the render's {@link DyeColor} selection, mirroring vanilla's per-{@code RenderState} colour
- * fields (sheep {@code getWoolColor}, tropical fish {@code baseColor} / {@code patternColor}).
+ * a target (the body base tint, a named overlay, or the wearer's equipment). Each overlay axis owns
+ * the {@code tint_by} token an overlay names in the model form ({@code entity_models.json}) to source
+ * its multiplicative tint from the render's {@link DyeColor} selection, mirroring vanilla's
+ * per-{@code RenderState} colour fields (sheep {@code getWoolColor}, tropical fish {@code baseColor} /
+ * {@code patternColor}).
  *
  * <p>The selections live together on {@code EntityAppearance} as one {@code TintAxis -> DyeColor} map
  * rather than a loose {@link Optional} field per axis, so a new dye-driven dimension is one enum
@@ -37,7 +38,15 @@ public enum TintAxis {
     WOOL("wool_color"),
 
     /** A collar overlay's tint (wolf / cat collar dye). */
-    COLLAR("collar_color");
+    COLLAR("collar_color"),
+
+    /**
+     * The wearer's equipment dye (wolf armor). Unlike the overlay axes this one names no
+     * {@code tint_by} target: it is the dye an equipment asset's own dyeable layers tint by, so it
+     * reaches the render through the equipment composite rather than through an overlay. A dyeable
+     * layer with no undyed fallback (the armadillo-scute overlay) draws only once this is selected.
+     */
+    EQUIPMENT("equipment_color");
 
     /** The {@code tint_by} token this axis is named by in the model form (e.g. {@code "wool_color"}). */
     private final @NotNull String token;

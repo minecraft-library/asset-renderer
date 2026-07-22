@@ -557,13 +557,17 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * material (or the layer default - horse leather armor / the saddle - when the slot is selected
          * without one) names an equipment asset, whose layers composite through {@link EquipmentKit} the
          * same way worn humanoid armor does; a material naming no asset of the layer, or an asset whose
-         * textures are absent from the pack, draws nothing (no fallback). The resolved definition carries
-         * no equipment for a baby, so this contributes nothing then without an age gate.
+         * textures are absent from the pack, draws nothing (no fallback). The {@link TintAxis#EQUIPMENT}
+         * dye is the wearer's, tinting whichever of the asset's layers declare themselves dyeable - the
+         * wolf's armadillo-scute overlay draws only when it is selected, the horse's leather base takes
+         * its own undyed brown when it is not. The resolved definition carries no equipment for a baby,
+         * so this contributes nothing then without an age gate.
          */
         EQUIPMENT(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 EntityAppearance appearance = ctx.options().getAppearance();
+                Optional<Integer> dye = appearance.tint(TintAxis.EQUIPMENT).map(DyeColor::argb);
                 for (Entity.EquipmentOverlay equipment : ctx.definition().layers().equipment()) {
                     Optional<ResourceId> assetId = appearance.equipmentMaterial(equipment.slot())
                         .flatMap(equipment::assetFor);
@@ -572,7 +576,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                         if (equipment.model().getBones().isEmpty()) return;
                         Optional<PixelBuffer> equipmentTex = EquipmentKit.composite(
                             ctx.textures(), assetId.get(), equipment.layerType(),
-                            Optional.empty(), CitResult.NONE, OptionalInt.of(ctx.tick()));
+                            dye, CitResult.NONE, OptionalInt.of(ctx.tick()));
                         if (equipmentTex.isEmpty()) return;
                         sink.addAll(EntityGeometryKit.buildTriangles(
                             equipment.model(), equipmentTex.get(), ctx.modelAnchor(), false,

@@ -109,17 +109,19 @@ public final class TestEntityRender3D {
 
         Optional<String> state = Optional.ofNullable(System.getProperty("asset.entity.state")).filter(s -> !s.isBlank());
         Optional<String> carried = Optional.ofNullable(System.getProperty("asset.entity.carried")).filter(s -> !s.isBlank());
-        // Dye tint axes (-Dasset.entity.collar / .wool / .base_color / .pattern_color name a vanilla
-        // dye); each populates its TintAxis slot, empty = the target's baked default.
+        // Dye tint axes (-Dasset.entity.collar / .wool / .base_color / .pattern_color / .equipment_color
+        // name a vanilla dye); each populates its TintAxis slot, empty = the target's baked default.
         Optional<String> collarName = Optional.ofNullable(System.getProperty("asset.entity.collar")).filter(s -> !s.isBlank());
         Optional<String> woolName = Optional.ofNullable(System.getProperty("asset.entity.wool")).filter(s -> !s.isBlank());
         Optional<String> baseColorName = Optional.ofNullable(System.getProperty("asset.entity.base_color")).filter(s -> !s.isBlank());
         Optional<String> patternColorName = Optional.ofNullable(System.getProperty("asset.entity.pattern_color")).filter(s -> !s.isBlank());
+        Optional<String> equipmentColorName = Optional.ofNullable(System.getProperty("asset.entity.equipment_color")).filter(s -> !s.isBlank());
         java.util.EnumMap<TintAxis, DyeColor> tints = new java.util.EnumMap<>(TintAxis.class);
         collarName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.COLLAR, d));
         woolName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.WOOL, d));
         baseColorName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.BASE, d));
         patternColorName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.PATTERN, d));
+        equipmentColorName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.EQUIPMENT, d));
         // -Dasset.entity.pattern=sunstreak names a tropical-fish pattern (TropicalFishPattern).
         Optional<String> patternName = Optional.ofNullable(System.getProperty("asset.entity.pattern")).filter(s -> !s.isBlank());
         Optional<TropicalFishPattern> pattern = patternName.map(TropicalFishPattern::ofName);
@@ -215,6 +217,7 @@ public final class TestEntityRender3D {
                 + (equipment.isEmpty() ? "" : "_equip-" + equipment.entrySet().stream()
                     .map(en -> en.getValue().isEmpty() ? en.getKey() : en.getKey() + "-" + en.getValue())
                     .collect(java.util.stream.Collectors.joining("-")))
+                + equipmentColorName.map(n -> "_equipdye-" + n.toLowerCase(java.util.Locale.ROOT)).orElse("")
                 + age.map(a -> "_" + a).orElse("");
             EntityAppearance appearance = EntityAppearance.builder()
                 .age(age.map(a -> a.equalsIgnoreCase("baby") ? Age.BABY : Age.ADULT).orElse(Age.ADULT))
