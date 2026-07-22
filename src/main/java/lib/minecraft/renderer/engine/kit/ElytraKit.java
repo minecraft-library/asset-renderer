@@ -15,6 +15,7 @@ import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -92,6 +93,34 @@ public class ElytraKit {
     }
 
     /**
+     * The wing mesh seated on the body it hangs from. The adult mesh is authored in vanilla's frame
+     * (shoulders at {@code y 0}) so it already seats on an adult body and is returned untouched; a baby
+     * draws a dedicated smaller body whose shoulders sit lower, so the half-scale wings drop by the gap
+     * between their authored top and the body's actual top (in the Y-down frame the top edge is the
+     * minimum y).
+     *
+     * <p>The seat lands in the MESH rather than on the built triangles so the canvas-bounds walk and the
+     * render read one re-seat: sizing happens before any geometry is built, and wings measured where
+     * they are authored but drawn lower crop off the bottom of the canvas.
+     *
+     * @param baby whether to seat the half-scale baby mesh
+     * @param bodyBounds the body bone's model-space bounds; empty leaves the wings authored
+     * @return the seated mesh, or the authored mesh when no seat applies
+     */
+    public static @NotNull EntityModelData wingsMesh(boolean baby, @NotNull Optional<Box> bodyBounds) {
+        EntityModelData mesh = wingsMesh(baby);
+        if (!baby || bodyBounds.isEmpty()) return mesh;
+        float dy = bodyBounds.get().minY() - EntityGeometryKit.computeBounds(mesh).minY();
+        if (dy == 0f) return mesh;
+        ConcurrentLinkedMap<String, EntityModelData.Bone> seated = Concurrent.newLinkedMap();
+        // New bones: the authored meshes are shared constants, so the seat must never mutate them.
+        mesh.getBones().forEach((name, bone) -> seated.put(name, new EntityModelData.Bone(
+            new Vector3f(bone.getPivot().x(), bone.getPivot().y() + dy, bone.getPivot().z()),
+            bone.getRotation(), bone.getBindPoseRotation(), bone.getScale(), bone.getCubes(), bone.getParent())));
+        return new EntityModelData(mesh.getTextureSize(), mesh.getInventoryYRotation(), seated, mesh.isCull());
+    }
+
+    /**
      * Builds the elytra wing triangles for an entity, textured from the data-driven
      * {@code equipment/elytra.json} {@link LayerType#WINGS} layer and fed through the shared entity
      * geometry kit at the caller's fit frame. Empty when the pack ships no elytra asset or its wing
@@ -99,9 +128,8 @@ public class ElytraKit {
      *
      * @param engine the texture engine for pack-aware texture resolution
      * @param baby whether to render the half-scale baby wings
-     * @param bodyBounds the rendered body bone's {@code [min, max]} bounds (the {@code body} bone), used
-     *     to re-seat the baby wings on the actual shoulder height, or {@code null} to leave the wings at
-     *     their authored position
+     * @param bodyBounds the body bone's model-space bounds, used to re-seat the baby wings on the
+     *     actual shoulder height; empty leaves the wings at their authored position
      * @param modelAnchor the model-space anchor that maps to the canvas centre (the body's fit anchor)
      * @param ndcScale the model-units-to-NDC scale (the body's fit scale)
      * @param modelScale the per-render vertex pre-scale (the body's renderer-scale chain)
@@ -111,46 +139,14 @@ public class ElytraKit {
      * @return the wing triangles, empty when the wings do not resolve
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildWings3D(
-        @NotNull Textures engine, boolean baby, @Nullable Vector3f[] bodyBounds,
+        @NotNull Textures engine, boolean baby, @NotNull Optional<Box> bodyBounds,
         @NotNull Vector3f modelAnchor, float ndcScale, float modelScale, @NotNull Optional<ItemContext> item, int tick
     ) {
         Optional<PixelBuffer> texture = wingsTexture(engine, item, tick);
         if (texture.isEmpty()) return Concurrent.newList();
 
-        ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(
-            wingsMesh(baby), texture.get(), modelAnchor, false, ndcScale, modelScale, ColorMath.WHITE).triangles();
-
-        // The adult wing mesh is authored in vanilla's frame (shoulders at y 0), so it already seats on
-        // the adult body. The baby draws a dedicated smaller body mesh whose shoulders sit lower, so
-        // drop the half-scale wings by the gap between their authored top and the body's actual top (in
-        // the Y-down frame the top edge is the minimum y).
-        if (baby && bodyBounds != null && !wings.isEmpty())
-            return shiftY(wings, bodyBounds[0].y() - minY(wings));
-
-        return wings;
-    }
-
-    /** The minimum y across every vertex of the triangles - the top edge in the Y-down model frame. */
-    private static float minY(@NotNull ConcurrentList<VisibleTriangle> triangles) {
-        float min = Float.POSITIVE_INFINITY;
-        for (VisibleTriangle triangle : triangles)
-            min = Math.min(min, Math.min(triangle.position0().y(), Math.min(triangle.position1().y(), triangle.position2().y())));
-        return min;
-    }
-
-    /** Returns a copy of the triangles translated by {@code dy} along Y, leaving normals and UVs intact. */
-    private static @NotNull ConcurrentList<VisibleTriangle> shiftY(@NotNull ConcurrentList<VisibleTriangle> triangles, float dy) {
-        ConcurrentList<VisibleTriangle> shifted = Concurrent.newList();
-        for (VisibleTriangle t : triangles)
-            shifted.add(new VisibleTriangle(
-                addY(t.position0(), dy), addY(t.position1(), dy), addY(t.position2(), dy),
-                t.uv0(), t.uv1(), t.uv2(), t.texture(), t.tintArgb(), t.normal(), t.shading(), t.traits(), t.debugTag()));
-        return shifted;
-    }
-
-    /** The vector with {@code dy} added to its Y component. */
-    private static @NotNull Vector3f addY(@NotNull Vector3f v, float dy) {
-        return new Vector3f(v.x(), v.y() + dy, v.z());
+        return EntityGeometryKit.buildTriangles(wingsMesh(baby, bodyBounds), texture.get(),
+            modelAnchor, false, ndcScale, modelScale, ColorMath.WHITE).triangles();
     }
 
     /**

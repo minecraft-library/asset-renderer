@@ -14,8 +14,8 @@ import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.EntityFace;
-import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Box;
+import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -27,6 +27,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Load-bearing bone/cube {@literal ->} triangle assembler. Builds rasterizer-ready triangles
@@ -388,6 +389,33 @@ public class EntityGeometryKit {
      */
     public static @NotNull Box computeBounds(@NotNull EntityModelData model) {
         return computeBounds(model, BoneKit.buildChainTransforms(model.getBones()));
+    }
+
+    /**
+     * The model-space bounds of ONE bone's own cubes, or empty when the bone is absent or cube-less -
+     * the pre-build counterpart of a {@link BuildResult#boneBounds} entry, for callers that must seat
+     * geometry against a bone before any of it is built (the elytra's baby re-seat, which the canvas
+     * sizing needs before the build it would otherwise read the bone bounds from).
+     *
+     * @param model the entity model definition (Java Y-down frame)
+     * @param boneName the bone to measure
+     * @return the bone's own cubes' AABB in the Java Y-down frame, or empty
+     */
+    public static @NotNull Optional<Box> computeBoneBounds(@NotNull EntityModelData model, @NotNull String boneName) {
+        EntityModelData.Bone bone = model.getBones().get(boneName);
+        if (bone == null || bone.getCubes().isEmpty()) return Optional.empty();
+        Matrix4f boneChain = BoneKit.buildChainTransforms(model.getBones()).get(boneName);
+        BoundsAccumulator acc = new BoundsAccumulator();
+        float s = bone.getScale();
+        for (EntityModelData.Cube cube : bone.getCubes()) {
+            Matrix4f cubeTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
+            Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
+            for (float x : new float[]{ cubeBounds.minX(), cubeBounds.maxX() })
+                for (float y : new float[]{ cubeBounds.minY(), cubeBounds.maxY() })
+                    for (float z : new float[]{ cubeBounds.minZ(), cubeBounds.maxZ() })
+                        acc.add(new Vector3f(x, y, z).transform(cubeTransform));
+        }
+        return Optional.of(acc.toBox());
     }
 
     /**

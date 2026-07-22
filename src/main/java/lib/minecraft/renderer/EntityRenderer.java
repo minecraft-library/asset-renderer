@@ -109,6 +109,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@code R(30,225,0) * ENTITY_FACING = R(30,45,0) * flip180} reproduces the shipped orientation, and
      * any projection swapped in keeps the entity upright AND facing.
      */
+    /** The bone the elytra wings hang from - vanilla's torso part on every winged entity. */
+    private static final @NotNull String BODY_BONE = "body";
+
     private static final @NotNull Matrix4f ENTITY_FACING = Matrix4f.IDENTITY.scale(-1f, -1f, 1f);
 
     /** The entity's model-to-world {@link Placement} - {@link #ENTITY_FACING} as a placement. */
@@ -213,10 +216,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Optional<PixelBuffer> wingTexture = options.getAppearance().isElytra()
             ? ElytraKit.wingsTexture(this.textures, Optional.empty(), startTick)
             : Optional.empty();
+        // The body bone the wings hang from, in model space - the same seat the render applies, resolved
+        // here because the canvas is sized before any geometry is built.
+        Optional<Box> bodyBoneBounds = EntityGeometryKit.computeBoneBounds(model, BODY_BONE);
         // Fold the elytra wings into the bounds union so the protruding wings can't crop at the canvas
         // edge. Gated on the elytra selection, so the default (no elytra) render is unchanged.
         if (wingTexture.isPresent())
-            baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(ElytraKit.wingsMesh(options.getAppearance().isBaby())));
+            baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(
+                ElytraKit.wingsMesh(options.getAppearance().isBaby(), bodyBoneBounds)));
 
         EulerRotation user = options.getOutput().getRotation();
         EulerRotation effective = new EulerRotation(
@@ -282,12 +289,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     equipment.overlay().model(), renderOrient, modelScale, equipment.texture()));
             // Measured through the wings' own texture, like the equipment overlays: the wing box is a
             // 10x20x2 slab whose texture is largely transparent, so its geometric AABB would size the
-            // canvas well outside the drawn wing outline. The baby re-seat the render applies against
-            // the actual body bounds is not modelled here - the wings are measured where they are
-            // authored, as before.
+            // canvas well outside the drawn wing outline. Seated on the body first, so a baby's dropped
+            // wings are measured where they draw rather than where they are authored.
             if (wingTexture.isPresent())
                 screenBounds = unionBoxes(screenBounds, EntityGeometryKit.computeScreenBounds(
-                    ElytraKit.wingsMesh(options.getAppearance().isBaby()), renderOrient, modelScale, wingTexture.get()));
+                    ElytraKit.wingsMesh(options.getAppearance().isBaby(), bodyBoneBounds),
+                    renderOrient, modelScale, wingTexture.get()));
             RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
             canvasW = fit.canvasW();
@@ -614,7 +621,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 EntityAppearance appearance = ctx.options().getAppearance();
                 if (!appearance.isElytra()) return;
-                Vector3f[] bodyBounds = ctx.buildResult().boneBounds().get("body");
+                Optional<Box> bodyBounds = EntityGeometryKit.computeBoneBounds(ctx.model(), BODY_BONE);
                 stack.append(this.slot, sink ->
                     sink.addAll(ElytraKit.buildWings3D(ctx.textures(), appearance.isBaby(), bodyBounds,
                         ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale(), Optional.empty(), ctx.tick())));
