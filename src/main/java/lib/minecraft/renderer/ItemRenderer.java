@@ -44,6 +44,7 @@ import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.option.ItemOptions;
+import lib.minecraft.renderer.option.SunAngle;
 import lib.minecraft.renderer.option.slot.ItemSlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.DyeColor;
@@ -61,6 +62,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.IntFunction;
 
@@ -160,20 +162,55 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * @param context the renderer context supplying pack / model / texture lookups
      * @param options the item render options
      * @param cit the render's single CIT walk result
+     * @param animation the animation this render actually bakes, already derived
      * @return the item to render at an animation tick
      */
     static @NotNull IntFunction<Item> frameItems(
-        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit,
+        @NotNull AnimationOptions animation
     ) {
         ItemModelContext modelContext = options.getItemModel();
         // Only a game-time schedule moves the world clock between frames; a texture strip indexes a
         // flipbook, which leaves the tree's evaluation context - and so the resolved model - alone.
-        boolean worldTime = options.getAnimation().getSchedule() == AnimationOptions.Schedule.GAME_TIME;
+        boolean worldTime = animation.getSchedule() == AnimationOptions.Schedule.GAME_TIME;
         Map<ItemModelContext, Item> resolved = new ConcurrentHashMap<>();
         // Frames raster in parallel, so the memo is concurrent and its resolver stays pure.
         return tick -> resolved.computeIfAbsent(
             worldTime ? modelContext.atTick(tick) : modelContext,
             at -> resolveRenderItem(context, options, cit, at));
+    }
+
+    /**
+     * Resolves the animation a render actually bakes. The caller's own timing is used as given, unless
+     * it opts into derivation - in which case an item whose model tree branches on world time has its
+     * timing derived from that tree: one frame per step the tree's own dispatch table resolves, spread
+     * evenly across a day and played back as game time. It lets a caller ask for an item to be animated
+     * without knowing which items are time-driven or how many faces they ship.
+     * <p>
+     * An item with nothing to animate keeps the caller's timing untouched, so requesting derivation on
+     * a plain item costs it nothing and leaves it a still.
+     *
+     * @param context the renderer context supplying the item's dispatch tree
+     * @param options the item render options
+     * @return the animation timing to bake
+     */
+    static @NotNull AnimationOptions itemAnimation(@NotNull RendererContext context, @NotNull ItemOptions options) {
+        AnimationOptions animation = options.getAnimation();
+        if (!animation.isDeriveTimeline()) return animation;
+
+        OptionalInt steps = context.findItemTree(options.getItemId())
+            .map(tree -> tree.root().timeDispatchSteps())
+            .orElseGet(OptionalInt::empty);
+        if (steps.isEmpty()) return animation;
+
+        // A day divided among the tree's steps. Floored at one tick so a table finer than the day is
+        // long still advances rather than sampling the same instant every frame.
+        int frames = steps.getAsInt();
+        return animation.mutate()
+            .frameCount(frames)
+            .ticksPerFrame(Math.max(1, SunAngle.TICKS_PER_DAY / frames))
+            .schedule(AnimationOptions.Schedule.GAME_TIME)
+            .build();
     }
 
     /**
@@ -619,7 +656,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // override can replace the tree-resolved model; the neutral context + no override yields the
             // baked item.
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            IntFunction<Item> itemAt = frameItems(this.context, options, cit);
+            AnimationOptions anim = itemAnimation(this.context, options);
+            IntFunction<Item> itemAt = frameItems(this.context, options, cit, anim);
 
             // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
             // trim, damage-bar, and stack-count decorations) so callers can splice their own passes in
@@ -631,7 +669,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // Build the schedule UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick() (staticFrame would hardcode tick 0). Default
             // (startTick=0, frameCount=1) is byte-identical.
-            AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
             // The glint finish spans the whole strip rather than one frame, and the only thing it reads
             // off the item is a registry flag every branch of a tree carries alike, so it binds to the
@@ -754,12 +791,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // baking. Vanilla ships no item sidecars, so a default render (frameCount = 1) resolves at
             // tick 0 - byte-identical.
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            IntFunction<Item> itemAt = frameItems(this.context, options, cit);
+            AnimationOptions anim = itemAnimation(this.context, options);
+            IntFunction<Item> itemAt = frameItems(this.context, options, cit, anim);
 
             // Build the schedule UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick() (staticFrame would hardcode tick 0). Default
             // (startTick=0, frameCount=1) is byte-identical.
-            AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
             int ssaa = Math.max(1, options.getOutput().getSupersample());
             return Timeline.schedule(anim).bake(

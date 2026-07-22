@@ -7,7 +7,9 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * One node of a parsed {@code items/*.json} dispatch tree. The sealed hierarchy
@@ -250,6 +252,52 @@ public sealed interface ItemModelNode
             if (!resolution.isEmpty()) return resolution;
         }
         return Resolution.NOTHING;
+    }
+
+    /**
+     * Returns how many distinct steps this tree's {@code minecraft:time} dispatch resolves over a day,
+     * or empty when no branch of it dispatches on world time. This is what lets a caller ask for an
+     * item to be animated without knowing that a clock happens to ship sixty-four faces.
+     * <p>
+     * The step count is one less than the threshold table's size: the final entry exists to wrap the
+     * table's far end back onto its first model, so it repeats a step rather than adding one. Unlike
+     * {@link #resolve}, this searches <b>every</b> branch rather than the one a context selects - a
+     * time dispatch can sit behind a {@code select} whose property no offline render can evaluate,
+     * which is exactly where the vanilla clock keeps its own.
+     *
+     * @return the number of steps a day resolves through, or empty when nothing dispatches on time
+     */
+    default @NotNull OptionalInt timeDispatchSteps() {
+        return switch (this) {
+            case RangeDispatch range -> {
+                int steps = range.entries().size() - 1;
+                if (isTimeProperty(range.property()) && steps > 1) yield OptionalInt.of(steps);
+                yield firstTimeDispatch(Stream.concat(
+                    range.entries().stream().map(RangeDispatch.Entry::model), Stream.of(range.fallback())));
+            }
+            case Condition condition -> firstTimeDispatch(Stream.of(condition.onTrue(), condition.onFalse()));
+            case Select select -> firstTimeDispatch(Stream.concat(
+                select.cases().stream().map(Select.Case::model), Stream.of(select.fallback())));
+            case Composite composite -> firstTimeDispatch(composite.models().stream());
+            case Model ignored -> OptionalInt.empty();
+            case Special ignored -> OptionalInt.empty();
+            case Bundle ignored -> OptionalInt.empty();
+            case Empty ignored -> OptionalInt.empty();
+        };
+    }
+
+    /** The first time-dispatch step count among a stream of branches, or empty when none carries one. */
+    private static @NotNull OptionalInt firstTimeDispatch(@NotNull Stream<ItemModelNode> branches) {
+        return branches.map(ItemModelNode::timeDispatchSteps)
+            .filter(OptionalInt::isPresent)
+            .findFirst()
+            .orElseGet(OptionalInt::empty);
+    }
+
+    /** Whether a dispatch property is {@code minecraft:time}, accepting the unqualified id too. */
+    private static boolean isTimeProperty(@NotNull String property) {
+        int colon = property.indexOf(':');
+        return (colon < 0 ? property : property.substring(colon + 1)).equals("time");
     }
 
     /**

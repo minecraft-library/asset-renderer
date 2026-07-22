@@ -38,12 +38,17 @@ import java.util.List;
  * rather than linear, so a uniform sampling cadence lingers on some clock faces and skips others -
  * expect a few repeats across a 64-frame day, and expect the sweep to slow around noon and midnight.
  *
- * <p>Every subject bakes the same frame count - that is the schedule the caller asked for, not
- * something derived per item - so the signal is how many of those frames are <b>distinct</b>. Two
- * controls render alongside the clock and must both collapse to exactly one distinct frame. The
- * compass is the near miss: its tree has the same shape but dispatches on a bearing from the holder
- * rather than the clock, so a compass that sweeps here means world time leaked into a needle no
- * passage of time turns. The sword is the plain control: no tree to branch at all.
+ * <p>The signal to read is how many of a subject's frames are <b>distinct</b>, since a stated frame
+ * count says nothing about whether anything moved. Two controls render alongside the clock and must
+ * both come out at exactly one distinct frame. The compass is the near miss: its tree has the same
+ * shape, and a threshold table of its own, but dispatches on a bearing from the holder rather than on
+ * the clock - so a compass that sweeps here means world time leaked into a needle no passage of time
+ * turns, and a compass whose frame count gets derived means the search mistook that table for a
+ * day. The sword is the plain control: no tree to branch at all.
+ *
+ * <p>By default each item's frame count is derived from its own dispatch table, so the clock is
+ * sampled once per face it ships and an item with nothing time-driven stays a single still.
+ * {@code -PdayFrames} states a count outright instead, to sample the sweep finer than the art.
  *
  * <p>Usage: {@code ./gradlew :asset-renderer:itemDayCycle [-PrenderSize=256] [-PdayFrames=64]}.
  */
@@ -59,19 +64,16 @@ public final class TestItemDayCycle {
 
     private static final @NotNull Path OUTPUT_DIR = Path.of("cache/visual/item-day-cycle");
 
-    /** Faces the vanilla clock ships, and so the default sampling of the day - one frame per face. */
-    private static final int DEFAULT_DAY_FRAMES = 64;
-
     /**
      * Renders each subject across one day and writes the results.
      *
      * @param args {@code args[0]} is an optional render size (defaults to 256); {@code args[1]} is an
-     *     optional frame count spanning the day (defaults to 64)
+     *     optional explicit frame count spanning the day (defaults to deriving it per item)
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
         int size = args.length > 0 ? Integer.parseInt(args[0]) : 256;
-        int dayFrames = args.length > 1 ? Integer.parseInt(args[1]) : DEFAULT_DAY_FRAMES;
+        int dayFrames = args.length > 1 ? Integer.parseInt(args[1]) : 0;
 
         ClientAssets result;
         try {
@@ -86,17 +88,19 @@ public final class TestItemDayCycle {
         ImageFactory imageFactory = new ImageFactory();
         Files.createDirectories(OUTPUT_DIR);
 
-        // A game-time schedule so the day's ticks advance the world clock between frames while each
-        // frame still plays back in one tick - a day in seconds rather than the twenty minutes it
-        // depicts.
-        AnimationOptions animation = AnimationOptions.builder()
-            .frameCount(dayFrames)
-            .ticksPerFrame(SunAngle.TICKS_PER_DAY / dayFrames)
-            .schedule(AnimationOptions.Schedule.GAME_TIME)
-            .build();
+        // By default let each item's own dispatch table set the cadence, which is the path a caller
+        // actually uses - "animate this item", without knowing which items are time-driven. An explicit
+        // frame count instead states the day outright, for sampling the sweep finer than the art.
+        AnimationOptions animation = dayFrames > 0
+            ? AnimationOptions.builder()
+                .frameCount(dayFrames)
+                .ticksPerFrame(Math.max(1, SunAngle.TICKS_PER_DAY / dayFrames))
+                .schedule(AnimationOptions.Schedule.GAME_TIME)
+                .build()
+            : AnimationOptions.builder().deriveTimeline(true).build();
 
-        System.out.printf("Baking a %d-frame day (%d ticks per frame) at %dx%d...%n",
-            dayFrames, animation.getTicksPerFrame(), size, size);
+        System.out.printf("Baking a day at %dx%d (%s)...%n", size, size,
+            dayFrames > 0 ? dayFrames + " frames, stated" : "frame count derived per item");
 
         for (String itemId : SUBJECTS) {
             ItemOptions options = ItemOptions.builder()

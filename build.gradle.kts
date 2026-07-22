@@ -284,7 +284,7 @@ tasks {
         mainClass.set("lib.minecraft.renderer.visual.TestItemDayCycle")
         classpath = sourceSets["test"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
-        val dayFrames = (project.findProperty("dayFrames") as String?) ?: "64"
+        val dayFrames = (project.findProperty("dayFrames") as String?) ?: "0"
         args = listOf(renderSize, dayFrames)
     }
 
