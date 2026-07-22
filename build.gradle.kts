@@ -278,6 +278,16 @@ tasks {
         args = listOf(renderSize)
     }
 
+    register<JavaExec>("itemDayCycle") {
+        description = "Bakes a whole in-game day for the time-driven item icons (clock, plus the bearing-driven compass and a plain sword as controls) to cache/visual/item-day-cycle/ as GIFs + quarter-day stills - the animated-clock LOOK gate. -PrenderSize=256 -PdayFrames=64"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestItemDayCycle")
+        classpath = sourceSets["test"].runtimeClasspath
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
+        val dayFrames = (project.findProperty("dayFrames") as String?) ?: "64"
+        args = listOf(renderSize, dayFrames)
+    }
+
     register<JavaExec>("projectionSmoke") {
         description = "Renders a block under every GraphicalProjection + facing to cache/visual/projection-smoke/. -PblockId=minecraft:tnt -PrenderSize=512"
         group = "visual"

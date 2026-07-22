@@ -165,7 +165,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // in parallel. The per-tick build MUST stay inside the rasterizer callback (capturing it
             // once would freeze the animation on frame 0's textures).
             int ssaa = Math.max(1, options.getOutput().getSupersample());
-            return Timeline.tickStrip(options.getAnimation()).bake(
+            return Timeline.schedule(options.getAnimation()).bake(
                 RasterPass.of(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias(),
                     (target, tick) -> rasterizeFrame(options, tick, target)));
         }
@@ -214,7 +214,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         public @NotNull ImageData render(@NotNull FluidOptions options) {
             // Each tick constructs its own RasterEngine, so the timeline bakes frames in parallel. Flat 2D
             // blit: no supersample / FXAA (ssaa = 1, antiAlias = false).
-            return Timeline.tickStrip(options.getAnimation()).bake(
+            return Timeline.schedule(options.getAnimation()).bake(
                 RasterPass.of(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,
                     (target, tick) -> rasterizeFrame(options, tick, target)));
         }

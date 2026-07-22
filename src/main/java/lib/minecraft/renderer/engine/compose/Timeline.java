@@ -143,6 +143,24 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
     }
 
     /**
+     * Builds the schedule an animation asks for - the {@link #tickStrip texture strip} that plays a
+     * flipbook at its authored rate, or the {@link #gameTime game-time} simulation that compresses the
+     * world time it covers into real-time playback. This is the seam a caller selects through
+     * {@link AnimationOptions#getSchedule()}; both branches sample the same ticks and differ only in
+     * how long each frame is held.
+     *
+     * @param animation the subject's animation timeline (start tick, frame count, ticks per frame,
+     *        playback schedule)
+     * @return the requested schedule
+     */
+    static @NotNull TickTimeline schedule(@NotNull AnimationOptions animation) {
+        return switch (animation.getSchedule()) {
+            case TEXTURE_STRIP -> tickStrip(animation);
+            case GAME_TIME -> gameTime(animation.getStartTick(), animation.getFrameCount(), animation.getTicksPerFrame());
+        };
+    }
+
+    /**
      * Builds a game-time simulation schedule: {@code ticksPerFrame} advances a continuous simulation
      * between baked frames while every frame plays back in real time (one tick's worth of wall clock,
      * {@link #MILLIS_PER_TICK} ms) - the simulation-speed knob deliberately never stretches playback. A

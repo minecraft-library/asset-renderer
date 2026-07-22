@@ -209,7 +209,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // frame at tick 0: the same five tick-0 face resolutions as before, byte-identical. The
             // ModelEngine is (re)built per frame so parallel strip baking stays thread-safe (the fluid
             // reference does the same).
-            // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
+            // Build the schedule UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick(), so a caller-supplied non-zero startTick is honored
             // (staticFrame would hardcode tick 0). Default (startTick=0, frameCount=1) is byte-identical.
             // AUTO opt-in: deriveTickStrip probes the block's animated face textures once and derives
@@ -219,7 +219,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int ssaa = Math.max(1, options.getOutput().getSupersample());
             Timeline.TickTimeline timeline = anim.isDeriveTimeline()
                 ? Timeline.deriveTickStrip(collectAnimatedSources(block), anim.getStartTick())
-                : Timeline.tickStrip(anim);
+                : Timeline.schedule(anim);
             return timeline.bake(
                 RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) ->
                     new ModelEngine(this.context, resolved.camera()).rasterize(

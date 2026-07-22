@@ -169,7 +169,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // start-tick texture drives the missing-texture early-out and canvas sizing; the per-frame
         // render re-resolves inside the rasterizer callback so an opted-in animated texture rebuilds.
         AnimationOptions anim = options.getAnimation();
-        Timeline.TickTimeline timeline = Timeline.tickStrip(anim);
+        Timeline.TickTimeline timeline = Timeline.schedule(anim);
         int startTick = timeline.tickAt(0);
         Optional<PixelBuffer> texture = resolveEntityTexture(resolved, options, startTick);
         if (texture.isEmpty())
@@ -359,7 +359,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // glint mask is recorded at the raster size and downsampled so the foil is confined to the
         // (glinted) armor rather than the whole entity silhouette.
         //
-        // Route through tickStrip UNCONDITIONALLY (the FluidRenderer pattern): a frameCount=1 timeline
+        // Route through the schedule UNCONDITIONALLY (the FluidRenderer pattern): a frameCount=1 timeline
         // yields the same single static frame but sampled at the timeline's start tick, so bake draws
         // at timeline.tickAt(0) == startTick and the callback's `tick == startTick` reuse fires. A raw
         // Static(0) would instead hardcode tick 0, which - since the canvas/bounds/startTriangles

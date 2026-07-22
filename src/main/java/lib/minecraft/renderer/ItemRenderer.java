@@ -166,9 +166,14 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit
     ) {
         ItemModelContext modelContext = options.getItemModel();
+        // Only a game-time schedule moves the world clock between frames; a texture strip indexes a
+        // flipbook, which leaves the tree's evaluation context - and so the resolved model - alone.
+        boolean worldTime = options.getAnimation().getSchedule() == AnimationOptions.Schedule.GAME_TIME;
         Map<ItemModelContext, Item> resolved = new ConcurrentHashMap<>();
         // Frames raster in parallel, so the memo is concurrent and its resolver stays pure.
-        return tick -> resolved.computeIfAbsent(modelContext, at -> resolveRenderItem(context, options, cit, at));
+        return tick -> resolved.computeIfAbsent(
+            worldTime ? modelContext.atTick(tick) : modelContext,
+            at -> resolveRenderItem(context, options, cit, at));
     }
 
     /**
@@ -623,7 +628,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in. Vanilla
             // ships zero item sidecars, so frameCount defaults to 1 and every layer resolves at tick 0 -
             // byte-identical; a pack opting in with frameCount > 1 plays the flipbook per frame.
-            // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
+            // Build the schedule UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick() (staticFrame would hardcode tick 0). Default
             // (startTick=0, frameCount=1) is byte-identical.
             AnimationOptions anim = options.getAnimation();
@@ -631,7 +636,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // The glint finish spans the whole strip rather than one frame, and the only thing it reads
             // off the item is a registry flag every branch of a tree carries alike, so it binds to the
             // first frame's item.
-            return Timeline.tickStrip(anim).bake(
+            return Timeline.schedule(anim).bake(
                 RasterPass.of(size, size, 1, options.getOutput().isAntiAlias(),
                         (target, tick) -> Layers.foldInto(
                             buildGuiLayers(new LayerContext(this.context, engine.textures(), itemAt.apply(tick), options, cit), tick),
@@ -751,13 +756,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
             IntFunction<Item> itemAt = frameItems(this.context, options, cit);
 
-            // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
+            // Build the schedule UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick() (staticFrame would hardcode tick 0). Default
             // (startTick=0, frameCount=1) is byte-identical.
             AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
             int ssaa = Math.max(1, options.getOutput().getSupersample());
-            return Timeline.tickStrip(anim).bake(
+            return Timeline.schedule(anim).bake(
                 RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) -> {
                     // The display pose is read off the frame's own model: a tree that swaps models
                     // between frames can swap their authored poses with them.

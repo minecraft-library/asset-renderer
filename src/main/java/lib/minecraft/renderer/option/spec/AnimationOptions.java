@@ -6,12 +6,34 @@ import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The animation timing shared by the animated 3D renderers (fluid, portal): seed tick, frame count,
- * ticks-per-frame, plus the portal loop-crossfade fraction.
+ * The animation timing shared by the animated renderers (item, block, entity, fluid, portal): seed
+ * tick, frame count, ticks-per-frame and playback schedule, plus the portal loop-crossfade fraction.
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class AnimationOptions {
+
+    /**
+     * What a frame's tick means to the schedule that bakes it, and so how fast the baked frames play
+     * back.
+     */
+    public enum Schedule {
+
+        /**
+         * A texture flipbook at its authored rate: each frame holds for the whole span of game time it
+         * covers, so playback runs at the speed the texture declares.
+         */
+        TEXTURE_STRIP,
+
+        /**
+         * A stretch of world time compressed into real-time playback: game time advances a whole
+         * {@code ticksPerFrame} between frames while each frame displays for a single tick of wall
+         * clock. A subject whose appearance the world clock drives - a clock item reading its face from
+         * the sun angle - follows the frame's tick as world time and advances with it, so a full day
+         * plays out in seconds instead of the twenty real-time minutes it depicts.
+         */
+        GAME_TIME
+    }
 
     /**
      * Animation seed tick - frame 0 samples at this tick.
@@ -30,6 +52,15 @@ public class AnimationOptions {
      */
     @lombok.Builder.Default
     private final int ticksPerFrame = 1;
+
+    /**
+     * How the baked frames play back, honoured by every subject that builds its schedule through
+     * {@link lib.minecraft.renderer.engine.compose.Timeline#schedule}. Defaults to
+     * {@link Schedule#TEXTURE_STRIP}, the authored-rate flipbook every subject rendered before the
+     * alternative existed.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Schedule schedule = Schedule.TEXTURE_STRIP;
 
     /**
      * Fraction of frameCount used as a shifted-continuation crossfade for a seamless loop; consumed
