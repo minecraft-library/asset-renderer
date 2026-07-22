@@ -57,6 +57,7 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -193,14 +194,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 Math.max(baseBounds.maxZ(), overlayBounds.maxZ())
             );
         }
+        // Resolve each selected equipment overlay's composited texture ONCE, up front: it decides both
+        // whether the overlay bounds the canvas at all and, on the orthographic path below, the
+        // alpha-tight silhouette it contributes. An overlay whose texture does not resolve draws
+        // nothing, so it is absent here rather than bounding the canvas with a mesh that never appears.
+        List<EquippedOverlay> equipped = resolveEquippedOverlays(resolved, options.getAppearance(), startTick);
         // Fold a selected equipment overlay's mesh into the bounds union so an inflated / protruding
         // equipment mesh (horse/nautilus/wolf armor, the llama carpet's CubeDeformation) can't crop at
         // the canvas edge. Gated on the equipment axis, so the default (unequipped) render is
-        // unchanged, matching the EQUIPMENT feature's render gate.
-        for (Entity.EquipmentOverlay equipment : resolved.layers().equipment()) {
-            if (!equipmentSelected(equipment, options.getAppearance())) continue;
-            baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(equipment.model()));
-        }
+        // unchanged, matching the EQUIPMENT feature's render gate. Measured geometrically: the
+        // perspective / oblique fit this feeds re-measures the real triangle silhouette in the engine,
+        // so a tighter pre-normalisation would buy nothing.
+        for (EquippedOverlay equipment : equipped)
+            baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(equipment.overlay().model()));
         // Fold the elytra wings into the bounds union so the protruding wings can't crop at the canvas
         // edge. Gated on the elytra selection, so the default (no elytra) render is unchanged.
         if (options.getAppearance().isElytra())
@@ -259,14 +265,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 renderOrient, modelScale, texture.get(), startTick);
             // Fold a selected equipment overlay's mesh into the pre-measured silhouette so an inflated /
             // protruding equipment mesh can't crop at the canvas edge under the NATIVE_SCALE fit (which
-            // sizes from these bounds, not the rendered triangles). A null texture measures the mesh's
-            // geometric AABB - conservative, no equipment-texture resolution. Gated on the equipment
-            // axis, so the default (unequipped) canvas is unchanged.
-            for (Entity.EquipmentOverlay equipment : resolved.layers().equipment()) {
-                if (!equipmentSelected(equipment, options.getAppearance())) continue;
-                screenBounds = unionBoxes(screenBounds,
-                    EntityGeometryKit.computeScreenBounds(equipment.model(), renderOrient, modelScale, null));
-            }
+            // sizes from these bounds, not the rendered triangles). Measured through the overlay's own
+            // composited texture, so it bounds the canvas by what it actually draws - the same
+            // alpha-tight walk the base body already gets. Equipment textures are mostly transparent
+            // (a saddle is a few straps over a whole equine body), so the geometric AABB would size the
+            // canvas for a silhouette an order of magnitude larger than the render. Gated on the
+            // equipment axis, so the default (unequipped) canvas is unchanged.
+            for (EquippedOverlay equipment : equipped)
+                screenBounds = unionBoxes(screenBounds, EntityGeometryKit.computeScreenBounds(
+                    equipment.overlay().model(), renderOrient, modelScale, equipment.texture()));
             if (options.getAppearance().isElytra())
                 screenBounds = unionBoxes(screenBounds, EntityGeometryKit.computeScreenBounds(
                     ElytraKit.wingsMesh(options.getAppearance().isBaby()), renderOrient, modelScale, null));
@@ -1219,22 +1226,47 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Whether the appearance selects this equipment overlay's slot - mirrors the {@code EQUIPMENT}
-     * feature's render gate ({@link EntityAppearance#equipmentMaterial(String)}) so the bounds union
-     * folds in exactly the equipment meshes that render. A slot with no selected material (the default
-     * appearance) or an empty mesh contributes nothing to the unequipped canvas.
+     * The equipment overlays that will actually draw, each paired with the texture it draws - mirrors
+     * the {@code EQUIPMENT} feature's render gate exactly, so the bounds union folds in the equipment
+     * meshes that appear and only those. An overlay is absent when its slot carries no selected
+     * material (the default appearance), when its mesh is empty, or when its texture does not resolve:
+     * the last is what keeps a material the pack ships no texture for from bounding the canvas with a
+     * mesh that renders nothing.
      *
-     * @param equipment the equipment overlay to test
-     * @param appearance the render appearance carrying the equipment axis selection
-     * @return {@code true} when the overlay's slot is selected and its mesh is non-empty
+     * @param resolved the appearance-resolved definition carrying the equipment layers
+     * @param appearance the render appearance carrying the equipment axis selection and dye
+     * @param tick the animation tick to sample each layer texture at
+     * @return the drawable overlays, in layer order
      */
-    private static boolean equipmentSelected(
-        @NotNull Entity.EquipmentOverlay equipment,
-        @NotNull EntityAppearance appearance
+    private @NotNull List<EquippedOverlay> resolveEquippedOverlays(
+        @NotNull Entity resolved,
+        @NotNull EntityAppearance appearance,
+        int tick
     ) {
-        return appearance.equipmentMaterial(equipment.slot()).isPresent()
-            && !equipment.model().getBones().isEmpty();
+        List<EquippedOverlay> out = new ArrayList<>(resolved.layers().equipment().size());
+        for (Entity.EquipmentOverlay equipment : resolved.layers().equipment()) {
+            if (equipment.model().getBones().isEmpty()) continue;
+            Optional<ResourceId> assetId = appearance.equipmentMaterial(equipment.slot())
+                .flatMap(equipment::assetFor);
+            if (assetId.isEmpty()) continue;
+            EquipmentKit.composite(this.textures, assetId.get(), equipment.layerType(),
+                    appearance.tint(TintAxis.EQUIPMENT).map(DyeColor::argb), CitResult.NONE, OptionalInt.of(tick))
+                .ifPresent(texture -> out.add(new EquippedOverlay(equipment, texture)));
+        }
+        return out;
     }
+
+    /**
+     * One equipment overlay that will draw, with the composited texture it draws - resolved once so
+     * the canvas-bounds walk and the render agree on both membership and silhouette.
+     *
+     * @param overlay the equipment overlay
+     * @param texture the composited texture the overlay draws
+     */
+    private record EquippedOverlay(
+        @NotNull Entity.EquipmentOverlay overlay,
+        @NotNull PixelBuffer texture
+    ) {}
 
     /**
      * Returns the axis-aligned union of two boxes - the smallest {@link Box} containing both.
