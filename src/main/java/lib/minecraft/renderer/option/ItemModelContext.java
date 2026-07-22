@@ -19,7 +19,10 @@ import java.util.Optional;
  * {@link #rangeValue(String)} (numeric thresholds). A property this context has no value for is
  * <b>unevaluable</b>: the walker takes the {@code on_false} / no-case-match / {@code fallback}
  * branch, which is the Catharsis degradation contract. The default {@link #gui()} context leaves
- * every override neutral, so it resolves each vanilla tree to its fallback branch.
+ * every caller override neutral, so it resolves each vanilla tree to its fallback branch - except
+ * where a property has one honest answer for an icon regardless of the caller ({@code display_context}
+ * is always the GUI, {@link #DIMENSION_OVERWORLD the dimension} always the overworld), which is
+ * answered rather than degraded.
  *
  * @param displayContext the {@code minecraft:display_context} case key; {@code "gui"} for icons
  * @param usingItem the {@code minecraft:using_item} flag; {@code false} renders bow unpulled (today's output)
@@ -45,6 +48,20 @@ public record ItemModelContext(
 
     /** The GUI display-context key every icon renders at. */
     public static final @NotNull String DISPLAY_CONTEXT_GUI = "gui";
+
+    /**
+     * The dimension every icon renders as if held in - the {@code minecraft:context_dimension} case key.
+     * <p>
+     * An icon renderer has no world to read a dimension from, but leaving the property unevaluable is
+     * not the neutral choice it looks like: a tree branching on it would take its <b>fallback</b>, and
+     * vanilla writes that branch for the dimensions an item misbehaves in rather than as a degradation
+     * path. The clock is the case in point - outside the overworld its needle spins at random, so its
+     * fallback dispatches on a random source while only the overworld case reads the daytime this
+     * renderer computes. Pinning the overworld renders the item as it is normally seen and keeps the
+     * branch matched to the input; a caller wanting the off-world look would need a dimension override,
+     * which nothing asks for.
+     */
+    public static final @NotNull String DIMENSION_OVERWORLD = "minecraft:overworld";
 
     /**
      * The neutral GUI context: {@code display_context = gui} and every caller override left at its
@@ -135,9 +152,10 @@ public record ItemModelContext(
     }
 
     /**
-     * Resolves a {@code select} node's case key. Only {@code display_context} (always {@code gui})
-     * and {@code trim_material} (the caller override, absent by default) are wired; every other
-     * property is unevaluable and returns empty so the walker takes the no-case-match fallback.
+     * Resolves a {@code select} node's case key. {@code display_context} (always {@code gui}),
+     * {@code trim_material} (the caller override, absent by default) and {@code context_dimension}
+     * (always {@link #DIMENSION_OVERWORLD the overworld}) are wired; every other property is
+     * unevaluable and returns empty so the walker takes the no-case-match fallback.
      *
      * @param property the node's {@code property} id, with or without the {@code minecraft:} prefix
      * @return the case key to match, or empty when unevaluable
@@ -146,6 +164,7 @@ public record ItemModelContext(
         return switch (strip(property)) {
             case "display_context" -> Optional.of(this.displayContext);
             case "trim_material" -> Optional.ofNullable(this.trimMaterial);
+            case "context_dimension" -> Optional.of(DIMENSION_OVERWORLD);
             default -> Optional.empty();
         };
     }

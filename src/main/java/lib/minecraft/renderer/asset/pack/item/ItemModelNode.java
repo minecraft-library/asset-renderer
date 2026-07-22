@@ -210,7 +210,9 @@ public sealed interface ItemModelNode
      * {@code empty} renders nothing.
      *
      * <p>The neutral {@link ItemModelContext#gui()} context resolves every vanilla tree to its fallback
-     * branch, giving the derived model id and tint list.
+     * branch, giving the derived model id and tint list - bar the properties that have one honest
+     * answer for an icon whatever the caller ({@code display_context}, {@code context_dimension}),
+     * which select their matching case.
      *
      * @param context the evaluation context
      * @return the resolved branch, {@link Resolution#NOTHING} when the branch renders nothing

@@ -4,6 +4,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
@@ -169,6 +171,23 @@ class SunAngleTest {
         @DisplayName("returns to the neutral time input after a whole day")
         void returnsAfterWholeDay() {
             assertThat(ItemModelContext.gui().atTick(SunAngle.TICKS_PER_DAY).isNeutral(), is(true));
+        }
+
+        @Test
+        @DisplayName("renders in the overworld, the branch whose dispatch reads the day")
+        void rendersInTheOverworld() {
+            // Left unevaluable, a tree branching on the dimension would degrade to its fallback - and
+            // vanilla writes that branch for where the item MISBEHAVES, not as a neutral default. The
+            // clock's fallback dispatches on a random source; only the overworld case reads the daytime
+            // computed here, so the branch has to be selected for the input to mean anything.
+            assertThat(ItemModelContext.gui().selectValue("minecraft:context_dimension"),
+                is(Optional.of(ItemModelContext.DIMENSION_OVERWORLD)));
+            assertThat(ItemModelContext.gui().selectValue("context_dimension"),
+                is(Optional.of("minecraft:overworld")));
+            // A fixed answer, not a caller override - so it cannot perturb the neutral context.
+            assertThat(ItemModelContext.gui().atTick(9_000).selectValue("context_dimension"),
+                is(Optional.of(ItemModelContext.DIMENSION_OVERWORLD)));
+            assertThat(ItemModelContext.gui().isNeutral(), is(true));
         }
 
         @Test

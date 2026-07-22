@@ -279,14 +279,19 @@ class ItemModelNodeResolveTest {
         }
 
         @Test
-        @DisplayName("clock -> context_dimension fallback -> time 0 -> clock_00")
+        @DisplayName("clock -> context_dimension overworld -> time 0 -> clock_00")
         void clock() {
+            // The branches are given DIFFERENT models on purpose. Vanilla ships identical tables on
+            // both, so a fixture mirroring it could not tell which branch was walked - and the
+            // overworld case is the one that matters, being the only one whose dispatch reads the
+            // daytime this renderer computes. Its twin is what a clock does outside the overworld:
+            // spin at random.
             var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:context_dimension\","
                 + "\"cases\":[{\"when\":\"minecraft:overworld\",\"model\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:time\",\"scale\":64.0,"
                 + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/clock_00\"}},"
                 + "{\"threshold\":0.5,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/clock_01\"}}]}}],"
                 + "\"fallback\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:time\",\"scale\":64.0,"
-                + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/clock_00\"}}]}}}");
+                + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/clock_spinning\"}}]}}}");
             assertThat(r.modelId().orElseThrow(), is("minecraft:item/clock_00"));
         }
 
@@ -332,13 +337,16 @@ class ItemModelNodeResolveTest {
         }
 
         @Test
-        @DisplayName("sees through a select whose property no offline context can evaluate")
-        void seesThroughUnevaluableSelect() {
-            // Where the vanilla clock keeps its own: behind a context_dimension select, which resolves
-            // to the fallback branch offline. The search must not be limited to the branch that renders.
-            String tree = "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:context_dimension\","
-                + "\"cases\":[{\"when\":\"minecraft:overworld\",\"model\":" + timeDispatch("minecraft:time", 64) + "}],"
-                + "\"fallback\":" + timeDispatch("minecraft:time", 64) + "}}";
+        @DisplayName("sees into a case no offline context can select")
+        void seesIntoUnselectableCase() {
+            // The dispatch sits in a case whose property is unevaluable, so resolution walks straight
+            // past it to the fallback. Derivation asks what an item COULD animate rather than what it
+            // renders right now, so the search must not be limited to the branch that renders.
+            String tree = "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:charge_type\","
+                + "\"cases\":[{\"when\":\"rocket\",\"model\":" + timeDispatch("minecraft:time", 64) + "}],"
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}";
+            assertThat(parse(tree).resolve(ItemModelContext.gui()).modelId().orElseThrow(),
+                is("minecraft:item/plain"));
             assertThat(parse(tree).timeDispatchSteps(), is(OptionalInt.of(64)));
         }
 
