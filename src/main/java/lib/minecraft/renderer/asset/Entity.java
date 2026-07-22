@@ -490,6 +490,9 @@ public record Entity(
      * @param gate the render condition parsed from the overlay's {@code when} object (the sheep wool
      *     {@code sheared} flag, the wool undercoat {@code tinted} axis, the creeper {@code charged} axis),
      *     or empty when the overlay renders unconditionally
+     * @param noHatModel the alternate mesh a suppressed pass draws instead - this overlay's mesh with the
+     *     head-subtree cubes emptied (the villager robe pass under a hat-bearing profession), or empty
+     *     when the overlay has no alternate
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,
@@ -501,7 +504,8 @@ public record Entity(
         @NotNull Optional<String> textureBy,
         @NotNull BlendMode blend,
         float alpha,
-        @NotNull Optional<AppearanceGate> gate
+        @NotNull Optional<AppearanceGate> gate,
+        @NotNull Optional<EntityModelData> noHatModel
     ) {}
 
     /**

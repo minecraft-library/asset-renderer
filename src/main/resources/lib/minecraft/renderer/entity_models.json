@@ -2697,7 +2697,8 @@
           "layer_index": 1,
           "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
           "texture": "minecraft:textures/entity/villager/type/plains.png",
-          "texture_by": "type"
+          "texture_by": "type",
+          "no_hat_root": "head"
         },
         {
           "source": "VillagerProfessionLayer",
@@ -3242,7 +3243,8 @@
           "layer_index": 4,
           "geometry": "ZombieVillagerModel#createBodyLayer",
           "texture": "minecraft:textures/entity/zombie_villager/type/plains.png",
-          "texture_by": "type"
+          "texture_by": "type",
+          "no_hat_root": "head"
         },
         {
           "source": "VillagerProfessionLayer",

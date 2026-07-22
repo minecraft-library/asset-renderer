@@ -3,18 +3,18 @@ package lib.minecraft.renderer.pipeline.index;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.BlendMode;
-import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
 import lib.minecraft.renderer.asset.Entity.BoneToggle;
 import lib.minecraft.renderer.asset.Entity.EquipmentOverlay;
 import lib.minecraft.renderer.asset.Entity.LargeShape;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
-import lib.minecraft.renderer.asset.Entity.TransformOp;
 import lib.minecraft.renderer.asset.Entity.TransformOp.RotateX;
 import lib.minecraft.renderer.asset.Entity.TransformOp.RotateY;
 import lib.minecraft.renderer.asset.Entity.TransformOp.RotateZ;
 import lib.minecraft.renderer.asset.Entity.TransformOp.Scale;
 import lib.minecraft.renderer.asset.Entity.TransformOp.Translate;
+import lib.minecraft.renderer.asset.Entity.TransformOp;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.PipelineException;
@@ -370,7 +370,13 @@ public final class EntityIndexBuilder {
             // `normal` -> source-over. An un-annotated overlay keeps the NORMAL / 1.0 default.
             BlendMode blend = parseBlend(pipeline == null ? null : pipeline.blend(), diagnostics);
             float alpha = pipeline == null || pipeline.alpha() == null ? 1f : pipeline.alpha();
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, textureBy, blend, alpha, gate));
+            // The suppressed-pass mesh: vanilla's clearChild(root).clearRecursively() over the SAME
+            // materialised mesh, so the alternate differs from the primary in nothing but the emptied
+            // subtree. Derived here rather than from a second geometry coordinate precisely so
+            // sameGeometry, the depth-clearance inflate and the derived skipBounds above all stand.
+            Optional<EntityModelData> noHatModel = entry.noHatRoot() == null ? Optional.empty()
+                : clearSubtreeCubes(materialised, entry.noHatRoot(), entityId, diagnostics);
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, textureBy, blend, alpha, gate, noHatModel));
         }
         return out;
     }
@@ -721,6 +727,48 @@ public final class EntityIndexBuilder {
             }
         }
         return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(), Concurrent.adoptLinkedMap(out), source.isCull());
+    }
+
+    /**
+     * Returns a copy of {@code source} with the cube list of {@code rootBone} and of every descendant
+     * emptied - vanilla's {@code clearChild(name).clearRecursively()}. Every bone keeps its pivot,
+     * rotation, bind-pose rotation, scale and parent so the transform hierarchy is untouched and a
+     * cube-less bone simply emits nothing; every bone outside the subtree passes through by reference.
+     * A {@code rootBone} absent from the mesh warns and yields empty. Package-private so the subtree
+     * clear can be pinned on a fixture mesh directly.
+     *
+     * @param source the mesh to derive from
+     * @param rootBone the subtree root whose cubes (and its descendants') are emptied
+     * @param entityId the entity the overlay belongs to, for the diagnostic
+     * @param diagnostics the load-time warning channel
+     * @return the cleared mesh, or empty when {@code rootBone} is not on the geometry
+     */
+    static @NotNull Optional<EntityModelData> clearSubtreeCubes(
+        @NotNull EntityModelData source,
+        @NotNull String rootBone,
+        @NotNull String entityId,
+        @NotNull Diagnostics diagnostics
+    ) {
+        Map<String, EntityModelData.Bone> bones = source.getBones();
+        if (!bones.containsKey(rootBone)) {
+            diagnostics.warn("entity '%s' overlay no_hat_root names bone '%s' which is not on the geometry", entityId, rootBone);
+            return Optional.empty();
+        }
+        Set<String> root = Set.of(rootBone);
+        LinkedHashMap<String, EntityModelData.Bone> out = new LinkedHashMap<>();
+        for (Map.Entry<String, EntityModelData.Bone> e : bones.entrySet()) {
+            EntityModelData.Bone bone = e.getValue();
+            boolean cleared = rootBone.equals(e.getKey()) || hasAncestorInSet(bones, bone, root);
+            if (!cleared || bone.getCubes().isEmpty()) {
+                out.put(e.getKey(), bone);
+            } else {
+                out.put(e.getKey(), new EntityModelData.Bone(
+                    bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
+                    bone.getScale(), Concurrent.adoptList(new ArrayList<>()), bone.getParent()));
+            }
+        }
+        return Optional.of(new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(),
+            Concurrent.adoptLinkedMap(out), source.isCull()));
     }
 
     /** Reports whether any proper ancestor of {@code bone} is named in {@code retain}. */

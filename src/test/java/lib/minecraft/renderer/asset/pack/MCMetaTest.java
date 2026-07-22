@@ -183,6 +183,25 @@ class MCMetaTest {
     }
 
     @Test
+    @DisplayName("villager hat: partial round-trips, case folds, absent and non-string members read NONE")
+    void villagerHatArms() {
+        assertThat("the partial arm the profession mesh select keys off",
+            parse("{\"villager\":{\"hat\":\"partial\"}}").villager().orElseThrow().hat(), is(MCMeta.Villager.Hat.PARTIAL));
+        assertThat("an upper-case value folds",
+            parse("{\"villager\":{\"hat\":\"FULL\"}}").villager().orElseThrow().hat(), is(MCMeta.Villager.Hat.FULL));
+        assertThat("a section without a hat member is present and reads NONE",
+            parse("{\"villager\":{}}").villager().orElseThrow().hat(), is(MCMeta.Villager.Hat.NONE));
+        assertThat("a numeric value coerces rather than throwing",
+            parse("{\"villager\":{\"hat\":42}}").villager().orElseThrow().hat(), is(MCMeta.Villager.Hat.NONE));
+        assertThat("an object value reads NONE instead of failing",
+            parse("{\"villager\":{\"hat\":{}}}").villager().orElseThrow().hat(), is(MCMeta.Villager.Hat.NONE));
+        assertThat("an array value reads NONE instead of failing",
+            parse("{\"villager\":{\"hat\":[]}}").villager().orElseThrow().hat(), is(MCMeta.Villager.Hat.NONE));
+        assertThat("an explicit null reads NONE instead of failing",
+            parse("{\"villager\":{\"hat\":null}}").villager().orElseThrow().hat(), is(MCMeta.Villager.Hat.NONE));
+    }
+
+    @Test
     @DisplayName("a pack-root doc carries no sidecar sections and vice versa")
     void sectionsAreOrthogonal() {
         MCMeta root = parse("{\"pack\":{\"pack_format\":1}}");

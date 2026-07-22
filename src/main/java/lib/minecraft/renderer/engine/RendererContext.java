@@ -80,6 +80,19 @@ public interface RendererContext {
     }
 
     /**
+     * Looks up the parsed {@code villager} sidecar section for a villager type / profession texture, if
+     * any - the hat flag the profession layer's mesh select consumes. The default returns empty so
+     * non-pack contexts do not need to override it; the production context forwards the texture's
+     * index-row sidecar's {@code villager} section.
+     *
+     * @param textureId the namespaced texture id
+     * @return the villager metadata, or empty when the texture has no {@code villager} sidecar
+     */
+    default @NotNull Optional<MCMeta.Villager> findVillager(@NotNull String textureId) {
+        return Optional.empty();
+    }
+
+    /**
      * Looks up a banner / shield pattern by its namespaced registry id
      * (e.g. {@code "minecraft:creeper"}). Banner and shield rendering share the same pattern
      * registry since MC 1.19.4; the pattern's {@code assetId} drives both atlas paths. The
@@ -339,6 +352,11 @@ public interface RendererContext {
         /** {@inheritDoc} */
         @Override default @NotNull Optional<MCMeta.GuiScaling> findGuiScaling(@NotNull String textureId) {
             return delegate().findGuiScaling(textureId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<MCMeta.Villager> findVillager(@NotNull String textureId) {
+            return delegate().findVillager(textureId);
         }
 
         /** {@inheritDoc} */

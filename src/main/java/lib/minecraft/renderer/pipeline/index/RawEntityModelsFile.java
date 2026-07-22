@@ -185,6 +185,8 @@ record RawSizeOption(@Nullable String geometry, @Nullable Float scale) {}
  * @param geometry the overlay geometry coordinate, or {@code null} to reuse the base coordinate
  * @param texture the overlay texture path, or {@code null} to reuse the base texture
  * @param retainBones the vanilla {@code retainExactParts} subset restricting the mesh, or {@code null}
+ * @param noHatRoot the bone whose subtree the suppressed pass clears (vanilla's
+ *     {@code clearChild(name).clearRecursively()}), or {@code null} when the pass has no alternate mesh
  * @param tint the overlay tint as a hex string, or {@code null} for white
  * @param tintBy the render-axis token overriding the tint at render, or {@code null}
  * @param textureBy the render-axis token overriding the texture at render, or {@code null}
@@ -197,6 +199,7 @@ record RawOverlay(
     @Nullable String geometry,
     @Nullable String texture,
     @SerializedName("retain_bones") @Nullable List<String> retainBones,
+    @SerializedName("no_hat_root") @Nullable String noHatRoot,
     @Nullable String tint,
     @SerializedName("tint_by") @Nullable String tintBy,
     @SerializedName("texture_by") @Nullable String textureBy,

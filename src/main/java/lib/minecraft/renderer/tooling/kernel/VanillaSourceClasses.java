@@ -344,6 +344,9 @@ public final class VanillaSourceClasses {
         /** {@code RenderLayer.coloredCutoutModelCopyLayerRender} - the tinted cutout-copy helper (implies entityCutout). */
         public static final @NotNull String COLORED_CUTOUT_HELPER = "coloredCutoutModelCopyLayerRender";
 
+        /** {@code RenderLayer.renderColoredCutoutModel} - the per-pass cutout submit a model select feeds. */
+        public static final @NotNull String RENDER_COLORED_CUTOUT_MODEL = "renderColoredCutoutModel";
+
         /** {@code RenderLayer.submit} - the per-layer render entry the structural gates walk. */
         public static final @NotNull String SUBMIT = "submit";
 
@@ -352,6 +355,9 @@ public final class VanillaSourceClasses {
 
         /** {@code PartDefinition.retainExactParts} - the subset-mesh transformer (warden spots, creaking eyes). */
         public static final @NotNull String RETAIN_EXACT_PARTS = "retainExactParts";
+
+        /** {@code PartDefinition.clearChild} - the cube-clearing child replace a head-stripped mesh opens with. */
+        public static final @NotNull String CLEAR_CHILD = "clearChild";
 
         /** {@code ColorLerper$Type.getColor(DyeColor)} - the dyed-overlay tint accessor. */
         public static final @NotNull String GET_COLOR = "getColor";

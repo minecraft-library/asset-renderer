@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -1217,6 +1217,17 @@ final class EntityOverlayResolver {
             return List.of();
         }
         List<String> defaultIds = dataClassDefaultIds(submit);
+        String noHatRoot = null;
+        if (selectsModelBeforeFirstPass(submit)) {
+            noHatRoot = noHatRootBone(site);
+            if (noHatRoot == null) {
+                this.diagnostics.warn("category-pass layer '%s' selects a model but no ModelLayers field resolves a"
+                    + " cleared bone - no_hat_root omitted", simpleName(site.layerClass()));
+            }
+        } else {
+            this.diagnostics.info("category-pass layer '%s' has no conditional model select before its first pass"
+                + " - no_hat_root omitted", simpleName(site.layerClass()));
+        }
         List<JsonTree> rows = new ArrayList<>(categories.size());
         for (String category : categories) {
             String texture = null;
@@ -1230,7 +1241,8 @@ final class EntityOverlayResolver {
             JsonTree node = row(site.layerClass(), site.layerIndex())
                 .putIf("geometry", this.geometryRef.primaryKey())
                 .putIf("texture", texture == null ? null : namespaced(texture))
-                .put("texture_by", category);
+                .put("texture_by", category)
+                .putIf("no_hat_root", rows.isEmpty() ? noHatRoot : null);
             if (texture == null) node.put("skip_bounds", true);
             rows.add(node);
         }
@@ -1289,6 +1301,101 @@ final class EntityOverlayResolver {
         for (AbstractInsnNode in = site.allocation(); in != null && in != site.addLayer(); in = in.getNext()) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null && isCategoryToken(literal)) return literal;
+        }
+        return null;
+    }
+
+    /**
+     * Whether the typed submit picks between two models before its first pass - the shape that
+     * proves an alternate mesh applies to the FIRST category row and to that row only. The pick
+     * compiles to a boolean-branch ternary over two model references: an {@code IFEQ} whose
+     * fall-through is an {@code ALOAD}, followed by the {@code GOTO} that skips the else arm and
+     * the else arm's own {@code ALOAD}. Reaching the first cutout submit without that quad means
+     * every pass draws the same mesh.
+     *
+     * @param submit the layer's typed submit
+     * @return {@code true} when the model select precedes the first pass
+     */
+    private static boolean selectsModelBeforeFirstPass(@NotNull MethodNode submit) {
+        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi
+                && VanillaSourceClasses.Methods.RENDER_COLORED_CUTOUT_MODEL.equals(mi.name))
+                return false;
+            if (in.getOpcode() != Opcodes.IFEQ) continue;
+            AbstractInsnNode thenArm = AsmKit.nextReal(in);
+            if (thenArm == null || thenArm.getOpcode() != Opcodes.ALOAD) continue;
+            AbstractInsnNode skip = AsmKit.nextReal(thenArm);
+            if (skip == null || skip.getOpcode() != Opcodes.GOTO) continue;
+            AbstractInsnNode elseArm = AsmKit.nextReal(skip);
+            if (elseArm != null && elseArm.getOpcode() == Opcodes.ALOAD) return true;
+        }
+        return false;
+    }
+
+    /**
+     * The bone whose subtree the site's alternate mesh clears, derived from the renderer's own
+     * ctor-arg region: the alternate models are baked there from {@code ModelLayers} fields, so
+     * each field in {@code [allocation .. addLayer)} is resolved through the layer-definition
+     * index to its factory and the factory is read for its cleared-child name. The first field
+     * that yields one wins - the adult mesh, since it is baked before the baby mesh.
+     *
+     * @param site the layer site whose ctor-arg region holds the bakes
+     * @return the cleared bone name, or {@code null} when no field resolves one
+     */
+    private @Nullable String noHatRootBone(@NotNull EntityRendererResolver.LayerSite site) {
+        for (AbstractInsnNode in = site.allocation(); in != null && in != site.addLayer(); in = in.getNext()) {
+            if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS) || !(in instanceof FieldInsnNode fi))
+                continue;
+            LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(fi.name);
+            if (entry == null) continue;
+            String bone = clearedChildName(entry);
+            if (bone != null) return bone;
+        }
+        return null;
+    }
+
+    /**
+     * The {@code PartDefinition.clearChild} argument a layer factory bakes - the subtree root the
+     * mesh empties. Read from the factory body first, then from its inline {@code MeshTransformer}
+     * lambdas, which is where a factory that clears through
+     * {@code LayerDefinition.apply(mesh -> ...)} keeps the call. Only an owner-local synthetic
+     * lambda body is walked; a method reference to a foreign class is skipped rather than read out
+     * of the factory's own class.
+     *
+     * @param entry the layer-definition entry naming the factory
+     * @return the cleared bone name, or {@code null} when the factory clears nothing
+     */
+    private @Nullable String clearedChildName(@NotNull LayerDefinitionIndex.Entry entry) {
+        ClassNode factoryOwner = this.cache.load(entry.factoryClass());
+        MethodNode factory = factoryOwner == null ? null
+            : AsmKit.findMethod(factoryOwner, entry.factoryMethod(), entry.factoryDesc());
+        if (factory == null) return null;
+        String direct = clearedChildInBody(factory);
+        if (direct != null) return direct;
+        for (AbstractInsnNode in = factory.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (!AsmKit.isLambdaInvokeDynamic(in) || !(in instanceof InvokeDynamicInsnNode indy)) continue;
+            Handle handle = AsmKit.extractLambdaHandle(indy);
+            MethodNode lambda = handle == null || !handle.getOwner().equals(factoryOwner.name) ? null
+                : AsmKit.findMethod(factoryOwner, handle.getName(), handle.getDesc());
+            String nested = lambda == null ? null : clearedChildInBody(lambda);
+            if (nested != null) return nested;
+        }
+        return null;
+    }
+
+    /** The name argument of the first {@code PartDefinition.clearChild} a body calls, or {@code null}. */
+    private static @Nullable String clearedChildInBody(@NotNull MethodNode body) {
+        String pending = null;
+        for (AbstractInsnNode in = body.instructions.getFirst(); in != null; in = in.getNext()) {
+            String literal = AsmKit.readStringLiteral(in);
+            if (literal != null) {
+                pending = literal;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
+                && VanillaSourceClasses.Types.PART_DEFINITION.equals(mi.owner)
+                && VanillaSourceClasses.Methods.CLEAR_CHILD.equals(mi.name))
+                return pending;
         }
         return null;
     }

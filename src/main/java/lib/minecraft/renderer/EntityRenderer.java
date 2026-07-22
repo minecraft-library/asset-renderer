@@ -9,6 +9,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
@@ -465,8 +466,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     // (unselected) render unchanged. Overlays with a baked default (tropical fish
                     // pattern's KOB) always resolve, so they are never skipped here.
                     if (overlay.textureBy().isPresent() && overlayRef.isEmpty()) continue;
+                    // The mesh this pass draws: its own, unless the villager hat rule suppresses the
+                    // head subtree in favour of the profession's own hat.
+                    EntityModelData overlayMesh = selectOverlayMesh(ctx, overlay, overlayRef, texturePrefix);
                     stack.append(this.slot, sink -> {
-                        if (overlay.model().getBones().isEmpty()) return;
+                        if (overlayMesh.getBones().isEmpty()) return;
                         Optional<PixelBuffer> overlayTex = overlayRef.isPresent()
                             ? ctx.textures().resolveEntityTextureAtTick(overlayRef.get(), ctx.tick())
                             : Optional.of(ctx.baseTexture());
@@ -475,7 +479,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                         // emitted triangle via EntityBuildParams - the additive energy-swirl glow and
                         // the warden pulsating-spots opacity multiplier; every un-annotated overlay
                         // keeps the source-over full-opacity default.
-                        sink.addAll(EntityGeometryKit.buildTriangles(overlay.model(), overlayTex.get(),
+                        sink.addAll(EntityGeometryKit.buildTriangles(overlayMesh, overlayTex.get(),
                             new EntityGeometryKit.EntityBuildParams(ctx.modelAnchor(), overlay.emissive(),
                                 ctx.ndcScale(), ctx.modelScale(), overlayTint, overlay.blend(), overlay.alpha())
                         ).triangles());
@@ -699,12 +703,68 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (overlay.textureBy().filter("type"::equals).isPresent())
             return Optional.of(texturePrefix + "/" + appearance.getVillagerType().overlaySubPath());
         if (overlay.textureBy().filter("profession"::equals).isPresent())
-            return appearance.getVillagerProfession().overlaySubPath().map(sub -> texturePrefix + "/" + sub);
+            return professionTextureRef(appearance, texturePrefix);
         if (overlay.textureBy().filter("profession_level"::equals).isPresent())
             return appearance.getVillagerProfession().drawsBadge()
                 ? appearance.getVillagerLevel().overlaySubPath().map(sub -> texturePrefix + "/" + sub)
                 : Optional.empty();
         return overlay.textureRef();
+    }
+
+    /**
+     * The mesh a model overlay draws with: its own mesh, unless the overlay declares an alternate
+     * suppressed-pass mesh and the villager hat rule selects it. The hat flags come from the
+     * {@code villager} sidecar of the overlay's OWN resolved texture (the type / robe texture) and of the
+     * selected profession texture, so a resource pack that changes either sidecar changes the decision.
+     * An overlay with no alternate, and every context whose texture lookup yields no sidecar, keep the
+     * overlay's own mesh.
+     *
+     * @param ctx the feature context supplying the appearance and the texture facade
+     * @param overlay the overlay layer to pick a mesh for
+     * @param overlayRef the overlay's already-resolved texture ref
+     * @param texturePrefix the entity texture prefix the profession sub-path is qualified with
+     * @return the mesh to build triangles from
+     */
+    private static @NotNull EntityModelData selectOverlayMesh(
+        @NotNull FeatureContext ctx,
+        @NotNull Entity.OverlayLayer overlay,
+        @NotNull Optional<String> overlayRef,
+        @NotNull String texturePrefix
+    ) {
+        if (overlay.noHatModel().isEmpty()) return overlay.model();
+        EntityAppearance appearance = ctx.options().getAppearance();
+        MCMeta.Villager.Hat typeHat = overlayRef.map(ctx.textures()::findVillagerHat)
+            .orElse(MCMeta.Villager.Hat.NONE);
+        MCMeta.Villager.Hat professionHat = professionTextureRef(appearance, texturePrefix)
+            .map(ctx.textures()::findVillagerHat)
+            .orElse(MCMeta.Villager.Hat.NONE);
+        return useFullModel(professionHat, typeHat) ? overlay.model() : overlay.noHatModel().get();
+    }
+
+    /**
+     * Whether a hat-bearing pass draws its full mesh rather than the head-stripped alternate: a hatless
+     * profession never suppresses, and a partial-hat profession suppresses only over a full-hat type. A
+     * full-hat profession always suppresses, so its own hat is the only one drawn. Package-private so the
+     * truth table can be pinned directly.
+     *
+     * @param professionHat the hat flag of the selected profession texture
+     * @param typeHat the hat flag of the selected type texture
+     * @return {@code true} when the full mesh is drawn
+     */
+    static boolean useFullModel(@NotNull MCMeta.Villager.Hat professionHat, @NotNull MCMeta.Villager.Hat typeHat) {
+        return professionHat == MCMeta.Villager.Hat.NONE
+            || (professionHat == MCMeta.Villager.Hat.PARTIAL && typeHat != MCMeta.Villager.Hat.FULL);
+    }
+
+    /**
+     * The profession pass' prefix-qualified texture ref, empty at the {@code NONE} profession.
+     *
+     * @param appearance the axis selections to resolve against
+     * @param texturePrefix the entity texture prefix the profession sub-path is qualified with
+     * @return the profession texture ref, or empty when no profession is selected
+     */
+    private static @NotNull Optional<String> professionTextureRef(@NotNull EntityAppearance appearance, @NotNull String texturePrefix) {
+        return appearance.getVillagerProfession().overlaySubPath().map(sub -> texturePrefix + "/" + sub);
     }
 
     /**

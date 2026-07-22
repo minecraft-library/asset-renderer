@@ -6,9 +6,9 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.exception.PipelineException;
-import dev.simplified.gson.JsonTree;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -195,7 +195,9 @@ public record MCMeta(
         Optional<JsonTree> villager = root.findObject("villager");
         if (villager.isEmpty()) return Optional.empty();
         JsonTree v = villager.get();
-        Villager.Hat hat = v.has("hat") ? Villager.Hat.parse(v.findString("hat").orElse(null)) : Villager.Hat.NONE;
+        // A `hat` member that is not a readable string (an object, an array, an explicit null) falls to
+        // NONE rather than reaching the parser, which takes a non-null name.
+        Villager.Hat hat = v.findString("hat").map(Villager.Hat::parse).orElse(Villager.Hat.NONE);
         return Optional.of(new Villager(hat));
     }
 

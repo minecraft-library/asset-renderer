@@ -254,6 +254,19 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
+     * {@inheritDoc}
+     * <p>
+     * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
+     * captured {@code .mcmeta} {@code villager} section is forwarded.
+     */
+    @Override
+    public @NotNull Optional<MCMeta.Villager> findVillager(@NotNull String textureId) {
+        return this.stack.indexed(ResourceId.parse(textureId))
+            .flatMap(ResolvedTexture::meta)
+            .flatMap(MCMeta::villager);
+    }
+
+    /**
      * Adapts a captured {@link MCMeta.Animation} section into the {@link AnimationData} the renderer consumes.
      */
     private static @NotNull AnimationData toAnimationData(@NotNull MCMeta.Animation animation) {

@@ -1,15 +1,17 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.option.EntityAppearance;
-import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
+import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -25,8 +27,8 @@ import static org.hamcrest.Matchers.sameInstance;
  * Load-contract tests for {@link EntityModelLoader}, exercising the family read of
  * {@code entity_models.json} directly. Load-bearing canaries: the wolf
  * variant/state texture join, the baby three-source texture chain, the dyed-collar presence, the
- * option-encoded variant coat map + resolver fold, and the depth-clearance auto-skip on a
- * base-mesh-inheriting overlay.
+ * option-encoded variant coat map + resolver fold, the depth-clearance auto-skip on a
+ * base-mesh-inheriting overlay, and the head-stripped alternate mesh on a category pass.
  */
 @DisplayName("EntityModelLoader native load")
 class EntityModelLoaderTest {
@@ -135,5 +137,80 @@ class EntityModelLoaderTest {
         assertThat("sheep declares undercoat + wool overlays", sheep.size(), greaterThan(1));
         assertThat("same-mesh wool undercoat skips bounds", sheep.get(0).skipBounds(), is(true));
         assertThat("distinct-mesh wool layer contributes to bounds", sheep.get(1).skipBounds(), is(false));
+    }
+
+    @Test
+    @DisplayName("the villager robe pass stays same-geometry, so its depth clearance and bounds skip hold")
+    void villagerRobePassKeepsDepthClearance() {
+        // The robe pass carries an alternate head-stripped mesh, derived from the materialised mesh rather
+        // than from a second geometry coordinate. Expressing it as its own coordinate would flip
+        // sameGeometry false, dropping the depth-clearance inflate (z-fighting the base body) and
+        // un-setting the derived bounds skip - which moves the villager AND wandering_trader canvas.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        assertThat("villager type pass skips bounds", defs.get("minecraft:villager").overlays().getFirst().skipBounds(), is(true));
+        assertThat("zombie villager type pass skips bounds", defs.get("minecraft:zombie_villager").overlays().getFirst().skipBounds(), is(true));
+    }
+
+    @Test
+    @DisplayName("only the type pass carries the head-stripped alternate mesh, and it empties exactly the head subtree")
+    void categoryPassCarriesHeadStrippedAlternateMesh() {
+        // End-to-end canary over the shipped resource: the tooling must emit the cleared-bone key on the
+        // type pass and the loader must derive the alternate mesh from it. A regenerated resource that
+        // lost the key, or a loader that stopped deriving the mesh, fails here rather than silently
+        // rendering a hat through a hat-bearing profession's headwear.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        assertHeadStrippedTypePass(defs, "minecraft:villager", List.of("head", "hat", "hat_rim", "nose"));
+        assertHeadStrippedTypePass(defs, "minecraft:zombie_villager", List.of("head", "hat", "hat_rim"));
+    }
+
+    /**
+     * Asserts a category-pass family carries its alternate mesh on the {@code type} pass alone, that the
+     * mesh empties every named head-subtree bone while the body keeps its cubes, and that the bone
+     * hierarchy is otherwise untouched.
+     *
+     * @param defs the loaded index
+     * @param entityId the category-pass entity
+     * @param clearedBones the head-subtree bones the alternate mesh must empty
+     */
+    private static void assertHeadStrippedTypePass(
+        ConcurrentMap<String, Entity> defs,
+        String entityId,
+        List<String> clearedBones
+    ) {
+        OverlayLayer typePass = categoryPass(defs, entityId, "type");
+        assertThat(entityId + " type pass carries an alternate mesh", typePass.noHatModel().isPresent(), is(true));
+        assertThat(entityId + " profession pass carries no alternate mesh",
+            categoryPass(defs, entityId, "profession").noHatModel().isPresent(), is(false));
+        assertThat(entityId + " profession_level pass carries no alternate mesh",
+            categoryPass(defs, entityId, "profession_level").noHatModel().isPresent(), is(false));
+
+        EntityModelData full = typePass.model();
+        EntityModelData stripped = typePass.noHatModel().get();
+        for (String bone : clearedBones) {
+            assertThat(entityId + " '" + bone + "' is on the pass mesh", full.getBones().containsKey(bone), is(true));
+            assertThat(entityId + " '" + bone + "' owns cubes on the pass mesh", full.getBones().get(bone).getCubes().isEmpty(), is(false));
+            assertThat(entityId + " '" + bone + "' is emptied on the alternate mesh", stripped.getBones().get(bone).getCubes().isEmpty(), is(true));
+        }
+        assertThat(entityId + " body is off the head subtree and keeps its cubes",
+            stripped.getBones().get("body").getCubes().isEmpty(), is(false));
+
+        assertThat(entityId + " the alternate mesh keeps every bone",
+            Set.copyOf(stripped.getBones().keySet()), equalTo(Set.copyOf(full.getBones().keySet())));
+        for (String bone : full.getBones().keySet()) {
+            assertThat(entityId + " '" + bone + "' keeps its pivot",
+                stripped.getBones().get(bone).getPivot(), equalTo(full.getBones().get(bone).getPivot()));
+            assertThat(entityId + " '" + bone + "' keeps its parent",
+                stripped.getBones().get(bone).getParent(), equalTo(full.getBones().get(bone).getParent()));
+        }
+    }
+
+    /** The overlay pass of an entity whose texture axis is {@code textureBy}. */
+    private static OverlayLayer categoryPass(ConcurrentMap<String, Entity> defs, String entityId, String textureBy) {
+        return defs.get(entityId)
+            .overlays()
+            .stream()
+            .filter(overlay -> overlay.textureBy().filter(textureBy::equals).isPresent())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("entity '" + entityId + "' has no '" + textureBy + "' category pass"));
     }
 }
