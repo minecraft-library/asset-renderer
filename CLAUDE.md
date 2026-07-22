@@ -23,7 +23,15 @@ Rewrites JSON in `src/main/resources/lib/minecraft/renderer/`:
 - `atlas` / `diagnoseAtlas` / `diagnoseAtlasTask10` -> `build/atlas/`
 
 ## Visual inspection (writes to `cache/visual/`)
-Group `visual` - main() entry points live in `src/test/java/lib/minecraft/renderer/visual/`. Tasks: `blockRender3D -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2`, `itemRender2D -PitemId=...`, `bedParity`, `loreTooltip`, `stackCountBadge [-Plabel= | -Pdiff=A,B]`, `entityRender3D [-PentityId=... -PrenderSize=512]`, `fluidRenderer`, `portalRenderer`, `entityParityVanilla [-PentityId=...]`.
+Group `visual` - main() entry points live in `src/test/java/lib/minecraft/renderer/visual/`. Tasks: `blockRender3D -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2`, `itemRender2D -PitemId=...`, `itemDayCycle [-PrenderSize=256 -PdayFrames=64]`, `bedParity`, `loreTooltip`, `stackCountBadge [-Plabel= | -Pdiff=A,B]`, `entityRender3D [-PentityId=... -PrenderSize=512]`, `fluidRenderer`, `portalRenderer`, `entityParityVanilla [-PentityId=...]`.
+
+## Time-driven item icons (the clock)
+`minecraft:time` is a normalized **sun angle**, not a linear day fraction. In 26.1 the curve is data-driven: `data/minecraft/timeline/day.json` declares a single `360 -> 0` degree keyframe pair anchored at **noon** over a `24000`-tick period, eased by a symmetric cubic Bezier `[0.362, 0.241, 0.638, 0.759]`. `option/SunAngle` reproduces it float-for-float; a linear ramp is off by more than two clock faces at sunrise.
+- **Tick 0 is noon and yields exactly `+0.0f`.** That is load-bearing twice: it keeps `gui().atTick(0)` equal to `gui()`, so `ItemRenderer.resolveRenderItem`'s baked fast path survives (a `-0.0f` would silently cost *every* item its fast path and its baked tints), and it makes frame 0 the instant the item parity references are pinned at.
+- `AnimationOptions.Schedule.GAME_TIME` (via `Timeline.schedule`) advances world time between frames while holding each for one tick of wall clock - a day in 3.2 s rather than 20 real minutes. `deriveTimeline` also probes the item's tree (`ItemModelNode.timeDispatchSteps`) to set the cadence from its own table; that search must walk **all** branches, since the clock's dispatch sits behind a `context_dimension` select no offline context can evaluate.
+- Uniform tick sampling covers **60 of 64** faces (4 repeats, 4 skips). That is the eased curve - the sun lingers near noon and midnight - not a defect.
+- **Known divergence:** with `context_dimension` unevaluable the renderer takes `clock.json`'s fallback branch, which declares `source: random` rather than the overworld case's `source: daytime`. Both branches ship identical 65-entry tables so the resolved model is unaffected, but `source` is unmodelled; wire `context_dimension -> minecraft:overworld` in `ItemModelContext.selectValue` if a future table ever diverges.
+- LOOK gate: `./gradlew itemDayCycle` - clock must sweep noon -> dusk (sun right) -> midnight (moon centred) -> dawn (sun left); compass and sword controls must stay at **one distinct frame** (a compass is a bearing from its holder, never time-driven).
 
 ## JMH
 `./gradlew jmh` with `-PjmhWarmup` (3), `-PjmhIters` (5), `-PjmhForks` (2), `-PjmhInclude=<regex>`, `-PjmhProfilers=gc,stack`. JVM forks get `-Xmx2g` + Vector module. Benches in `src/jmh/java/lib/minecraft/renderer/bench/`.
