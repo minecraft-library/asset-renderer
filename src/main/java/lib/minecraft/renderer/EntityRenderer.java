@@ -40,6 +40,7 @@ import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
+import lib.minecraft.renderer.option.VillagerType;
 import lib.minecraft.renderer.option.slot.EntitySlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.DyeColor;
@@ -107,6 +108,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /** The entity's model-to-world {@link Placement} - {@link #ENTITY_FACING} as a placement. */
     private static final @NotNull Placement ENTITY_PLACEMENT = new Placement(ENTITY_FACING);
+
+    /** The path segment marking a baked robe ref as the baby robe directory rather than {@code type/}. */
+    private static final @NotNull String BABY_ROBE_SEGMENT = "/baby/";
 
     /**
      * Constructs an entity renderer bound to the given context and entity definitions, deriving the
@@ -440,9 +444,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private enum EntityFeature {
 
         /**
-         * Model overlays (spider / enderman eyes, saddles, sheep wool) sharing the entity frame. The
-         * resolved definition carries no overlays for a baby (adult overlay geometry would render
-         * adult-sized around the baby body), so this contributes nothing then without an age gate.
+         * Model overlays (spider / enderman eyes, saddles, sheep wool) sharing the entity frame. For a baby
+         * the resolved definition carries the baby overlay list instead (adult overlay geometry would render
+         * adult-sized around the baby body), so this contributes the baby passes alone - the villager biome
+         * robe - and nothing for an entity whose overlays declare no baby form, still without an age gate.
          */
         MODEL_OVERLAYS(EntitySlot.MODEL_OVERLAY) {
             @Override
@@ -457,7 +462,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 for (Entity.OverlayLayer overlay : ctx.definition().overlays()) {
                     // A tint-gated overlay (sheep wool undercoat) only renders once its tint_by colour
                     // is selected; skip it for the default (untinted) entity so the default is unchanged.
-                    if (overlay.gate().filter(gate -> gate instanceof AppearanceGate.TintedGate).isPresent()
+                    if (overlay.gate().filter(AppearanceGate.TintedGate.class::isInstance).isPresent()
                         && !hasSelectedTint(overlay, appearance)) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
                     Optional<String> overlayRef = resolveOverlayTextureRef(overlay, appearance, texturePrefix);
@@ -471,9 +476,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     EntityModelData overlayMesh = selectOverlayMesh(ctx, overlay, overlayRef, texturePrefix);
                     stack.append(this.slot, sink -> {
                         if (overlayMesh.getBones().isEmpty()) return;
-                        Optional<PixelBuffer> overlayTex = overlayRef.isPresent()
-                            ? ctx.textures().resolveEntityTextureAtTick(overlayRef.get(), ctx.tick())
-                            : Optional.of(ctx.baseTexture());
+                        Optional<PixelBuffer> overlayTex = overlayRef.map(s -> ctx.textures().resolveEntityTextureAtTick(s, ctx.tick()))
+                            .orElseGet(() -> Optional.of(ctx.baseTexture()));
                         if (overlayTex.isEmpty()) return;
                         // The overlay's declared blend / alpha (default NORMAL / 1.0) ride onto every
                         // emitted triangle via EntityBuildParams - the additive energy-swirl glow and
@@ -685,6 +689,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * villager profession-layer trio {@code type} / {@code profession} / {@code profession_level}
      * (prefix-relative sub-paths the {@code texturePrefix} qualifies; {@code profession} and
      * {@code profession_level} resolve empty at their {@code NONE} default so the overlay is skipped).
+     * The {@code type} axis resolves its biome under the pass' own robe directory, mirroring the layer's
+     * {@code isBaby ? "baby" : "type"} token swap.
      * The default keeps an unselected overlay unchanged; a selection swaps in that axis' texture.
      *
      * @param overlay the overlay layer to resolve a texture ref for
@@ -693,15 +699,17 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *     prepended to the villager profession-layer axes' prefix-relative sub-paths
      * @return the effective texture ref, or empty when the overlay's axis resolves to nothing
      */
-    private static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance, @NotNull String texturePrefix) {
+    static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance, @NotNull String texturePrefix) {
         if (overlay.textureBy().filter("pattern"::equals).isPresent())
             return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(overlay::textureRef);
         if (overlay.textureBy().filter("crackiness"::equals).isPresent())
             return appearance.getCrackiness().overlayTexture().or(overlay::textureRef);
         if (overlay.textureBy().filter("weathering"::equals).isPresent())
             return Optional.of(appearance.getWeathering().eyeTexture());
-        if (overlay.textureBy().filter("type"::equals).isPresent())
-            return Optional.of(texturePrefix + "/" + appearance.getVillagerType().overlaySubPath());
+        if (overlay.textureBy().filter("type"::equals).isPresent()) {
+            VillagerType type = appearance.getVillagerType();
+            return Optional.of(texturePrefix + "/" + (drawsBabyRobe(overlay) ? type.babyOverlaySubPath() : type.overlaySubPath()));
+        }
         if (overlay.textureBy().filter("profession"::equals).isPresent())
             return professionTextureRef(appearance, texturePrefix);
         if (overlay.textureBy().filter("profession_level"::equals).isPresent())
@@ -712,12 +720,28 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
+     * Whether a {@code type} pass draws the baby robe directory rather than the adult {@code type/} one,
+     * read off the pass' OWN baked texture ref - the baby overlay list bakes {@code <prefix>/baby/<biome>}
+     * and the adult one {@code <prefix>/type/<biome>}. Keyed on the pass rather than on the appearance's
+     * age so the directory swap and the baby-mesh swap can never disagree: the baby robe's UV layout
+     * belongs to the baby mesh, so binding it over the adult mesh would garble its texels. A pass whose
+     * baby form probed no texture of its own inherits the adult ref and so keeps the adult directory,
+     * which is what the jar actually ships.
+     *
+     * @param overlay the type pass to read the robe directory off
+     * @return {@code true} when the pass bakes the baby robe directory
+     */
+    private static boolean drawsBabyRobe(@NotNull Entity.OverlayLayer overlay) {
+        return overlay.textureRef().filter(ref -> ref.contains(BABY_ROBE_SEGMENT)).isPresent();
+    }
+
+    /**
      * The mesh a model overlay draws with: its own mesh, unless the overlay declares an alternate
      * suppressed-pass mesh and the villager hat rule selects it. The hat flags come from the
-     * {@code villager} sidecar of the overlay's OWN resolved texture (the type / robe texture) and of the
-     * selected profession texture, so a resource pack that changes either sidecar changes the decision.
-     * An overlay with no alternate, and every context whose texture lookup yields no sidecar, keep the
-     * overlay's own mesh.
+     * {@code villager} sidecar of the pass' {@link #typeHatTextureRef type ref} (the robe texture) and of
+     * the selected profession texture, so a resource pack that changes either sidecar changes the
+     * decision. An overlay with no alternate, and every context whose texture lookup yields no sidecar,
+     * keep the overlay's own mesh.
      *
      * @param ctx the feature context supplying the appearance and the texture facade
      * @param overlay the overlay layer to pick a mesh for
@@ -733,12 +757,38 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         if (overlay.noHatModel().isEmpty()) return overlay.model();
         EntityAppearance appearance = ctx.options().getAppearance();
-        MCMeta.Villager.Hat typeHat = overlayRef.map(ctx.textures()::findVillagerHat)
+        MCMeta.Villager.Hat typeHat = typeHatTextureRef(overlay, appearance, texturePrefix, overlayRef)
+            .map(ctx.textures()::findVillagerHat)
             .orElse(MCMeta.Villager.Hat.NONE);
         MCMeta.Villager.Hat professionHat = professionTextureRef(appearance, texturePrefix)
             .map(ctx.textures()::findVillagerHat)
             .orElse(MCMeta.Villager.Hat.NONE);
         return useFullModel(professionHat, typeHat) ? overlay.model() : overlay.noHatModel().get();
+    }
+
+    /**
+     * The ref whose {@code villager} sidecar supplies the type hat flag: for a {@code type}-axis pass the
+     * ADULT {@code <prefix>/type/<biome>} robe ref, whatever the age, else the pass' own resolved ref.
+     * Vanilla reads the type hat off a hardcoded {@code "type"} directory token before it ever tests the
+     * age, and only the drawn TEXTURE swaps to {@code baby/} - and the {@code baby/} directory ships no
+     * sidecars at all, so sourcing the flag from the baby ref would silently read {@code NONE} and stop
+     * the desert / snow full-hat suppression applying to a baby. For an adult {@code type} pass this
+     * recomputes the ref the pass already holds, so the decision is unchanged.
+     *
+     * @param overlay the overlay layer whose hat flag is being resolved
+     * @param appearance the axis selections to resolve against
+     * @param texturePrefix the entity texture prefix the type sub-path is qualified with
+     * @param overlayRef the overlay's already-resolved texture ref
+     * @return the ref to read the type hat flag from
+     */
+    static @NotNull Optional<String> typeHatTextureRef(
+        @NotNull Entity.OverlayLayer overlay,
+        @NotNull EntityAppearance appearance,
+        @NotNull String texturePrefix,
+        @NotNull Optional<String> overlayRef
+    ) {
+        if (overlay.textureBy().filter("type"::equals).isEmpty()) return overlayRef;
+        return Optional.of(texturePrefix + "/" + appearance.getVillagerType().overlaySubPath());
     }
 
     /**
@@ -752,8 +802,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @return {@code true} when the full mesh is drawn
      */
     static boolean useFullModel(@NotNull MCMeta.Villager.Hat professionHat, @NotNull MCMeta.Villager.Hat typeHat) {
-        return professionHat == MCMeta.Villager.Hat.NONE
-            || (professionHat == MCMeta.Villager.Hat.PARTIAL && typeHat != MCMeta.Villager.Hat.FULL);
+        return professionHat == MCMeta.Villager.Hat.NONE || (professionHat == MCMeta.Villager.Hat.PARTIAL && typeHat != MCMeta.Villager.Hat.FULL);
     }
 
     /**

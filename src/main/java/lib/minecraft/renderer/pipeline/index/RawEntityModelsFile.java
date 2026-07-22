@@ -194,6 +194,8 @@ record RawSizeOption(@Nullable String geometry, @Nullable Float scale) {}
  * @param pipeline the blend / alpha / emissive render pipeline, or {@code null}
  * @param skipBounds whether the overlay is excluded from the canvas-sizing bounds union
  * @param when the render condition, or {@code null} when unconditional
+ * @param baby the age delta a baby render substitutes, or {@code null} when the overlay draws on an
+ *     adult only
  */
 record RawOverlay(
     @Nullable String geometry,
@@ -206,7 +208,23 @@ record RawOverlay(
     @JsonAdapter(EntityModelData.Cube.GrowAdapter.class) @Nullable Vector3f grow,
     @Nullable RawPipeline pipeline,
     @SerializedName("skip_bounds") boolean skipBounds,
-    @Nullable RawOverlayWhen when
+    @Nullable RawOverlayWhen when,
+    @Nullable RawOverlayBaby baby
+) {}
+
+/**
+ * An overlay's {@code baby} age delta - the members a baby render substitutes, with everything else
+ * ({@code texture_by}, tint, grow, pipeline, bounds skip, gate) inherited from the overlay row. The
+ * geometry is never carried: a baby overlay materialises against the {@code age.baby} mesh, which
+ * {@link EntityIndexBuilder} supplies as the base coordinate.
+ *
+ * @param texture the baby texture path, or {@code null} to inherit the row's texture
+ * @param noHatRoot the bone whose subtree the baby suppressed pass clears, or {@code null} when the
+ *     baby pass has no alternate mesh
+ */
+record RawOverlayBaby(
+    @Nullable String texture,
+    @SerializedName("no_hat_root") @Nullable String noHatRoot
 ) {}
 
 /**

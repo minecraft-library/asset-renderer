@@ -2698,7 +2698,11 @@
           "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
           "texture": "minecraft:textures/entity/villager/type/plains.png",
           "texture_by": "type",
-          "no_hat_root": "head"
+          "no_hat_root": "head",
+          "baby": {
+            "texture": "minecraft:textures/entity/villager/baby/plains.png",
+            "no_hat_root": "head"
+          }
         },
         {
           "source": "VillagerProfessionLayer",
@@ -3244,7 +3248,11 @@
           "geometry": "ZombieVillagerModel#createBodyLayer",
           "texture": "minecraft:textures/entity/zombie_villager/type/plains.png",
           "texture_by": "type",
-          "no_hat_root": "head"
+          "no_hat_root": "head",
+          "baby": {
+            "texture": "minecraft:textures/entity/zombie_villager/baby/plains.png",
+            "no_hat_root": "head"
+          }
         },
         {
           "source": "VillagerProfessionLayer",

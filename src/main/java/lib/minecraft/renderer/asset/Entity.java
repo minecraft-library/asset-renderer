@@ -49,7 +49,8 @@ import java.util.Set;
  *     {@code minecraft:entity/<ref>}, or empty when no default texture
  * @param overlays additional geometry/texture pairs rendered on top of the base model in declared
  *     order; populated by the bytecode-derived overlay scan ({@code EntityOverlayResolver}: emissive
- *     eyes, profession layers, pattern layers, equipment-driven decor layers)
+ *     eyes, profession layers, pattern layers, equipment-driven decor layers). A baby render draws
+ *     {@link Axes#babyOverlays()} instead - the passes materialised on the baby mesh
  * @param blockOverlays vanilla-block-shaped overlays rendered on top of the entity body (mooshroom
  *     mushrooms, iron golem poppy) at a transform-stack-applied position
  * @param baseTintArgb per-entity multiplicative tint applied to the base mesh, mirroring
@@ -137,10 +138,14 @@ public record Entity(
      * {@link Entity} the renderer iterates unconditionally, with no scattered {@code !baby} gates - the
      * render-time policy the reader deliberately leaves off the loaded data.
      *
-     * <p>The nine axis semantics apply in a fixed short-circuit order: (1) a baby swaps in the baby mesh
-     * and DROPS overlays / block overlays / collar / equipment - each carries adult geometry that would
-     * render adult-sized around the smaller baby body, and the whole non-baby branch is skipped; else (2)
-     * sheared drops the wool overlay and charged gates the swirl; (3) the sheared axis additionally
+     * <p>The nine axis semantics apply in a fixed short-circuit order: (1) a baby swaps in the baby mesh,
+     * substitutes the {@link Axes#babyOverlays() baby overlay list} for the adult one, and DROPS block
+     * overlays / collar / equipment - each carries adult geometry that would render adult-sized around
+     * the smaller baby body, which is exactly why the overlay passes are a distinct list rather than the
+     * adult one, and the substituted list is empty unless an overlay declares a baby form, so a pass with
+     * none drops out structurally - and the whole non-baby branch is skipped bar the overlay gate filter
+     * (2), which runs over whichever list is in play; else (2) sheared drops the wool overlay and charged
+     * gates the swirl; (3) the sheared axis additionally
      * activates a {@code "sheared"} bone toggle (bogged); (4) selected bone toggles flip their bones'
      * visibility (donkey / mule / llama chest reveal, goat horns hide); (5) block overlays resolve against
      * the carried selection; (6) the shape axis swaps to the tropical-fish large body; (7) the size axis
@@ -162,20 +167,12 @@ public record Entity(
             .orElse(this);
         EntityBuilder builder = definition.toBuilder();
         if (appearance.isBaby() && definition.axes().babyModel().isPresent()) {
-            builder.model(definition.axes().babyModel().get()).overlays(List.of()).blockOverlays(List.of())
+            builder.model(definition.axes().babyModel().get())
+                .overlays(gatedOverlays(definition.axes().babyOverlays(), appearance))
+                .blockOverlays(List.of())
                 .layers(new Layers(Optional.empty(), List.of(), definition.layers().markings(), definition.layers().humanoidArmor()));
         } else {
-            // Drop overlays the appearance doesn't activate: shearable overlays (the sheep wool) when
-            // sheared - both the rendered geometry and its canvas-bounds contribution - and charged-only
-            // overlays (the creeper energy swirl) unless the charged axis is set. A charged overlay renders
-            // only for a lightning-struck entity. The list is only rebuilt when there is something to drop,
-            // so an entity with no shearable / charged overlay keeps its exact overlay list.
-            boolean hasCharged = definition.overlays().stream()
-                .anyMatch(overlay -> overlay.gate().filter(gate -> gate instanceof AppearanceGate.ChargedGate).isPresent());
-            if (appearance.isSheared() || hasCharged)
-                builder.overlays(definition.overlays().stream()
-                    .filter(overlay -> rendersAtResolve(overlay, appearance))
-                    .toList());
+            builder.overlays(gatedOverlays(definition.overlays(), appearance));
             // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
             // horns hide). Guarded to the non-baby path - the baby mesh has its own bones. The sheared axis
             // additionally activates the "sheared" toggle for entities that declare one (bogged drops its
@@ -213,6 +210,25 @@ public record Entity(
         // (default) keeps the baked base_tint.
         appearance.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
         return builder.build();
+    }
+
+    /**
+     * Drops the overlays an appearance does not activate: shearable overlays (the sheep wool) when
+     * sheared - both the rendered geometry and its canvas-bounds contribution - and charged-only overlays
+     * (the creeper energy swirl) unless the charged axis is set. A charged overlay renders only for a
+     * lightning-struck entity. The list is only rebuilt when there is something to drop, so a list with no
+     * shearable / charged overlay is returned as-is. Applied to the adult and the baby list alike, so a
+     * gated pass that gains a baby form is gated on a baby too rather than drawing unconditionally.
+     *
+     * @param overlays the overlay list to gate
+     * @param appearance the axis selections to gate against
+     * @return the surviving overlays, or the given list itself when nothing drops
+     */
+    private static @NotNull List<OverlayLayer> gatedOverlays(@NotNull List<OverlayLayer> overlays, @NotNull EntityAppearance appearance) {
+        boolean hasCharged = overlays.stream()
+            .anyMatch(overlay -> overlay.gate().filter(AppearanceGate.ChargedGate.class::isInstance).isPresent());
+        if (!appearance.isSheared() && !hasCharged) return overlays;
+        return overlays.stream().filter(overlay -> rendersAtResolve(overlay, appearance)).toList();
     }
 
     /**
@@ -276,7 +292,8 @@ public record Entity(
 
     /**
      * The option-axis meshes and textures a render appearance selects among: {@code stateTextures},
-     * {@code babyModel}, {@code largeShape}, {@code sizeModels}, and {@code sizeScales}.
+     * {@code babyModel}, {@code babyOverlays}, {@code largeShape}, {@code sizeModels}, and
+     * {@code sizeScales}.
      *
      * @param stateTextures alternate base textures keyed by behavioural state (wolf
      *     {@code wild}/{@code tame}/{@code angry}) plus the {@code baby} texture, populated for
@@ -284,6 +301,9 @@ public record Entity(
      *     equals the definition's {@code textureRef}
      * @param babyModel the distinct baked baby mesh, used in place of the base model when the
      *     {@code age} axis selects {@code baby}; empty for entities with no dedicated baby mesh
+     * @param babyOverlays the overlay passes materialised on the baby mesh (the villager biome robe), used
+     *     in place of {@link Entity#overlays()} when the {@code age} axis selects {@code baby}; empty
+     *     unless an overlay declares a baby form, which today is the two villagers alone
      * @param largeShape the {@code shape} axis's large alternative (tropical fish): the large body mesh +
      *     {@code tropical_b} texture + pattern overlays cloned onto it; empty otherwise
      * @param sizeModels the {@code size} axis's non-default alternate meshes keyed by {@link Size}
@@ -301,6 +321,7 @@ public record Entity(
     public record Axes(
         @NotNull Map<String, String> stateTextures,
         @NotNull Optional<EntityModelData> babyModel,
+        @NotNull List<OverlayLayer> babyOverlays,
         @NotNull Optional<LargeShape> largeShape,
         @NotNull Map<Size, EntityModelData> sizeModels,
         @NotNull Map<Size, Float> sizeScales,

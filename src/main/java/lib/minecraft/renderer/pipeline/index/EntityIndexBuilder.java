@@ -199,6 +199,7 @@ public final class EntityIndexBuilder {
         boolean humanoidArmor = humanoidArmorOf(family);
         String babyCoord = babyGeometryOf(family);
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyCoord));
+        List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, babyCoord, babyModel, familyId, diagnostics);
 
         RawVariantAxis variant = variantAxis(family);
         if (variant != null) {
@@ -206,7 +207,7 @@ public final class EntityIndexBuilder {
             String defaultOption = variant.defaultOption();
             Map<String, RawVariantOption> options = variant.options();
             VariantContext ctx = new VariantContext(baseCoord, geometries, hiddenBones, boneToggleSpecs, familyOverlays,
-                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, collarTexture, equipment, markings, humanoidArmor);
+                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyOverlays, collarTexture, equipment, markings, humanoidArmor);
             if (idEncoded) {
                 // id-encoded: each coat is a first-class render pseudo-id minecraft:<id>_<opt>.
                 for (Map.Entry<String, RawVariantOption> option : options.entrySet()) {
@@ -223,8 +224,8 @@ public final class EntityIndexBuilder {
             Entity base = coats.getOrDefault(defaultOption, coats.values().iterator().next());
             Entity.Axes baseAxes = base.axes();
             definitions.put(familyId, base.toBuilder()
-                .axes(new Entity.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.largeShape(),
-                    baseAxes.sizeModels(), baseAxes.sizeScales(), Map.copyOf(coats)))
+                .axes(new Entity.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.babyOverlays(),
+                    baseAxes.largeShape(), baseAxes.sizeModels(), baseAxes.sizeScales(), Map.copyOf(coats)))
                 .build());
             return;
         }
@@ -247,7 +248,7 @@ public final class EntityIndexBuilder {
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(blockOverlays)
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .boneToggles(toggles)
-            .axes(new Entity.Axes(stateTextures, babyModel,
+            .axes(new Entity.Axes(stateTextures, babyModel, babyOverlays,
                 buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries), buildSizeScales(family), Map.of()))
             .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
             .build());
@@ -268,6 +269,7 @@ public final class EntityIndexBuilder {
         float setupYawAddend,
         float rendererScale,
         @NotNull Optional<EntityModelData> babyModel,
+        @NotNull List<OverlayLayer> babyOverlays,
         @NotNull Optional<String> collarTexture,
         @NotNull List<EquipmentOverlay> equipment,
         boolean markings,
@@ -298,7 +300,7 @@ public final class EntityIndexBuilder {
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(ctx.blockOverlays())
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
             .boneToggles(toggles)
-            .axes(new Entity.Axes(stateTextures, ctx.babyModel(), Optional.empty(), Map.of(), Map.of(), Map.of()))
+            .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyOverlays(), Optional.empty(), Map.of(), Map.of(), Map.of()))
             .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor()))
             .build();
     }
@@ -379,6 +381,60 @@ public final class EntityIndexBuilder {
             out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, textureBy, blend, alpha, gate, noHatModel));
         }
         return out;
+    }
+
+    /**
+     * Resolves the baby forms of an {@code overlays} list into the parallel {@link OverlayLayer} list a
+     * baby render draws in place of the adult one. Each row carrying a {@code baby} delta is rewritten
+     * into an overlay whose texture and cleared-bone root come from the delta and whose every other
+     * member ({@code texture_by}, tint, {@code retain_bones}, {@code grow}, pipeline, bounds skip, gate)
+     * is inherited from the row, then handed to {@link #loadOverlays} against the {@code age.baby} mesh.
+     * A row with no delta is absent from the result, so a pass vanilla itself gates off a baby (the
+     * villager profession and profession-level passes) drops out structurally.
+     *
+     * <p>The derived row's geometry is deliberately {@code null} rather than the row's own coordinate: the
+     * row names the ADULT mesh, so carrying it would flip {@link #loadOverlays}'s {@code sameGeometry}
+     * false, losing both the {@value #DEPTH_CLEARANCE_INFLATE} depth-clearance inflate (the pass would
+     * z-fight the baby body) and the derived bounds skip (the pass would re-enter the canvas union and
+     * move the baby canvas). Left null it defaults to {@code babyCoord}, which is the same mesh instance
+     * {@link Entity.Axes#babyModel()} holds.
+     *
+     * @param overlays the family's raw overlay rows
+     * @param geometries the geometry coordinate to bone tree table
+     * @param babyCoord the family's {@code age.baby} geometry coordinate, or {@code null} when it has none
+     * @param babyModel the baby mesh that coordinate resolved to, or empty when it is unknown
+     * @param entityId the entity the rows belong to, for diagnostics
+     * @param diagnostics the scope read warnings are recorded to
+     * @return the baby overlay passes, or an empty list when no row declares a baby form
+     */
+    private static @NotNull List<OverlayLayer> loadBabyOverlays(
+        @NotNull List<RawOverlay> overlays,
+        @NotNull Map<String, EntityModelData> geometries,
+        @Nullable String babyCoord,
+        @NotNull Optional<EntityModelData> babyModel,
+        @NotNull String entityId,
+        @NotNull Diagnostics diagnostics
+    ) {
+        if (babyCoord == null) return List.of();
+        List<RawOverlay> forms = new ArrayList<>();
+        for (RawOverlay entry : overlays) {
+            RawOverlayBaby baby = entry.baby();
+            if (baby == null) continue;
+            forms.add(new RawOverlay(
+                null,
+                baby.texture() == null ? entry.texture() : baby.texture(),
+                entry.retainBones(), baby.noHatRoot(), entry.tint(), entry.tintBy(), entry.textureBy(),
+                entry.grow(), entry.pipeline(), entry.skipBounds(), entry.when(), null));
+        }
+        if (forms.isEmpty()) return List.of();
+        // Rows declared a baby form but the mesh they would materialise against is missing - the same
+        // drop loadOverlays warns about for an adult pass, warned about here rather than silently
+        // returning an empty list that reads as "no row declares a baby form".
+        if (babyModel.isEmpty()) {
+            diagnostics.warn("entity '%s' baby overlay references geometry '%s' absent from entity_geometry", entityId, babyCoord);
+            return List.of();
+        }
+        return loadOverlays(forms, geometries, babyCoord, babyModel.get(), entityId, diagnostics);
     }
 
     /**

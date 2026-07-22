@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,7 +29,8 @@ import static org.hamcrest.Matchers.sameInstance;
  * {@code entity_models.json} directly. Load-bearing canaries: the wolf
  * variant/state texture join, the baby three-source texture chain, the dyed-collar presence, the
  * option-encoded variant coat map + resolver fold, the depth-clearance auto-skip on a
- * base-mesh-inheriting overlay, and the head-stripped alternate mesh on a category pass.
+ * base-mesh-inheriting overlay, the head-stripped alternate mesh on a category pass, and the villager
+ * baby robe pass.
  */
 @DisplayName("EntityModelLoader native load")
 class EntityModelLoaderTest {
@@ -149,6 +151,89 @@ class EntityModelLoaderTest {
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         assertThat("villager type pass skips bounds", defs.get("minecraft:villager").overlays().getFirst().skipBounds(), is(true));
         assertThat("zombie villager type pass skips bounds", defs.get("minecraft:zombie_villager").overlays().getFirst().skipBounds(), is(true));
+    }
+
+    @Test
+    @DisplayName("a baby overlay list is carried only where an overlay declares a baby form")
+    void babyOverlayListOnlyWhereDeclared() {
+        // The baby list never falls back to the adult one: an entity with a baby mesh AND overlays but no
+        // declared baby form draws nothing over its baby, bit-for-bit as before the list existed. These are
+        // the only other baby-bearing families that declare any overlay at all.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        for (String entityId : List.of("minecraft:sheep", "minecraft:drowned", "minecraft:trader_llama")) {
+            assertThat(entityId + " has a baby mesh", defs.get(entityId).axes().babyModel().isPresent(), is(true));
+            assertThat(entityId + " declares adult overlays", defs.get(entityId).overlays().isEmpty(), is(false));
+            assertThat(entityId + " declares no baby form, so its baby list is empty",
+                defs.get(entityId).axes().babyOverlays(), is(empty()));
+        }
+        assertThat("a family with no baby mesh at all carries no baby list",
+            defs.get("minecraft:wandering_trader").axes().babyOverlays(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("both villagers ship a baby type pass, bound to the baby mesh and the baby robe texture")
+    void babyTypePassIsShippedForBothVillagers() {
+        // End-to-end canary over the shipped resource: the tooling must emit the `baby` node on the type
+        // pass and the loader must bind it into the baby overlay list. Nothing else covers it - the parity
+        // harness renders no babies, so a lost node or an unbound delta would silently strip the robe off
+        // every baby villager with the suite still green.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        assertShippedBabyTypePass(defs, "minecraft:villager", "villager", "bb_main");
+        assertShippedBabyTypePass(defs, "minecraft:zombie_villager", "zombie_villager", "nose");
+    }
+
+    /**
+     * Asserts a villager family ships exactly one baby overlay pass - the type pass - bound to the baby
+     * robe texture, materialised on the {@code age.baby} mesh rather than the adult one, keeping the
+     * bounds skip its same-geometry depth clearance derives, and carrying the head-stripped alternate mesh
+     * cut from that same baby mesh.
+     *
+     * @param defs the loaded index
+     * @param entityId the villager family
+     * @param texturePrefix the entity texture prefix the robe ref is qualified with
+     * @param babyOnlyBone a bone the baby mesh carries and the adult mesh does not
+     */
+    private static void assertShippedBabyTypePass(
+        ConcurrentMap<String, Entity> defs,
+        String entityId,
+        String texturePrefix,
+        String babyOnlyBone
+    ) {
+        Entity entity = defs.get(entityId);
+        List<OverlayLayer> babyPasses = entity.axes().babyOverlays();
+        assertThat(entityId + " ships exactly one baby overlay pass", babyPasses.size(), is(1));
+        assertThat(entityId + " the baby pass is the type pass",
+            babyPasses.stream().map(OverlayLayer::textureBy).toList(), contains(Optional.of("type")));
+
+        OverlayLayer robe = babyPasses.getFirst();
+        assertThat(entityId + " the baby pass binds the baby robe texture",
+            robe.textureRef(), is(Optional.of(texturePrefix + "/baby/plains")));
+        // The sameGeometry trap: materialising the derived row against the ADULT coordinate the row names
+        // would drop the depth-clearance inflate and un-set the derived bounds skip, z-fighting the baby
+        // body and moving the baby canvas.
+        assertThat(entityId + " the baby pass keeps its bounds skip", robe.skipBounds(), is(true));
+
+        EntityModelData babyMesh = entity.axes().babyModel()
+            .orElseThrow(() -> new AssertionError("entity '" + entityId + "' ships no baby mesh"));
+        assertThat(entityId + " the baby pass materialises on the baby mesh",
+            Set.copyOf(robe.model().getBones().keySet()), equalTo(Set.copyOf(babyMesh.getBones().keySet())));
+        assertThat(entityId + " '" + babyOnlyBone + "' is a baby-mesh bone the pass carries",
+            robe.model().getBones().containsKey(babyOnlyBone), is(true));
+        assertThat(entityId + " the adult type pass carries no baby-mesh bone",
+            categoryPass(defs, entityId, "type").model().getBones().containsKey(babyOnlyBone), is(false));
+
+        assertThat(entityId + " the baby pass carries the head-stripped alternate mesh", robe.noHatModel().isPresent(), is(true));
+        EntityModelData stripped = robe.noHatModel().get();
+        for (String bone : List.of("head", "hat", "hat_rim", "nose")) {
+            assertThat(entityId + " '" + bone + "' owns cubes on the baby pass mesh",
+                robe.model().getBones().get(bone).getCubes().isEmpty(), is(false));
+            assertThat(entityId + " '" + bone + "' is emptied on the baby alternate mesh",
+                stripped.getBones().get(bone).getCubes().isEmpty(), is(true));
+        }
+        assertThat(entityId + " the baby alternate keeps the body off the head subtree",
+            stripped.getBones().get("body").getCubes().isEmpty(), is(false));
+        assertThat(entityId + " the baby alternate is cut from the baby mesh",
+            Set.copyOf(stripped.getBones().keySet()), equalTo(Set.copyOf(babyMesh.getBones().keySet())));
     }
 
     @Test

@@ -1200,6 +1200,15 @@ final class EntityOverlayResolver {
      * {@code ResourceKey} and is existence-probed, so a NONE-defaulted pass (profession)
      * carries no texture and drops at zero state.
      *
+     * <p>A submit that swaps one category's directory token on its age arm carries that
+     * substitution as a {@code baby} node: the same probe run with the age token, plus the
+     * alternate mesh's own cleared-bone root. The node is a delta - it names no geometry,
+     * because a baby overlay materialises against the age axis' baby mesh, and everything it
+     * omits is inherited from the row. It rides the FIRST pass, the one vanilla's mesh select
+     * applies to and the one that already owns {@code no_hat_root}; a substitution naming any
+     * other category is an unexpected vanilla shape, warned about and dropped rather than
+     * attached to a later row.
+     *
      * @return the pass rows, or {@code null} when the site is not category-shaped
      */
     private @Nullable List<JsonTree> resolveVillagerPasses(
@@ -1208,7 +1217,8 @@ final class EntityOverlayResolver {
     ) {
         MethodNode submit = typedSubmit(cn);
         if (submit == null || !ctorTakesString(cn)) return null;
-        List<String> categories = collectCategoryTokens(submit, cn.name);
+        CategoryTokens tokens = collectCategoryTokens(submit, cn.name);
+        List<String> categories = tokens.categories();
         if (categories.size() < 2) return null;
         String prefix = callSiteStringArg(site);
         if (prefix == null) {
@@ -1218,36 +1228,92 @@ final class EntityOverlayResolver {
         }
         List<String> defaultIds = dataClassDefaultIds(submit);
         String noHatRoot = null;
+        String babyNoHatRoot = null;
         if (selectsModelBeforeFirstPass(submit)) {
-            noHatRoot = noHatRootBone(site);
-            if (noHatRoot == null) {
+            List<String> clearedRoots = noHatRootBones(site);
+            if (clearedRoots.isEmpty()) {
                 this.diagnostics.warn("category-pass layer '%s' selects a model but no ModelLayers field resolves a"
                     + " cleared bone - no_hat_root omitted", simpleName(site.layerClass()));
+            } else {
+                noHatRoot = clearedRoots.getFirst();
+                if (clearedRoots.size() > 1) babyNoHatRoot = clearedRoots.getLast();
+                if (clearedRoots.size() > 2) {
+                    this.diagnostics.info("category-pass layer '%s' bakes %d cleared-bone meshes - the last is taken"
+                        + " as the age root", simpleName(site.layerClass()), clearedRoots.size());
+                }
             }
         } else {
             this.diagnostics.info("category-pass layer '%s' has no conditional model select before its first pass"
                 + " - no_hat_root omitted", simpleName(site.layerClass()));
         }
+        // The alternate mesh and the age substitution both belong to the FIRST pass - vanilla selects the
+        // mesh once, before that pass, and its age arm only picks WHICH alternate mesh, never which row.
+        // One predicate for both, so the two can never drift onto different rows.
+        String babyCategory = tokens.babyCategory();
+        if (babyCategory != null && !categories.getFirst().equals(tokens.substituted())) {
+            this.diagnostics.warn("category-pass layer '%s' substitutes directory '%s' for '%s', which is not its"
+                + " first pass - baby form dropped", simpleName(site.layerClass()), babyCategory, tokens.substituted());
+            babyCategory = null;
+        }
+        String babyTexture = babyCategory == null ? null : probeCategoryTexture(prefix, babyCategory, defaultIds);
+        JsonTree baby = babyCategory == null ? null : babyForm(babyTexture, babyNoHatRoot);
         List<JsonTree> rows = new ArrayList<>(categories.size());
         for (String category : categories) {
-            String texture = null;
-            for (String id : defaultIds) {
-                String candidate = VanillaSourceClasses.Paths.TEXTURES_ENTITY + prefix + "/" + category + "/" + id + ".png";
-                if (this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + candidate)) {
-                    texture = candidate;
-                    break;
-                }
-            }
+            boolean firstPass = rows.isEmpty();
+            String texture = probeCategoryTexture(prefix, category, defaultIds);
             JsonTree node = row(site.layerClass(), site.layerIndex())
                 .putIf("geometry", this.geometryRef.primaryKey())
                 .putIf("texture", texture == null ? null : namespaced(texture))
                 .put("texture_by", category)
-                .putIf("no_hat_root", rows.isEmpty() ? noHatRoot : null);
+                .putIf("no_hat_root", firstPass ? noHatRoot : null)
+                .putIf("baby", firstPass ? baby : null);
             if (texture == null) node.put("skip_bounds", true);
             rows.add(node);
         }
         this.diagnostics.info("category passes: %s, prefix '%s' [D17]", categories, prefix);
+        if (babyCategory != null) {
+            this.diagnostics.info("category pass '%s' substitutes directory '%s' on its age arm -> %s",
+                tokens.substituted(), babyCategory, babyTexture);
+        }
         return rows;
+    }
+
+    /**
+     * Probes the category's zero-state texture: the first
+     * {@code textures/entity/<prefix>/<category>/<id>.png} the jar actually ships, in
+     * default-id order.
+     *
+     * @param prefix the ctor-supplied path prefix
+     * @param category the directory token to probe under
+     * @param defaultIds the zero-state id candidates in declaration order
+     * @return the raw jar path, or {@code null} when no candidate exists
+     */
+    private @Nullable String probeCategoryTexture(
+        @NotNull String prefix,
+        @NotNull String category,
+        @NotNull List<String> defaultIds
+    ) {
+        for (String id : defaultIds) {
+            String candidate = VanillaSourceClasses.Paths.TEXTURES_ENTITY + prefix + "/" + category + "/" + id + ".png";
+            if (this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + candidate)) return candidate;
+        }
+        return null;
+    }
+
+    /**
+     * The row's {@code baby} age delta - the members a baby render substitutes, geometry never
+     * among them. Null when neither member resolved, so the key is absent rather than empty.
+     *
+     * @param texture the raw jar path of the probed age texture, or {@code null} when none exists
+     * @param noHatRoot the cleared-bone root of the age alternate mesh, or {@code null} when the
+     *     site bakes no separate one
+     * @return the delta node, or {@code null} when it would be empty
+     */
+    private static @Nullable JsonTree babyForm(@Nullable String texture, @Nullable String noHatRoot) {
+        if (texture == null && noHatRoot == null) return null;
+        return JsonTree.object()
+            .putIf("texture", texture == null ? null : namespaced(texture))
+            .putIf("no_hat_root", noHatRoot);
     }
 
     /** Whether any ctor takes a plain {@code String} parameter (the path prefix). */
@@ -1261,19 +1327,37 @@ final class EntityOverlayResolver {
     }
 
     /**
+     * The category roster of a typed submit together with its age substitution.
+     *
+     * @param categories the pass categories in first-use order
+     * @param babyCategory the directory token substituted on the {@code isBaby} arm, or
+     *     {@code null} when the submit carries no age arm
+     * @param substituted the category that token stands in for, or {@code null} when the else arm
+     *     did not resolve to a literal
+     */
+    private record CategoryTokens(
+        @NotNull List<String> categories,
+        @Nullable String babyCategory,
+        @Nullable String substituted
+    ) {}
+
+    /**
      * The distinct category literals of the typed submit, in first-use order - the pass
      * roster. A literal on the {@code isBaby}-true ternary arm (the {@code baby} texture
-     * directory) is an age concern, not a pass category, and is excluded by its
-     * {@code GETFIELD isBaby; IF*; LDC} shape. Requires the self String-arg helper gate the
-     * caller already applied.
+     * directory) is an age concern, not a pass category, and is excluded from the roster by its
+     * {@code GETFIELD isBaby; IF*; LDC} shape; it is kept aside instead, paired with the
+     * category it substitutes for, so the row that owns it can carry an age delta. Requires the
+     * self String-arg helper gate the caller already applied.
      */
-    private static @NotNull List<String> collectCategoryTokens(@NotNull MethodNode submit, @NotNull String layerClass) {
+    private static @NotNull CategoryTokens collectCategoryTokens(@NotNull MethodNode submit, @NotNull String layerClass) {
         boolean helperSeen = false;
         for (AbstractInsnNode in = submit.instructions.getFirst(); in != null && !helperSeen; in = in.getNext())
             helperSeen = in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
                 && layerClass.equals(mi.owner) && mi.desc.startsWith("(Ljava/lang/String;");
-        if (!helperSeen) return List.of();
+        if (!helperSeen) return new CategoryTokens(List.of(), null, null);
         LinkedHashSet<String> out = new LinkedHashSet<>();
+        String babyCategory = null;
+        String substituted = null;
         for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal == null || !isCategoryToken(literal)) continue;
@@ -1281,9 +1365,32 @@ final class EntityOverlayResolver {
             AbstractInsnNode read = branch == null ? null : AsmKit.previousReal(branch);
             boolean babyArm = branch != null && (branch.getOpcode() == Opcodes.IFEQ || branch.getOpcode() == Opcodes.IFNE)
                 && read instanceof FieldInsnNode fi && VanillaSourceClasses.Fields.IS_BABY.equals(fi.name);
-            if (!babyArm) out.add(literal);
+            if (!babyArm) {
+                out.add(literal);
+                continue;
+            }
+            String elseArm = babyCategory == null ? elseArmLiteral(in) : null;
+            if (elseArm == null) continue;
+            babyCategory = literal;
+            substituted = elseArm;
         }
-        return new ArrayList<>(out);
+        return new CategoryTokens(new ArrayList<>(out), babyCategory, substituted);
+    }
+
+    /**
+     * The literal on the else arm of the ternary whose then arm pushed {@code babyLiteral} - the
+     * category the age directory token stands in for. Reached structurally, through the
+     * {@code GOTO} that skips the else arm.
+     *
+     * @param babyLiteral the {@code LDC} on the age arm
+     * @return the else arm's own literal, or {@code null} when the chain is not a two-arm
+     *     literal ternary
+     */
+    private static @Nullable String elseArmLiteral(@NotNull AbstractInsnNode babyLiteral) {
+        AbstractInsnNode skip = AsmKit.nextReal(babyLiteral);
+        if (skip == null || skip.getOpcode() != Opcodes.GOTO) return null;
+        AbstractInsnNode elseArm = AsmKit.nextReal(skip);
+        return elseArm == null ? null : AsmKit.readStringLiteral(elseArm);
     }
 
     /** A category token: lowercase word characters only, never a path fragment. */
@@ -1333,25 +1440,27 @@ final class EntityOverlayResolver {
     }
 
     /**
-     * The bone whose subtree the site's alternate mesh clears, derived from the renderer's own
-     * ctor-arg region: the alternate models are baked there from {@code ModelLayers} fields, so
-     * each field in {@code [allocation .. addLayer)} is resolved through the layer-definition
-     * index to its factory and the factory is read for its cleared-child name. The first field
-     * that yields one wins - the adult mesh, since it is baked before the baby mesh.
+     * The bones whose subtrees the site's alternate meshes clear, in bake order, derived from the
+     * renderer's own ctor-arg region: the alternate models are baked there from
+     * {@code ModelLayers} fields, so each field in {@code [allocation .. addLayer)} is resolved
+     * through the layer-definition index to its factory and the factory is read for its
+     * cleared-child name. Bake order is the only discriminator vanilla gives - the adult mesh is
+     * baked first and the age mesh last, the same convention the age axis' own pick relies on.
      *
      * @param site the layer site whose ctor-arg region holds the bakes
-     * @return the cleared bone name, or {@code null} when no field resolves one
+     * @return the cleared bone names in bake order, empty when no field resolves one
      */
-    private @Nullable String noHatRootBone(@NotNull EntityRendererResolver.LayerSite site) {
+    private @NotNull List<String> noHatRootBones(@NotNull EntityRendererResolver.LayerSite site) {
+        List<String> bones = new ArrayList<>();
         for (AbstractInsnNode in = site.allocation(); in != null && in != site.addLayer(); in = in.getNext()) {
             if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS) || !(in instanceof FieldInsnNode fi))
                 continue;
             LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(fi.name);
             if (entry == null) continue;
             String bone = clearedChildName(entry);
-            if (bone != null) return bone;
+            if (bone != null) bones.add(bone);
         }
-        return null;
+        return bones;
     }
 
     /**

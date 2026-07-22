@@ -127,7 +127,8 @@ public class EntityAppearance {
     /**
      * Villager / zombie-villager biome type - the robe texture forming the base clothing pass. When
      * the resolved entity carries a {@code texture_by: type} overlay (the villager profession layer),
-     * that overlay draws the selected type's {@code <prefix>/type/<biome>} robe;
+     * that overlay draws the selected type's {@code <prefix>/type/<biome>} robe, or its
+     * {@code <prefix>/baby/<biome>} robe once {@link #getAge() age} selects {@link Age#BABY};
      * {@link VillagerType#PLAINS} (default) resolves to the baked {@code type/plains} robe. Ignored by
      * entities without a villager profession layer.
      */
