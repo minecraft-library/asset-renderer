@@ -61,6 +61,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntFunction;
 
 /**
  * Renders an {@link Item} as a flat 2D GUI icon, a held 3D view, or the faithful inventory icon by
@@ -144,21 +146,49 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Resolves the effective item to render, applying the caller's {@link ItemModelContext} and the
-     * CIT model override on top of the pipeline-baked item.
+     * Builds the per-render item resolver both render paths draw their frames through: maps an
+     * animation tick onto the item to render at it, memoized so a schedule that revisits an evaluation
+     * context resolves it once.
+     * <p>
+     * The item is per-frame because a dispatch tree can branch on world time - a clock resolves a
+     * different face on each frame of an animated bake. The memo is per-render and discarded with it:
+     * the CIT walk and pack state a resolution depends on are the render's own. Keying on the whole
+     * evaluation context needs no assumption about which part of a resolution a tick can move, and
+     * bounds the memo either way - one entry for a still, one per distinct sampled instant for a
+     * time-driven strip.
+     *
+     * @param context the renderer context supplying pack / model / texture lookups
+     * @param options the item render options
+     * @param cit the render's single CIT walk result
+     * @return the item to render at an animation tick
+     */
+    static @NotNull IntFunction<Item> frameItems(
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit
+    ) {
+        ItemModelContext modelContext = options.getItemModel();
+        Map<ItemModelContext, Item> resolved = new ConcurrentHashMap<>();
+        // Frames raster in parallel, so the memo is concurrent and its resolver stays pure.
+        return tick -> resolved.computeIfAbsent(modelContext, at -> resolveRenderItem(context, options, cit, at));
+    }
+
+    /**
+     * Resolves the effective item to render, applying an {@link ItemModelContext} and the CIT model
+     * override on top of the pipeline-baked item.
      * <p>
      * The neutral {@link ItemModelContext#gui()} context with no CIT model override takes the fast
      * path - the pipeline-baked item verbatim, byte-identical to a pre-tree render. Otherwise the
-     * item's dispatch tree is re-walked against the caller context, then a
+     * item's dispatch tree is re-walked against the given context, then a
      * present {@code cit.model()} replaces the resolved model id (the OptiFine override-the-final-model
      * join); the resolved model id is materialised back into an {@link Item} by reusing
      * the already-built index entry for that model (its geometry + textures), carrying the walked
      * branch's tints. Falls back to the baked item when the tree is absent or the branch resolves to
      * nothing.
      */
-    static @NotNull Item resolveRenderItem(@NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit) {
+    static @NotNull Item resolveRenderItem(
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit,
+        @NotNull ItemModelContext modelContext
+    ) {
         Item baked = requireItem(context, options.getItemId());
-        ItemModelContext modelContext = options.getItemModel();
         if (modelContext.isNeutral() && cit.model().isEmpty()) return baked;
 
         ItemModelNode.Resolution resolution = context.findItemTree(options.getItemId())
@@ -579,14 +609,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             // One CIT walk per render, shared by the layer stack (texture overrides) and the glint tail
             // (its GlintPolicy). The empty-context vanilla path yields CitResult.NONE, so both stay
-            // vanilla-identical. CIT + glint are tick-independent; only per-layer texture resolution is
-            // tick-aware, so the LayerContext is captured once and buildGuiLayers re-runs per frame with
-            // the frame's tick.
+            // vanilla-identical. The CIT walk reads no clock, so it is hoisted; the item is not, because
+            // a dispatch tree can branch on world time. Resolve it AFTER the CIT walk so a CIT model
+            // override can replace the tree-resolved model; the neutral context + no override yields the
+            // baked item.
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            // Resolve the item AFTER the CIT walk so a CIT model override can replace the tree-resolved
-            // model; the neutral context + no override yields the baked item.
-            Item item = resolveRenderItem(this.context, options, cit);
-            LayerContext ctx = new LayerContext(this.context, engine.textures(), item, options, cit);
+            IntFunction<Item> itemAt = frameItems(this.context, options, cit);
 
             // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
             // trim, damage-bar, and stack-count decorations) so callers can splice their own passes in
@@ -600,10 +628,15 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // (startTick=0, frameCount=1) is byte-identical.
             AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
+            // The glint finish spans the whole strip rather than one frame, and the only thing it reads
+            // off the item is a registry flag every branch of a tree carries alike, so it binds to the
+            // first frame's item.
             return Timeline.tickStrip(anim).bake(
                 RasterPass.of(size, size, 1, options.getOutput().isAntiAlias(),
-                        (target, tick) -> Layers.foldInto(buildGuiLayers(ctx, tick), options.getLayerDecorator(), target))
-                    .finishing(itemGlint(engine.textures(), item, options, cit.glint())));
+                        (target, tick) -> Layers.foldInto(
+                            buildGuiLayers(new LayerContext(this.context, engine.textures(), itemAt.apply(tick), options, cit), tick),
+                            options.getLayerDecorator(), target))
+                    .finishing(itemGlint(engine.textures(), itemAt.apply(0), options, cit.glint())));
         }
 
         /**
@@ -642,8 +675,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         /**
-         * Per-render state passed to every {@link ImageLayer} in the 2D item composite stack. Captured
-         * once by {@link #render} and read by {@link #buildGuiLayers}.
+         * Per-frame state passed to every {@link ImageLayer} in the 2D item composite stack. Built by
+         * {@link #render} for each frame it bakes - every field but the resolved item is the render's
+         * own and identical across frames - and read by {@link #buildGuiLayers}.
          *
          * @param context renderer context for texture and override resolution
          * @param textures texture-resolution service for layer texture lookups
@@ -709,14 +743,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             Camera camera = Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).camera().lens());
             int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
 
-            // One CIT walk per render, shared by the flat-slab layer composite and the glint tail; both
-            // are tick-independent. Only the per-tick texture bake needs the tick, so the geometry build
-            // moves INSIDE the raster callback (fluid pattern) and the ModelEngine is rebuilt per frame
-            // for thread-safe parallel strip baking. Vanilla ships no item sidecars, so a default render
-            // (frameCount = 1) resolves at tick 0 - byte-identical.
+            // One CIT walk per render, shared by the flat-slab layer composite and the glint tail; it
+            // reads no clock, so it is hoisted. The geometry build moves INSIDE the raster callback
+            // (fluid pattern) and the ModelEngine is rebuilt per frame for thread-safe parallel strip
+            // baking. Vanilla ships no item sidecars, so a default render (frameCount = 1) resolves at
+            // tick 0 - byte-identical.
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            Item item = resolveRenderItem(this.context, options, cit);
-            Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
+            IntFunction<Item> itemAt = frameItems(this.context, options, cit);
 
             // tickStrip UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick() (staticFrame would hardcode tick 0). Default
@@ -726,9 +759,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             int ssaa = Math.max(1, options.getOutput().getSupersample());
             return Timeline.tickStrip(anim).bake(
                 RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) -> {
+                    // The display pose is read off the frame's own model: a tree that swaps models
+                    // between frames can swap their authored poses with them.
+                    Item item = itemAt.apply(tick);
                     ModelEngine engine = new ModelEngine(this.context, camera);
-                    engine.rasterize(buildTrianglesAtTick(engine, item, options, cit, tint, tick), target, displayTransform);
-                }).finishing(itemGlint(this.textures, item, options, cit.glint())));
+                    engine.rasterize(buildTrianglesAtTick(engine, item, options, cit, tint, tick), target,
+                        resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D));
+                }).finishing(itemGlint(this.textures, itemAt.apply(0), options, cit.glint())));
         }
 
         /**
