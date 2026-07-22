@@ -23,6 +23,10 @@ import java.util.List;
  * @param lambdaTypeArgs {@code GETSTATIC <Renderer>$Type.X} enum-constant references
  *     observed in the lambda body - resolves instance-field-driven renderers (donkey /
  *     horse) by matching the constant against its {@code .texture} initialiser
+ * @param lambdaEquipmentLayerTypes {@code GETSTATIC EquipmentClientInfo$LayerType.X} constant
+ *     names observed in the lambda body - the layer type of a renderer that takes it as a
+ *     constructor parameter (the donkey / mule / undead-horse saddles) rather than naming it
+ *     in its own bytecode
  */
 public record EntitySubject(
     @NotNull String entityId,
@@ -31,7 +35,8 @@ public record EntitySubject(
     @NotNull String mobCategory,
     @NotNull String rendererClass,
     @NotNull List<String> lambdaLayerFields,
-    @NotNull List<TypeFieldRef> lambdaTypeArgs
+    @NotNull List<TypeFieldRef> lambdaTypeArgs,
+    @NotNull List<String> lambdaEquipmentLayerTypes
 ) {
 
     /**

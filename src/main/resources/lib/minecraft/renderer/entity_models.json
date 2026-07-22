@@ -797,7 +797,25 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "DonkeyModel#createSaddleLayer@fparam=0.87",
+            "layer_type": "donkey_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
+          }
+        }
+      ]
     },
     "minecraft:drowned": {
       "renderer": "net/minecraft/client/renderer/entity/DrownedRenderer",
@@ -1718,7 +1736,25 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 0,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "DonkeyModel#createSaddleLayer@fparam=0.92",
+            "layer_type": "mule_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
+          }
+        }
+      ]
     },
     "minecraft:nautilus": {
       "renderer": "net/minecraft/client/renderer/entity/NautilusRenderer",
@@ -2343,6 +2379,22 @@
               "iron": "minecraft:iron",
               "leather": "minecraft:leather",
               "netherite": "minecraft:netherite"
+            }
+          }
+        },
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 1,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "EquineSaddleModel#createSaddleLayer",
+            "layer_type": "skeleton_horse_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
             }
           }
         }
@@ -3257,6 +3309,22 @@
               "iron": "minecraft:iron",
               "leather": "minecraft:leather",
               "netherite": "minecraft:netherite"
+            }
+          }
+        },
+        {
+          "source": "SimpleEquipmentLayer",
+          "layer_index": 1,
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry": "EquineSaddleModel#createSaddleLayer",
+            "layer_type": "zombie_horse_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
             }
           }
         }

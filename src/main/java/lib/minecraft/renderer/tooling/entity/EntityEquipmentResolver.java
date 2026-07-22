@@ -15,6 +15,7 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -63,6 +64,11 @@ final class EntityEquipmentResolver {
      * names the subdir, the following {@code ModelLayers} statics the adult (first) and
      * baby (second) meshes.
      *
+     * <p>A renderer may instead take both as constructor parameters, so the window loads them
+     * rather than naming them ({@code DonkeyRenderer}, {@code UndeadHorseRenderer} - shared by
+     * two entities each, so the values cannot live in the class). Such a window carries no
+     * statics at all and falls through to {@link #registrationRow}.
+     *
      * @param site the roster site the row belongs to
      * @param windowStart the first instruction of the site's call-site window
      * @return the row, or {@code null} when the window carries no equipment candidate
@@ -73,17 +79,57 @@ final class EntityEquipmentResolver {
     ) {
         String layerType = null;
         List<String> meshFields = new ArrayList<>(2);
+        boolean parameterisedLayerType = false;
+        boolean parameterisedMesh = false;
         for (AbstractInsnNode in = windowStart; in != null && in != site.addLayer(); in = in.getNext()) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)) {
                 layerType = ((FieldInsnNode) in).name;
                 meshFields.clear();
                 continue;
             }
-            if (layerType != null && AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS))
+            if (layerType != null && AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
                 meshFields.add(((FieldInsnNode) in).name);
+                continue;
+            }
+            if (in.getOpcode() != Opcodes.ALOAD || !(in instanceof VarInsnNode load)) continue;
+            parameterisedLayerType |= AsmKit.isParameterOfType(
+                site.method(), load.var, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE);
+            parameterisedMesh |= AsmKit.isParameterOfType(
+                site.method(), load.var, VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
         }
+        if (layerType == null && parameterisedLayerType && parameterisedMesh) return registrationRow(site);
         if (layerType == null || meshFields.isEmpty()) return null;
         return buildRow(site, layerType, meshFields.getFirst(), meshFields.size() > 1 ? meshFields.get(1) : null);
+    }
+
+    /**
+     * The equipment row of a site whose layer type and mesh are constructor parameters: both
+     * come from the subject's own renderer registration, which is where a renderer shared by
+     * several entities gets each one's distinct pair (donkey vs mule, skeleton vs zombie horse).
+     * Keyed off the subject rather than the renderer class, so the pairs never cross.
+     *
+     * <p>Requires exactly one candidate of each - the registration of a renderer that
+     * parameterises its layer type passes one layer type and one mesh - and refuses to guess
+     * otherwise. No baby mesh: every such site passes a null baby model.
+     */
+    private @Nullable JsonTree registrationRow(@NotNull EntityRendererResolver.LayerSite site) {
+        String layerType = sole(this.subject.lambdaEquipmentLayerTypes(), "layer type");
+        String mesh = sole(this.subject.lambdaLayerFields(), "mesh");
+        if (layerType == null || mesh == null) return null;
+        this.diagnostics.info("equipment layer type + mesh are constructor parameters - registration supplies %s/%s",
+            layerType, mesh);
+        return buildRow(site, layerType, mesh, null);
+    }
+
+    /**
+     * The single member of a registration candidate list, or {@code null} with a WARN when the
+     * list does not hold exactly one - an ambiguous registration is not guessed at.
+     */
+    private @Nullable String sole(@NotNull List<String> candidates, @NotNull String what) {
+        if (candidates.size() == 1) return candidates.getFirst();
+        this.diagnostics.warn("renderer registration offers %d candidate %ss %s - equipment row dropped",
+            candidates.size(), what, candidates);
+        return null;
     }
 
     /**

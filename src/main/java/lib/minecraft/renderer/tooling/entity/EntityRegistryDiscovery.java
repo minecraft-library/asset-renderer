@@ -97,7 +97,8 @@ public final class EntityRegistryDiscovery {
                 mob.mobCategory(),
                 renderer.rendererClass(),
                 List.copyOf(renderer.lambdaLayerFields()),
-                List.copyOf(renderer.lambdaTypeArgs())
+                List.copyOf(renderer.lambdaTypeArgs()),
+                List.copyOf(renderer.lambdaEquipmentLayerTypes())
             ));
         }
 
@@ -175,7 +176,8 @@ public final class EntityRegistryDiscovery {
     /**
      * Walks {@code EntityRenderers.<clinit>} and returns a map from {@code EntityType} field
      * name to the resolved renderer class plus the {@code ModelLayers.X} /
-     * {@code <Renderer>$Type.X} references seen in the lambda body.
+     * {@code <Renderer>$Type.X} / {@code EquipmentClientInfo$LayerType.X} references seen in
+     * the lambda body.
      *
      * <p>Each registration compiles to {@code GETSTATIC EntityType.X} followed by an
      * {@code INVOKEDYNAMIC create():EntityRendererProvider}; the walk carries the field name
@@ -218,8 +220,9 @@ public final class EntityRegistryDiscovery {
 
     /**
      * Resolves a lambda-metafactory {@code INVOKEDYNAMIC} to the renderer class the lambda
-     * produces, plus the {@code ModelLayers.X} field references and {@code <Renderer>$Type.X}
-     * enum-constant references seen in the lambda body. Two implementation-method shapes:
+     * produces, plus the {@code ModelLayers.X} field references, {@code <Renderer>$Type.X}
+     * enum-constant references, and {@code EquipmentClientInfo$LayerType.X} constants seen in
+     * the lambda body. Two implementation-method shapes:
      * a bare {@code XRenderer::new} constructor reference (the handle's owner IS the renderer
      * class, empty reference sets), and an {@code H_INVOKESTATIC} synthetic lambda whose body
      * is walked for its first {@code NEW} plus the field references. Returns {@code null}
@@ -233,18 +236,21 @@ public final class EntityRegistryDiscovery {
         if (handle == null) return null;
 
         if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && AsmKit.INIT.equals(handle.getName()))
-            return new RendererRegistration(handle.getOwner(), Set.of(), Set.of());
+            return new RendererRegistration(handle.getOwner(), Set.of(), Set.of(), Set.of());
 
         if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
             Set<String> layerFields = new LinkedHashSet<>();
             Set<EntitySubject.TypeFieldRef> typeArgs = new LinkedHashSet<>();
+            Set<String> equipmentLayerTypes = new LinkedHashSet<>();
             String rendererClass = AsmKit.walkLambdaBody(indy, ownerClass, node -> {
                 if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.MODEL_LAYERS))
                     layerFields.add(((FieldInsnNode) node).name);
+                else if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
+                    equipmentLayerTypes.add(((FieldInsnNode) node).name);
                 else if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode fi && fi.owner.contains("$Type"))
                     typeArgs.add(new EntitySubject.TypeFieldRef(fi.owner, fi.name));
             });
-            return rendererClass == null ? null : new RendererRegistration(rendererClass, layerFields, typeArgs);
+            return rendererClass == null ? null : new RendererRegistration(rendererClass, layerFields, typeArgs, equipmentLayerTypes);
         }
         return null;
     }
@@ -263,11 +269,14 @@ public final class EntityRegistryDiscovery {
      * @param rendererClass the renderer class's JVM internal name
      * @param lambdaLayerFields {@code ModelLayers.X} field names from the lambda body
      * @param lambdaTypeArgs {@code <Renderer>$Type.X} references from the lambda body
+     * @param lambdaEquipmentLayerTypes {@code EquipmentClientInfo$LayerType.X} constant names
+     *     from the lambda body
      */
     private record RendererRegistration(
         @NotNull String rendererClass,
         @NotNull Set<String> lambdaLayerFields,
-        @NotNull Set<EntitySubject.TypeFieldRef> lambdaTypeArgs
+        @NotNull Set<EntitySubject.TypeFieldRef> lambdaTypeArgs,
+        @NotNull Set<String> lambdaEquipmentLayerTypes
     ) {}
 
 }

@@ -32,7 +32,8 @@ import static org.hamcrest.Matchers.sameInstance;
  * variant/state texture join, the baby three-source texture chain, the dyed-collar presence, the
  * option-encoded variant coat map + resolver fold, the depth-clearance auto-skip on a
  * base-mesh-inheriting overlay, the head-stripped alternate mesh on a category pass, the villager
- * baby robe pass, and the equipment material-to-asset table.
+ * baby robe pass, the equipment material-to-asset table, and the per-entity saddle layers of the two
+ * renderers shared by two entities each.
  */
 @DisplayName("EntityModelLoader native load")
 class EntityModelLoaderTest {
@@ -322,6 +323,40 @@ class EntityModelLoaderTest {
                 assertThat("equipment layer '" + equipment.layerType().getId() + "' resolves its default material '"
                         + equipment.defaultMaterial() + "'",
                     equipment.assetFor("").isPresent(), is(true));
+    }
+
+    @Test
+    @DisplayName("saddle layers whose renderer parameterises them ship per-entity, never crossed between the entities sharing that renderer")
+    void parameterisedSaddleLayersShipPerEntity() {
+        // End-to-end canary over the shipped resource: DonkeyRenderer (donkey + mule) and
+        // UndeadHorseRenderer (skeleton_horse + zombie_horse) each take their saddle's render layer and
+        // mesh as constructor parameters, so both come from the entity's own renderer registration. A
+        // resolver keyed off the renderer CLASS instead of the entity would silently give both members of
+        // a pair the same layer and the same mesh, and the parity harness saddles nothing, so the suite
+        // would stay green with a mule wearing a donkey's saddle.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+
+        assertEquipmentAsset(defs, "minecraft:donkey", "saddle", LayerType.DONKEY_SADDLE, "saddle", "minecraft:saddle");
+        assertEquipmentAsset(defs, "minecraft:mule", "saddle", LayerType.MULE_SADDLE, "saddle", "minecraft:saddle");
+        assertEquipmentAsset(defs, "minecraft:skeleton_horse", "saddle", LayerType.SKELETON_HORSE_SADDLE, "saddle", "minecraft:saddle");
+        assertEquipmentAsset(defs, "minecraft:zombie_horse", "saddle", LayerType.ZOMBIE_HORSE_SADDLE, "saddle", "minecraft:saddle");
+
+        // The undead horses keep the body-armor layer they already had - it resolves from the renderer's
+        // own statics, so the parameterised saddle must be an addition, never a replacement.
+        assertEquipmentAsset(defs, "minecraft:skeleton_horse", "body", LayerType.HORSE_BODY, "iron", "minecraft:iron");
+        assertEquipmentAsset(defs, "minecraft:zombie_horse", "body", LayerType.HORSE_BODY, "iron", "minecraft:iron");
+
+        // Distinct meshes where vanilla registers distinct ones: the donkey's saddle is baked at 0.87 and
+        // the mule's at 0.92, which lands as a different body pivot.
+        assertThat("donkey and mule saddles are separately baked meshes",
+            equipmentLayer(defs, "minecraft:donkey", "saddle").model().getBones().get("body").getPivot(),
+            is(not(equalTo(equipmentLayer(defs, "minecraft:mule", "saddle").model().getBones().get("body").getPivot()))));
+
+        // ... and one shared mesh where vanilla registers the same one: both undead horses bake the
+        // unscaled EquineSaddleModel, so they must join on a single geometry entry rather than duplicate it.
+        assertThat("skeleton and zombie horse saddles share one baked mesh",
+            equipmentLayer(defs, "minecraft:skeleton_horse", "saddle").model(),
+            sameInstance(equipmentLayer(defs, "minecraft:zombie_horse", "saddle").model()));
     }
 
     /**

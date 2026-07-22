@@ -911,6 +911,29 @@ public final class AsmKit {
     // ----------------------------------------------------------------------------------------
 
     /**
+     * Returns {@code true} when local-variable {@code slot} is a parameter of {@code method}
+     * declared with the given reference type - the test that tells a value loaded by
+     * {@code ALOAD slot} apart from a class-local constant. A renderer that takes its layer
+     * type as a constructor parameter reads it this way, so the value has to be recovered from
+     * the construction site rather than from the class itself.
+     *
+     * @param method the method owning the slot
+     * @param slot the local-variable slot an {@code ALOAD} names
+     * @param internalName the expected parameter type's JVM internal name
+     * @return {@code true} when the slot is a parameter of that type
+     */
+    public static boolean isParameterOfType(@NotNull MethodNode method, int slot, @NotNull String internalName) {
+        int current = (method.access & Opcodes.ACC_STATIC) == 0 ? 1 : 0;   // instance methods hold `this` in slot 0
+        for (Type arg : Type.getArgumentTypes(method.desc)) {
+            if (current == slot)
+                return arg.getSort() == Type.OBJECT && arg.getInternalName().equals(internalName);
+            current += arg.getSize();
+        }
+        return false;
+    }
+
+
+    /**
      * Returns {@code true} when {@code node} is a {@code GETSTATIC} on the given owner class.
      * Field name is ignored - use the name-qualified overload to match a specific field.
      *
