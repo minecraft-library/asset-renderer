@@ -67,6 +67,31 @@ public record ItemModelContext(
     }
 
     /**
+     * Returns this context viewed at an animation tick - a copy whose {@code minecraft:time} input is
+     * the {@link SunAngle sun angle} that many ticks after noon, with every other override carried
+     * over untouched. This is what makes a time-driven tree (the clock's) resolve to a different face
+     * on each frame of an animated bake.
+     *
+     * <p>Tick {@code 0} samples noon, where the angle is exactly {@code 0} - so the neutral
+     * {@link #gui()} context is returned unchanged there and keeps its fast path, and frame {@code 0}
+     * of any animated render depicts the same instant as a still one. Ticks advance world time from
+     * that anchor, wrapping every {@link SunAngle#TICKS_PER_DAY day}.
+     *
+     * <p>Any caller-supplied {@link #time} is replaced: an animated render drives the day from its own
+     * schedule, so a manual time override only applies to a still. The
+     * {@link #compassAngle} is deliberately left alone - a compass needle is a bearing from its holder
+     * to a target, not a function of the clock, so no passage of time moves it.
+     *
+     * @param tick the animation tick, counted in game ticks from noon
+     * @return this context with its time input resolved at the tick
+     */
+    public @NotNull ItemModelContext atTick(int tick) {
+        return new ItemModelContext(this.displayContext, this.usingItem, this.broken, this.trimMaterial,
+            this.dyeColor, SunAngle.at(SunAngle.NOON_TICK + (long) tick), this.compassAngle,
+            this.customModelData, this.components);
+    }
+
+    /**
      * Resolves a {@code condition} node's boolean property from the property id alone. Only the
      * properties an icon can honestly evaluate without further inputs are wired ({@code using_item},
      * {@code broken}); {@code has_component} needs the tested component id (see
