@@ -114,7 +114,7 @@ public class ElytraKit {
         @NotNull Textures engine, boolean baby, @Nullable Vector3f[] bodyBounds,
         @NotNull Vector3f modelAnchor, float ndcScale, float modelScale, @NotNull Optional<ItemContext> item, int tick
     ) {
-        Optional<PixelBuffer> texture = citWingTexture(engine, item, tick).or(() -> resolveWingTexture(engine, tick));
+        Optional<PixelBuffer> texture = wingsTexture(engine, item, tick);
         if (texture.isEmpty()) return Concurrent.newList();
 
         ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(
@@ -212,6 +212,26 @@ public class ElytraKit {
     private static @NotNull Vector3f toPlayerFrame(
         @NotNull Vector3f v, float scale, float centreX, float shoulderY, float centreZ) {
         return new Vector3f(centreX + v.x() * scale, shoulderY - v.y() * scale, centreZ - v.z() * scale);
+    }
+
+    /**
+     * The texture the wings draw with: the pack-rule (CIT) {@code type=elytra} override when an item
+     * supplies a matching one, else the equipment model's own {@link LayerType#WINGS} layer. Empty when
+     * the pack ships no wing texture at all, in which case the wings render nothing.
+     *
+     * <p>Public so a caller sizing a canvas measures the wings by the same texture they draw with,
+     * rather than by their mesh - the wing box is largely transparent, and wings that do not resolve
+     * must not bound a render they never appear in.
+     *
+     * @param engine the texture engine for pack-aware texture resolution
+     * @param item the equipped elytra item identity, for the pack-rule override; empty leaves the wings
+     *     on the equipment-model texture
+     * @param tick the current animation tick
+     * @return the wing texture, or empty when the wings do not resolve
+     */
+    public static @NotNull Optional<PixelBuffer> wingsTexture(
+        @NotNull Textures engine, @NotNull Optional<ItemContext> item, int tick) {
+        return citWingTexture(engine, item, tick).or(() -> resolveWingTexture(engine, tick));
     }
 
     /** Resolves the elytra wing texture from the {@code equipment/elytra.json} {@link LayerType#WINGS} layer. */

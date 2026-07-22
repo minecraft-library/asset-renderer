@@ -207,9 +207,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // so a tighter pre-normalisation would buy nothing.
         for (EquippedOverlay equipment : equipped)
             baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(equipment.overlay().model()));
+        // Resolve the wing texture on the same terms as the equipment overlays above: it decides whether
+        // the wings bound the canvas at all, and the silhouette they contribute below. Wings the pack
+        // ships no texture for render nothing, so they are empty here rather than bounding the canvas.
+        Optional<PixelBuffer> wingTexture = options.getAppearance().isElytra()
+            ? ElytraKit.wingsTexture(this.textures, Optional.empty(), startTick)
+            : Optional.empty();
         // Fold the elytra wings into the bounds union so the protruding wings can't crop at the canvas
         // edge. Gated on the elytra selection, so the default (no elytra) render is unchanged.
-        if (options.getAppearance().isElytra())
+        if (wingTexture.isPresent())
             baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(ElytraKit.wingsMesh(options.getAppearance().isBaby())));
 
         EulerRotation user = options.getOutput().getRotation();
@@ -274,9 +280,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             for (EquippedOverlay equipment : equipped)
                 screenBounds = unionBoxes(screenBounds, EntityGeometryKit.computeScreenBounds(
                     equipment.overlay().model(), renderOrient, modelScale, equipment.texture()));
-            if (options.getAppearance().isElytra())
+            // Measured through the wings' own texture, like the equipment overlays: the wing box is a
+            // 10x20x2 slab whose texture is largely transparent, so its geometric AABB would size the
+            // canvas well outside the drawn wing outline. The baby re-seat the render applies against
+            // the actual body bounds is not modelled here - the wings are measured where they are
+            // authored, as before.
+            if (wingTexture.isPresent())
                 screenBounds = unionBoxes(screenBounds, EntityGeometryKit.computeScreenBounds(
-                    ElytraKit.wingsMesh(options.getAppearance().isBaby()), renderOrient, modelScale, null));
+                    ElytraKit.wingsMesh(options.getAppearance().isBaby()), renderOrient, modelScale, wingTexture.get()));
             RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
             canvasW = fit.canvasW();
