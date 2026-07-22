@@ -413,6 +413,13 @@ tasks {
         classpath = sourceSets["test"].runtimeClasspath
     }
 
+    register<JavaExec>("armorParityVanilla") {
+        description = "Per-subject worn-armor parity report (adult + baby zombie / piglin, iron + dyed leather) comparing Java EntityRenderer vs the vanilla-reference-harness armor references. Bbox-aligned diff panels -> cache/visual/armor-parity-vanilla/<subject>/. Run :asset-renderer:renderVanillaArmorReferences first if the cache is missing."
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestArmorParityVanilla")
+        classpath = sourceSets["test"].runtimeClasspath
+    }
+
     register<JavaExec>("glintParityVanilla") {
         description = "Animated enchantment-glint parity: renders the 7 always-foil GUI items (+ 4 worn leather-armor diagnostics) frame-by-frame against the harness glint references at cache/.../references/glint/. Writes per-frame diffs, contact sheets, GIFs, and a TSV to cache/visual/glint-parity-vanilla/. Run :asset-renderer:renderVanillaGlintReferences first. -PitemId=minecraft:nether_star"
         group = "visual"
@@ -557,6 +564,34 @@ tasks {
         commandLine = baseArgs
         doFirst {
             println("renderVanillaPlayerReferences: writing player refs to ${outputDir.asFile.absolutePath}/players")
+            outputDir.asFile.mkdirs()
+        }
+    }
+
+    // Armor-only variant: drives the harness with -PrefharnessArmorOnly=true so it renders ONLY the
+    // armored-mob diagnostics (adult + baby zombie / piglin in iron and dyed leather) under
+    // references/armor/, skipping the ~5-minute full sweep. Then run armorParityVanilla.
+    //   ./gradlew :asset-renderer:renderVanillaArmorReferences
+    register<Exec>("renderVanillaArmorReferences") {
+        description = "Runs the sibling vanilla-reference-harness mod in armor-only mode, writing armored-mob references (adult + baby, iron + dyed leather) to asset-renderer's vanilla cache (references/armor/). Then run armorParityVanilla."
+        group = "tooling"
+        workingDir = file("../vanilla-reference-harness")
+        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val baseArgs = mutableListOf<String>()
+        if (isWindows) {
+            baseArgs.add("cmd")
+            baseArgs.add("/c")
+        }
+        baseArgs.add(gradlewPath)
+        baseArgs.add("runRenderReferences")
+        baseArgs.add("--no-daemon")
+        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
+        baseArgs.add("-PrefharnessArmorOnly=true")
+        commandLine = baseArgs
+        doFirst {
+            println("renderVanillaArmorReferences: writing armor refs to ${outputDir.asFile.absolutePath}/armor")
             outputDir.asFile.mkdirs()
         }
     }
