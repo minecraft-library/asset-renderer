@@ -6,7 +6,8 @@ Single-purpose headless Fabric mod that drives the real MC client to produce the
 - JDK 25 (Loom toolchain; `JAVA_25` mixin compat), Gradle 9.4.1, Fabric Loom 1.16-SNAPSHOT, Fabric Loader 0.19.2, Fabric API 0.147.0+26.1.2, MC 26.1.2.
 - Full sweep (blocks + items + entities, ~5 min warm): `./gradlew runRenderReferences [-PrefharnessTargets=ns:id,...]` from this dir, or `./gradlew :asset-renderer:renderVanillaReferences` from asset-renderer (output → asset-renderer's cache).
 - Glint-only (fast, decoupled): `./gradlew runRenderReferences -PrefharnessGlintOnly=true`, or `./gradlew :asset-renderer:renderVanillaGlintReferences`.
-- Output dirs under the output root: `blocks/`, `entities/`, `items/`, `glint/` (+ `glint/atlas_uv.json`).
+- Armor-only (fast, decoupled): `./gradlew runRenderReferences -PrefharnessArmorOnly=true`, or `./gradlew :asset-renderer:renderVanillaArmorReferences`. `ArmorSweeper` renders a fixed roster of **armored** mobs, adult and baby (zombie / piglin, iron and dyed leather), which the main entity sweep cannot produce - it equips nothing and ages nothing. Diagnostic, not a byte-stable reference set: each subject is fit to 80% of a square canvas so the armor shell (which the bounds walker cannot see - `HumanoidArmorLayer` holds an `ArmorModelSet`, not a `Model` field) stays inside the frame, and the consuming diff crops and aligns by silhouette.
+- Output dirs under the output root: `blocks/`, `entities/`, `items/`, `glint/` (+ `glint/atlas_uv.json`), `armor/`.
 - World corruption from a hard JVM exit: `./gradlew resetRefharnessWorld`.
 
 ## Sweep architecture
@@ -127,6 +128,7 @@ When a new transient entity renders inconsistently across runs, check its constr
 - **Sparse-opacity polygons** — contribute only opaque-texel positions (per-texel walk + bilinear interp of the opaque bbox corners), not the polygon's 4 corners.
 - **`setupRotations` is virtual** — 14 overrides; e.g. `SquidRenderer` adds `translate(0,-1.2,0)`. Dispatch reflectively to the most-derived override or the squid drops below the canvas.
 - **Variant-specific model selection** — `Cow/Pig/Chicken` renderers mutate `this.model` in `submit()`; the walker runs first, so `tryResolveVariantModel` replicates the selection reflectively.
+- **Age-specific model selection** — `AgeableMobRenderer.submit` mutates `this.model` to `babyModel`/`adultModel` from `state.isBaby` for the same reason, so `getModel()` hands the walker whichever age the PREVIOUS subject rendered. Invisible to the main sweep (every subject is an adult and the field starts adult) but it makes any baby render order-dependent: a baby measured against the adult mesh floats in an oversized canvas, an adult measured against the baby mesh is scaled up until it clips. `tryResolveAgeModel` replicates the pick.
 - **`EnergySwirlLayer` conditional rendering** — `CreeperPowerLayer` etc. early-return when `!isPowered(state)`; skip via reflective `isPowered` or the charge mesh inflates unpowered-creeper bounds.
 - **`EnderDragonRenderer` is non-`LivingEntityRenderer`** — own `submit()` chain (`translate(0,0,1)` + chirality + `translate(0,-1.501,0)`); dedicated `else if` branch.
 

@@ -52,6 +52,11 @@ loom {
             if (project.hasProperty('refharnessPlayersOnly')) {
                 property 'refharness.playersOnly', project.property('refharnessPlayersOnly').toString()
             }
+            // Armor-only fast path: render just the armored-mob diagnostics under armor/,
+            // skipping the full block/item/entity sweep. Driven by renderVanillaArmorReferences.
+            if (project.hasProperty('refharnessArmorOnly')) {
+                property 'refharness.armorOnly', project.property('refharnessArmorOnly').toString()
+            }
             if (project.hasProperty('refharnessBoundsDump')) {
                 property 'refharness.boundsDump', project.property('refharnessBoundsDump').toString()
             }

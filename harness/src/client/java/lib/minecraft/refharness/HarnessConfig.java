@@ -77,6 +77,15 @@ public final class HarnessConfig {
     public static final boolean PLAYERS_ONLY = Boolean.getBoolean("refharness.playersOnly");
 
     /**
+     * When {@code true}, the harness runs <em>only</em> the {@link ArmorSweeper} (armored mobs under
+     * {@code armor/}), skipping the block / item / entity / player sweeps. The main entity sweep
+     * equips nothing and renders no babies, so worn armor - and in particular vanilla's separate
+     * baby armor model - has no ground truth without this mode. Pair with
+     * {@code -PrefharnessArmorOnly=true} on {@code renderVanillaArmorReferences}.
+     */
+    public static final boolean ARMOR_ONLY = Boolean.getBoolean("refharness.armorOnly");
+
+    /**
      * Diagnostic flag: when {@code true}, the entity sweeper renders the first filtered
      * target {@code 24 * 24 = 576} times - every combination of pitch (0°-345° in 15°
      * steps) and roll (0°-345° in 15° steps), holding yaw at the

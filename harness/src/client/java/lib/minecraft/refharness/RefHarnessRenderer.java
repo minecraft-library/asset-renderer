@@ -24,6 +24,7 @@ public final class RefHarnessRenderer {
     private static EntitySweeper entitySweeper;
     private static PlayerSweeper playerSweeper;
     private static GlintSweeper glintSweeper;
+    private static ArmorSweeper armorSweeper;
 
     private RefHarnessRenderer() {}
 
@@ -55,6 +56,12 @@ public final class RefHarnessRenderer {
         if (HarnessConfig.PLAYERS_ONLY) {
             // Decoupled fast path: render only the player references, skip the full sweep.
             playerSweeper = PlayerSweeper.build();
+            return;
+        }
+
+        if (HarnessConfig.ARMOR_ONLY) {
+            // Decoupled fast path: render only the armored-mob diagnostics, skip the full sweep.
+            armorSweeper = ArmorSweeper.build();
             return;
         }
 
@@ -101,6 +108,8 @@ public final class RefHarnessRenderer {
             return glintSweeper != null && glintSweeper.isDone();
         if (HarnessConfig.PLAYERS_ONLY)
             return playerSweeper != null && playerSweeper.isDone();
+        if (HarnessConfig.ARMOR_ONLY)
+            return armorSweeper != null && armorSweeper.isDone();
         return blockSweeper != null && blockSweeper.isDone()
             && itemSweeper != null && itemSweeper.isDone()
             && entitySweeper != null && entitySweeper.isDone()
@@ -114,6 +123,10 @@ public final class RefHarnessRenderer {
         }
         if (HarnessConfig.PLAYERS_ONLY) {
             if (playerSweeper != null && !playerSweeper.isDone()) playerSweeper.step(client);
+            return;
+        }
+        if (HarnessConfig.ARMOR_ONLY) {
+            if (armorSweeper != null && !armorSweeper.isDone()) armorSweeper.step(client);
             return;
         }
         if (blockSweeper != null && !blockSweeper.isDone()) {

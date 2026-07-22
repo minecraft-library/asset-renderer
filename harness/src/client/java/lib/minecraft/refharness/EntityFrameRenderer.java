@@ -45,6 +45,7 @@ import net.minecraft.resources.Identifier;
 // Identifier is the 26.1 rename of ResourceLocation - same package, same role.
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.slf4j.Logger;
@@ -1575,10 +1576,20 @@ public final class EntityFrameRenderer implements AutoCloseable {
      * {@code WarmCowModel} with bigger horns; the default {@code CowModel} has none).
      * Resolves the variant-specific model up front via {@link #tryResolveVariantModel} so
      * bounds reflect the actual rendered geometry.
+     * <p>
+     * {@code AgeableMobRenderer} mutates {@code this.model} the same way, picking
+     * {@code babyModel} or {@code adultModel} from {@code state.isBaby} at the top of its
+     * {@code submit}. Since the walker runs first, {@code getModel()} hands back whichever age
+     * the <em>previous</em> subject rendered - so a baby measured against the adult mesh sits
+     * inside a canvas sized for a full-grown body, and an adult measured against the baby mesh
+     * is scaled up until it clips the canvas edges. {@link #tryResolveAgeModel} replicates the
+     * pick, making the measurement independent of render order.
      */
     private static Model<?> tryGetModel(EntityRenderer<?, ?> renderer, EntityRenderState state) {
         Model<?> variantModel = tryResolveVariantModel(renderer, state);
         if (variantModel != null) return variantModel;
+        Model<?> ageModel = tryResolveAgeModel(renderer, state);
+        if (ageModel != null) return ageModel;
         if (renderer instanceof LivingEntityRenderer<?, ?, ?> ler) {
             return ler.getModel();
         }
@@ -1594,6 +1605,32 @@ public final class EntityFrameRenderer implements AutoCloseable {
                 }
             }
             cls = cls.getSuperclass();
+        }
+        return null;
+    }
+
+    /**
+     * Resolves the age-specific model for {@code AgeableMobRenderer} subclasses by replicating the
+     * {@code this.model = state.isBaby ? babyModel : adultModel} assignment its {@code submit} makes
+     * before rendering. Reads the two private fields off the {@code AgeableMobRenderer} declaration
+     * itself, so subclasses inherit it. Returns {@code null} for any renderer that is not one -
+     * the caller then falls back to {@code getModel()}.
+     *
+     * @param renderer the entity renderer being measured
+     * @param state the render state whose {@code isBaby} drives the pick
+     * @return the model the render will actually draw, or {@code null} when the renderer has no age pair
+     */
+    private static Model<?> tryResolveAgeModel(EntityRenderer<?, ?> renderer, EntityRenderState state) {
+        if (!(state instanceof LivingEntityRenderState living)) return null;
+        for (Class<?> c = renderer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            if (!c.getSimpleName().equals("AgeableMobRenderer")) continue;
+            try {
+                Field field = c.getDeclaredField(living.isBaby ? "babyModel" : "adultModel");
+                field.setAccessible(true);
+                return field.get(renderer) instanceof Model<?> m ? m : null;
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+                return null;
+            }
         }
         return null;
     }

@@ -558,7 +558,7 @@ public final class EntitySweeper implements AutoCloseable {
      * renderer anchors at origin) but sometimes initialization sets it to something
      * unexpected, so snap to {@code (0, 0, 0)} too.
      */
-    private static void zeroRotations(Entity entity) {
+    static void zeroRotations(Entity entity) {
         entity.snapTo(0, 0, 0, 0f, 0f);
         entity.setDeltaMovement(0, 0, 0);
         if (entity instanceof LivingEntity living) {
