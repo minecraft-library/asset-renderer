@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -62,13 +63,47 @@ class EntityOverlayFitTest {
     /** Unpadded, so a correctly measured silhouette fills its fitted axis exactly. */
     private static final int PADDING = 0;
     /**
-     * Leeway for rasterizer edge coverage and fit rounding on a {@link #SIZE}px canvas - a correct fit
-     * lands within a pixel or two of filling its axis. The mismeasurement this catches is an order of
-     * magnitude larger: an unseated baby elytra leaves roughly a quarter of the canvas blank.
+     * Leeway for rasterizer edge coverage on the filling axis. Every subject here measures 0 when the
+     * overlays are folded in correctly, so this is pure headroom; the mismeasurements it must catch are
+     * an order of magnitude larger - 8 to 16px for a mesh-bounded equipment overlay, 72 to 87px for an
+     * unseated baby elytra, which leaves roughly a quarter of the canvas blank.
      */
-    private static final int SLACK_TOLERANCE = 4;
+    private static final int SLACK_TOLERANCE = 2;
+
+    /**
+     * The equipped subjects, in a fixed order so a failure names the same subject on every run.
+     *
+     * <p>Horse body armor is deliberately absent. Alone among the equipment subjects it leaves a stable
+     * ~3px of residual slack: its armor mesh is grow-inflated past the body it covers, and the outermost
+     * band of that inflated surface draws transparent, so the measured union sits a little outside the
+     * visible silhouette. That is a measurement-versus-visibility skew rather than the phantom-geometry
+     * bug under test, and admitting it would cost the tolerance the headroom that makes these
+     * assertions worth having. Every subject below measures 0.
+     */
+    private static final @NotNull List<Equipped> EQUIPPED = List.of(
+        new Equipped("minecraft:skeleton_horse", "saddle"),
+        new Equipped("minecraft:zombie_horse", "saddle"),
+        new Equipped("minecraft:pig", "saddle"),
+        new Equipped("minecraft:camel", "saddle"),
+        new Equipped("minecraft:strider", "saddle"),
+        new Equipped("minecraft:wolf", "body"),
+        new Equipped("minecraft:nautilus", "body"),
+        new Equipped("minecraft:llama", "body"));
 
     private static EntityRenderer entityRenderer;
+
+    /**
+     * One equipped subject.
+     *
+     * @param entityId the entity to render
+     * @param slot the equipment slot to fill with its default material
+     */
+    private record Equipped(@NotNull String entityId, @NotNull String slot) {
+        @Override
+        public @NotNull String toString() {
+            return this.entityId + "=" + this.slot;
+        }
+    }
 
     @BeforeAll
     static void bootstrap() {
@@ -107,14 +142,9 @@ class EntityOverlayFitTest {
         // skeleton_horse is the sharp case on both counts: its own texture is full of gaps, so its
         // alpha-tight body silhouette is far smaller than its geometry, and a saddle mesh spans the whole
         // equine body including head and ears while drawing only a few straps.
-        for (Map.Entry<String, String> equipped : Map.of(
-            "minecraft:skeleton_horse", "saddle",
-            "minecraft:horse", "body",
-            "minecraft:pig", "saddle",
-            "minecraft:wolf", "body"
-        ).entrySet()) {
-            PixelBuffer buf = render(equipped.getKey(), EntityAppearance.builder()
-                .equipment(Map.of(equipped.getValue(), ""))
+        for (Equipped equipped : EQUIPPED) {
+            PixelBuffer buf = render(equipped.entityId(), EntityAppearance.builder()
+                .equipment(Map.of(equipped.slot(), ""))
                 .build());
             assertThat(equipped + " should render a non-empty silhouette", coverage(buf), greaterThan(0));
             assertThat(equipped + ": the fit must reserve no room for the overlay's transparent mesh",
