@@ -93,9 +93,9 @@ class EntityBabyOverlayTest {
         RawOverlay profession = new RawOverlay(ADULT_COORD, null,
             null, null, null, null, "profession", null, null, true, null, null);
         RawLayer collar = new RawLayer("collar", null, null,
-            new RawLayerOverlay("minecraft:textures/entity/villager/villager_collar.png", null, null, null));
+            new RawLayerOverlay("minecraft:textures/entity/villager/villager_collar.png", null, null, null, null));
         RawLayer equipment = new RawLayer(null, null, new RawLayerWhen("saddle"),
-            new RawLayerOverlay(null, ADULT_COORD, "equipment/test_saddle/<material>", "saddle"));
+            new RawLayerOverlay(null, ADULT_COORD, "pig_saddle", Map.of("saddle", "minecraft:saddle"), "saddle"));
         return new RawModel(null, null, List.of(type, profession),
             List.of(new RawBlockOverlay("minecraft:red_mushroom_block", null, List.of(), false)),
             List.of(collar, equipment),

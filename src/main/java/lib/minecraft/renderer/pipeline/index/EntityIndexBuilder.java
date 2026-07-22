@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.Entity.TransformOp.Translate;
 import lib.minecraft.renderer.asset.Entity.TransformOp;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.AppearanceGate;
@@ -599,7 +600,8 @@ public final class EntityIndexBuilder {
 
     /**
      * Resolves the family's {@code when.equipment}-gated layers into {@link EquipmentOverlay}s, binding
-     * each overlay's {@code geometry} coordinate to its baked mesh. A layer naming an unknown geometry
+     * each overlay's {@code geometry} coordinate to its baked mesh and decoding its render layer and
+     * {@code material -> asset id} table. A layer naming an unknown geometry or an unknown layer type
      * warns and drops.
      */
     private static @NotNull List<EquipmentOverlay> loadEquipment(
@@ -613,14 +615,23 @@ public final class EntityIndexBuilder {
             if (layer.when() == null || layer.overlay() == null) continue;
             if (layer.when().equipment() == null) continue;
             RawLayerOverlay overlay = layer.overlay();
-            if (overlay.geometry() == null || overlay.textureTemplate() == null || overlay.defaultMaterial() == null) continue;
+            if (overlay.geometry() == null || overlay.layerType() == null || overlay.defaultMaterial() == null) continue;
+            if (overlay.materialAssets() == null || overlay.materialAssets().isEmpty()) continue;
             String coord = overlay.geometry();
             EntityModelData model = geometries.get(coord);
             if (model == null) {
                 diagnostics.warn("entity '%s' equipment layer references geometry '%s' absent from entity_geometry", entityId, coord);
                 continue;
             }
-            out.add(new EquipmentOverlay(layer.when().equipment(), model, overlay.textureTemplate(), overlay.defaultMaterial()));
+            Optional<LayerType> layerType = LayerType.fromId(overlay.layerType());
+            if (layerType.isEmpty()) {
+                diagnostics.warn("entity '%s' equipment layer names unknown layer type '%s'", entityId, overlay.layerType());
+                continue;
+            }
+            Map<String, ResourceId> materialAssets = new LinkedHashMap<>();
+            overlay.materialAssets().forEach((material, assetId) -> materialAssets.put(material, ResourceId.parse(assetId)));
+            out.add(new EquipmentOverlay(layer.when().equipment(), model, layerType.get(),
+                Map.copyOf(materialAssets), overlay.defaultMaterial()));
         }
         return List.copyOf(out);
     }

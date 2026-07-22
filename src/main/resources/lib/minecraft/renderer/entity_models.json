@@ -298,8 +298,11 @@
           },
           "overlay": {
             "geometry": "CamelSaddleModel#createSaddleLayer",
-            "texture_template": "equipment/camel_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "camel_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -327,8 +330,11 @@
           },
           "overlay": {
             "geometry": "CamelSaddleModel#createSaddleLayer",
-            "texture_template": "equipment/camel_husk_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "camel_husk_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ],
@@ -1075,8 +1081,26 @@
           },
           "overlay": {
             "geometry": "HappyGhastHarnessModel#createHarnessLayer@iparam=0:0",
-            "texture_template": "equipment/happy_ghast_body/<material>",
+            "layer_type": "happy_ghast_body",
             "default_material": "white_harness",
+            "material_assets": {
+              "black_harness": "minecraft:black_harness",
+              "blue_harness": "minecraft:blue_harness",
+              "brown_harness": "minecraft:brown_harness",
+              "cyan_harness": "minecraft:cyan_harness",
+              "gray_harness": "minecraft:gray_harness",
+              "green_harness": "minecraft:green_harness",
+              "light_blue_harness": "minecraft:light_blue_harness",
+              "light_gray_harness": "minecraft:light_gray_harness",
+              "lime_harness": "minecraft:lime_harness",
+              "magenta_harness": "minecraft:magenta_harness",
+              "orange_harness": "minecraft:orange_harness",
+              "pink_harness": "minecraft:pink_harness",
+              "purple_harness": "minecraft:purple_harness",
+              "red_harness": "minecraft:red_harness",
+              "white_harness": "minecraft:white_harness",
+              "yellow_harness": "minecraft:yellow_harness"
+            },
             "baby_geometry": "HappyGhastHarnessModel#createHarnessLayer@scaled=0.2375@iparam=0:0"
           }
         }
@@ -1270,8 +1294,16 @@
           },
           "overlay": {
             "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1@scaled=1.1",
-            "texture_template": "equipment/horse_body/<material>",
-            "default_material": "leather"
+            "layer_type": "horse_body",
+            "default_material": "leather",
+            "material_assets": {
+              "copper": "minecraft:copper",
+              "diamond": "minecraft:diamond",
+              "gold": "minecraft:gold",
+              "iron": "minecraft:iron",
+              "leather": "minecraft:leather",
+              "netherite": "minecraft:netherite"
+            }
           }
         },
         {
@@ -1283,8 +1315,11 @@
           },
           "overlay": {
             "geometry": "EquineSaddleModel#createSaddleLayer@scaled=1.1",
-            "texture_template": "equipment/horse_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "horse_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -1466,8 +1501,28 @@
           },
           "overlay": {
             "geometry": "LlamaModel#createBodyLayer@grow=0.5",
-            "texture_template": "equipment/llama_body/<material>",
-            "default_material": "white"
+            "layer_type": "llama_body",
+            "default_material": "white",
+            "material_assets": {
+              "black": "minecraft:black_carpet",
+              "blue": "minecraft:blue_carpet",
+              "brown": "minecraft:brown_carpet",
+              "cyan": "minecraft:cyan_carpet",
+              "gray": "minecraft:gray_carpet",
+              "green": "minecraft:green_carpet",
+              "light_blue": "minecraft:light_blue_carpet",
+              "light_gray": "minecraft:light_gray_carpet",
+              "lime": "minecraft:lime_carpet",
+              "magenta": "minecraft:magenta_carpet",
+              "orange": "minecraft:orange_carpet",
+              "pink": "minecraft:pink_carpet",
+              "purple": "minecraft:purple_carpet",
+              "red": "minecraft:red_carpet",
+              "trader_llama": "minecraft:trader_llama",
+              "trader_llama_baby": "minecraft:trader_llama_baby",
+              "white": "minecraft:white_carpet",
+              "yellow": "minecraft:yellow_carpet"
+            }
           }
         }
       ]
@@ -1688,8 +1743,15 @@
           },
           "overlay": {
             "geometry": "NautilusArmorModel#createBodyLayer",
-            "texture_template": "equipment/nautilus_body/<material>",
-            "default_material": "leather"
+            "layer_type": "nautilus_body",
+            "default_material": "copper",
+            "material_assets": {
+              "copper": "minecraft:copper",
+              "diamond": "minecraft:diamond",
+              "gold": "minecraft:gold",
+              "iron": "minecraft:iron",
+              "netherite": "minecraft:netherite"
+            }
           }
         },
         {
@@ -1701,8 +1763,11 @@
           },
           "overlay": {
             "geometry": "NautilusSaddleModel#createSaddleLayer",
-            "texture_template": "equipment/nautilus_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "nautilus_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -1923,8 +1988,11 @@
           },
           "overlay": {
             "geometry": "PigModel#createBodyLayer@grow=0.5",
-            "texture_template": "equipment/pig_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "pig_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -2266,8 +2334,16 @@
           },
           "overlay": {
             "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1",
-            "texture_template": "equipment/horse_body/<material>",
-            "default_material": "leather"
+            "layer_type": "horse_body",
+            "default_material": "leather",
+            "material_assets": {
+              "copper": "minecraft:copper",
+              "diamond": "minecraft:diamond",
+              "gold": "minecraft:gold",
+              "iron": "minecraft:iron",
+              "leather": "minecraft:leather",
+              "netherite": "minecraft:netherite"
+            }
           }
         }
       ]
@@ -2472,8 +2548,11 @@
           },
           "overlay": {
             "geometry": "AdultStriderModel#createBodyLayer",
-            "texture_template": "equipment/strider_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "strider_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]
@@ -2572,8 +2651,28 @@
           },
           "overlay": {
             "geometry": "LlamaModel#createBodyLayer@grow=0.5",
-            "texture_template": "equipment/llama_body/<material>",
-            "default_material": "white"
+            "layer_type": "llama_body",
+            "default_material": "white",
+            "material_assets": {
+              "black": "minecraft:black_carpet",
+              "blue": "minecraft:blue_carpet",
+              "brown": "minecraft:brown_carpet",
+              "cyan": "minecraft:cyan_carpet",
+              "gray": "minecraft:gray_carpet",
+              "green": "minecraft:green_carpet",
+              "light_blue": "minecraft:light_blue_carpet",
+              "light_gray": "minecraft:light_gray_carpet",
+              "lime": "minecraft:lime_carpet",
+              "magenta": "minecraft:magenta_carpet",
+              "orange": "minecraft:orange_carpet",
+              "pink": "minecraft:pink_carpet",
+              "purple": "minecraft:purple_carpet",
+              "red": "minecraft:red_carpet",
+              "trader_llama": "minecraft:trader_llama",
+              "trader_llama_baby": "minecraft:trader_llama_baby",
+              "white": "minecraft:white_carpet",
+              "yellow": "minecraft:yellow_carpet"
+            }
           }
         }
       ],
@@ -3056,8 +3155,11 @@
           },
           "overlay": {
             "geometry": "AdultWolfModel#createBodyLayer@grow=0.2",
-            "texture_template": "equipment/wolf_body/<material>",
-            "default_material": "armadillo_scute"
+            "layer_type": "wolf_body",
+            "default_material": "armadillo_scute",
+            "material_assets": {
+              "armadillo_scute": "minecraft:armadillo_scute"
+            }
           }
         },
         {
@@ -3146,8 +3248,16 @@
           },
           "overlay": {
             "geometry": "AbstractEquineModel#createBodyMesh@grow=0.1",
-            "texture_template": "equipment/horse_body/<material>",
-            "default_material": "leather"
+            "layer_type": "horse_body",
+            "default_material": "leather",
+            "material_assets": {
+              "copper": "minecraft:copper",
+              "diamond": "minecraft:diamond",
+              "gold": "minecraft:gold",
+              "iron": "minecraft:iron",
+              "leather": "minecraft:leather",
+              "netherite": "minecraft:netherite"
+            }
           }
         }
       ]
@@ -3205,8 +3315,15 @@
           },
           "overlay": {
             "geometry": "NautilusArmorModel#createBodyLayer",
-            "texture_template": "equipment/nautilus_body/<material>",
-            "default_material": "leather"
+            "layer_type": "nautilus_body",
+            "default_material": "copper",
+            "material_assets": {
+              "copper": "minecraft:copper",
+              "diamond": "minecraft:diamond",
+              "gold": "minecraft:gold",
+              "iron": "minecraft:iron",
+              "netherite": "minecraft:netherite"
+            }
           }
         },
         {
@@ -3218,8 +3335,11 @@
           },
           "overlay": {
             "geometry": "NautilusSaddleModel#createSaddleLayer",
-            "texture_template": "equipment/nautilus_saddle/<material>",
-            "default_material": "saddle"
+            "layer_type": "nautilus_saddle",
+            "default_material": "saddle",
+            "material_assets": {
+              "saddle": "minecraft:saddle"
+            }
           }
         }
       ]

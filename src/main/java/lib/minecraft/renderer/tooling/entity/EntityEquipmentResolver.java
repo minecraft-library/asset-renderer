@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -17,7 +17,9 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The equipment side of the {@code layers[]} node - one row per saddle / body-armor layer
@@ -26,15 +28,17 @@ import java.util.List;
  * carrying the adult and baby meshes) or from a bespoke layer's own class internals (wolf
  * armor, llama decor).
  *
- * <p>The texture subdir reads the {@code EquipmentClientInfo$LayerType.<clinit>} id literal;
- * sole-PNG subdirs derive their default material from the jar listing; multi-material subdirs
- * consult {@link EntityOverlayPolicies#defaultMaterialFor}.
+ * <p>The render layer reads the {@code EquipmentClientInfo$LayerType.<clinit>} id literal; its
+ * {@code material -> asset id} table and default material come from the inverted equipment corpus
+ * ({@link EquipmentAssetIndex}), a sole-material layer naming its own default and a multi-material
+ * one consulting {@link EntityOverlayPolicies#defaultMaterialFor}.
  */
 final class EntityEquipmentResolver {
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
     private final @NotNull LayerDefinitionIndex layerDefinitions;
+    private final @NotNull EquipmentAssetIndex equipmentAssets;
     private final @NotNull GeometryManifest manifest;
     private final @NotNull Diagnostics diagnostics;
 
@@ -42,12 +46,14 @@ final class EntityEquipmentResolver {
         @NotNull ClassNodeCache cache,
         @NotNull EntitySubject subject,
         @NotNull LayerDefinitionIndex layerDefinitions,
+        @NotNull EquipmentAssetIndex equipmentAssets,
         @NotNull GeometryManifest manifest,
         @NotNull Diagnostics diagnostics
     ) {
         this.cache = cache;
         this.subject = subject;
         this.layerDefinitions = layerDefinitions;
+        this.equipmentAssets = equipmentAssets;
         this.manifest = manifest;
         this.diagnostics = diagnostics;
     }
@@ -107,7 +113,7 @@ final class EntityEquipmentResolver {
     /**
      * Assembles one {@code layers[]} row: {@code id} is the slot, the gate is
      * {@code when: {equipment: <slot>}}, and the overlay body carries the registered
-     * adult mesh, the {@code equipment/<subdir>/<material>} template, the derived or
+     * adult mesh, the render layer, its {@code material -> asset id} table, the derived or
      * declared default material, and the captured baby mesh.
      */
     private @Nullable JsonTree buildRow(
@@ -116,17 +122,24 @@ final class EntityEquipmentResolver {
         @NotNull String adultField,
         @Nullable String babyField
     ) {
-        String subdir = layerTypeSubdir(this.cache, layerTypeConstant);
-        if (subdir == null) {
-            this.diagnostics.warn("LayerType.%s has no <clinit> id literal [D33] - equipment row dropped", layerTypeConstant);
+        String layerTypeId = layerTypeSubdir(this.cache, layerTypeConstant);
+        if (layerTypeId == null) {
+            this.diagnostics.warn("LayerType.%s has no <clinit> id literal - equipment row dropped", layerTypeConstant);
             return null;
         }
-        // The layers-row slot vocabulary is {saddle, body}; mob-equipment subdirs follow
-        // the <mob>_<slot> id grammar. A LayerType outside it (wings, humanoid armor) is
+        // The layers-row slot vocabulary is {saddle, body}; mob-equipment layer ids follow
+        // the <mob>_<slot> grammar. A LayerType outside it (wings, humanoid armor) is
         // player-style runtime equipment, never a static-pose row.
-        String slot = subdir.endsWith("_saddle") ? "saddle" : subdir.endsWith("_body") ? "body" : null;
+        String slot = layerTypeId.endsWith("_saddle") ? "saddle" : layerTypeId.endsWith("_body") ? "body" : null;
         if (slot == null) {
-            this.diagnostics.info("LayerType id '%s' outside the mob-equipment slot grammar - no row", subdir);
+            this.diagnostics.info("LayerType id '%s' outside the mob-equipment slot grammar - no row", layerTypeId);
+            return null;
+        }
+        Map<String, String> materials = this.equipmentAssets.materials(layerTypeId);
+        if (materials.isEmpty()) {
+            // Every material the render could select would resolve to no layers, so the mesh could
+            // only ever draw untextured while still inflating the canvas bounds.
+            this.diagnostics.warn("layer '%s' has no equipment asset declaring it - row dropped", layerTypeId);
             return null;
         }
         String adultKey = registerMesh(adultField);
@@ -134,15 +147,19 @@ final class EntityEquipmentResolver {
             this.diagnostics.info("equipment mesh ModelLayers.%s unresolved - row dropped", adultField);
             return null;
         }
+        Map<String, JsonTree> materialAssets = new LinkedHashMap<>();
+        materials.forEach((material, assetId) -> materialAssets.put(material, JsonTree.of(assetId)));
         JsonTree overlay = JsonTree.object()
             .put("geometry", adultKey)
-            .put("texture_template", VanillaSourceClasses.Paths.EQUIPMENT_DIR + subdir + "/<material>")
-            .put("default_material", defaultMaterial(subdir));
+            .put("layer_type", layerTypeId)
+            .put("default_material", defaultMaterial(layerTypeId, materials))
+            .put("material_assets", materialAssets);
         if (babyField != null) {
             String babyKey = registerMesh(babyField);
             if (babyKey != null) overlay.put("baby_geometry", babyKey);
         }
-        this.diagnostics.info("equipment row '%s' (%s) meshes adult=%s baby=%s", slot, subdir, adultField, babyField);
+        this.diagnostics.info("equipment row '%s' (%s) meshes adult=%s baby=%s over %d materials",
+            slot, layerTypeId, adultField, babyField, materials.size());
         return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
@@ -162,25 +179,24 @@ final class EntityEquipmentResolver {
     }
 
     /**
-     * The default material: the sole material's basename when the subdir holds exactly one
-     * (saddle, the wolf's armadillo scute), else the declared pick from
-     * {@link EntityOverlayPolicies#defaultMaterialFor}. An {@code _overlay} companion is a
-     * dyeable material's tint layer ({@code armadillo_scute_overlay}, {@code leather_overlay}),
-     * never a material of its own.
+     * The material substituted when a render selects the slot without naming one: the sole
+     * material when the layer offers exactly one (the saddle, the wolf's armadillo scute), else
+     * the declared pick from {@link EntityOverlayPolicies#defaultMaterialFor}. A declared pick
+     * absent from the layer's own materials would resolve to no layers and silently drop the
+     * texture, so it warns and falls back to the layer's first material.
      */
-    private @NotNull String defaultMaterial(@NotNull String subdir) {
-        String dir = VanillaSourceClasses.Paths.ASSETS_ROOT + VanillaSourceClasses.Paths.TEXTURES_ENTITY
-            + VanillaSourceClasses.Paths.EQUIPMENT_DIR + subdir + "/";
-        List<String> materials = new ArrayList<>();
-        for (String entry : this.cache.list(dir, ".png")) {
-            String basename = entry.substring(entry.lastIndexOf('/') + 1, entry.length() - ".png".length());
-            if (!basename.endsWith("_overlay")) materials.add(basename);
-        }
+    private @NotNull String defaultMaterial(@NotNull String layerTypeId, @NotNull Map<String, String> materials) {
         if (materials.size() == 1) {
-            this.diagnostics.info("default material '%s' via sole-material listing [D32]", materials.getFirst());
-            return materials.getFirst();
+            String sole = materials.keySet().iterator().next();
+            this.diagnostics.info("default material '%s' via sole-material layer '%s'", sole, layerTypeId);
+            return sole;
         }
-        return EntityOverlayPolicies.defaultMaterialFor(subdir);
+        String declared = EntityOverlayPolicies.defaultMaterialFor(layerTypeId);
+        if (materials.containsKey(declared)) return declared;
+        String fallback = materials.keySet().iterator().next();
+        this.diagnostics.warn("declared default material '%s' is not a material of layer '%s' %s - using '%s'",
+            declared, layerTypeId, materials.keySet(), fallback);
+        return fallback;
     }
 
     /**

@@ -54,13 +54,14 @@ final class EntityLayersResolver {
         @NotNull EntitySubject subject,
         @NotNull List<EntityRendererResolver.LayerSite> roster,
         @NotNull LayerDefinitionIndex layerDefinitions,
+        @NotNull EquipmentAssetIndex equipmentAssets,
         @NotNull GeometryManifest manifest,
         @NotNull Diagnostics diagnostics
     ) {
         this.cache = session.cache();
         this.roster = roster;
-        this.equipment = new EntityEquipmentResolver(session.cache(), subject, layerDefinitions, manifest,
-            diagnostics.child("equipment"));
+        this.equipment = new EntityEquipmentResolver(session.cache(), subject, layerDefinitions, equipmentAssets,
+            manifest, diagnostics.child("equipment"));
         this.diagnostics = diagnostics;
     }
 

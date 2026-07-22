@@ -3,6 +3,7 @@ package lib.minecraft.renderer.asset;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.option.AppearanceGate;
@@ -532,35 +533,38 @@ public record Entity(
     /**
      * One equipment overlay on an {@link Entity}: a saddle / body-armor mesh (its own baked geometry)
      * rendered on the body only when the {@code equipment} render axis selects its {@link #slot}. Unlike
-     * an always-on {@link OverlayLayer}, the texture is chosen at render from the axis-selected material
-     * through {@link #textureTemplate} (or {@link #defaultMaterial} when the slot is selected without a
-     * material). Sourced by {@link EntityModelLoader} from the model form's {@code when.equipment}-gated
-     * {@code layers}.
+     * an always-on {@link OverlayLayer}, the texture is chosen at render from the axis-selected material:
+     * {@link #assetFor} names the equipment asset holding that material's layers, which the renderer
+     * resolves and composites under {@link #layerType}. Sourced by {@link EntityModelLoader} from the
+     * model form's {@code when.equipment}-gated {@code layers}.
      *
      * @param slot the equipment slot this overlay is gated on ({@code saddle} / {@code body})
      * @param model the equipment mesh, resolved from the layer's baked {@code geometry_ref}
-     * @param textureTemplate the equipment texture sub-path with a {@code <material>} placeholder
-     *     ({@code equipment/pig_saddle/<material>}), resolved against {@code textures/entity/}
+     * @param layerType the render layer whose texture subdir this overlay's layers sit under
+     * @param materialAssets the equipment asset id per selectable material - mostly the material's own
+     *     name, but the llama's {@code white} carpet lives in {@code minecraft:white_carpet} and every
+     *     saddle layer shares {@code minecraft:saddle}, so the mapping is data rather than convention
      * @param defaultMaterial the material substituted when the slot is selected without one
-     *     ({@code saddle} for a saddle, {@code leather} for body armor)
+     *     ({@code saddle} for a saddle, {@code leather} for horse body armor)
      */
     public record EquipmentOverlay(
         @NotNull String slot,
         @NotNull EntityModelData model,
-        @NotNull String textureTemplate,
+        @NotNull LayerType layerType,
+        @NotNull Map<String, ResourceId> materialAssets,
         @NotNull String defaultMaterial
     ) {
         /**
-         * Resolves the {@code textures/entity/} sub-path for a selected material, substituting it into
-         * {@link #textureTemplate}; falls back to {@link #defaultMaterial} when {@code material} is blank
-         * (the slot selected without an explicit material).
+         * Resolves the equipment asset id for a selected material; falls back to
+         * {@link #defaultMaterial} when {@code material} is blank (the slot selected without an
+         * explicit material). Empty when the material names no asset of this layer, which renders
+         * nothing rather than substituting a stand-in texture.
          *
          * @param material the axis-selected material, or blank to use {@link #defaultMaterial}
-         * @return the resolved texture sub-path (without the {@code minecraft:entity/} prefix)
+         * @return the equipment asset id, or empty when the material is unknown to this layer
          */
-        public @NotNull String textureFor(@NotNull String material) {
-            String chosen = material.isBlank() ? this.defaultMaterial : material;
-            return this.textureTemplate.replace("<material>", chosen);
+        public @NotNull Optional<ResourceId> assetFor(@NotNull String material) {
+            return Optional.ofNullable(this.materialAssets.get(material.isBlank() ? this.defaultMaterial : material));
         }
     }
 

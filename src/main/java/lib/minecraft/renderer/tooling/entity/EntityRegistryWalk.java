@@ -38,6 +38,7 @@ public final class EntityRegistryWalk {
         LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
         VariantIndex variants = VariantIndex.build(session);
         BlockRegistryIndex blocks = BlockRegistryIndex.build(session);
+        EquipmentAssetIndex equipmentAssets = EquipmentAssetIndex.build(session);
         EntityPipelineTraits pipelineTraits = new EntityPipelineTraits(session.cache());
         Set<String> nonBaseSuffixes = EntityTextureResolver.deriveNonBaseSuffixes(session);
 
@@ -45,7 +46,7 @@ public final class EntityRegistryWalk {
         for (EntitySubject subject : subjects)
             models.put(subject.entityId(),
                 new EntityRendererResolver(session, subject, layerDefinitions, variants, nonBaseSuffixes,
-                    blocks, pipelineTraits, manifest).resolve());
+                    blocks, pipelineTraits, equipmentAssets, manifest).resolve());
         // The group_of post-pass needs all rows.
         EntityGroupLinker.link(root, variants, session.diagnostics().child("groupOf"));
     }

@@ -5,11 +5,10 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
-import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
@@ -26,6 +25,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * Generates 3D armor overlay geometry and 2D armor sprite layers for humanoid renders. Given the
@@ -385,19 +385,15 @@ public class ArmorKit {
     }
 
     /**
-     * Resolves the composited armor texture for a slot from the data-driven equipment model: the
-     * ordered {@code equipment/*.json} layers for the piece's {@link ArmorPiece#material() material}
-     * asset under the given layer type, each resolved to a texture and, when the layer is
-     * {@link EquipmentModel.Dyeable dyeable}, tinted by the piece's {@link ArmorPiece#dyeColor() dye}
-     * (or the layer's undyed fallback colour when absent). A dyeable layer with no fallback resolves
-     * to colour 0 undyed and is skipped. A single flat layer is returned unchanged; multiple layers
-     * (a dyed leather base plus its undyed overlay) composite in list order.
+     * Resolves the composited armor texture for a slot: the piece's {@link ArmorPiece#material()
+     * material} asset composited under the given layer type by {@link EquipmentKit#composite}, dyed
+     * by the piece's {@link ArmorPiece#dyeColor() dye}.
      *
      * <p>A present {@code item} first consults the pack-rule (CIT) override
-     * ({@link lib.minecraft.renderer.engine.RendererContext#resolveArmorTextureOverride}); a matching
+     * ({@link RendererContext#resolveArmorTextureOverride}); a matching
      * rule replaces each layer's texture ({@code layer0} the base, {@code layerN} the overlays) before
      * the equipment-model path. On a vanilla stack with no item the override is {@link CitResult#NONE}
-     * and every layer resolves through the model, so the render is byte-identical to the model-only path.
+     * and every layer resolves through the model.
      *
      * @param engine the texture engine for pack-aware texture resolution
      * @param piece the armor piece
@@ -416,40 +412,8 @@ public class ArmorKit {
         CitResult cit = item
             .map(context -> engine.getContext().resolveArmorTextureOverride(piece.material(), layerType, context))
             .orElse(CitResult.NONE);
-
-        List<EquipmentModel.Layer> layers = engine.getContext().resolveEquipmentLayers(piece.material().assetId(), layerType);
-        if (layers.isEmpty() && cit == CitResult.NONE) return Optional.empty();
-
-        // A single flat (non-dyeable) layer with no pack-rule override returns its resolved buffer
-        // directly - the exact model-only path, so byte-identity does not rest on a blit onto a fresh buffer.
-        if (cit == CitResult.NONE && layers.size() == 1 && layers.getFirst().dyeable().isEmpty())
-            return engine.tryResolveTexture(layers.getFirst().textureLocation(layerType).id());
-
-        PixelBuffer combined = null;
-        for (int i = 0; i < layers.size(); i++) {
-            EquipmentModel.Layer layer = layers.get(i);
-            // A matching CIT rule replaces this layer's texture (layer0 the base, layerN the overlays);
-            // absent an override the equipment model's own path resolves. NONE returns empty for every
-            // layer, so the fallback is byte-identical to the model-only path.
-            String textureId = cit.textureFor("layer" + i)
-                .map(ResourceId::id)
-                .orElseGet(() -> layer.textureLocation(layerType).id());
-            Optional<PixelBuffer> texture = engine.tryResolveTexture(textureId);
-            if (texture.isEmpty()) continue;
-
-            PixelBuffer painted;
-            if (layer.dyeable().isPresent()) {
-                int color = piece.dyeColor().orElse(layer.dyeable().get().colorWhenUndyed().orElse(0));
-                if (color == 0) continue;   // dyeable layer with no undyed fallback: skip when undyed
-                painted = ColorMath.tint(texture.get(), color);
-            } else {
-                painted = texture.get();
-            }
-
-            if (combined == null) combined = PixelBuffer.create(painted.width(), painted.height());
-            combined.blit(painted, 0, 0);
-        }
-        return Optional.ofNullable(combined);
+        return EquipmentKit.composite(engine, piece.material().assetId(), layerType,
+            piece.dyeColor(), cit, OptionalInt.empty());
     }
 
     /**

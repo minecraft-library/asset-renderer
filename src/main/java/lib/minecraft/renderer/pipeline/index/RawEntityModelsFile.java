@@ -315,17 +315,19 @@ record RawLayerWhen(@Nullable String equipment) {}
 
 /**
  * A {@code layers[].overlay} body. Serves both the collar layer (reads {@code texture}) and the equipment
- * layers (read {@code geometry} / {@code texture_template} / {@code default_material}); the marking layer's
- * {@code texture_by} / {@code textures_by_value} are not read.
+ * layers (read {@code geometry} / {@code layer_type} / {@code material_assets} / {@code default_material});
+ * the marking layer's {@code texture_by} / {@code textures_by_value} are not read.
  *
  * @param texture the collar overlay texture path, or {@code null}
  * @param geometry the equipment overlay geometry coordinate, or {@code null}
- * @param textureTemplate the equipment texture sub-path with a {@code <material>} placeholder, or {@code null}
+ * @param layerType the equipment render layer's serialized id ({@code pig_saddle}), or {@code null}
+ * @param materialAssets the equipment asset id per selectable material, or {@code null}
  * @param defaultMaterial the equipment default material, or {@code null}
  */
 record RawLayerOverlay(
     @Nullable String texture,
     @Nullable String geometry,
-    @SerializedName("texture_template") @Nullable String textureTemplate,
+    @SerializedName("layer_type") @Nullable String layerType,
+    @SerializedName("material_assets") @Nullable Map<String, String> materialAssets,
     @SerializedName("default_material") @Nullable String defaultMaterial
 ) {}

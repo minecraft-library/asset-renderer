@@ -3,6 +3,8 @@ package lib.minecraft.renderer.pipeline.loader;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -29,8 +31,8 @@ import static org.hamcrest.Matchers.sameInstance;
  * {@code entity_models.json} directly. Load-bearing canaries: the wolf
  * variant/state texture join, the baby three-source texture chain, the dyed-collar presence, the
  * option-encoded variant coat map + resolver fold, the depth-clearance auto-skip on a
- * base-mesh-inheriting overlay, the head-stripped alternate mesh on a category pass, and the villager
- * baby robe pass.
+ * base-mesh-inheriting overlay, the head-stripped alternate mesh on a category pass, the villager
+ * baby robe pass, and the equipment material-to-asset table.
  */
 @DisplayName("EntityModelLoader native load")
 class EntityModelLoaderTest {
@@ -287,6 +289,97 @@ class EntityModelLoaderTest {
             assertThat(entityId + " '" + bone + "' keeps its parent",
                 stripped.getBones().get(bone).getParent(), equalTo(full.getBones().get(bone).getParent()));
         }
+    }
+
+    @Test
+    @DisplayName("equipment layers ship their render layer and material asset table, mapping every material to an existing asset")
+    void equipmentLayersShipTheirMaterialAssetTable() {
+        // End-to-end canary over the shipped resource: the tooling must emit `layer_type` and the
+        // `material_assets` table, and the loader must decode both. A material mapped to the wrong asset
+        // id resolves to no equipment layers and silently drops the texture, and the parity harness
+        // equips nothing, so an inert table would leave the suite green with every saddle untextured.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+
+        // The three shapes the table exists for: the shared saddle asset, the identity-named armor
+        // tier, and the llama carpet whose asset name is NOT its material name.
+        assertEquipmentAsset(defs, "minecraft:pig", "saddle", LayerType.PIG_SADDLE, "saddle", "minecraft:saddle");
+        assertEquipmentAsset(defs, "minecraft:horse", "body", LayerType.HORSE_BODY, "leather", "minecraft:leather");
+        assertEquipmentAsset(defs, "minecraft:llama", "body", LayerType.LLAMA_BODY, "white", "minecraft:white_carpet");
+        assertEquipmentAsset(defs, "minecraft:llama", "body", LayerType.LLAMA_BODY, "red", "minecraft:red_carpet");
+        assertEquipmentAsset(defs, "minecraft:trader_llama", "body", LayerType.LLAMA_BODY, "trader_llama", "minecraft:trader_llama");
+        assertEquipmentAsset(defs, "minecraft:happy_ghast", "body", LayerType.HAPPY_GHAST_BODY, "white_harness", "minecraft:white_harness");
+        assertEquipmentAsset(defs, "minecraft:wolf", "body", LayerType.WOLF_BODY, "armadillo_scute", "minecraft:armadillo_scute");
+        // The nautilus body offers no leather tier, so its default must be one of the tiers it does ship.
+        assertEquipmentAsset(defs, "minecraft:nautilus", "body", LayerType.NAUTILUS_BODY, "copper", "minecraft:copper");
+        assertDefaultMaterial(defs, "minecraft:nautilus", "body", "copper");
+        assertDefaultMaterial(defs, "minecraft:horse", "body", "leather");
+        assertDefaultMaterial(defs, "minecraft:trader_llama", "body", "white");
+
+        // Every shipped equipment layer must resolve its own declared default - a default outside the
+        // table is exactly the silent-drop failure this table exists to prevent.
+        for (Entity definition : defs.values())
+            for (Entity.EquipmentOverlay equipment : definition.layers().equipment())
+                assertThat("equipment layer '" + equipment.layerType().getId() + "' resolves its default material '"
+                        + equipment.defaultMaterial() + "'",
+                    equipment.assetFor("").isPresent(), is(true));
+    }
+
+    /**
+     * Asserts a shipped equipment layer carries the expected render layer and maps a material to an
+     * equipment asset id.
+     *
+     * @param defs the loaded index
+     * @param entityId the entity owning the layer
+     * @param slot the equipment slot the layer is gated on
+     * @param layerType the render layer the layer must declare
+     * @param material the material to resolve
+     * @param assetId the equipment asset id that material must name
+     */
+    private static void assertEquipmentAsset(
+        ConcurrentMap<String, Entity> defs,
+        String entityId,
+        String slot,
+        LayerType layerType,
+        String material,
+        String assetId
+    ) {
+        Entity.EquipmentOverlay equipment = equipmentLayer(defs, entityId, slot);
+        assertThat(entityId + " '" + slot + "' render layer", equipment.layerType(), is(layerType));
+        assertThat(entityId + " '" + slot + "' material '" + material + "' asset",
+            equipment.assetFor(material).map(ResourceId::id), is(Optional.of(assetId)));
+    }
+
+    /**
+     * Asserts a shipped equipment layer's default material - the one a render gets by selecting the
+     * slot without naming a material.
+     *
+     * @param defs the loaded index
+     * @param entityId the entity owning the layer
+     * @param slot the equipment slot the layer is gated on
+     * @param material the material the layer must default to
+     */
+    private static void assertDefaultMaterial(
+        ConcurrentMap<String, Entity> defs,
+        String entityId,
+        String slot,
+        String material
+    ) {
+        Entity.EquipmentOverlay equipment = equipmentLayer(defs, entityId, slot);
+        assertThat(entityId + " '" + slot + "' default material", equipment.defaultMaterial(), is(material));
+        assertThat(entityId + " '" + slot + "' resolves the same asset blank as by name",
+            equipment.assetFor(""), is(equipment.assetFor(material)));
+    }
+
+    /** The equipment layer of an entity gated on {@code slot}. */
+    private static Entity.EquipmentOverlay equipmentLayer(
+        ConcurrentMap<String, Entity> defs, String entityId, String slot) {
+        return defs.get(entityId)
+            .layers()
+            .equipment()
+            .stream()
+            .filter(overlay -> slot.equals(overlay.slot()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("entity '" + entityId + "' has no '" + slot + "' equipment layer"));
     }
 
     /** The overlay pass of an entity whose texture axis is {@code textureBy}. */

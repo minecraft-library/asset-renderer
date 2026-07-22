@@ -1328,8 +1328,10 @@ public final class PipelineParityDump {
             JsonObject entry = new JsonObject();
             entry.addProperty("slot", equipment.slot());
             entry.add("model", entityModel(equipment.model()));
-            entry.addProperty("texture_template", equipment.textureTemplate());
+            entry.addProperty("layer_type", equipment.layerType().getId());
             entry.addProperty("default_material", equipment.defaultMaterial());
+            entry.add("material_assets", CanonicalJson.map(equipment.materialAssets(),
+                assetId -> new JsonPrimitive(assetId.id())));
             return entry;
         }));
         CanonicalJson.put(root, "collar", layers.collar(), JsonPrimitive::new);

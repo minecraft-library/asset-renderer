@@ -8,8 +8,10 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
@@ -27,6 +29,7 @@ import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.ElytraKit;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
+import lib.minecraft.renderer.engine.kit.EquipmentKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
@@ -57,6 +60,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.function.IntFunction;
 
 /**
@@ -549,23 +553,26 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         /**
          * Equipment overlays (saddle / body armor): a saddle or armor mesh with its own baked geometry
-         * rendered on the body only when the {@code equipment} axis selects its slot. The texture is the
-         * axis-selected material resolved through the layer's {@code <material>} template (or the layer
-         * default - leather armor / the saddle - when the slot is selected without one); a material whose
-         * equipment texture is absent from the vanilla pack drops out (no fallback). The resolved
-         * definition carries no equipment for a baby, so this contributes nothing then without an age gate.
+         * rendered on the body only when the {@code equipment} axis selects its slot. The axis-selected
+         * material (or the layer default - horse leather armor / the saddle - when the slot is selected
+         * without one) names an equipment asset, whose layers composite through {@link EquipmentKit} the
+         * same way worn humanoid armor does; a material naming no asset of the layer, or an asset whose
+         * textures are absent from the pack, draws nothing (no fallback). The resolved definition carries
+         * no equipment for a baby, so this contributes nothing then without an age gate.
          */
         EQUIPMENT(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 EntityAppearance appearance = ctx.options().getAppearance();
                 for (Entity.EquipmentOverlay equipment : ctx.definition().layers().equipment()) {
-                    Optional<String> material = appearance.equipmentMaterial(equipment.slot());
-                    if (material.isEmpty()) continue;
-                    String textureRef = equipment.textureFor(material.get());
+                    Optional<ResourceId> assetId = appearance.equipmentMaterial(equipment.slot())
+                        .flatMap(equipment::assetFor);
+                    if (assetId.isEmpty()) continue;
                     stack.append(this.slot, sink -> {
                         if (equipment.model().getBones().isEmpty()) return;
-                        Optional<PixelBuffer> equipmentTex = ctx.textures().resolveEntityTextureAtTick(textureRef, ctx.tick());
+                        Optional<PixelBuffer> equipmentTex = EquipmentKit.composite(
+                            ctx.textures(), assetId.get(), equipment.layerType(),
+                            Optional.empty(), CitResult.NONE, OptionalInt.of(ctx.tick()));
                         if (equipmentTex.isEmpty()) return;
                         sink.addAll(EntityGeometryKit.buildTriangles(
                             equipment.model(), equipmentTex.get(), ctx.modelAnchor(), false,

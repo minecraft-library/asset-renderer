@@ -52,6 +52,7 @@ final class EntityRendererResolver {
         @NotNull Set<String> nonBaseSuffixes,
         @NotNull BlockRegistryIndex blocks,
         @NotNull EntityPipelineTraits pipelineTraits,
+        @NotNull EquipmentAssetIndex equipmentAssets,
         @NotNull GeometryManifest manifest
     ) {
         this.subject = subject;
@@ -75,7 +76,7 @@ final class EntityRendererResolver {
         this.blockOverlays = new EntityBlockOverlayResolver(session.cache(), subject, this.layerRoster, blocks,
             this.diagnostics.child("blockOverlays"));
         this.layers = new EntityLayersResolver(session, subject, this.layerRoster, layerDefinitions,
-            manifest, this.diagnostics.child("layers"));
+            equipmentAssets, manifest, this.diagnostics.child("layers"));
     }
 
     /**
