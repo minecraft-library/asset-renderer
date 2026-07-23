@@ -4,6 +4,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
@@ -11,10 +12,10 @@ import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.engine.texture.Biome;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -25,7 +26,6 @@ import java.util.List;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.imageio.ImageIO;
 
 /**
  * Per-block parity report comparing the Java pipeline output (via {@link BlockRenderer} in

@@ -7,11 +7,11 @@ import lib.minecraft.text.font.MinecraftFont;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import javax.imageio.ImageIO;
 
 /**
  * Diagnostic task that renders {@link ItemStackKit#drawStackCount} over a solid grey background at

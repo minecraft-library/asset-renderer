@@ -32,12 +32,12 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
-import javax.imageio.ImageIO;
 
 /**
  * Side-by-side visual comparison of the block-entity subjects (bed, chest) rendered two ways: the

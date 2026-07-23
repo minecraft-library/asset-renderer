@@ -1,5 +1,13 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.ImageData;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
+import dev.simplified.image.codec.gif.GifWriteOptions;
+import dev.simplified.image.codec.webp.WebPWriteOptions;
+import dev.simplified.image.data.ImageFrame;
 import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.engine.compose.TooltipChrome;
 import lib.minecraft.renderer.exception.PipelineException;
@@ -11,14 +19,6 @@ import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ImageData;
-import dev.simplified.image.ImageFactory;
-import dev.simplified.image.ImageFormat;
-import dev.simplified.image.codec.gif.GifWriteOptions;
-import dev.simplified.image.codec.webp.WebPWriteOptions;
-import dev.simplified.image.data.ImageFrame;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

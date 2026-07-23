@@ -18,6 +18,7 @@ import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -28,7 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import javax.imageio.ImageIO;
 
 /**
  * Per-scope player parity report comparing the Java pipeline's 3D {@link PlayerRenderer} output against

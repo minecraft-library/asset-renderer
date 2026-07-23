@@ -1,5 +1,9 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.image.ImageData;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
+import dev.simplified.image.codec.webp.WebPWriteOptions;
 import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.PortalOptions;
@@ -8,10 +12,6 @@ import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import dev.simplified.image.ImageData;
-import dev.simplified.image.ImageFactory;
-import dev.simplified.image.ImageFormat;
-import dev.simplified.image.codec.webp.WebPWriteOptions;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

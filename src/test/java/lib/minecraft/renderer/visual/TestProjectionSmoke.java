@@ -12,13 +12,13 @@ import lib.minecraft.renderer.tensor.EulerRotation;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import javax.imageio.ImageIO;
 
 /**
  * Diagnostic task that renders one block under every {@link Projection} (at its base pose) plus a

@@ -11,6 +11,7 @@ import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -21,7 +22,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import javax.imageio.ImageIO;
 
 /**
  * Diagnostic task that proves the {@code ColorProperties} wiring end-to-end through the 16
