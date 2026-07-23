@@ -198,6 +198,7 @@ public final class EntityIndexBuilder {
         List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId, diagnostics);
         boolean markings = markingsOf(family);
         boolean humanoidArmor = humanoidArmorOf(family);
+        Optional<String> armorMesh = armorMeshOf(family);
         String babyCoord = babyGeometryOf(family);
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyCoord));
         List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, babyCoord, babyModel, familyId, diagnostics);
@@ -209,7 +210,7 @@ public final class EntityIndexBuilder {
             Map<String, RawVariantOption> options = variant.options();
             VariantContext ctx = new VariantContext(baseCoord, geometries, hiddenBones, boneToggleSpecs, familyOverlays,
                 blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyOverlays, collarTexture, equipment, markings, humanoidArmor,
-                stateDefaultOf(family));
+                armorMesh, stateDefaultOf(family));
             if (idEncoded) {
                 // id-encoded: each coat is a first-class render pseudo-id minecraft:<id>_<opt>.
                 for (Map.Entry<String, RawVariantOption> option : options.entrySet()) {
@@ -254,7 +255,7 @@ public final class EntityIndexBuilder {
             .axes(new Entity.Axes(stateTextures, babyModel, babyOverlays,
                 buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries),
                 buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
-            .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
+            .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor, armorMesh))
             .build());
     }
 
@@ -278,6 +279,7 @@ public final class EntityIndexBuilder {
         @NotNull List<EquipmentOverlay> equipment,
         boolean markings,
         boolean humanoidArmor,
+        @NotNull Optional<String> armorMesh,
         @NotNull Optional<String> stateDefault
     ) {}
 
@@ -307,7 +309,7 @@ public final class EntityIndexBuilder {
             .boneToggles(toggles)
             .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyOverlays(), Optional.empty(),
                 Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))
-            .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor()))
+            .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor(), ctx.armorMesh()))
             .build();
     }
 
@@ -601,6 +603,17 @@ public final class EntityIndexBuilder {
         for (RawLayer layer : nullToEmpty(family.layers()))
             if ("humanoid".equals(layer.armorType())) return true;
         return false;
+    }
+
+    /**
+     * Returns the armor mesh the family's armor row names, or empty when it names none and the shared
+     * humanoid mesh applies. Most humanoids share one mesh, so absence is the common case rather than
+     * a gap in the data.
+     */
+    private static @NotNull Optional<String> armorMeshOf(@NotNull RawModel family) {
+        for (RawLayer layer : nullToEmpty(family.layers()))
+            if ("humanoid".equals(layer.armorType())) return Optional.ofNullable(layer.armorMesh());
+        return Optional.empty();
     }
 
     /**

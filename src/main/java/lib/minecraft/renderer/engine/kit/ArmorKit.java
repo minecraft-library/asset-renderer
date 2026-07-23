@@ -73,22 +73,6 @@ public class ArmorKit {
     private static final float TRIM_INFLATE = 0.003f;
 
     /**
-     * Vanilla's generic humanoid armor mesh, in model units in the Y-down model frame - the box each
-     * armor part is grown from. Worn armor is <em>not</em> derived from the wearer's own mesh: one
-     * shared humanoid armor set dresses every humanoid, so a skeleton's narrow limbs and a giant's
-     * scaled-up body wear exactly these boxes. Each entry is the part's pivot offset folded into its
-     * cube extents.
-     */
-    private static final @NotNull Map<SkinFace, Vector3f[]> ARMOR_MESH = Map.of(
-        SkinFace.HEAD, box(-4f, -8f, -4f, 4f, 0f, 4f),
-        SkinFace.TORSO, box(-4f, 0f, -2f, 4f, 12f, 2f),
-        SkinFace.RIGHT_ARM, box(-8f, 0f, -2f, -4f, 12f, 2f),
-        SkinFace.LEFT_ARM, box(4f, 0f, -2f, 8f, 12f, 2f),
-        SkinFace.RIGHT_LEG, box(-3.9f, 12f, -2f, 0.1f, 24f, 2f),
-        SkinFace.LEFT_LEG, box(-0.1f, 12f, -2f, 3.9f, 24f, 2f)
-    );
-
-    /**
      * Per-side growth in model units for the layer-1 armor pieces (helmet, chestplate, boots).
      */
     private static final float OUTER_ARMOR_GROW = 1.0f;
@@ -100,10 +84,96 @@ public class ArmorKit {
     private static final float INNER_ARMOR_GROW = 0.5f;
 
     /**
-     * Extra growth applied to the leg boxes on top of the slot's own, keeping the two leg shells from
-     * intersecting each other at the hip.
+     * One armor part - the box it is grown from, plus the growth its own mesh adds on top of the slot's.
+     *
+     * @param min the box's lower corner in model units, in the Y-down model frame
+     * @param max the box's upper corner
+     * @param extend growth added to the slot's own, negative to inset
      */
-    private static final float ARMOR_LEG_EXTEND = -0.1f;
+    private record ArmorPart(@NotNull Vector3f min, @NotNull Vector3f max, float extend) {}
+
+    /**
+     * One of vanilla's humanoid armor meshes - the boxes an armor slot's parts are grown from, in model
+     * units in the Y-down model frame, with each part's pivot offset folded into its cube extents.
+     *
+     * <p>Worn armor is <em>not</em> derived from the wearer's own mesh. Vanilla hands the armor layer a
+     * shared set, and most humanoids wear {@link #HUMANOID the same one} - a skeleton's narrow limbs and
+     * a giant's scaled-up body both wear those boxes. The few wearers vanilla builds a distinct set for
+     * are transcribed alongside it and selected by name.
+     *
+     * @param parts the box and per-part growth for each armor part
+     * @param outerGrow per-side growth for the layer-1 pieces (helmet, chestplate, boots)
+     * @param innerGrow per-side growth for the layer-2 leggings
+     */
+    private record ArmorMesh(
+        @NotNull Map<SkinFace, ArmorPart> parts, float outerGrow, float innerGrow
+    ) {
+
+        /**
+         * The per-side growth for one part of one slot - the slot's own, plus whatever this mesh's part
+         * adds. An absent part contributes nothing and is skipped by the builder.
+         */
+        float growFor(@NotNull ArmorTrim.Slot slot, @NotNull ArmorPart part) {
+            return (slot == ArmorTrim.Slot.LEGGINGS ? this.innerGrow : this.outerGrow) + part.extend();
+        }
+    }
+
+    /**
+     * Extra growth the legs of the shared mesh carry, keeping the two leg shells clear of each other at
+     * the hip.
+     */
+    private static final float SHARED_LEG_EXTEND = -0.1f;
+
+    /**
+     * The mesh every humanoid wears unless its renderer names another.
+     */
+    private static final @NotNull ArmorMesh HUMANOID = new ArmorMesh(Map.of(
+        SkinFace.HEAD, part(-4f, -8f, -4f, 4f, 0f, 4f, 0f),
+        SkinFace.TORSO, part(-4f, 0f, -2f, 4f, 12f, 2f, 0f),
+        SkinFace.RIGHT_ARM, part(-8f, 0f, -2f, -4f, 12f, 2f, 0f),
+        SkinFace.LEFT_ARM, part(4f, 0f, -2f, 8f, 12f, 2f, 0f),
+        SkinFace.RIGHT_LEG, part(-3.9f, 12f, -2f, 0.1f, 24f, 2f, SHARED_LEG_EXTEND),
+        SkinFace.LEFT_LEG, part(-0.1f, 12f, -2f, 3.9f, 24f, 2f, SHARED_LEG_EXTEND)
+    ), OUTER_ARMOR_GROW, INNER_ARMOR_GROW);
+
+    /**
+     * The zombie villager's own mesh: a head sitting two units higher than the shared one, and a torso
+     * and legs grown a further tenth of a unit to clear its robe. Its legs sit a tenth wider apart than
+     * the shared mesh's and carry no inset. Arms are the shared mesh's.
+     */
+    private static final @NotNull ArmorMesh ZOMBIE_VILLAGER = new ArmorMesh(Map.of(
+        SkinFace.HEAD, part(-4f, -10f, -4f, 4f, -2f, 4f, 0f),
+        SkinFace.TORSO, part(-4f, 0f, -2f, 4f, 12f, 2f, 0.1f),
+        SkinFace.RIGHT_ARM, part(-8f, 0f, -2f, -4f, 12f, 2f, 0f),
+        SkinFace.LEFT_ARM, part(4f, 0f, -2f, 8f, 12f, 2f, 0f),
+        SkinFace.RIGHT_LEG, part(-4f, 12f, -2f, 0f, 24f, 2f, 0.1f),
+        SkinFace.LEFT_LEG, part(0f, 12f, -2f, 4f, 24f, 2f, 0.1f)
+    ), OUTER_ARMOR_GROW, INNER_ARMOR_GROW);
+
+    /**
+     * The armor stand's own mesh: a head raised one unit and legs seated a unit higher than the shared
+     * mesh's, the stand being shorter than the mobs that share the humanoid one. Torso and arms are the
+     * shared mesh's.
+     */
+    private static final @NotNull ArmorMesh ARMOR_STAND = new ArmorMesh(Map.of(
+        SkinFace.HEAD, part(-4f, -7f, -4f, 4f, 1f, 4f, 0f),
+        SkinFace.TORSO, part(-4f, 0f, -2f, 4f, 12f, 2f, 0f),
+        SkinFace.RIGHT_ARM, part(-8f, 0f, -2f, -4f, 12f, 2f, 0f),
+        SkinFace.LEFT_ARM, part(4f, 0f, -2f, 8f, 12f, 2f, 0f),
+        SkinFace.RIGHT_LEG, part(-3.9f, 11f, -2f, 0.1f, 23f, 2f, SHARED_LEG_EXTEND),
+        SkinFace.LEFT_LEG, part(-0.1f, 11f, -2f, 3.9f, 23f, 2f, SHARED_LEG_EXTEND)
+    ), OUTER_ARMOR_GROW, INNER_ARMOR_GROW);
+
+    /**
+     * The armor meshes vanilla builds separately, keyed by the name the wearer's renderer holds them
+     * under. A name absent here wears {@link #HUMANOID the shared mesh} - which is the common case, not
+     * a gap: most humanoids genuinely share it, and their renderers name it all the same.
+     */
+    private static final @NotNull Map<String, ArmorMesh> ARMOR_MESHES = Map.of(
+        "zombie_villager_armor", ZOMBIE_VILLAGER,
+        "armor_stand_armor", ARMOR_STAND,
+        "armor_stand_small_armor", ARMOR_STAND
+    );
 
     /**
      * Trim separation in model units - the model-unit equivalent of {@link #TRIM_INFLATE} in the
@@ -120,6 +190,7 @@ public class ArmorKit {
      * transform over the shared armor set rather than giving those wearers a distinct mesh.
      *
      * @param baby whether the wearer renders in its baby form
+     * @param meshName the name of the armor mesh the wearer's renderer holds, or empty for the shared one
      * @param meshScale the wearer's whole-mesh uniform scale
      * @param meshOffset the wearer's whole-mesh offset, the anchor its scale is taken about
      * @param modelAnchor the model-space point mapped to the canvas centre
@@ -127,16 +198,16 @@ public class ArmorKit {
      * @param modelScale the per-render vertex pre-scale
      */
     public record EntityArmorFrame(
-        boolean baby, float meshScale, @NotNull Vector3f meshOffset,
+        boolean baby, @NotNull Optional<String> meshName, float meshScale, @NotNull Vector3f meshOffset,
         @NotNull Vector3f modelAnchor, float ndcScale, float modelScale
     ) {
 
         /**
-         * The frame for a wearer whose mesh carries no whole-mesh transform.
+         * The frame for a wearer of the shared mesh whose own mesh carries no whole-mesh transform.
          */
         public EntityArmorFrame(
             boolean baby, @NotNull Vector3f modelAnchor, float ndcScale, float modelScale) {
-            this(baby, 1f, Vector3f.ZERO, modelAnchor, ndcScale, modelScale);
+            this(baby, Optional.empty(), 1f, Vector3f.ZERO, modelAnchor, ndcScale, modelScale);
         }
 
         /**
@@ -144,6 +215,7 @@ public class ArmorKit {
          * built around - the bone vanilla's own mesh transformer scales and re-anchors.
          *
          * @param baby whether the wearer renders in its baby form
+         * @param meshName the armor mesh the wearer's renderer names, or empty for the shared one
          * @param model the wearer's model
          * @param modelAnchor the model-space point mapped to the canvas centre
          * @param ndcScale the model-units-to-NDC scale
@@ -151,13 +223,22 @@ public class ArmorKit {
          * @return the armor frame for that wearer
          */
         public static @NotNull EntityArmorFrame of(
-            boolean baby, @NotNull EntityModelData model,
+            boolean baby, @NotNull Optional<String> meshName, @NotNull EntityModelData model,
             @NotNull Vector3f modelAnchor, float ndcScale, float modelScale
         ) {
             EntityModelData.Bone torso = model.getBones().get(TORSO_BONE);
-            if (torso == null) return new EntityArmorFrame(baby, modelAnchor, ndcScale, modelScale);
-            return new EntityArmorFrame(baby, torso.getScale(), torso.getPivot(),
+            float meshScale = torso == null ? 1f : torso.getScale();
+            Vector3f meshOffset = torso == null ? Vector3f.ZERO : torso.getPivot();
+            return new EntityArmorFrame(baby, meshName, meshScale, meshOffset,
                 modelAnchor, ndcScale, modelScale);
+        }
+
+        /**
+         * The armor mesh this wearer wears - the one its renderer names, or the shared mesh when it
+         * names none or names one vanilla does not build separately.
+         */
+        @NotNull ArmorMesh mesh() {
+            return this.meshName.map(ARMOR_MESHES::get).orElse(HUMANOID);
         }
     }
 
@@ -167,11 +248,11 @@ public class ArmorKit {
     private static final @NotNull String TORSO_BONE = "body";
 
     /**
-     * A {@code [min, max]} bounds pair from its six extents.
+     * An armor part from its six extents and its own growth.
      */
-    private static @NotNull Vector3f @NotNull [] box(
-        float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-        return new Vector3f[]{ new Vector3f(minX, minY, minZ), new Vector3f(maxX, maxY, maxZ) };
+    private static @NotNull ArmorPart part(
+        float minX, float minY, float minZ, float maxX, float maxY, float maxZ, float extend) {
+        return new ArmorPart(new Vector3f(minX, minY, minZ), new Vector3f(maxX, maxY, maxZ), extend);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -438,28 +519,18 @@ public class ArmorKit {
      */
     private static @NotNull Map<SkinFace, Vector3f[]> armorBoxes(
         @NotNull EntityArmorFrame frame, @NotNull ArmorTrim.Slot slot) {
+        ArmorMesh mesh = frame.mesh();
         Map<SkinFace, Vector3f[]> boxes = new EnumMap<>(SkinFace.class);
-        for (SkinFace part : partsForSlot(slot)) {
-            Vector3f[] base = ARMOR_MESH.get(part);
-            if (base == null) continue;
-            float grow = growFor(slot, part);
-            boxes.put(part, turnAboutXBounds(new Vector3f[]{
-                toRenderFrame(frame, base[0].x() - grow, base[0].y() - grow, base[0].z() - grow),
-                toRenderFrame(frame, base[1].x() + grow, base[1].y() + grow, base[1].z() + grow)
+        for (SkinFace face : partsForSlot(slot)) {
+            ArmorPart part = mesh.parts().get(face);
+            if (part == null) continue;
+            float grow = mesh.growFor(slot, part);
+            boxes.put(face, turnAboutXBounds(new Vector3f[]{
+                toRenderFrame(frame, part.min().x() - grow, part.min().y() - grow, part.min().z() - grow),
+                toRenderFrame(frame, part.max().x() + grow, part.max().y() + grow, part.max().z() + grow)
             }));
         }
         return boxes;
-    }
-
-    /**
-     * The per-side growth for one part of one armor slot. Layer-2 leggings grow less than the layer-1
-     * pieces, and both leg shells grow less again so they clear each other at the hip.
-     */
-    private static float growFor(@NotNull ArmorTrim.Slot slot, @NotNull SkinFace part) {
-        float grow = slot == ArmorTrim.Slot.LEGGINGS ? INNER_ARMOR_GROW : OUTER_ARMOR_GROW;
-        if (part == SkinFace.RIGHT_LEG || part == SkinFace.LEFT_LEG)
-            return grow + ARMOR_LEG_EXTEND;
-        return grow;
     }
 
     /**

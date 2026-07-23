@@ -313,12 +313,15 @@ record RawTransform(
  *
  * @param id the layer id ({@code collar} / {@code markings} / ...), or {@code null}
  * @param armorType the armor classification ({@code humanoid}), or {@code null}
+ * @param armorMesh the name of the armor mesh the renderer dresses its subject in, or {@code null}
+ *     when the renderer names none and the shared mesh applies
  * @param when the layer gate carrying the {@code equipment} slot, or {@code null}
  * @param overlay the layer's overlay body, or {@code null}
  */
 record RawLayer(
     @Nullable String id,
     @SerializedName("armor_type") @Nullable String armorType,
+    @SerializedName("armor_mesh") @Nullable String armorMesh,
     @Nullable RawLayerWhen when,
     @Nullable RawLayerOverlay overlay
 ) {}

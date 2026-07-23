@@ -135,6 +135,16 @@ public record Entity(
     }
 
     /**
+     * The name of the armor mesh this entity is dressed in - a derived view over {@link #layers()}
+     * (delegating to {@link Layers#armorMesh()}), empty when the shared humanoid mesh applies.
+     *
+     * @return the armor mesh name, or empty for the shared mesh
+     */
+    public @NotNull Optional<String> armorMesh() {
+        return this.layers.armorMesh();
+    }
+
+    /**
      * Folds this definition's render-axis selections for the given appearance into a single resolved
      * {@link Entity} the renderer iterates unconditionally, with no scattered {@code !baby} gates - the
      * render-time policy the reader deliberately leaves off the loaded data.
@@ -171,7 +181,8 @@ public record Entity(
             builder.model(definition.axes().babyModel().get())
                 .overlays(gatedOverlays(definition.axes().babyOverlays(), appearance))
                 .blockOverlays(List.of())
-                .layers(new Layers(Optional.empty(), List.of(), definition.layers().markings(), definition.layers().humanoidArmor()));
+                .layers(new Layers(Optional.empty(), List.of(), definition.layers().markings(),
+                    definition.layers().humanoidArmor(), definition.layers().armorMesh()));
         } else {
             builder.overlays(gatedOverlays(definition.overlays(), appearance));
             // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
@@ -354,12 +365,16 @@ public record Entity(
      *     (skeletons, zombies, piglins) - the {@code armor_type: "humanoid"} classification the
      *     {@code layers} armor row carries, read off it at load. Gates the worn-armor render feature so
      *     only these entities draw equipped armor
+     * @param armorMesh the name of the armor mesh this entity is dressed in, or empty when its renderer
+     *     names none and the shared humanoid mesh applies. Worn armor is not built from the wearer's own
+     *     model - most humanoids share one mesh, and the few that do not are named here
      */
     public record Layers(
         @NotNull Optional<String> collar,
         @NotNull List<EquipmentOverlay> equipment,
         boolean markings,
-        boolean humanoidArmor
+        boolean humanoidArmor,
+        @NotNull Optional<String> armorMesh
     ) {}
 
     /**

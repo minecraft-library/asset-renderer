@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
@@ -12,8 +12,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ final class EntityLayersResolver {
     private static final @NotNull String MARKINGS_TOKEN = "markings";
 
     private final @NotNull ClassNodeCache cache;
+    private final @NotNull String rendererClass;
     private final @NotNull List<EntityRendererResolver.LayerSite> roster;
     private final @NotNull EntityEquipmentResolver equipment;
     private final @NotNull Diagnostics diagnostics;
@@ -59,6 +61,7 @@ final class EntityLayersResolver {
         @NotNull Diagnostics diagnostics
     ) {
         this.cache = session.cache();
+        this.rendererClass = subject.rendererClass();
         this.roster = roster;
         this.equipment = new EntityEquipmentResolver(session.cache(), subject, layerDefinitions, equipmentAssets,
             manifest, diagnostics.child("equipment"));
@@ -187,12 +190,52 @@ final class EntityLayersResolver {
      * {@code none}.
      */
     private @NotNull JsonTree armorRow(@NotNull EntityRendererResolver.LayerSite site) {
-        this.diagnostics.info("armor row: humanoid [LOCKED 3]");
-        return JsonTree.object()
+        JsonTree row = JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
             .put("id", "armor")
             .put("armor_type", "humanoid");
+
+        String mesh = resolveArmorMesh();
+        if (mesh == null) {
+            this.diagnostics.info("armor row: humanoid, mesh not named by the renderer [LOCKED 3]");
+            return row;
+        }
+        this.diagnostics.info("armor row: humanoid, mesh '%s' [LOCKED 3]", mesh);
+        return row.put("armor_mesh", mesh);
+    }
+
+    /**
+     * The name of the armor mesh this renderer dresses its subject in, or {@code null} when the
+     * renderer does not name one itself.
+     *
+     * <p>Vanilla does not build worn armor from the wearer's own model - it hands the layer a shared
+     * armor set, and most humanoids share one. A renderer that wears a different set holds it as a
+     * static, so the first such field along the constructor chain names the mesh. Leaf-first, because
+     * a subclass that passes the set down to its super's constructor is the one that names it, and
+     * first-wins within a class because vanilla's layer takes the adult set before the baby one.
+     *
+     * <p>A renderer handed its set as a constructor argument names no field, and resolves to
+     * {@code null} - the reader then falls back to the shared mesh.
+     *
+     * @return the lowercased field name, or {@code null} when no armor set is named
+     */
+    private @Nullable String resolveArmorMesh() {
+        List<String> named = new ArrayList<>();
+        AsmKit.walkSuperChain(this.cache, this.rendererClass, cn -> {
+            if (!named.isEmpty()) return;
+            for (MethodNode ctor : cn.methods) {
+                if (!AsmKit.INIT.equals(ctor.name)) continue;
+                for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+                    if (in.getOpcode() != Opcodes.GETSTATIC) continue;
+                    if (!(in instanceof FieldInsnNode field)) continue;
+                    if (!VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc)) continue;
+                    named.add(field.name.toLowerCase(Locale.ROOT));
+                    return;
+                }
+            }
+        });
+        return named.isEmpty() ? null : named.getFirst();
     }
 
 }

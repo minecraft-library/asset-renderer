@@ -81,6 +81,9 @@ public final class VanillaSourceClasses {
         /** {@code HumanoidArmorLayer} - the armor-mesh layer whose roster presence classifies {@code armor_type}. */
         public static final @NotNull String HUMANOID_ARMOR_LAYER = "net/minecraft/client/renderer/entity/layers/HumanoidArmorLayer";
 
+        /** {@code ArmorModelSet} - the set of armor meshes a renderer dresses its subject in. */
+        public static final @NotNull String ARMOR_MODEL_SET = "net/minecraft/client/renderer/entity/ArmorModelSet";
+
         /** {@code SimpleEquipmentLayer} - the generic saddle / body-armor layer (roster row 15). */
         public static final @NotNull String SIMPLE_EQUIPMENT_LAYER = "net/minecraft/client/renderer/entity/layers/SimpleEquipmentLayer";
 
@@ -446,6 +449,9 @@ public final class VanillaSourceClasses {
 
         /** The {@code ModelPart} field / return-type reference descriptor. */
         public static final @NotNull String MODEL_PART_REF = ref(Types.MODEL_PART);
+
+        /** The {@code ArmorModelSet} field reference descriptor - the type that names an armor mesh. */
+        public static final @NotNull String ARMOR_MODEL_SET_REF = ref(Types.ARMOR_MODEL_SET);
 
         /**
          * Composes a method descriptor from already-valid type descriptors.
