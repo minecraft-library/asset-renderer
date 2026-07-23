@@ -49,9 +49,15 @@ public final class RefHarnessRenderer {
 
         if (HarnessConfig.GLINT_ONLY) {
             // Decoupled fast path: render only the animated-glint references, skip the full sweep.
+            // The glint sweep drives GlintClock itself, one value per captured frame.
             glintSweeper = GlintSweeper.build();
             return;
         }
+
+        // Every other sweep renders any foil subject it meets at whatever phase the wall clock
+        // happened to be at, which made the always-foil items the only non-reproducible references
+        // in the tree. Pin the glint to the same instant the glint sweep captures as its frame 0.
+        GlintClock.overrideT = 0;
 
         if (HarnessConfig.PLAYERS_ONLY) {
             // Decoupled fast path: render only the player references, skip the full sweep.
