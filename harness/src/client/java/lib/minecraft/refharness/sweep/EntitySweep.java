@@ -120,7 +120,12 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                     subjects.add(Subject.variant(type, nbt, variantId.getPath()));
                 }
             } else {
-                subjects.add(Subject.plain(type));
+                // A family whose coats are an enum rather than a registry ships one reference, and it
+                // is named after the coat it actually is rather than left bare.
+                String defaultCoat = EntityRoster.DEFAULT_COAT.get(type);
+                subjects.add(defaultCoat == null
+                    ? Subject.plain(type)
+                    : new Subject(type, Optional.empty(), Optional.of(defaultCoat)));
             }
         }
         LOG.info("EntitySweep built: {} subjects", subjects.size());

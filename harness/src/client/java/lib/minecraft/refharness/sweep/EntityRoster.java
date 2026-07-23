@@ -66,6 +66,25 @@ public final class EntityRoster {
     );
 
     /**
+     * The coat a variant family renders at when the sweep does not enumerate its coats.
+     *
+     * <p>These five families carry a variant axis whose options are a plain Java enum rather than a
+     * data-driven registry, so the sweep does not walk them and each ships exactly one reference. That
+     * reference is the family's default coat, and naming it after that coat is what keeps a family from
+     * having two spellings - a bare one and a coated one - for the same appearance.
+     *
+     * <p>Enumerating the remaining coats is a separate, additive change. When it lands, the default
+     * coat's name is already what it will be.
+     */
+    public static final Map<EntityType<?>, String> DEFAULT_COAT = Map.of(
+        EntityType.AXOLOTL, "lucy",
+        EntityType.LLAMA, "creamy",
+        EntityType.PANDA, "normal",
+        EntityType.RABBIT, "brown",
+        EntityType.TRADER_LLAMA, "creamy"
+    );
+
+    /**
      * Cross-type family overrides for the canvas-sizing pre-pass, mapping a secondary entity type to
      * the primary type whose family it shares - and thus whose canvas, scale and anchor it renders
      * with.
