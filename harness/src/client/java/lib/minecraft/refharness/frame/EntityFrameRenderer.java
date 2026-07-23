@@ -9,6 +9,7 @@ import lib.minecraft.refharness.api.HarnessPose;
 import lib.minecraft.refharness.pip.PipScope;
 import lib.minecraft.refharness.pip.PipTarget;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
@@ -21,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 
 /**
  * Renders an {@link Entity} via the vanilla GUI entity pipeline ({@link EntityRenderDispatcher}
@@ -123,6 +125,29 @@ public final class EntityFrameRenderer implements FrameRenderer<Entity> {
         state.outlineColor = 0;
         state.lightCoords = PipScope.FULL_BRIGHT_LIGHT;
         return walker.computeScreenBounds(renderer, state, effectiveRotation);
+    }
+
+    /**
+     * Forces named bones on the mesh this entity will be measured and drawn with, until the returned
+     * handle is closed.
+     *
+     * <p>The harness draws the authored bind pose, so the {@code setupAnim} call where vanilla turns a
+     * chest or a horn on and off never runs and the render-state field it reads is inert. The flag has
+     * to be written onto the part, and the bracket has to span the measurement as well as the draw -
+     * the bounds walker reads the same flag, so a pin that covers only the draw frames the subject
+     * against a mesh it is not.
+     *
+     * @param client the active client, for the entity render dispatcher
+     * @param entity the entity whose mesh carries the bones
+     * @param pins the bones to force, mapped to the visibility to force them to
+     * @return a handle that puts every pinned bone back as it was
+     */
+    public AutoCloseable pinBones(Minecraft client, Entity entity, Map<String, Boolean> pins) {
+        if (pins.isEmpty()) return () -> {};
+        EntityRenderDispatcher dispatcher = client.getEntityRenderDispatcher();
+        EntityRenderer<? super Entity, ?> renderer = renderer(dispatcher, entity);
+        Map<ModelPart, Boolean> previous = walker.pinBones(renderer, createRenderState(renderer, entity), pins);
+        return () -> previous.forEach((part, visible) -> part.visible = visible);
     }
 
     private boolean renderInternal(

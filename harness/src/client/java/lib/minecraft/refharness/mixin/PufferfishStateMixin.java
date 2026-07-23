@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
+import lib.minecraft.refharness.api.AppearanceRequest;
 import net.minecraft.client.renderer.entity.PufferfishRenderer;
 import net.minecraft.client.renderer.entity.state.PufferfishRenderState;
 import net.minecraft.world.entity.animal.fish.Pufferfish;
@@ -36,6 +37,9 @@ public abstract class PufferfishStateMixin {
         at = @At("RETURN"))
     private void refharness$forceFullPuff(Pufferfish entity, PufferfishRenderState state, float partialTick, CallbackInfo ci) {
         if (!Boolean.getBoolean("refharness.headless")) return;
+        // A reference that names the size axis asked for a puff state on purpose. Every subject that
+        // selects nothing still gets the full puff, which is what the default reference already is.
+        if (AppearanceRequest.selectsAny("size")) return;
         state.puffState = Pufferfish.STATE_FULL;
     }
 }

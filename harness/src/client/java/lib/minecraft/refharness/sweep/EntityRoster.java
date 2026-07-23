@@ -16,6 +16,7 @@ import net.minecraft.world.entity.animal.panda.Panda;
 import net.minecraft.world.entity.animal.rabbit.Rabbit;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -149,7 +150,69 @@ public final class EntityRoster {
             select(selections, TraitAxis.VILLAGER_PROFESSION,
                 "armorer", "butcher", "cartographer", "cleric", "farmer", "fisherman", "fletcher",
                 "leatherworker", "librarian", "mason", "nitwit", "shepherd", "toolsmith", "weaponsmith");
+        // Two booleans that reach two models each and are a silent no-op on the other eighty-eight.
+        if (type == EntityType.SHEEP || type == EntityType.BOGGED) select(selections, TraitAxis.SHEARED, "true");
+        if (type == EntityType.CREEPER || type == EntityType.WITHER) select(selections, TraitAxis.CHARGED, "true");
+        for (String toggle : BONE_TOGGLES.getOrDefault(type, List.of()))
+            selections.add(new Appearance.Trait(TraitAxis.TOGGLE.token(), toggle));
+        // The size options exclude the model's own default, unlike the coat options, so each model
+        // contributes only the sizes it is not already rendered at.
+        if (type == EntityType.SLIME || type == EntityType.MAGMA_CUBE)
+            select(selections, TraitAxis.SIZE, "medium", "large");
+        if (type == EntityType.SALMON) select(selections, TraitAxis.SIZE, "small", "large");
+        if (type == EntityType.PUFFERFISH) select(selections, TraitAxis.SIZE, "small", "medium");
         return selections;
+    }
+
+    /**
+     * The bone toggles each model carries, named as the appearance names them rather than as the mesh
+     * names the bones they reach.
+     *
+     * <p>The bogged's shear toggle is not here: it is driven by the sheared flag rather than selected
+     * on its own, so counting it twice would be counting one reference twice.
+     */
+    private static final Map<EntityType<?>, List<String>> BONE_TOGGLES = Map.of(
+        EntityType.ARMOR_STAND, List.of("show_arms", "show_base_plate"),
+        EntityType.BEE, List.of("stinger"),
+        EntityType.DONKEY, List.of("chest"),
+        EntityType.MULE, List.of("chest"),
+        EntityType.LLAMA, List.of("chest"),
+        EntityType.TRADER_LLAMA, List.of("chest"),
+        EntityType.GOAT, List.of("horn"),
+        EntityType.TURTLE, List.of("egg"));
+
+    /**
+     * The bones a subject's selections force, mapped to the visibility they force them to.
+     *
+     * <p>Vanilla drives every one of these from {@code setupAnim}, which the harness does not run, so
+     * the flag has to be written onto the part. Two of them read backwards from the rest: a goat is
+     * horned and a bogged is mushroomed until something says otherwise.
+     *
+     * @param type the entity type, which decides what a shared selection name reaches
+     * @param appearance the selections being rendered
+     * @return the bones to force, empty when nothing selected reaches one
+     */
+    public static Map<String, Boolean> bonePins(EntityType<?> type, Appearance appearance) {
+        Map<String, Boolean> pins = new LinkedHashMap<>();
+        for (Appearance.Trait trait : appearance.traits()) {
+            if (trait.axis().equals(TraitAxis.TOGGLE.token())) pins.putAll(toggleBones(trait.value()));
+            else if (trait.axis().equals(TraitAxis.SHEARED.token()) && type == EntityType.BOGGED)
+                pins.put("mushrooms", false);
+        }
+        return pins;
+    }
+
+    /** The bones one toggle name reaches, and what selecting it does to them. */
+    private static Map<String, Boolean> toggleBones(String toggle) {
+        return switch (toggle) {
+            case "show_arms" -> Map.of("left_arm", true, "right_arm", true);
+            case "show_base_plate" -> Map.of("base_plate", true);
+            case "stinger" -> Map.of("stinger", true);
+            case "chest" -> Map.of("left_chest", true, "right_chest", true);
+            case "horn" -> Map.of("left_horn", false, "right_horn", false);
+            case "egg" -> Map.of("egg_belly", true);
+            default -> throw new IllegalArgumentException("No bone toggle named '" + toggle + "'");
+        };
     }
 
     /** Appends one selection per option of a single axis. */

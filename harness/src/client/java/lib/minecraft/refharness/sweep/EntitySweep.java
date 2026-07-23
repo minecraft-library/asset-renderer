@@ -352,13 +352,29 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         try {
             Entity entity = build(ctx, subject);
             if (entity == null) return null;
-            return frameRenderer.measureBounds(ctx.client(), entity);
+            try (AutoCloseable pins = pinBones(ctx, subject, entity)) {
+                return frameRenderer.measureBounds(ctx.client(), entity);
+            }
         } catch (RuntimeException ex) {
             LOG.warn("EntitySweep: measureBounds failed for {}: {}", subject.type(), ex.toString());
             return null;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Restoring pinned bones failed for " + subject.type(), ex);
         } finally {
             AppearanceRequest.clear();
         }
+    }
+
+    /**
+     * Forces the bones a subject's selections reach, for as long as it is being measured or drawn.
+     *
+     * <p>The bracket has to span both, and it has to be the same call in both: a pin that covers only
+     * the draw sizes the canvas against a mesh the subject is not, which is the failure that reports
+     * framing instead of the render.
+     */
+    private AutoCloseable pinBones(SweepContext ctx, Subject subject, Entity entity) {
+        return frameRenderer.pinBones(ctx.client(), entity,
+            EntityRoster.bonePins(subject.type(), subject.appearance()));
     }
 
     @Override
@@ -391,7 +407,13 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                 LOG.warn("EntitySweep: could not build {}", key(subject).fileName());
                 return false;
             }
-            return frameRenderer.render(ctx.client(), entity, canvas, out);
+            try (AutoCloseable pins = pinBones(ctx, subject, entity)) {
+                return frameRenderer.render(ctx.client(), entity, canvas, out);
+            }
+        } catch (IOException | RuntimeException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Restoring pinned bones failed for " + subject.type(), ex);
         } finally {
             AppearanceRequest.clear();
         }

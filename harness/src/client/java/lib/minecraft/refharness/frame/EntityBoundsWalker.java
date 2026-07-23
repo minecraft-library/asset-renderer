@@ -32,6 +32,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -620,10 +621,29 @@ final class EntityBoundsWalker implements AutoCloseable {
                     return true;
                 }
             }
+            // A sheared subject's wool layer bails at the top of its own submit, so walking it would
+            // measure a coat that is not drawn and leave the reference framed for a woolly sheep.
+            if (simpleName.endsWith("WoolLayer") && isSheared(state)) return false;
             for (String suffix : NO_RENDER_LAYER_SUFFIXES)
                 if (simpleName.endsWith(suffix)) return false;
         }
         return true;
+    }
+
+    /**
+     * Whether the render state reports the subject sheared, read off the same field the wool layer
+     * reads rather than off what the harness asked for - so the gate agrees with the draw even when
+     * the two are set by different routes.
+     */
+    private static boolean isSheared(EntityRenderState state) {
+        Field field = findFieldByName(state.getClass(), "isSheared");
+        if (field == null) return false;
+        try {
+            field.setAccessible(true);
+            return field.get(state) instanceof Boolean sheared && sheared;
+        } catch (ReflectiveOperationException ignored) {
+            return false;
+        }
     }
 
     private static final Field LIVING_RENDERER_LAYERS;
@@ -1371,6 +1391,51 @@ final class EntityBoundsWalker implements AutoCloseable {
             } catch (ReflectiveOperationException | RuntimeException ignored) {
                 return null;
             }
+        }
+        return null;
+    }
+
+    /**
+     * Forces the visibility of named bones on the mesh a subject will be measured and drawn with, and
+     * returns what they were so the caller can put them back.
+     *
+     * <p>The harness renders the authored bind pose, which means {@code setupAnim} never runs - and
+     * {@code setupAnim} is where vanilla turns a chest, a horn, an egg belly or a base plate on and
+     * off from its render state. Setting the state field the model would have read therefore changes
+     * nothing; the flag has to be written onto the part itself, and it has to be written before the
+     * bounds walk as well as before the draw, or the selection is framed against the mesh it is not.
+     *
+     * <p>A bone the mesh does not carry throws. A silently skipped pin renders the default under a
+     * name that claims a bone was toggled, which is a reference that cannot fail.
+     *
+     * @param renderer the renderer whose model will be drawn
+     * @param state the render state the model is resolved through
+     * @param pins the bones to force, mapped to the visibility to force them to
+     * @return each pinned part with the visibility it had, for restoring
+     */
+    public Map<ModelPart, Boolean> pinBones(EntityRenderer<?, ?> renderer, EntityRenderState state,
+                                            Map<String, Boolean> pins) {
+        if (pins.isEmpty()) return Map.of();
+        Model<?> model = tryGetModel(renderer, state);
+        if (model == null) throw new IllegalStateException("No model to pin bones on");
+        Map<ModelPart, Boolean> previous = new LinkedHashMap<>();
+        for (Map.Entry<String, Boolean> pin : pins.entrySet()) {
+            ModelPart part = findPart(model.root(), pin.getKey());
+            if (part == null)
+                throw new IllegalStateException("No bone '" + pin.getKey() + "' on "
+                    + model.getClass().getSimpleName());
+            previous.put(part, part.visible);
+            part.visible = pin.getValue();
+        }
+        return previous;
+    }
+
+    /** Finds a bone anywhere below {@code part}, by the name its mesh gives it. */
+    private static ModelPart findPart(ModelPart part, String name) {
+        for (Map.Entry<String, ModelPart> child : childrenOf(part).entrySet()) {
+            if (child.getKey().equals(name)) return child.getValue();
+            ModelPart found = findPart(child.getValue(), name);
+            if (found != null) return found;
         }
         return null;
     }

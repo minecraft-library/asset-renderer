@@ -9,10 +9,16 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.NeutralMob;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.animal.equine.Markings;
+import net.minecraft.world.entity.animal.fish.Pufferfish;
 import net.minecraft.world.entity.animal.fish.TropicalFish;
 import net.minecraft.world.entity.animal.golem.CopperGolem;
+import net.minecraft.world.entity.animal.sheep.Sheep;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
+import net.minecraft.world.entity.monster.Slime;
+import net.minecraft.world.entity.monster.skeleton.Bogged;
 import net.minecraft.world.level.block.WeatheringCopper;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -140,7 +146,73 @@ enum TraitAxis {
         void persist(String value, CompoundTag payload) {
             villagerData(payload).putString("profession", Identifier.withDefaultNamespace(value).toString());
         }
+    },
+
+    /**
+     * Whether the subject has been sheared, which two models answer to and answer differently: a sheep
+     * loses a whole overlay layer and the bogged loses the mushrooms growing out of its skull. Only
+     * the sheep's half is an entity setter - the mushrooms are bones, and bones are pinned.
+     */
+    SHEARED("sheared") {
+        @Override
+        void apply(SweepContext ctx, String value, Entity entity) {
+            if (entity instanceof Sheep sheep) sheep.setSheared(true);
+            else if (entity instanceof Bogged bogged) bogged.setSheared(true);
+        }
+    },
+
+    /**
+     * Whether the subject is charged, which vanilla stores for a creeper and derives for a wither.
+     *
+     * <p>A creeper has no setter at all - being struck by lightning is the only thing that sets it, so
+     * the flag is persisted instead. A wither counts as charged below half health, so the reference is
+     * produced by wounding it there.
+     */
+    CHARGED("charged") {
+        @Override
+        void persist(String value, CompoundTag payload) {
+            payload.putBoolean("powered", true);
+        }
+
+        @Override
+        void apply(SweepContext ctx, String value, Entity entity) {
+            if (entity instanceof WitherBoss wither) wither.setHealth(wither.getMaxHealth() / 2.0f);
+        }
+    },
+
+    /** A bone the mesh carries but the default render does not show, or shows and this one does not. */
+    TOGGLE("toggle") {},
+
+    /**
+     * How big the subject is, which vanilla splits three ways: a slime carries a size, a salmon
+     * carries a named one, and a pufferfish carries how far it has puffed up.
+     */
+    SIZE("size") {
+        @Override
+        void persist(String value, CompoundTag payload) {
+            SALMON_SIZES.stream().filter(value::equals).findFirst()
+                .ifPresent(size -> payload.putString("type", size));
+        }
+
+        @Override
+        void apply(SweepContext ctx, String value, Entity entity) {
+            if (entity instanceof Slime slime) slime.setSize(switch (value) {
+                case "small" -> 1;
+                case "medium" -> 2;
+                case "large" -> 4;
+                default -> throw new IllegalArgumentException("No vanilla slime size named '" + value + "'");
+            }, false);
+            else if (entity instanceof Pufferfish pufferfish) pufferfish.setPuffState(switch (value) {
+                case "small" -> 0;
+                case "medium" -> 1;
+                case "large" -> Pufferfish.STATE_FULL;
+                default -> throw new IllegalArgumentException("No vanilla puff state named '" + value + "'");
+            });
+        }
     };
+
+    /** The sizes a salmon is persisted under, which are its only mechanism - its setter is private. */
+    private static final List<String> SALMON_SIZES = List.of("small", "medium", "large");
 
     /** The tag a horse's coat and markings share. */
     static final String HORSE_VARIANT = "Variant";
