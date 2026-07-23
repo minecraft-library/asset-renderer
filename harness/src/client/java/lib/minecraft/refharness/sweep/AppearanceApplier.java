@@ -2,6 +2,7 @@ package lib.minecraft.refharness.sweep;
 
 import lib.minecraft.refharness.api.Appearance;
 import lib.minecraft.refharness.api.SweepContext;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityProcessor;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -18,6 +19,11 @@ import org.slf4j.LoggerFactory;
  * axis vanilla persists is applied by reconstructing the entity through the deserialiser a world load
  * runs, because the setters behind those axes are private and the NBT round-trip is the public path.
  * An axis vanilla exposes as a setter is applied by calling it after construction.
+ *
+ * <p>The persisted axes are collected into one payload before the entity is built rather than applied
+ * one at a time, because vanilla packs more than one of them into a single tag - a horse's coat and
+ * its markings share an integer, and a tropical fish's pattern shares one with both of its colours.
+ * Building the payload first lets those axes compose instead of overwriting each other.
  */
 final class AppearanceApplier {
 
@@ -34,10 +40,11 @@ final class AppearanceApplier {
      * @return the entity, or {@code null} when vanilla declined to build one
      */
     static Entity build(SweepContext ctx, EntityType<?> type, Appearance appearance) {
-        Entity entity = appearance.coat()
-            .map(coat -> EntityType.loadEntityRecursive(type, coat.toPayload(), ctx.level(),
-                EntitySpawnReason.LOAD, EntityProcessor.NOP))
-            .orElseGet(() -> type.create(ctx.level(), EntitySpawnReason.LOAD));
+        CompoundTag payload = appearance.coat().map(Appearance.Coat::toPayload).orElseGet(CompoundTag::new);
+        Entity entity = payload.isEmpty()
+            ? type.create(ctx.level(), EntitySpawnReason.LOAD)
+            : EntityType.loadEntityRecursive(type, payload, ctx.level(), EntitySpawnReason.LOAD,
+                EntityProcessor.NOP);
         if (entity == null) return null;
 
         EntitySubjects.zeroRotations(entity);

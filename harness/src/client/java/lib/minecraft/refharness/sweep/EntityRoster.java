@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.sweep;
 
+import lib.minecraft.refharness.api.Appearance;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -7,7 +8,13 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.animal.axolotl.Axolotl;
+import net.minecraft.world.entity.animal.equine.Llama;
+import net.minecraft.world.entity.animal.panda.Panda;
+import net.minecraft.world.entity.animal.rabbit.Rabbit;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -64,6 +71,38 @@ public final class EntityRoster {
         EntityType.CAT, Registries.CAT_VARIANT,
         EntityType.ZOMBIE_NAUTILUS, Registries.ZOMBIE_NAUTILUS_VARIANT
     );
+
+    /**
+     * The coats of the families whose variant axis is a plain Java enum rather than a data-driven
+     * registry, so the registry walk cannot reach them.
+     *
+     * <p>Every one is persisted, because vanilla declares each of these setters private - the NBT
+     * round-trip a world load runs is the only public route to them. The tag name and its type are
+     * vanilla's: a coat filed under an integer id keeps that id, and the panda's gene pair is written
+     * as two strings because the renderer reads the visible gene only where the hidden one agrees.
+     *
+     * @param type the entity type
+     * @return its coats, or empty for a type whose coats come from a registry or from nowhere
+     */
+    public static List<Appearance.Coat> enumCoats(EntityType<?> type) {
+        List<Appearance.Coat> coats = new ArrayList<>();
+        if (type == EntityType.AXOLOTL) {
+            for (Axolotl.Variant coat : Axolotl.Variant.values())
+                coats.add(Appearance.Coat.ofInt("Variant", coat.getId(), coat.getSerializedName()));
+        } else if (type == EntityType.LLAMA || type == EntityType.TRADER_LLAMA) {
+            for (Llama.Variant coat : Llama.Variant.values())
+                coats.add(Appearance.Coat.ofInt("Variant", coat.getId(), coat.getSerializedName()));
+        } else if (type == EntityType.RABBIT) {
+            for (Rabbit.Variant coat : Rabbit.Variant.values())
+                coats.add(Appearance.Coat.ofInt("RabbitType", coat.id(), coat.getSerializedName()));
+        } else if (type == EntityType.PANDA) {
+            for (Panda.Gene gene : Panda.Gene.values()) {
+                String name = gene.getSerializedName();
+                coats.add(Appearance.Coat.ofString("MainGene", name, name).and("HiddenGene", name));
+            }
+        }
+        return coats;
+    }
 
     /**
      * The coat each variant family is at when nothing selects one.
@@ -143,18 +182,19 @@ public final class EntityRoster {
     );
 
     /**
-     * Whether a type's baby canvas is measured against its adults as well as against the baby.
+     * Whether a type's selected-appearance canvases are measured against its plain subjects as well
+     * as against the selection.
      *
      * <p>Not a stylistic choice - it mirrors what the asset-renderer measures, and getting it wrong
      * produces a reference of different dimensions whose comparison then reports framing rather than
-     * the render. The asset side unions a baby with every adult coat of its own model and with every
-     * member of its group; a model that is neither coated nor grouped is measured against the baby
-     * alone, and its adult silhouette never enters the box.
+     * the render. The asset side unions the appearance it is rendering with every adult coat of its
+     * own model and with every member of its group; a model that is neither coated nor grouped is
+     * measured against the selected appearance alone, and its plain silhouette never enters the box.
      *
      * @param type the entity type
-     * @return whether the adult silhouette belongs in this type's baby canvas
+     * @return whether the plain silhouette belongs in this type's derived canvases
      */
-    public static boolean babySharesAdultCanvas(EntityType<?> type) {
+    public static boolean sharesDefaultCanvas(EntityType<?> type) {
         return DEFAULT_COAT.containsKey(type)
             || GROUP_OF.containsKey(type)
             || GROUP_OF.containsValue(type);

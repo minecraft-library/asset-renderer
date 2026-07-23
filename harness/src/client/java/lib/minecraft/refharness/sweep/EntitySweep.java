@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -99,6 +100,11 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
             return new Subject(type, Appearance.of(coat), Optional.of(coat.name()));
         }
 
+        /** Returns this subject with one appearance selection applied on top of its coat. */
+        private Subject selecting(Appearance.Trait trait) {
+            return new Subject(type, appearance.with(trait), qualifier);
+        }
+
         /** The canvas group this subject is sized within. */
         private CanvasKey canvasKey() {
             return new CanvasKey(EntityRoster.familyRoot(type), appearance.cohort());
@@ -158,12 +164,16 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                     subjects.add(Subject.coated(type,
                         Appearance.Coat.ofString("variant", variantId.toString(), variantId.getPath())));
             } else {
-                // A family whose coats are an enum rather than a registry ships one reference, and it
-                // is named after the coat it actually is rather than left bare.
+                // A family whose coats are an enum rather than a registry names its default coat
+                // rather than leaving it bare, and takes that coat from vanilla's own construction
+                // rather than from a payload - so the reference that already exists keeps being
+                // rendered the way it was rendered, and the coats added around it are additions.
                 String defaultCoat = EntityRoster.DEFAULT_COAT.get(type);
                 subjects.add(defaultCoat == null
                     ? Subject.plain(type)
                     : new Subject(type, Appearance.DEFAULT, Optional.of(defaultCoat)));
+                for (Appearance.Coat coat : EntityRoster.enumCoats(type))
+                    if (!coat.name().equals(defaultCoat)) subjects.add(Subject.coated(type, coat));
             }
         }
         List<Subject> withBabies = new ArrayList<>(subjects);
@@ -251,16 +261,36 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
             }
         }
 
-        // A baby's canvas takes in its family's adult canvas only when the asset-renderer's does.
-        // That side unions a baby with every adult coat of its own model and with every member of its
-        // group, and measures anything neither coated nor grouped against the baby alone - so a
-        // harness that always seeded from the adult would hand nineteen singletons an adult-sized
-        // frame, and their comparison would report framing rather than the render.
-        for (Map.Entry<CanvasKey, Bounds> entry : Map.copyOf(familyBounds).entrySet()) {
-            if (entry.getKey().cohort() != Appearance.Cohort.BABY) continue;
-            if (!EntityRoster.babySharesAdultCanvas(entry.getKey().family())) continue;
-            Bounds adult = familyBounds.get(new CanvasKey(entry.getKey().family(), Appearance.Cohort.DEFAULT));
-            if (adult != null) familyBounds.merge(entry.getKey(), adult, Bounds::union);
+        // Every subject carrying an appearance selection is measured from the work list rather than
+        // from a second enumeration of its own. Two lists that each decide what a selection means
+        // drift, and the drift is silent: a subject enumerated to render against a canvas nobody
+        // measured. The coat and baby lists above stay separate for the opposite reason - what they
+        // measure is what sizes every reference that already exists.
+        for (Subject subject : subjects) {
+            if (subject.appearance().traits().isEmpty()) continue;
+            Bounds bounds = measure(ctx, subject);
+            if (bounds == null) continue;
+            familyBounds.merge(subject.canvasKey(), bounds, Bounds::union);
+            measured++;
+        }
+
+        // A derived cohort's canvas takes in the cohort it builds on only when the asset-renderer's
+        // does. That side unions a selected appearance with every adult coat of its own model and
+        // with every member of its group, and measures anything neither coated nor grouped against
+        // the selection alone - so a harness that always seeded from the plain subject would hand
+        // every singleton a frame sized for something it is not, and the comparison would report
+        // framing rather than the render.
+        //
+        // Ordered so a cohort is seeded after the one it seeds from: the babies take in the adults
+        // before a baby's own selections take in the babies.
+        for (Map.Entry<CanvasKey, Bounds> entry : Map.copyOf(familyBounds).entrySet().stream()
+            .sorted(Comparator.comparingInt(e -> e.getKey().cohort().name().length()))
+            .toList()) {
+            if (!EntityRoster.sharesDefaultCanvas(entry.getKey().family())) continue;
+            Optional<Appearance.Cohort> base = entry.getKey().cohort().base();
+            if (base.isEmpty()) continue;
+            Bounds seed = familyBounds.get(new CanvasKey(entry.getKey().family(), base.get()));
+            if (seed != null) familyBounds.merge(entry.getKey(), seed, Bounds::union);
         }
 
         Map<CanvasKey, Canvas> fits = new HashMap<>();
@@ -292,7 +322,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         // the sizing pass actually has to make.
         fits.entrySet().stream()
             .map(fit -> String.format("  fit %s/%s -> %dx%d @ %.6f (%.6f, %.6f)",
-                EntityType.getKey(fit.getKey().family()), fit.getKey().cohort(),
+                EntityType.getKey(fit.getKey().family()), fit.getKey().cohort().name(),
                 fit.getValue().width(), fit.getValue().height(),
                 fit.getValue().fit().orElseThrow().scale(),
                 fit.getValue().fit().orElseThrow().anchorX(),
@@ -317,6 +347,8 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         RefKey key = RefKey.of(BuiltInRegistries.ENTITY_TYPE.getKey(subject.type()));
         key = subject.qualifier().map(key::with).orElse(key);
         if (subject.appearance().baby()) key = key.token("age", "baby");
+        for (Appearance.Trait trait : subject.appearance().traits())
+            key = key.token(trait.axis(), trait.value());
         return key;
     }
 
