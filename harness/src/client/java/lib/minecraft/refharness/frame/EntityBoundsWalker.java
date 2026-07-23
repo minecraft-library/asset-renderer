@@ -13,11 +13,15 @@ import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.layers.EquipmentLayerRenderer;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.client.renderer.texture.SpriteContents;
 import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.resources.model.EquipmentAssetManager;
+import net.minecraft.client.resources.model.EquipmentClientInfo;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.world.item.ItemStack;
@@ -231,7 +235,7 @@ final class EntityBoundsWalker implements AutoCloseable {
      * a transient zero-state entity doesn't populate - in that case the overlay's rest pose
      * is what gets measured, which is what we want anyway.
      */
-    private static void walkLayerExtents(
+    private void walkLayerExtents(
         LivingEntityRenderer<?, ?, ?> renderer,
         EntityRenderState state,
         PoseStack ps,
@@ -242,6 +246,12 @@ final class EntityBoundsWalker implements AutoCloseable {
         List<? extends RenderLayer<?, ?>> layers = layersOf(renderer);
         for (RenderLayer<?, ?> layer : layers) {
             if (!isLayerActiveForState(layer, state)) continue;
+            // An equipment / decor layer is measured through its OWN equipment texture, not the wearer's
+            // body texture: the two disagree on which of the shell's texels are opaque, so the body
+            // texture over-pads a body-shaped saddle mesh and crops a dedicated one. A layer that carries
+            // no equipment texture (every non-equipment overlay) falls back to the body texture unchanged.
+            NativeImage layerTexture = equipmentTexture(layer, state);
+            if (layerTexture == null) layerTexture = texture;
             for (Model<?> layerModel : findLayerModels(layer, state)) {
                 @SuppressWarnings({"unchecked", "rawtypes"})
                 Model raw = layerModel;
@@ -259,7 +269,7 @@ final class EntityBoundsWalker implements AutoCloseable {
                     } catch (RuntimeException ignored) {
                     }
                 }
-                walkVisibleExtents(layerModel.root(), ps, texture, expand);
+                walkVisibleExtents(layerModel.root(), ps, layerTexture, expand);
             }
         }
     }
@@ -864,7 +874,19 @@ final class EntityBoundsWalker implements AutoCloseable {
      */
     private NativeImage entityTexture(EntityRenderer<?, ?> renderer, EntityRenderState state) {
         Identifier location = invokeGetTextureLocation(renderer, state);
-        if (location == null) return null;
+        return location == null ? null : loadTexture(location);
+    }
+
+    /**
+     * Loads a texture PNG as a {@link NativeImage} for alpha sampling, cached in
+     * {@link #textureCache} keyed by resource location so repeat renders on the same texture
+     * (variant sweeps, an equipment layer shared across family members) don't reopen the resource.
+     * Returns {@code null} when the location resolves to no resource or the PNG fails to decode.
+     *
+     * @param location the texture resource location
+     * @return the decoded image, or {@code null}
+     */
+    private NativeImage loadTexture(Identifier location) {
         NativeImage cached = textureCache.get(location);
         if (cached != null) return cached;
         try {
@@ -879,6 +901,128 @@ final class EntityBoundsWalker implements AutoCloseable {
         } catch (IOException ignored) {
             return null;
         }
+    }
+
+    /**
+     * The texture an equipment / decor layer draws its overlay mesh with - a plain equipment PNG at
+     * {@code textures/entity/equipment/<layerType>/<material>.png}, the same file vanilla's
+     * {@code EquipmentClientInfo.Layer.getTextureLocation} resolves and the asset renderer samples.
+     * Resolved from the layer's own {@code LayerType} field and the worn item's equipment-asset id.
+     * <p>
+     * The bounds walk must sample the overlay through THIS texture, not the wearer's body texture: a
+     * saddle is a few opaque straps over a mostly-transparent sheet, so measuring its body-shaped mesh
+     * against the opaque body over-pads the canvas; a dedicated saddle mesh (the camel's pommel) maps
+     * to transparent body texels and is dropped, cropping the canvas. Both are the wrong silhouette.
+     *
+     * @param layer the render layer being walked
+     * @param state the render state carrying the worn item
+     * @return the equipment texture, or {@code null} when the layer carries none (a non-equipment
+     *     layer, or an unresolved asset) so the caller falls back to the body texture
+     */
+    private NativeImage equipmentTexture(RenderLayer<?, ?> layer, EntityRenderState state) {
+        EquipmentClientInfo.LayerType layerType = reflectLayerType(layer);
+        if (layerType == null) return null;
+        ItemStack worn = firstWornItem(state);
+        if (worn == null || worn.isEmpty()) return null;
+        var equippable = worn.get(DataComponents.EQUIPPABLE);
+        if (equippable == null) return null;
+        var assetKey = equippable.assetId().orElse(null);
+        if (assetKey == null) return null;
+        // Resolve the texture through vanilla's own EquipmentClientInfo, exactly as the render does: the
+        // layer's texture id is not always the asset id (a llama carpet's asset is white_carpet but its
+        // texture is llama_body/white), so the id can't be pasted into the path directly.
+        EquipmentAssetManager assets = equipmentAssetManager(layer);
+        if (assets == null) return null;
+        EquipmentClientInfo info = assets.get(assetKey);
+        List<EquipmentClientInfo.Layer> layers = info.getLayers(layerType);
+        if (layers.isEmpty()) return null;
+        Identifier texture = layers.getFirst().getTextureLocation(layerType);
+        NativeImage image = loadTexture(texture);
+        if (image != null && RESOLVED_EQUIPMENT_TEXTURES.add(texture))
+            LOG.info("equipment bounds texture: {} -> {}", layer.getClass().getSimpleName(), texture);
+        return image;
+    }
+
+    /**
+     * The equipment asset manager an equipment layer resolves its textures through - reflected off the
+     * {@link EquipmentLayerRenderer} every equipment layer holds. The one global instance, reached via
+     * the layer so no client-wide accessor is needed.
+     *
+     * @param layer the render layer
+     * @return the asset manager, or {@code null} when the layer holds no equipment renderer
+     */
+    private static EquipmentAssetManager equipmentAssetManager(RenderLayer<?, ?> layer) {
+        for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass())
+            for (Field f : c.getDeclaredFields()) {
+                if (!EquipmentLayerRenderer.class.isAssignableFrom(f.getType())) continue;
+                try {
+                    f.setAccessible(true);
+                    Object renderer = f.get(layer);
+                    if (renderer == null) continue;
+                    for (Class<?> rc = renderer.getClass(); rc != null && rc != Object.class; rc = rc.getSuperclass())
+                        for (Field rf : rc.getDeclaredFields()) {
+                            if (!EquipmentAssetManager.class.isAssignableFrom(rf.getType())) continue;
+                            rf.setAccessible(true);
+                            if (rf.get(renderer) instanceof EquipmentAssetManager assets) return assets;
+                        }
+                } catch (ReflectiveOperationException | RuntimeException ignored) {
+                }
+            }
+        return null;
+    }
+
+    /** Equipment textures logged once each, so a full sweep prints one line per distinct shell. */
+    private static final java.util.Set<Identifier> RESOLVED_EQUIPMENT_TEXTURES = Collections.synchronizedSet(new java.util.HashSet<>());
+
+    /**
+     * The layer's {@code EquipmentClientInfo.LayerType} - the equipment sub-directory (SimpleEquipmentLayer
+     * / *ArmorLayer / decor layers all hold one). A layer with no such field is not an equipment layer.
+     *
+     * @param layer the render layer
+     * @return the layer type, or {@code null} when the layer declares none
+     */
+    private static EquipmentClientInfo.LayerType reflectLayerType(RenderLayer<?, ?> layer) {
+        for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass())
+            for (Field f : c.getDeclaredFields()) {
+                if (!EquipmentClientInfo.LayerType.class.isAssignableFrom(f.getType())) continue;
+                try {
+                    f.setAccessible(true);
+                    if (f.get(layer) instanceof EquipmentClientInfo.LayerType type) return type;
+                } catch (ReflectiveOperationException | RuntimeException ignored) {
+                }
+            }
+        // A layer that hardcodes its LayerType inline in submit rather than storing it in a field
+        // (the wolf's body armour, the llama's carpet) can't be reflected off an instance; name it.
+        for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            String name = HARDCODED_LAYER_TYPES.get(c.getSimpleName());
+            if (name != null) return EquipmentClientInfo.LayerType.valueOf(name);
+        }
+        return null;
+    }
+
+    /** Layer classes that hardcode their {@code LayerType} in a method body, mapped to that type's enum name. */
+    private static final Map<String, String> HARDCODED_LAYER_TYPES = Map.of(
+        "WolfArmorLayer", "WOLF_BODY",
+        "LlamaDecorLayer", "LLAMA_BODY");
+
+    /**
+     * The first non-empty {@link ItemStack} slot on the render state - the item an equipment layer
+     * draws. Each equipment reference selects exactly one slot, so the one worn item is unambiguous.
+     *
+     * @param state the render state
+     * @return the worn stack, or {@code null} when the subject wears nothing readable
+     */
+    private static ItemStack firstWornItem(EntityRenderState state) {
+        for (Class<?> c = state.getClass(); c != null && c != Object.class; c = c.getSuperclass())
+            for (Field field : c.getDeclaredFields()) {
+                if (!ItemStack.class.isAssignableFrom(field.getType())) continue;
+                try {
+                    field.setAccessible(true);
+                    if (field.get(state) instanceof ItemStack stack && !stack.isEmpty()) return stack;
+                } catch (ReflectiveOperationException | RuntimeException ignored) {
+                }
+            }
+        return null;
     }
 
     /**
