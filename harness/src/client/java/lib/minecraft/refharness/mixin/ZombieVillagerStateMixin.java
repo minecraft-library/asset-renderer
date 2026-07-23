@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
+import lib.minecraft.refharness.api.AppearanceRequest;
 import net.minecraft.client.renderer.entity.ZombieVillagerRenderer;
 import net.minecraft.client.renderer.entity.state.ZombieVillagerRenderState;
 import net.minecraft.world.entity.monster.zombie.ZombieVillager;
@@ -54,6 +55,10 @@ public abstract class ZombieVillagerStateMixin {
         at = @At("RETURN"))
     private void refharness$pinDefaultVillagerData(ZombieVillager entity, ZombieVillagerRenderState state, float partialTick, CallbackInfo ci) {
         if (!Boolean.getBoolean("refharness.headless")) return;
+        // A reference that names a villager axis asked for that trade data on purpose, and pinning it
+        // back would render the default under a name claiming otherwise. Every subject that selects
+        // nothing still gets the pin, which is what keeps the random roll out of the reference tree.
+        if (AppearanceRequest.selectsAny("villager_type", "villager_profession", "villager_level")) return;
         state.villagerData = Villager.createDefaultVillagerData();
     }
 }

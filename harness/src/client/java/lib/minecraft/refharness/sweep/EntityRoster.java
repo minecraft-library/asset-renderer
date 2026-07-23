@@ -11,6 +11,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.entity.animal.equine.Llama;
+import net.minecraft.world.entity.animal.fish.TropicalFish;
 import net.minecraft.world.entity.animal.panda.Panda;
 import net.minecraft.world.entity.animal.rabbit.Rabbit;
 
@@ -131,6 +132,23 @@ public final class EntityRoster {
             select(selections, TraitAxis.WEATHERING, "exposed", "weathered", "oxidized");
         if (type == EntityType.HORSE)
             select(selections, TraitAxis.MARKINGS, "white", "white_field", "white_dots", "black_dots");
+        // The fish's pattern is also its body shape - six of the twelve are drawn on the large mesh -
+        // so the shape axis needs no references of its own.
+        if (type == EntityType.TROPICAL_FISH) {
+            for (TropicalFish.Pattern pattern : TropicalFish.Pattern.values())
+                if (pattern != TropicalFish.Pattern.KOB)
+                    selections.add(new Appearance.Trait(TraitAxis.PATTERN.token(), pattern.getSerializedName()));
+        }
+        // The two villagers share one overlay set. The zombie villager takes the professions and not
+        // the biome types: vanilla's texture corpus ships it no per-type sidecar, so each of those six
+        // would be a byte-identical copy of its default under a name claiming otherwise.
+        if (type == EntityType.VILLAGER)
+            select(selections, TraitAxis.VILLAGER_TYPE,
+                "desert", "jungle", "savanna", "snow", "swamp", "taiga");
+        if (type == EntityType.VILLAGER || type == EntityType.ZOMBIE_VILLAGER)
+            select(selections, TraitAxis.VILLAGER_PROFESSION,
+                "armorer", "butcher", "cartographer", "cleric", "farmer", "fisherman", "fletcher",
+                "leatherworker", "librarian", "mason", "nitwit", "shepherd", "toolsmith", "weaponsmith");
         return selections;
     }
 

@@ -1326,6 +1326,8 @@ final class EntityBoundsWalker implements AutoCloseable {
     private static Model<?> tryGetModel(EntityRenderer<?, ?> renderer, EntityRenderState state) {
         Model<?> variantModel = tryResolveVariantModel(renderer, state);
         if (variantModel != null) return variantModel;
+        Model<?> shapeModel = tryResolveShapeModel(renderer, state);
+        if (shapeModel != null) return shapeModel;
         Model<?> ageModel = tryResolveAgeModel(renderer, state);
         if (ageModel != null) return ageModel;
         if (renderer instanceof LivingEntityRenderer<?, ?, ?> ler) {
@@ -1371,6 +1373,41 @@ final class EntityBoundsWalker implements AutoCloseable {
             }
         }
         return null;
+    }
+
+    /**
+     * Resolves the body-shape model for a renderer that keeps two meshes and picks between them from
+     * the pattern its render state carries - the tropical fish, whose twelve patterns are six on a
+     * small body and six on a large one.
+     *
+     * <p>The pick happens inside {@code submit}, which the walker runs before, so {@code getModel()}
+     * hands back the constructor's model - the small one - for every pattern. Six of the twelve would
+     * then be measured against a body they are not drawn on, and cropped to it.
+     *
+     * @param renderer the entity renderer being measured
+     * @param state the render state whose pattern drives the pick
+     * @return the model the render will actually draw, or {@code null} when the renderer has no shape
+     *     pair
+     */
+    private static Model<?> tryResolveShapeModel(EntityRenderer<?, ?> renderer, EntityRenderState state) {
+        try {
+            Field patternField = findFieldByName(state.getClass(), "pattern");
+            Field smallModel = findFieldByName(renderer.getClass(), "smallModel");
+            Field largeModel = findFieldByName(renderer.getClass(), "largeModel");
+            if (patternField == null || smallModel == null || largeModel == null) return null;
+            patternField.setAccessible(true);
+            Object pattern = patternField.get(state);
+            if (pattern == null) return null;
+            Method base = findMethodByName(pattern.getClass(), "base", 0);
+            if (base == null) return null;
+            base.setAccessible(true);
+            Object shape = base.invoke(pattern);
+            Field chosen = shape instanceof Enum<?> named && named.name().equals("LARGE") ? largeModel : smallModel;
+            chosen.setAccessible(true);
+            return chosen.get(renderer) instanceof Model<?> model ? model : null;
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
     }
 
     /**

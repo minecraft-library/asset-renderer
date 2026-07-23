@@ -2,6 +2,7 @@ package lib.minecraft.refharness.sweep;
 
 import lib.minecraft.refharness.HarnessConfig;
 import lib.minecraft.refharness.api.Appearance;
+import lib.minecraft.refharness.api.AppearanceRequest;
 import lib.minecraft.refharness.api.Bounds;
 import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.RefKey;
@@ -347,6 +348,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
     }
 
     private Bounds measure(SweepContext ctx, Subject subject) {
+        AppearanceRequest.set(subject.appearance());
         try {
             Entity entity = build(ctx, subject);
             if (entity == null) return null;
@@ -354,6 +356,8 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         } catch (RuntimeException ex) {
             LOG.warn("EntitySweep: measureBounds failed for {}: {}", subject.type(), ex.toString());
             return null;
+        } finally {
+            AppearanceRequest.clear();
         }
     }
 
@@ -380,12 +384,17 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         if (canvas == null)
             throw new IllegalStateException("No measured canvas for '" + key(subject).fileName()
                 + "' - the render enumeration and the measurement enumeration disagree");
-        Entity entity = build(ctx, subject);
-        if (entity == null) {
-            LOG.warn("EntitySweep: could not build {}", key(subject).fileName());
-            return false;
+        AppearanceRequest.set(subject.appearance());
+        try {
+            Entity entity = build(ctx, subject);
+            if (entity == null) {
+                LOG.warn("EntitySweep: could not build {}", key(subject).fileName());
+                return false;
+            }
+            return frameRenderer.render(ctx.client(), entity, canvas, out);
+        } finally {
+            AppearanceRequest.clear();
         }
-        return frameRenderer.render(ctx.client(), entity, canvas, out);
     }
 
     private static Entity build(SweepContext ctx, Subject subject) {
