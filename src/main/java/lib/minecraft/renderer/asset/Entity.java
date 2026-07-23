@@ -205,8 +205,9 @@ public record Entity(
             appearance.getSize().map(definition.axes().sizeModels()::get).ifPresent(builder::model);
             // The size axis (salmon / slime / magma_cube) instead multiplies rendererScale by the selected
             // size's factor. An unset / default size (scale 1.0, absent from the map) leaves rendererScale
-            // untouched. A uniform scale is a visual no-op under the
-            // auto-fit renderer (self-similar); the factor is applied for a future absolute-scale renderer.
+            // untouched. The orthographic VANILLA_ISO parity path reads this off the resolved definition and
+            // sizes a native pixels-per-block canvas from it, so a 2x size renders a 2x canvas and entity
+            // rather than resolving self-similar to the default.
             appearance.getSize().map(definition.axes().sizeScales()::get)
                 .ifPresent(scale -> builder.rendererScale(definition.rendererScale() * scale));
         }

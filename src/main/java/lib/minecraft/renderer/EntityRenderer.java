@@ -235,8 +235,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // by scaling the bounds before sizing the canvas. With K-scaled bounds, canvas dimensions
         // grow K x and the projected entity also grows K x so the entity's screen footprint
         // matches the harness's submit-time scale chain. The kit's K x of model vertices happens
-        // via the {@code modelScale} parameter on the new buildTriangles overload.
-        float modelScale = definition.rendererScale();
+        // via the {@code modelScale} parameter on the new buildTriangles overload. Read off the
+        // RESOLVED definition: the size axis folds its factor onto rendererScale at resolve
+        // (salmon / slime / magma_cube non-default sizes), so a non-default size renders at that
+        // size rather than byte-identically to the default.
+        float modelScale = resolved.rendererScale();
         Box scaledBounds = scaleBox(baseBounds, modelScale);
 
         // The entity is a normal projection subject: the camera is the caller's projection display pose
