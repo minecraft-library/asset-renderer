@@ -3,6 +3,7 @@ package lib.minecraft.refharness.frame;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import lib.minecraft.refharness.api.AppearanceRequest;
 import lib.minecraft.refharness.api.Bounds;
 import lib.minecraft.refharness.pip.PipScope;
 import net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadView;
@@ -629,10 +630,65 @@ final class EntityBoundsWalker implements AutoCloseable {
             // A sheared subject's wool layer bails at the top of its own submit, so walking it would
             // measure a coat that is not drawn and leave the reference framed for a woolly sheep.
             if (simpleName.endsWith("WoolLayer") && isSheared(state)) return false;
-            for (String suffix : NO_RENDER_LAYER_SUFFIXES)
-                if (simpleName.endsWith(suffix)) return false;
+            for (String suffix : NO_RENDER_LAYER_SUFFIXES) {
+                if (!simpleName.endsWith(suffix)) continue;
+                // The equipment-driven ones stop being unconditional for a reference that asked for
+                // equipment and is wearing it. Everything else in the list stays rejected outright,
+                // including the collar - a collar is drawn on the body's own mesh, so measuring it
+                // would grow a canvas by nothing and move the references that already exist.
+                return EQUIPMENT_LAYER_SUFFIXES.contains(suffix)
+                    && AppearanceRequest.selectsAny(EQUIPMENT_AXES)
+                    && carriesEquipment(state);
+            }
         }
         return true;
+    }
+
+    /**
+     * The subset of {@link #NO_RENDER_LAYER_SUFFIXES} that draws only for a subject wearing
+     * something, and whose mesh therefore has to be measured once a subject is.
+     *
+     * <p>An equipment shell stands proud of the skin, so a reference that wears one and is framed to
+     * the bare body is cropped by exactly the equipment it exists to show. Rejecting these outright is
+     * right for a subject wearing nothing, which every subject was until equipment could be selected.
+     */
+    private static final java.util.Set<String> EQUIPMENT_LAYER_SUFFIXES = java.util.Set.of(
+        "ArmorLayer",
+        "EquipmentLayer",
+        "SaddleLayer",
+        "LlamaDecorLayer",
+        "RopesLayer");
+
+    /**
+     * The axes whose references are the ones this measures equipment for.
+     *
+     * <p>Scoped to a named request rather than applied wherever a subject happens to be wearing
+     * something, because two sweeps outside the reference tree equip theirs deliberately and frame
+     * them with a reserved margin instead of a measurement - a margin that exists precisely because
+     * this walk could not see the shell. Widening the walk to them would reframe every one of their
+     * diagnostics as a side effect of a change that is about the entity tree.
+     */
+    private static final String[] EQUIPMENT_AXES = {"equip", "armor"};
+
+    /**
+     * Whether the subject is wearing anything at all, read off the render state's own item slots
+     * rather than off what the harness asked for - so a subject that selects nothing answers no
+     * however it was built, which is what keeps every existing reference where it is.
+     */
+    private static boolean carriesEquipment(EntityRenderState state) {
+        for (Class<?> c = state.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field field : c.getDeclaredFields()) {
+                if (!ItemStack.class.isAssignableFrom(field.getType())) continue;
+                try {
+                    field.setAccessible(true);
+                    if (field.get(state) instanceof ItemStack stack && !stack.isEmpty()) return true;
+                } catch (ReflectiveOperationException | RuntimeException ignored) {
+                    // A slot this walker cannot read is treated as empty, which is the answer every
+                    // subject gave before equipment could be selected.
+                }
+            }
+        }
+        return false;
     }
 
     /**
