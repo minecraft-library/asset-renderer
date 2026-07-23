@@ -48,6 +48,22 @@ final class AppearanceApplier {
     }
 
     /**
+     * Whether vanilla gives this entity a baby form.
+     *
+     * @param entity the subject to test
+     * @return whether it can be aged down
+     */
+    static boolean supportsBaby(Entity entity) {
+        if (entity instanceof AgeableMob) return true;
+        try {
+            entity.getClass().getMethod("setBaby", boolean.class);
+            return true;
+        } catch (NoSuchMethodException ex) {
+            return false;
+        }
+    }
+
+    /**
      * Ages the entity down.
      *
      * <p>Most ageable mobs share a public supertype setter. The zombie and piglin lines redeclare

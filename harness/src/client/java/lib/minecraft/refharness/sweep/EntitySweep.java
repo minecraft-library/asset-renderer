@@ -99,10 +99,39 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
             return new Subject(type, Appearance.of(coat), Optional.of(coat.name()));
         }
 
+        /** Returns this subject aged down. */
+        private Subject asBaby() {
+            return new Subject(type, appearance.asBaby(), qualifier);
+        }
+
         /** The canvas group this subject is sized within. */
         private CanvasKey canvasKey() {
             return new CanvasKey(EntityRoster.familyRoot(type), appearance.cohort());
         }
+    }
+
+    /**
+     * Whether this subject is the one its model renders at when nothing selects a coat.
+     *
+     * <p>An axis that is not the coat axis is enumerated once per model, at that model's default
+     * coat, so this is what picks the single subject it hangs off.
+     */
+    private static boolean isDefaultAppearance(Subject subject) {
+        String defaultCoat = EntityRoster.DEFAULT_COAT.get(subject.type());
+        return defaultCoat == null
+            ? subject.qualifier().isEmpty()
+            : subject.qualifier().map(defaultCoat::equals).orElse(false);
+    }
+
+    /**
+     * Whether vanilla gives this subject a baby form.
+     *
+     * <p>Built and discarded - the answer is a property of the type, and the render pass builds its
+     * own subject anyway.
+     */
+    private static boolean hasBabyForm(SweepContext ctx, Subject subject) {
+        Entity entity = AppearanceApplier.build(ctx, subject.type(), subject.appearance());
+        return entity != null && AppearanceApplier.supportsBaby(entity);
     }
 
     @Override
@@ -143,8 +172,22 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                     : new Subject(type, Appearance.DEFAULT, Optional.of(defaultCoat)));
             }
         }
-        LOG.info("EntitySweep built: {} subjects", subjects.size());
-        return subjects;
+        // The age axis. Which entities have a baby form is derived from vanilla rather than
+        // hand-listed - probing costs one entity construction per type and no render, and it cannot
+        // fall out of date the way a table can.
+        //
+        // One baby per model, not one per coat. A baby is a different mesh, not a differently
+        // textured one, so a second coat adds nothing a reader could not already see; the coat axis
+        // is covered at adult size where the coat is the whole point. The baby is rendered at the
+        // family's default coat, and named for it, because a variant family always names its coat.
+        List<Subject> withBabies = new ArrayList<>(subjects);
+        for (Subject subject : subjects) {
+            if (!isDefaultAppearance(subject) || !hasBabyForm(ctx, subject)) continue;
+            withBabies.add(subject.asBaby());
+        }
+        LOG.info("EntitySweep built: {} subjects ({} of them babies)",
+            withBabies.size(), withBabies.size() - subjects.size());
+        return withBabies;
     }
 
     /**
@@ -214,7 +257,26 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                 if (bounds == null) continue;
                 familyBounds.merge(subject.canvasKey(), bounds, Bounds::union);
                 measured++;
+                // The baby of a measured subject is measured too - its mesh is a different shape
+                // rather than a smaller one, so its extent cannot be derived from the adult's.
+                if (!isDefaultAppearance(subject) || !hasBabyForm(ctx, subject)) continue;
+                Subject baby = subject.asBaby();
+                Bounds babyBounds = measure(ctx, baby);
+                if (babyBounds == null) continue;
+                familyBounds.merge(baby.canvasKey(), babyBounds, Bounds::union);
+                measured++;
             }
+        }
+
+        // A baby's canvas is seeded from its family's adult canvas and then grown by the baby itself.
+        // That is not a stylistic choice: the asset-renderer sizes a baby against the union of the
+        // baby geometry, every adult coat, and every group member's adult default, so a harness that
+        // sized babies against babies alone would produce a reference of different dimensions and the
+        // comparison would measure framing rather than the render.
+        for (Map.Entry<CanvasKey, Bounds> entry : Map.copyOf(familyBounds).entrySet()) {
+            if (entry.getKey().cohort() != Appearance.Cohort.BABY) continue;
+            Bounds adult = familyBounds.get(new CanvasKey(entry.getKey().family(), Appearance.Cohort.DEFAULT));
+            if (adult != null) familyBounds.merge(entry.getKey(), adult, Bounds::union);
         }
 
         Map<CanvasKey, Canvas> fits = new HashMap<>();
@@ -269,7 +331,9 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
     @Override
     public RefKey key(Subject subject) {
         RefKey key = RefKey.of(BuiltInRegistries.ENTITY_TYPE.getKey(subject.type()));
-        return subject.qualifier().map(key::with).orElse(key);
+        key = subject.qualifier().map(key::with).orElse(key);
+        if (subject.appearance().baby()) key = key.token("age", "baby");
+        return key;
     }
 
     @Override

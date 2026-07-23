@@ -66,22 +66,38 @@ public final class EntityRoster {
     );
 
     /**
-     * The coat a variant family renders at when the sweep does not enumerate its coats.
+     * The coat each variant family is at when nothing selects one.
      *
-     * <p>These five families carry a variant axis whose options are a plain Java enum rather than a
-     * data-driven registry, so the sweep does not walk them and each ships exactly one reference. That
-     * reference is the family's default coat, and naming it after that coat is what keeps a family from
-     * having two spellings - a bare one and a coated one - for the same appearance.
+     * <p>Two jobs. Five of these families carry a variant axis whose options are a plain Java enum
+     * rather than a data-driven registry, so the sweep does not walk them and each ships exactly one
+     * reference - naming it after the coat it is keeps a family from having two spellings, a bare one
+     * and a coated one, for the same appearance. For all fourteen it also says which coat an axis
+     * that is not the coat axis should be rendered at, so a baby is one reference per model rather
+     * than one per coat.
      *
-     * <p>Enumerating the remaining coats is a separate, additive change. When it lands, the default
-     * coat's name is already what it will be.
+     * <p>These names are vanilla's own defaults, and they are what the asset-renderer's model form
+     * declares as each axis's default. A wrong entry here would not produce an unreadable name - it
+     * would produce a readable name for a different subject, so it is worth checking against the
+     * model form rather than against intuition.
      */
-    public static final Map<EntityType<?>, String> DEFAULT_COAT = Map.of(
-        EntityType.AXOLOTL, "lucy",
-        EntityType.LLAMA, "creamy",
-        EntityType.PANDA, "normal",
-        EntityType.RABBIT, "brown",
-        EntityType.TRADER_LLAMA, "creamy"
+    public static final Map<EntityType<?>, String> DEFAULT_COAT = Map.ofEntries(
+        // Enum-driven, and the only reference these families ship today.
+        Map.entry(EntityType.AXOLOTL, "lucy"),
+        Map.entry(EntityType.LLAMA, "creamy"),
+        Map.entry(EntityType.PANDA, "normal"),
+        Map.entry(EntityType.RABBIT, "brown"),
+        Map.entry(EntityType.TRADER_LLAMA, "creamy"),
+        // Registry-driven, walked in full by the sweep.
+        Map.entry(EntityType.CAT, "black"),
+        Map.entry(EntityType.CHICKEN, "temperate"),
+        Map.entry(EntityType.COW, "temperate"),
+        Map.entry(EntityType.FROG, "temperate"),
+        Map.entry(EntityType.PIG, "temperate"),
+        Map.entry(EntityType.WOLF, "pale"),
+        Map.entry(EntityType.ZOMBIE_NAUTILUS, "temperate"),
+        // Enum-driven and walked in full, each by its own arm.
+        Map.entry(EntityType.HORSE, "white"),
+        Map.entry(EntityType.MOOSHROOM, "red")
     );
 
     /**

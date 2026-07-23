@@ -11,21 +11,29 @@ import java.util.Optional;
  * A rendered subject's output name, held as its parts rather than built by string concatenation.
  *
  * <p>The rendered form is {@code <namespace>__<base>} followed by one {@code _<qualifier>} per
- * qualifier, or a bare {@code <base>} when there is no namespace. Qualifiers are ordered and are
- * appended in order, because a name can carry more than one and their order is part of the name.
+ * qualifier, then one {@code ~<axis>=<value>} per token, or a bare {@code <base>} when there is no
+ * namespace. Qualifiers are ordered and are appended in order, because a name can carry more than
+ * one and their order is part of the name.
+ *
+ * <p>Tokens are different: they are emitted in ascending order of the whole {@code axis=value} text,
+ * compared as bytes, whatever order they were added in. One rule and no table, so this writer and the
+ * reader on the asset-renderer side cannot drift apart on ordering - and an appearance built from an
+ * unordered set or map still has exactly one spelling.
  *
  * @param directories directory segments below the sweep's own output directory, outermost first
  * @param namespace the identifier namespace, or empty for a name with no namespace
  * @param base the name's stem
  * @param qualifiers the ordered suffixes appended to the stem
+ * @param tokens the {@code axis=value} selections, emitted in ascending byte order
  */
 public record RefKey(List<String> directories, Optional<String> namespace,
-                     String base, List<String> qualifiers) {
+                     String base, List<String> qualifiers, List<String> tokens) {
 
-    /** Canonicalises both lists so a key is immutable and comparable by value. */
+    /** Canonicalises the lists so a key is immutable and comparable by value. */
     public RefKey {
         directories = List.copyOf(directories);
         qualifiers = List.copyOf(qualifiers);
+        tokens = List.copyOf(tokens);
     }
 
     /**
@@ -35,7 +43,7 @@ public record RefKey(List<String> directories, Optional<String> namespace,
      * @return the key
      */
     public static RefKey of(Identifier id) {
-        return new RefKey(List.of(), Optional.of(id.getNamespace()), id.getPath(), List.of());
+        return new RefKey(List.of(), Optional.of(id.getNamespace()), id.getPath(), List.of(), List.of());
     }
 
     /**
@@ -45,7 +53,7 @@ public record RefKey(List<String> directories, Optional<String> namespace,
      * @return the key
      */
     public static RefKey named(String base) {
-        return new RefKey(List.of(), Optional.empty(), base, List.of());
+        return new RefKey(List.of(), Optional.empty(), base, List.of(), List.of());
     }
 
     /**
@@ -57,7 +65,7 @@ public record RefKey(List<String> directories, Optional<String> namespace,
     public RefKey with(String qualifier) {
         List<String> extended = new ArrayList<>(qualifiers);
         extended.add(qualifier);
-        return new RefKey(directories, namespace, base, extended);
+        return new RefKey(directories, namespace, base, extended, tokens);
     }
 
     /**
@@ -69,7 +77,20 @@ public record RefKey(List<String> directories, Optional<String> namespace,
     public RefKey in(String directory) {
         List<String> nested = new ArrayList<>(directories);
         nested.add(directory);
-        return new RefKey(nested, namespace, base, qualifiers);
+        return new RefKey(nested, namespace, base, qualifiers, tokens);
+    }
+
+    /**
+     * Returns this key carrying one more appearance selection.
+     *
+     * @param axis the axis being selected
+     * @param value the option selected
+     * @return the extended key
+     */
+    public RefKey token(String axis, String value) {
+        List<String> extended = new ArrayList<>(tokens);
+        extended.add(axis + "=" + value);
+        return new RefKey(directories, namespace, base, qualifiers, extended);
     }
 
     /** Returns the file name without its extension. */
@@ -78,6 +99,7 @@ public record RefKey(List<String> directories, Optional<String> namespace,
         namespace.ifPresent(ns -> name.append(ns).append("__"));
         name.append(base);
         for (String qualifier : qualifiers) name.append('_').append(qualifier);
+        for (String token : tokens.stream().sorted().toList()) name.append('~').append(token);
         return name.toString();
     }
 
