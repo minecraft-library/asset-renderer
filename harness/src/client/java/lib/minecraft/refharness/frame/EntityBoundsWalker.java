@@ -251,7 +251,19 @@ final class EntityBoundsWalker implements AutoCloseable {
             // texture over-pads a body-shaped saddle mesh and crops a dedicated one. A layer that carries
             // no equipment texture (every non-equipment overlay) falls back to the body texture unchanged.
             NativeImage layerTexture = equipmentTexture(layer, state);
-            if (layerTexture == null) layerTexture = texture;
+            if (layerTexture == null) {
+                // An equipment layer - one that declares an EquipmentClientInfo.LayerType - which
+                // resolves no equipment texture is dressing an item this subject is not wearing. A
+                // saddled horse still carries its body-armour layer and an armoured horse its saddle
+                // layer; only the worn one resolves a texture, and vanilla draws nothing for the other.
+                // Falling back to the body texture would measure the empty layer's body-shaped,
+                // inflated mesh as opaque and grow the canvas past what actually renders, so an
+                // equipment layer with no texture contributes no bounds. A true overlay - one with no
+                // LayerType, such as a sheep's wool or a mooshroom's body - has no equipment texture by
+                // nature and still falls back to the wearer's body texture.
+                if (reflectLayerType(layer) != null) continue;
+                layerTexture = texture;
+            }
             for (Model<?> layerModel : findLayerModels(layer, state)) {
                 @SuppressWarnings({"unchecked", "rawtypes"})
                 Model raw = layerModel;
