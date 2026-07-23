@@ -318,6 +318,13 @@ public record Entity(
      *     pseudo-id) or the model has no variant axis. The render-time variant fold in
      *     {@link Entity#resolve} swaps to the selected
      *     option's sub-definition, and the group canvas union measures every option's silhouette
+     * @param variantDefault the {@code variant} option the base definition was built from, empty for a
+     *     model with no variant axis. The option maps carry every option including this one, so without
+     *     the name there is no way to tell which of them the bare model already is
+     * @param stateDefault the {@code state} option the base textures represent, empty for a model with no
+     *     state axis
+     * @param sizeDefault the {@code size} option the base mesh and unit scale represent, empty for a model
+     *     with no size axis; {@code sizeModels} and {@code sizeScales} hold only the others
      */
     public record Axes(
         @NotNull Map<String, String> stateTextures,
@@ -326,7 +333,10 @@ public record Entity(
         @NotNull Optional<LargeShape> largeShape,
         @NotNull Map<Size, EntityModelData> sizeModels,
         @NotNull Map<Size, Float> sizeScales,
-        @NotNull Map<String, Entity> variants
+        @NotNull Map<String, Entity> variants,
+        @NotNull Optional<String> variantDefault,
+        @NotNull Optional<String> stateDefault,
+        @NotNull Optional<String> sizeDefault
     ) {}
 
     /**

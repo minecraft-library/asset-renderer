@@ -78,7 +78,7 @@ class EntityBabyOverlayTest {
         Map<String, RawAgeOption> options = new LinkedHashMap<>();
         options.put("adult", new RawAgeOption(ADULT_COORD, texture));
         options.put("baby", new RawAgeOption(BABY_COORD, babyTexture));
-        return new RawAxes(null, new RawAgeAxis(options), null, null);
+        return new RawAxes(null, new RawAgeAxis(options), null, null, null);
     }
 
     /**

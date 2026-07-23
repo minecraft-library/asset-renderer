@@ -85,19 +85,33 @@ record RawToggle(
 ) {}
 
 /**
- * The family {@code axes} block. The {@code state} axis (wolf wild/tame/angry) is not declared - the
+ * The family {@code axes} block. The {@code state} axis carries only its option names and default - the
  * per-state textures are carried by each variant option's {@code textures} instead.
  *
  * @param variant the option-encoded coat / colour axis, or {@code null} when the family has none
  * @param age the mandatory adult / baby geometry axis
  * @param shape the tropical-fish large-body axis, or {@code null} when absent
  * @param size the pufferfish mesh / salmon-slime scale axis, or {@code null} when absent
+ * @param state the behavioural-state axis (wolf wild / tame / angry), or {@code null} when absent
  */
 record RawAxes(
     @Nullable RawVariantAxis variant,
     @NotNull RawAgeAxis age,
     @Nullable RawShapeAxis shape,
-    @Nullable RawSizeAxis size
+    @Nullable RawSizeAxis size,
+    @Nullable RawStateAxis state
+) {}
+
+/**
+ * The {@code axes.state} axis. Only the option names and the declared default are read - the textures a
+ * state selects live on each variant option.
+ *
+ * @param defaultOption the state the base textures represent
+ * @param options the state options keyed by state name
+ */
+record RawStateAxis(
+    @SerializedName("default") @Nullable String defaultOption,
+    @NotNull Map<String, com.google.gson.JsonElement> options
 ) {}
 
 /**
@@ -166,9 +180,13 @@ record RawShapeOption(
 /**
  * The {@code axes.size} axis (pufferfish meshes / salmon / slime scales).
  *
+ * @param defaultOption the size the base mesh and unit scale represent
  * @param options the size options keyed by {@link lib.minecraft.renderer.option.Size} name (lower-case)
  */
-record RawSizeAxis(@NotNull Map<String, RawSizeOption> options) {}
+record RawSizeAxis(
+    @SerializedName("default") @Nullable String defaultOption,
+    @NotNull Map<String, RawSizeOption> options
+) {}
 
 /**
  * One {@code size} option - a mesh alternative carries {@code geometry}, a scale alternative carries

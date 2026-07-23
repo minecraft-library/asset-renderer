@@ -208,7 +208,8 @@ public final class EntityIndexBuilder {
             String defaultOption = variant.defaultOption();
             Map<String, RawVariantOption> options = variant.options();
             VariantContext ctx = new VariantContext(baseCoord, geometries, hiddenBones, boneToggleSpecs, familyOverlays,
-                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyOverlays, collarTexture, equipment, markings, humanoidArmor);
+                blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyOverlays, collarTexture, equipment, markings, humanoidArmor,
+                stateDefaultOf(family));
             if (idEncoded) {
                 // id-encoded: each coat is a first-class render pseudo-id minecraft:<id>_<opt>.
                 for (Map.Entry<String, RawVariantOption> option : options.entrySet()) {
@@ -226,7 +227,8 @@ public final class EntityIndexBuilder {
             Entity.Axes baseAxes = base.axes();
             definitions.put(familyId, base.toBuilder()
                 .axes(new Entity.Axes(baseAxes.stateTextures(), baseAxes.babyModel(), baseAxes.babyOverlays(),
-                    baseAxes.largeShape(), baseAxes.sizeModels(), baseAxes.sizeScales(), Map.copyOf(coats)))
+                    baseAxes.largeShape(), baseAxes.sizeModels(), baseAxes.sizeScales(), Map.copyOf(coats),
+                    Optional.ofNullable(defaultOption), stateDefaultOf(family), sizeDefaultOf(family)))
                 .build());
             return;
         }
@@ -250,7 +252,8 @@ public final class EntityIndexBuilder {
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .boneToggles(toggles)
             .axes(new Entity.Axes(stateTextures, babyModel, babyOverlays,
-                buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries), buildSizeScales(family), Map.of()))
+                buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries),
+                buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
             .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
             .build());
     }
@@ -274,7 +277,8 @@ public final class EntityIndexBuilder {
         @NotNull Optional<String> collarTexture,
         @NotNull List<EquipmentOverlay> equipment,
         boolean markings,
-        boolean humanoidArmor
+        boolean humanoidArmor,
+        @NotNull Optional<String> stateDefault
     ) {}
 
     /**
@@ -301,7 +305,8 @@ public final class EntityIndexBuilder {
             .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(ctx.blockOverlays())
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
             .boneToggles(toggles)
-            .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyOverlays(), Optional.empty(), Map.of(), Map.of(), Map.of()))
+            .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyOverlays(), Optional.empty(),
+                Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))
             .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor()))
             .build();
     }
@@ -697,6 +702,34 @@ public final class EntityIndexBuilder {
         RawAxes axes = family.axes();
         if (axes == null || axes.size() == null) return null;
         return axes.size().options();
+    }
+
+    /**
+     * Returns the size the family's base mesh and unit scale represent.
+     *
+     * <p>The alternate maps hold only the other sizes, so without this name a caller cannot tell which
+     * size the bare model already is - which is exactly what a reference key needs in order not to name
+     * one appearance two ways.
+     *
+     * @param family the raw model
+     * @return the declared default size, or empty when the family has no size axis
+     */
+    private static @NotNull Optional<String> sizeDefaultOf(@NotNull RawModel family) {
+        RawAxes axes = family.axes();
+        if (axes == null || axes.size() == null) return Optional.empty();
+        return Optional.ofNullable(axes.size().defaultOption());
+    }
+
+    /**
+     * Returns the behavioural state the family's base textures represent.
+     *
+     * @param family the raw model
+     * @return the declared default state, or empty when the family has no state axis
+     */
+    private static @NotNull Optional<String> stateDefaultOf(@NotNull RawModel family) {
+        RawAxes axes = family.axes();
+        if (axes == null || axes.state() == null) return Optional.empty();
+        return Optional.ofNullable(axes.state().defaultOption());
     }
 
     // ------------------------------------------------------------------------------------
