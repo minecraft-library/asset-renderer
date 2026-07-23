@@ -152,8 +152,8 @@ public record Entity(
      * activates a {@code "sheared"} bone toggle (bogged); (4) selected bone toggles flip their bones'
      * visibility (donkey / mule / llama chest reveal, goat horns hide); (5) block overlays resolve against
      * the carried selection; (6) the shape axis swaps to the tropical-fish large body; (7) the size axis
-     * swaps to the selected size's mesh (pufferfish); (8) the size axis multiplies the render scale (salmon
-     * / slime / magma_cube); (9) the base-color axis overrides the baked base tint (tropical-fish dye),
+     * swaps to the selected size's mesh (pufferfish, salmon); (8) the size axis multiplies the render scale
+     * (slime / magma_cube); (9) the base-color axis overrides the baked base tint (tropical-fish dye),
      * applied OUTSIDE the baby fork so it affects both. A non-baby, non-carried appearance returns an
      * equivalent definition unchanged.
      *
@@ -203,8 +203,8 @@ public record Entity(
             // the entity's default size (pufferfish large = the base mesh, absent from the map), leaves the
             // base model untouched.
             appearance.getSize().map(definition.axes().sizeModels()::get).ifPresent(builder::model);
-            // The size axis (salmon / slime / magma_cube) instead multiplies rendererScale by the selected
-            // size's factor. An unset / default size (scale 1.0, absent from the map) leaves rendererScale
+            // The size axis (slime / magma_cube) instead multiplies rendererScale by the selected size's
+            // factor. An unset / default size (scale 1.0, absent from the map) leaves rendererScale
             // untouched. The orthographic VANILLA_ISO parity path reads this off the resolved definition and
             // sizes a native pixels-per-block canvas from it, so a 2x size renders a 2x canvas and entity
             // rather than resolving self-similar to the default.
@@ -312,9 +312,9 @@ public record Entity(
      * @param largeShape the {@code shape} axis's large alternative (tropical fish): the large body mesh +
      *     {@code tropical_b} texture + pattern overlays cloned onto it; empty otherwise
      * @param sizeModels the {@code size} axis's non-default alternate meshes keyed by {@link Size}
-     *     (pufferfish); the default size is the base model and absent here; empty for no-size-axis entities
+     *     (pufferfish, salmon); the default size is the base model and absent here; empty for no-size-axis entities
      * @param sizeScales the {@code size} axis's non-default render scale factors keyed by {@link Size}
-     *     (salmon / slime / magma_cube); the default size is scale {@code 1.0} and absent here; empty otherwise
+     *     (slime / magma_cube); the default size is scale {@code 1.0} and absent here; empty otherwise
      * @param variants the {@code variant} axis's option-encoded coat sub-definitions keyed by option
      *     (cow {@code temperate}/{@code cold}/{@code warm}, wolf coats, cat breeds), each a fully-built
      *     definition; the base definition IS the default option's build. Empty when {@code variant} is

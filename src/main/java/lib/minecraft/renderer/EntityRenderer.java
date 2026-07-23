@@ -237,7 +237,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // matches the harness's submit-time scale chain. The kit's K x of model vertices happens
         // via the {@code modelScale} parameter on the new buildTriangles overload. Read off the
         // RESOLVED definition: the size axis folds its factor onto rendererScale at resolve
-        // (salmon / slime / magma_cube non-default sizes), so a non-default size renders at that
+        // (slime / magma_cube non-default sizes), so a non-default size renders at that
         // size rather than byte-identically to the default.
         float modelScale = resolved.rendererScale();
         Box scaledBounds = scaleBox(baseBounds, modelScale);

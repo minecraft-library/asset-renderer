@@ -15,26 +15,25 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Node {@code axes.size} - the option-encoded size axis, with two mutually-exclusive
- * option forms (the mesh-select XOR scale contract):
+ * Node {@code axes.size} - the option-encoded size axis, in two forms:
  *
  * <ul>
- *   <li><b>mesh-select</b> - pufferfish small / medium meshes derived from the renderer
- *       ctor's multiple {@code ModelLayers.PUFFERFISH_*} references (big = primary);
- *       each option registers its own {@code GeometryRequest}.</li>
- *   <li><b>scale</b> - salmon 0.5 / 1.5 read off the {@code SALMON_SMALL} /
- *       {@code SALMON_LARGE} index entries' {@code MeshTransformer.scaling} factors
- *       (same factory coordinate as the primary = a scale rider, never a second mesh);
- *       slime / magma_cube 2.0 / 4.0 proportional to their natural-size set (scale is
- *       size-proportional per {@code SlimeRenderer.scale} at squish 0).</li>
+ *   <li><b>mesh</b> - each option registers its own {@code GeometryRequest}, whether the mesh is a
+ *       distinct factory (pufferfish small / medium from the renderer ctor's multiple
+ *       {@code ModelLayers.PUFFERFISH_*} references, big = primary) or the primary factory under a
+ *       {@code MeshTransformer.scaling} factor (salmon 0.5 / 1.5 off {@code SALMON_SMALL} /
+ *       {@code SALMON_LARGE}). Both bake to a mesh: vanilla's {@code SalmonRenderer} likewise holds
+ *       three baked {@code SalmonModel} instances and picks one, so the scaled mesh is emitted as
+ *       geometry the parser bakes the transformer into, not a render-time scale rider.</li>
+ *   <li><b>scale</b> - the option multiplies {@code rendererScale}: slime / magma_cube 2.0 / 4.0
+ *       proportional to their natural-size set (size-proportional per {@code SlimeRenderer.scale} at
+ *       squish 0). These have no per-size mesh - vanilla scales the one model at render.</li>
  * </ul>
  *
- * <p>Membership is declared per entity (pufferfish / salmon vs. slime / magma_cube); the
- * concrete meshes / factors are derived. Option names come from the candidate field's
- * suffix matched against the size domain ({@code PUFFERFISH_MEDIUM} to {@code medium});
- * default = the option-less domain member; option members emit in domain order. The
- * scale axis is a visual no-op under the auto-fit renderer - it is wired for a future
- * absolute-scale scene renderer.
+ * <p>Membership is declared per entity (pufferfish / salmon carry a body-mesh axis; slime / magma_cube
+ * a natural-size set); the concrete meshes / factors are derived. Option names come from the candidate
+ * field's suffix matched against the size domain ({@code PUFFERFISH_MEDIUM} to {@code medium}); default =
+ * the option-less domain member; option members emit in domain order.
  */
 final class EntitySizeAxisResolver {
 
@@ -68,7 +67,7 @@ final class EntitySizeAxisResolver {
         List<Integer> naturalSizes = EntityAxisPolicies.naturalSizesFor(this.subject.entityId());
         if (naturalSizes != null) return naturalSizeForm(naturalSizes);
         if (!"size".equals(EntityAxisPolicies.shapeSizeAxisFor(this.subject.entityId()))) return null;
-        return meshOrScaleForm();
+        return meshForm();
     }
 
     /**
@@ -90,13 +89,16 @@ final class EntitySizeAxisResolver {
     }
 
     /**
-     * Extra body-mesh candidates from the ctor-chain triples, classified by the
-     * mesh-select XOR scale contract against the primary's factory coordinate.
+     * Extra body-mesh candidates from the ctor-chain triples, each emitted as its own geometry. A
+     * candidate on a distinct factory (pufferfish) registers that factory; one on the primary factory
+     * under a {@code MeshTransformer.scaling} factor (salmon) registers the same factory with the
+     * captured scale, which the parser bakes into the mesh exactly as vanilla bakes its
+     * {@code smallSalmonModel} / {@code largeSalmonModel} - so both are a mesh swap, never a
+     * render-time scale.
      */
-    private @Nullable JsonTree meshOrScaleForm() {
-        LayerDefinitionIndex.Entry primary = this.geometryRef.resolvedEntry();
+    private @Nullable JsonTree meshForm() {
         String primaryField = this.geometryRef.primaryFieldName();
-        if (primary == null || primaryField == null) return null;
+        if (this.geometryRef.resolvedEntry() == null || primaryField == null) return null;
         List<String> domain = EntityAxisPolicies.SIZE_DOMAIN.strings();
 
         Map<String, LayerDefinitionIndex.Entry> candidates = new LinkedHashMap<>();
@@ -118,14 +120,6 @@ final class EntitySizeAxisResolver {
         Map<String, JsonTree> options = new LinkedHashMap<>();
         for (Map.Entry<String, LayerDefinitionIndex.Entry> candidate : candidates.entrySet()) {
             LayerDefinitionIndex.Entry entry = candidate.getValue();
-            boolean sameFactory = entry.factoryClass().equals(primary.factoryClass())
-                && entry.factoryMethod().equals(primary.factoryMethod());
-            if (sameFactory) {
-                // Scale form: the same mesh under an external MeshTransformer factor.
-                float scale = entry.appliedMeshTransformerScale() / primary.appliedMeshTransformerScale();
-                options.put(candidate.getKey(), JsonTree.object().put("scale", scale));
-                continue;
-            }
             String key = this.manifest.register(GeometryRequest.shape(
                 entry.factoryClass(), entry.factoryMethod(), this.subject.entityId(),
                 entry.texWidthOverride(), entry.texHeightOverride(),

@@ -2286,10 +2286,10 @@
           "default": "medium",
           "options": {
             "small": {
-              "scale": 0.5
+              "geometry": "SalmonModel#createBodyLayer@scaled=0.5"
             },
             "large": {
-              "scale": 1.5
+              "geometry": "SalmonModel#createBodyLayer@scaled=1.5"
             }
           }
         }
