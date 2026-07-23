@@ -1,14 +1,13 @@
 package lib.minecraft.refharness.sweep;
 
-import java.lang.reflect.Method;
-
 import lib.minecraft.refharness.api.Appearance;
 import lib.minecraft.refharness.api.SweepContext;
-import net.minecraft.world.entity.AgeableMob;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityProcessor;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,48 +41,39 @@ final class AppearanceApplier {
         if (entity == null) return null;
 
         EntitySubjects.zeroRotations(entity);
-        if (appearance.baby() && !setBaby(entity))
-            LOG.warn("AppearanceApplier: {} has no baby form", EntityType.getKey(type));
+        if (appearance.baby() && !ageDown(entity))
+            LOG.warn("AppearanceApplier: {} did not take a baby form", EntityType.getKey(type));
         return entity;
     }
 
     /**
      * Whether vanilla gives this entity a baby form.
      *
+     * <p>Asked by aging the entity down and reading back whether it took, because the question cannot
+     * be answered by looking: {@code Mob} declares {@code setBaby} for every mob and does nothing in
+     * the base implementation, so anything that merely checks the method is there answers yes for all
+     * of them. The entity is left aged down and is discarded by the caller.
+     *
      * @param entity the subject to test
      * @return whether it can be aged down
      */
     static boolean supportsBaby(Entity entity) {
-        if (entity instanceof AgeableMob) return true;
-        try {
-            entity.getClass().getMethod("setBaby", boolean.class);
-            return true;
-        } catch (NoSuchMethodException ex) {
-            return false;
-        }
+        return ageDown(entity);
     }
 
     /**
-     * Ages the entity down.
+     * Ages the entity down, and reports whether it took.
      *
-     * <p>Most ageable mobs share a public supertype setter. The zombie and piglin lines redeclare
-     * theirs outside that supertype, with no shared interface between them, so those need the
-     * reflective call - which is why the check is ordered rather than one or the other.
+     * <p>One virtual call covers every case. The ageable line and the zombie and piglin lines declare
+     * their own setters with no interface in common, but all of them are mobs and all of them override
+     * the one {@code Mob} declares - so dispatch does the work reflection would otherwise have to.
      *
      * @param entity the subject to age down
-     * @return whether the entity had a baby form
+     * @return whether the entity now reports itself a baby
      */
-    private static boolean setBaby(Entity entity) {
-        if (entity instanceof AgeableMob ageable) {
-            ageable.setBaby(true);
-            return true;
-        }
-        try {
-            Method setBaby = entity.getClass().getMethod("setBaby", boolean.class);
-            setBaby.invoke(entity, true);
-            return true;
-        } catch (ReflectiveOperationException ex) {
-            return false;
-        }
+    private static boolean ageDown(Entity entity) {
+        if (!(entity instanceof Mob mob)) return false;
+        mob.setBaby(true);
+        return ((LivingEntity) mob).isBaby();
     }
 }
