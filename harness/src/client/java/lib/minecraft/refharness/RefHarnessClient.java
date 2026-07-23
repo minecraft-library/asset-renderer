@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.sounds.SoundSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,6 +29,7 @@ public final class RefHarnessClient implements ClientModInitializer {
 
     private static final AtomicBoolean STARTED = new AtomicBoolean(false);
     private static final AtomicBoolean STOPPING = new AtomicBoolean(false);
+    private static final AtomicBoolean MUTED = new AtomicBoolean(false);
 
     private static final int WARMUP_TICKS = 60;
 
@@ -44,6 +46,7 @@ public final class RefHarnessClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (STOPPING.get()) return;
+            muteOnce(client);
             if (client.level == null || client.player == null) {
                 ticksSinceWorldReady = -1;
                 return;
@@ -83,6 +86,22 @@ public final class RefHarnessClient implements ClientModInitializer {
                 requestStop(client);
             }
         });
+    }
+
+    /**
+     * Silences the client the first time a tick reaches us, which is from the title screen onward -
+     * before the menu music starts and well before any world loads.
+     *
+     * <p>A headless render sweep has no listener, so its audio is pure noise on whatever machine is
+     * driving it. Muting the master source stops every category at once and touches nothing the
+     * renders read.
+     *
+     * @param client the running client
+     */
+    private static void muteOnce(Minecraft client) {
+        if (!MUTED.compareAndSet(false, true)) return;
+        client.options.getSoundSourceOptionInstance(SoundSource.MASTER).set(0.0);
+        LOG.info("RefHarness: master volume muted for the sweep.");
     }
 
     private static void requestStop(Minecraft client) {
