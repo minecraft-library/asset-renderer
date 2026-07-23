@@ -1,17 +1,12 @@
 package lib.minecraft.refharness.sweep;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-
-import lib.minecraft.refharness.BlockEntityFrameRenderer;
-import lib.minecraft.refharness.BlockFrameRenderer;
 import lib.minecraft.refharness.HarnessConfig;
 import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.RefKey;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
+import lib.minecraft.refharness.frame.BlockEntityFrameRenderer;
+import lib.minecraft.refharness.frame.BlockFrameRenderer;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Items;
@@ -20,6 +15,11 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Block sweep. Every block's ground truth is its 3D in-world render at the standard iso pose - this

@@ -1,13 +1,13 @@
 package lib.minecraft.refharness;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.sounds.SoundSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Mod entry point. Headless flag, world bootstrap, tick-based sweep driver.

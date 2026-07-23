@@ -1,4 +1,4 @@
-package lib.minecraft.refharness;
+package lib.minecraft.refharness.frame;
 
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.levelgen.PositionalRandomFactory;

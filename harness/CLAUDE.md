@@ -43,13 +43,13 @@ Mixin classes live in `src/client/java/lib/minecraft/refharness/mixin/`, registe
 
 ## Block / item / glint pipeline
 
-**Blocks are a 3D block-parity sweep, never an item-icon sweep.** `BlockSweeper` routes each block by type:
+**Blocks are a 3D block-parity sweep, never an item-icon sweep.** `BlockSweep` routes each block by type:
 
 - **Plain blocks** → `BlockFrameRenderer`: submits the `BlockStateModel` directly via `SubmitNodeStorage.submitBlockModel` at the vanilla `display.gui` pose (`R_XYZ(30°,225°,0°)` + scale `0.625`) under `ITEMS_3D` lighting. Bypasses item-model dispatch, so `item/generated` blocks (rails, vines, ladders, lily_pad, seagrass, sculk_vein, doors, hanging signs) render as real 3D geometry, not the flat 2D billboard the inventory icon shows.
 - **`EntityBlock` + registered BE renderer** → `BlockEntityFrameRenderer`: dispatches the vanilla `BlockEntityRenderer` (signs/beds/banners/heads/shulker_boxes/bells/decorated_pots/...) against a transient, never-ticked `BlockEntity` wired to `client.level`, capturing the real in-world geometry.
 - **`EntityBlock` without a renderer** (barrel, hopper, brewing_stand, furnace, chiseled_bookshelf, ...) → falls back to the plain `BlockFrameRenderer` path, **not** the item model.
 
-`ItemSweeper` renders only non-`BlockItem`s (BlockItems are already covered by `BlockSweeper`) through `ItemFrameRenderer` — the vanilla GUI inventory-icon path — to `items/`.
+`ItemSweep` renders only non-`BlockItem`s (BlockItems are already covered by `BlockSweep`) through `ItemFrameRenderer` — the vanilla GUI inventory-icon path — to `items/`.
 
 ### Block determinism + in-world-appearance fixes
 - **`FirstVariantRandomSource`** (`nextInt → 0`) pins weighted variant lists (bedrock/stone/netherrack rotations, rotated-cube tiles) to `variants[0]`, matching asset-renderer's `BlockStateLoader.parseVariants`. A live `RandomSource` baked a random rotation into asymmetric-texture references.
@@ -67,7 +67,7 @@ Most BEs render raw — skull/chest/shulker_box/conduit/decorated_pot/beacon alr
 - **copper_golem_statue** — entity-convention model (y-down/mirrored), 180° Z flip to stand upright, then fit.
 
 ### Glint
-`GlintSweeper` renders each foil subject as `FRAME_COUNT = 30` frames, stepping `GlintClock.overrideT` by `STEP_MILLIS = 1000` (both **must match asset-renderer `TestGlintParityVanilla`**). `GlintTexturingMixin` substitutes `overrideT` for vanilla's wall-clock glint time, rebuilding the exact scroll matrix. Subjects: 7 always-foil GUI items (item glint, via `ItemFrameRenderer`) + 4 worn leather-armor diagnostics (armor glint, via an `armor_stand` through `EntityFrameRenderer`). Also dumps `glint/atlas_uv.json` (each item's items-atlas sprite-UV rect) so the asset side samples the glint through vanilla's exact `UV0`.
+`GlintSweep` renders each foil subject as `FRAME_COUNT = 30` frames, stepping `GlintClock.overrideT` by `STEP_MILLIS = 1000` (both **must match asset-renderer `TestGlintParityVanilla`**). `GlintTexturingMixin` substitutes `overrideT` for vanilla's wall-clock glint time, rebuilding the exact scroll matrix. Subjects: 7 always-foil GUI items (item glint, via `ItemFrameRenderer`) + 4 worn leather-armor diagnostics (armor glint, via an `armor_stand` through `EntityFrameRenderer`). Also dumps `glint/atlas_uv.json` (each item's items-atlas sprite-UV rect) so the asset side samples the glint through vanilla's exact `UV0`.
 
 ### Block-render mixins
 | Mixin | Target | Effect |

@@ -1,9 +1,9 @@
 package lib.minecraft.refharness.api;
 
+import net.minecraft.client.Minecraft;
+
 import java.io.IOException;
 import java.nio.file.Path;
-
-import net.minecraft.client.Minecraft;
 
 /**
  * Renders one subject kind to a PNG through the shared picture-in-picture target.

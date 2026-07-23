@@ -47,7 +47,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * boundingBoxWidth}, {@code boundingBoxHeight}, {@code eyeHeight},
  * {@link LivingEntityRenderState#bodyRot bodyRot}/{@code yRot}/{@code xRot}) - those are
  * geometric properties zeroed earlier in
- * {@code EntitySweeper.zeroRotations} or kept at vanilla's authored value.
+ * {@code EntitySubjects.zeroRotations} or kept at vanilla's authored value.
  *
  * <p>Subclass-specific render states ({@code ChickenRenderState.flap},
  * {@code GuardianRenderState.spikesAnimation}, {@code SalmonRenderState.<...>}) carry

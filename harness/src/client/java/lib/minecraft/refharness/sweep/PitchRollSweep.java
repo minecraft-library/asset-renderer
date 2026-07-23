@@ -1,17 +1,12 @@
 package lib.minecraft.refharness.sweep;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-
-import lib.minecraft.refharness.EntityFrameRenderer;
 import lib.minecraft.refharness.HarnessConfig;
 import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.HarnessPose;
 import lib.minecraft.refharness.api.RefKey;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
+import lib.minecraft.refharness.frame.EntityFrameRenderer;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -20,6 +15,11 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Diagnostic pose sweep. Renders one entity at every combination of pitch and roll, both stepped in

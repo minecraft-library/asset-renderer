@@ -1,13 +1,13 @@
 package lib.minecraft.refharness.api;
 
-import java.nio.file.Path;
-
 import com.mojang.blaze3d.platform.Lighting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
+
+import java.nio.file.Path;
 
 /**
  * The per-tick handles a sweep works from, plus the run-wide output root and target filter.

@@ -1,8 +1,4 @@
-package lib.minecraft.refharness;
-
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.function.Consumer;
+package lib.minecraft.refharness.frame;
 
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -29,6 +25,10 @@ import net.minecraft.resources.Identifier;
 import org.joml.Vector3fc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.function.Consumer;
 
 /**
  * Renders the vanilla {@link PlayerModel} (default steve skin) to an offscreen PNG under the same

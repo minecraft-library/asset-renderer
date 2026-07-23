@@ -1,11 +1,11 @@
 package lib.minecraft.refharness.api;
 
+import net.minecraft.resources.Identifier;
+
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
-import net.minecraft.resources.Identifier;
 
 /**
  * A rendered subject's output name, held as its parts rather than built by string concatenation.

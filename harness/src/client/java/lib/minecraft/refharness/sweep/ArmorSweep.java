@@ -1,19 +1,12 @@
 package lib.minecraft.refharness.sweep;
 
-import java.io.IOException;
-import java.lang.reflect.Method;
-import java.nio.file.Path;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
-
-import lib.minecraft.refharness.EntityFrameRenderer;
 import lib.minecraft.refharness.HarnessConfig;
 import lib.minecraft.refharness.api.Bounds;
 import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.RefKey;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
+import lib.minecraft.refharness.frame.EntityFrameRenderer;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
@@ -27,6 +20,13 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.DyedItemColor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.lang.reflect.Method;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 /**
  * Sweep over a small roster of <b>armored</b> mobs, adult and baby. The main entity sweep builds

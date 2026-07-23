@@ -1,9 +1,4 @@
-package lib.minecraft.refharness;
-
-import java.io.IOException;
-import java.lang.reflect.Field;
-import java.nio.file.Path;
-import java.util.function.Consumer;
+package lib.minecraft.refharness.frame;
 
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -19,8 +14,6 @@ import net.minecraft.client.model.object.banner.BannerFlagModel;
 import net.minecraft.client.model.object.banner.BannerModel;
 import net.minecraft.client.model.object.skull.SkullModelBase;
 import net.minecraft.client.model.object.statue.CopperGolemStatueModel;
-import java.util.ArrayList;
-import java.util.List;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
@@ -34,20 +27,21 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.CopperGolemStatueBlockRenderer;
 import net.minecraft.client.renderer.blockentity.SkullBlockRenderer;
 import net.minecraft.client.renderer.blockentity.state.BannerRenderState;
-import net.minecraft.client.renderer.blockentity.state.CopperGolemStatueRenderState;
 import net.minecraft.client.renderer.blockentity.state.BedRenderState;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
+import net.minecraft.client.renderer.blockentity.state.CopperGolemStatueRenderState;
 import net.minecraft.client.renderer.blockentity.state.SignRenderState;
 import net.minecraft.client.renderer.blockentity.state.SkullBlockRenderState;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.resources.model.cuboid.ItemTransform;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.resources.model.cuboid.ItemTransform;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BannerBlock;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.SkullBlock;
@@ -61,6 +55,13 @@ import org.joml.Vector3fc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+
 /**
  * Renders a block-entity-bearing {@link BlockState} via vanilla's
  * {@link BlockEntityRenderDispatcher} - the same renderer that draws signs / beds / banners /
@@ -72,7 +73,7 @@ import org.slf4j.LoggerFactory;
  * asset-renderer's {@code BlockRenderer} composes via {@code Block.Entity.parts()}.
  *
  * <p>Setup: a transient {@link BlockEntity} is constructed via
- * {@code EntityBlock.newBlockEntity(pos, state)}, given a {@link net.minecraft.world.level.Level}
+ * {@code EntityBlock.newBlockEntity(pos, state)}, given a {@link Level}
  * reference via {@link BlockEntity#setLevel} so the dispatcher's {@code hasLevel()} check
  * passes, then handed to the dispatcher's renderer for state extraction. Submission goes
  * through the same iso PIP pose chain {@link BlockFrameRenderer} uses, so the output PNG drops

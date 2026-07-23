@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
+import lib.minecraft.refharness.frame.EntityFrameRenderer;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.object.armorstand.ArmorStandModel;
 import org.spongepowered.asm.mixin.Final;

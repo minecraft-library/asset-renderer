@@ -1,22 +1,15 @@
 package lib.minecraft.refharness.sweep;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
-import lib.minecraft.refharness.EntityFrameRenderer;
 import lib.minecraft.refharness.GlintClock;
 import lib.minecraft.refharness.HarnessConfig;
-import lib.minecraft.refharness.ItemFrameRenderer;
 import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.RefKey;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
+import lib.minecraft.refharness.frame.EntityFrameRenderer;
+import lib.minecraft.refharness.frame.ItemFrameRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -32,6 +25,13 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Animated-glint reference sweep. Renders each glint subject as a deterministic sequence of

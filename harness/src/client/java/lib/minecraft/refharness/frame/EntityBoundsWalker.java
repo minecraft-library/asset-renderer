@@ -1,4 +1,29 @@
-package lib.minecraft.refharness;
+package lib.minecraft.refharness.frame;
+
+import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
+import lib.minecraft.refharness.api.Bounds;
+import lib.minecraft.refharness.pip.PipScope;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadView;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.Model;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.layers.RenderLayer;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.client.renderer.texture.SpriteContents;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.world.item.ItemStack;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,28 +35,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-
-import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
-import lib.minecraft.refharness.api.Bounds;
-import lib.minecraft.refharness.pip.PipScope;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.model.Model;
-import net.minecraft.client.model.geom.ModelPart;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.entity.EntityRenderer;
-import net.minecraft.client.renderer.entity.LivingEntityRenderer;
-import net.minecraft.client.renderer.entity.layers.RenderLayer;
-import net.minecraft.client.renderer.entity.state.EntityRenderState;
-import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
-import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.resources.Resource;
-import net.minecraft.world.item.ItemStack;
-import org.joml.Quaternionf;
-import org.joml.Vector3f;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Measures an entity's screen-space silhouette by walking its model the way vanilla draws it.
@@ -298,7 +301,7 @@ final class EntityBoundsWalker implements AutoCloseable {
      * alpha-tight extents inline (returning harmless defaults for every other collector method). The
      * Fabric renderer API reroutes the block geometry into a {@code Mesh} argument rather than the
      * vanilla {@code BlockStateModelPart} list, so the geometry is read from the mesh's
-     * {@link net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadView QuadView}s (converted to
+     * {@link QuadView}s (converted to
      * {@link BakedQuad} via the block-atlas {@code SpriteFinder}); the captured pose already includes
      * the head-bone / layer pose and the block's own transformation. Empty blocks (iron-golem flower /
      * enderman carried block at zero state) early-return from {@code submit} and contribute nothing.
@@ -362,7 +365,7 @@ final class EntityBoundsWalker implements AutoCloseable {
 
     /**
      * Resolves the {@code SpriteFinder} for the block atlas (Fabric interface-injected on
-     * {@link net.minecraft.client.renderer.texture.TextureAtlas}), used to recover each mesh quad's
+     * {@link TextureAtlas}), used to recover each mesh quad's
      * sprite for alpha sampling. Returns {@code null} when the atlas manager can't be reached.
      */
     private static net.fabricmc.fabric.api.client.renderer.v1.sprite.SpriteFinder blockAtlasSpriteFinder() {
@@ -408,7 +411,7 @@ final class EntityBoundsWalker implements AutoCloseable {
     /**
      * Alpha-tight extent contribution for one block {@link BakedQuad}. Unpacks the quad's four
      * atlas UVs, converts them to sprite-local pixel space, walks the opaque sub-rectangle via
-     * {@link net.minecraft.client.renderer.texture.SpriteContents#isTransparent}, bilinearly maps
+     * {@link SpriteContents#isTransparent}, bilinearly maps
      * the opaque corners back through the quad's four transformed vertices, and feeds them to
      * {@code expand}. Fully-transparent quads contribute nothing.
      */

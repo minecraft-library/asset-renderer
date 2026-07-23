@@ -1,5 +1,9 @@
 package lib.minecraft.refharness;
 
+import lib.minecraft.refharness.sweep.ArmorSweep;
+import lib.minecraft.refharness.sweep.GlintSweep;
+import lib.minecraft.refharness.sweep.PlayerSweep;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -60,7 +64,7 @@ public final class HarnessConfig {
     public static final String TARGETS = System.getProperty("refharness.targets", "");
 
     /**
-     * When {@code true}, the harness runs <em>only</em> the {@link lib.minecraft.refharness.sweep.GlintSweep GlintSweep} (the 7 always-foil
+     * When {@code true}, the harness runs <em>only</em> the {@link GlintSweep} (the 7 always-foil
      * GUI items + the 4 worn leather-armor diagnostics), each as an animated sequence of per-frame
      * PNGs under {@code references/glint/}, and skips the block / item / entity sweeps entirely. Keeps
      * glint iteration fast and decoupled from the ~5-minute full reference sweep. Pair with
@@ -69,7 +73,7 @@ public final class HarnessConfig {
     public static final boolean GLINT_ONLY = Boolean.getBoolean("refharness.glintOnly");
 
     /**
-     * When {@code true}, the harness runs <em>only</em> the {@link lib.minecraft.refharness.sweep.PlayerSweep PlayerSweep} (the vanilla player
+     * When {@code true}, the harness runs <em>only</em> the {@link PlayerSweep} (the vanilla player
      * FULL + SKULL references under {@code players/}), skipping the block / item / entity sweeps.
      * Keeps player-lighting iteration fast and decoupled from the full reference sweep. Pair with
      * {@code -PrefharnessPlayersOnly=true} on {@code renderVanillaPlayerReferences}.
@@ -77,7 +81,7 @@ public final class HarnessConfig {
     public static final boolean PLAYERS_ONLY = Boolean.getBoolean("refharness.playersOnly");
 
     /**
-     * When {@code true}, the harness runs <em>only</em> the {@link lib.minecraft.refharness.sweep.ArmorSweep ArmorSweep} (armored mobs under
+     * When {@code true}, the harness runs <em>only</em> the {@link ArmorSweep} (armored mobs under
      * {@code armor/}), skipping the block / item / entity / player sweeps. The main entity sweep
      * equips nothing and renders no babies, so worn armor - and in particular vanilla's separate
      * baby armor model - has no ground truth without this mode. Pair with

@@ -1,7 +1,5 @@
 package lib.minecraft.refharness;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
@@ -13,6 +11,8 @@ import net.minecraft.world.level.levelgen.WorldOptions;
 import net.minecraft.world.level.levelgen.presets.WorldPresets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Programmatic flat-world creator. When the {@link TitleScreen} first appears,
@@ -53,7 +53,7 @@ public final class WorldBootstrap {
         LOG.info("WorldBootstrap: TitleScreen detected, creating fresh flat world '{}'.", LEVEL_ID);
 
         // NORMAL (not PEACEFUL) - peaceful auto-removes hostile mobs (creeper, zombie, ...)
-        // each tick, which makes EntitySweeper unable to capture them. Player invulnerability
+        // each tick, which makes the entity sweep unable to capture them. Player invulnerability
         // is set elsewhere so the spawned hostiles don't actually attack.
         LevelSettings settings = new LevelSettings(
             LEVEL_ID,

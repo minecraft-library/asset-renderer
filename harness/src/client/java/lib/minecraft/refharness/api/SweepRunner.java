@@ -1,11 +1,11 @@
 package lib.minecraft.refharness.api;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Drives one {@link Sweep} a subject at a time - the work index, the tally, and the completion

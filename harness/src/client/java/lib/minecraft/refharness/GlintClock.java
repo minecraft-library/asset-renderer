@@ -1,13 +1,16 @@
 package lib.minecraft.refharness;
 
+import lib.minecraft.refharness.mixin.GlintTexturingMixin;
+import lib.minecraft.refharness.sweep.GlintSweep;
+
 /**
  * Holds the harness-controlled enchantment-glint time so the glint reference renders are
  * deterministic and phase-aligned with asset-renderer's pre-rendered glint frames.
  *
  * <p>Vanilla's {@code TextureTransform.setupGlintTexturing(float)} derives the scroll offset from
  * {@code (long)(Util.getMillis() * glintSpeed * 8.0)} - real wall-clock time, so a single captured
- * frame lands at an arbitrary glint phase. {@link lib.minecraft.refharness.mixin.GlintTexturingMixin}
- * reads {@link #overrideT} instead whenever it is non-negative, letting {@link lib.minecraft.refharness.sweep.GlintSweep GlintSweep} step the
+ * frame lands at an arbitrary glint phase. {@link GlintTexturingMixin}
+ * reads {@link #overrideT} instead whenever it is non-negative, letting {@link GlintSweep} step the
  * glint through a fixed schedule of {@code t} values (the same schedule the asset-renderer side feeds
  * {@code GlintKit.applyGlintAtTimes}) and capture one PNG per value.
  *

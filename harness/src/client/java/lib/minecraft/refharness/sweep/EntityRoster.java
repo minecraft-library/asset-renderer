@@ -1,8 +1,5 @@
 package lib.minecraft.refharness.sweep;
 
-import java.util.Map;
-import java.util.Set;
-
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -10,6 +7,9 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
+
+import java.util.Map;
+import java.util.Set;
 
 /** The hand-maintained tables that decide which entities are swept and how they are grouped. */
 public final class EntityRoster {

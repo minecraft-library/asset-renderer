@@ -87,7 +87,7 @@ Each glint subject is a directory of `FRAME_COUNT` (30) per-frame PNGs (`frame_0
 
 ## Iso pose
 
-Quaternion locked at `rotationXYZ(210°, 45°, 0°)` in `EntityFrameRenderer.ISO_ROTATION`. Empirically derived via a 24-step yaw sweep + 576-frame pitch×roll sweep over a cow with chirality fix.
+Quaternion locked at `rotationXYZ(210°, 45°, 0°)` in `api.HarnessPose.ISO`. Empirically derived via a 24-step yaw sweep + 576-frame pitch×roll sweep over a cow with chirality fix.
 
 > [!NOTE]
 > The 210/45 angles compensate for two transforms baked downstream: `LivingEntityRenderer.setupRotations`'s built-in `Y(180 - bodyRot)`, plus an `Rx(180)`-equivalent factor introduced by the chirality `scale(1, 1, -1)` fix.
@@ -98,11 +98,11 @@ Equivalent to a camera positioned SE of the subject looking NW with `yaw = 135°
 
 ## Render pipeline
 
-Every sweep renders through PIP (picture-in-picture): geometry is submitted to an offscreen `RGBA8 + DEPTH32` texture pair, then read back via `copyTextureToBuffer` → `NativeImage` → PNG. No in-world capture, camera, or player placement is involved - the world only has to exist so `EntityType.create` and the block-entity dispatcher have a `Level`. Readback is async, so each sweeper renders one subject per client tick.
+Every sweep renders through PIP (picture-in-picture): geometry is submitted to an offscreen `RGBA8 + DEPTH32` texture pair, then read back via `copyTextureToBuffer` → `NativeImage` → PNG. No in-world capture, camera, or player placement is involved - the world only has to exist so `EntityType.create` and the block-entity dispatcher have a `Level`. Readback is async, so each sweep renders exactly one subject per client tick - entity variants included.
 
 ### Block phase
 
-`BlockSweeper` renders every block as **true 3D geometry at the iso `display.gui` pose** - never a flat inventory icon. It iterates `BuiltInRegistries.BLOCK`, skips technical blocks with no item (`block.asItem() == Items.AIR`), and routes each remaining block by type:
+`BlockSweep` renders every block as **true 3D geometry at the iso `display.gui` pose** - never a flat inventory icon. It iterates `BuiltInRegistries.BLOCK`, skips technical blocks with no item (`block.asItem() == Items.AIR`), and routes each remaining block by type:
 
 - **Plain blocks** → `BlockFrameRenderer`. The block's `BlockStateModel` is submitted directly via `SubmitNodeStorage.submitBlockModel` at pose `R_XYZ(30°, 225°, 0°)` + scale `0.625` (vanilla's `block/block.json` `display.gui`) under `Lighting.Entry.ITEMS_3D`. This bypasses the item-model dispatch, so blocks whose item model parents `item/generated` (rails, vines, ladders, lily_pad, seagrass, sculk_vein, doors, hanging signs) render as actual 3D geometry instead of the 2D billboard the inventory icon would show.
 - **`EntityBlock` blocks with a registered `BlockEntityRenderer`** (chest, shulker_box, banner, sign, bed, skull, bell, beacon, decorated_pot, copper_golem_statue, ...) → `BlockEntityFrameRenderer`. A transient, never-ticked `BlockEntity` is constructed via `EntityBlock.newBlockEntity`, wired to `client.level`, and dispatched through the vanilla BE renderer for its real in-world geometry. See [Block-entity icon composition](#block-entity-icon-composition).
@@ -124,11 +124,11 @@ Most block-entities render raw - skull, chest, shulker_box, conduit, decorated_p
 
 ### Item phase
 
-`ItemSweeper` walks `BuiltInRegistries.ITEM`, **skips `BlockItem`s** (already covered by the block phase), and renders each remaining item through `ItemFrameRenderer` - vanilla's GUI inventory-icon pipeline (`ItemDisplayContext.GUI` + `ITEMS_FLAT` / `ITEMS_3D` lighting + `FeatureRenderDispatcher` to an offscreen `RGBA8` texture) - to `items/<ns>__<id>.png`.
+`ItemSweep` walks `BuiltInRegistries.ITEM`, **skips `BlockItem`s** (already covered by the block phase), and renders each remaining item through `ItemFrameRenderer` - vanilla's GUI inventory-icon pipeline (`ItemDisplayContext.GUI` + `ITEMS_FLAT` / `ITEMS_3D` lighting + `FeatureRenderDispatcher` to an offscreen `RGBA8` texture) - to `items/<ns>__<id>.png`.
 
 ### Entity phase
 
-`EntitySweeper` + `EntityFrameRenderer`:
+`EntitySweep` + `EntityFrameRenderer`:
 
 1. **Pre-pass** measures every (entity, variant) target's screen bounds, groups by family root via `FAMILY_OVERRIDES` (currently just `MOOSHROOM → COW`), and computes one `FamilyFit(canvasW, canvasH, scale, anchorX, anchorY)` per family.
 2. **Render pass** iterates `BuiltInRegistries.ENTITY_TYPE`, filters `MobCategory != MISC` with `MISC_ALLOWLIST` exception (currently `armor_stand`), builds variants via `EntityType.loadEntityRecursive(type, nbt={"variant":"<ns>:<id>"}, level, LOAD, EntityProcessor.NOP)`, extracts render state via `EntityRenderer.createRenderState`, submits through the same offscreen-texture path as blocks.
@@ -143,7 +143,7 @@ Most block-entities render raw - skull, chest, shulker_box, conduit, decorated_p
 
 ### Variant rendering
 
-`VARIANT_REGISTRIES` maps `EntityType.{COW,PIG,CHICKEN,FROG,WOLF}` to `Registries.X_VARIANT`. For those types the sweeper iterates the registry and renders one PNG per variant. Filenames: `<ns>__<entity>_<variant>.png` (e.g. `minecraft__cow_warm.png`, `minecraft__wolf_ashen.png`).
+`EntityRoster.VARIANT_REGISTRIES` maps `EntityType.{COW,PIG,CHICKEN,FROG,WOLF,CAT,ZOMBIE_NAUTILUS}` to `Registries.X_VARIANT`. For those types the sweep iterates the registry and renders one PNG per variant. Filenames: `<ns>__<entity>_<variant>.png` (e.g. `minecraft__cow_warm.png`, `minecraft__wolf_ashen.png`).
 
 > [!IMPORTANT]
 > `CowRenderer`, `PigRenderer`, `ChickenRenderer` keep a `Map<ModelType, AdultAndBabyModelPair<Model>>` and mutate `this.model` in `submit()` to the variant-specific instance. The bounds walker resolves the variant model up front via `tryResolveVariantModel` so bounds reflect the actual rendered geometry. Without this, cow_warm's bounds would be measured against the default `CowModel` (no horns) while render uses `WarmCowModel` (with horns).
@@ -161,7 +161,7 @@ Most block-entities render raw - skull, chest, shulker_box, conduit, decorated_p
 
 ### Glint phase
 
-`GlintSweeper` renders the animated enchantment glint as a deterministic frame sequence. It steps `GlintClock.overrideT` through a fixed schedule (`t_N = N × 1000 ms`, 30 frames spanning the V-loop exactly once); `GlintTexturingMixin` substitutes that time for vanilla's wall-clock glint derivation, so every frame's phase matches asset-renderer's `GlintKit.applyGlintAtTimes`. Two subject kinds:
+`GlintSweep` renders the animated enchantment glint as a deterministic frame sequence. It steps `GlintClock.overrideT` through a fixed schedule (`t_N = N × 1000 ms`, 30 frames spanning the V-loop exactly once); `GlintTexturingMixin` substitutes that time for vanilla's wall-clock glint derivation, so every frame's phase matches asset-renderer's `GlintKit.applyGlintAtTimes`. Two subject kinds:
 
 - **7 always-foil GUI items** (`enchanted_book`, `written_book`, `enchanted_golden_apple`, `experience_bottle`, `nether_star`, `debug_stick`, `end_crystal`) - the item glint, via `ItemFrameRenderer`.
 - **4 worn leather-armor diagnostics** - the distinct armor glint, an `armor_stand` wearing one glint-forced leather piece rendered through `EntityFrameRenderer`. Byte-parity is out of scope (different pose/model); this exists so the armor-glint animation can be eyeballed side-by-side.
@@ -169,7 +169,7 @@ Most block-entities render raw - skull, chest, shulker_box, conduit, decorated_p
 The sweep also dumps `glint/atlas_uv.json` (each foil item's items-atlas sprite-UV rect). It runs **only** under `GLINT_ONLY` (`-PrefharnessGlintOnly=true` / `renderVanillaGlintReferences`) and is never part of the full block/item/entity sweep.
 
 > [!IMPORTANT]
-> `GlintSweeper.FRAME_COUNT` (30) and `STEP_MILLIS` (1000) **must match asset-renderer's `TestGlintParityVanilla`** or the frames misalign.
+> `GlintSweep.FRAME_COUNT` (30) and `STEP_MILLIS` (1000) **must match asset-renderer's `TestGlintParityVanilla`** or the frames misalign.
 
 ---
 
@@ -196,7 +196,7 @@ Set automatically by the Loom run config; override with `-Drefharness.xxx=` for 
 | `refharness.size`            | `512`   | Block canvas square edge (pixels)                                                                                    |
 | `refharness.pixelsPerBlock`  | `256`   | Entity texel resolution; family canvases sized to `bound × this`                                                     |
 | `refharness.maxCanvasSize`   | `1024`  | Cap on entity canvas longer side; entities exceeding shrink uniformly                                                |
-| `refharness.glintOnly`       | `false` | Run only `GlintSweeper` (animated-glint references), skipping the block / item / entity sweeps                       |
+| `refharness.glintOnly`       | `false` | Run only `GlintSweep` (animated-glint references), skipping the block / item / entity sweeps                       |
 
 ---
 
@@ -223,19 +223,44 @@ src/
 └── client/
     ├── java/lib/minecraft/refharness/
     │   ├── HarnessConfig.java              # System-property config
-    │   ├── RefHarnessClient.java           # ClientModInitializer; tick lifecycle, warmup, stop
+    │   ├── HarnessMode.java                # FULL / GLINT / PLAYERS / ARMOR / PITCH_ROLL -> its sweeps
+    │   ├── RefHarnessClient.java           # ClientModInitializer; tick lifecycle, mute, warmup, stop
     │   ├── WorldBootstrap.java             # TitleScreen → WorldOpenFlows.createFreshLevel(...)
-    │   ├── RefHarnessRenderer.java         # Lifecycle: builds + drives the sweepers; noon-pin
-    │   ├── BlockSweeper.java               # BLOCK registry → BlockFrameRenderer / BlockEntityFrameRenderer
-    │   ├── BlockFrameRenderer.java         # PIP 3D block-model render (submitBlockModel) → PNG
-    │   ├── BlockEntityFrameRenderer.java   # PIP BE-dispatch render + inventory-icon composition → PNG
-    │   ├── FirstVariantRandomSource.java   # nextInt→0: pin weighted block variants to variants[0]
-    │   ├── ItemSweeper.java                # ITEM registry (non-BlockItem) → ItemFrameRenderer
-    │   ├── ItemFrameRenderer.java          # PIP GUI item-icon render → offscreen texture → PNG
-    │   ├── EntitySweeper.java              # Variant + family-fit pre-pass + family-locked render pass
-    │   ├── EntityFrameRenderer.java        # PIP entity render with bounds walker + chirality + family fit
-    │   ├── GlintSweeper.java               # Animated-glint frame sequence (GLINT_ONLY) + atlas-UV dump
+    │   ├── RefHarnessRenderer.java         # Lifecycle: builds + drives the sweep runners; noon-pin
     │   ├── GlintClock.java                 # Harness-controlled deterministic glint time
+    │   ├── api/                            # The contracts and the shared value types
+    │   │   ├── Sweep.java                  # What a sweep is: enumerate / key / canvas / render + hooks
+    │   │   ├── SweepRunner.java            # Work index, tally, latch, one-subject-per-tick pacing
+    │   │   ├── SweepContext.java           # Per-tick render handles + output root + target filter
+    │   │   ├── FrameRenderer.java          # What a sweep calls to draw one subject
+    │   │   ├── RefKey.java                 # A reference's output name, as data
+    │   │   ├── Canvas.java                 # Canvas dimensions + the optional caller-measured fit
+    │   │   ├── Bounds.java                 # Screen-space extents; union is monotone
+    │   │   ├── TargetFilter.java           # The parsed -PrefharnessTargets allowlist
+    │   │   └── HarnessPose.java            # The shared iso rotation
+    │   ├── pip/                            # The offscreen draw envelope, written once
+    │   │   ├── PipTarget.java              # Textures, clear, ortho, submit, async read-back → PNG
+    │   │   ├── PipScope.java               # Per-frame handles + FULL_BRIGHT_LIGHT + the GUI pose
+    │   │   └── PipDraw.java                # The subject-specific pose-and-submit callback
+    │   ├── frame/                          # The five frame renderers and their helpers
+    │   │   ├── BlockFrameRenderer.java     # PIP 3D block-model render (submitBlockModel) → PNG
+    │   │   ├── BlockEntityFrameRenderer.java # PIP BE-dispatch render + inventory-icon composition
+    │   │   ├── ItemFrameRenderer.java      # PIP GUI item-icon render → PNG
+    │   │   ├── EntityFrameRenderer.java    # PIP entity render: fit, chirality, pose, submit
+    │   │   ├── EntityBoundsWalker.java     # The reflective silhouette walk that sizes a subject
+    │   │   ├── PlayerFrameRenderer.java    # PIP player-model render (no Entity; bakes the layer)
+    │   │   ├── BlockGuiTransform.java      # Resolves a block's authored display.gui transform
+    │   │   └── FirstVariantRandomSource.java # nextInt→0: pin weighted block variants to variants[0]
+    │   ├── sweep/                          # One file per subject kind
+    │   │   ├── BlockSweep.java             # BLOCK registry → BE renderer, falling back to plain 3D
+    │   │   ├── ItemSweep.java              # ITEM registry (non-BlockItem) → GUI icon
+    │   │   ├── EntitySweep.java            # Variant expansion + family canvas pre-pass
+    │   │   ├── PlayerSweep.java            # FULL + SKULL scopes
+    │   │   ├── GlintSweep.java             # Animated-glint frame sequences + atlas-UV dump
+    │   │   ├── ArmorSweep.java             # Armored adult/baby diagnostics
+    │   │   ├── PitchRollSweep.java         # Diagnostic pitch × roll pose sweep (outside the tree)
+    │   │   ├── EntityRoster.java           # MISC allowlist, variant registries, family overrides
+    │   │   └── EntitySubjects.java         # zeroRotations, shared by the entity-bearing sweeps
     │   └── mixin/
     │       ├── HeadlessWindowMixin.java         # GLFW_VISIBLE=false
     │       ├── HideHandMixin.java               # ItemInHandRenderer cancel
@@ -331,7 +356,7 @@ These make the block / item / glint sweeps match the in-world appearance and run
 
 ## Family map
 
-Cross-`EntityType` family overrides via `EntitySweeper.FAMILY_OVERRIDES`. Variants of the same `EntityType` automatically join one family.
+Cross-`EntityType` family overrides via `EntityRoster.FAMILY_OVERRIDES`. Variants of the same `EntityType` automatically join one family.
 
 | Family root | Members                                                                                                                          |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -393,7 +418,7 @@ Renders the first filtered target 24×24 = 576 times - every combination of pitc
   -PrefharnessTargets=minecraft:nether_star
 ```
 
-Runs only `GlintSweeper`, skipping the full block/item/entity sweep, so the animated-glint references iterate fast and decoupled. Each subject writes `glint/<ns>__<id>/frame_NNN.png` (30 frames) plus a one-shot `glint/atlas_uv.json`. The `-PrefharnessTargets` allowlist scopes to a single foil subject.
+Runs only `GlintSweep`, skipping the full block/item/entity sweep, so the animated-glint references iterate fast and decoupled. Each subject writes `glint/<ns>__<id>/frame_NNN.png` (30 frames) plus a one-shot `glint/atlas_uv.json`. The `-PrefharnessTargets` allowlist scopes to a single foil subject.
 
 ### Reset world
 

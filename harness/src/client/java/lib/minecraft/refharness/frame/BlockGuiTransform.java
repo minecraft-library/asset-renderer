@@ -1,13 +1,9 @@
-package lib.minecraft.refharness;
-
-import java.lang.reflect.Field;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
+package lib.minecraft.refharness.frame;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.item.ItemModel;
+import net.minecraft.client.renderer.item.ItemModelResolver;
 import net.minecraft.client.renderer.item.ModelRenderProperties;
 import net.minecraft.client.resources.model.cuboid.ItemTransform;
 import net.minecraft.client.resources.model.cuboid.ItemTransforms;
@@ -22,13 +18,18 @@ import org.joml.Vector3fc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Field;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Resolver for a block's authored {@code display.gui} transform, shared by
  * {@link BlockFrameRenderer} and {@link BlockEntityFrameRenderer}.
  *
  * <p>A block's gui transform is not carried by its baked {@code BlockStateModel} (geometry only);
  * it survives only on the block's baked item model as a {@link ModelRenderProperties}. This resolves
- * a {@link BlockState} to its item model via {@link net.minecraft.client.renderer.item.ItemModelResolver}'s
+ * a {@link BlockState} to its item model via {@link ItemModelResolver}'s
  * lookup ({@code DataComponents.ITEM_MODEL} identifier plus {@code ModelManager.getItemModel}), then
  * reads the private {@code ModelRenderProperties} field the standard cuboid / special / missing item
  * models hold and pulls its {@link ItemDisplayContext#GUI} {@link ItemTransform}.

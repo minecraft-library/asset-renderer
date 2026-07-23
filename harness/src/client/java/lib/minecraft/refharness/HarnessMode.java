@@ -1,8 +1,5 @@
 package lib.minecraft.refharness;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.sweep.ArmorSweep;
 import lib.minecraft.refharness.sweep.BlockSweep;
@@ -11,6 +8,9 @@ import lib.minecraft.refharness.sweep.GlintSweep;
 import lib.minecraft.refharness.sweep.ItemSweep;
 import lib.minecraft.refharness.sweep.PitchRollSweep;
 import lib.minecraft.refharness.sweep.PlayerSweep;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /** Which sweeps a run performs. Selected once, from the harness properties. */
 public enum HarnessMode {

@@ -1,18 +1,18 @@
 package lib.minecraft.refharness.sweep;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.List;
-import java.util.Locale;
-
 import lib.minecraft.refharness.HarnessConfig;
-import lib.minecraft.refharness.PlayerFrameRenderer;
 import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.RefKey;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
+import lib.minecraft.refharness.frame.PlayerFrameRenderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * Player-reference sweep. Renders the vanilla player model at the two scopes that have a vanilla

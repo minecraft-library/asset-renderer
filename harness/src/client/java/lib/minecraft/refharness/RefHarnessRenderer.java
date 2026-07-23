@@ -1,18 +1,20 @@
 package lib.minecraft.refharness;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
 import lib.minecraft.refharness.api.SweepRunner;
 import lib.minecraft.refharness.api.TargetFilter;
+import lib.minecraft.refharness.frame.BlockEntityFrameRenderer;
+import lib.minecraft.refharness.frame.BlockFrameRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.gamerules.GameRules;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Top-level orchestrator. Once the world is ready and the warmup ticks elapse, advances the

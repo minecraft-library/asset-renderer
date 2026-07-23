@@ -1,7 +1,4 @@
-package lib.minecraft.refharness;
-
-import java.io.IOException;
-import java.nio.file.Path;
+package lib.minecraft.refharness.frame;
 
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -18,6 +15,9 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+
+import java.io.IOException;
+import java.nio.file.Path;
 
 /**
  * Renders an {@link ItemStack} via the vanilla GUI item pipeline ({@link ItemModelResolver}
