@@ -16,6 +16,7 @@ import net.minecraft.world.entity.animal.sheep.Sheep;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.monster.Slime;
 import net.minecraft.world.entity.monster.skeleton.Bogged;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.WeatheringCopper;
 
 import java.util.List;
@@ -209,10 +210,67 @@ enum TraitAxis {
                 default -> throw new IllegalArgumentException("No vanilla puff state named '" + value + "'");
             });
         }
+    },
+
+    /**
+     * The dye on a wolf's or a cat's collar.
+     *
+     * <p>Vanilla will not draw a collar on an animal that is not tamed - the render state carries a
+     * colour only for a tame one - so the selection tames the subject as well as dyeing it. That is
+     * invisible on a cat and is not on a wolf, whose texture changes with taming, which is why a
+     * wolf's collar references name the tame state too.
+     */
+    COLLAR_COLOR("collar_color") {
+        @Override
+        void persist(String value, CompoundTag payload) {
+            payload.putByte("CollarColor", (byte) dye(value).getId());
+        }
+
+        @Override
+        void apply(SweepContext ctx, String value, Entity entity) {
+            if (entity instanceof TamableAnimal tamable) tamable.setTame(true, false);
+        }
+    },
+
+    /** The dye on a sheep's wool, which vanilla exposes as a setter. */
+    WOOL_COLOR("wool_color") {
+        @Override
+        void apply(SweepContext ctx, String value, Entity entity) {
+            if (entity instanceof Sheep sheep) sheep.setColor(dye(value));
+        }
+    },
+
+    /** A tropical fish's body dye, which vanilla keeps in the third byte of its packed variant. */
+    BASE_COLOR("base_color") {
+        @Override
+        void persist(String value, CompoundTag payload) {
+            packFishColour(payload, dye(value).getId(), 16);
+        }
+    },
+
+    /** A tropical fish's pattern dye, which vanilla keeps in the fourth byte of the same integer. */
+    PATTERN_COLOR("pattern_color") {
+        @Override
+        void persist(String value, CompoundTag payload) {
+            packFishColour(payload, dye(value).getId(), 24);
+        }
     };
 
     /** The sizes a salmon is persisted under, which are its only mechanism - its setter is private. */
     private static final List<String> SALMON_SIZES = List.of("small", "medium", "large");
+
+    /** Resolves a dye by the name vanilla serialises it under. */
+    private static DyeColor dye(String value) {
+        for (DyeColor dye : DyeColor.values())
+            if (dye.getSerializedName().equals(value)) return dye;
+        throw new IllegalArgumentException("No vanilla dye named '" + value + "'");
+    }
+
+    /** Writes one dye into its byte of the fish's packed variant, leaving the other three alone. */
+    private static void packFishColour(CompoundTag payload, int id, int shift) {
+        int packed = payload.getIntOr(FISH_VARIANT, 0) & ~(0xFF << shift);
+        payload.putInt(FISH_VARIANT, packed | ((id & 0xFF) << shift));
+    }
 
     /** The tag a horse's coat and markings share. */
     static final String HORSE_VARIANT = "Variant";

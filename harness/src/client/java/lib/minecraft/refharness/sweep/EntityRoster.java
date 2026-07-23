@@ -14,6 +14,7 @@ import net.minecraft.world.entity.animal.equine.Llama;
 import net.minecraft.world.entity.animal.fish.TropicalFish;
 import net.minecraft.world.entity.animal.panda.Panda;
 import net.minecraft.world.entity.animal.rabbit.Rabbit;
+import net.minecraft.world.item.DyeColor;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -110,7 +111,9 @@ public final class EntityRoster {
     /**
      * The one-axis appearance selections a type is swept at, beyond its coats and its baby.
      *
-     * <p>One entry is one reference. An axis names only the models that answer to it: applying it to
+     * <p>One entry is one reference, and an entry is a list because a reference sometimes has to
+     * select more than one thing to select anything at all - vanilla will not draw a collar on an
+     * animal that is not also tamed. An axis names only the models that answer to it: applying it to
      * a model that ignores it renders the default under a name claiming otherwise, which inflates the
      * coverage number with references that cannot fail.
      *
@@ -118,14 +121,11 @@ public final class EntityRoster {
      * @param type the entity type
      * @return its selections, empty for a type no axis reaches
      */
-    public static List<Appearance.Trait> selections(SweepContext ctx, EntityType<?> type) {
-        List<Appearance.Trait> selections = new ArrayList<>();
+    public static List<List<Appearance.Trait>> selections(SweepContext ctx, EntityType<?> type) {
+        List<List<Appearance.Trait>> selections = new ArrayList<>();
         // Wolf is the only model whose data declares a behavioural state, and the wild state is its
         // default, so only the other two are references.
-        if (type == EntityType.WOLF) {
-            selections.add(new Appearance.Trait(TraitAxis.STATE.token(), TraitAxis.ANGRY));
-            selections.add(new Appearance.Trait(TraitAxis.STATE.token(), TraitAxis.TAME));
-        }
+        if (type == EntityType.WOLF) select(selections, TraitAxis.STATE, TraitAxis.ANGRY, TraitAxis.TAME);
         // The stage axes each reach one model, and each carries a default the reference set already
         // covers - an uncracked golem, an unweathered one, an unmarked horse.
         if (type == EntityType.IRON_GOLEM) select(selections, TraitAxis.CRACKINESS, "low", "medium", "high");
@@ -138,7 +138,7 @@ public final class EntityRoster {
         if (type == EntityType.TROPICAL_FISH) {
             for (TropicalFish.Pattern pattern : TropicalFish.Pattern.values())
                 if (pattern != TropicalFish.Pattern.KOB)
-                    selections.add(new Appearance.Trait(TraitAxis.PATTERN.token(), pattern.getSerializedName()));
+                    select(selections, TraitAxis.PATTERN, pattern.getSerializedName());
         }
         // The two villagers share one overlay set. The zombie villager takes the professions and not
         // the biome types: vanilla's texture corpus ships it no per-type sidecar, so each of those six
@@ -154,13 +154,29 @@ public final class EntityRoster {
         if (type == EntityType.SHEEP || type == EntityType.BOGGED) select(selections, TraitAxis.SHEARED, "true");
         if (type == EntityType.CREEPER || type == EntityType.WITHER) select(selections, TraitAxis.CHARGED, "true");
         for (String toggle : BONE_TOGGLES.getOrDefault(type, List.of()))
-            selections.add(new Appearance.Trait(TraitAxis.TOGGLE.token(), toggle));
+            select(selections, TraitAxis.TOGGLE, toggle);
         // The size options exclude the model's own default, unlike the coat options, so each model
         // contributes only the sizes it is not already rendered at.
         if (type == EntityType.SLIME || type == EntityType.MAGMA_CUBE)
             select(selections, TraitAxis.SIZE, "medium", "large");
         if (type == EntityType.SALMON) select(selections, TraitAxis.SIZE, "small", "large");
         if (type == EntityType.PUFFERFISH) select(selections, TraitAxis.SIZE, "small", "medium");
+        // Every dye, not one representative: sixteen renders of an ARGB multiply cost seconds, and a
+        // sampled axis cannot say which of the sixteen a regression moved.
+        if (type == EntityType.SHEEP) selectDyes(selections, TraitAxis.WOOL_COLOR);
+        if (type == EntityType.TROPICAL_FISH) {
+            selectDyes(selections, TraitAxis.BASE_COLOR);
+            selectDyes(selections, TraitAxis.PATTERN_COLOR);
+        }
+        // A collar needs a tamed subject before vanilla draws it at all. That is invisible on a cat
+        // and not on a wolf, whose texture changes with taming - so the wolf's collar references name
+        // the tame state as well, and describe what they are rather than under-describing it.
+        if (type == EntityType.CAT) selectDyes(selections, TraitAxis.COLLAR_COLOR);
+        if (type == EntityType.WOLF)
+            for (DyeColor dye : DyeColor.values())
+                selections.add(List.of(
+                    new Appearance.Trait(TraitAxis.COLLAR_COLOR.token(), dye.getSerializedName()),
+                    new Appearance.Trait(TraitAxis.STATE.token(), TraitAxis.TAME)));
         return selections;
     }
 
@@ -215,9 +231,15 @@ public final class EntityRoster {
         };
     }
 
-    /** Appends one selection per option of a single axis. */
-    private static void select(List<Appearance.Trait> selections, TraitAxis axis, String... options) {
-        for (String option : options) selections.add(new Appearance.Trait(axis.token(), option));
+    /** Appends one reference per option of a single axis. */
+    private static void select(List<List<Appearance.Trait>> selections, TraitAxis axis, String... options) {
+        for (String option : options) selections.add(List.of(new Appearance.Trait(axis.token(), option)));
+    }
+
+    /** Appends one reference per vanilla dye, for an axis that takes one. */
+    private static void selectDyes(List<List<Appearance.Trait>> selections, TraitAxis axis) {
+        for (DyeColor dye : DyeColor.values())
+            selections.add(List.of(new Appearance.Trait(axis.token(), dye.getSerializedName())));
     }
 
     /**

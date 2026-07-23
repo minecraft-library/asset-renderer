@@ -609,18 +609,23 @@ final class EntityBoundsWalker implements AutoCloseable {
      * as new entities surface bounds-padding regressions.
      */
     private static boolean isLayerActiveForState(RenderLayer<?, ?> layer, EntityRenderState state) {
+        // The powered probe is asked first, over the whole hierarchy, because one swirl layer is also
+        // named for armour: the wither's is a WitherArmorLayer, and the suffix list answers for it
+        // before the probe can run - leaving a charged wither's aura drawn and never measured, so its
+        // reference is cropped by exactly the aura it exists to show.
+        for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            if (!c.getSimpleName().equals("EnergySwirlLayer")) continue;
+            try {
+                Method m = c.getDeclaredMethod("isPowered", EntityRenderState.class);
+                m.setAccessible(true);
+                Object result = m.invoke(layer, state);
+                return !(result instanceof Boolean powered) || powered;
+            } catch (ReflectiveOperationException ignored) {
+                return true;
+            }
+        }
         for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
             String simpleName = c.getSimpleName();
-            if (simpleName.equals("EnergySwirlLayer")) {
-                try {
-                    Method m = c.getDeclaredMethod("isPowered", EntityRenderState.class);
-                    m.setAccessible(true);
-                    Object result = m.invoke(layer, state);
-                    return result instanceof Boolean b ? b : true;
-                } catch (ReflectiveOperationException ignored) {
-                    return true;
-                }
-            }
             // A sheared subject's wool layer bails at the top of its own submit, so walking it would
             // measure a coat that is not drawn and leave the reference framed for a woolly sheep.
             if (simpleName.endsWith("WoolLayer") && isSheared(state)) return false;
@@ -1348,6 +1353,8 @@ final class EntityBoundsWalker implements AutoCloseable {
         if (variantModel != null) return variantModel;
         Model<?> shapeModel = tryResolveShapeModel(renderer, state);
         if (shapeModel != null) return shapeModel;
+        Model<?> sizeModel = tryResolveSizeModel(renderer, state);
+        if (sizeModel != null) return sizeModel;
         Model<?> ageModel = tryResolveAgeModel(renderer, state);
         if (ageModel != null) return ageModel;
         if (renderer instanceof LivingEntityRenderer<?, ?, ?> ler) {
@@ -1428,6 +1435,60 @@ final class EntityBoundsWalker implements AutoCloseable {
             part.visible = pin.getValue();
         }
         return previous;
+    }
+
+    /**
+     * Which mesh each size-bearing renderer keeps per size, and the render-state field that picks
+     * between them.
+     *
+     * <p>Named rather than derived: both renderers hold three plain {@code Model} fields and choose
+     * inside {@code submit}, so there is nothing about the field itself that says which size it is.
+     * Guessing from declaration order would measure the wrong mesh the first time vanilla reorders
+     * them, and measuring the wrong mesh is the failure that reports framing rather than the render.
+     *
+     * @param stateField the render-state field naming the size, read as an integer or as an ordinal
+     * @param modelFields the renderer's meshes, smallest first
+     */
+    private record SizeModels(String stateField, List<String> modelFields) {}
+
+    private static final Map<String, SizeModels> SIZE_MODELS = Map.of(
+        "PufferfishRenderer", new SizeModels("puffState", List.of("small", "mid", "big")),
+        "SalmonRenderer", new SizeModels("variant",
+            List.of("smallSalmonModel", "mediumSalmonModel", "largeSalmonModel")));
+
+    /**
+     * Resolves the size-specific mesh for a renderer that keeps one per size.
+     *
+     * <p>The pick happens inside {@code submit}, which the walker runs before, so {@code getModel()}
+     * hands back the constructor's mesh for every size - a deflated pufferfish measured against the
+     * fully puffed one, and a small salmon against a medium. Both sizes would then be framed for a
+     * body they are not drawn on.
+     *
+     * @param renderer the entity renderer being measured
+     * @param state the render state whose size drives the pick
+     * @return the mesh the render will actually draw, or {@code null} for a renderer with no size set
+     */
+    private static Model<?> tryResolveSizeModel(EntityRenderer<?, ?> renderer, EntityRenderState state) {
+        SizeModels models = SIZE_MODELS.get(renderer.getClass().getSimpleName());
+        if (models == null) return null;
+        try {
+            Field selector = findFieldByName(state.getClass(), models.stateField());
+            if (selector == null) return null;
+            selector.setAccessible(true);
+            Object value = selector.get(state);
+            int index = switch (value) {
+                case Integer size -> size;
+                case Enum<?> size -> size.ordinal();
+                case null, default -> -1;
+            };
+            if (index < 0 || index >= models.modelFields().size()) return null;
+            Field field = findFieldByName(renderer.getClass(), models.modelFields().get(index));
+            if (field == null) return null;
+            field.setAccessible(true);
+            return field.get(renderer) instanceof Model<?> model ? model : null;
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
     }
 
     /** Finds a bone anywhere below {@code part}, by the name its mesh gives it. */
