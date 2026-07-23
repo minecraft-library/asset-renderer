@@ -6,6 +6,8 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.asset.equipment.LayerType;
+import lib.minecraft.renderer.asset.model.ArmorMeshData;
+import lib.minecraft.renderer.asset.model.ArmorMeshes;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
@@ -17,11 +19,13 @@ import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.face.SkinFace;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
+import lib.minecraft.renderer.pipeline.loader.ArmorMeshLoader;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -34,8 +38,9 @@ import java.util.OptionalInt;
  * composited face crops (2D) textured from the vanilla armor atlases with optional
  * paletted-permutation trim overlays.
  * <p>
- * The armor texture is a 64x32 atlas whose UV layout matches the base-layer half of the
- * vanilla 64x64 player skin - {@link SkinFace#cropAll(PixelBuffer, boolean) cropAll} and
+ * The armor texture is a 64x32 atlas whose UV layout matches the top half of the vanilla 64x64
+ * player skin - the base layer plus the head's overlay, which the helmet's second box reads -
+ * so {@link SkinFace#cropAll(PixelBuffer, boolean) cropAll} and
  * {@link SkinFace#crop(PixelBuffer, BlockFace, boolean) crop} work directly on the armor
  * texture. Armor pieces whose texture region is transparent (e.g. the head area of a leggings
  * layer) produce invisible geometry that the depth buffer or alpha compositing discards
@@ -73,107 +78,66 @@ public class ArmorKit {
     private static final float TRIM_INFLATE = 0.003f;
 
     /**
-     * Per-side growth in model units for the layer-1 armor pieces (helmet, chestplate, boots).
-     */
-    private static final float OUTER_ARMOR_GROW = 1.0f;
-
-    /**
-     * Per-side growth in model units for the layer-2 leggings, so they sit inside the chestplate on
-     * the torso and inside the boots on the lower legs.
-     */
-    private static final float INNER_ARMOR_GROW = 0.5f;
-
-    /**
-     * One armor part - the box it is grown from, plus the growth its own mesh adds on top of the slot's.
+     * Vanilla's worn-armor meshes, read from the bundled armor resource the entity tooling emits by
+     * walking each armor-set factory in {@code LayerDefinitions}. Every cube arrives already grown by
+     * its slot's per-side amount, so the builder reads corners without further arithmetic.
      *
-     * @param min the box's lower corner in model units, in the Y-down model frame
+     * <p>The trees are plain box tables - no bone carries a rotation or a scale, which is what lets a
+     * part collapse to one axis-aligned box here. That is a property of the armor meshes, not an
+     * assumption about entity geometry in general.
+     */
+    private static final @NotNull ArmorMeshes ARMOR_MESHES = ArmorMeshLoader.load();
+
+    /**
+     * The body part and skin layer one armor-mesh bone is textured from.
+     *
+     * @param face the body part whose unwrap the box is cropped through
+     * @param overlay whether the box reads the overlay half of that part's unwrap rather than the base
+     */
+    private record MeshPart(@NotNull SkinFace face, boolean overlay) {}
+
+    /**
+     * One armor box ready to build: the unwrap it is textured through and its corners in the render
+     * frame.
+     *
+     * @param part the body part and skin layer the box is cropped from
+     * @param min the box's lower corner
      * @param max the box's upper corner
-     * @param extend growth added to the slot's own, negative to inset
      */
-    private record ArmorPart(@NotNull Vector3f min, @NotNull Vector3f max, float extend) {}
+    private record ArmorBox(@NotNull MeshPart part, @NotNull Vector3f min, @NotNull Vector3f max) {}
 
     /**
-     * One of vanilla's humanoid armor meshes - the boxes an armor slot's parts are grown from, in model
-     * units in the Y-down model frame, with each part's pivot offset folded into its cube extents.
-     *
-     * <p>Worn armor is <em>not</em> derived from the wearer's own mesh. Vanilla hands the armor layer a
-     * shared set, and most humanoids wear {@link #HUMANOID the same one} - a skeleton's narrow limbs and
-     * a giant's scaled-up body both wear those boxes. The few wearers vanilla builds a distinct set for
-     * are transcribed alongside it and selected by name.
-     *
-     * @param parts the box and per-part growth for each armor part
-     * @param outerGrow per-side growth for the layer-1 pieces (helmet, chestplate, boots)
-     * @param innerGrow per-side growth for the layer-2 leggings
+     * The body part each armor-mesh bone is textured from. The helmet's second box - vanilla's
+     * {@code hat} part - reads the head's overlay half, the same region the skin renderer draws a
+     * player's hat layer from.
      */
-    private record ArmorMesh(
-        @NotNull Map<SkinFace, ArmorPart> parts, float outerGrow, float innerGrow
-    ) {
-
-        /**
-         * The per-side growth for one part of one slot - the slot's own, plus whatever this mesh's part
-         * adds. An absent part contributes nothing and is skipped by the builder.
-         */
-        float growFor(@NotNull ArmorTrim.Slot slot, @NotNull ArmorPart part) {
-            return (slot == ArmorTrim.Slot.LEGGINGS ? this.innerGrow : this.outerGrow) + part.extend();
-        }
-    }
-
-    /**
-     * Extra growth the legs of the shared mesh carry, keeping the two leg shells clear of each other at
-     * the hip.
-     */
-    private static final float SHARED_LEG_EXTEND = -0.1f;
-
-    /**
-     * The mesh every humanoid wears unless its renderer names another.
-     */
-    private static final @NotNull ArmorMesh HUMANOID = new ArmorMesh(Map.of(
-        SkinFace.HEAD, part(-4f, -8f, -4f, 4f, 0f, 4f, 0f),
-        SkinFace.TORSO, part(-4f, 0f, -2f, 4f, 12f, 2f, 0f),
-        SkinFace.RIGHT_ARM, part(-8f, 0f, -2f, -4f, 12f, 2f, 0f),
-        SkinFace.LEFT_ARM, part(4f, 0f, -2f, 8f, 12f, 2f, 0f),
-        SkinFace.RIGHT_LEG, part(-3.9f, 12f, -2f, 0.1f, 24f, 2f, SHARED_LEG_EXTEND),
-        SkinFace.LEFT_LEG, part(-0.1f, 12f, -2f, 3.9f, 24f, 2f, SHARED_LEG_EXTEND)
-    ), OUTER_ARMOR_GROW, INNER_ARMOR_GROW);
-
-    /**
-     * The zombie villager's own mesh: a head sitting two units higher than the shared one, and a torso
-     * and legs grown a further tenth of a unit to clear its robe. Its legs sit a tenth wider apart than
-     * the shared mesh's and carry no inset. Arms are the shared mesh's.
-     */
-    private static final @NotNull ArmorMesh ZOMBIE_VILLAGER = new ArmorMesh(Map.of(
-        SkinFace.HEAD, part(-4f, -10f, -4f, 4f, -2f, 4f, 0f),
-        SkinFace.TORSO, part(-4f, 0f, -2f, 4f, 12f, 2f, 0.1f),
-        SkinFace.RIGHT_ARM, part(-8f, 0f, -2f, -4f, 12f, 2f, 0f),
-        SkinFace.LEFT_ARM, part(4f, 0f, -2f, 8f, 12f, 2f, 0f),
-        SkinFace.RIGHT_LEG, part(-4f, 12f, -2f, 0f, 24f, 2f, 0.1f),
-        SkinFace.LEFT_LEG, part(0f, 12f, -2f, 4f, 24f, 2f, 0.1f)
-    ), OUTER_ARMOR_GROW, INNER_ARMOR_GROW);
-
-    /**
-     * The armor stand's own mesh: a head raised one unit and legs seated a unit higher than the shared
-     * mesh's, the stand being shorter than the mobs that share the humanoid one. Torso and arms are the
-     * shared mesh's.
-     */
-    private static final @NotNull ArmorMesh ARMOR_STAND = new ArmorMesh(Map.of(
-        SkinFace.HEAD, part(-4f, -7f, -4f, 4f, 1f, 4f, 0f),
-        SkinFace.TORSO, part(-4f, 0f, -2f, 4f, 12f, 2f, 0f),
-        SkinFace.RIGHT_ARM, part(-8f, 0f, -2f, -4f, 12f, 2f, 0f),
-        SkinFace.LEFT_ARM, part(4f, 0f, -2f, 8f, 12f, 2f, 0f),
-        SkinFace.RIGHT_LEG, part(-3.9f, 11f, -2f, 0.1f, 23f, 2f, SHARED_LEG_EXTEND),
-        SkinFace.LEFT_LEG, part(-0.1f, 11f, -2f, 3.9f, 23f, 2f, SHARED_LEG_EXTEND)
-    ), OUTER_ARMOR_GROW, INNER_ARMOR_GROW);
-
-    /**
-     * The armor meshes vanilla builds separately, keyed by the name the wearer's renderer holds them
-     * under. A name absent here wears {@link #HUMANOID the shared mesh} - which is the common case, not
-     * a gap: most humanoids genuinely share it, and their renderers name it all the same.
-     */
-    private static final @NotNull Map<String, ArmorMesh> ARMOR_MESHES = Map.of(
-        "zombie_villager_armor", ZOMBIE_VILLAGER,
-        "armor_stand_armor", ARMOR_STAND,
-        "armor_stand_small_armor", ARMOR_STAND
+    private static final @NotNull Map<String, MeshPart> ARMOR_MESH_PARTS = Map.of(
+        "head", new MeshPart(SkinFace.HEAD, false),
+        "hat", new MeshPart(SkinFace.HEAD, true),
+        "body", new MeshPart(SkinFace.TORSO, false),
+        "right_arm", new MeshPart(SkinFace.RIGHT_ARM, false),
+        "left_arm", new MeshPart(SkinFace.LEFT_ARM, false),
+        "right_leg", new MeshPart(SkinFace.RIGHT_LEG, false),
+        "left_leg", new MeshPart(SkinFace.LEFT_LEG, false)
     );
+
+    /**
+     * The armor-mesh parts each equipment slot keeps, matching vanilla's own per-slot part sets. The
+     * helmet keeps its part <em>and that part's children</em> - which is what puts the {@code hat} box
+     * on a helmet - where the other three keep exactly the parts they name.
+     */
+    private static final @NotNull Map<ArmorTrim.Slot, List<String>> SLOT_PARTS = Map.of(
+        ArmorTrim.Slot.HELMET, List.of("head"),
+        ArmorTrim.Slot.CHESTPLATE, List.of("body", "right_arm", "left_arm"),
+        ArmorTrim.Slot.LEGGINGS, List.of("body", "right_leg", "left_leg"),
+        ArmorTrim.Slot.BOOTS, List.of("right_leg", "left_leg")
+    );
+
+    /**
+     * Guard on the bone parent chain - the armor meshes are two deep, so anything beyond this is a
+     * cycle rather than a hierarchy.
+     */
+    private static final int MAX_BONE_DEPTH = 8;
 
     /**
      * Trim separation in model units - the model-unit equivalent of {@link #TRIM_INFLATE} in the
@@ -187,7 +151,9 @@ public class ArmorKit {
      *
      * <p>{@code meshScale} / {@code meshOffset} carry the whole-mesh transform the wearer's own body
      * was built through, so a scaled-up humanoid wears a scaled-up shell - vanilla maps the very same
-     * transform over the shared armor set rather than giving those wearers a distinct mesh.
+     * transform over the shared armor set rather than giving those wearers a distinct mesh. That is
+     * also why the emitted meshes deliberately do <em>not</em> carry it: read here off the wearer, it
+     * would otherwise be applied twice.
      *
      * @param baby whether the wearer renders in its baby form
      * @param meshName the name of the armor mesh the wearer's renderer holds, or empty for the shared one
@@ -235,10 +201,11 @@ public class ArmorKit {
 
         /**
          * The armor mesh this wearer wears - the one its renderer names, or the shared mesh when it
-         * names none or names one vanilla does not build separately.
+         * names none or names one vanilla does not build separately. Empty only when the armor
+         * resource is absent, which leaves a wearer bare rather than wearing a guess.
          */
-        @NotNull ArmorMesh mesh() {
-            return this.meshName.map(ARMOR_MESHES::get).orElse(HUMANOID);
+        @NotNull Optional<ArmorMeshData> mesh() {
+            return ARMOR_MESHES.resolve(this.meshName);
         }
     }
 
@@ -246,14 +213,6 @@ public class ArmorKit {
      * The torso bone name the whole-mesh transform is read from.
      */
     private static final @NotNull String TORSO_BONE = "body";
-
-    /**
-     * An armor part from its six extents and its own growth.
-     */
-    private static @NotNull ArmorPart part(
-        float minX, float minY, float minZ, float maxX, float maxY, float maxZ, float extend) {
-        return new ArmorPart(new Vector3f(minX, minY, minZ), new Vector3f(maxX, maxY, maxZ), extend);
-    }
 
     // ---------------------------------------------------------------------------------------
     // 3D armor (triangles for ModelEngine rasterization).
@@ -424,11 +383,11 @@ public class ArmorKit {
      * snake_case or camelCase spelling). Bones with no humanoid mapping are silently skipped, so a
      * non-humanoid entity simply yields no armor.
      *
-     * <p>An adult wears {@link #ARMOR_MESH the generic humanoid armor mesh} grown by the slot's own
-     * amount, mapped into the render frame - matching vanilla, which dresses every humanoid in one
-     * shared armor set rather than in a shell derived from the wearer's mesh. A baby still wears its
-     * own bone boxes: vanilla's baby armor is a separate mesh with different proportions and an extra
-     * waist part, which this does not yet transcribe.
+     * <p>An adult wears the armor mesh its renderer names, mapped into the render frame - matching
+     * vanilla, which dresses a humanoid in one of a handful of shared armor sets rather than in a shell
+     * derived from the wearer's own mesh. A baby still wears its own bone boxes: vanilla's baby armor
+     * is a separate mesh with different proportions and an extra waist part, which this does not yet
+     * carry.
      *
      * @param frame the render frame the armor is built into
      * @param boneBounds map of bone name to {@code [min, max]}, for the baby form
@@ -480,10 +439,9 @@ public class ArmorKit {
     }
 
     /**
-     * Builds the armor for one adult humanoid from the generic armor mesh: each equipped slot's parts
-     * grown by that slot's per-side amount, mapped into the render frame, then turned into the upright
-     * frame the armor unwrap is authored for. The boxes arrive already grown, so the emitter adds no
-     * further inflate.
+     * Builds the armor for one adult humanoid from the mesh its renderer names: each equipped slot's
+     * parts of that mesh, mapped into the render frame, then turned into the upright frame the armor
+     * unwrap is authored for. The boxes arrive already grown, so the emitter adds no further inflate.
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildGenericArmor3D(
         @NotNull EntityArmorFrame frame,
@@ -495,6 +453,8 @@ public class ArmorKit {
         @NotNull Textures engine
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        Optional<ArmorMeshData> mesh = frame.mesh();
+        if (mesh.isEmpty()) return triangles;
         // The trim rides the same frame as the armor it sits on, so its separation scales with the
         // render rather than staying a constant that vanishes at small scales.
         float trimInflate = TRIM_GROW * frame.ndcScale() * frame.modelScale();
@@ -507,30 +467,76 @@ public class ArmorKit {
 
         for (var entry : equipped.entrySet()) {
             ArmorTrim.Slot slot = entry.getKey();
-            entry.getValue().ifPresent(piece -> addSlot3D(triangles, armorBoxes(frame, slot), piece,
-                slot, itemFor(items, slot), engine, 0f, trimInflate));
+            entry.getValue().ifPresent(piece -> addMeshSlot3D(triangles,
+                armorBoxes(frame, mesh.get(), slot), piece, slot, itemFor(items, slot), engine, trimInflate));
         }
         return triangles;
     }
 
     /**
-     * The generic armor mesh boxes covering one slot, grown by that slot's per-side amount, mapped
-     * through the render frame and turned into the upright frame the armor unwrap is authored for.
+     * The armor mesh's boxes covering one slot, mapped through the render frame and turned into the
+     * upright frame the armor unwrap is authored for.
+     *
+     * <p>The slot picks which of the mesh's two grown forms it wears - the leggings its inner one, the
+     * other three its outer - then keeps the parts vanilla keeps for that slot. Bone order is the
+     * mesh's own, so a part and the overlay box parented to it stay adjacent.
      */
-    private static @NotNull Map<SkinFace, Vector3f[]> armorBoxes(
-        @NotNull EntityArmorFrame frame, @NotNull ArmorTrim.Slot slot) {
-        ArmorMesh mesh = frame.mesh();
-        Map<SkinFace, Vector3f[]> boxes = new EnumMap<>(SkinFace.class);
-        for (SkinFace face : partsForSlot(slot)) {
-            ArmorPart part = mesh.parts().get(face);
-            if (part == null) continue;
-            float grow = mesh.growFor(slot, part);
-            boxes.put(face, turnAboutXBounds(new Vector3f[]{
-                toRenderFrame(frame, part.min().x() - grow, part.min().y() - grow, part.min().z() - grow),
-                toRenderFrame(frame, part.max().x() + grow, part.max().y() + grow, part.max().z() + grow)
-            }));
+    private static @NotNull List<ArmorBox> armorBoxes(
+        @NotNull EntityArmorFrame frame, @NotNull ArmorMeshData mesh, @NotNull ArmorTrim.Slot slot) {
+        EntityModelData tree = slot == ArmorTrim.Slot.LEGGINGS ? mesh.inner() : mesh.outer();
+        List<ArmorBox> boxes = new ArrayList<>();
+        for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
+            MeshPart part = ARMOR_MESH_PARTS.get(entry.getKey());
+            if (part == null || !coveredBySlot(tree, slot, entry.getKey())) continue;
+            Vector3f anchor = chainedPivot(tree, entry.getValue());
+            for (EntityModelData.Cube cube : entry.getValue().getCubes()) {
+                Vector3f grow = cube.getGrow();
+                Vector3f min = anchor.add(cube.getOrigin()).subtract(grow);
+                Vector3f max = min.add(cube.getSize()).add(grow).add(grow);
+                Vector3f[] corners = turnAboutXBounds(new Vector3f[]{
+                    toRenderFrame(frame, min.x(), min.y(), min.z()),
+                    toRenderFrame(frame, max.x(), max.y(), max.z())
+                });
+                boxes.add(new ArmorBox(part, corners[0], corners[1]));
+            }
         }
         return boxes;
+    }
+
+    /**
+     * Whether a slot's armor covers this bone. Vanilla keeps the helmet's part <em>and its
+     * children</em>, and exactly the named parts for the other three slots - so the head's overlay box
+     * rides a helmet and nothing else.
+     */
+    private static boolean coveredBySlot(
+        @NotNull EntityModelData tree, @NotNull ArmorTrim.Slot slot, @NotNull String bone) {
+        List<String> parts = SLOT_PARTS.get(slot);
+        if (parts.contains(bone)) return true;
+        if (slot != ArmorTrim.Slot.HELMET) return false;
+        String cursor = bone;
+        for (int depth = 0; depth < MAX_BONE_DEPTH; depth++) {
+            EntityModelData.Bone node = tree.getBones().get(cursor);
+            if (node == null || node.getParent() == null) return false;
+            cursor = node.getParent();
+            if (parts.contains(cursor)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * A bone's anchor in mesh space - its own pivot plus every ancestor's, since a bone pivot is
+     * parent-relative.
+     */
+    private static @NotNull Vector3f chainedPivot(
+        @NotNull EntityModelData tree, @NotNull EntityModelData.Bone bone) {
+        Vector3f anchor = bone.getPivot();
+        EntityModelData.Bone cursor = bone;
+        for (int depth = 0; depth < MAX_BONE_DEPTH && cursor.getParent() != null; depth++) {
+            cursor = tree.getBones().get(cursor.getParent());
+            if (cursor == null) break;
+            anchor = anchor.add(cursor.getPivot());
+        }
+        return anchor;
     }
 
     /**
@@ -604,15 +610,28 @@ public class ArmorKit {
     // ---------------------------------------------------------------------------------------
 
     /**
+     * The {@link SkinFace} body parts an armor slot covers - {@link #SLOT_PARTS the same per-slot
+     * table} the mesh path prunes by, read through the body part each part name is textured from.
+     */
+    private static final @NotNull Map<ArmorTrim.Slot, SkinFace[]> SLOT_FACES =
+        new EnumMap<>(ArmorTrim.Slot.class);
+
+    static {
+        for (Map.Entry<ArmorTrim.Slot, List<String>> entry : SLOT_PARTS.entrySet())
+            SLOT_FACES.put(entry.getKey(), entry.getValue().stream()
+                .map(name -> ARMOR_MESH_PARTS.get(name).face())
+                .distinct()
+                .toArray(SkinFace[]::new));
+    }
+
+    /**
      * Maps an armor slot to the {@link SkinFace} body parts it covers.
+     *
+     * @param slot the armor slot
+     * @return the body parts that slot's armor covers
      */
     public static @NotNull SkinFace @NotNull [] partsForSlot(@NotNull ArmorTrim.Slot slot) {
-        return switch (slot) {
-            case HELMET -> new SkinFace[]{ SkinFace.HEAD };
-            case CHESTPLATE -> new SkinFace[]{ SkinFace.TORSO, SkinFace.RIGHT_ARM, SkinFace.LEFT_ARM };
-            case LEGGINGS -> new SkinFace[]{ SkinFace.TORSO, SkinFace.RIGHT_LEG, SkinFace.LEFT_LEG };
-            case BOOTS -> new SkinFace[]{ SkinFace.RIGHT_LEG, SkinFace.LEFT_LEG };
-        };
+        return SLOT_FACES.get(slot).clone();
     }
 
     /**
@@ -650,7 +669,7 @@ public class ArmorKit {
         for (SkinFace part : parts) {
             Vector3f[] bounds = bodyPositions.get(part);
             if (bounds == null) continue;
-            triangles.addAll(buildPart3D(part, bounds[0], bounds[1], armorTexture.get(), baseInflate));
+            triangles.addAll(buildPart3D(part, false, bounds[0], bounds[1], armorTexture.get(), baseInflate));
         }
 
         if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
@@ -661,15 +680,49 @@ public class ArmorKit {
                 for (SkinFace part : parts) {
                     Vector3f[] bounds = bodyPositions.get(part);
                     if (bounds == null) continue;
-                    triangles.addAll(buildPart3D(part, bounds[0], bounds[1],
+                    triangles.addAll(buildPart3D(part, false, bounds[0], bounds[1],
                         trimTexture.get(), trimInflate));
                 }
             }
         }
     }
 
+    /**
+     * Adds one slot's armor around boxes already grown and mapped into the render frame, so nothing
+     * beyond the trim's own separation is inflated here.
+     */
+    private static void addMeshSlot3D(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull List<ArmorBox> boxes,
+        @NotNull ArmorPiece piece,
+        @NotNull ArmorTrim.Slot slot,
+        @NotNull Optional<ItemContext> item,
+        @NotNull Textures engine,
+        float trimInflate
+    ) {
+        boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
+        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece,
+            useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID, item);
+        if (armorTexture.isEmpty()) return;
+
+        for (ArmorBox box : boxes)
+            triangles.addAll(buildPart3D(box.part().face(), box.part().overlay(),
+                box.min(), box.max(), armorTexture.get(), 0f));
+
+        if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
+            String trimLayer = useLeggingsLayer ? "humanoid_leggings" : "humanoid";
+            resolveTrimTexture(engine, trimLayer, piece.trimPattern().get(), piece.trimColor().get())
+                .ifPresent(trimTexture -> {
+                    for (ArmorBox box : boxes)
+                        triangles.addAll(buildPart3D(box.part().face(), box.part().overlay(),
+                            box.min(), box.max(), trimTexture, trimInflate));
+                });
+        }
+    }
+
     private static @NotNull ConcurrentList<VisibleTriangle> buildPart3D(
         @NotNull SkinFace part,
+        boolean overlay,
         @NotNull Vector3f min,
         @NotNull Vector3f max,
         @NotNull PixelBuffer texture,
@@ -680,7 +733,7 @@ public class ArmorKit {
         // Build every armor / trim triangle already flagged glinted so the rasterizer's per-pixel
         // glint mask restricts the enchantment foil to the armor, not the whole body silhouette.
         return BlockGeometryKit.buildBoxTriangles(
-            inflatedMin, inflatedMax, part.cropAll(texture, false), ColorMath.WHITE, true);
+            inflatedMin, inflatedMax, part.cropAll(texture, overlay), ColorMath.WHITE, true);
     }
 
     /**

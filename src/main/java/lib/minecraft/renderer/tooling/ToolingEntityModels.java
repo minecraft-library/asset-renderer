@@ -1,23 +1,25 @@
 package lib.minecraft.renderer.tooling;
 
+import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.tooling.entity.EntityArmorFlow;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryWalk;
 import lib.minecraft.renderer.tooling.entity.EntitySubject;
 import lib.minecraft.renderer.tooling.geometry.GeometryFlow;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
 
 import java.nio.file.Path;
 import java.util.List;
 
 /**
  * Entry point of the {@code entityModels} Gradle task - runs the entity-models flow, then the
- * shared geometry flow, in one session: discovery, registry walk, {@code entity_models.json},
- * {@code entity_geometry.json}.
+ * shared geometry flow, then the worn-armor flow, in one session: discovery, registry walk,
+ * {@code entity_models.json}, {@code entity_geometry.json}, {@code entity_armor.json}.
  */
 public final class ToolingEntityModels {
 
@@ -44,6 +46,7 @@ public final class ToolingEntityModels {
             root.write(out);
             session.diagnostics().info("wrote %s", out.toAbsolutePath());
             GeometryFlow.emit(session, manifest, RESOURCE_DIR.resolve("entity_geometry.json"));
+            EntityArmorFlow.emit(session, ArmorMeshIndex.build(session), RESOURCE_DIR.resolve("entity_armor.json"));
             failOnStrictGate(session);
         }
     }

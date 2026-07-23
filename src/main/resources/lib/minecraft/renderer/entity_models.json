@@ -2061,7 +2061,8 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "armor_type": "humanoid",
+          "armor_mesh": "piglin_armor"
         }
       ]
     },
@@ -2083,7 +2084,8 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "armor_type": "humanoid",
+          "armor_mesh": "piglin_brute_armor"
         }
       ],
       "group_of": "minecraft:piglin"
@@ -3499,7 +3501,8 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid"
+          "armor_type": "humanoid",
+          "armor_mesh": "zombified_piglin_armor"
         }
       ],
       "group_of": "minecraft:piglin"

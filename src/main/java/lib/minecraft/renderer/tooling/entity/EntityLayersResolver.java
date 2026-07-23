@@ -14,6 +14,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
@@ -47,6 +48,7 @@ final class EntityLayersResolver {
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull String rendererClass;
+    private final @NotNull List<String> registrationLayerFields;
     private final @NotNull List<EntityRendererResolver.LayerSite> roster;
     private final @NotNull EntityEquipmentResolver equipment;
     private final @NotNull Diagnostics diagnostics;
@@ -62,6 +64,7 @@ final class EntityLayersResolver {
     ) {
         this.cache = session.cache();
         this.rendererClass = subject.rendererClass();
+        this.registrationLayerFields = subject.lambdaLayerFields();
         this.roster = roster;
         this.equipment = new EntityEquipmentResolver(session.cache(), subject, layerDefinitions, equipmentAssets,
             manifest, diagnostics.child("equipment"));
@@ -215,8 +218,10 @@ final class EntityLayersResolver {
      * a subclass that passes the set down to its super's constructor is the one that names it, and
      * first-wins within a class because vanilla's layer takes the adult set before the baby one.
      *
-     * <p>A renderer handed its set as a constructor argument names no field, and resolves to
-     * {@code null} - the reader then falls back to the shared mesh.
+     * <p>A renderer handed its set as a constructor argument (the piglin family) names no field of its
+     * own - but the registration that hands it one does, so the walk falls back to the armor set among
+     * the {@code ModelLayers} references in the renderer-factory lambda. First-wins there for the same
+     * reason it wins within a class: the adult set is passed before the baby one.
      *
      * @return the lowercased field name, or {@code null} when no armor set is named
      */
@@ -235,7 +240,16 @@ final class EntityLayersResolver {
                 }
             }
         });
-        return named.isEmpty() ? null : named.getFirst();
+        if (!named.isEmpty()) return named.getFirst();
+
+        ClassNode modelLayers = this.cache.load(VanillaSourceClasses.Types.MODEL_LAYERS);
+        if (modelLayers == null) return null;
+        for (String layerField : this.registrationLayerFields) {
+            FieldNode field = AsmKit.findField(modelLayers, layerField);
+            if (field != null && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
+                return layerField.toLowerCase(Locale.ROOT);
+        }
+        return null;
     }
 
 }

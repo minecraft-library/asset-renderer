@@ -116,10 +116,11 @@ class ArmorKitCitCompositeTest {
 
         float[] span = helmetYSpan(new ArmorKit.EntityArmorFrame(false, Vector3f.ZERO, 1f, 1f), bones);
 
-        // The generic head box spans y [-8, 0] in model units, grown one unit per side by the
-        // layer-1 deformation - so [-9, 1], independent of the bones handed in.
-        assertThat((double) span[0], closeTo(-9d, 1e-4d));
-        assertThat((double) span[1], closeTo(1d, 1e-4d));
+        // The generic head box spans y [-8, 0] in model units; a helmet keeps that part AND its
+        // children, so the outer span is the head's overlay box, grown a further half unit on top of
+        // the layer-1 deformation - [-9.5, 1.5], independent of the bones handed in.
+        assertThat((double) span[0], closeTo(-9.5d, 1e-4d));
+        assertThat((double) span[1], closeTo(1.5d, 1e-4d));
     }
 
     @Test
@@ -129,8 +130,8 @@ class ArmorKitCitCompositeTest {
             new ArmorKit.EntityArmorFrame(false, Vector3f.ZERO, 1f, 2f), Map.of());
 
         // Doubling the render's model scale doubles the shell with the body it dresses.
-        assertThat((double) span[0], closeTo(-18d, 1e-4d));
-        assertThat((double) span[1], closeTo(2d, 1e-4d));
+        assertThat((double) span[0], closeTo(-19d, 1e-4d));
+        assertThat((double) span[1], closeTo(3d, 1e-4d));
     }
 
     /**

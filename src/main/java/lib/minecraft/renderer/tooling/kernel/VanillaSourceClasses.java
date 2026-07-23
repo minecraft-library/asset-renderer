@@ -84,6 +84,9 @@ public final class VanillaSourceClasses {
         /** {@code ArmorModelSet} - the set of armor meshes a renderer dresses its subject in. */
         public static final @NotNull String ARMOR_MODEL_SET = "net/minecraft/client/renderer/entity/ArmorModelSet";
 
+        /** {@code HumanoidModel} - the base every humanoid model extends, and the shared armor set's factory owner. */
+        public static final @NotNull String HUMANOID_MODEL = CLIENT_MODEL_ROOT + "HumanoidModel";
+
         /** {@code SimpleEquipmentLayer} - the generic saddle / body-armor layer (roster row 15). */
         public static final @NotNull String SIMPLE_EQUIPMENT_LAYER = "net/minecraft/client/renderer/entity/layers/SimpleEquipmentLayer";
 
@@ -299,6 +302,18 @@ public final class VanillaSourceClasses {
         /** {@code LivingEntityRenderer.addLayer(RenderLayer)} - the layer-roster call. */
         public static final @NotNull String ADD_LAYER = "addLayer";
 
+        /** {@code <Model>.createArmorMeshSet(CubeDeformation, CubeDeformation)} - the adult armor-set factory. */
+        public static final @NotNull String CREATE_ARMOR_MESH_SET = "createArmorMeshSet";
+
+        /**
+         * {@code <Model>.createArmorLayerSet(CubeDeformation, CubeDeformation)} - the same adult
+         * armor-set factory under the spelling the wearers with their own mesh use.
+         */
+        public static final @NotNull String CREATE_ARMOR_LAYER_SET = "createArmorLayerSet";
+
+        /** {@code ArmorModelSet.putFrom(ArmorModelSet, ImmutableMap$Builder)} - the armor-set registration call. */
+        public static final @NotNull String PUT_FROM = "putFrom";
+
         /** {@code EntityRenderer.setupRotations} - the yaw-addend override. */
         public static final @NotNull String SETUP_ROTATIONS = "setupRotations";
 
@@ -452,6 +467,24 @@ public final class VanillaSourceClasses {
 
         /** The {@code ArmorModelSet} field reference descriptor - the type that names an armor mesh. */
         public static final @NotNull String ARMOR_MODEL_SET_REF = ref(Types.ARMOR_MODEL_SET);
+
+        /** The {@code CubeDeformation} field / parameter reference descriptor - the inflate carrier. */
+        public static final @NotNull String CUBE_DEFORMATION_REF = ref(Types.CUBE_DEFORMATION);
+
+        /** The {@code MeshDefinition} return-type reference descriptor. */
+        public static final @NotNull String MESH_DEFINITION_REF = ref(Types.MESH_DEFINITION);
+
+        /**
+         * Descriptor of the adult armor-set factory
+         * {@code (CubeDeformation inner, CubeDeformation outer)ArmorModelSet} - the shape that
+         * separates an adult set from vanilla's three-argument baby one.
+         */
+        public static final @NotNull String ARMOR_MESH_SET_DESC =
+            of(ARMOR_MODEL_SET_REF, CUBE_DEFORMATION_REF, CUBE_DEFORMATION_REF);
+
+        /** Descriptor of the base armor-mesh factory {@code (CubeDeformation)MeshDefinition}. */
+        public static final @NotNull String BASE_ARMOR_MESH_DESC =
+            of(MESH_DEFINITION_REF, CUBE_DEFORMATION_REF);
 
         /**
          * Composes a method descriptor from already-valid type descriptors.

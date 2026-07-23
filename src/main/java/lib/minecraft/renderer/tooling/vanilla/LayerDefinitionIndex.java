@@ -51,10 +51,6 @@ public final class LayerDefinitionIndex {
     private static final @NotNull String SCALING_DESC =
         VanillaSourceClasses.Descs.of(VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF, "F");
 
-    /** Field descriptor of a {@code CubeDeformation} reference - the static-field grow shape. */
-    private static final @NotNull String CUBE_DEFORMATION_REF =
-        VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.CUBE_DEFORMATION);
-
     /**
      * One resolved {@code ModelLayers} entry: the factory coordinate plus every call-site
      * bake argument the request factories consume.
@@ -189,7 +185,7 @@ public final class LayerDefinitionIndex {
             // `GETSTATIC <field>: CubeDeformation` - a static-field deformation at the call
             // site, resolved through the owner's <clinit> bind.
             if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
-                && CUBE_DEFORMATION_REF.equals(fi.desc)) {
+                && VanillaSourceClasses.Descs.CUBE_DEFORMATION_REF.equals(fi.desc)) {
                 pendingDeformationGrow = resolveDeformationField(cache, fi.owner, fi.name);
                 continue;
             }
@@ -364,8 +360,13 @@ public final class LayerDefinitionIndex {
      * owner's {@code <clinit>} for the {@code new CubeDeformation(F|FFF); PUTSTATIC <field>}
      * bind. Returns {@code null} when the owner or the bind is absent (treated as no
      * deformation - the caller's growOf handles it).
+     *
+     * @param cache the per-session class cache
+     * @param ownerInternalName the field owner's JVM internal name
+     * @param fieldName the static field name
+     * @return the 3-component grow, or {@code null} when unresolvable
      */
-    private static float @Nullable [] resolveDeformationField(
+    static float @Nullable [] resolveDeformationField(
         @NotNull ClassNodeCache cache,
         @NotNull String ownerInternalName,
         @NotNull String fieldName
