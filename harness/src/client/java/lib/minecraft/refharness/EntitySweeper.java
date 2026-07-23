@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -83,11 +84,14 @@ public final class EntitySweeper implements AutoCloseable {
      */
     private static final Set<Identifier> MISC_ALLOWLIST = Set.of(
         Identifier.withDefaultNamespace("armor_stand"),
-        // iron_golem / snow_golem are MobCategory.MISC in vanilla but are LivingEntity mobs the
-        // asset-renderer emits + renders; allowlist them so the harness produces their reference
-        // PNGs (copper_golem is non-MISC and already rendered).
+        // Every id below registers as MobCategory.MISC in vanilla yet is a LivingEntity the
+        // asset-renderer emits and renders, so each needs an entry here to get a reference PNG.
+        // The golems are MISC because they have no spawn rules; the villager because its spawning
+        // is structure-driven rather than category-driven.
+        Identifier.withDefaultNamespace("copper_golem"),
         Identifier.withDefaultNamespace("iron_golem"),
-        Identifier.withDefaultNamespace("snow_golem")
+        Identifier.withDefaultNamespace("snow_golem"),
+        Identifier.withDefaultNamespace("villager")
     );
 
     /**
@@ -176,9 +180,8 @@ public final class EntitySweeper implements AutoCloseable {
             ? Set.of()
             : Set.of(HarnessConfig.TARGETS.split("\\s*,\\s*"));
 
-        List<EntityType<?>> selected = new ArrayList<>();
+        List<EntityType<?>> renderable = new ArrayList<>();
         int total = 0;
-        int living = 0;
         for (Holder.Reference<EntityType<?>> holder : BuiltInRegistries.ENTITY_TYPE.listElements().toList()) {
             total++;
             EntityType<?> type = holder.value();
@@ -189,11 +192,24 @@ public final class EntitySweeper implements AutoCloseable {
             // not categorised as mobs - those go through MISC_ALLOWLIST so they still get
             // rendered while item/lightning/etc are still excluded.
             if (type.getCategory() == MobCategory.MISC && !MISC_ALLOWLIST.contains(typeKey)) continue;
-            living++;
+            renderable.add(type);
+        }
+        int living = renderable.size();
 
-            String id = typeKey.toString();
-            if (!filter.isEmpty() && !filter.contains(id)) continue;
+        // A target filter is closed over the family map before it is applied. Canvas sizing unions
+        // every member of a family, so selecting one member alone would size that family from a
+        // strict subset of its geometry and write a reference narrower than the full sweep's.
+        Set<EntityType<?>> requestedFamilies = new HashSet<>();
+        if (!filter.isEmpty()) {
+            for (EntityType<?> type : renderable) {
+                if (filter.contains(BuiltInRegistries.ENTITY_TYPE.getKey(type).toString()))
+                    requestedFamilies.add(familyRoot(type));
+            }
+        }
 
+        List<EntityType<?>> selected = new ArrayList<>();
+        for (EntityType<?> type : renderable) {
+            if (!filter.isEmpty() && !requestedFamilies.contains(familyRoot(type))) continue;
             selected.add(type);
         }
         LOG.info("EntitySweeper built: {} targets (total={}, living={}, filter='{}')",
