@@ -99,11 +99,6 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
             return new Subject(type, Appearance.of(coat), Optional.of(coat.name()));
         }
 
-        /** Returns this subject aged down. */
-        private Subject asBaby() {
-            return new Subject(type, appearance.asBaby(), qualifier);
-        }
-
         /** The canvas group this subject is sized within. */
         private CanvasKey canvasKey() {
             return new CanvasKey(EntityRoster.familyRoot(type), appearance.cohort());
@@ -111,27 +106,26 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
     }
 
     /**
-     * Whether this subject is the one its model renders at when nothing selects a coat.
+     * Returns the baby subject for one type, when vanilla gives it a baby form.
      *
-     * <p>An axis that is not the coat axis is enumerated once per model, at that model's default
-     * coat, so this is what picks the single subject it hangs off.
-     */
-    private static boolean isDefaultAppearance(Subject subject) {
-        String defaultCoat = EntityRoster.DEFAULT_COAT.get(subject.type());
-        return defaultCoat == null
-            ? subject.qualifier().isEmpty()
-            : subject.qualifier().map(defaultCoat::equals).orElse(false);
-    }
-
-    /**
-     * Whether vanilla gives this subject a baby form.
+     * <p>One baby per model, not one per coat. A baby is a different mesh, not a differently textured
+     * one, so a second coat shows a reader nothing the first did not; the coat axis is covered at
+     * adult size, where the coat is the whole point.
      *
-     * <p>Built and discarded - the answer is a property of the type, and the render pass builds its
-     * own subject anyway.
+     * <p>No coat payload: vanilla's plain construction already yields the default coat, so the baby is
+     * the default coat by construction and is merely named for it - which a variant family must be,
+     * since such a family always names its coat.
+     *
+     * <p><b>Both passes call this.</b> The measurement pass and the render pass have to agree on what a
+     * type's baby is, or a baby is enumerated for rendering against a canvas that was never measured -
+     * which is a silently skipped reference rather than a loud failure.
      */
-    private static boolean hasBabyForm(SweepContext ctx, Subject subject) {
-        Entity entity = AppearanceApplier.build(ctx, subject.type(), subject.appearance());
-        return entity != null && AppearanceApplier.supportsBaby(entity);
+    private static Optional<Subject> babyOf(SweepContext ctx, EntityType<?> type) {
+        Subject baby = new Subject(type, Appearance.DEFAULT.asBaby(),
+            Optional.ofNullable(EntityRoster.DEFAULT_COAT.get(type)));
+        Entity probe = AppearanceApplier.build(ctx, type, Appearance.DEFAULT);
+        if (probe == null || !AppearanceApplier.supportsBaby(probe)) return Optional.empty();
+        return Optional.of(baby);
     }
 
     @Override
@@ -172,19 +166,8 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                     : new Subject(type, Appearance.DEFAULT, Optional.of(defaultCoat)));
             }
         }
-        // The age axis. Which entities have a baby form is derived from vanilla rather than
-        // hand-listed - probing costs one entity construction per type and no render, and it cannot
-        // fall out of date the way a table can.
-        //
-        // One baby per model, not one per coat. A baby is a different mesh, not a differently
-        // textured one, so a second coat adds nothing a reader could not already see; the coat axis
-        // is covered at adult size where the coat is the whole point. The baby is rendered at the
-        // family's default coat, and named for it, because a variant family always names its coat.
         List<Subject> withBabies = new ArrayList<>(subjects);
-        for (Subject subject : subjects) {
-            if (!isDefaultAppearance(subject) || !hasBabyForm(ctx, subject)) continue;
-            withBabies.add(subject.asBaby());
-        }
+        for (EntityType<?> type : selectTypes(ctx)) babyOf(ctx, type).ifPresent(withBabies::add);
         LOG.info("EntitySweep built: {} subjects ({} of them babies)",
             withBabies.size(), withBabies.size() - subjects.size());
         return withBabies;
@@ -257,10 +240,10 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                 if (bounds == null) continue;
                 familyBounds.merge(subject.canvasKey(), bounds, Bounds::union);
                 measured++;
-                // The baby of a measured subject is measured too - its mesh is a different shape
-                // rather than a smaller one, so its extent cannot be derived from the adult's.
-                if (!isDefaultAppearance(subject) || !hasBabyForm(ctx, subject)) continue;
-                Subject baby = subject.asBaby();
+            }
+            // The baby is measured too - its mesh is a different shape rather than a smaller one, so
+            // its extent cannot be derived from the adult's.
+            for (Subject baby : babyOf(ctx, type).stream().toList()) {
                 Bounds babyBounds = measure(ctx, baby);
                 if (babyBounds == null) continue;
                 familyBounds.merge(baby.canvasKey(), babyBounds, Bounds::union);
@@ -343,10 +326,12 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
 
     @Override
     public boolean render(SweepContext ctx, Subject subject, Canvas canvas, Path out) throws IOException {
-        if (canvas == null) {
-            LOG.warn("EntitySweep: no family canvas for {} (pre-pass missed it?)", key(subject).fileName());
-            return false;
-        }
+        // A subject with no canvas means the measurement pass and the render pass disagree about what
+        // this sweep renders. That is a fault in this class, not a property of the data, and it costs
+        // a reference nobody asked about - so it stops the sweep rather than logging and moving on.
+        if (canvas == null)
+            throw new IllegalStateException("No measured canvas for '" + key(subject).fileName()
+                + "' - the render enumeration and the measurement enumeration disagree");
         Entity entity = build(ctx, subject);
         if (entity == null) {
             LOG.warn("EntitySweep: could not build {}", key(subject).fileName());
