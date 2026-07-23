@@ -5,6 +5,7 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.MenuOptions;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
@@ -75,7 +76,28 @@ public final class TestMenuRender {
             .build();
         write("vanilla_crafting", renderer.render(vanillaCrafting), imageFactory);
 
+        // An enchanted slot makes its item render animated, which promotes the whole menu through
+        // the compositor's animated branch - the one path that reads a child's declared loop length
+        // to decide how long the merged loop runs and which child frame each output frame samples.
+        MenuOptions glintedCrafting = MenuOptions.builder()
+            .type(MenuOptions.Type.VANILLA_CRAFTING)
+            .title("Enchanting")
+            .slots(slots(
+                slot(0, "minecraft:diamond"), enchantedSlot(4, "minecraft:diamond_sword"),
+                enchantedSlot(9, "minecraft:diamond_sword")))
+            .build();
+        write("glinted_crafting", renderer.render(glintedCrafting), imageFactory);
+
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
+    }
+
+    private static java.util.Map.Entry<Integer, MenuOptions.MenuSlotContent> enchantedSlot(int index, String itemId) {
+        ItemOptions options = ItemOptions.builder()
+            .itemId(itemId)
+            .type(ItemOptions.Type.GUI_ICON)
+            .enchanted(true)
+            .build();
+        return java.util.Map.entry(index, new MenuOptions.MenuSlotContent(itemId, options, 1));
     }
 
     private static java.util.Map.Entry<Integer, MenuOptions.MenuSlotContent> slot(int index, String itemId) {
@@ -92,9 +114,14 @@ public final class TestMenuRender {
     }
 
     private static void write(@NotNull String slug, @NotNull ImageData image, @NotNull ImageFactory imageFactory) throws IOException {
-        File out = OUTPUT_DIR.resolve(slug + ".png").toFile();
-        imageFactory.toFile(image, ImageFormat.PNG, out);
-        System.out.printf("  %s -> %s (%dx%d)%n", slug, out.getName(), image.getWidth(), image.getHeight());
+        // WebP for an animated menu - it stores delays in milliseconds, so a 33 ms glint frame
+        // survives the write as itself rather than being rounded onto GIF's centisecond grid.
+        ImageFormat format = image.isAnimated() ? ImageFormat.WEBP : ImageFormat.PNG;
+        File out = OUTPUT_DIR.resolve(slug + "." + format.name().toLowerCase()).toFile();
+        imageFactory.toFile(image, format, out);
+        System.out.printf("  %s -> %s (%dx%d, %d frame%s)%n",
+            slug, out.getName(), image.getWidth(), image.getHeight(),
+            image.getFrames().size(), image.getFrames().size() == 1 ? "" : "s");
     }
 
 }

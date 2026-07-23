@@ -32,6 +32,11 @@ import static org.hamcrest.Matchers.is;
  * The merged loop math is pinned exactly: the LCM of the animated layer periods over the
  * output-fps frame delay ceils to a known frame count, and an animated loop shorter than one output
  * frame still produces a one-frame {@code AnimatedImageData} - never a {@code StaticImageData}.
+ * <p>
+ * Layer periods come from each child's declared frame delays, so a child faster than the output
+ * cadence is sampled at its own rate rather than a rounded one, and periods that share few factors
+ * can drive the merged loop past {@link Timeline#MAX_LOOP_MS}. Both are pinned below, the second
+ * because it is a way the merge can now degrade that uniform 50 ms periods could not reach.
  */
 class FrameCompositorTest {
 
@@ -84,6 +89,42 @@ class FrameCompositorTest {
         ImageData result = FrameCompositor.merge(layers, 4, 4, 15, Background.TRANSPARENT);
         assertThat(result, is(instanceOf(AnimatedImageData.class)));
         assertThat(((AnimatedImageData) result).getFrames().size(), is(1));
+    }
+
+    @Test
+    @DisplayName("a child faster than 50 ms is sampled at its own cadence, once per child frame")
+    void fastChildKeepsItsOwnCadence() {
+        ConcurrentList<FramePlacement> layers = Concurrent.newList();
+        layers.add(new FramePlacement(0, 0, animated(4, 4, 4, 33)));   // 132 ms loop
+
+        ImageData result = FrameCompositor.merge(layers, 4, 4, 30, Background.TRANSPARENT);
+        AnimatedImageData merged = (AnimatedImageData) result;
+
+        // 4 x 33 ms = 132 ms; delay = round(1000 / 30) = 33 ms; ceil(132 / 33) = 4 output frames,
+        // one per child frame. A 50 ms per-frame floor would have called the loop 200 ms and
+        // stretched it to 7, sampling the child as 0,0,1,1,2,3,3 - the same frame twice over.
+        assertThat(merged.getFrames().size(), is(4));
+
+        // Each output frame carries a different child frame, so the ramp appears exactly once.
+        for (int index = 0; index < 4; index++)
+            assertThat(merged.getFrames().get(index).pixels().data()[0], is(0xFF000000 | (index * 0x40)));
+    }
+
+    @Test
+    @DisplayName("declared periods sharing few factors can outgrow the loop cap")
+    void mixedCadenceCanExceedTheLoopCap() {
+        ConcurrentList<FramePlacement> layers = Concurrent.newList();
+        layers.add(new FramePlacement(0, 0, animated(4, 4, 60, 33)));   // 1980 ms = 2^2 * 3^2 * 5 * 11
+        layers.add(new FramePlacement(0, 0, animated(4, 4, 60, 50)));   // 3000 ms = 2^3 * 3 * 5^3
+
+        ImageData result = FrameCompositor.merge(layers, 4, 4, 30, Background.TRANSPARENT);
+
+        // lcm(1980, 3000) = 99000 ms - ten times MAX_LOOP_MS - so the merge clamps to the cap and
+        // the composite closes mid-loop rather than on a whole number of child loops. Declared
+        // periods make this reachable: a floor that rounded every period up to a multiple of 50 ms
+        // kept the factors shared and the LCM small, and the 11 here shares nothing with its
+        // sibling. ceil(10000 / 33) = 304.
+        assertThat(((AnimatedImageData) result).getFrames().size(), is(304));
     }
 
     /** Builds a {@code w}x{@code h} buffer filled with a single ARGB colour. */
