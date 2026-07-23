@@ -236,7 +236,6 @@ src/
     │   ├── EntityFrameRenderer.java        # PIP entity render with bounds walker + chirality + family fit
     │   ├── GlintSweeper.java               # Animated-glint frame sequence (GLINT_ONLY) + atlas-UV dump
     │   ├── GlintClock.java                 # Harness-controlled deterministic glint time
-    │   ├── IsoRenderer.java                # Legacy main-framebuffer reader (retained for diagnostics)
     │   └── mixin/
     │       ├── HeadlessWindowMixin.java         # GLFW_VISIBLE=false
     │       ├── HideHandMixin.java               # ItemInHandRenderer cancel

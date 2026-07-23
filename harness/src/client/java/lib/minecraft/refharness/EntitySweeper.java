@@ -108,7 +108,7 @@ public final class EntitySweeper implements AutoCloseable {
      * EntitySpawnReason, EntityProcessor) loadEntityRecursive} so vanilla's deserialiser runs
      * its tag→holder lookup and applies the variant before render-state extraction. Plain
      * {@link EntityType#create} doesn't accept NBT and would just hand back the default
-     * variant, which is what the pre-task-#2 sweeper produced.
+     * variant.
      * <p>
      * Adding a new variant-bearing entity is one line here plus its {@code Registries.X_VARIANT}
      * import - no other changes needed.

@@ -178,9 +178,8 @@ public final class ItemFrameRenderer implements AutoCloseable {
                 for (int y = 0; y < height; y++) {
                     for (int x = 0; x < width; x++) {
                         int argb = read.data().getInt((x + y * width) * pixelSize);
-                        // Y-flip + alpha preservation for transparent backgrounds, same as
-                        // IsoRenderer.writeRenderTarget. PIP textures are bottom-up like
-                        // OpenGL framebuffers.
+                        // Y-flip + alpha preservation for transparent backgrounds. PIP
+                        // textures are bottom-up like OpenGL framebuffers.
                         image.setPixelABGR(x, height - y - 1, argb);
                     }
                 }

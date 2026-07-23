@@ -54,7 +54,7 @@ public final class HarnessConfig {
 
     /**
      * Optional comma-separated allowlist of {@code <namespace>:<id>} targets. When present,
-     * only these blocks/entities are rendered. Useful for the Stage 3 verification gate
+     * only these blocks/entities are rendered - scoping a run to a handful of subjects
      * ({@code -Drefharness.targets=minecraft:stone,minecraft:cow}). Empty means "all".
      */
     public static final String TARGETS = System.getProperty("refharness.targets", "");

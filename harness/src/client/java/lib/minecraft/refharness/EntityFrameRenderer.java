@@ -1025,7 +1025,7 @@ public final class EntityFrameRenderer implements AutoCloseable {
      * same entity (variant sweeps, side-by-side captures) don't reopen the resource each call.
      * Returns {@code null} when the renderer hides the method, the location does not resolve
      * to a resource, or the PNG fails to decode - the bounds walker degrades to including all
-     * polygons in that case, matching pre-task #11 behaviour.
+     * polygons in that case.
      */
     private NativeImage entityTexture(EntityRenderer<?, ?> renderer, EntityRenderState state) {
         Identifier location = invokeGetTextureLocation(renderer, state);
