@@ -62,6 +62,12 @@ public class AnimationOptions {
      * <p>
      * Honoured only by subjects that read time as a quantity rather than as a lookup key. A texture
      * flipbook has no state between its frames, so subdividing its ticks would bake duplicates.
+     * <p>
+     * Carried faithfully only by a container that stores delays in milliseconds. GIF stores
+     * centiseconds, and the smallest delay players honour is two of them, so a 50 ms tick has room
+     * for at most two sub-steps there and none at all at the default three - a GIF written from a
+     * subdivided schedule declares a longer tick than intended. Write WebP for these, or drop back
+     * to {@code 1} for a strip that has to be a GIF.
      */
     @lombok.Builder.Default
     private final int subTickSteps = 1;
