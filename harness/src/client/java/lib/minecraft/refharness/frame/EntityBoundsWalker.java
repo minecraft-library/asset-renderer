@@ -770,12 +770,28 @@ final class EntityBoundsWalker implements AutoCloseable {
         Class<?> cls = layer.getClass();
         while (cls != null && cls != RenderLayer.class && cls != Object.class) {
             for (Field f : cls.getDeclaredFields()) {
-                if (!Model.class.isAssignableFrom(f.getType())) continue;
                 try {
                     f.setAccessible(true);
                     Object value = f.get(layer);
-                    if (value instanceof Model<?> m) fieldModels.putIfAbsent(f.getName(), m);
-                } catch (IllegalAccessException ignored) {
+                    if (Model.class.isAssignableFrom(f.getType())) {
+                        if (value instanceof Model<?> m) fieldModels.putIfAbsent(f.getName(), m);
+                        continue;
+                    }
+                    // Worn armour is held as a set of four meshes rather than as one field, so a walk
+                    // that only looked for a Model found nothing on the armour layer and measured a
+                    // body with no armour standing proud of it. The set is a record, so its
+                    // components are the meshes; naming them by field and slot keeps the picker below
+                    // able to tell them apart.
+                    if (value != null && value.getClass().isRecord()) {
+                        for (java.lang.reflect.RecordComponent component : value.getClass().getRecordComponents()) {
+                            if (!Model.class.isAssignableFrom(component.getType())) continue;
+                            java.lang.reflect.Method accessor = component.getAccessor();
+                            accessor.setAccessible(true);
+                            if (accessor.invoke(value) instanceof Model<?> m)
+                                fieldModels.putIfAbsent(f.getName() + "." + component.getName(), m);
+                        }
+                    }
+                } catch (ReflectiveOperationException | RuntimeException ignored) {
                 }
             }
             cls = cls.getSuperclass();

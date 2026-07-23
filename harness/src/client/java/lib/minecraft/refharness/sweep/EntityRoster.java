@@ -7,6 +7,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
@@ -15,11 +16,14 @@ import net.minecraft.world.entity.animal.fish.TropicalFish;
 import net.minecraft.world.entity.animal.panda.Panda;
 import net.minecraft.world.entity.animal.rabbit.Rabbit;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /** The hand-maintained tables that decide which entities are swept and how they are grouped. */
@@ -177,9 +181,103 @@ public final class EntityRoster {
                 selections.add(List.of(
                     new Appearance.Trait(TraitAxis.COLLAR_COLOR.token(), dye.getSerializedName()),
                     new Appearance.Trait(TraitAxis.STATE.token(), TraitAxis.TAME)));
+        // Equipment is named by the slot and left at the layer's own default material, which is what
+        // the model form declares and what a reference with no material after the slot means.
+        for (Worn worn : EQUIPMENT.getOrDefault(type, List.of()))
+            select(selections, TraitAxis.EQUIP, worn.name());
+        if (HUMANOID_ARMOR.contains(type)) select(selections, TraitAxis.ARMOR, "iron");
+        CARRIED.getOrDefault(type, List.of()).forEach(block ->
+            select(selections, TraitAxis.CARRIED, block));
+        // The two dye samples, each with the undyed reference beside it as its control. A wolf's
+        // dyed layer is the interesting one: vanilla ships it with no colour to fall back on, so it
+        // draws nothing at all until a dye is set.
+        if (type == EntityType.WOLF || type == EntityType.HORSE)
+            selections.add(List.of(
+                new Appearance.Trait(TraitAxis.EQUIP.token(), "body"),
+                new Appearance.Trait(TraitAxis.EQUIPMENT_COLOR.token(),
+                    type == EntityType.WOLF ? "red" : "blue")));
         selections.addAll(pairs(type));
         return selections;
     }
+
+    /**
+     * One wearable, as the appearance names it and as vanilla fills it.
+     *
+     * @param name the slot the reference names
+     * @param slot the vanilla slot the item goes in
+     * @param item the item that produces the layer's own default material
+     */
+    record Worn(String name, EquipmentSlot slot, Item item) {}
+
+    /**
+     * What each model is swept wearing.
+     *
+     * <p>Nothing about a slot says which item fills it: a llama wears a carpet, a wolf wears armour
+     * named for the scute it is crafted from, a nautilus wears copper, and a happy ghast wears a
+     * harness. Every entry is the item behind that layer's declared default material, so a reference
+     * that names the slot and no material renders what the model form says it should.
+     */
+    private static final Map<EntityType<?>, List<Worn>> EQUIPMENT = equipment();
+
+    private static Map<EntityType<?>, List<Worn>> equipment() {
+        Map<EntityType<?>, List<Worn>> worn = new LinkedHashMap<>();
+        Worn saddle = new Worn("saddle", EquipmentSlot.SADDLE, Items.SADDLE);
+        for (EntityType<?> type : List.of(EntityType.CAMEL, EntityType.CAMEL_HUSK, EntityType.DONKEY,
+            EntityType.HORSE, EntityType.MULE, EntityType.NAUTILUS, EntityType.PIG,
+            EntityType.SKELETON_HORSE, EntityType.STRIDER, EntityType.ZOMBIE_HORSE,
+            EntityType.ZOMBIE_NAUTILUS))
+            worn.computeIfAbsent(type, key -> new ArrayList<>()).add(saddle);
+        body(worn, Items.LEATHER_HORSE_ARMOR, EntityType.HORSE, EntityType.SKELETON_HORSE, EntityType.ZOMBIE_HORSE);
+        body(worn, Items.COPPER_NAUTILUS_ARMOR, EntityType.NAUTILUS, EntityType.ZOMBIE_NAUTILUS);
+        body(worn, Items.WHITE_CARPET, EntityType.LLAMA, EntityType.TRADER_LLAMA);
+        body(worn, Items.WHITE_HARNESS, EntityType.HAPPY_GHAST);
+        body(worn, Items.WOLF_ARMOR, EntityType.WOLF);
+        return Map.copyOf(worn);
+    }
+
+    private static void body(Map<EntityType<?>, List<Worn>> worn, Item item, EntityType<?>... types) {
+        for (EntityType<?> type : types)
+            worn.computeIfAbsent(type, key -> new ArrayList<>())
+                .add(new Worn("body", EquipmentSlot.BODY, item));
+    }
+
+    /**
+     * Returns what a model wears in one named slot.
+     *
+     * @param type the entity type
+     * @param slot the slot the reference names
+     * @return the wearable, empty for a model that wears nothing there
+     */
+    static Optional<Worn> equipment(EntityType<?> type, String slot) {
+        return EQUIPMENT.getOrDefault(type, List.of()).stream()
+            .filter(worn -> worn.name().equals(slot))
+            .findFirst();
+    }
+
+    /** The models whose data classifies their armour layer as humanoid. */
+    private static final Set<EntityType<?>> HUMANOID_ARMOR = Set.of(
+        EntityType.ARMOR_STAND, EntityType.BOGGED, EntityType.DROWNED, EntityType.GIANT,
+        EntityType.HUSK, EntityType.PARCHED, EntityType.PIGLIN, EntityType.PIGLIN_BRUTE,
+        EntityType.SKELETON, EntityType.STRAY, EntityType.WITHER_SKELETON, EntityType.ZOMBIE,
+        EntityType.ZOMBIE_VILLAGER, EntityType.ZOMBIFIED_PIGLIN);
+
+    /**
+     * What each model carries, or the sentinel that drops what it carries by default.
+     *
+     * <p>The mooshroom is deliberately absent. Its census row asks for a mooshroom without mushrooms,
+     * and vanilla has no such adult: the renderer fills the mushroom model unconditionally from the
+     * variant, shearing one replaces the entity with a cow rather than clearing a flag, and the only
+     * suppression is being a baby. A reference for it would be a copy of the plain mooshroom under a
+     * name claiming otherwise.
+     *
+     * <p>The enderman's block is the one arbitrary value in the whole set - its overlay declares no
+     * block at all - and a full cube was chosen over a cross model so the reference exercises the
+     * block-overlay transform rather than a flat plane.
+     */
+    private static final Map<EntityType<?>, List<String>> CARRIED = Map.of(
+        EntityType.ENDERMAN, List.of("minecraft__grass_block"),
+        EntityType.IRON_GOLEM, List.of("minecraft__poppy"),
+        EntityType.SNOW_GOLEM, List.of(TraitAxis.CARRIED_NONE));
 
     /**
      * The selections that only mean something together, which is why they are named as pairs rather

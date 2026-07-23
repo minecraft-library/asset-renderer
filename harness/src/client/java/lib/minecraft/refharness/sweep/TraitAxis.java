@@ -2,9 +2,12 @@ package lib.minecraft.refharness.sweep;
 
 import lib.minecraft.refharness.api.Appearance;
 import lib.minecraft.refharness.api.SweepContext;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.NeutralMob;
 import net.minecraft.world.entity.TamableAnimal;
@@ -12,11 +15,17 @@ import net.minecraft.world.entity.animal.equine.Markings;
 import net.minecraft.world.entity.animal.fish.Pufferfish;
 import net.minecraft.world.entity.animal.fish.TropicalFish;
 import net.minecraft.world.entity.animal.golem.CopperGolem;
+import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.entity.animal.golem.SnowGolem;
 import net.minecraft.world.entity.animal.sheep.Sheep;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
+import net.minecraft.world.entity.monster.EnderMan;
 import net.minecraft.world.entity.monster.Slime;
 import net.minecraft.world.entity.monster.skeleton.Bogged;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.DyedItemColor;
 import net.minecraft.world.level.block.WeatheringCopper;
 
 import java.util.List;
@@ -270,7 +279,85 @@ enum TraitAxis {
         void persist(String value, CompoundTag payload) {
             packFishColour(payload, dye(value).getId(), 24);
         }
+    },
+
+    /**
+     * A worn saddle or body covering, put on through the same setter a server uses when a mob spawns
+     * with gear.
+     *
+     * <p>The slot names the axis carries are the asset side's, and the item behind each is vanilla's
+     * and differs per model - a llama wears a carpet, a wolf wears armour named for the scute it is
+     * crafted from, a nautilus wears copper. The roster holds the pairing, because nothing about the
+     * slot says which item fills it.
+     */
+    EQUIP("equip") {
+        @Override
+        void apply(SweepContext ctx, String value, Entity entity) {
+            if (!(entity instanceof LivingEntity living)) return;
+            String slot = value.contains(".") ? value.substring(0, value.indexOf('.')) : value;
+            EntityRoster.equipment(entity.getType(), slot)
+                .ifPresent(worn -> living.setItemSlot(worn.slot(), new ItemStack(worn.item())));
+        }
+    },
+
+    /** A full set of humanoid armour, one material across all four worn slots. */
+    ARMOR("armor") {
+        @Override
+        void apply(SweepContext ctx, String value, Entity entity) {
+            if (!(entity instanceof LivingEntity living)) return;
+            if (!"iron".equals(value))
+                throw new IllegalArgumentException("No armour material named '" + value + "'");
+            living.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
+            living.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.IRON_CHESTPLATE));
+            living.setItemSlot(EquipmentSlot.LEGS, new ItemStack(Items.IRON_LEGGINGS));
+            living.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
+        }
+    },
+
+    /**
+     * The dye on what the subject is wearing, applied to the stack the equipment selection already
+     * put on it - which is why it is spelled after that selection and sorts after it.
+     */
+    EQUIPMENT_COLOR("equipment_color") {
+        @Override
+        void apply(SweepContext ctx, String value, Entity entity) {
+            if (!(entity instanceof LivingEntity living)) return;
+            ItemStack worn = living.getItemBySlot(EquipmentSlot.BODY).copy();
+            if (worn.isEmpty()) return;
+            worn.set(DataComponents.DYED_COLOR, new DyedItemColor(dye(value).getTextureDiffuseColor()));
+            living.setItemSlot(EquipmentSlot.BODY, worn);
+        }
+    },
+
+    /**
+     * The block a subject carries, or the sentinel that drops the one it carries by default.
+     *
+     * <p>Three shapes, and the difference is vanilla's: an enderman holds whatever block it picked up,
+     * an iron golem holds a poppy on a timer no world tick will start here, and a snow golem wears a
+     * pumpkin it can be sheared out of.
+     */
+    CARRIED("carried") {
+        @Override
+        void apply(SweepContext ctx, String value, Entity entity) {
+            if (entity instanceof EnderMan enderman) {
+                // The name spells a namespace separator the way a file name can carry it.
+                Identifier block = Identifier.parse(value.replace("__", ":"));
+                enderman.setCarriedBlock(BuiltInRegistries.BLOCK.getValue(block).defaultBlockState());
+            } else if (entity instanceof IronGolem golem) {
+                // The public offer broadcasts a world event; this is the same handler that event
+                // reaches, and it is the only part a never-ticked subject needs.
+                golem.handleEntityEvent(OFFER_FLOWER_EVENT);
+            } else if (entity instanceof SnowGolem golem) {
+                golem.setPumpkin(!CARRIED_NONE.equals(value));
+            }
+        }
     };
+
+    /** The value that drops a subject's default decoration rather than naming one to carry. */
+    static final String CARRIED_NONE = "none";
+
+    /** The entity event vanilla sends to start an iron golem's flower offer. */
+    private static final byte OFFER_FLOWER_EVENT = 11;
 
     /** The sizes a salmon is persisted under, which are its only mechanism - its setter is private. */
     private static final List<String> SALMON_SIZES = List.of("small", "medium", "large");
