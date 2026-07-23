@@ -54,6 +54,19 @@ public class AnimationOptions {
     private final int ticksPerFrame = 1;
 
     /**
+     * Frames sampled per whole-tick step, for a subject whose appearance is a continuous function of
+     * time. One frame per tick caps output at 20 frames a second, which is visibly coarse on
+     * continuous motion; a higher value samples between ticks, covering the same span of game time at
+     * the same speed but more finely. Defaults to {@code 1} - whole ticks, the only instants an
+     * offline bake sampled before.
+     * <p>
+     * Honoured only by subjects that read time as a quantity rather than as a lookup key. A texture
+     * flipbook has no state between its frames, so subdividing its ticks would bake duplicates.
+     */
+    @lombok.Builder.Default
+    private final int subTickSteps = 1;
+
+    /**
      * How the baked frames play back, honoured by every subject that builds its schedule through
      * {@link lib.minecraft.renderer.engine.compose.Timeline#schedule}. Defaults to
      * {@link Schedule#TEXTURE_STRIP}, the authored-rate flipbook every subject rendered before the

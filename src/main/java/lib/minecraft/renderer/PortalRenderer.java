@@ -13,7 +13,6 @@ import lib.minecraft.renderer.engine.compose.RasterPass;
 import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.option.PortalOptions;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
@@ -208,6 +207,23 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
+     * Wraps a game-time age into the shader's {@code GameTime} uniform - the day fraction in
+     * {@code [0, 1)}. Vanilla adds the partial tick after the wrap and before the divide, so an age
+     * between ticks lands between two whole-tick uniforms rather than snapping to one.
+     * <p>
+     * A whole tick takes the integer path it always took. The general formula agrees with it
+     * mathematically, but not necessarily in the last bit of the float, and an unsubdivided bake must
+     * stay exactly where it was.
+     */
+    private static float gameTimeUniform(float ageInTicks) {
+        if (ageInTicks == Math.rint(ageInTicks) && Math.abs(ageInTicks) <= Integer.MAX_VALUE)
+            return Math.floorMod((int) ageInTicks, GAME_TIME_PERIOD_TICKS) / (float) GAME_TIME_PERIOD_TICKS;
+
+        double wrapped = ageInTicks - GAME_TIME_PERIOD_TICKS * Math.floor(ageInTicks / (double) GAME_TIME_PERIOD_TICKS);
+        return (float) (wrapped / GAME_TIME_PERIOD_TICKS);
+    }
+
+    /**
      * Bakes one face of parallax star-field output at the given game-time tick into a fresh
      * pixel buffer, matching the body of {@code rendertype_end_portal.fsh} per-pixel.
      * <p>
@@ -230,12 +246,12 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
      */
     static @NotNull PixelBuffer bakeFace(
         @NotNull PortalOptions.Portal portal,
-        int gameTick,
+        float gameTick,
         @NotNull PixelBuffer endSky,
         @NotNull PixelBuffer endPortalNoise,
         int size
     ) {
-        float time = Math.floorMod(gameTick, GAME_TIME_PERIOD_TICKS) / (float) GAME_TIME_PERIOD_TICKS;
+        float time = gameTimeUniform(gameTick);
         int layers = layerCount(portal);
         PixelBuffer buffer = PixelBuffer.create(size, size);
         int ssaa = PARALLAX_SUPERSAMPLE;
@@ -471,7 +487,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         int outputCount
     ) {
         while (frames.size() > outputCount)
-            frames.remove(frames.size() - 1);
+            frames.removeLast();
     }
 
     /**
@@ -484,29 +500,34 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
      * @param options the render options supplying animation timing
      * @param ssaa the supersample factor for the raster tail ({@code 1} for the flat 2D path)
      * @param antiAlias whether the raster tail applies FXAA
-     * @param raster draws one portal frame at a tick into the target buffer
+     * @param raster draws one portal frame at an instant - possibly between ticks - into the target buffer
      * @return the finished static frame or animation strip
      */
     private static @NotNull ImageData renderAnimated(
         @NotNull PortalOptions options,
         int ssaa,
         boolean antiAlias,
-        @NotNull RasterPass.FrameRasterizer raster
+        @NotNull RasterPass.ContinuousRasterizer raster
     ) {
         int size = options.getOutput().getCanvasSize();
         int startTick = options.getAnimation().getStartTick();
         int ticksPerFrame = options.getAnimation().getTicksPerFrame();
         int outputCount = options.getAnimation().getFrameCount();
+        int subTickSteps = Math.max(1, options.getAnimation().getSubTickSteps());
         if (outputCount <= 1)
-            return Timeline.gameTime(startTick, outputCount, ticksPerFrame)
+            return Timeline.gameTime(startTick, outputCount, ticksPerFrame, subTickSteps)
                 .bake(RasterPass.of(size, size, ssaa, antiAlias, raster));
 
         int bridge = bridgeFrameCount(options);
-        return Timeline.gameTime(startTick, outputCount + bridge, ticksPerFrame)
+        // The crossfade and the trim count baked frames, and subdividing multiplies those, so both
+        // bounds scale with it - the seam then spans the same stretch of game time it always did.
+        int bakedCount = outputCount * subTickSteps;
+        int bakedBridge = bridge * subTickSteps;
+        return Timeline.gameTime(startTick, outputCount + bridge, ticksPerFrame, subTickSteps)
             .bake(RasterPass.of(size, size, ssaa, antiAlias, raster).finishing(
                 (frames, timeline) -> {
-                    applyBridgeCrossfade(frames, outputCount, bridge);
-                    trimBridgeFrames(frames, outputCount);
+                    applyBridgeCrossfade(frames, bakedCount, bakedBridge);
+                    trimBridgeFrames(frames, bakedCount);
                     return new RasterPass.Finish.Result(frames, timeline);
                 }));
     }
@@ -528,7 +549,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             int ssaa = Math.max(1, options.getOutput().getSupersample());
             return renderAnimated(options, ssaa, options.getOutput().isAntiAlias(),
-                (target, tick) -> rasterizeFrame(options, tick, target));
+                (target, tick, age) -> rasterizeFrame(options, age, target));
         }
 
         /**
@@ -543,7 +564,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
          * @param tick the vanilla game tick driving the shader's {@code GameTime}
          * @param target the buffer to draw the frame into
          */
-        private void rasterizeFrame(@NotNull PortalOptions options, int tick, @NotNull PixelBuffer target) {
+        private void rasterizeFrame(@NotNull PortalOptions options, float tick, @NotNull PixelBuffer target) {
             // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
             // poses the camera directly and the rasterize call applies no separate model-spin. Default
             // renders pass EulerRotation.NONE, leaving the base block-icon pose.
@@ -636,7 +657,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             // Flat 2D bake: no supersample / FXAA (ssaa = 1, antiAlias = false), matching FluidFace2D.
             return renderAnimated(options, 1, false,
-                (target, tick) -> rasterizeFrame(options, tick, target));
+                (target, tick, age) -> rasterizeFrame(options, age, target));
         }
 
         /**
@@ -648,7 +669,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
          * @param tick the vanilla game tick driving the shader's {@code GameTime}
          * @param target the buffer to draw the frame into
          */
-        private void rasterizeFrame(@NotNull PortalOptions options, int tick, @NotNull PixelBuffer target) {
+        private void rasterizeFrame(@NotNull PortalOptions options, float tick, @NotNull PixelBuffer target) {
             RasterEngine engine = new RasterEngine(this.context);
             PixelBuffer endSky = engine.textures().resolveTexture(END_SKY_TEXTURE_ID);
             PixelBuffer endPortalNoise = engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);

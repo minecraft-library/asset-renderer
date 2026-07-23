@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
  * schedule data and the constants that derive it; the terminal methods {@link TickTimeline#bake} and
  * {@link #wrap} own the final render call.
  */
-public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop {
+public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop, Timeline.SubTickLoop {
 
     /**
      * Milliseconds in one game tick - vanilla derives this as {@code 1000.0f / ticksPerSecond} when
@@ -198,6 +198,36 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
         return frameCount <= 1
             ? new Static(startTick)
             : new TickLoop(startTick, frameCount, ticksPerFrame, MILLIS_PER_TICK);
+    }
+
+    /**
+     * Builds a game-time schedule that samples between ticks, subdividing each step of
+     * {@link #gameTime(int, int, int) the whole-tick schedule} into {@code subTickSteps} frames. The
+     * loop covers the same span of game time and plays at the same speed - each subdivided frame holds
+     * for its share of the original delay - so the only thing that changes is how finely the motion is
+     * sampled. What makes it useful is that a frame per tick caps output at
+     * {@link #TICKS_PER_SECOND 20} frames a second, which is visibly coarse for a subject that moves
+     * continuously.
+     * <p>
+     * {@code subTickSteps} of {@code 1} or less returns the whole-tick schedule itself, so leaving it
+     * alone costs a caller nothing. A single-frame schedule stays a {@link Static}: a still has no
+     * motion to sample more finely.
+     *
+     * <p>The original per-frame delay is shared out across the sub-steps, with any leftover
+     * milliseconds going to the earliest frames of each step rather than being rounded away - at 3
+     * steps a tick runs 17 / 17 / 16 rather than 17 / 17 / 17. Every step therefore spans exactly the
+     * time it did undivided, so the loop keeps real time however the count divides.
+     *
+     * @param startTick the absolute sample tick of frame 0
+     * @param frameCount the number of whole-tick frames to subdivide
+     * @param ticksPerFrame the simulation ticks advanced between successive whole-tick frames
+     * @param subTickSteps the frames sampled per whole-tick frame; {@code 1} leaves the schedule alone
+     * @return the subdivided schedule
+     */
+    static @NotNull Timeline gameTime(int startTick, int frameCount, int ticksPerFrame, int subTickSteps) {
+        if (subTickSteps <= 1 || frameCount <= 1) return gameTime(startTick, frameCount, ticksPerFrame);
+        return new SubTickLoop(startTick, frameCount * subTickSteps,
+            ticksPerFrame / (double) subTickSteps, MILLIS_PER_TICK, subTickSteps);
     }
 
     /**
@@ -447,6 +477,55 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
         @Override
         public int delayMs(int frame) {
             return delayForFps(framesPerSecond);
+        }
+    }
+
+    /**
+     * A game-time loop that samples between ticks: frame {@code f} sits at
+     * {@code startTick + f * ticksPerFrame} game ticks, where the step is allowed to be fractional, and
+     * every frame displays for the same delay. The schedule for a subject whose appearance is a
+     * continuous function of time and which one frame per tick is too coarse to show moving smoothly.
+     * <p>
+     * Deliberately not a {@link TickTimeline}. Its instants do not sit on the
+     * {@link #MILLIS_PER_TICK} lattice, so it has no honest integer tick to report, and claiming one
+     * would break the very identity that makes the lattice checkable. A frame's draw is still handed a
+     * whole tick - its age floored - for any discrete per-tick lookup it performs.
+     *
+     * @param startTick the game tick frame 0 samples
+     * @param frameCount the number of frames in the loop
+     * @param ticksPerFrame the game ticks between successive frames, which may be fractional
+     * @param stepMs the playback span of one undivided step, shared out across its sub-steps
+     * @param subTickSteps the frames each undivided step is sampled as
+     */
+    record SubTickLoop(double startTick, int frameCount, double ticksPerFrame, int stepMs, int subTickSteps)
+        implements Timeline {
+
+        /** {@inheritDoc} */
+        @Override
+        public int frames() {
+            return frameCount;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public double millisAt(int frame) {
+            return (startTick + frame * ticksPerFrame) * MILLIS_PER_TICK;
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * Whole milliseconds are all an animated container carries, so a step count that does not
+         * divide {@link #stepMs} evenly cannot give every frame the same delay. The leftover
+         * milliseconds go to the earliest frames of each step rather than being rounded away, so every
+         * step spans exactly the time it did undivided and the loop keeps real time - at three steps a
+         * tick runs 17 / 17 / 16 rather than three frames of 17 that would stretch it.
+         */
+        @Override
+        public int delayMs(int frame) {
+            int even = stepMs / subTickSteps;
+            int leftover = stepMs % subTickSteps;
+            return Math.max(1, even + (Math.floorMod(frame, subTickSteps) < leftover ? 1 : 0));
         }
     }
 

@@ -159,6 +159,73 @@ class TimelineTest {
                 assertThat(timeline.ageInTicks(f), is((float) (timeline.millisAt(f) / Timeline.MILLIS_PER_TICK)));
     }
 
+    // ---- SubTickLoop (sampling between ticks) ---------------------------------------------------
+
+    @Test
+    @DisplayName("one sub-tick step is the whole-tick schedule itself, not a copy of it")
+    void subTickStepOneIsTheWholeTickSchedule() {
+        // Identity, not equivalence: the default path must reach the exact same object shape, so a
+        // caller who never asks for subdivision cannot be moved by its arithmetic.
+        assertThat(Timeline.gameTime(5, 8, 3, 1), is(Timeline.gameTime(5, 8, 3)));
+        assertThat(Timeline.gameTime(5, 8, 3, 0), is(Timeline.gameTime(5, 8, 3)));
+        assertThat(Timeline.gameTime(5, 8, 3, -2), is(Timeline.gameTime(5, 8, 3)));
+        assertThat(Timeline.gameTime(5, 8, 3, 4), is(instanceOf(Timeline.SubTickLoop.class)));
+    }
+
+    @Test
+    @DisplayName("a still has no motion to sample finely, so it stays a Static however subdivided")
+    void subTickLeavesAStillAlone() {
+        assertThat(Timeline.gameTime(7, 1, 4, 8), is(instanceOf(Timeline.Static.class)));
+        assertThat(Timeline.gameTime(7, 1, 4, 8).frames(), is(1));
+    }
+
+    @Test
+    @DisplayName("subdividing samples between ticks over the same span at the same speed")
+    void subTickSubdividesTheSameSpan() {
+        Timeline whole = Timeline.gameTime(0, 4, 1);
+        Timeline fine = Timeline.gameTime(0, 4, 1, 4);
+
+        assertThat(fine.frames(), is(16));
+        // Quarter-tick steps: the whole-tick instants still appear, with three new ones between each.
+        for (int f = 0; f < fine.frames(); f++)
+            assertThat(fine.ageInTicks(f), is(f * 0.25f));
+        for (int f = 0; f < whole.frames(); f++)
+            assertThat(fine.ageInTicks(f * 4), is(whole.ageInTicks(f)));
+
+        // Same wall-clock span, so the loop plays at the same speed - only more finely sampled. 50 ms
+        // does not divide into 4 evenly, so the leftover 2 ms go to the first frames of each tick.
+        assertThat(fine.delayMs(0), is(13));
+        assertThat(fine.delayMs(1), is(13));
+        assertThat(fine.delayMs(2), is(12));
+        assertThat(fine.delayMs(3), is(12));
+        assertThat(fine.playbackMsAt(4), is((long) Timeline.MILLIS_PER_TICK));
+        assertThat(fine.playbackMsAt(fine.frames()), is(whole.playbackMsAt(whole.frames())));
+    }
+
+    @Test
+    @DisplayName("a step count that does not divide the tick evenly rounds the delay, and says so")
+    void subTickRoundsAnUnevenDelay() {
+        // 50 / 3 is 16.67 ms, which no whole-millisecond delay can carry. Spreading the leftover keeps
+        // each tick exactly 50 ms - 17 / 17 / 16 - where a rounded 17 / 17 / 17 would stretch the loop.
+        Timeline fine = Timeline.gameTime(0, 2, 1, 3);
+        assertThat(fine.frames(), is(6));
+        assertThat(fine.delayMs(0), is(17));
+        assertThat(fine.delayMs(1), is(17));
+        assertThat(fine.delayMs(2), is(16));
+        assertThat(fine.playbackMsAt(3), is((long) Timeline.MILLIS_PER_TICK));
+        assertThat(fine.playbackMsAt(6), is(2L * Timeline.MILLIS_PER_TICK));
+        assertThat(fine.ageInTicks(1), is(1f / 3f));
+    }
+
+    @Test
+    @DisplayName("SubTickLoop is not a tick timeline, having no honest tick to report")
+    void subTickLoopIsNotTickNative() {
+        Timeline fine = Timeline.gameTime(0, 4, 1, 4);
+        assertThat(fine instanceof Timeline.TickTimeline, is(false));
+        // It still sits on the millisecond axis every schedule shares.
+        assertThat(fine.millisAt(1), is(0.25 * Timeline.MILLIS_PER_TICK));
+    }
+
     // ---- FpsLoop -------------------------------------------------------------------------------
 
     @Test
