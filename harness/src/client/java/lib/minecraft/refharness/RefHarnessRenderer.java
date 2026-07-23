@@ -1,5 +1,13 @@
 package lib.minecraft.refharness;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import lib.minecraft.refharness.api.Sweep;
+import lib.minecraft.refharness.api.SweepContext;
+import lib.minecraft.refharness.api.SweepRunner;
+import lib.minecraft.refharness.api.TargetFilter;
+import lib.minecraft.refharness.sweep.PlayerSweep;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -8,28 +16,50 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Top-level orchestrator. After the world is ready and the warmup ticks elapse,
- * advances the block, item, and entity sweepers one step per client tick. All three sweepers
- * render through PIP (offscreen GPU texture + readback) using the vanilla GUI item / entity
- * pipelines, so none of them needs an in-world camera, player parking, or world placement. The
- * world still has to exist because {@code EntityType.create} requires a {@code Level} reference
- * for entity initialization, but its rendering output is never captured.
+ * Top-level orchestrator. Once the world is ready and the warmup ticks elapse, advances the
+ * selected mode's sweeps one subject per client tick.
+ *
+ * <p>Every sweep renders through an offscreen picture-in-picture target using the vanilla GUI item
+ * and entity pipelines, so none of them needs an in-world camera, a parked player or world
+ * placement. The world still has to exist because entity construction requires a level reference,
+ * but its rendering output is never captured.
  */
 public final class RefHarnessRenderer {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
-    private static BlockSweeper blockSweeper;
-    private static ItemSweeper itemSweeper;
-    private static EntitySweeper entitySweeper;
-    private static PlayerSweeper playerSweeper;
-    private static GlintSweeper glintSweeper;
-    private static ArmorSweeper armorSweeper;
+    private static final TargetFilter TARGETS = TargetFilter.parse(HarnessConfig.TARGETS);
+
+    /**
+     * The run's sweeps, in the order they run. One step advances the first that is not finished, so
+     * the list order is the sweep order.
+     */
+    private static List<Stage> stages = List.of();
+
+    /**
+     * One unit of sweep work the tick loop advances.
+     *
+     * <p>An interface rather than a plain {@link SweepRunner} list because the entity sweep still
+     * renders several PNGs inside one step for its variant-bearing types, and so does not yet fit
+     * the one-subject-per-step contract the runner enforces.
+     */
+    private interface Stage {
+
+        /** Whether this stage has consumed every subject. */
+        boolean isDone();
+
+        /**
+         * Advances this stage by one step.
+         *
+         * @param ctx the sweep context for this tick
+         */
+        void step(SweepContext ctx);
+    }
 
     private RefHarnessRenderer() {}
 
     static void start(Minecraft client) {
-        LOG.info("RefHarnessRenderer.start: building sweepers. level={}, player={}",
+        LOG.info("RefHarnessRenderer.start: building sweeps. level={}, player={}",
             client.level == null ? "null" : "ClientLevel",
             client.player == null ? "null" : client.player.getName().getString());
         if (client.level == null || client.player == null) {
@@ -37,9 +67,9 @@ public final class RefHarnessRenderer {
             return;
         }
 
-        // Park the player out of the way + hide HUD so the main framebuffer (which we
-        // don't capture but MC still renders each frame) doesn't churn through chunk
-        // geometry under the player. Mainly a perf hint; PIP captures are independent.
+        // Park the player out of the way + hide HUD so the main framebuffer (which we don't capture
+        // but MC still renders each frame) doesn't churn through chunk geometry under the player.
+        // Mainly a perf hint; PIP captures are independent.
         client.player.getAbilities().mayfly = true;
         client.player.getAbilities().flying = true;
         client.player.getAbilities().invulnerable = true;
@@ -47,34 +77,35 @@ public final class RefHarnessRenderer {
         client.player.setDeltaMovement(0, 0, 0);
         client.options.hideGui = true;
 
-        if (HarnessConfig.GLINT_ONLY) {
-            // Decoupled fast path: render only the animated-glint references, skip the full sweep.
-            // The glint sweep drives GlintClock itself, one value per captured frame.
-            glintSweeper = GlintSweeper.build();
-            return;
+        HarnessMode mode = HarnessMode.resolve();
+        LOG.info("RefHarnessRenderer: mode={}", mode);
+
+        // Every sweep other than the glint sweep renders any foil subject it meets at whatever phase
+        // the wall clock happened to be at, which made the always-foil items the only
+        // non-reproducible references in the tree. Pin the glint to the same instant the glint sweep
+        // captures as its frame 0. The glint sweep drives the clock itself, one value per frame.
+        if (mode != HarnessMode.GLINT) GlintClock.overrideT = 0;
+
+        List<Stage> built = new ArrayList<>();
+        for (Sweep<?> sweep : mode.sweeps()) {
+            // The entity sweep keeps its slot between the item and player sweeps, so the sweep
+            // order is unchanged while it is still driven the old way.
+            if (mode == HarnessMode.FULL && sweep instanceof PlayerSweep) built.add(legacyEntityStage());
+            SweepRunner<?> runner = SweepRunner.of(sweep);
+            built.add(new Stage() {
+                @Override public boolean isDone() { return runner.isDone(); }
+                @Override public void step(SweepContext ctx) { runner.step(ctx); }
+            });
         }
+        stages = List.copyOf(built);
+    }
 
-        // Every other sweep renders any foil subject it meets at whatever phase the wall clock
-        // happened to be at, which made the always-foil items the only non-reproducible references
-        // in the tree. Pin the glint to the same instant the glint sweep captures as its frame 0.
-        GlintClock.overrideT = 0;
-
-        if (HarnessConfig.PLAYERS_ONLY) {
-            // Decoupled fast path: render only the player references, skip the full sweep.
-            playerSweeper = PlayerSweeper.build();
-            return;
-        }
-
-        if (HarnessConfig.ARMOR_ONLY) {
-            // Decoupled fast path: render only the armored-mob diagnostics, skip the full sweep.
-            armorSweeper = ArmorSweeper.build();
-            return;
-        }
-
-        blockSweeper = BlockSweeper.build();
-        itemSweeper = ItemSweeper.build();
-        entitySweeper = EntitySweeper.build();
-        playerSweeper = PlayerSweeper.build();
+    private static Stage legacyEntityStage() {
+        EntitySweeper sweeper = EntitySweeper.build();
+        return new Stage() {
+            @Override public boolean isDone() { return sweeper.isDone(); }
+            @Override public void step(SweepContext ctx) { sweeper.step(ctx.client()); }
+        };
     }
 
     /**
@@ -95,6 +126,8 @@ public final class RefHarnessRenderer {
      * client lightmap; the warmup window guarantees it has landed before the first block renders.
      * MC 26.1 renamed the cycle rule to {@code ADVANCE_TIME} and moved the day-time setter into
      * the reworked clock/timeline system, so noon is pinned through the {@code /time} command.
+     *
+     * @param client the running client
      */
     static void pinNoonLighting(Minecraft client) {
         MinecraftServer server = client.getSingleplayerServer();
@@ -110,45 +143,15 @@ public final class RefHarnessRenderer {
     }
 
     static boolean isDone() {
-        if (HarnessConfig.GLINT_ONLY)
-            return glintSweeper != null && glintSweeper.isDone();
-        if (HarnessConfig.PLAYERS_ONLY)
-            return playerSweeper != null && playerSweeper.isDone();
-        if (HarnessConfig.ARMOR_ONLY)
-            return armorSweeper != null && armorSweeper.isDone();
-        return blockSweeper != null && blockSweeper.isDone()
-            && itemSweeper != null && itemSweeper.isDone()
-            && entitySweeper != null && entitySweeper.isDone()
-            && playerSweeper != null && playerSweeper.isDone();
+        return !stages.isEmpty() && stages.stream().allMatch(Stage::isDone);
     }
 
     static void tick(Minecraft client) {
-        if (HarnessConfig.GLINT_ONLY) {
-            if (glintSweeper != null && !glintSweeper.isDone()) glintSweeper.step(client);
-            return;
-        }
-        if (HarnessConfig.PLAYERS_ONLY) {
-            if (playerSweeper != null && !playerSweeper.isDone()) playerSweeper.step(client);
-            return;
-        }
-        if (HarnessConfig.ARMOR_ONLY) {
-            if (armorSweeper != null && !armorSweeper.isDone()) armorSweeper.step(client);
-            return;
-        }
-        if (blockSweeper != null && !blockSweeper.isDone()) {
-            blockSweeper.step(client);
-            return;
-        }
-        if (itemSweeper != null && !itemSweeper.isDone()) {
-            itemSweeper.step(client);
-            return;
-        }
-        if (entitySweeper != null && !entitySweeper.isDone()) {
-            entitySweeper.step(client);
-            return;
-        }
-        if (playerSweeper != null && !playerSweeper.isDone()) {
-            playerSweeper.step(client);
+        SweepContext ctx = new SweepContext(client, HarnessConfig.OUTPUT_DIR, TARGETS);
+        for (Stage stage : stages) {
+            // Returning after the first incomplete stage is what preserves the strictly sequential,
+            // one-subject-per-tick pacing the asynchronous read-back requires.
+            if (!stage.isDone()) { stage.step(ctx); return; }
         }
     }
 }

@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
  *   <li>{@code client.level} loads -&gt; the harness waits {@link #WARMUP_TICKS} ticks for
  *       the loading-terrain overlay to clear and chunk uploads to finish.</li>
  *   <li>{@code RefHarnessRenderer.start} parks player + camera at the iso pose.</li>
- *   <li>Sweeper steps run one block / one entity per tick until both are done.</li>
+ *   <li>Sweep steps run one subject per tick until every sweep is done.</li>
  *   <li>{@code Minecraft.stop()} fires next tick.</li>
  * </ol>
  */

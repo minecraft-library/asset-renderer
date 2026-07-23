@@ -26,7 +26,7 @@ import net.minecraft.world.level.Level;
  * {@code GuiItemAtlas.drawToSlot} and {@code OversizedItemRenderer.renderToTexture} - the
  * same code paths the vanilla inventory uses to draw block-as-item icons.
  *
- * <p>Why this exists: {@code BlockSweeper}'s old approach placed blocks in-world and
+ * <p>Why this exists: the block sweep's old approach placed blocks in-world and
  * captured the main framebuffer at the iso camera pose. That picks up vanilla's
  * <em>world</em>-rendering shading (Lambertian diffuse via {@link Lighting.Entry#LEVEL})
  * for block-entity renderers (chest, sign, banner, ...), which doesn't match
