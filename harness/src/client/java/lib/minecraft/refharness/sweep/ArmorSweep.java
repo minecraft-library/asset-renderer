@@ -1,6 +1,7 @@
 package lib.minecraft.refharness.sweep;
 
 import lib.minecraft.refharness.HarnessConfig;
+import lib.minecraft.refharness.api.Appearance;
 import lib.minecraft.refharness.api.Bounds;
 import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.RefKey;
@@ -10,7 +11,6 @@ import lib.minecraft.refharness.frame.EntityFrameRenderer;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -22,7 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
@@ -162,15 +161,9 @@ public final class ArmorSweep implements Sweep<ArmorSweep.Subject> {
      */
     @Override
     public Canvas canvas(SweepContext ctx, Subject subject) {
-        prepared = subject.type().create(ctx.level(), EntitySpawnReason.LOAD);
+        Appearance appearance = subject.baby() ? Appearance.DEFAULT.asBaby() : Appearance.DEFAULT;
+        prepared = AppearanceApplier.build(ctx, subject.type(), appearance);
         if (prepared == null) return Canvas.square(HarnessConfig.IMAGE_SIZE);
-        EntitySubjects.zeroRotations(prepared);
-        if (subject.baby() && !setBaby(prepared)) {
-            LOG.warn("ArmorSweep: {} has no setBaby(boolean) - skipping the baby subject",
-                key(subject).fileName());
-            prepared = null;
-            return Canvas.square(HarnessConfig.IMAGE_SIZE);
-        }
         equip(prepared, subject.material());
 
         Bounds bounds = frameRenderer.measureBounds(ctx.client(), prepared);
@@ -211,21 +204,4 @@ public final class ArmorSweep implements Sweep<ArmorSweep.Subject> {
             living.setItemSlot(slot, material.stack(slot));
     }
 
-    /**
-     * Ages the entity down through its own {@code setBaby(boolean)}. The method is public on every
-     * humanoid that has a baby form (zombie and its variants, piglin) but is declared per class with
-     * no shared supertype, so it is invoked reflectively.
-     *
-     * @param entity the subject to age down
-     * @return whether the entity had the method
-     */
-    private static boolean setBaby(Entity entity) {
-        try {
-            Method setBaby = entity.getClass().getMethod("setBaby", boolean.class);
-            setBaby.invoke(entity, true);
-            return true;
-        } catch (ReflectiveOperationException ex) {
-            return false;
-        }
-    }
 }

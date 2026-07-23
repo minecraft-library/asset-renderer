@@ -1,6 +1,7 @@
 package lib.minecraft.refharness.sweep;
 
 import lib.minecraft.refharness.HarnessConfig;
+import lib.minecraft.refharness.api.Appearance;
 import lib.minecraft.refharness.api.Bounds;
 import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.RefKey;
@@ -10,12 +11,9 @@ import lib.minecraft.refharness.frame.EntityFrameRenderer;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityProcessor;
-import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.animal.cow.MushroomCow;
@@ -53,6 +51,12 @@ import java.util.TreeSet;
  * measurement pass does not. Bounds unions only ever grow, so measuring those expansions would grow
  * their families' canvases and move every horse and mooshroom reference. Converging the two lists is
  * a real improvement and a real byte move; it is not this.
+ *
+ * <p>Canvases are keyed by family <em>and cohort</em>. Subjects whose silhouettes are not comparable
+ * must not share one: unioning a baby into its family would grow every adult reference in it, and
+ * unioning an adult into the babies would leave every baby adrift in an adult-sized frame. Keying by
+ * cohort keeps each group sized to itself, and is what makes adding a cohort provably unable to move
+ * a reference that already exists.
  */
 public final class EntitySweep implements Sweep<EntitySweep.Subject> {
 
@@ -60,8 +64,20 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
 
     private final EntityFrameRenderer frameRenderer = new EntityFrameRenderer();
 
-    /** One canvas per family root, measured by {@link #prepare}. */
-    private Map<EntityType<?>, Canvas> familyFits = Map.of();
+    /** One canvas per (family root, cohort), measured by {@link #prepare}. */
+    private Map<CanvasKey, Canvas> familyFits = Map.of();
+
+    /**
+     * What a family canvas is measured across.
+     *
+     * <p>Keying by cohort as well as family is what makes a new cohort provably unable to move an
+     * existing reference: every subject emitted before the age axis is in the default cohort, so that
+     * cohort unions exactly the members it always did.
+     *
+     * @param family the family root the canvas is shared across
+     * @param cohort the group within that family whose silhouettes are comparable
+     */
+    private record CanvasKey(EntityType<?> family, Appearance.Cohort cohort) {}
 
     /**
      * One rendered entity - a type, optionally reconstructed from a variant payload.
@@ -70,18 +86,22 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
      * building one needs the level.
      *
      * @param type the entity type to build
-     * @param payload the NBT vanilla's deserialiser applies to select a variant, or empty for the
-     *                type's default appearance
-     * @param qualifier the variant name appended to the reference stem, or empty for the default
+     * @param appearance what it should look like
+     * @param qualifier the name appended to the reference stem, or empty for the bare type
      */
-    public record Subject(EntityType<?> type, Optional<CompoundTag> payload, Optional<String> qualifier) {
+    public record Subject(EntityType<?> type, Appearance appearance, Optional<String> qualifier) {
 
         private static Subject plain(EntityType<?> type) {
-            return new Subject(type, Optional.empty(), Optional.empty());
+            return new Subject(type, Appearance.DEFAULT, Optional.empty());
         }
 
-        private static Subject variant(EntityType<?> type, CompoundTag payload, String qualifier) {
-            return new Subject(type, Optional.of(payload), Optional.of(qualifier));
+        private static Subject coated(EntityType<?> type, Appearance.Coat coat) {
+            return new Subject(type, Appearance.of(coat), Optional.of(coat.name()));
+        }
+
+        /** The canvas group this subject is sized within. */
+        private CanvasKey canvasKey() {
+            return new CanvasKey(EntityRoster.familyRoot(type), appearance.cohort());
         }
     }
 
@@ -98,34 +118,29 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
             if (type == EntityType.HORSE) {
                 // Horse coat colour is an enum packed into an integer NBT key rather than a
                 // data-driven variant registry, so it needs its own enumeration.
-                for (Variant coat : Variant.values()) {
-                    CompoundTag nbt = new CompoundTag();
-                    nbt.putInt("Variant", coat.getId());
-                    subjects.add(Subject.variant(type, nbt, coat.getSerializedName()));
-                }
+                for (Variant coat : Variant.values())
+                    subjects.add(Subject.coated(type,
+                        Appearance.Coat.ofInt("Variant", coat.getId(), coat.getSerializedName())));
             } else if (type == EntityType.MOOSHROOM) {
                 // Mushroom colour is likewise an enum, persisted as a string NBT key.
                 for (MushroomCow.Variant variant : new MushroomCow.Variant[]{
                     MushroomCow.Variant.RED, MushroomCow.Variant.BROWN}) {
-                    CompoundTag nbt = new CompoundTag();
-                    nbt.putString("Type", variant.getSerializedName());
-                    subjects.add(Subject.variant(type, nbt, variant.getSerializedName()));
+                    String name = variant.getSerializedName();
+                    subjects.add(Subject.coated(type, Appearance.Coat.ofString("Type", name, name)));
                 }
             } else if (variantRegistry != null) {
                 // Sorted so the output filenames land in a stable, alphabetised order across runs.
                 Registry<?> registry = ctx.level().registryAccess().lookupOrThrow(variantRegistry);
-                for (Identifier variantId : new TreeSet<>(registry.keySet())) {
-                    CompoundTag nbt = new CompoundTag();
-                    nbt.putString("variant", variantId.toString());
-                    subjects.add(Subject.variant(type, nbt, variantId.getPath()));
-                }
+                for (Identifier variantId : new TreeSet<>(registry.keySet()))
+                    subjects.add(Subject.coated(type,
+                        Appearance.Coat.ofString("variant", variantId.toString(), variantId.getPath())));
             } else {
                 // A family whose coats are an enum rather than a registry ships one reference, and it
                 // is named after the coat it actually is rather than left bare.
                 String defaultCoat = EntityRoster.DEFAULT_COAT.get(type);
                 subjects.add(defaultCoat == null
                     ? Subject.plain(type)
-                    : new Subject(type, Optional.empty(), Optional.of(defaultCoat)));
+                    : new Subject(type, Appearance.DEFAULT, Optional.of(defaultCoat)));
             }
         }
         LOG.info("EntitySweep built: {} subjects", subjects.size());
@@ -180,32 +195,30 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
      */
     @Override
     public void prepare(SweepContext ctx, List<Subject> subjects) {
-        Map<EntityType<?>, Bounds> familyBounds = new HashMap<>();
+        Map<CanvasKey, Bounds> familyBounds = new HashMap<>();
         long t0 = System.nanoTime();
         int measured = 0;
         for (EntityType<?> type : selectTypes(ctx)) {
-            EntityType<?> family = EntityRoster.familyRoot(type);
             ResourceKey<? extends Registry<?>> variantRegistry = EntityRoster.VARIANT_REGISTRIES.get(type);
+            List<Subject> measuredSubjects = new ArrayList<>();
             if (variantRegistry != null) {
                 Registry<?> registry = ctx.level().registryAccess().lookupOrThrow(variantRegistry);
-                for (Identifier variantId : registry.keySet()) {
-                    CompoundTag nbt = new CompoundTag();
-                    nbt.putString("variant", variantId.toString());
-                    Bounds bounds = measure(ctx, new Subject(type, Optional.of(nbt), Optional.empty()));
-                    if (bounds == null) continue;
-                    familyBounds.merge(family, bounds, Bounds::union);
-                    measured++;
-                }
+                for (Identifier variantId : registry.keySet())
+                    measuredSubjects.add(Subject.coated(type,
+                        Appearance.Coat.ofString("variant", variantId.toString(), variantId.getPath())));
             } else {
-                Bounds bounds = measure(ctx, Subject.plain(type));
+                measuredSubjects.add(Subject.plain(type));
+            }
+            for (Subject subject : measuredSubjects) {
+                Bounds bounds = measure(ctx, subject);
                 if (bounds == null) continue;
-                familyBounds.merge(family, bounds, Bounds::union);
+                familyBounds.merge(subject.canvasKey(), bounds, Bounds::union);
                 measured++;
             }
         }
 
-        Map<EntityType<?>, Canvas> fits = new HashMap<>();
-        for (Map.Entry<EntityType<?>, Bounds> entry : familyBounds.entrySet()) {
+        Map<CanvasKey, Canvas> fits = new HashMap<>();
+        for (Map.Entry<CanvasKey, Bounds> entry : familyBounds.entrySet()) {
             Bounds b = entry.getValue();
             int canvasW = Math.max(1, (int) Math.ceil(b.width() * HarnessConfig.PIXELS_PER_BLOCK));
             int canvasH = Math.max(1, (int) Math.ceil(b.height() * HarnessConfig.PIXELS_PER_BLOCK));
@@ -226,8 +239,20 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                 Canvas.of(canvasW, canvasH, new Canvas.Fit(scale, b.centerX(), b.centerY())));
         }
         familyFits = Map.copyOf(fits);
-        LOG.info("EntitySweep: canvas pre-pass measured {} subjects in {} families ({} ms)",
+        LOG.info("EntitySweep: canvas pre-pass measured {} subjects in {} cohorts ({} ms)",
             measured, fits.size(), (System.nanoTime() - t0) / 1_000_000L);
+        // One line per cohort. The manifest says whether the rendered bytes moved; this says whether
+        // the canvas each subject was sized against is the same one, which is the claim a refactor of
+        // the sizing pass actually has to make.
+        fits.entrySet().stream()
+            .map(fit -> String.format("  fit %s/%s -> %dx%d @ %.6f (%.6f, %.6f)",
+                EntityType.getKey(fit.getKey().family()), fit.getKey().cohort(),
+                fit.getValue().width(), fit.getValue().height(),
+                fit.getValue().fit().orElseThrow().scale(),
+                fit.getValue().fit().orElseThrow().anchorX(),
+                fit.getValue().fit().orElseThrow().anchorY()))
+            .sorted()
+            .forEach(LOG::info);
     }
 
     private Bounds measure(SweepContext ctx, Subject subject) {
@@ -249,7 +274,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
 
     @Override
     public Canvas canvas(SweepContext ctx, Subject subject) {
-        return familyFits.get(EntityRoster.familyRoot(subject.type()));
+        return familyFits.get(subject.canvasKey());
     }
 
     @Override
@@ -266,21 +291,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         return frameRenderer.render(ctx.client(), entity, canvas, out);
     }
 
-    /**
-     * Builds one subject's entity, rotation-zeroed and ready to render.
-     *
-     * <p>A subject carrying a variant payload is reconstructed through vanilla's own deserialiser -
-     * the same path a world load takes - so the result is indistinguishable from a server-spawned
-     * variant pick. Plain creation does not accept NBT, which is why the payload cannot simply be
-     * applied afterwards.
-     */
     private static Entity build(SweepContext ctx, Subject subject) {
-        Entity entity = subject.payload()
-            .map(nbt -> EntityType.loadEntityRecursive(subject.type(), nbt, ctx.level(),
-                EntitySpawnReason.LOAD, EntityProcessor.NOP))
-            .orElseGet(() -> subject.type().create(ctx.level(), EntitySpawnReason.LOAD));
-        if (entity == null) return null;
-        EntitySubjects.zeroRotations(entity);
-        return entity;
+        return AppearanceApplier.build(ctx, subject.type(), subject.appearance());
     }
 }
