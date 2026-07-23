@@ -112,6 +112,53 @@ class TimelineTest {
             assertThat(timeline.millisAt(f), is(timeline.tickAt(f) * 50.0));
     }
 
+    // ---- ageInTicks (the off-lattice view) ------------------------------------------------------
+
+    @Test
+    @DisplayName("ageInTicks on a tick permit is exactly its tickAt, for every permit")
+    void ageInTicksIsExactOnTickPermits() {
+        // The lattice identity above makes this exact rather than approximate: tick * 50.0 is an exact
+        // integer product well inside a double's mantissa, and dividing it back by 50 recovers the tick
+        // with no rounding. Asserted as float equality on purpose - a tolerance here would hide the
+        // narrowing this view would otherwise be free to introduce.
+        List<Timeline.TickTimeline> permits = List.of(
+            new Timeline.Static(7),
+            new Timeline.TickLoop(3, 6, 2, 100),
+            new Timeline.TickLoop(0, 64, 375, Timeline.MILLIS_PER_TICK),
+            new Timeline.ChangePoints(List.of(
+                new Timeline.ChangePoints.Keyframe(0, 50),
+                new Timeline.ChangePoints.Keyframe(5, 50),
+                new Timeline.ChangePoints.Keyframe(23_999, 50))));
+
+        for (Timeline.TickTimeline timeline : permits)
+            for (int f = 0; f < timeline.frames(); f++)
+                assertThat(timeline.ageInTicks(f), is((float) timeline.tickAt(f)));
+    }
+
+    @Test
+    @DisplayName("ageInTicks falls between ticks on a wall-rate loop, which has no tickAt")
+    void ageInTicksIsFractionalOnFpsLoop() {
+        Timeline.FpsLoop timeline = new Timeline.FpsLoop(30, 6);
+        for (int f = 0; f < timeline.frames(); f++)
+            assertThat(timeline.ageInTicks(f), is((float) (f * (1000.0 / 30) / Timeline.MILLIS_PER_TICK)));
+        // The value the whole view exists for: a frame sitting off the tick lattice.
+        float age = timeline.ageInTicks(1);
+        assertThat(age, is(0.6666667f));
+        assertThat(age == Math.rint(age), is(false));
+    }
+
+    @Test
+    @DisplayName("ageInTicks reads the millisecond axis, so it tracks millisAt on every schedule")
+    void ageInTicksTracksMillisAt() {
+        List<Timeline> schedules = List.of(
+            new Timeline.Static(7),
+            new Timeline.TickLoop(3, 6, 2, 100),
+            new Timeline.FpsLoop(24, 5));
+        for (Timeline timeline : schedules)
+            for (int f = 0; f < timeline.frames(); f++)
+                assertThat(timeline.ageInTicks(f), is((float) (timeline.millisAt(f) / Timeline.MILLIS_PER_TICK)));
+    }
+
     // ---- FpsLoop -------------------------------------------------------------------------------
 
     @Test

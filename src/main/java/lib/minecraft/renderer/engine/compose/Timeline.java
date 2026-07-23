@@ -74,6 +74,29 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
     int delayMs(int frame);
 
     /**
+     * Returns the game time a frame samples, measured in ticks and allowed to fall between them -
+     * the continuous age vanilla feeds its model animation, as opposed to the integer tick a frame
+     * sits on.
+     * <p>
+     * This is the off-lattice companion to {@link TickTimeline#tickAt}. It reads the frame's position
+     * on the millisecond axis in tick units, so every schedule has one, including the wall-rate
+     * {@link FpsLoop} that sits on no tick lattice and so has no {@code tickAt} at all (at 30 fps its
+     * frames age {@code 0}, {@code 0.667}, {@code 1.333}, ...). On a tick-native schedule the two
+     * views agree exactly - a frame sampling tick {@code t} has age {@code t} - because those
+     * schedules sit on the {@link #MILLIS_PER_TICK} lattice by construction.
+     *
+     * <p>An offline bake that samples whole ticks therefore learns nothing from this that
+     * {@code tickAt} does not already tell it. It earns its keep only for a schedule that samples
+     * between ticks, where the fraction is the whole point.
+     *
+     * @param frame the frame index
+     * @return the elapsed game time in ticks
+     */
+    default float ageInTicks(int frame) {
+        return (float) (millisAt(frame) / MILLIS_PER_TICK);
+    }
+
+    /**
      * Returns the accumulated playback offset at which a frame begins displaying - the running sum of
      * the preceding frames' delays, and the instant merge-style consumers sample children at.
      *
