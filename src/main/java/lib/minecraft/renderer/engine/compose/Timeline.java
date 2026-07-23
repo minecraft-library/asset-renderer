@@ -287,6 +287,38 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
     }
 
     /**
+     * Bakes this schedule through a raster pass and returns the finished image: rasters one frame per
+     * sample instant in parallel (frame order preserved), applies the pass's finish step, then wraps
+     * the result at the finish's playback schedule. This default is the one bake loop every rasterizing
+     * renderer shares; an implementation that overrides it forks that shared loop and takes on its full
+     * contract - frame order and the finish seam - alone.
+     *
+     * <p>Each frame is handed both views of its instant: the integer tick that indexes discrete
+     * per-tick state (a texture flipbook's frame), and the {@link #ageInTicks continuous age} for
+     * anything that reads time as a quantity. The tick is the age floored, read off the millisecond
+     * axis rather than {@link TickTimeline#tickAt} so that a schedule sampling between ticks still has
+     * one; on a tick-native schedule the two agree exactly, because that axis is the tick lattice by
+     * construction.
+     *
+     * @param pass the raster configuration and callbacks to play this schedule through
+     * @return the finished image
+     * @throws RenderException if the schedule is empty
+     */
+    default @NotNull ImageData bake(@NotNull RasterPass pass) {
+        ConcurrentList<PixelBuffer> buffers = Concurrent.newList();
+        IntStream.range(0, frames())
+            .parallel()
+            .mapToObj(f -> {
+                double age = millisAt(f) / MILLIS_PER_TICK;
+                return pass.renderFrame((int) Math.floor(age), (float) age);
+            })
+            .forEachOrdered(buffers::add);
+
+        RasterPass.Finish.Result result = pass.finish().finish(buffers, this);
+        return wrapAt(result.frames(), result.playback());
+    }
+
+    /**
      * Wraps finished frames at a playback schedule's per-frame delays: one frame becomes a static
      * image, several become an animated image whose frame {@code f} displays for
      * {@code playback.delayMs(f)}.
@@ -325,27 +357,6 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
             return tickAt(frame) * (double) MILLIS_PER_TICK;
         }
 
-        /**
-         * Bakes this schedule through a raster pass and returns the finished image: rasters one frame
-         * per sample tick in parallel (frame order preserved), applies the pass's finish step, then
-         * wraps the result at the finish's playback schedule. This default is the one bake loop every
-         * rasterizing renderer shares; an implementation that overrides it forks that shared loop and
-         * takes on its full contract - frame order and the finish seam - alone.
-         *
-         * @param pass the raster configuration and callbacks to play this schedule through
-         * @return the finished image
-         * @throws RenderException if the schedule is empty
-         */
-        default @NotNull ImageData bake(@NotNull RasterPass pass) {
-            ConcurrentList<PixelBuffer> buffers = Concurrent.newList();
-            IntStream.range(0, frames())
-                .parallel()
-                .mapToObj(f -> pass.renderFrame(tickAt(f)))
-                .forEachOrdered(buffers::add);
-
-            RasterPass.Finish.Result result = pass.finish().finish(buffers, this);
-            return wrapAt(result.frames(), result.playback());
-        }
     }
 
     /**

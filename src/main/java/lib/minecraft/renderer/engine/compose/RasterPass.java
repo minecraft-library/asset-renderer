@@ -41,6 +41,23 @@ public record RasterPass(
          */
         void rasterize(@NotNull PixelBuffer target, int tick);
 
+        /**
+         * Draws the frame at a possibly-fractional {@code ageInTicks} into {@code target}. Defaults to
+         * the whole-tick draw, so a rasterizer sampling only discrete per-tick state - a texture
+         * flipbook, which has no state between its frames - needs no knowledge of the fraction and
+         * renders identically whatever schedule plays it.
+         *
+         * <p>Override when the subject's appearance is a continuous function of time rather than a
+         * lookup keyed by tick, and so has a defined value between ticks.
+         *
+         * @param target the buffer to draw into
+         * @param tick the sample instant floored to a whole tick, for discrete per-tick lookups
+         * @param ageInTicks the exact sample instant, in ticks, which may fall between two
+         */
+        default void rasterize(@NotNull PixelBuffer target, int tick, float ageInTicks) {
+            rasterize(target, tick);
+        }
+
     }
 
     /**
@@ -119,6 +136,19 @@ public record RasterPass(
      * @return the finished frame, carrying its downsampled coverage mask when the pass records one
      */
     public @NotNull PixelBuffer renderFrame(int tick) {
+        return renderFrame(tick, tick);
+    }
+
+    /**
+     * Rasters one frame at the given instant through the supersample / FXAA / downscale tail. When
+     * {@code ssaa > 1} the frame is drawn into a pooled hi-res buffer, FXAA'd there, blit-scaled
+     * down, and any mask downsampled; otherwise it is drawn straight into the output buffer.
+     *
+     * @param tick the sample instant floored to a whole tick, for discrete per-tick lookups
+     * @param ageInTicks the exact sample instant, in ticks, which may fall between two
+     * @return the finished frame, carrying its downsampled coverage mask when the pass records one
+     */
+    public @NotNull PixelBuffer renderFrame(int tick, float ageInTicks) {
         if (ssaa > 1) {
             int hiWidth = width * ssaa;
             int hiHeight = height * ssaa;
@@ -126,7 +156,7 @@ public record RasterPass(
             try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiWidth, hiHeight)) {
                 PixelBuffer hiRes = lease.buffer();
                 if (recordMask) hiRes.enableMask();
-                raster.rasterize(hiRes, tick);
+                raster.rasterize(hiRes, tick, ageInTicks);
                 if (antiAlias) hiRes.applyFxaa();
                 PixelBuffer output = PixelBuffer.create(width, height);
                 output.blitScaled(hiRes, 0, 0, width, height);
@@ -137,7 +167,7 @@ public record RasterPass(
 
         PixelBuffer buffer = PixelBuffer.create(width, height);
         if (recordMask) buffer.enableMask();
-        raster.rasterize(buffer, tick);
+        raster.rasterize(buffer, tick, ageInTicks);
         if (antiAlias) buffer.applyFxaa();
         return buffer;
     }
