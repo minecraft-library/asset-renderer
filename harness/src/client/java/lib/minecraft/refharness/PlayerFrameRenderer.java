@@ -1,29 +1,23 @@
 package lib.minecraft.refharness;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 
-import com.mojang.blaze3d.ProjectionType;
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.platform.Lighting;
-import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTexture;
-import com.mojang.blaze3d.textures.GpuTextureView;
-import com.mojang.blaze3d.textures.TextureFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import lib.minecraft.refharness.api.Bounds;
+import lib.minecraft.refharness.api.Canvas;
+import lib.minecraft.refharness.api.FrameRenderer;
+import lib.minecraft.refharness.api.HarnessPose;
+import lib.minecraft.refharness.pip.PipScope;
+import lib.minecraft.refharness.pip.PipTarget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.player.PlayerModel;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.Projection;
-import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
@@ -32,7 +26,6 @@ import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.resources.DefaultPlayerSkin;
 import net.minecraft.resources.Identifier;
-import org.joml.Quaternionf;
 import org.joml.Vector3fc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,92 +50,67 @@ import org.slf4j.LoggerFactory;
  * {@code refharness.headless} the {@code SkipSetupAnimMixin} suppresses the model's {@code setupAnim},
  * so the authored bind pose is rendered (consistent with every other harness subject).
  */
-public final class PlayerFrameRenderer implements AutoCloseable {
+public final class PlayerFrameRenderer implements FrameRenderer<PlayerFrameRenderer.Scope> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
-    /** Packed light value for "fully lit" (skylight 15 &lt;&lt; 20 | blocklight 15 &lt;&lt; 4). */
-    private static final int FULL_BRIGHT_LIGHT = 15728880;
+    /**
+     * Half-extent of the orthographic depth range. Matches the entity path: the iso rotation and the
+     * fit scale push a humanoid's nearest and farthest corners well past the block-scale range.
+     */
+    private static final float DEPTH_RANGE = 10000.0f;
 
     /** Fraction of the canvas the fitted silhouette spans - matches asset-renderer {@code PLAYER_FILL}. */
     private static final float FILL = 1.0f;
 
-    /**
-     * Iso pose quaternion, shared with {@link EntityFrameRenderer#ISO_ROTATION}: {@code rotationXYZ(210, 45, 0)}
-     * which, composed with the humanoid {@code scale(-1,-1,1)} chirality below, presents a Y-down vanilla
-     * model upright + front-facing at the shared iso angle asset-renderer renders its player at.
-     */
-    static final Quaternionf ISO_ROTATION = new Quaternionf().rotationXYZ(
-        (float) Math.toRadians(210.0),
-        (float) Math.toRadians(45.0),
-        0f);
-
     /** The two body scopes with a vanilla ground truth: full body and head-only. */
     public enum Scope { FULL, SKULL }
 
-    private final Projection projection = new Projection();
-    private final ProjectionMatrixBuffer projectionMatrixBuffer = new ProjectionMatrixBuffer("refharness player PIP");
+    private final PipTarget pip = new PipTarget("player", DEPTH_RANGE);
 
     private PlayerModel playerModel;
     private RenderType renderType;
     private AvatarRenderState renderState;
 
-    private GpuTexture colorTexture;
-    private GpuTextureView colorTextureView;
-    private GpuTexture depthTexture;
-    private GpuTextureView depthTextureView;
-    private int textureWidth;
-    private int textureHeight;
-
     /**
-     * Renders the player at the given {@code scope} into the internal texture and writes it to
-     * {@code outputPath} as a {@code size × size} PNG.
+     * Renders the player at the given {@code subject} scope onto the canvas and writes it to
+     * {@code out} as a PNG.
+     *
+     * @param client the active client, for the model bake and the per-frame render handles
+     * @param subject the body scope to draw
+     * @param canvas the canvas to draw onto
+     * @param out where to write the PNG; parent directories are created on demand
+     * @return whether a PNG was written; the player scopes are never declined
+     * @throws IOException if the PNG file write fails
      */
-    public void renderAndWrite(Minecraft client, Scope scope, int size, Path outputPath) throws IOException {
+    @Override
+    public boolean render(Minecraft client, Scope subject, Canvas canvas, Path out) throws IOException {
         ensureModel(client);
-        ensureTextures(size, size);
 
         // Measure the silhouette in the presentation frame (no fit yet), then scale to fill the canvas.
         PoseStack measure = new PoseStack();
         appendPresentationChain(measure);
-        Bounds bounds = new Bounds();
-        walkExtents(scope, measure, v -> bounds.expand(v.x(), v.y()));
+        Extents extents = new Extents();
+        walkExtents(subject, measure, v -> extents.expand(v.x(), v.y()));
+        Bounds bounds = extents.toBounds();
+        int size = canvas.width();
         float w = bounds.width();
         float h = bounds.height();
         float scale = (w <= 0f || h <= 0f) ? size : FILL * Math.min(size / w, size / h);
         float translateX = size / 2.0f - bounds.centerX() * scale;
         float translateY = size / 2.0f - bounds.centerY() * scale;
 
-        FeatureRenderDispatcher fed = client.gameRenderer.getFeatureRenderDispatcher();
-        SubmitNodeStorage storage = fed.getSubmitNodeStorage();
-        MultiBufferSource.BufferSource bufferSource = client.renderBuffers().bufferSource();
-        Lighting lighting = client.gameRenderer.getLighting();
-
-        GpuDevice device = RenderSystem.getDevice();
-        device.createCommandEncoder().clearColorAndDepthTextures(colorTexture, 0, depthTexture, 1.0);
-
-        RenderSystem.outputColorTextureOverride = colorTextureView;
-        RenderSystem.outputDepthTextureOverride = depthTextureView;
-        try {
-            projection.setupOrtho(-10000.0f, 10000.0f, textureWidth, textureHeight, /*invertY*/ true);
-            RenderSystem.setProjectionMatrix(projectionMatrixBuffer.getBuffer(projection), ProjectionType.ORTHOGRAPHIC);
-
-            lighting.setupFor(Lighting.Entry.ENTITY_IN_UI);
+        return pip.draw(client, canvas, out, scope -> {
+            scope.lighting().setupFor(Lighting.Entry.ENTITY_IN_UI);
 
             PoseStack poseStack = new PoseStack();
             poseStack.translate(translateX, translateY, 0.0f);
             poseStack.scale(scale, scale, scale);
             appendPresentationChain(poseStack);
 
-            submit(scope, poseStack, storage);
-            fed.renderAllFeatures();
-            bufferSource.endBatch();
-        } finally {
-            RenderSystem.outputColorTextureOverride = null;
-            RenderSystem.outputDepthTextureOverride = null;
-        }
-
-        writeTextureToPng(outputPath);
+            submit(subject, poseStack, scope.storage());
+            return true;
+        });
     }
 
     /**
@@ -153,7 +121,7 @@ public final class PlayerFrameRenderer implements AutoCloseable {
      */
     private static void appendPresentationChain(PoseStack ps) {
         ps.scale(1.0f, 1.0f, -1.0f);
-        ps.mulPose(ISO_ROTATION);
+        ps.mulPose(HarnessPose.ISO);
         ps.mulPose(Axis.YP.rotationDegrees(180.0f)); // setupRotations: face the camera
         ps.scale(-1.0f, -1.0f, 1.0f);                // humanoid chirality (Y-down -> Y-up)
         ps.translate(0.0f, -1.501f, 0.0f);           // model offset (absorbed by the bbox re-centre)
@@ -171,12 +139,12 @@ public final class PlayerFrameRenderer implements AutoCloseable {
     private void submit(Scope scope, PoseStack ps, SubmitNodeCollector storage) {
         if (scope == Scope.FULL) {
             storage.submitModel(playerModel, renderState, ps, renderType,
-                FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF, /*crumbling*/ null);
+                PipScope.FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF, /*crumbling*/ null);
         } else {
             storage.submitModelPart(playerModel.head, ps, renderType,
-                FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, /*sprite*/ null);
+                PipScope.FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, /*sprite*/ null);
             storage.submitModelPart(playerModel.hat, ps, renderType,
-                FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, /*sprite*/ null);
+                PipScope.FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, /*sprite*/ null);
         }
     }
 
@@ -192,7 +160,7 @@ public final class PlayerFrameRenderer implements AutoCloseable {
     }
 
     /** Mutable screen-space bounding box accumulated over transformed model-part corners. */
-    private static final class Bounds {
+    private static final class Extents {
         private float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE;
         private float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE;
 
@@ -201,70 +169,13 @@ public final class PlayerFrameRenderer implements AutoCloseable {
             minY = Math.min(minY, y); maxY = Math.max(maxY, y);
         }
 
-        float width() { return maxX - minX; }
-
-        float height() { return maxY - minY; }
-
-        float centerX() { return (minX + maxX) * 0.5f; }
-
-        float centerY() { return (minY + maxY) * 0.5f; }
-    }
-
-    private void ensureTextures(int width, int height) {
-        if (colorTexture != null && textureWidth == width && textureHeight == height) return;
-        closeTextures();
-        GpuDevice device = RenderSystem.getDevice();
-        colorTexture = device.createTexture(() -> "refharness player color", 13,
-            TextureFormat.RGBA8, width, height, 1, 1);
-        colorTextureView = device.createTextureView(colorTexture);
-        depthTexture = device.createTexture(() -> "refharness player depth", 9,
-            TextureFormat.DEPTH32, width, height, 1, 1);
-        depthTextureView = device.createTextureView(depthTexture);
-        textureWidth = width;
-        textureHeight = height;
-    }
-
-    private void writeTextureToPng(Path outputPath) throws IOException {
-        Files.createDirectories(outputPath.getParent());
-        final int width = textureWidth;
-        final int height = textureHeight;
-        final int pixelSize = colorTexture.getFormat().pixelSize();
-        long byteSize = (long) width * height * pixelSize;
-        GpuBuffer buffer = RenderSystem.getDevice().createBuffer(
-            () -> "refharness-player-readback", /*usage*/ 9, byteSize);
-        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
-        IOException[] err = new IOException[1];
-        encoder.copyTextureToBuffer(colorTexture, buffer, 0L, () -> {
-            try (GpuBuffer.MappedView read = encoder.mapBuffer(buffer, true, false);
-                 NativeImage image = new NativeImage(width, height, false)) {
-                for (int y = 0; y < height; y++) {
-                    for (int x = 0; x < width; x++) {
-                        int argb = read.data().getInt((x + y * width) * pixelSize);
-                        image.setPixelABGR(x, height - y - 1, argb);
-                    }
-                }
-                image.writeToFile(outputPath);
-            } catch (IOException ex) {
-                err[0] = ex;
-            } finally {
-                buffer.close();
-            }
-        }, /*mipLevel*/ 0);
-        if (err[0] != null) throw err[0];
-    }
-
-    private void closeTextures() {
-        if (colorTexture != null) { colorTexture.close(); colorTexture = null; }
-        if (colorTextureView != null) { colorTextureView.close(); colorTextureView = null; }
-        if (depthTexture != null) { depthTexture.close(); depthTexture = null; }
-        if (depthTextureView != null) { depthTextureView.close(); depthTextureView = null; }
-        textureWidth = 0;
-        textureHeight = 0;
+        Bounds toBounds() {
+            return new Bounds(minX, maxX, minY, maxY);
+        }
     }
 
     @Override
     public void close() {
-        closeTextures();
-        projectionMatrixBuffer.close();
+        pip.close();
     }
 }

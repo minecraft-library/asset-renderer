@@ -2,32 +2,23 @@ package lib.minecraft.refharness;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 
-import com.mojang.blaze3d.ProjectionType;
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.platform.Lighting;
-import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTexture;
-import com.mojang.blaze3d.textures.GpuTextureView;
-import com.mojang.blaze3d.textures.TextureFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.mojang.math.Transformation;
+import lib.minecraft.refharness.api.Canvas;
+import lib.minecraft.refharness.api.FrameRenderer;
+import lib.minecraft.refharness.pip.PipScope;
+import lib.minecraft.refharness.pip.PipTarget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.model.object.banner.BannerFlagModel;
 import net.minecraft.client.model.object.banner.BannerModel;
 import net.minecraft.client.model.object.skull.SkullModelBase;
 import net.minecraft.client.model.object.statue.CopperGolemStatueModel;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.Projection;
-import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.renderer.Sheets;
@@ -112,11 +103,15 @@ import org.slf4j.LoggerFactory;
  * walkers ({@link BedRenderer#getExtents}, {@link BannerRenderer#getExtents}) to size the fit, then
  * submits through the unchanged vanilla BE renderer so sprites / dye / patterns stay vanilla-correct.
  */
-public final class BlockEntityFrameRenderer implements AutoCloseable {
+public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
-    private static final int FULL_BRIGHT_LIGHT = 15728880;
+    /**
+     * Half-extent of the orthographic depth range. Block-entity geometry is unit-scale, so the
+     * standard range comfortably contains the posed model.
+     */
+    private static final float DEPTH_RANGE = 1000.0f;
 
     /** Stable position for the transient BE - never written to the world. */
     private static final BlockPos TRANSIENT_POS = new BlockPos(0, 64, 0);
@@ -189,33 +184,33 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
         }
     }
 
-    private final Projection projection = new Projection();
-    private final ProjectionMatrixBuffer projectionMatrixBuffer = new ProjectionMatrixBuffer("refharness BE PIP");
+    private final PipTarget pip = new PipTarget("BE", DEPTH_RANGE);
     private final CameraRenderState cameraState = new CameraRenderState();
     private final RandomSource random = RandomSource.create();
     private final List<BlockStateModelPart> partsScratch = new ArrayList<>();
 
-    private GpuTexture colorTexture;
-    private GpuTextureView colorTextureView;
-    private GpuTexture depthTexture;
-    private GpuTextureView depthTextureView;
-    private int textureWidth;
-    private int textureHeight;
-
     /**
      * The block's authored {@code display.gui} transform for the subject being rendered, resolved
-     * once per {@link #renderAndWrite} call and read by {@link #blockCenteredPose} /
+     * once per {@link #render} call and read by {@link #blockCenteredPose} /
      * {@link #isoFitPose}. Falls back to {@link BlockGuiTransform#DEFAULT_BLOCK_GUI} when unreadable.
      */
     private ItemTransform guiTransform = BlockGuiTransform.DEFAULT_BLOCK_GUI;
 
     /**
      * Renders the block-entity geometry of {@code state} as an iso-pose icon and writes the
-     * result PNG to {@code outputPath}. Returns {@code false} when the block has no
-     * {@link EntityBlock}-style entity, no registered renderer, or the renderer returns a
-     * null render state - the caller should fall back to another path in that case.
+     * result PNG to {@code out}.
+     *
+     * @param client the active client; supplies the block-entity dispatcher and the model manager
+     * @param state the block state to render
+     * @param canvas the canvas to draw onto
+     * @param out where to write the PNG; parent directories are created on demand
+     * @return whether a PNG was written; declined when the block has no {@link EntityBlock}-style
+     *         entity, has no registered renderer, or its submit ladder throws part-way - the caller
+     *         should fall back to another path in that case
+     * @throws IOException if the PNG file write fails
      */
-    public boolean renderAndWrite(Minecraft client, BlockState state, int size, Path outputPath) throws IOException {
+    @Override
+    public boolean render(Minecraft client, BlockState state, Canvas canvas, Path out) throws IOException {
         if (!(state.getBlock() instanceof EntityBlock entityBlock)) return false;
 
         BlockEntity blockEntity = entityBlock.newBlockEntity(TRANSIENT_POS, state);
@@ -234,56 +229,35 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
         // to the standard [30,225,0]+0.625 iso pose when the item model exposes no readable transform).
         guiTransform = BlockGuiTransform.resolve(client, state);
 
-        ensureTextures(size, size);
-
-        FeatureRenderDispatcher fed = client.gameRenderer.getFeatureRenderDispatcher();
-        SubmitNodeStorage storage = fed.getSubmitNodeStorage();
-        MultiBufferSource.BufferSource bufferSource = client.renderBuffers().bufferSource();
-        Lighting lighting = client.gameRenderer.getLighting();
-
-        GpuDevice device = RenderSystem.getDevice();
-        device.createCommandEncoder().clearColorAndDepthTextures(colorTexture, 0, depthTexture, 1.0);
-
-        RenderSystem.outputColorTextureOverride = colorTextureView;
-        RenderSystem.outputDepthTextureOverride = depthTextureView;
-        try {
-            projection.setupOrtho(-1000.0f, 1000.0f, textureWidth, textureHeight, /*invertY*/ true);
-            RenderSystem.setProjectionMatrix(projectionMatrixBuffer.getBuffer(projection), ProjectionType.ORTHOGRAPHIC);
-
-            lighting.setupFor(Lighting.Entry.ITEMS_3D);
+        return pip.draw(client, canvas, out, scope -> {
+            scope.lighting().setupFor(Lighting.Entry.ITEMS_3D);
             dispatcher.prepare(net.minecraft.world.phys.Vec3.ZERO);
 
+            SubmitNodeStorage storage = scope.storage();
             try {
                 // Bed / banner / wall_banner: compose an inventory icon (canonical facing, geometry-
                 // bbox fit, both bed halves) instead of rendering the raw in-world block. Every other
                 // block-entity renders raw - for symmetric BEs (skull / chest / shulker_box / conduit /
                 // decorated_pot / beacon) the in-world render already equals the icon.
                 if ((Object) renderer instanceof BedRenderer bed) {
-                    submitBedIcon(bed, (BedRenderState) renderState, storage);
+                    submitBedIcon(scope, bed, (BedRenderState) renderState, storage);
                 } else if ((Object) renderer instanceof BannerRenderer banner) {
-                    submitBannerIcon(banner, (BannerRenderState) renderState, storage);
+                    submitBannerIcon(scope, banner, (BannerRenderState) renderState, storage);
                 } else if ((Object) renderer instanceof SkullBlockRenderer skull) {
-                    submitSkullIcon(skull, (SkullBlockRenderState) renderState, state, storage);
+                    submitSkullIcon(scope, skull, (SkullBlockRenderState) renderState, state, storage);
                 } else if ((Object) renderer instanceof AbstractSignRenderer) {
-                    submitSignIcon(renderer, (SignRenderState) renderState, storage);
+                    submitSignIcon(scope, renderer, (SignRenderState) renderState, storage);
                 } else if ((Object) renderer instanceof CopperGolemStatueBlockRenderer cg) {
-                    submitCopperGolemStatueIcon(client, cg, (CopperGolemStatueRenderState) renderState, storage);
+                    submitCopperGolemStatueIcon(scope, client, cg, (CopperGolemStatueRenderState) renderState, storage);
                 } else {
-                    submitRawBlockEntity(client, state, renderer, renderState, storage);
+                    submitRawBlockEntity(scope, client, state, renderer, renderState, storage);
                 }
             } catch (RuntimeException ex) {
                 LOG.warn("BlockEntityFrameRenderer: submit failed for {}: {}", state, ex.toString());
                 return false;
             }
-            fed.renderAllFeatures();
-            bufferSource.endBatch();
-        } finally {
-            RenderSystem.outputColorTextureOverride = null;
-            RenderSystem.outputDepthTextureOverride = null;
-        }
-
-        writeTextureToPng(outputPath);
-        return true;
+            return true;
+        });
     }
 
     /**
@@ -291,10 +265,10 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
      * model first (beacon cube, suspicious_sand overlay base) then the BE renderer on top. Used
      * for every block-entity except the three icon-composition families.
      */
-    private void submitRawBlockEntity(Minecraft client, BlockState state,
+    private void submitRawBlockEntity(PipScope scope, Minecraft client, BlockState state,
                                       BlockEntityRenderer<BlockEntity, BlockEntityRenderState> renderer,
                                       BlockEntityRenderState renderState, SubmitNodeStorage storage) {
-        PoseStack poseStack = blockCenteredPose();
+        PoseStack poseStack = blockCenteredPose(scope);
 
         // 1. Submit the static block model first - same call BlockFrameRenderer makes for plain
         //    blocks. For blocks where the BE adds geometry on top of an existing block model
@@ -309,7 +283,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
             if (!partsScratch.isEmpty()) {
                 RenderType renderType = Sheets.cutoutBlockSheet();
                 storage.submitBlockModel(poseStack, renderType, partsScratch, NO_TINTS,
-                    FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
+                    PipScope.FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
             }
         }
 
@@ -323,7 +297,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
      * pieces are submitted through vanilla's {@link BedRenderer} (so the dye sprite stays correct)
      * with the in-world head-block offset between them.
      */
-    private void submitBedIcon(BedRenderer bed, BedRenderState state, SubmitNodeStorage storage) {
+    private void submitBedIcon(PipScope scope, BedRenderer bed, BedRenderState state, SubmitNodeStorage storage) {
         Matrix4f modelTransform = new Matrix4f(BedRenderer.modelTransform(BED_CANONICAL_FACING).getMatrix());
         float iconRad = (float) Math.toRadians(BED_ICON_ROTATION_DEG);
         Vec3i headOffset = BED_CANONICAL_FACING.getUnitVec3i();
@@ -337,7 +311,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
         expandExtents(bounds, footFrame, c -> bed.getExtents(BedPart.FOOT, c));
         expandExtents(bounds, headFrame, c -> bed.getExtents(BedPart.HEAD, c));
 
-        PoseStack ps = isoFitPose(bounds);
+        PoseStack ps = isoFitPose(scope, bounds);
         ps.mulPose(Axis.YP.rotationDegrees(BED_ICON_ROTATION_DEG));
 
         state.facing = BED_CANONICAL_FACING;
@@ -357,7 +331,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
      * the wall bar + hanging flag) are recentred on their bbox and shrunk to fit. Submitted
      * through vanilla's {@link BannerRenderer} so the base dye + patterns stay correct.
      */
-    private void submitBannerIcon(BannerRenderer banner, BannerRenderState state, SubmitNodeStorage storage) {
+    private void submitBannerIcon(PipScope scope, BannerRenderer banner, BannerRenderState state, SubmitNodeStorage storage) {
         boolean wall = state.attachmentType == BannerBlock.AttachmentType.WALL;
         Transformation canonical = bannerModelTransformation(wall ? WALL_BANNER_CANONICAL_DEG : BANNER_CANONICAL_DEG);
         Matrix4f frame = new Matrix4f(canonical.getMatrix());
@@ -369,7 +343,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
             expandExtents(bounds, frame, banner::getExtents);
         }
 
-        PoseStack ps = isoFitPose(bounds);
+        PoseStack ps = isoFitPose(scope, bounds);
         state.transformation = canonical;
         // Pin the wave phase to 0 for reproducibility (extractRenderState seeds it from world
         // position + game time). The cloth is flattened to match asset-renderer's flat flag by
@@ -394,7 +368,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
      *       fit within the block so they take the plain block-centred pose untouched.</li>
      * </ul>
      */
-    private void submitSkullIcon(SkullBlockRenderer skull, SkullBlockRenderState state, BlockState blockState, SubmitNodeStorage storage) {
+    private void submitSkullIcon(PipScope scope, SkullBlockRenderer skull, SkullBlockRenderState state, BlockState blockState, SubmitNodeStorage storage) {
         if (blockState.getBlock() instanceof WallSkullBlock) {
             state.transformation = SkullBlockRenderer.TRANSFORMATIONS.freeTransformations(0);
         }
@@ -411,9 +385,9 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
             Matrix4f frame = new Matrix4f(state.transformation.getMatrix());
             Bounds bounds = new Bounds();
             expandExtents(bounds, frame, c -> walkSkullExtents(skull, state, c));
-            ps = isoFitPose(bounds);
+            ps = isoFitPose(scope, bounds);
         } else {
-            ps = blockCenteredPose();
+            ps = blockCenteredPose(scope);
         }
         skull.submit(state, ps, storage, cameraState);
     }
@@ -433,7 +407,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
      * model bbox + shrink to fit (like the dragon head), with an upright flip baked into the same
      * frame the submit pose composes on top of.
      */
-    private void submitCopperGolemStatueIcon(Minecraft client, CopperGolemStatueBlockRenderer cg,
+    private void submitCopperGolemStatueIcon(PipScope scope, Minecraft client, CopperGolemStatueBlockRenderer cg,
                                              CopperGolemStatueRenderState rs, SubmitNodeStorage storage) {
         CopperGolemStatueModel probe = new CopperGolemStatueModel(client.getEntityModels().bakeLayer(ModelLayers.COPPER_GOLEM));
         probe.setupAnim(net.minecraft.util.Unit.INSTANCE);
@@ -445,7 +419,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
         Bounds bounds = new Bounds();
         expandExtents(bounds, frame, c -> probe.root().getExtentsForGui(new PoseStack(), c));
 
-        PoseStack ps = isoFitPose(bounds);
+        PoseStack ps = isoFitPose(scope, bounds);
         ps.mulPose(CG_FLIP_AXIS.rotationDegrees(CG_FLIP_DEG));
         cg.submit(rs, ps, storage, cameraState);
     }
@@ -464,7 +438,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
      * {@code facing=north} yaw of 180 degrees, so the pre-composed flip lands the face at the
      * canonical reference orientation asset-renderer bakes its inventory transform at.
      */
-    private void submitSignIcon(BlockEntityRenderer<BlockEntity, BlockEntityRenderState> renderer,
+    private void submitSignIcon(PipScope scope, BlockEntityRenderer<BlockEntity, BlockEntityRenderState> renderer,
                                 SignRenderState state, SubmitNodeStorage storage) {
         SignRenderState.SignTransformations t = state.transformations;
         Matrix4f body = new Matrix4f()
@@ -473,7 +447,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
             .translate(-0.5f, 0f, -0.5f)
             .mul(t.body().getMatrix());
         state.transformations = new SignRenderState.SignTransformations(new Transformation(body), t.frontText(), t.backText());
-        renderer.submit(state, blockCenteredPose(), storage, cameraState);
+        renderer.submit(state, blockCenteredPose(scope), storage, cameraState);
     }
 
     /**
@@ -549,10 +523,8 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
      * {@link ItemTransform#apply} (translation, {@code rotationXYZ}, scale, and the {@code [0,1]}
      * block-model centring). Used by the raw BE path and by heads that fit inside the block.
      */
-    private PoseStack blockCenteredPose() {
-        PoseStack ps = new PoseStack();
-        ps.translate(textureWidth / 2.0f, textureHeight / 2.0f, 0.0f);
-        ps.scale(textureWidth, -textureHeight, textureWidth);
+    private PoseStack blockCenteredPose(PipScope scope) {
+        PoseStack ps = scope.guiPose();
         guiTransform.apply(false, ps.last());
         return ps;
     }
@@ -566,13 +538,11 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
      * centre). Mirrors asset-renderer's {@code recenterAndFit}. Callers append any per-piece
      * model transform (bed icon rotation, banner facing) after this returns.
      */
-    private PoseStack isoFitPose(Bounds bounds) {
+    private PoseStack isoFitPose(PipScope scope, Bounds bounds) {
         float extent = bounds.maxExtent();
         float scale = extent > ICON_FIT_EXTENT ? ICON_FIT_EXTENT / extent : 1.0f;
 
-        PoseStack ps = new PoseStack();
-        ps.translate(textureWidth / 2.0f, textureHeight / 2.0f, 0.0f);
-        ps.scale(textureWidth, -textureHeight, textureWidth);
+        PoseStack ps = scope.guiPose();
         BlockGuiTransform.applyFitNeutral(guiTransform, ps.last());
         ps.scale(scale, scale, scale);
         ps.translate(-bounds.centerX(), -bounds.centerY(), -bounds.centerZ());
@@ -599,61 +569,8 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
         }
     }
 
-    private void ensureTextures(int width, int height) {
-        if (colorTexture != null && textureWidth == width && textureHeight == height) return;
-        closeTextures();
-        GpuDevice device = RenderSystem.getDevice();
-        colorTexture = device.createTexture(() -> "refharness BE color", 13,
-            TextureFormat.RGBA8, width, height, 1, 1);
-        colorTextureView = device.createTextureView(colorTexture);
-        depthTexture = device.createTexture(() -> "refharness BE depth", 9,
-            TextureFormat.DEPTH32, width, height, 1, 1);
-        depthTextureView = device.createTextureView(depthTexture);
-        textureWidth = width;
-        textureHeight = height;
-    }
-
-    private void writeTextureToPng(Path outputPath) throws IOException {
-        Files.createDirectories(outputPath.getParent());
-        final int width = textureWidth;
-        final int height = textureHeight;
-        final int pixelSize = colorTexture.getFormat().pixelSize();
-        long byteSize = (long) width * height * pixelSize;
-        GpuBuffer buffer = RenderSystem.getDevice().createBuffer(
-            () -> "refharness-be-readback", /*usage*/ 9, byteSize);
-        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
-        IOException[] err = new IOException[1];
-        encoder.copyTextureToBuffer(colorTexture, buffer, 0L, () -> {
-            try (GpuBuffer.MappedView read = encoder.mapBuffer(buffer, true, false);
-                 NativeImage image = new NativeImage(width, height, false)) {
-                for (int y = 0; y < height; y++) {
-                    for (int x = 0; x < width; x++) {
-                        int argb = read.data().getInt((x + y * width) * pixelSize);
-                        image.setPixelABGR(x, height - y - 1, argb);
-                    }
-                }
-                image.writeToFile(outputPath);
-            } catch (IOException ex) {
-                err[0] = ex;
-            } finally {
-                buffer.close();
-            }
-        }, /*mipLevel*/ 0);
-        if (err[0] != null) throw err[0];
-    }
-
-    private void closeTextures() {
-        if (colorTexture != null) { colorTexture.close(); colorTexture = null; }
-        if (colorTextureView != null) { colorTextureView.close(); colorTextureView = null; }
-        if (depthTexture != null) { depthTexture.close(); depthTexture = null; }
-        if (depthTextureView != null) { depthTextureView.close(); depthTextureView = null; }
-        textureWidth = 0;
-        textureHeight = 0;
-    }
-
     @Override
     public void close() {
-        closeTextures();
-        projectionMatrixBuffer.close();
+        pip.close();
     }
 }

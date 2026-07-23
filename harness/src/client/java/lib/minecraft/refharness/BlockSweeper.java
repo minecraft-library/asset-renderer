@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import lib.minecraft.refharness.api.Canvas;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -98,6 +99,7 @@ public final class BlockSweeper implements AutoCloseable {
         Identifier id = BuiltInRegistries.BLOCK.getKey(block);
         String safeName = id.getNamespace() + "__" + id.getPath();
         Path out = HarnessConfig.OUTPUT_DIR.resolve("blocks").resolve(safeName + ".png");
+        Canvas canvas = Canvas.square(HarnessConfig.IMAGE_SIZE);
 
         try {
             if (block instanceof EntityBlock) {
@@ -110,12 +112,12 @@ public final class BlockSweeper implements AutoCloseable {
                 // in-world block at the iso pose, not the inventory icon, which for these blocks is
                 // either a flat item/generated sprite (hopper, brewing_stand) or a divergent model
                 // (barrel un-rotated, chiseled_bookshelf_inventory, calibrated's display.gui pose).
-                boolean rendered3d = beRenderer.renderAndWrite(client, block.defaultBlockState(), HarnessConfig.IMAGE_SIZE, out);
+                boolean rendered3d = beRenderer.render(client, block.defaultBlockState(), canvas, out);
                 if (!rendered3d)
-                    blockRenderer.renderAndWrite(client, block.defaultBlockState(), HarnessConfig.IMAGE_SIZE, out);
+                    blockRenderer.render(client, block.defaultBlockState(), canvas, out);
                 rendered++;
             } else {
-                blockRenderer.renderAndWrite(client, block.defaultBlockState(), HarnessConfig.IMAGE_SIZE, out);
+                blockRenderer.render(client, block.defaultBlockState(), canvas, out);
                 rendered++;
             }
         } catch (IOException ex) {

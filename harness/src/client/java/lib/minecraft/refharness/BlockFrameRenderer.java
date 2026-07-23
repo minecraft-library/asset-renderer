@@ -1,26 +1,17 @@
 package lib.minecraft.refharness;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.mojang.blaze3d.ProjectionType;
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.platform.Lighting;
-import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTexture;
-import com.mojang.blaze3d.textures.GpuTextureView;
-import com.mojang.blaze3d.textures.TextureFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
+import lib.minecraft.refharness.api.Canvas;
+import lib.minecraft.refharness.api.FrameRenderer;
+import lib.minecraft.refharness.pip.PipScope;
+import lib.minecraft.refharness.pip.PipTarget;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.Projection;
-import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.renderer.SubmitNodeStorage;
@@ -75,19 +66,17 @@ import org.slf4j.LoggerFactory;
  * sugar_cane exception (its inventory colour is white but the in-world block is grass-tinted).
  *
  * <p>Lifecycle mirrors {@link ItemFrameRenderer}: PIP textures are reused across calls while
- * the requested {@code width × height} stays constant, and the textures are deliberately leaked
- * past {@link #close} to avoid racing the async GPU readback callback.
+ * the requested canvas stays the same size.
  */
-public final class BlockFrameRenderer implements AutoCloseable {
+public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
     /**
-     * Packed light value for "fully lit"; same constant {@link ItemFrameRenderer} uses. Inventory
-     * icons are always full-bright so their visible shade comes from the diffuse lighting and
-     * per-face cardinal shade, not from any per-block-position light value.
+     * Half-extent of the orthographic depth range. Block models are unit-scale, so the standard
+     * range comfortably contains the posed model.
      */
-    private static final int FULL_BRIGHT_LIGHT = 15728880;
+    private static final float DEPTH_RANGE = 1000.0f;
 
     /**
      * Empty tint-layer array, used for blocks with no registered {@link BlockTintSource} (the vast
@@ -97,8 +86,7 @@ public final class BlockFrameRenderer implements AutoCloseable {
      */
     private static final int[] NO_TINTS = new int[0];
 
-    private final Projection projection = new Projection();
-    private final ProjectionMatrixBuffer projectionMatrixBuffer = new ProjectionMatrixBuffer("refharness block PIP");
+    private final PipTarget pip = new PipTarget("block", DEPTH_RANGE);
     // Pinned-to-index-0 random so weighted variant lists (bedrock/stone/netherrack rotations)
     // always emit variants[0], matching asset-renderer's BlockStateLoader.parseVariants pick.
     // A live RandomSource.create() baked a random rotation into the reference, rotating the texture
@@ -106,16 +94,9 @@ public final class BlockFrameRenderer implements AutoCloseable {
     private final RandomSource random = new FirstVariantRandomSource();
     private final List<BlockStateModelPart> partsScratch = new ArrayList<>();
 
-    private GpuTexture colorTexture;
-    private GpuTextureView colorTextureView;
-    private GpuTexture depthTexture;
-    private GpuTextureView depthTextureView;
-    private int textureWidth;
-    private int textureHeight;
-
     /**
      * Renders the given {@code state} as an iso-pose block icon and writes the result PNG to
-     * {@code outputPath}. The block's {@link BlockStateModel} is looked up from the active
+     * {@code out}. The block's {@link BlockStateModel} is looked up from the active
      * {@link Minecraft#getModelManager() ModelManager} and submitted directly via
      * {@link SubmitNodeStorage#submitBlockModel}, so the output reflects the actual 3D block
      * geometry regardless of how the inventory item model would have routed it.
@@ -123,25 +104,25 @@ public final class BlockFrameRenderer implements AutoCloseable {
      * @param client the active client; supplies the model manager, feature dispatcher,
      *               lighting, and buffer source
      * @param state the block state to render; defaults via {@code block.defaultBlockState()}
-     * @param size the square edge length (pixels) of the output PNG
-     * @param outputPath where to write the PNG; parent directories are created on demand
+     * @param canvas the canvas to draw onto
+     * @param out where to write the PNG; parent directories are created on demand
+     * @return whether a PNG was written; a state with no model or no parts is declined
      * @throws IOException if the PNG file write fails
      */
-    public void renderAndWrite(Minecraft client, BlockState state, int size, Path outputPath) throws IOException {
-        ensureTextures(size, size);
-
+    @Override
+    public boolean render(Minecraft client, BlockState state, Canvas canvas, Path out) throws IOException {
         BlockStateModelSet modelSet = client.getModelManager().getBlockStateModelSet();
         BlockStateModel model = modelSet.get(state);
         if (model == null) {
             LOG.warn("BlockFrameRenderer: no BlockStateModel for {}", state);
-            return;
+            return false;
         }
 
         partsScratch.clear();
         model.collectParts(random, partsScratch);
         if (partsScratch.isEmpty()) {
             LOG.warn("BlockFrameRenderer: empty parts list for {}", state);
-            return;
+            return false;
         }
 
         // tripwire_hook hard-coded shading fix (see CardinalSnapPart). Vanilla's putBakedQuad lights
@@ -155,35 +136,20 @@ public final class BlockFrameRenderer implements AutoCloseable {
                 partsScratch.set(i, new CardinalSnapPart(partsScratch.get(i)));
         }
 
-        FeatureRenderDispatcher fed = client.gameRenderer.getFeatureRenderDispatcher();
-        SubmitNodeStorage storage = fed.getSubmitNodeStorage();
-        MultiBufferSource.BufferSource bufferSource = client.renderBuffers().bufferSource();
-        Lighting lighting = client.gameRenderer.getLighting();
-
-        GpuDevice device = RenderSystem.getDevice();
-        device.createCommandEncoder().clearColorAndDepthTextures(colorTexture, 0, depthTexture, 1.0);
-
-        RenderSystem.outputColorTextureOverride = colorTextureView;
-        RenderSystem.outputDepthTextureOverride = depthTextureView;
-        try {
-            projection.setupOrtho(-1000.0f, 1000.0f, textureWidth, textureHeight, /*invertY*/ true);
-            RenderSystem.setProjectionMatrix(projectionMatrixBuffer.getBuffer(projection), ProjectionType.ORTHOGRAPHIC);
-
+        pip.draw(client, canvas, out, scope -> {
             // The block's own authored display.gui, falling back to the standard [30,225,0]+0.625
             // iso pose when the item model exposes no readable transform. ItemTransform.apply emits
             // T(translation) · R_XYZ(rot) · S(scale) · T(-0.5,-0.5,-0.5) in one step, subsuming the
             // former fixed rotation + 0.625 scale + [0,1] block-model centring translate.
             ItemTransform guiTransform = BlockGuiTransform.resolve(client, state);
 
-            PoseStack poseStack = new PoseStack();
-            poseStack.translate(textureWidth / 2.0f, textureHeight / 2.0f, 0.0f);
-            poseStack.scale(textureWidth, -textureHeight, textureWidth);
+            PoseStack poseStack = scope.guiPose();
             guiTransform.apply(false, poseStack.last());
 
             // ITEMS_3D = inventory iso pose lighting (same setup the item path uses for block
             // items). Matches the lighting frame the asset-renderer entity pipeline already
             // mirrors via its L_kit pattern.
-            lighting.setupFor(Lighting.Entry.ITEMS_3D);
+            scope.lighting().setupFor(Lighting.Entry.ITEMS_3D);
 
             // Sheet choice per block, mirroring vanilla's chunk render-type routing. A block's
             // baked quads carry BakedQuad.FLAG_TRANSLUCENT (OR-folded into each part's
@@ -206,16 +172,11 @@ public final class BlockFrameRenderer implements AutoCloseable {
             // vine etc. rendered at their raw grayscale texture while asset-renderer tints them.
             int[] tints = resolveInventoryTints(client, state);
 
-            storage.submitBlockModel(poseStack, renderType, partsScratch, tints,
-                FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
-            fed.renderAllFeatures();
-            bufferSource.endBatch();
-        } finally {
-            RenderSystem.outputColorTextureOverride = null;
-            RenderSystem.outputDepthTextureOverride = null;
-        }
-
-        writeTextureToPng(outputPath);
+            scope.storage().submitBlockModel(poseStack, renderType, partsScratch, tints,
+                PipScope.FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
+            return true;
+        });
+        return true;
     }
 
     /**
@@ -325,66 +286,8 @@ public final class BlockFrameRenderer implements AutoCloseable {
         public int materialFlags() { return delegate.materialFlags(); }
     }
 
-    private void ensureTextures(int width, int height) {
-        if (colorTexture != null && textureWidth == width && textureHeight == height) return;
-        closeTextures();
-
-        GpuDevice device = RenderSystem.getDevice();
-        // Same usage flag mask ItemFrameRenderer uses (13 = COPY_SRC | COPY_DST |
-        // RENDER_ATTACHMENT | TEXTURE_BINDING for colour; 9 for depth).
-        colorTexture = device.createTexture(() -> "refharness block color", 13,
-            TextureFormat.RGBA8, width, height, 1, 1);
-        colorTextureView = device.createTextureView(colorTexture);
-        depthTexture = device.createTexture(() -> "refharness block depth", 9,
-            TextureFormat.DEPTH32, width, height, 1, 1);
-        depthTextureView = device.createTextureView(depthTexture);
-        textureWidth = width;
-        textureHeight = height;
-    }
-
-    private void writeTextureToPng(Path outputPath) throws IOException {
-        Files.createDirectories(outputPath.getParent());
-        final int width = textureWidth;
-        final int height = textureHeight;
-        final int pixelSize = colorTexture.getFormat().pixelSize();
-        long byteSize = (long) width * height * pixelSize;
-        GpuBuffer buffer = RenderSystem.getDevice().createBuffer(
-            () -> "refharness-block-readback", /*usage*/ 9, byteSize);
-        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
-        IOException[] err = new IOException[1];
-
-        encoder.copyTextureToBuffer(colorTexture, buffer, 0L, () -> {
-            try (GpuBuffer.MappedView read = encoder.mapBuffer(buffer, true, false);
-                 NativeImage image = new NativeImage(width, height, false)) {
-                for (int y = 0; y < height; y++) {
-                    for (int x = 0; x < width; x++) {
-                        int argb = read.data().getInt((x + y * width) * pixelSize);
-                        image.setPixelABGR(x, height - y - 1, argb);
-                    }
-                }
-                image.writeToFile(outputPath);
-            } catch (IOException ex) {
-                err[0] = ex;
-            } finally {
-                buffer.close();
-            }
-        }, /*mipLevel*/ 0);
-
-        if (err[0] != null) throw err[0];
-    }
-
-    private void closeTextures() {
-        if (colorTexture != null) { colorTexture.close(); colorTexture = null; }
-        if (colorTextureView != null) { colorTextureView.close(); colorTextureView = null; }
-        if (depthTexture != null) { depthTexture.close(); depthTexture = null; }
-        if (depthTextureView != null) { depthTextureView.close(); depthTextureView = null; }
-        textureWidth = 0;
-        textureHeight = 0;
-    }
-
     @Override
     public void close() {
-        closeTextures();
-        projectionMatrixBuffer.close();
+        pip.close();
     }
 }

@@ -1,6 +1,9 @@
 package lib.minecraft.refharness;
 
 import com.mojang.blaze3d.platform.Lighting.Entry;
+import lib.minecraft.refharness.api.Bounds;
+import lib.minecraft.refharness.api.Canvas;
+import lib.minecraft.refharness.api.HarnessPose;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.Holder;
@@ -57,8 +60,7 @@ import java.util.TreeSet;
  * region as cow body in {@code mooshroom.png}, and overlay extras (mushrooms, chicken_cold
  * crest, sheep wool, etc.) protrude into otherwise-empty canvas space rather than squishing
  * the body to fit. The legacy fit-to-canvas mode is still reachable through
- * {@link EntityFrameRenderer#renderAndWrite(Minecraft, Entity, int, Path, Quaternionf)} for
- * the pitch-roll-sweep diagnostic.
+ * {@link EntityFrameRenderer#renderAtRotation} for the pitch-roll-sweep diagnostic.
  *
  * <p>The block sweeper still drives the camera-less PIP path through {@link ItemFrameRenderer}
  * at the fixed {@link HarnessConfig#IMAGE_SIZE}. Both phases are level-independent at render
@@ -162,7 +164,7 @@ public final class EntitySweeper implements AutoCloseable {
 
     private final List<EntityType<?>> targets;
     private final EntityFrameRenderer frameRenderer;
-    private Map<EntityType<?>, EntityFrameRenderer.FamilyFit> familyFits;
+    private Map<EntityType<?>, Canvas> familyFits;
     private int index;
     private int rendered;
     private int skipped;
@@ -283,12 +285,12 @@ public final class EntitySweeper implements AutoCloseable {
                         renderPitchRollSweep(client, entity, safeName);
                     } else {
                         Path out = HarnessConfig.OUTPUT_DIR.resolve("entities").resolve(safeName + ".png");
-                        EntityFrameRenderer.FamilyFit fit = familyFits.get(familyRoot(type));
+                        Canvas fit = familyFits.get(familyRoot(type));
                         if (fit == null) {
                             LOG.warn("EntitySweeper: no family fit for {} (pre-pass missed it?)", id);
                             skipped++;
                         } else {
-                            frameRenderer.renderAndWrite(client, entity, fit, out);
+                            frameRenderer.render(client, entity, fit, out);
                             rendered++;
                         }
                     }
@@ -308,7 +310,7 @@ public final class EntitySweeper implements AutoCloseable {
 
     /**
      * Pre-pass: builds every (entity, variant) target once, measures bounds, groups by
-     * family root, and computes a {@link EntityFrameRenderer.FamilyFit} per family.
+     * family root, and computes a {@link Canvas} per family.
      * <p>
      * A "family" is keyed by the family root - either the entity type itself or, for
      * cross-EntityType groupings like mooshroom, the {@link #FAMILY_OVERRIDES override}
@@ -323,8 +325,8 @@ public final class EntitySweeper implements AutoCloseable {
      * up with no measurable members, no fit is recorded and the main pass logs a "no
      * family fit" warning when it tries to render.
      */
-    private Map<EntityType<?>, EntityFrameRenderer.FamilyFit> computeFamilyFits(Minecraft client) {
-        Map<EntityType<?>, EntityFrameRenderer.EntityBounds> familyBounds = new HashMap<>();
+    private Map<EntityType<?>, Canvas> computeFamilyFits(Minecraft client) {
+        Map<EntityType<?>, Bounds> familyBounds = new HashMap<>();
         long t0 = System.nanoTime();
         int measured = 0;
         for (EntityType<?> type : targets) {
@@ -333,21 +335,21 @@ public final class EntitySweeper implements AutoCloseable {
             if (variantRegistryKey != null) {
                 Registry<?> registry = client.level.registryAccess().lookupOrThrow(variantRegistryKey);
                 for (Identifier variantId : registry.keySet()) {
-                    EntityFrameRenderer.EntityBounds bounds = measureVariant(client, type, variantId);
+                    Bounds bounds = measureVariant(client, type, variantId);
                     if (bounds == null) continue;
-                    familyBounds.merge(family, bounds, EntityFrameRenderer.EntityBounds::union);
+                    familyBounds.merge(family, bounds, Bounds::union);
                     measured++;
                 }
             } else {
-                EntityFrameRenderer.EntityBounds bounds = measureType(client, type);
+                Bounds bounds = measureType(client, type);
                 if (bounds == null) continue;
-                familyBounds.merge(family, bounds, EntityFrameRenderer.EntityBounds::union);
+                familyBounds.merge(family, bounds, Bounds::union);
                 measured++;
             }
         }
-        Map<EntityType<?>, EntityFrameRenderer.FamilyFit> fits = new HashMap<>();
-        for (Map.Entry<EntityType<?>, EntityFrameRenderer.EntityBounds> entry : familyBounds.entrySet()) {
-            EntityFrameRenderer.EntityBounds b = entry.getValue();
+        Map<EntityType<?>, Canvas> fits = new HashMap<>();
+        for (Map.Entry<EntityType<?>, Bounds> entry : familyBounds.entrySet()) {
+            Bounds b = entry.getValue();
             int canvasW = Math.max(1, (int) Math.ceil(b.width() * HarnessConfig.PIXELS_PER_BLOCK));
             int canvasH = Math.max(1, (int) Math.ceil(b.height() * HarnessConfig.PIXELS_PER_BLOCK));
             float scale = HarnessConfig.PIXELS_PER_BLOCK;
@@ -366,7 +368,7 @@ public final class EntitySweeper implements AutoCloseable {
             }
             float anchorX = (b.minX() + b.maxX()) / 2.0f;
             float anchorY = (b.minY() + b.maxY()) / 2.0f;
-            fits.put(entry.getKey(), new EntityFrameRenderer.FamilyFit(canvasW, canvasH, scale, anchorX, anchorY));
+            fits.put(entry.getKey(), Canvas.of(canvasW, canvasH, new Canvas.Fit(scale, anchorX, anchorY)));
         }
         long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
         LOG.info("EntitySweeper: family-fit pre-pass measured {} (entity, variant) pairs in {} families ({} ms)",
@@ -374,7 +376,7 @@ public final class EntitySweeper implements AutoCloseable {
         return fits;
     }
 
-    private EntityFrameRenderer.EntityBounds measureType(Minecraft client, EntityType<?> type) {
+    private Bounds measureType(Minecraft client, EntityType<?> type) {
         try {
             Entity entity = type.create(client.level, EntitySpawnReason.LOAD);
             if (entity == null) return null;
@@ -386,7 +388,7 @@ public final class EntitySweeper implements AutoCloseable {
         }
     }
 
-    private EntityFrameRenderer.EntityBounds measureVariant(Minecraft client, EntityType<?> type, Identifier variantId) {
+    private Bounds measureVariant(Minecraft client, EntityType<?> type, Identifier variantId) {
         try {
             CompoundTag nbt = new CompoundTag();
             nbt.putString("variant", variantId.toString());
@@ -428,7 +430,7 @@ public final class EntitySweeper implements AutoCloseable {
         String baseName
     ) throws IOException {
         Registry<?> registry = client.level.registryAccess().lookupOrThrow(variantRegistryKey);
-        EntityFrameRenderer.FamilyFit fit = familyFits.get(familyRoot(type));
+        Canvas fit = familyFits.get(familyRoot(type));
         if (fit == null) {
             LOG.warn("EntitySweeper: no family fit for variant entity {} (pre-pass missed it?)", type);
             return 0;
@@ -445,7 +447,7 @@ public final class EntitySweeper implements AutoCloseable {
             zeroRotations(entity);
             String safeName = baseName + "_" + variantId.getPath();
             Path out = HarnessConfig.OUTPUT_DIR.resolve("entities").resolve(safeName + ".png");
-            frameRenderer.renderAndWrite(client, entity, fit, out);
+            frameRenderer.render(client, entity, fit, out);
             success++;
         }
         return success;
@@ -470,7 +472,7 @@ public final class EntitySweeper implements AutoCloseable {
      * @return the number of coats successfully rendered
      */
     private int renderAllHorseCoats(Minecraft client, EntityType<?> type, String baseName) throws IOException {
-        EntityFrameRenderer.FamilyFit fit = familyFits.get(familyRoot(type));
+        Canvas fit = familyFits.get(familyRoot(type));
         if (fit == null) {
             LOG.warn("EntitySweeper: no family fit for horse (pre-pass missed it?)");
             return 0;
@@ -487,7 +489,7 @@ public final class EntitySweeper implements AutoCloseable {
             zeroRotations(entity);
             String safeName = baseName + "_" + coat.getSerializedName();
             Path out = HarnessConfig.OUTPUT_DIR.resolve("entities").resolve(safeName + ".png");
-            frameRenderer.renderAndWrite(client, entity, fit, out);
+            frameRenderer.render(client, entity, fit, out);
             success++;
         }
         return success;
@@ -511,7 +513,7 @@ public final class EntitySweeper implements AutoCloseable {
      * @return the number of mushroom colours successfully rendered
      */
     private int renderAllMooshroomVariants(Minecraft client, EntityType<?> type, String baseName) throws IOException {
-        EntityFrameRenderer.FamilyFit fit = familyFits.get(familyRoot(type));
+        Canvas fit = familyFits.get(familyRoot(type));
         if (fit == null) {
             LOG.warn("EntitySweeper: no family fit for mooshroom (pre-pass missed it?)");
             return 0;
@@ -528,7 +530,7 @@ public final class EntitySweeper implements AutoCloseable {
             zeroRotations(entity);
             String safeName = baseName + "_" + variant.getSerializedName();
             Path out = HarnessConfig.OUTPUT_DIR.resolve("entities").resolve(safeName + ".png");
-            frameRenderer.renderAndWrite(client, entity, fit, out);
+            frameRenderer.render(client, entity, fit, out);
             success++;
         }
         return success;
@@ -549,7 +551,7 @@ public final class EntitySweeper implements AutoCloseable {
     private void renderPitchRollSweep(Minecraft client, Entity entity, String safeName) throws IOException {
         Path dir = HarnessConfig.OUTPUT_DIR.resolve("entities-pitch-roll-sweep");
         org.joml.Vector3f euler = new org.joml.Vector3f();
-        EntityFrameRenderer.ISO_ROTATION.getEulerAnglesXYZ(euler);
+        HarnessPose.ISO.getEulerAnglesXYZ(euler);
         float yawRad = euler.y;
         int frames = 0;
         for (int pitchDeg = 0; pitchDeg < 360; pitchDeg += 15) {
@@ -560,7 +562,7 @@ public final class EntitySweeper implements AutoCloseable {
                     (float) Math.toRadians(rollDeg));
                 String fileName = String.format("%s_p%03d_r%03d.png", safeName, pitchDeg, rollDeg);
                 Path out = dir.resolve(fileName);
-                frameRenderer.renderAndWrite(client, entity, HarnessConfig.IMAGE_SIZE, out, rot);
+                frameRenderer.renderAtRotation(client, entity, Canvas.square(HarnessConfig.IMAGE_SIZE), out, rot);
                 frames++;
             }
         }

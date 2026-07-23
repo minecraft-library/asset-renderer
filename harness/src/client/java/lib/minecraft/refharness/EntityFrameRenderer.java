@@ -13,24 +13,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import com.mojang.blaze3d.ProjectionType;
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTexture;
-import com.mojang.blaze3d.textures.GpuTextureView;
-import com.mojang.blaze3d.textures.TextureFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import lib.minecraft.refharness.api.Bounds;
+import lib.minecraft.refharness.api.Canvas;
+import lib.minecraft.refharness.api.FrameRenderer;
+import lib.minecraft.refharness.api.HarnessPose;
+import lib.minecraft.refharness.pip.PipScope;
+import lib.minecraft.refharness.pip.PipTarget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.Projection;
-import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
@@ -77,31 +73,23 @@ import org.slf4j.LoggerFactory;
  *       bounds underestimate the rendered extent and the entity slightly clips.</li>
  * </ul>
  */
-public final class EntityFrameRenderer implements AutoCloseable {
+public final class EntityFrameRenderer implements FrameRenderer<Entity> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
     /**
-     * Packed light value for "fully lit" (skylight 15 << 20 | blocklight 15 << 4).
+     * Half-extent of the orthographic depth range.
+     *
+     * <p>The range has to fit the model's diagonal extent in the rotated, family-scaled frame. A
+     * 256 pixels-per-block scale plus the iso rotation, the chirality scale and a 6x giant push the
+     * nearest and farthest corners past the block-scale range, which clips a giant's front corners
+     * entirely. This value fits a giant comfortably while keeping the depth buffer precise enough to
+     * avoid z-fighting between adjacent cube faces - an order of magnitude further out was enough to
+     * cause visible front-corner cutouts on the ghast and dark artifacts on the dragon.
      */
-    private static final int FULL_BRIGHT_LIGHT = 15728880;
+    private static final float DEPTH_RANGE = 10000.0f;
 
-    /**
-     * Iso pose quaternion. Empirically locked at {@code rotationXYZ(210°, 45°, 0°)} via
-     * a 24-step yaw sweep + 576-frame pitch×roll sweep over a cow + chirality fix:
-     * yaw=135 was the corner-correct value but JOML's getEulerAnglesXYZ returns the
-     * principal Y in [-90°, 90°], which decomposed our (30°, 135°, 0°) lock-in into the
-     * equivalent (210°, 45°, 180°). The pitch×roll sweep was therefore using yaw=45
-     * (extracted), and pitch=210 + roll=0 was the right corner with correct face winding
-     * once chirality was fixed (see scale(1, 1, -1) below).
-     */
-    static final Quaternionf ISO_ROTATION = new Quaternionf().rotationXYZ(
-        (float) Math.toRadians(210.0),
-        (float) Math.toRadians(45.0),
-        0f);
-
-    private final Projection projection = new Projection();
-    private final ProjectionMatrixBuffer projectionMatrixBuffer = new ProjectionMatrixBuffer("refharness entity PIP");
+    private final PipTarget pip = new PipTarget("entity", DEPTH_RANGE);
 
     /**
      * Diagnostic per-triangle screen-coord trace rectangle parsed from
@@ -153,92 +141,40 @@ public final class EntityFrameRenderer implements AutoCloseable {
      */
     private final Map<Identifier, NativeImage> textureCache = new HashMap<>();
 
-    private GpuTexture colorTexture;
-    private GpuTextureView colorTextureView;
-    private GpuTexture depthTexture;
-    private GpuTextureView depthTextureView;
-    private int textureWidth;
-    private int textureHeight;
 
     /**
-     * Immutable screen-space bounds of an entity at the iso pose, in entity-local screen
-     * coordinates (post-iso rotation, pre-canvas-scale). Returned by
-     * {@link #measureBounds} for the family-fit pre-pass; the sweeper unions these across
-     * variants of the same family to size the family canvas.
-     */
-    public record EntityBounds(float minX, float maxX, float minY, float maxY) {
-
-        public float width() { return maxX - minX; }
-
-        public float height() { return maxY - minY; }
-
-        /**
-         * Returns the smallest bounds that fully contains both this and {@code other}. Used
-         * to compute family-max bounds across every variant of an entity family (cow +
-         * cow_cold + cow_warm + mooshroom).
-         */
-        public EntityBounds union(EntityBounds other) {
-            return new EntityBounds(
-                Math.min(minX, other.minX),
-                Math.max(maxX, other.maxX),
-                Math.min(minY, other.minY),
-                Math.max(maxY, other.maxY));
-        }
-    }
-
-    /**
-     * Family-locked canvas + scale + anchor. Computed once per family in the sweeper's
-     * pre-pass and reused for every render of every variant in that family, so each family
-     * member shares one scale (pixel-identical body geometry across variants) and one canvas
-     * (so cow.png and mooshroom.png have the same dimensions and the cow body lands on the
-     * same pixels in both).
+     * Renders the given entity onto the canvas and writes its pixels to {@code out} as a PNG.
      *
-     * <p>Layout:
-     * <ul>
-     *   <li>{@code canvasWidth} / {@code canvasHeight}: pixels of the output PNG.
-     *       Independent of the {@link HarnessConfig#IMAGE_SIZE block-render IMAGE_SIZE}
-     *       constant - sized to the union of family-member screen bounds × scale, with
-     *       a one-pixel safety margin baked in by ceiling.</li>
-     *   <li>{@code scale}: pixels per entity-local screen-coord unit. Set from
-     *       {@link HarnessConfig#PIXELS_PER_BLOCK}; constant across families so cross-family
-     *       relative size reflects entity size in the world.</li>
-     *   <li>{@code anchorX} / {@code anchorY}: the entity-local screen-coord point that
-     *       maps to the canvas centre. Set to the family-union centre, so the union exactly
-     *       fills the canvas and each variant's geometry sits at the same canvas pixel as
-     *       in any other family member's render.</li>
-     * </ul>
+     * <p>A canvas carrying a fit renders at that fit's scale and anchor rather than the entity's
+     * own, which is how every member of a family lands its shared geometry on the same pixels. A
+     * canvas with no fit is scaled to the entity's own bounds, filling it.
+     *
+     * @param client the active client, for the entity render dispatcher and the per-frame handles
+     * @param entity the entity to draw
+     * @param canvas the canvas to draw onto
+     * @param out where to write the PNG; parent directories are created on demand
+     * @return whether a PNG was written; entities are never declined
+     * @throws IOException if the PNG file write fails
      */
-    public record FamilyFit(int canvasWidth, int canvasHeight, float scale, float anchorX, float anchorY) {}
-
-    /**
-     * Renders the given entity into the internal texture and writes the texture's pixels
-     * to {@code outputPath} as a PNG, using the standard iso pose. See
-     * {@link #renderAndWrite(Minecraft, Entity, int, Path, Quaternionf)} for the variant
-     * that overrides the rotation.
-     */
-    public void renderAndWrite(Minecraft client, Entity entity, int size, Path outputPath) throws IOException {
-        renderAndWrite(client, entity, size, outputPath, ISO_ROTATION);
+    @Override
+    public boolean render(Minecraft client, Entity entity, Canvas canvas, Path out) throws IOException {
+        return renderInternal(client, entity, HarnessPose.ISO, canvas, out);
     }
 
     /**
-     * Square fit-to-canvas render, used by the diagnostic pitch-roll sweep. Each frame is
-     * sized to {@code size × size} and the entity is scaled to fill that canvas based on its
-     * own bounds - <em>not</em> family-locked, so direct cross-frame comparison of body
-     * size in this output is not meaningful (use the family-fit overload for ground-truth
-     * variant parity).
+     * Renders the given entity at a caller-supplied rotation rather than the shared iso pose.
+     *
+     * @param client the active client, for the entity render dispatcher and the per-frame handles
+     * @param entity the entity to draw
+     * @param canvas the canvas to draw onto
+     * @param out where to write the PNG; parent directories are created on demand
+     * @param rotation the pose to present the entity at
+     * @return whether a PNG was written
+     * @throws IOException if the PNG file write fails
      */
-    public void renderAndWrite(Minecraft client, Entity entity, int size, Path outputPath, Quaternionf rotation) throws IOException {
-        renderInternal(client, entity, rotation, size, size, /*familyFit*/ null, outputPath);
-    }
-
-    /**
-     * Family-locked render. The canvas dimensions and scale come from the supplied
-     * {@link FamilyFit} (computed by the sweeper's pre-pass), not from the entity's own
-     * bounds, so every render of every family member produces the same canvas size at the
-     * same scale - shared geometry lands on the same pixels across variants.
-     */
-    public void renderAndWrite(Minecraft client, Entity entity, FamilyFit fit, Path outputPath) throws IOException {
-        renderInternal(client, entity, ISO_ROTATION, fit.canvasWidth, fit.canvasHeight, fit, outputPath);
+    public boolean renderAtRotation(Minecraft client, Entity entity, Canvas canvas, Path out, Quaternionf rotation)
+        throws IOException {
+        return renderInternal(client, entity, rotation, canvas, out);
     }
 
     /**
@@ -248,31 +184,27 @@ public final class EntityFrameRenderer implements AutoCloseable {
      * are the same units the bounds walker collects internally - the sweeper unions these
      * across family members to size the family canvas.
      */
-    public EntityBounds measureBounds(Minecraft client, Entity entity) {
+    public Bounds measureBounds(Minecraft client, Entity entity) {
         EntityRenderDispatcher dispatcher = client.getEntityRenderDispatcher();
         EntityRenderer<? super Entity, ?> renderer = renderer(dispatcher, entity);
         EntityRenderState state = createRenderState(renderer, entity);
         Quaternionf effectiveRotation = (renderer instanceof LivingEntityRenderer<?, ?, ?>)
-            ? ISO_ROTATION
-            : new Quaternionf(ISO_ROTATION).rotateY((float) Math.PI);
+            ? HarnessPose.ISO
+            : new Quaternionf(HarnessPose.ISO).rotateY((float) Math.PI);
         state.shadowPieces.clear();
         state.outlineColor = 0;
-        state.lightCoords = FULL_BRIGHT_LIGHT;
+        state.lightCoords = PipScope.FULL_BRIGHT_LIGHT;
         ScreenBounds bounds = computeScreenBounds(renderer, state, effectiveRotation);
-        return new EntityBounds(bounds.minX, bounds.maxX, bounds.minY, bounds.maxY);
+        return new Bounds(bounds.minX, bounds.maxX, bounds.minY, bounds.maxY);
     }
 
-    private void renderInternal(
+    private boolean renderInternal(
         Minecraft client,
         Entity entity,
         Quaternionf rotation,
-        int canvasWidth,
-        int canvasHeight,
-        FamilyFit familyFit,
+        Canvas canvas,
         Path outputPath
     ) throws IOException {
-        ensureTextures(canvasWidth, canvasHeight);
-
         EntityRenderDispatcher dispatcher = client.getEntityRenderDispatcher();
         EntityRenderer<? super Entity, ?> renderer = renderer(dispatcher, entity);
         EntityRenderState state = createRenderState(renderer, entity);
@@ -284,56 +216,37 @@ public final class EntityFrameRenderer implements AutoCloseable {
         // ground-truth render.
         state.shadowPieces.clear();
         state.outlineColor = 0;
-        state.lightCoords = FULL_BRIGHT_LIGHT;
+        state.lightCoords = PipScope.FULL_BRIGHT_LIGHT;
 
-        FeatureRenderDispatcher fed = client.gameRenderer.getFeatureRenderDispatcher();
-        SubmitNodeStorage storage = fed.getSubmitNodeStorage();
-        MultiBufferSource.BufferSource bufferSource = client.renderBuffers().bufferSource();
-        Lighting lighting = client.gameRenderer.getLighting();
-
-        GpuDevice device = RenderSystem.getDevice();
-        device.createCommandEncoder().clearColorAndDepthTextures(colorTexture, 0, depthTexture, 1.0);
-
-        RenderSystem.outputColorTextureOverride = colorTextureView;
-        RenderSystem.outputDepthTextureOverride = depthTextureView;
-        try {
-            // Z range needs to fit the model's diagonal extent in the rotated + family-scaled
-            // frame. PIXELS_PER_BLOCK=256 default + iso rotation + chirality scale + 6x
-            // GiantRenderer scale push the nearest/farthest corners past +/- 1000 and the
-            // standard +/- 1000 range clips the front-most corners of giant entirely. +/-
-            // 10000 fits giant comfortably while keeping the depth buffer precise enough to
-            // avoid z-fighting between adjacent cube faces (going to +/- 100000 was enough
-            // to cause visible front-corner cutouts on ghast and dark artifacts on dragon).
-            projection.setupOrtho(-10000.0f, 10000.0f, textureWidth, textureHeight, /*invertY*/ true);
-            RenderSystem.setProjectionMatrix(projectionMatrixBuffer.getBuffer(projection), ProjectionType.ORTHOGRAPHIC);
-
+        return pip.draw(client, canvas, outputPath, scope -> {
             float scale;
             float anchorX;
             float anchorY;
-            if (familyFit != null) {
+            if (canvas.fit().isPresent()) {
                 // Family-locked: every family member uses the family's scale + anchor so the
                 // shared geometry (cow body across cow / cow_cold / cow_warm / mooshroom) lands
                 // on the same canvas pixels regardless of which variant is rendering. The
                 // family canvas was sized to the union of all member bounds, so each variant's
                 // bounds are guaranteed to fit.
-                scale = familyFit.scale;
-                anchorX = familyFit.anchorX;
-                anchorY = familyFit.anchorY;
+                Canvas.Fit fit = canvas.fit().get();
+                scale = fit.scale();
+                anchorX = fit.anchorX();
+                anchorY = fit.anchorY();
             } else {
-                // Diagnostic pitch-roll sweep: scale to fit the local bounds in the supplied
-                // square canvas. Not pixel-comparable across frames, but that's the point of
-                // a pose sweep - we want to see the whole entity at every angle.
+                // Diagnostic pose sweep: scale to fit the local bounds in the supplied square
+                // canvas. Not pixel-comparable across frames, but that's the point of a pose
+                // sweep - we want to see the whole entity at every angle.
                 ScreenBounds bounds = computeScreenBounds(renderer, state, effectiveRotation);
                 float modelW = bounds.width();
                 float modelH = bounds.height();
                 scale = (modelW <= 0 || modelH <= 0)
-                    ? Math.min(textureWidth, textureHeight)
-                    : Math.min(textureWidth / modelW, textureHeight / modelH);
+                    ? Math.min(scope.width(), scope.height())
+                    : Math.min(scope.width() / modelW, scope.height() / modelH);
                 anchorX = (bounds.minX + bounds.maxX) / 2.0f;
                 anchorY = (bounds.minY + bounds.maxY) / 2.0f;
             }
-            float translateX = textureWidth / 2.0f - anchorX * scale;
-            float translateY = textureHeight / 2.0f - anchorY * scale;
+            float translateX = scope.width() / 2.0f - anchorX * scale;
+            float translateY = scope.height() / 2.0f - anchorY * scale;
 
             PoseStack poseStack = new PoseStack();
             poseStack.translate(translateX, translateY, 0.0f);
@@ -347,21 +260,15 @@ public final class EntityFrameRenderer implements AutoCloseable {
             poseStack.scale(1.0f, 1.0f, -1.0f);
             poseStack.mulPose(effectiveRotation);
 
-            lighting.setupFor(Lighting.Entry.ENTITY_IN_UI);
+            scope.lighting().setupFor(Lighting.Entry.ENTITY_IN_UI);
 
             dumpTrianglesIfRequested(renderer, state, translateX, translateY, scale, effectiveRotation);
 
             CameraRenderState cameraRenderState = new CameraRenderState();
             dispatcher.submit(state, cameraRenderState, /*x*/ 0.0, /*y*/ 0.0, /*z*/ 0.0,
-                poseStack, storage);
-            fed.renderAllFeatures();
-            bufferSource.endBatch();
-        } finally {
-            RenderSystem.outputColorTextureOverride = null;
-            RenderSystem.outputDepthTextureOverride = null;
-        }
-
-        writeTextureToPng(outputPath);
+                poseStack, scope.storage());
+            return true;
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -609,7 +516,7 @@ public final class EntityFrameRenderer implements AutoCloseable {
         try {
             submit.setAccessible(true);
             // submit(PoseStack, SubmitNodeCollector, int packedLight, S state, float, float)
-            submit.invoke(layer, ps, collector, FULL_BRIGHT_LIGHT, state, 0.0f, 0.0f);
+            submit.invoke(layer, ps, collector, PipScope.FULL_BRIGHT_LIGHT, state, 0.0f, 0.0f);
         } catch (ReflectiveOperationException | RuntimeException ignored) {
         }
     }
@@ -1731,65 +1638,9 @@ public final class EntityFrameRenderer implements AutoCloseable {
         float height() { return maxY - minY; }
     }
 
-    private void ensureTextures(int width, int height) {
-        if (colorTexture != null && textureWidth == width && textureHeight == height) return;
-        closeTextures();
-
-        GpuDevice device = RenderSystem.getDevice();
-        colorTexture = device.createTexture(() -> "refharness entity color", 13,
-            TextureFormat.RGBA8, width, height, 1, 1);
-        colorTextureView = device.createTextureView(colorTexture);
-        depthTexture = device.createTexture(() -> "refharness entity depth", 9,
-            TextureFormat.DEPTH32, width, height, 1, 1);
-        depthTextureView = device.createTextureView(depthTexture);
-        textureWidth = width;
-        textureHeight = height;
-    }
-
-    private void writeTextureToPng(Path outputPath) throws IOException {
-        Files.createDirectories(outputPath.getParent());
-        final int width = textureWidth;
-        final int height = textureHeight;
-        final int pixelSize = colorTexture.getFormat().pixelSize();
-        long byteSize = (long) width * height * pixelSize;
-        GpuBuffer buffer = RenderSystem.getDevice().createBuffer(
-            () -> "refharness-entity-readback", /*usage*/ 9, byteSize);
-        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
-        IOException[] err = new IOException[1];
-
-        encoder.copyTextureToBuffer(colorTexture, buffer, 0L, () -> {
-            try (GpuBuffer.MappedView read = encoder.mapBuffer(buffer, true, false);
-                 NativeImage image = new NativeImage(width, height, false)) {
-                for (int y = 0; y < height; y++) {
-                    for (int x = 0; x < width; x++) {
-                        int argb = read.data().getInt((x + y * width) * pixelSize);
-                        image.setPixelABGR(x, height - y - 1, argb);
-                    }
-                }
-                image.writeToFile(outputPath);
-            } catch (IOException ex) {
-                err[0] = ex;
-            } finally {
-                buffer.close();
-            }
-        }, /*mipLevel*/ 0);
-
-        if (err[0] != null) throw err[0];
-    }
-
-    private void closeTextures() {
-        if (colorTexture != null) { colorTexture.close(); colorTexture = null; }
-        if (colorTextureView != null) { colorTextureView.close(); colorTextureView = null; }
-        if (depthTexture != null) { depthTexture.close(); depthTexture = null; }
-        if (depthTextureView != null) { depthTextureView.close(); depthTextureView = null; }
-        textureWidth = 0;
-        textureHeight = 0;
-    }
-
     @Override
     public void close() {
-        closeTextures();
-        projectionMatrixBuffer.close();
+        pip.close();
         for (NativeImage image : textureCache.values()) {
             image.close();
         }

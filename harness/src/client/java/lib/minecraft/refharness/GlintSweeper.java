@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import lib.minecraft.refharness.api.Canvas;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -234,7 +235,7 @@ public final class GlintSweeper implements AutoCloseable {
 
         @Override
         public void renderFrame(GlintSweeper sweeper, Minecraft client, Path out) throws IOException {
-            sweeper.itemRenderer.renderAndWrite(client, new ItemStack(item(id)), HarnessConfig.IMAGE_SIZE, out);
+            sweeper.itemRenderer.render(client, new ItemStack(item(id)), Canvas.square(HarnessConfig.IMAGE_SIZE), out);
         }
     }
 
@@ -269,7 +270,7 @@ public final class GlintSweeper implements AutoCloseable {
                 piece.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true);
                 ((net.minecraft.world.entity.LivingEntity) armorStand).setItemSlot(slot, piece);
             }
-            sweeper.entityRenderer.renderAndWrite(client, armorStand, HarnessConfig.IMAGE_SIZE, out);
+            sweeper.entityRenderer.render(client, armorStand, Canvas.square(HarnessConfig.IMAGE_SIZE), out);
         }
     }
 }

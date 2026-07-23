@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import lib.minecraft.refharness.api.Canvas;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -97,8 +98,8 @@ public final class ItemSweeper implements AutoCloseable {
             skipped++;
         } else {
             try {
-                frameRenderer.renderAndWrite(client, stack, HarnessConfig.IMAGE_SIZE, out);
-                rendered++;
+                if (frameRenderer.render(client, stack, Canvas.square(HarnessConfig.IMAGE_SIZE), out)) rendered++;
+                else skipped++;
             } catch (IOException ex) {
                 LOG.error("ItemSweeper: PNG write failed for {}", id, ex);
                 failed++;

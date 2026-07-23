@@ -3,6 +3,7 @@ package lib.minecraft.refharness;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import lib.minecraft.refharness.api.Canvas;
 import net.minecraft.client.Minecraft;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,7 +52,7 @@ public final class PlayerSweeper implements AutoCloseable {
         String name = scope.name().toLowerCase(java.util.Locale.ROOT);
         Path out = HarnessConfig.OUTPUT_DIR.resolve("players").resolve(name + ".png");
         try {
-            renderer.renderAndWrite(client, scope, HarnessConfig.IMAGE_SIZE, out);
+            renderer.render(client, scope, Canvas.square(HarnessConfig.IMAGE_SIZE), out);
             rendered++;
         } catch (IOException ex) {
             LOG.error("PlayerSweeper: PNG write failed for {}", name, ex);

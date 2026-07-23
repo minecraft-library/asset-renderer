@@ -68,9 +68,10 @@ public final class PipTarget implements AutoCloseable {
      * @param canvas the pixel canvas to draw onto
      * @param out the output path; parent directories are created on demand
      * @param body the subject-specific pose and submit step
+     * @return whether a PNG was written; {@code false} means {@code body} abandoned the frame
      * @throws IOException if the PNG write fails
      */
-    public void draw(Minecraft client, Canvas canvas, Path out, PipDraw body) throws IOException {
+    public boolean draw(Minecraft client, Canvas canvas, Path out, PipDraw body) throws IOException {
         ensureTextures(canvas.width(), canvas.height());
 
         FeatureRenderDispatcher fed = client.gameRenderer.getFeatureRenderDispatcher();
@@ -87,7 +88,8 @@ public final class PipTarget implements AutoCloseable {
             projection.setupOrtho(-depthRange, depthRange, textureWidth, textureHeight, /*invertY*/ true);
             RenderSystem.setProjectionMatrix(projectionMatrixBuffer.getBuffer(projection), ProjectionType.ORTHOGRAPHIC);
 
-            body.submit(new PipScope(client, textureWidth, textureHeight, fed, storage, bufferSource, lighting));
+            if (!body.submit(new PipScope(client, textureWidth, textureHeight, fed, storage, bufferSource, lighting)))
+                return false;
 
             fed.renderAllFeatures();
             bufferSource.endBatch();
@@ -97,6 +99,7 @@ public final class PipTarget implements AutoCloseable {
         }
 
         writeTextureToPng(out);
+        return true;
     }
 
     private void ensureTextures(int width, int height) {

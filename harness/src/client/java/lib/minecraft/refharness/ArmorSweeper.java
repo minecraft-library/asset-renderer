@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import lib.minecraft.refharness.api.Bounds;
+import lib.minecraft.refharness.api.Canvas;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.Entity;
@@ -171,7 +173,7 @@ public final class ArmorSweeper implements AutoCloseable {
                 } else {
                     equip(entity, subject.material());
                     Path out = HarnessConfig.OUTPUT_DIR.resolve("armor").resolve(subject.fileName() + ".png");
-                    frameRenderer.renderAndWrite(client, entity, marginFit(client, entity), out);
+                    frameRenderer.render(client, entity, marginFit(client, entity), out);
                     rendered++;
                 }
             }
@@ -196,17 +198,17 @@ public final class ArmorSweeper implements AutoCloseable {
      * @param entity the aged, equipped subject
      * @return the canvas fit to render it with
      */
-    private EntityFrameRenderer.FamilyFit marginFit(Minecraft client, Entity entity) {
-        EntityFrameRenderer.EntityBounds bounds = frameRenderer.measureBounds(client, entity);
+    private Canvas marginFit(Minecraft client, Entity entity) {
+        Bounds bounds = frameRenderer.measureBounds(client, entity);
         int canvas = HarnessConfig.IMAGE_SIZE;
         float width = bounds.width();
         float height = bounds.height();
         float scale = (width <= 0 || height <= 0)
             ? canvas
             : BODY_FILL * Math.min(canvas / width, canvas / height);
-        return new EntityFrameRenderer.FamilyFit(canvas, canvas, scale,
+        return Canvas.of(canvas, canvas, new Canvas.Fit(scale,
             (bounds.minX() + bounds.maxX()) / 2.0f,
-            (bounds.minY() + bounds.maxY()) / 2.0f);
+            (bounds.minY() + bounds.maxY()) / 2.0f));
     }
 
     /**
