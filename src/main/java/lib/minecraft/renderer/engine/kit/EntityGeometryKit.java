@@ -982,15 +982,16 @@ public class EntityGeometryKit {
     ) {
         if (size.x() == 0f || size.y() == 0f || size.z() == 0f) return false;
         // entityCutoutNoCull / entityTranslucent detection: cubes with significant non-opaque
-        // texels on visible faces need their back faces to render too - either to peek through
+        // texels on any face need their back faces to render too - either to peek through
         // alpha=0 cutouts (cutout family) or to alpha-stack at silhouette pixels (translucent
-        // family). Sampling the three iso-visible faces (UP/NORTH/EAST) is sufficient -
-        // non-opaque textures are typically symmetric across face pairs and we'd rather miss a
-        // one-sided non-opaque face than over-disable culling.
-        if (uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
-            || uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
-            || uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
-            return false;
+        // family). All six faces are sampled because a cube's cutout can sit on a face hidden
+        // from the iso camera: the skeleton-horse baby legs carry their bone-strut cutout on the
+        // outboard (WEST/SOUTH) faces, under the 20% threshold on the visible UP/NORTH/EAST, so
+        // sampling only the visible triple would cull them and open two see-through holes where
+        // vanilla's entityCutoutNoCull draws the opaque inner faces through the front cutout.
+        for (EntityFace face : EntityFace.values())
+            if (uvNonOpaqueExceeds(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
+                return false;
         boolean visibleHasContent =
                uvHasContent(BoneKit.resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture)
             || uvHasContent(BoneKit.resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture)
