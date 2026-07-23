@@ -251,13 +251,14 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
             }
         }
 
-        // A baby's canvas is seeded from its family's adult canvas and then grown by the baby itself.
-        // That is not a stylistic choice: the asset-renderer sizes a baby against the union of the
-        // baby geometry, every adult coat, and every group member's adult default, so a harness that
-        // sized babies against babies alone would produce a reference of different dimensions and the
-        // comparison would measure framing rather than the render.
+        // A baby's canvas takes in its family's adult canvas only when the asset-renderer's does.
+        // That side unions a baby with every adult coat of its own model and with every member of its
+        // group, and measures anything neither coated nor grouped against the baby alone - so a
+        // harness that always seeded from the adult would hand nineteen singletons an adult-sized
+        // frame, and their comparison would report framing rather than the render.
         for (Map.Entry<CanvasKey, Bounds> entry : Map.copyOf(familyBounds).entrySet()) {
             if (entry.getKey().cohort() != Appearance.Cohort.BABY) continue;
+            if (!EntityRoster.babySharesAdultCanvas(entry.getKey().family())) continue;
             Bounds adult = familyBounds.get(new CanvasKey(entry.getKey().family(), Appearance.Cohort.DEFAULT));
             if (adult != null) familyBounds.merge(entry.getKey(), adult, Bounds::union);
         }

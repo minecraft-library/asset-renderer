@@ -121,6 +121,46 @@ public final class EntityRoster {
     );
 
     /**
+     * Cross-entity groups - types the asset-renderer measures a shared silhouette across because they
+     * share a mesh.
+     *
+     * <p>Distinct from {@link #FAMILY_OVERRIDES}, which decides what an adult canvas is unioned over.
+     * This decides only whether a subject's <em>baby</em> canvas is measured against its adults as
+     * well as itself, and the two answers are genuinely different: a stray shares a canvas with a
+     * skeleton, but a wandering trader does not share one with a villager while still sharing the
+     * villager's baby framing.
+     */
+    public static final Map<EntityType<?>, EntityType<?>> GROUP_OF = Map.of(
+        EntityType.CAMEL_HUSK, EntityType.CAMEL,
+        EntityType.MOOSHROOM, EntityType.COW,
+        EntityType.ZOGLIN, EntityType.HOGLIN,
+        EntityType.TRADER_LLAMA, EntityType.LLAMA,
+        EntityType.PIGLIN_BRUTE, EntityType.PIGLIN,
+        EntityType.ZOMBIFIED_PIGLIN, EntityType.PIGLIN,
+        EntityType.STRAY, EntityType.SKELETON,
+        EntityType.GLOW_SQUID, EntityType.SQUID,
+        EntityType.WANDERING_TRADER, EntityType.VILLAGER
+    );
+
+    /**
+     * Whether a type's baby canvas is measured against its adults as well as against the baby.
+     *
+     * <p>Not a stylistic choice - it mirrors what the asset-renderer measures, and getting it wrong
+     * produces a reference of different dimensions whose comparison then reports framing rather than
+     * the render. The asset side unions a baby with every adult coat of its own model and with every
+     * member of its group; a model that is neither coated nor grouped is measured against the baby
+     * alone, and its adult silhouette never enters the box.
+     *
+     * @param type the entity type
+     * @return whether the adult silhouette belongs in this type's baby canvas
+     */
+    public static boolean babySharesAdultCanvas(EntityType<?> type) {
+        return DEFAULT_COAT.containsKey(type)
+            || GROUP_OF.containsKey(type)
+            || GROUP_OF.containsValue(type);
+    }
+
+    /**
      * Returns the type whose family a type belongs to.
      *
      * @param type the entity type
