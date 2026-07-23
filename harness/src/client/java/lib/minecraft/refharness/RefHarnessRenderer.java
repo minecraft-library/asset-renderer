@@ -7,7 +7,6 @@ import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
 import lib.minecraft.refharness.api.SweepRunner;
 import lib.minecraft.refharness.api.TargetFilter;
-import lib.minecraft.refharness.sweep.PlayerSweep;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -34,27 +33,7 @@ public final class RefHarnessRenderer {
      * The run's sweeps, in the order they run. One step advances the first that is not finished, so
      * the list order is the sweep order.
      */
-    private static List<Stage> stages = List.of();
-
-    /**
-     * One unit of sweep work the tick loop advances.
-     *
-     * <p>An interface rather than a plain {@link SweepRunner} list because the entity sweep still
-     * renders several PNGs inside one step for its variant-bearing types, and so does not yet fit
-     * the one-subject-per-step contract the runner enforces.
-     */
-    private interface Stage {
-
-        /** Whether this stage has consumed every subject. */
-        boolean isDone();
-
-        /**
-         * Advances this stage by one step.
-         *
-         * @param ctx the sweep context for this tick
-         */
-        void step(SweepContext ctx);
-    }
+    private static List<SweepRunner<?>> runners = List.of();
 
     private RefHarnessRenderer() {}
 
@@ -86,26 +65,9 @@ public final class RefHarnessRenderer {
         // captures as its frame 0. The glint sweep drives the clock itself, one value per frame.
         if (mode != HarnessMode.GLINT) GlintClock.overrideT = 0;
 
-        List<Stage> built = new ArrayList<>();
-        for (Sweep<?> sweep : mode.sweeps()) {
-            // The entity sweep keeps its slot between the item and player sweeps, so the sweep
-            // order is unchanged while it is still driven the old way.
-            if (mode == HarnessMode.FULL && sweep instanceof PlayerSweep) built.add(legacyEntityStage());
-            SweepRunner<?> runner = SweepRunner.of(sweep);
-            built.add(new Stage() {
-                @Override public boolean isDone() { return runner.isDone(); }
-                @Override public void step(SweepContext ctx) { runner.step(ctx); }
-            });
-        }
-        stages = List.copyOf(built);
-    }
-
-    private static Stage legacyEntityStage() {
-        EntitySweeper sweeper = EntitySweeper.build();
-        return new Stage() {
-            @Override public boolean isDone() { return sweeper.isDone(); }
-            @Override public void step(SweepContext ctx) { sweeper.step(ctx.client()); }
-        };
+        List<SweepRunner<?>> built = new ArrayList<>();
+        for (Sweep<?> sweep : mode.sweeps()) built.add(SweepRunner.of(sweep));
+        runners = List.copyOf(built);
     }
 
     /**
@@ -143,15 +105,15 @@ public final class RefHarnessRenderer {
     }
 
     static boolean isDone() {
-        return !stages.isEmpty() && stages.stream().allMatch(Stage::isDone);
+        return !runners.isEmpty() && runners.stream().allMatch(SweepRunner::isDone);
     }
 
     static void tick(Minecraft client) {
         SweepContext ctx = new SweepContext(client, HarnessConfig.OUTPUT_DIR, TARGETS);
-        for (Stage stage : stages) {
-            // Returning after the first incomplete stage is what preserves the strictly sequential,
+        for (SweepRunner<?> runner : runners) {
+            // Returning after the first incomplete runner is what preserves the strictly sequential,
             // one-subject-per-tick pacing the asynchronous read-back requires.
-            if (!stage.isDone()) { stage.step(ctx); return; }
+            if (!runner.isDone()) { runner.step(ctx); return; }
         }
     }
 }
