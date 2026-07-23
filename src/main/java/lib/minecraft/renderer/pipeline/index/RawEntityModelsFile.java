@@ -308,22 +308,30 @@ record RawTransform(
 ) {}
 
 /**
- * One {@code layers} entry - a heterogeneous row the assembler routes by {@code id} (collar / markings),
- * {@code armor_type} (humanoid), or {@code when.equipment} (equipment).
+ * One {@code layers} entry - a heterogeneous row the assembler routes by {@code id} (collar / markings /
+ * armor) or {@code when.equipment} (equipment).
  *
- * @param id the layer id ({@code collar} / {@code markings} / ...), or {@code null}
- * @param armorType the armor classification ({@code humanoid}), or {@code null}
- * @param armorMesh the name of the armor mesh the renderer dresses its subject in, or {@code null}
- *     when the renderer names none and the shared mesh applies
+ * @param id the layer id ({@code collar} / {@code markings} / {@code armor} / ...), or {@code null}
  * @param when the layer gate carrying the {@code equipment} slot, or {@code null}
- * @param overlay the layer's overlay body, or {@code null}
+ * @param overlay the layer's overlay body - every row's payload lives here, so the row itself stays
+ *     the routing shell; {@code null} for a row that carries none
  */
 record RawLayer(
     @Nullable String id,
-    @SerializedName("armor_type") @Nullable String armorType,
-    @SerializedName("armor_mesh") @Nullable String armorMesh,
     @Nullable RawLayerWhen when,
     @Nullable RawLayerOverlay overlay
+) {}
+
+/**
+ * An armor row's {@code grow} pair - the per-side growth each of the two armor layers applies to the
+ * shell, in the same scalar-or-array form a cube's own {@code grow} takes.
+ *
+ * @param inner the growth the leggings layer applies, or {@code null} when absent
+ * @param outer the growth the helmet / chestplate / boots layer applies, or {@code null} when absent
+ */
+record RawArmorGrow(
+    @JsonAdapter(EntityModelData.Cube.GrowAdapter.class) @Nullable Vector3f inner,
+    @JsonAdapter(EntityModelData.Cube.GrowAdapter.class) @Nullable Vector3f outer
 ) {}
 
 /**
@@ -335,12 +343,14 @@ record RawLayer(
 record RawLayerWhen(@Nullable String equipment) {}
 
 /**
- * A {@code layers[].overlay} body. Serves both the collar layer (reads {@code texture}) and the equipment
- * layers (read {@code geometry} / {@code layer_type} / {@code material_assets} / {@code default_material});
- * the marking layer's {@code texture_by} / {@code textures_by_value} are not read.
+ * A {@code layers[].overlay} body. Serves the collar layer (reads {@code texture}), the equipment layers
+ * (read {@code geometry} / {@code layer_type} / {@code material_assets} / {@code default_material}) and
+ * the armor row (reads {@code geometry} / {@code grow}); the marking layer's {@code texture_by} /
+ * {@code textures_by_value} are not read.
  *
  * @param texture the collar overlay texture path, or {@code null}
- * @param geometry the equipment overlay geometry coordinate, or {@code null}
+ * @param geometry the equipment or armor overlay geometry coordinate, or {@code null}
+ * @param grow the armor row's two layer deformations, or {@code null} for every other row
  * @param layerType the equipment render layer's serialized id ({@code pig_saddle}), or {@code null}
  * @param materialAssets the equipment asset id per selectable material, or {@code null}
  * @param defaultMaterial the equipment default material, or {@code null}
@@ -348,6 +358,7 @@ record RawLayerWhen(@Nullable String equipment) {}
 record RawLayerOverlay(
     @Nullable String texture,
     @Nullable String geometry,
+    @Nullable RawArmorGrow grow,
     @SerializedName("layer_type") @Nullable String layerType,
     @SerializedName("material_assets") @Nullable Map<String, String> materialAssets,
     @SerializedName("default_material") @Nullable String defaultMaterial

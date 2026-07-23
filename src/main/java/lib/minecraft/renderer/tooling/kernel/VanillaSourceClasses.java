@@ -78,13 +78,13 @@ public final class VanillaSourceClasses {
         /** {@code EntityRenderers} - the entity-renderer registry class. */
         public static final @NotNull String ENTITY_RENDERERS = "net/minecraft/client/renderer/entity/EntityRenderers";
 
-        /** {@code HumanoidArmorLayer} - the armor-mesh layer whose roster presence classifies {@code armor_type}. */
+        /** {@code HumanoidArmorLayer} - the layer whose roster presence emits a wearer's worn-armor row. */
         public static final @NotNull String HUMANOID_ARMOR_LAYER = "net/minecraft/client/renderer/entity/layers/HumanoidArmorLayer";
 
         /** {@code ArmorModelSet} - the set of armor meshes a renderer dresses its subject in. */
         public static final @NotNull String ARMOR_MODEL_SET = "net/minecraft/client/renderer/entity/ArmorModelSet";
 
-        /** {@code HumanoidModel} - the base every humanoid model extends, and the shared armor set's factory owner. */
+        /** {@code HumanoidModel} - the base every humanoid model extends, and the generic armor mesh's factory owner. */
         public static final @NotNull String HUMANOID_MODEL = CLIENT_MODEL_ROOT + "HumanoidModel";
 
         /** {@code SimpleEquipmentLayer} - the generic saddle / body-armor layer (roster row 15). */

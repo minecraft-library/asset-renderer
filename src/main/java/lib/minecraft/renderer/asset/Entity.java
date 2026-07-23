@@ -13,6 +13,7 @@ import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.Builder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -124,24 +125,15 @@ public record Entity(
     }
 
     /**
-     * Whether a vanilla {@code HumanoidArmorLayer} classifies this entity - a derived view over
-     * {@link #layers()} (delegating to {@link Layers#humanoidArmor()}), so no top-level component stores
-     * the classification. Populated by the reader off the {@code layers} armor row.
+     * The worn-armor shell this entity is dressed in - a derived view over {@link #layers()}
+     * (delegating to {@link Layers#humanoidArmor()}), so no top-level component stores it. Empty for an
+     * entity vanilla arms with no {@code HumanoidArmorLayer}, which is what gates the worn-armor render
+     * feature.
      *
-     * @return {@code true} when a humanoid-armor layer classifies this entity
+     * @return the armor shell, or empty when this entity wears none
      */
-    public boolean humanoidArmor() {
+    public @NotNull Optional<HumanoidArmor> humanoidArmor() {
         return this.layers.humanoidArmor();
-    }
-
-    /**
-     * The name of the armor mesh this entity is dressed in - a derived view over {@link #layers()}
-     * (delegating to {@link Layers#armorMesh()}), empty when the shared humanoid mesh applies.
-     *
-     * @return the armor mesh name, or empty for the shared mesh
-     */
-    public @NotNull Optional<String> armorMesh() {
-        return this.layers.armorMesh();
     }
 
     /**
@@ -182,7 +174,7 @@ public record Entity(
                 .overlays(gatedOverlays(definition.axes().babyOverlays(), appearance))
                 .blockOverlays(List.of())
                 .layers(new Layers(Optional.empty(), List.of(), definition.layers().markings(),
-                    definition.layers().humanoidArmor(), definition.layers().armorMesh()));
+                    definition.layers().humanoidArmor()));
         } else {
             builder.overlays(gatedOverlays(definition.overlays(), appearance));
             // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
@@ -361,20 +353,38 @@ public record Entity(
      * @param markings whether the entity supports the horse {@code markings} axis (a same-geometry
      *     translucent overlay over the coat, textured by the selected
      *     {@link lib.minecraft.renderer.option.HorseMarking}); the default marking draws nothing
-     * @param humanoidArmor whether a vanilla {@code HumanoidArmorLayer} classifies this entity
-     *     (skeletons, zombies, piglins) - the {@code armor_type: "humanoid"} classification the
-     *     {@code layers} armor row carries, read off it at load. Gates the worn-armor render feature so
-     *     only these entities draw equipped armor
-     * @param armorMesh the name of the armor mesh this entity is dressed in, or empty when its renderer
-     *     names none and the shared humanoid mesh applies. Worn armor is not built from the wearer's own
-     *     model - most humanoids share one mesh, and the few that do not are named here
+     * @param humanoidArmor the worn-armor shell this entity is dressed in (skeletons, zombies, piglins),
+     *     joined from the {@code layers} armor row's geometry reference at load; empty for an entity
+     *     vanilla arms with no {@code HumanoidArmorLayer}. Being armored IS carrying a shell, so a
+     *     wearer whose mesh failed to resolve drops off the roster loudly rather than rendering a guess
      */
     public record Layers(
         @NotNull Optional<String> collar,
         @NotNull List<EquipmentOverlay> equipment,
         boolean markings,
-        boolean humanoidArmor,
-        @NotNull Optional<String> armorMesh
+        @NotNull Optional<HumanoidArmor> humanoidArmor
+    ) {}
+
+    /**
+     * The worn-armor shell one humanoid is dressed in - the mesh plus the per-side growth each of the
+     * two armor layers applies to it.
+     *
+     * <p>Vanilla never derives worn armor from the wearer's own model. It builds a handful of armor sets
+     * and hands each renderer the one its subject wears, so a skeleton's narrow limbs and a giant's
+     * scaled-up body dress in the very same boxes. Each set fans one base mesh out over the four
+     * equipment slots at two deformations, which is the pair carried here: the leggings wear the inner
+     * one, the other three slots the outer. The mesh itself is stored ungrown, so a cube's own
+     * {@code CubeDeformation.extend} (a leg's {@code -0.1}, a helmet's second box) rides its
+     * {@code grow} and is summed onto the slot's deformation at render.
+     *
+     * @param mesh the ungrown armor mesh, joined from the geometry store
+     * @param innerGrow the per-side growth the leggings layer applies
+     * @param outerGrow the per-side growth the helmet / chestplate / boots layer applies
+     */
+    public record HumanoidArmor(
+        @NotNull EntityModelData mesh,
+        @NotNull Vector3f innerGrow,
+        @NotNull Vector3f outerGrow
     ) {}
 
     /**

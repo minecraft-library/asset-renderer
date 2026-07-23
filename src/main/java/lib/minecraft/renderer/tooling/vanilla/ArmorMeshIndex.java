@@ -17,7 +17,6 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -39,6 +38,11 @@ import java.util.Map;
  * HumanoidModel}) resolves through to the mesh factory that actually builds boxes; the intervening
  * {@code map} calls only prune child parts this renderer does not build.
  *
+ * <p>The two deformations are carried, not baked. A wearer's armor row registers the mesh factory
+ * ungrown and writes the pair alongside its geometry reference, so the piglin family - which differs
+ * from the generic set in nothing but an outer {@code 1.02} - shares the generic set's geometry entry
+ * rather than duplicating it.
+ *
  * <p><b>Adult sets only.</b> Vanilla's baby sets take a third {@code PartPose} argument and a
  * different base mesh (an extra {@code waist} part, its own unwrap); they are filtered out by that
  * descriptor, because a baby still wears its own bone boxes here.
@@ -58,15 +62,10 @@ public final class ArmorMeshIndex {
     /** Guard on the delegate chain, well above vanilla's deepest ({@code piglin -> player -> humanoid}). */
     private static final int MAX_DELEGATE_DEPTH = 4;
 
-    /** The {@code LayerDefinitions} constant every unremarkable humanoid's leggings are grown by. */
-    private static final @NotNull String INNER_ARMOR_DEFORMATION = "INNER_ARMOR_DEFORMATION";
-
-    /** The {@code LayerDefinitions} constant every unremarkable humanoid's other three slots are grown by. */
-    private static final @NotNull String OUTER_ARMOR_DEFORMATION = "OUTER_ARMOR_DEFORMATION";
-
     /**
      * One armor set vanilla builds: the mesh every slot is cut from, plus the per-side growth the
-     * two armor layers apply to it.
+     * two armor layers apply to it. The mesh is parsed ungrown and the two growths travel on the
+     * wearer's row, so two sets differing only in a deformation share one geometry entry.
      *
      * @param meshClass the base mesh factory's class JVM internal name
      * @param meshMethod the base mesh factory method name
@@ -78,37 +77,12 @@ public final class ArmorMeshIndex {
         @NotNull String meshMethod,
         float @NotNull [] innerGrow,
         float @NotNull [] outerGrow
-    ) {
-
-        /**
-         * The dedupe identity of this mesh - the factory coordinate plus both deformations, in the
-         * same {@code <SimpleClass>#<method>@k=v} grammar the geometry keys use. Two wearers whose
-         * sets agree on all three share one emitted mesh.
-         *
-         * @return the mesh key
-         */
-        public @NotNull String key() {
-            return this.meshClass.substring(this.meshClass.lastIndexOf('/') + 1)
-                + '#' + this.meshMethod
-                + "@inner=" + component(this.innerGrow)
-                + "@outer=" + component(this.outerGrow);
-        }
-
-        /** A grow triple as a key component - scalar when uniform, comma-joined when per-axis. */
-        private static @NotNull String component(float @NotNull [] grow) {
-            return grow[0] == grow[1] && grow[1] == grow[2]
-                ? String.valueOf(grow[0])
-                : grow[0] + "," + grow[1] + "," + grow[2];
-        }
-
-    }
+    ) {}
 
     private final @NotNull Map<String, Set> sets;
-    private final @Nullable Set shared;
 
-    private ArmorMeshIndex(@NotNull Map<String, Set> sets, @Nullable Set shared) {
+    private ArmorMeshIndex(@NotNull Map<String, Set> sets) {
         this.sets = sets;
-        this.shared = shared;
     }
 
     /**
@@ -126,13 +100,13 @@ public final class ArmorMeshIndex {
         if (cn == null) {
             diagnostics.error("'%s' class missing - armor-mesh index unresolved",
                 VanillaSourceClasses.Types.LAYER_DEFINITIONS);
-            return new ArmorMeshIndex(out, null);
+            return new ArmorMeshIndex(out);
         }
         MethodNode createRoots = AsmKit.findMethod(cn, VanillaSourceClasses.Methods.CREATE_ROOTS);
         if (createRoots == null) {
             diagnostics.error("'%s.%s' missing - armor-mesh index unresolved",
                 VanillaSourceClasses.Types.LAYER_DEFINITIONS, VanillaSourceClasses.Methods.CREATE_ROOTS);
-            return new ArmorMeshIndex(out, null);
+            return new ArmorMeshIndex(out);
         }
 
         // Armor sets reach their registration through a local slot in every adult case, so the walk
@@ -220,31 +194,9 @@ public final class ArmorMeshIndex {
             }
         }
 
-        // The set a wearer whose renderer names none falls back to: vanilla's own generic humanoid
-        // set, read from the factory and the two constants LayerDefinitions builds it from rather
-        // than picked out of the registrations by position.
-        Set shared = resolveSet(cache, VanillaSourceClasses.Types.HUMANOID_MODEL,
-            VanillaSourceClasses.Methods.CREATE_ARMOR_MESH_SET,
-            LayerDefinitionIndex.resolveDeformationField(cache,
-                VanillaSourceClasses.Types.LAYER_DEFINITIONS, INNER_ARMOR_DEFORMATION),
-            LayerDefinitionIndex.resolveDeformationField(cache,
-                VanillaSourceClasses.Types.LAYER_DEFINITIONS, OUTER_ARMOR_DEFORMATION),
-            diagnostics);
-        if (shared == null)
-            diagnostics.error("the shared humanoid armor set is unresolvable - every wearer that names no mesh would render bare");
-
-        diagnostics.info("indexed %d armor sets over %d distinct meshes",
-            out.size(), out.values().stream().map(Set::key).distinct().count());
-        return new ArmorMeshIndex(out, shared);
-    }
-
-    /**
-     * The armor set a wearer whose renderer names none is dressed in - vanilla's generic humanoid
-     * set. {@code null} only when the vanilla factory or its two deformation constants could not be
-     * read, which is an ERROR rather than a fallback.
-     */
-    public @Nullable Set shared() {
-        return this.shared;
+        diagnostics.info("indexed %d armor sets over %d distinct meshes", out.size(),
+            out.values().stream().map(set -> set.meshClass() + '#' + set.meshMethod()).distinct().count());
+        return new ArmorMeshIndex(out);
     }
 
     /**
@@ -256,14 +208,6 @@ public final class ArmorMeshIndex {
      */
     public @Nullable Set get(@NotNull String armorMeshName) {
         return this.sets.get(armorMeshName);
-    }
-
-    /**
-     * The full index, lowercased armor-set field name to set, in {@code createRoots} registration
-     * order (unmodifiable).
-     */
-    public @NotNull Map<String, Set> sets() {
-        return Collections.unmodifiableMap(this.sets);
     }
 
     /** Whether a method name is one of the two spellings vanilla gives its adult armor-set factory. */

@@ -21,7 +21,9 @@ import lib.minecraft.renderer.face.SkinFace;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
+import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -99,7 +101,8 @@ class ArmorKitCitCompositeTest {
         Map<String, Vector3f[]> bones = Map.of("head",
             new Vector3f[]{ new Vector3f(0, 2, 0), new Vector3f(1, 3, 1) });
 
-        float[] span = helmetYSpan(new ArmorKit.EntityArmorFrame(true, Vector3f.ZERO, 1f, 1f), bones);
+        float[] span = helmetYSpan(
+            new ArmorKit.EntityArmorFrame(true, genericShell(), Vector3f.ZERO, 1f, 1f), bones);
 
         // The armor box spans the bone's own [2, 3] y-range (plus the small inflate), not a flipped
         // negative range - the double turn cancels on position and only re-seats the texture.
@@ -114,7 +117,8 @@ class ArmorKitCitCompositeTest {
         Map<String, Vector3f[]> bones = Map.of("head",
             new Vector3f[]{ new Vector3f(0, 40, 0), new Vector3f(1, 41, 1) });
 
-        float[] span = helmetYSpan(new ArmorKit.EntityArmorFrame(false, Vector3f.ZERO, 1f, 1f), bones);
+        float[] span = helmetYSpan(
+            new ArmorKit.EntityArmorFrame(false, genericShell(), Vector3f.ZERO, 1f, 1f), bones);
 
         // The generic head box spans y [-8, 0] in model units; a helmet keeps that part AND its
         // children, so the outer span is the head's overlay box, grown a further half unit on top of
@@ -127,11 +131,20 @@ class ArmorKitCitCompositeTest {
     @DisplayName("adult armor scales with the render frame")
     void adultArmorFollowsRenderFrame() {
         float[] span = helmetYSpan(
-            new ArmorKit.EntityArmorFrame(false, Vector3f.ZERO, 1f, 2f), Map.of());
+            new ArmorKit.EntityArmorFrame(false, genericShell(), Vector3f.ZERO, 1f, 2f), Map.of());
 
         // Doubling the render's model scale doubles the shell with the body it dresses.
         assertThat((double) span[0], closeTo(-19d, 1e-4d));
         assertThat((double) span[1], closeTo(3d, 1e-4d));
+    }
+
+    /**
+     * The shell vanilla dresses an unremarkable humanoid in, read through the loaded index rather than
+     * restated here, so these spans measure the shipped mesh and its shipped deformations.
+     */
+    private static @NotNull Optional<Entity.HumanoidArmor> genericShell() {
+        return EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null))
+            .get("minecraft:zombie").humanoidArmor();
     }
 
     /**

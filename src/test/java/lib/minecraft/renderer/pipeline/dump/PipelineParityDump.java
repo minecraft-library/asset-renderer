@@ -1323,7 +1323,7 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject layers(@NotNull Entity.Layers layers) {
         JsonObject root = new JsonObject();
         root.addProperty("markings", layers.markings());
-        root.addProperty("humanoid_armor", layers.humanoidArmor());
+        root.addProperty("humanoid_armor", layers.humanoidArmor().isPresent());
         root.add("equipment", CanonicalJson.ordered(layers.equipment(), equipment -> {
             JsonObject entry = new JsonObject();
             entry.addProperty("slot", equipment.slot());

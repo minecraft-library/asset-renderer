@@ -13,10 +13,15 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Cross-checks the roster the worn-armor gate depends on: the entities classified
- * {@code humanoidArmor} ({@code armor_type: "humanoid"}) must be exactly the vanilla
- * {@code HumanoidArmorLayer} wearers, so gating the armor render feature on the flag never drops
- * armor from an entity vanilla actually arms.
+ * Cross-checks the roster the worn-armor gate depends on: the entities carrying a
+ * {@code humanoidArmor} shell must be exactly the vanilla {@code HumanoidArmorLayer} wearers, so
+ * gating the armor render feature on the shell never drops armor from an entity vanilla actually
+ * arms.
+ *
+ * <p>Being armored IS carrying a resolved shell - there is no separate classification a wearer could
+ * hold while its mesh failed to resolve. That makes this a gate on the whole chain: a tooling walk
+ * that stops naming a wearer's armor set, or a geometry reference that stops resolving, drops that
+ * wearer off the roster here rather than silently dressing it in a fallback.
  */
 @DisplayName("humanoidArmor roster")
 class HumanoidArmorRosterTest {
@@ -34,7 +39,7 @@ class HumanoidArmorRosterTest {
         ConcurrentMap<String, Entity> index = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
         Set<String> flagged = new TreeSet<>();
         index.forEach((id, entity) -> {
-            if (entity.humanoidArmor()) flagged.add(id);
+            if (entity.humanoidArmor().isPresent()) flagged.add(id);
         });
         assertThat(flagged, is(new TreeSet<>(EXPECTED)));
     }

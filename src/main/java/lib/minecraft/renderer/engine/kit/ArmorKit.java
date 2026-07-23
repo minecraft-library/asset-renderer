@@ -5,9 +5,8 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.LayerType;
-import lib.minecraft.renderer.asset.model.ArmorMeshData;
-import lib.minecraft.renderer.asset.model.ArmorMeshes;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
@@ -19,7 +18,6 @@ import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.face.SkinFace;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
-import lib.minecraft.renderer.pipeline.loader.ArmorMeshLoader;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -76,17 +74,6 @@ public class ArmorKit {
      * Additional inflate for trim so it sits above the armor base and avoids z-fighting.
      */
     private static final float TRIM_INFLATE = 0.003f;
-
-    /**
-     * Vanilla's worn-armor meshes, read from the bundled armor resource the entity tooling emits by
-     * walking each armor-set factory in {@code LayerDefinitions}. Every cube arrives already grown by
-     * its slot's per-side amount, so the builder reads corners without further arithmetic.
-     *
-     * <p>The trees are plain box tables - no bone carries a rotation or a scale, which is what lets a
-     * part collapse to one axis-aligned box here. That is a property of the armor meshes, not an
-     * assumption about entity geometry in general.
-     */
-    private static final @NotNull ArmorMeshes ARMOR_MESHES = ArmorMeshLoader.load();
 
     /**
      * The body part and skin layer one armor-mesh bone is textured from.
@@ -156,7 +143,7 @@ public class ArmorKit {
      * would otherwise be applied twice.
      *
      * @param baby whether the wearer renders in its baby form
-     * @param meshName the name of the armor mesh the wearer's renderer holds, or empty for the shared one
+     * @param armor the armor shell the wearer is dressed in, or empty when it wears none
      * @param meshScale the wearer's whole-mesh uniform scale
      * @param meshOffset the wearer's whole-mesh offset, the anchor its scale is taken about
      * @param modelAnchor the model-space point mapped to the canvas centre
@@ -164,16 +151,17 @@ public class ArmorKit {
      * @param modelScale the per-render vertex pre-scale
      */
     public record EntityArmorFrame(
-        boolean baby, @NotNull Optional<String> meshName, float meshScale, @NotNull Vector3f meshOffset,
+        boolean baby, @NotNull Optional<Entity.HumanoidArmor> armor, float meshScale, @NotNull Vector3f meshOffset,
         @NotNull Vector3f modelAnchor, float ndcScale, float modelScale
     ) {
 
         /**
-         * The frame for a wearer of the shared mesh whose own mesh carries no whole-mesh transform.
+         * The frame for a wearer whose own mesh carries no whole-mesh transform.
          */
         public EntityArmorFrame(
-            boolean baby, @NotNull Vector3f modelAnchor, float ndcScale, float modelScale) {
-            this(baby, Optional.empty(), 1f, Vector3f.ZERO, modelAnchor, ndcScale, modelScale);
+            boolean baby, @NotNull Optional<Entity.HumanoidArmor> armor,
+            @NotNull Vector3f modelAnchor, float ndcScale, float modelScale) {
+            this(baby, armor, 1f, Vector3f.ZERO, modelAnchor, ndcScale, modelScale);
         }
 
         /**
@@ -181,7 +169,7 @@ public class ArmorKit {
          * built around - the bone vanilla's own mesh transformer scales and re-anchors.
          *
          * @param baby whether the wearer renders in its baby form
-         * @param meshName the armor mesh the wearer's renderer names, or empty for the shared one
+         * @param armor the armor shell the wearer is dressed in
          * @param model the wearer's model
          * @param modelAnchor the model-space point mapped to the canvas centre
          * @param ndcScale the model-units-to-NDC scale
@@ -189,23 +177,14 @@ public class ArmorKit {
          * @return the armor frame for that wearer
          */
         public static @NotNull EntityArmorFrame of(
-            boolean baby, @NotNull Optional<String> meshName, @NotNull EntityModelData model,
+            boolean baby, @NotNull Optional<Entity.HumanoidArmor> armor, @NotNull EntityModelData model,
             @NotNull Vector3f modelAnchor, float ndcScale, float modelScale
         ) {
             EntityModelData.Bone torso = model.getBones().get(TORSO_BONE);
             float meshScale = torso == null ? 1f : torso.getScale();
             Vector3f meshOffset = torso == null ? Vector3f.ZERO : torso.getPivot();
-            return new EntityArmorFrame(baby, meshName, meshScale, meshOffset,
+            return new EntityArmorFrame(baby, armor, meshScale, meshOffset,
                 modelAnchor, ndcScale, modelScale);
-        }
-
-        /**
-         * The armor mesh this wearer wears - the one its renderer names, or the shared mesh when it
-         * names none or names one vanilla does not build separately. Empty only when the armor
-         * resource is absent, which leaves a wearer bare rather than wearing a guess.
-         */
-        @NotNull Optional<ArmorMeshData> mesh() {
-            return ARMOR_MESHES.resolve(this.meshName);
         }
     }
 
@@ -439,9 +418,9 @@ public class ArmorKit {
     }
 
     /**
-     * Builds the armor for one adult humanoid from the mesh its renderer names: each equipped slot's
-     * parts of that mesh, mapped into the render frame, then turned into the upright frame the armor
-     * unwrap is authored for. The boxes arrive already grown, so the emitter adds no further inflate.
+     * Builds the armor for one adult humanoid from the shell it is dressed in: each equipped slot's
+     * parts of that mesh, grown by the slot's deformation, mapped into the render frame, then turned
+     * into the upright frame the armor unwrap is authored for.
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildGenericArmor3D(
         @NotNull EntityArmorFrame frame,
@@ -453,8 +432,8 @@ public class ArmorKit {
         @NotNull Textures engine
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        Optional<ArmorMeshData> mesh = frame.mesh();
-        if (mesh.isEmpty()) return triangles;
+        Optional<Entity.HumanoidArmor> armor = frame.armor();
+        if (armor.isEmpty()) return triangles;
         // The trim rides the same frame as the armor it sits on, so its separation scales with the
         // render rather than staying a constant that vanishes at small scales.
         float trimInflate = TRIM_GROW * frame.ndcScale() * frame.modelScale();
@@ -468,7 +447,7 @@ public class ArmorKit {
         for (var entry : equipped.entrySet()) {
             ArmorTrim.Slot slot = entry.getKey();
             entry.getValue().ifPresent(piece -> addMeshSlot3D(triangles,
-                armorBoxes(frame, mesh.get(), slot), piece, slot, itemFor(items, slot), engine, trimInflate));
+                armorBoxes(frame, armor.get(), slot), piece, slot, itemFor(items, slot), engine, trimInflate));
         }
         return triangles;
     }
@@ -477,20 +456,27 @@ public class ArmorKit {
      * The armor mesh's boxes covering one slot, mapped through the render frame and turned into the
      * upright frame the armor unwrap is authored for.
      *
-     * <p>The slot picks which of the mesh's two grown forms it wears - the leggings its inner one, the
-     * other three its outer - then keeps the parts vanilla keeps for that slot. Bone order is the
+     * <p>The slot picks which of the shell's two deformations it wears - the leggings the inner one, the
+     * other three the outer - then keeps the parts vanilla keeps for that slot. Each cube is grown by
+     * that deformation plus its own {@code CubeDeformation.extend} (a leg's {@code -0.1}, a helmet's
+     * second box), which is the sum vanilla's mesh builder performs in the same order. Bone order is the
      * mesh's own, so a part and the overlay box parented to it stay adjacent.
+     *
+     * <p>A part collapses to one axis-aligned box because the armor meshes are plain box tables - no bone
+     * carries a rotation or a scale. That is a property of those meshes, not an assumption about entity
+     * geometry in general.
      */
     private static @NotNull List<ArmorBox> armorBoxes(
-        @NotNull EntityArmorFrame frame, @NotNull ArmorMeshData mesh, @NotNull ArmorTrim.Slot slot) {
-        EntityModelData tree = slot == ArmorTrim.Slot.LEGGINGS ? mesh.inner() : mesh.outer();
+        @NotNull EntityArmorFrame frame, @NotNull Entity.HumanoidArmor armor, @NotNull ArmorTrim.Slot slot) {
+        EntityModelData tree = armor.mesh();
+        Vector3f deformation = slot == ArmorTrim.Slot.LEGGINGS ? armor.innerGrow() : armor.outerGrow();
         List<ArmorBox> boxes = new ArrayList<>();
         for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
             MeshPart part = ARMOR_MESH_PARTS.get(entry.getKey());
             if (part == null || !coveredBySlot(tree, slot, entry.getKey())) continue;
             Vector3f anchor = chainedPivot(tree, entry.getValue());
             for (EntityModelData.Cube cube : entry.getValue().getCubes()) {
-                Vector3f grow = cube.getGrow();
+                Vector3f grow = deformation.add(cube.getGrow());
                 Vector3f min = anchor.add(cube.getOrigin()).subtract(grow);
                 Vector3f max = min.add(cube.getSize()).add(grow).add(grow);
                 Vector3f[] corners = turnAboutXBounds(new Vector3f[]{

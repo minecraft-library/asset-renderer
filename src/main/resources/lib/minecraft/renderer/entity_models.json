@@ -76,8 +76,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 0,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "armor_stand_armor"
+          "overlay": {
+            "geometry": "ArmorStandArmorModel#createBaseMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -234,8 +239,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "bogged_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -850,8 +860,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "drowned_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -1145,8 +1160,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 1,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "giant_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -1368,8 +1388,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "husk_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -1913,8 +1938,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "parched_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -2061,8 +2091,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "piglin_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.02
+            }
+          }
         }
       ]
     },
@@ -2084,8 +2119,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "piglin_brute_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.02
+            }
+          }
         }
       ],
       "group_of": "minecraft:piglin"
@@ -2347,8 +2387,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "skeleton_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -2577,8 +2622,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "stray_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ],
       "group_of": "minecraft:skeleton"
@@ -3025,8 +3075,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "wither_skeleton_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -3280,8 +3335,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "zombie_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -3474,8 +3534,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "zombie_villager_armor"
+          "overlay": {
+            "geometry": "ZombieVillagerModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.0
+            }
+          }
         }
       ]
     },
@@ -3501,8 +3566,13 @@
           "source": "HumanoidArmorLayer",
           "layer_index": 3,
           "id": "armor",
-          "armor_type": "humanoid",
-          "armor_mesh": "zombified_piglin_armor"
+          "overlay": {
+            "geometry": "HumanoidModel#createBaseArmorMesh",
+            "grow": {
+              "inner": 0.5,
+              "outer": 1.02
+            }
+          }
         }
       ],
       "group_of": "minecraft:piglin"

@@ -648,19 +648,20 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         },
 
         /**
-         * Worn armor (+ trim), gated on the {@code armor_type: "humanoid"} classification so only the
+         * Worn armor (+ trim), gated on the resolved definition carrying an armor shell so only the
          * entities vanilla arms with a {@code HumanoidArmorLayer} render it. Resolves to no triangles
          * when no pieces are equipped.
          */
         ARMOR(EntitySlot.ARMOR) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                if (!ctx.definition().humanoidArmor()) return;
+                Optional<Entity.HumanoidArmor> armor = ctx.definition().humanoidArmor();
+                if (armor.isEmpty()) return;
                 EntityOptions options = ctx.options();
                 stack.append(this.slot, sink ->
                     sink.addAll(ArmorKit.buildEntityArmor3D(
                         ArmorKit.EntityArmorFrame.of(options.getAppearance().isBaby(),
-                            ctx.definition().armorMesh(), ctx.model(),
+                            armor, ctx.model(),
                             ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale()),
                         ctx.buildResult().boneBounds(),
                         options.getArmor().getHelmet(), options.getArmor().getChestplate(),

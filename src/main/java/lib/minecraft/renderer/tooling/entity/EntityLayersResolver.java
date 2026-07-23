@@ -2,11 +2,13 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
+import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,10 +27,12 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Node {@code layers[]} - the option-gated conditional rows: collar, markings, equipment.
+ * Node {@code layers[]} - the option-gated conditional rows: collar, markings, equipment, armor.
  * One roster pass; row order is roster order.
  *
  * <ul>
+ *   <li><b>Armor</b> - a {@code HumanoidArmorLayer} site, carrying the worn-armor mesh as a
+ *       plain {@code overlay.geometry} reference plus the armor set's two deformations.</li>
  *   <li><b>Collar</b> - structural detection (a null-gated {@code DyeColor} state read in
  *       the typed submit); the gate mirrors vanilla's actual
  *       {@code collarColor != null && !isInvisible} branch as
@@ -46,11 +50,20 @@ final class EntityLayersResolver {
     /** The markings axis name - the sole enum-map token routed to a layers row. */
     private static final @NotNull String MARKINGS_TOKEN = "markings";
 
+    /** The atlas every armor mesh is baked against, from the {@code LayerDefinition.create} wrap. */
+    private static final int ARMOR_TEXTURE_WIDTH = 64;
+
+    /** The armor atlas height - half the entity default, matching the player skin's base layer. */
+    private static final int ARMOR_TEXTURE_HEIGHT = 32;
+
     private final @NotNull ClassNodeCache cache;
+    private final @NotNull String entityId;
     private final @NotNull String rendererClass;
     private final @NotNull List<String> registrationLayerFields;
     private final @NotNull List<EntityRendererResolver.LayerSite> roster;
     private final @NotNull EntityEquipmentResolver equipment;
+    private final @NotNull ArmorMeshIndex armorMeshes;
+    private final @NotNull GeometryManifest manifest;
     private final @NotNull Diagnostics diagnostics;
 
     EntityLayersResolver(
@@ -59,15 +72,19 @@ final class EntityLayersResolver {
         @NotNull List<EntityRendererResolver.LayerSite> roster,
         @NotNull LayerDefinitionIndex layerDefinitions,
         @NotNull EquipmentAssetIndex equipmentAssets,
+        @NotNull ArmorMeshIndex armorMeshes,
         @NotNull GeometryManifest manifest,
         @NotNull Diagnostics diagnostics
     ) {
         this.cache = session.cache();
+        this.entityId = subject.entityId();
         this.rendererClass = subject.rendererClass();
         this.registrationLayerFields = subject.lambdaLayerFields();
         this.roster = roster;
         this.equipment = new EntityEquipmentResolver(session.cache(), subject, layerDefinitions, equipmentAssets,
             manifest, diagnostics.child("equipment"));
+        this.armorMeshes = armorMeshes;
+        this.manifest = manifest;
         this.diagnostics = diagnostics;
     }
 
@@ -186,31 +203,58 @@ final class EntityLayersResolver {
     }
 
     /**
-     * The armor classification row: humanoid armor is rendered by a vanilla
-     * {@code HumanoidArmorLayer}, so the classification is a layer-roster fact. The row carries
-     * {@code armor_type: "humanoid"} so the fact travels with the roster it derives from; the
-     * native reader reads it off this row. A {@code none} family emits no armor row - absence IS
-     * {@code none}.
+     * The armor row: worn armor is drawn by a vanilla {@code HumanoidArmorLayer}, so the row's
+     * presence is a layer-roster fact and its {@code id} identifies it. The mesh the wearer is dressed
+     * in rides a plain {@code geometry} reference in the row's {@code overlay} body, where every other
+     * row keeps its payload, with the armor set's two deformations alongside it - the shell is
+     * registered ungrown, so two wearers differing only in a deformation share one geometry entry.
+     *
+     * <p>Being armored IS wearing a resolved shell. A row whose mesh could not be resolved carries no
+     * reference and is an ERROR, which drops the wearer off the roster loudly rather than dressing it
+     * in a fallback that hides the failure.
      */
     private @NotNull JsonTree armorRow(@NotNull EntityRendererResolver.LayerSite site) {
         JsonTree row = JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())
-            .put("id", "armor")
-            .put("armor_type", "humanoid");
+            .put("id", "armor");
 
-        String mesh = resolveArmorMesh();
-        if (mesh == null) {
-            this.diagnostics.info("armor row: humanoid, mesh not named by the renderer [LOCKED 3]");
+        String name = resolveArmorMesh();
+        ArmorMeshIndex.Set set = name == null ? null : this.armorMeshes.get(name);
+        if (set == null) {
+            this.diagnostics.error("armor row names mesh '%s', which LayerDefinitions registers no armor set for - wearer left bare",
+                name == null ? "<unnamed>" : name);
             return row;
         }
-        this.diagnostics.info("armor row: humanoid, mesh '%s' [LOCKED 3]", mesh);
-        return row.put("armor_mesh", mesh);
+        String geometry = this.manifest.register(GeometryRequest.overlay(set.meshClass(), set.meshMethod(),
+            this.entityId, ARMOR_TEXTURE_WIDTH, ARMOR_TEXTURE_HEIGHT, GeometryRequest.NO_GROW));
+        this.diagnostics.info("armor row: mesh '%s' via set '%s'", geometry, name);
+        return row.put("overlay", JsonTree.object()
+            .put("geometry", geometry)
+            .put("grow", growPair(set)));
     }
 
     /**
-     * The name of the armor mesh this renderer dresses its subject in, or {@code null} when the
-     * renderer does not name one itself.
+     * The armor row's {@code grow} pair - the two deformations the armor layers apply, each in the
+     * scalar-or-array form a cube's own {@code grow} takes.
+     */
+    private static @NotNull JsonTree growPair(@NotNull ArmorMeshIndex.Set set) {
+        JsonTree grow = JsonTree.object();
+        putGrow(grow, "inner", set.innerGrow());
+        putGrow(grow, "outer", set.outerGrow());
+        return grow;
+    }
+
+    /** Writes one deformation - a scalar when uniform, a per-axis triple otherwise. */
+    private static void putGrow(@NotNull JsonTree node, @NotNull String name, float @NotNull [] grow) {
+        if (grow[0] == grow[1] && grow[1] == grow[2]) node.put(name, grow[0]);
+        else node.putFloats(name, grow[0], grow[1], grow[2]);
+    }
+
+    /**
+     * The name of the armor set this renderer dresses its subject in, or {@code null} when the
+     * renderer does not name one itself. The name is a lookup key into the registrations
+     * {@code LayerDefinitions} makes - it identifies the mesh and its deformations, and never ships.
      *
      * <p>Vanilla does not build worn armor from the wearer's own model - it hands the layer a shared
      * armor set, and most humanoids share one. A renderer that wears a different set holds it as a

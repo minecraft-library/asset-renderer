@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.option.EntityAppearance;
+import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -107,16 +108,37 @@ class EntityModelLoaderTest {
     }
 
     @Test
-    @DisplayName("humanoid armor_type is consumed off the layers armor row")
+    @DisplayName("the worn-armor shell is joined off the layers armor row")
     void humanoidArmorFromLayersRow() {
-        // armor_type lives under `layers`: the reader classifies humanoid off the layers armor row
-        // (absence IS none). Skeleton/zombie are humanoid; cow/sheep are none.
+        // The armor row lives under `layers`: the reader joins its geometry reference against the
+        // geometry table (absence IS none). Skeleton/zombie wear a shell; cow/sheep wear none.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
-        assertThat("skeleton is humanoid-armored", defs.get("minecraft:skeleton").humanoidArmor(), is(true));
-        assertThat("zombie is humanoid-armored", defs.get("minecraft:zombie").humanoidArmor(), is(true));
-        assertThat("the derived accessor reads the layers row", defs.get("minecraft:zombie").layers().humanoidArmor(), is(true));
-        assertThat("cow is not humanoid-armored", defs.get("minecraft:cow").humanoidArmor(), is(false));
-        assertThat("sheep is not humanoid-armored", defs.get("minecraft:sheep").humanoidArmor(), is(false));
+        assertThat("skeleton is humanoid-armored", defs.get("minecraft:skeleton").humanoidArmor().isPresent(), is(true));
+        assertThat("zombie is humanoid-armored", defs.get("minecraft:zombie").humanoidArmor().isPresent(), is(true));
+        assertThat("the derived accessor reads the layers row",
+            defs.get("minecraft:zombie").layers().humanoidArmor().isPresent(), is(true));
+        assertThat("cow is not humanoid-armored", defs.get("minecraft:cow").humanoidArmor().isPresent(), is(false));
+        assertThat("sheep is not humanoid-armored", defs.get("minecraft:sheep").humanoidArmor().isPresent(), is(false));
+
+        // The shell is the mesh vanilla hands the wearer, not the wearer's own: the boxes must be the
+        // armor unwrap's 64x32 tree, and the two layer deformations must travel with it.
+        Entity.HumanoidArmor armor = defs.get("minecraft:zombie").humanoidArmor().orElseThrow();
+        assertThat("the shell carries the armor atlas width", armor.mesh().getTextureWidth(), is(64));
+        assertThat("the shell carries the armor atlas height", armor.mesh().getTextureHeight(), is(32));
+        assertThat("the leggings deformation rides the row", armor.innerGrow(), equalTo(new Vector3f(0.5f, 0.5f, 0.5f)));
+        assertThat("the outer deformation rides the row", armor.outerGrow(), equalTo(new Vector3f(1f, 1f, 1f)));
+        // The shell is ungrown: a leg's own CubeDeformation.extend(-0.1) is all its cube carries, so the
+        // slot's deformation is summed onto it at render rather than baked in twice.
+        assertThat("the shell's legs carry only their own extend",
+            armor.mesh().getBones().get("right_leg").getCubes().getFirst().getGrow(),
+            equalTo(new Vector3f(-0.1f, -0.1f, -0.1f)));
+        // The piglin's set differs from the generic one in nothing but its outer deformation, so the two
+        // share one geometry entry - the dedupe the collapsed shape buys.
+        assertThat("the piglin shares the generic shell mesh",
+            defs.get("minecraft:piglin").humanoidArmor().orElseThrow().mesh(), sameInstance(armor.mesh()));
+        assertThat("the piglin's own outer deformation still rides its row",
+            defs.get("minecraft:piglin").humanoidArmor().orElseThrow().outerGrow(),
+            equalTo(new Vector3f(1.02f, 1.02f, 1.02f)));
     }
 
     /** The option-encoded coat sub-definition for a variant family's option. */

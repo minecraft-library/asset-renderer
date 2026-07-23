@@ -1323,6 +1323,235 @@
         }
       }
     },
+    "ArmorStandArmorModel#createBaseMesh": {
+      "source": {
+        "class": "net/minecraft/client/model/object/armorstand/ArmorStandArmorModel",
+        "method": "createBaseMesh"
+      },
+      "texture_size": [
+        64,
+        32
+      ],
+      "y_axis": "DOWN",
+      "bones": {
+        "head": {
+          "pivot": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                -8.0,
+                -4.0
+              ],
+              "size": [
+                8.0,
+                8.0,
+                8.0
+              ],
+              "uv": [
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        "hat": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "parent": "head",
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                -8.0,
+                -4.0
+              ],
+              "size": [
+                8.0,
+                8.0,
+                8.0
+              ],
+              "uv": [
+                32,
+                0
+              ],
+              "grow": 0.5
+            }
+          ]
+        },
+        "body": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                8.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                16,
+                16
+              ]
+            }
+          ]
+        },
+        "right_arm": {
+          "pivot": [
+            -5.0,
+            2.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -3.0,
+                -2.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                40,
+                16
+              ]
+            }
+          ]
+        },
+        "left_arm": {
+          "pivot": [
+            5.0,
+            2.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                -2.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                40,
+                16
+              ],
+              "mirror": true
+            }
+          ]
+        },
+        "right_leg": {
+          "pivot": [
+            -1.9,
+            11.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                0,
+                16
+              ],
+              "grow": -0.1
+            }
+          ]
+        },
+        "left_leg": {
+          "pivot": [
+            1.9,
+            11.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                0,
+                16
+              ],
+              "grow": -0.1,
+              "mirror": true
+            }
+          ]
+        }
+      }
+    },
     "AdultAxolotlModel#createBodyLayer": {
       "source": {
         "class": "net/minecraft/client/model/animal/axolotl/AdultAxolotlModel",
@@ -3969,6 +4198,235 @@
                 16
               ],
               "grow": 0.2,
+              "mirror": true
+            }
+          ]
+        }
+      }
+    },
+    "HumanoidModel#createBaseArmorMesh": {
+      "source": {
+        "class": "net/minecraft/client/model/HumanoidModel",
+        "method": "createBaseArmorMesh"
+      },
+      "texture_size": [
+        64,
+        32
+      ],
+      "y_axis": "DOWN",
+      "bones": {
+        "head": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                -8.0,
+                -4.0
+              ],
+              "size": [
+                8.0,
+                8.0,
+                8.0
+              ],
+              "uv": [
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        "hat": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "parent": "head",
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                -8.0,
+                -4.0
+              ],
+              "size": [
+                8.0,
+                8.0,
+                8.0
+              ],
+              "uv": [
+                32,
+                0
+              ],
+              "grow": 0.5
+            }
+          ]
+        },
+        "body": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                8.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                16,
+                16
+              ]
+            }
+          ]
+        },
+        "right_arm": {
+          "pivot": [
+            -5.0,
+            2.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -3.0,
+                -2.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                40,
+                16
+              ]
+            }
+          ]
+        },
+        "left_arm": {
+          "pivot": [
+            5.0,
+            2.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                -2.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                40,
+                16
+              ],
+              "mirror": true
+            }
+          ]
+        },
+        "right_leg": {
+          "pivot": [
+            -1.9,
+            12.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                0,
+                16
+              ],
+              "grow": -0.1
+            }
+          ]
+        },
+        "left_leg": {
+          "pivot": [
+            1.9,
+            12.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                0,
+                16
+              ],
+              "grow": -0.1,
               "mirror": true
             }
           ]
@@ -41618,6 +42076,250 @@
               ]
             }
           ]
+        }
+      }
+    },
+    "ZombieVillagerModel#createBaseArmorMesh": {
+      "source": {
+        "class": "net/minecraft/client/model/monster/zombie/ZombieVillagerModel",
+        "method": "createBaseArmorMesh"
+      },
+      "texture_size": [
+        64,
+        32
+      ],
+      "y_axis": "DOWN",
+      "bones": {
+        "head": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                -10.0,
+                -4.0
+              ],
+              "size": [
+                8.0,
+                8.0,
+                8.0
+              ],
+              "uv": [
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        "hat": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "parent": "head",
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                -8.0,
+                -4.0
+              ],
+              "size": [
+                8.0,
+                8.0,
+                8.0
+              ],
+              "uv": [
+                32,
+                0
+              ],
+              "grow": 0.5
+            }
+          ]
+        },
+        "body": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                8.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                16,
+                16
+              ],
+              "grow": 0.1
+            }
+          ]
+        },
+        "right_arm": {
+          "pivot": [
+            -5.0,
+            2.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -3.0,
+                -2.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                40,
+                16
+              ]
+            }
+          ]
+        },
+        "left_arm": {
+          "pivot": [
+            5.0,
+            2.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                -2.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                40,
+                16
+              ],
+              "mirror": true
+            }
+          ]
+        },
+        "right_leg": {
+          "pivot": [
+            -2.0,
+            12.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                0,
+                16
+              ],
+              "grow": 0.1
+            }
+          ]
+        },
+        "left_leg": {
+          "pivot": [
+            2.0,
+            12.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                0,
+                16
+              ],
+              "grow": 0.1,
+              "mirror": true
+            }
+          ]
+        },
+        "hat_rim": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "parent": "hat",
+          "cubes": []
         }
       }
     }

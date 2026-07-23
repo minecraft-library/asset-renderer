@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -39,6 +40,7 @@ public final class EntityRegistryWalk {
         VariantIndex variants = VariantIndex.build(session);
         BlockRegistryIndex blocks = BlockRegistryIndex.build(session);
         EquipmentAssetIndex equipmentAssets = EquipmentAssetIndex.build(session);
+        ArmorMeshIndex armorMeshes = ArmorMeshIndex.build(session);
         EntityPipelineTraits pipelineTraits = new EntityPipelineTraits(session.cache());
         Set<String> nonBaseSuffixes = EntityTextureResolver.deriveNonBaseSuffixes(session);
 
@@ -46,7 +48,7 @@ public final class EntityRegistryWalk {
         for (EntitySubject subject : subjects)
             models.put(subject.entityId(),
                 new EntityRendererResolver(session, subject, layerDefinitions, variants, nonBaseSuffixes,
-                    blocks, pipelineTraits, equipmentAssets, manifest).resolve());
+                    blocks, pipelineTraits, equipmentAssets, armorMeshes, manifest).resolve());
         // The group_of post-pass needs all rows.
         EntityGroupLinker.link(root, variants, session.diagnostics().child("groupOf"));
     }

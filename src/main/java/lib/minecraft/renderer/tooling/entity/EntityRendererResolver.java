@@ -6,6 +6,7 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -53,13 +54,14 @@ final class EntityRendererResolver {
         @NotNull BlockRegistryIndex blocks,
         @NotNull EntityPipelineTraits pipelineTraits,
         @NotNull EquipmentAssetIndex equipmentAssets,
+        @NotNull ArmorMeshIndex armorMeshes,
         @NotNull GeometryManifest manifest
     ) {
         this.subject = subject;
         this.diagnostics = session.diagnostics().child(subject.entityId());
         // ONE renderer-ctor-chain scan produces the ordered addLayer roster every
         // layer-consuming node reads (overlays, block_overlays, layers - the latter also
-        // carries the armor classification); a row's layer_index is its position here.
+        // carries the worn-armor row); a row's layer_index is its position here.
         // Same-class duplicates are kept - deduping by class would force the warden's
         // five-pass re-walk.
         this.layerRoster = scanLayerRoster(session);
@@ -76,7 +78,7 @@ final class EntityRendererResolver {
         this.blockOverlays = new EntityBlockOverlayResolver(session.cache(), subject, this.layerRoster, blocks,
             this.diagnostics.child("blockOverlays"));
         this.layers = new EntityLayersResolver(session, subject, this.layerRoster, layerDefinitions,
-            equipmentAssets, manifest, this.diagnostics.child("layers"));
+            equipmentAssets, armorMeshes, manifest, this.diagnostics.child("layers"));
     }
 
     /**
@@ -91,8 +93,8 @@ final class EntityRendererResolver {
         // top level: it moves the model baseline (base geometry + adult texture) into
         // the mandatory age axis' options.adult (EntityAgeAxisResolver).
         String baseGeometry = this.geometryRef.resolve();                               // -> manifest key
-        // armor_type is not a top-level member: EntityLayersResolver emits the humanoid
-        // classification as a `layers` row derived off the same addLayer roster.
+        // Worn armor is not a top-level member: EntityLayersResolver emits it as a `layers`
+        // row derived off the same addLayer roster, carrying its own geometry reference.
         JsonTree node = JsonTree.object()
             .put("renderer", this.subject.rendererClass());                             // provenance scalar (resolver-owned)
         String texturePath = this.axes.resolveVariant() == null ? this.texture.resolve() : null;

@@ -197,8 +197,7 @@ public final class EntityIndexBuilder {
         Optional<String> collarTexture = collarTextureOf(family);
         List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId, diagnostics);
         boolean markings = markingsOf(family);
-        boolean humanoidArmor = humanoidArmorOf(family);
-        Optional<String> armorMesh = armorMeshOf(family);
+        Optional<Entity.HumanoidArmor> humanoidArmor = humanoidArmorOf(family, geometries, familyId, diagnostics);
         String babyCoord = babyGeometryOf(family);
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyCoord));
         List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, babyCoord, babyModel, familyId, diagnostics);
@@ -210,7 +209,7 @@ public final class EntityIndexBuilder {
             Map<String, RawVariantOption> options = variant.options();
             VariantContext ctx = new VariantContext(baseCoord, geometries, hiddenBones, boneToggleSpecs, familyOverlays,
                 blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyOverlays, collarTexture, equipment, markings, humanoidArmor,
-                armorMesh, stateDefaultOf(family));
+                stateDefaultOf(family));
             if (idEncoded) {
                 // id-encoded: each coat is a first-class render pseudo-id minecraft:<id>_<opt>.
                 for (Map.Entry<String, RawVariantOption> option : options.entrySet()) {
@@ -255,7 +254,7 @@ public final class EntityIndexBuilder {
             .axes(new Entity.Axes(stateTextures, babyModel, babyOverlays,
                 buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries),
                 buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
-            .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor, armorMesh))
+            .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
             .build());
     }
 
@@ -278,8 +277,7 @@ public final class EntityIndexBuilder {
         @NotNull Optional<String> collarTexture,
         @NotNull List<EquipmentOverlay> equipment,
         boolean markings,
-        boolean humanoidArmor,
-        @NotNull Optional<String> armorMesh,
+        @NotNull Optional<Entity.HumanoidArmor> humanoidArmor,
         @NotNull Optional<String> stateDefault
     ) {}
 
@@ -309,7 +307,7 @@ public final class EntityIndexBuilder {
             .boneToggles(toggles)
             .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyOverlays(), Optional.empty(),
                 Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))
-            .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor(), ctx.armorMesh()))
+            .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor()))
             .build();
     }
 
@@ -596,23 +594,38 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * Returns whether the family carries a {@code humanoid} armor classification row. Absence IS
-     * {@code none} (the classification is derived off the roster, not a required member).
+     * Returns the worn-armor shell the family's armor row is dressed in - the row's mesh joined against
+     * the geometry table, plus the two layer deformations - or empty when the family carries no armor
+     * row. Absence IS "wears none": being armored is carrying a resolved shell, so a row whose mesh or
+     * deformations are missing warns and drops the wearer rather than dressing it in a guess.
+     *
+     * <p>The mesh arrives RAW - none of the entity mesh surgery (the hidden-bone strip, the
+     * {@code retainExactParts} subset, the auto-emitted depth-clearance bump) touches it. Worn armor is
+     * a shared set vanilla hands the wearer, not a derivative of the wearer's own mesh, so anything done
+     * to the body must not follow it onto the shell.
      */
-    private static boolean humanoidArmorOf(@NotNull RawModel family) {
-        for (RawLayer layer : nullToEmpty(family.layers()))
-            if ("humanoid".equals(layer.armorType())) return true;
-        return false;
-    }
-
-    /**
-     * Returns the armor mesh the family's armor row names, or empty when it names none and the shared
-     * humanoid mesh applies. Most humanoids share one mesh, so absence is the common case rather than
-     * a gap in the data.
-     */
-    private static @NotNull Optional<String> armorMeshOf(@NotNull RawModel family) {
-        for (RawLayer layer : nullToEmpty(family.layers()))
-            if ("humanoid".equals(layer.armorType())) return Optional.ofNullable(layer.armorMesh());
+    private static @NotNull Optional<Entity.HumanoidArmor> humanoidArmorOf(
+        @NotNull RawModel family,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull String entityId,
+        @NotNull Diagnostics diagnostics
+    ) {
+        for (RawLayer layer : nullToEmpty(family.layers())) {
+            if (!"armor".equals(layer.id())) continue;
+            RawLayerOverlay overlay = layer.overlay();
+            RawArmorGrow grow = overlay == null ? null : overlay.grow();
+            if (overlay == null || overlay.geometry() == null
+                || grow == null || grow.inner() == null || grow.outer() == null) {
+                diagnostics.warn("entity '%s' armor layer carries no mesh reference or deformations - wearer dropped", entityId);
+                return Optional.empty();
+            }
+            EntityModelData mesh = geometries.get(overlay.geometry());
+            if (mesh == null) {
+                diagnostics.warn("entity '%s' armor layer references geometry '%s' absent from entity_geometry", entityId, overlay.geometry());
+                return Optional.empty();
+            }
+            return Optional.of(new Entity.HumanoidArmor(mesh, grow.inner(), grow.outer()));
+        }
         return Optional.empty();
     }
 
