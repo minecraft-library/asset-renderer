@@ -73,12 +73,123 @@ class EntityBabyOverlayTest {
         return geometries;
     }
 
+    // ---------------------------------------------------------------------------------------
+    // Fixture rows.
+    //
+    // Every raw record is constructed in exactly ONE place below, one argument per line with the
+    // JSON member it fills named beside it, and every call site is argument-free. The raw records
+    // are positional and overwhelmingly nullable, so a fixture that spells its nulls inline
+    // absorbs a reshaped record silently whenever the arity still happens to line up - which is
+    // how these rows rode through a `layers[]` reshape untouched and unnoticed. Labelling each
+    // slot makes a reshape land visibly, in one place per record.
+    // ---------------------------------------------------------------------------------------
+
     /** The {@code age} axis both fixture families share - an adult baseline plus a distinct baby mesh. */
     private static RawAxes ageAxes(String texture, String babyTexture) {
         Map<String, RawAgeOption> options = new LinkedHashMap<>();
-        options.put("adult", new RawAgeOption(ADULT_COORD, texture));
-        options.put("baby", new RawAgeOption(BABY_COORD, babyTexture));
-        return new RawAxes(null, new RawAgeAxis(options), null, null, null);
+        options.put("adult", new RawAgeOption(ADULT_COORD, texture));    // geometry, texture
+        options.put("baby", new RawAgeOption(BABY_COORD, babyTexture));  // geometry, texture
+        return new RawAxes(
+            null,                     // variant
+            new RawAgeAxis(options),  // age
+            null,                     // shape
+            null,                     // size
+            null);                    // state
+    }
+
+    /** The {@code type} pass - a category overlay carrying a baby delta that clears the head subtree. */
+    private static RawOverlay typePass() {
+        return new RawOverlay(
+            ADULT_COORD,                                           // geometry
+            "minecraft:textures/entity/villager/type/plains.png",  // texture
+            null,                                                  // retain_bones
+            "head",                                                // no_hat_root
+            null,                                                  // tint
+            null,                                                  // tint_by
+            "type",                                                // texture_by
+            null,                                                  // grow
+            null,                                                  // pipeline
+            false,                                                 // skip_bounds
+            null,                                                  // when
+            typeBabyDelta());                                      // baby
+    }
+
+    /** The {@code type} pass's age delta - the baby texture plus the subtree its baby form clears. */
+    private static RawOverlayBaby typeBabyDelta() {
+        return new RawOverlayBaby(
+            "minecraft:textures/entity/villager/baby/plains.png",  // texture
+            "head");                                               // no_hat_root
+    }
+
+    /** The {@code profession} pass - no age delta, so a baby drops it structurally. */
+    private static RawOverlay professionPass() {
+        return new RawOverlay(
+            ADULT_COORD,   // geometry
+            null,          // texture
+            null,          // retain_bones
+            null,          // no_hat_root
+            null,          // tint
+            null,          // tint_by
+            "profession",  // texture_by
+            null,          // grow
+            null,          // pipeline
+            true,          // skip_bounds
+            null,          // when
+            null);         // baby
+    }
+
+    /** The control family's wool pass - tinted by an axis rather than textured by one, and no age delta. */
+    private static RawOverlay woolPass() {
+        return new RawOverlay(
+            ADULT_COORD,                                       // geometry
+            "minecraft:textures/entity/sheep/sheep_wool.png",  // texture
+            null,                                              // retain_bones
+            null,                                              // no_hat_root
+            null,                                              // tint
+            "wool_color",                                      // tint_by
+            null,                                              // texture_by
+            null,                                              // grow
+            null,                                              // pipeline
+            false,                                             // skip_bounds
+            null,                                              // when
+            null);                                             // baby
+    }
+
+    /** The dyed-collar layer - one of the decorations a baby drops wholesale. */
+    private static RawLayer collarLayer() {
+        return new RawLayer(
+            "collar",  // id
+            null,      // when
+            new RawLayerOverlay(
+                "minecraft:textures/entity/villager/villager_collar.png",  // texture
+                null,                                                      // geometry
+                null,                                                      // grow
+                null,                                                      // layer_type
+                null,                                                      // material_assets
+                null));                                                    // default_material
+    }
+
+    /** The saddle equipment layer - the other decoration a baby drops wholesale. */
+    private static RawLayer equipmentLayer() {
+        return new RawLayer(
+            null,                        // id
+            new RawLayerWhen("saddle"),  // when
+            new RawLayerOverlay(
+                null,                                  // texture
+                ADULT_COORD,                           // geometry
+                null,                                  // grow
+                "pig_saddle",                          // layer_type
+                Map.of("saddle", "minecraft:saddle"),  // material_assets
+                "saddle"));                            // default_material
+    }
+
+    /** The block overlay a baby drops wholesale. */
+    private static RawBlockOverlay mushroomOverlay() {
+        return new RawBlockOverlay(
+            "minecraft:red_mushroom_block",  // block
+            null,                            // attached_bone
+            List.of(),                       // transforms
+            false);                          // selectable
     }
 
     /**
@@ -87,29 +198,28 @@ class EntityBabyOverlayTest {
      * equipment layer).
      */
     private static RawModel villagerFamily() {
-        RawOverlay type = new RawOverlay(ADULT_COORD, "minecraft:textures/entity/villager/type/plains.png",
-            null, "head", null, null, "type", null, null, false, null,
-            new RawOverlayBaby("minecraft:textures/entity/villager/baby/plains.png", "head"));
-        RawOverlay profession = new RawOverlay(ADULT_COORD, null,
-            null, null, null, null, "profession", null, null, true, null, null);
-        RawLayer collar = new RawLayer("collar", null,
-            new RawLayerOverlay("minecraft:textures/entity/villager/villager_collar.png", null, null, null, null, null));
-        RawLayer equipment = new RawLayer(null, new RawLayerWhen("saddle"),
-            new RawLayerOverlay(null, ADULT_COORD, null, "pig_saddle", Map.of("saddle", "minecraft:saddle"), "saddle"));
-        return new RawModel(null, null, List.of(type, profession),
-            List.of(new RawBlockOverlay("minecraft:red_mushroom_block", null, List.of(), false)),
-            List.of(collar, equipment),
-            ageAxes("minecraft:textures/entity/villager/villager.png", "minecraft:textures/entity/villager/villager_baby.png"),
-            null);
+        return new RawModel(
+            null,                                      // render
+            null,                                      // bones
+            List.of(typePass(), professionPass()),     // overlays
+            List.of(mushroomOverlay()),                // block_overlays
+            List.of(collarLayer(), equipmentLayer()),  // layers
+            ageAxes("minecraft:textures/entity/villager/villager.png",
+                "minecraft:textures/entity/villager/villager_baby.png"),  // axes
+            null);                                     // group_of
     }
 
     /** The control family: a baby mesh and an overlay, but no age delta on it. */
     private static RawModel controlFamily() {
-        RawOverlay wool = new RawOverlay(ADULT_COORD, "minecraft:textures/entity/sheep/sheep_wool.png",
-            null, null, null, "wool_color", null, null, null, false, null, null);
-        return new RawModel(null, null, List.of(wool), null, null,
-            ageAxes("minecraft:textures/entity/sheep/sheep.png", "minecraft:textures/entity/sheep/sheep_baby.png"),
-            null);
+        return new RawModel(
+            null,                 // render
+            null,                 // bones
+            List.of(woolPass()),  // overlays
+            null,                 // block_overlays
+            null,                 // layers
+            ageAxes("minecraft:textures/entity/sheep/sheep.png",
+                "minecraft:textures/entity/sheep/sheep_baby.png"),  // axes
+            null);                // group_of
     }
 
     private static ConcurrentMap<String, Entity> assemble() {
