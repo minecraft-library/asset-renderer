@@ -540,6 +540,31 @@ final class EntityOverlayResolver {
         return null;
     }
 
+    /**
+     * The first ctor-baked {@code ModelLayers.*_BABY} field - the layer's baby mesh, whose own
+     * {@code CubeDeformation} the baby decor delta carries. The complement of {@link #findCtorBakedField}.
+     *
+     * @param cn the layer class
+     * @return the baby {@code ModelLayers} field name, or {@code null} when the layer bakes no baby mesh
+     */
+    private static @Nullable String findCtorBakedBabyField(@NotNull ClassNode cn) {
+        for (MethodNode method : cn.methods) {
+            if (!AsmKit.INIT.equals(method.name)) continue;
+            String pending = null;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
+                    pending = ((FieldInsnNode) in).name;
+                    continue;
+                }
+                if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER)
+                    && pending != null
+                    && pending.contains("BABY"))
+                    return pending;
+            }
+        }
+        return null;
+    }
+
     /** Whether any hierarchy INSTANCE method invokes a {@code RenderTypes} factory or the cutout helper. */
     private boolean compositeGateAccepts(@NotNull ClassNode cn) {
         boolean[] accepted = {false};
@@ -1649,6 +1674,7 @@ final class EntityOverlayResolver {
         if (submit == null) return null;
         String keyRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RESOURCE_KEY);
         String assetConstant = null;
+        String babyAssetConstant = null;
         String gateField = null;
         for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
             if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi && "Z".equals(fi.desc)
@@ -1657,10 +1683,11 @@ final class EntityOverlayResolver {
                 gateField = fi.name;
             if (in.getOpcode() == Opcodes.GETSTATIC && in instanceof FieldInsnNode fi
                 && VanillaSourceClasses.Types.EQUIPMENT_ASSETS.equals(fi.owner)
-                && keyRef.equals(fi.desc)
-                && !fi.name.contains("BABY")   // the adult arm is the zero state
-                && assetConstant == null)
-                assetConstant = fi.name;
+                && keyRef.equals(fi.desc)) {
+                // The adult arm is the zero state; the isBaby arm's *_BABY asset drives the baby age delta.
+                if (fi.name.contains("BABY")) { if (babyAssetConstant == null) babyAssetConstant = fi.name; }
+                else if (assetConstant == null) assetConstant = fi.name;
+            }
         }
         if (assetConstant == null) return null;
         if (gateField != null && !entityPredicateTrue(gateField)) {
@@ -1684,8 +1711,46 @@ final class EntityOverlayResolver {
             + VanillaSourceClasses.Paths.EQUIPMENT_DIR + subdir + "/" + assetId + ".png"));
         putGrow(node, mesh.grow());
         if (EntityOverlayPolicies.DECOR_SKIP_BOUNDS.booleanValue()) node.put("skip_bounds", true);
+        JsonTree baby = babyDecorNode(cn, subdir, babyAssetConstant);
+        if (baby != null) node.put("baby", baby);
         this.diagnostics.info("default decor: %s/%s (gate '%s' constant-true)", subdir, assetId, gateField);
         return node;
+    }
+
+    /**
+     * The {@code baby} age delta for a default-decor row: the {@code isBaby}-arm {@code *_BABY} equipment
+     * asset's texture plus the baby decoration mesh's own inflate. Vanilla dresses a baby trader llama in
+     * a distinct baby caparison ({@code BabyLlamaModel#createBodyLayer} at {@code CubeDeformation(0.2)},
+     * asset {@code trader_llama_baby}) rather than the adult one ({@code LlamaModel#createBodyLayer} at
+     * {@code 0.5}, asset {@code trader_llama}); the baby mesh itself is the row's {@code age.baby}
+     * coordinate, so only the texture and grow differ. Null when the subject has no baby arm.
+     *
+     * @param cn the decor layer class
+     * @param subdir the equipment-texture sub-directory shared with the adult row
+     * @param babyAssetConstant the {@code *_BABY} {@code EquipmentAssets} constant, or {@code null} when absent
+     * @return the baby delta node, or {@code null} when there is no baby arm
+     */
+    private @Nullable JsonTree babyDecorNode(
+        @NotNull ClassNode cn,
+        @NotNull String subdir,
+        @Nullable String babyAssetConstant
+    ) {
+        if (babyAssetConstant == null) return null;
+        String babyAssetId = clinitStringBinding(VanillaSourceClasses.Types.EQUIPMENT_ASSETS, babyAssetConstant);
+        if (babyAssetId == null) {
+            this.diagnostics.warn("baby decor asset '%s' unresolved - no baby decoration", babyAssetConstant);
+            return null;
+        }
+        JsonTree baby = JsonTree.object();
+        baby.put("texture", namespaced(VanillaSourceClasses.Paths.TEXTURES_ENTITY
+            + VanillaSourceClasses.Paths.EQUIPMENT_DIR + subdir + "/" + babyAssetId + ".png"));
+        String babyField = findCtorBakedBabyField(cn);
+        LayerDefinitionIndex.Entry babyEntry = babyField == null ? null : this.layerDefinitions.get(babyField);
+        if (babyEntry == null)
+            this.diagnostics.warn("baby decor mesh for '%s' unresolved - inheriting the adult grow", babyAssetId);
+        else
+            putGrow(baby, nonZeroGrow(babyEntry.grow()));
+        return baby;
     }
 
     /** The first {@code EquipmentClientInfo$LayerType} constant any method reads. */

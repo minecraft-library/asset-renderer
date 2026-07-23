@@ -182,10 +182,10 @@ class EntityModelLoaderTest {
     @DisplayName("a baby overlay list is carried only where an overlay declares a baby form")
     void babyOverlayListOnlyWhereDeclared() {
         // The baby list never falls back to the adult one: an entity with a baby mesh AND overlays but no
-        // declared baby form draws nothing over its baby, bit-for-bit as before the list existed. These are
-        // the only other baby-bearing families that declare any overlay at all.
+        // declared baby form draws nothing over its baby, bit-for-bit as before the list existed. Sheep and
+        // drowned are the baby-bearing families that declare an overlay but no baby form of it.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
-        for (String entityId : List.of("minecraft:sheep", "minecraft:drowned", "minecraft:trader_llama")) {
+        for (String entityId : List.of("minecraft:sheep", "minecraft:drowned")) {
             assertThat(entityId + " has a baby mesh", defs.get(entityId).axes().babyModel().isPresent(), is(true));
             assertThat(entityId + " declares adult overlays", defs.get(entityId).overlays().isEmpty(), is(false));
             assertThat(entityId + " declares no baby form, so its baby list is empty",
@@ -193,6 +193,28 @@ class EntityModelLoaderTest {
         }
         assertThat("a family with no baby mesh at all carries no baby list",
             defs.get("minecraft:wandering_trader").axes().babyOverlays(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("the trader llama ships a baby caparison, bound to the baby mesh and the baby decor texture")
+    void traderLlamaShipsBabyCaparison() {
+        // End-to-end canary over the shipped resource: vanilla dresses a baby trader llama in a distinct
+        // baby caparison, and the parity harness renders no babies, so a lost `baby` decor node would
+        // silently strip it with the suite still green. The adult decor stays the adult caparison.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        Entity llama = defs.get("minecraft:trader_llama");
+        assertThat("the trader llama has a baby mesh", llama.axes().babyModel().isPresent(), is(true));
+        assertThat("the adult decor is the adult caparison",
+            llama.overlays().getFirst().textureRef(), is(Optional.of("equipment/llama_body/trader_llama")));
+
+        List<OverlayLayer> babyPasses = llama.axes().babyOverlays();
+        assertThat("the trader llama ships exactly one baby decor pass", babyPasses.size(), is(1));
+        OverlayLayer caparison = babyPasses.getFirst();
+        assertThat("the baby pass binds the baby caparison texture",
+            caparison.textureRef(), is(Optional.of("equipment/llama_body/trader_llama_baby")));
+        assertThat("the baby pass keeps the decor bounds skip", caparison.skipBounds(), is(true));
+        assertThat("the baby caparison materialises on the baby mesh, not the adult one",
+            caparison.model().getBones().keySet(), is(llama.axes().babyModel().get().getBones().keySet()));
     }
 
     @Test

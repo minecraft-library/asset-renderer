@@ -476,7 +476,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * Model overlays (spider / enderman eyes, saddles, sheep wool) sharing the entity frame. For a baby
          * the resolved definition carries the baby overlay list instead (adult overlay geometry would render
          * adult-sized around the baby body), so this contributes the baby passes alone - the villager biome
-         * robe - and nothing for an entity whose overlays declare no baby form, still without an age gate.
+         * robe, the trader llama's baby caparison - and nothing for an entity whose overlays declare no baby
+         * form, still without an age gate.
          */
         MODEL_OVERLAYS(EntitySlot.MODEL_OVERLAY) {
             @Override

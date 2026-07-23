@@ -305,9 +305,9 @@ public record Entity(
      *     equals the definition's {@code textureRef}
      * @param babyModel the distinct baked baby mesh, used in place of the base model when the
      *     {@code age} axis selects {@code baby}; empty for entities with no dedicated baby mesh
-     * @param babyOverlays the overlay passes materialised on the baby mesh (the villager biome robe), used
-     *     in place of {@link Entity#overlays()} when the {@code age} axis selects {@code baby}; empty
-     *     unless an overlay declares a baby form, which today is the two villagers alone
+     * @param babyOverlays the overlay passes materialised on the baby mesh (the villager biome robe, the
+     *     trader llama's baby caparison), used in place of {@link Entity#overlays()} when the {@code age}
+     *     axis selects {@code baby}; empty unless an overlay declares a baby form
      * @param largeShape the {@code shape} axis's large alternative (tropical fish): the large body mesh +
      *     {@code tropical_b} texture + pattern overlays cloned onto it; empty otherwise
      * @param sizeModels the {@code size} axis's non-default alternate meshes keyed by {@link Size}

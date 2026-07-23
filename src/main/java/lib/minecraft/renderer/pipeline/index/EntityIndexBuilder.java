@@ -430,7 +430,7 @@ public final class EntityIndexBuilder {
                 null,
                 baby.texture() == null ? entry.texture() : baby.texture(),
                 entry.retainBones(), baby.noHatRoot(), entry.tint(), entry.tintBy(), entry.textureBy(),
-                entry.grow(), entry.pipeline(), entry.skipBounds(), entry.when(), null));
+                baby.grow() == null ? entry.grow() : baby.grow(), entry.pipeline(), entry.skipBounds(), entry.when(), null));
         }
         if (forms.isEmpty()) return List.of();
         // Rows declared a baby form but the mesh they would materialise against is missing - the same

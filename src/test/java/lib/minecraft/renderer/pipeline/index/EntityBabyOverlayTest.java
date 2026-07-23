@@ -118,7 +118,8 @@ class EntityBabyOverlayTest {
     private static RawOverlayBaby typeBabyDelta() {
         return new RawOverlayBaby(
             "minecraft:textures/entity/villager/baby/plains.png",  // texture
-            "head");                                               // no_hat_root
+            "head",                                                // no_hat_root
+            null);                                                 // grow
     }
 
     /** The {@code profession} pass - no age delta, so a baby drops it structurally. */
@@ -263,6 +264,54 @@ class EntityBabyOverlayTest {
             assertThat("the baby alternate empties '" + name + "'", stripped.getBones().get(name).getCubes().isEmpty(), is(true));
         assertThat("the baby alternate keeps the body", stripped.getBones().get("body").getCubes().isEmpty(), is(false));
         assertThat("the baby alternate is cut from the baby mesh", stripped.getBones().keySet(), hasItems("bb_main"));
+    }
+
+    @Test
+    @DisplayName("a baby delta's own grow inflates the baby mesh, overriding the row's adult grow")
+    void babyDeltaGrowOverridesTheRowGrow() {
+        // The trader llama dresses its baby in a caparison inflated by 0.2 where the adult's inflates by
+        // 0.5, so the baby delta must carry that grow rather than inherit the row's. A null baby grow
+        // still inherits (the villager robe), which the other cases here already cover.
+        RawOverlay decor = new RawOverlay(
+            ADULT_COORD,                                                        // geometry
+            "minecraft:textures/entity/equipment/llama_body/trader_llama.png",  // texture
+            null,                                                               // retain_bones
+            null,                                                               // no_hat_root
+            null,                                                               // tint
+            null,                                                               // tint_by
+            null,                                                               // texture_by
+            new Vector3f(0.5f, 0.5f, 0.5f),                                     // grow (adult caparison)
+            null,                                                               // pipeline
+            true,                                                               // skip_bounds
+            null,                                                               // when
+            new RawOverlayBaby(
+                "minecraft:textures/entity/equipment/llama_body/trader_llama_baby.png",  // texture
+                null,                                                                    // no_hat_root
+                new Vector3f(0.2f, 0.2f, 0.2f)));                                        // grow (baby caparison)
+        Map<String, RawModel> models = new LinkedHashMap<>();
+        models.put(ENTITY, new RawModel(
+            null,                                        // render
+            null,                                        // bones
+            List.of(decor),                              // overlays
+            null,                                        // block_overlays
+            null,                                        // layers
+            ageAxes("minecraft:textures/entity/llama/llama_creamy.png",
+                "minecraft:textures/entity/llama/llama_creamy_baby.png"),  // axes
+            null));                                      // group_of
+        Entity llama = EntityIndexBuilder.assemble(geometries(), new RawEntityModelsFile(models), diagnostics()).get(ENTITY);
+
+        assertThat("the adult decor inflates by its row grow",
+            firstCubeGrow(llama.overlays().getFirst().model()), is(0.5f));
+        assertThat("the baby decor inflates by its own grow, not the row's 0.5",
+            firstCubeGrow(llama.axes().babyOverlays().getFirst().model()), is(0.2f));
+    }
+
+    /** The uniform grow baked into the first cube of an overlay's materialised mesh. */
+    private static float firstCubeGrow(EntityModelData model) {
+        for (EntityModelData.Bone bone : model.getBones().values())
+            if (!bone.getCubes().isEmpty())
+                return bone.getCubes().getFirst().getGrow().x();
+        throw new AssertionError("overlay mesh has no cube to read a grow from");
     }
 
     @Test
