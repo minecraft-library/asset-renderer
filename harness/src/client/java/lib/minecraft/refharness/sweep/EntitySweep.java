@@ -189,7 +189,16 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
             }
         }
         int coats = subjects.size();
-        for (EntityType<?> type : selectTypes(ctx)) babyOf(ctx, type).ifPresent(subjects::add);
+        for (EntityType<?> type : selectTypes(ctx)) {
+            Optional<Subject> baby = babyOf(ctx, type);
+            if (baby.isEmpty()) continue;
+            subjects.add(baby.get());
+            for (List<Appearance.Trait> selection : EntityRoster.babySelections(ctx, type)) {
+                Subject subject = baby.get();
+                for (Appearance.Trait trait : selection) subject = subject.selecting(trait);
+                subjects.add(subject);
+            }
+        }
         int babies = subjects.size() - coats;
         for (EntityType<?> type : selectTypes(ctx))
             for (List<Appearance.Trait> selection : EntityRoster.selections(ctx, type)) {

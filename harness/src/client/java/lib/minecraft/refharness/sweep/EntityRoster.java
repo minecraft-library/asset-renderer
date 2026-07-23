@@ -177,7 +177,56 @@ public final class EntityRoster {
                 selections.add(List.of(
                     new Appearance.Trait(TraitAxis.COLLAR_COLOR.token(), dye.getSerializedName()),
                     new Appearance.Trait(TraitAxis.STATE.token(), TraitAxis.TAME)));
+        selections.addAll(pairs(type));
         return selections;
+    }
+
+    /**
+     * The selections that only mean something together, which is why they are named as pairs rather
+     * than left to a cross product.
+     *
+     * <p>Two arms, and each is a rule one axis cannot reach on its own. A villager's hat is decided by
+     * its biome hat <em>and</em> its profession hat together, so the branch that hides the head needs
+     * one of each. Its trade badge is drawn only for a profession that earns one, so the badge axis
+     * says nothing until a job is selected alongside it.
+     */
+    private static List<List<Appearance.Trait>> pairs(EntityType<?> type) {
+        List<List<Appearance.Trait>> pairs = new ArrayList<>();
+        if (type == EntityType.VILLAGER)
+            for (String profession : List.of("butcher", "farmer"))
+                pairs.add(List.of(
+                    new Appearance.Trait(TraitAxis.VILLAGER_TYPE.token(), "desert"),
+                    new Appearance.Trait(TraitAxis.VILLAGER_PROFESSION.token(), profession)));
+        if (type == EntityType.VILLAGER || type == EntityType.ZOMBIE_VILLAGER)
+            for (String badge : TraitAxis.BADGES)
+                pairs.add(List.of(
+                    new Appearance.Trait(TraitAxis.VILLAGER_PROFESSION.token(), "farmer"),
+                    new Appearance.Trait(TraitAxis.VILLAGER_LEVEL.token(), badge)));
+        return pairs;
+    }
+
+    /**
+     * The selections rendered on a type's baby rather than on its adult.
+     *
+     * <p>Kept apart from the adult selections because age is not a selection like the others - it
+     * chooses the mesh, and everything else is chosen on top of whichever mesh that leaves. These four
+     * are the only references that reach the baby villager's own arms: the robe its type pass draws,
+     * the head its profession pass clears, and the hat lookup that reads an adult's sidecar for a
+     * subject that has none - the one arm neither a single axis nor an adult pair can discriminate.
+     *
+     * @param ctx the sweep context, for the registries some option lists come from
+     * @param type the entity type
+     * @return its baby selections, empty for a type whose baby no axis reaches
+     */
+    public static List<List<Appearance.Trait>> babySelections(SweepContext ctx, EntityType<?> type) {
+        if (type != EntityType.VILLAGER) return List.of();
+        Appearance.Trait desert = new Appearance.Trait(TraitAxis.VILLAGER_TYPE.token(), "desert");
+        Appearance.Trait butcher = new Appearance.Trait(TraitAxis.VILLAGER_PROFESSION.token(), "butcher");
+        return List.of(
+            List.of(desert),
+            List.of(new Appearance.Trait(TraitAxis.VILLAGER_PROFESSION.token(), "farmer")),
+            List.of(butcher),
+            List.of(desert, butcher));
     }
 
     /**

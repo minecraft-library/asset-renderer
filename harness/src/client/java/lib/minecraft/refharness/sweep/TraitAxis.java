@@ -150,6 +150,22 @@ enum TraitAxis {
     },
 
     /**
+     * A villager's trade level, which decides which badge is drawn over its work clothes.
+     *
+     * <p>Vanilla numbers the levels from one and names the badges; an unnamed level deserialises to
+     * one and a level below it clamps back up, so the lowest badge is what every job villager wears
+     * whether or not anything selects it.
+     */
+    VILLAGER_LEVEL("villager_level") {
+        @Override
+        void persist(String value, CompoundTag payload) {
+            int level = BADGES.indexOf(value) + 1;
+            if (level == 0) throw new IllegalArgumentException("No vanilla trade badge named '" + value + "'");
+            villagerData(payload).putInt("level", level);
+        }
+    },
+
+    /**
      * Whether the subject has been sheared, which two models answer to and answer differently: a sheep
      * loses a whole overlay layer and the bogged loses the mushrooms growing out of its skull. Only
      * the sheep's half is an entity setter - the mushrooms are bones, and bones are pinned.
@@ -258,6 +274,9 @@ enum TraitAxis {
 
     /** The sizes a salmon is persisted under, which are its only mechanism - its setter is private. */
     private static final List<String> SALMON_SIZES = List.of("small", "medium", "large");
+
+    /** The trade badges, in the order vanilla numbers them from one. */
+    static final List<String> BADGES = List.of("stone", "iron", "gold", "emerald", "diamond");
 
     /** Resolves a dye by the name vanilla serialises it under. */
     private static DyeColor dye(String value) {
