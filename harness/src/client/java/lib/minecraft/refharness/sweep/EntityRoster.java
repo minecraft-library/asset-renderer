@@ -1,6 +1,7 @@
 package lib.minecraft.refharness.sweep;
 
 import lib.minecraft.refharness.api.Appearance;
+import lib.minecraft.refharness.api.SweepContext;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -102,6 +103,40 @@ public final class EntityRoster {
             }
         }
         return coats;
+    }
+
+    /**
+     * The one-axis appearance selections a type is swept at, beyond its coats and its baby.
+     *
+     * <p>One entry is one reference. An axis names only the models that answer to it: applying it to
+     * a model that ignores it renders the default under a name claiming otherwise, which inflates the
+     * coverage number with references that cannot fail.
+     *
+     * @param ctx the sweep context, for the registries some option lists come from
+     * @param type the entity type
+     * @return its selections, empty for a type no axis reaches
+     */
+    public static List<Appearance.Trait> selections(SweepContext ctx, EntityType<?> type) {
+        List<Appearance.Trait> selections = new ArrayList<>();
+        // Wolf is the only model whose data declares a behavioural state, and the wild state is its
+        // default, so only the other two are references.
+        if (type == EntityType.WOLF) {
+            selections.add(new Appearance.Trait(TraitAxis.STATE.token(), TraitAxis.ANGRY));
+            selections.add(new Appearance.Trait(TraitAxis.STATE.token(), TraitAxis.TAME));
+        }
+        // The stage axes each reach one model, and each carries a default the reference set already
+        // covers - an uncracked golem, an unweathered one, an unmarked horse.
+        if (type == EntityType.IRON_GOLEM) select(selections, TraitAxis.CRACKINESS, "low", "medium", "high");
+        if (type == EntityType.COPPER_GOLEM)
+            select(selections, TraitAxis.WEATHERING, "exposed", "weathered", "oxidized");
+        if (type == EntityType.HORSE)
+            select(selections, TraitAxis.MARKINGS, "white", "white_field", "white_dots", "black_dots");
+        return selections;
+    }
+
+    /** Appends one selection per option of a single axis. */
+    private static void select(List<Appearance.Trait> selections, TraitAxis axis, String... options) {
+        for (String option : options) selections.add(new Appearance.Trait(axis.token(), option));
     }
 
     /**

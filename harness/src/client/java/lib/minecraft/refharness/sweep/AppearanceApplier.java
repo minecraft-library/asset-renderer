@@ -41,6 +41,9 @@ final class AppearanceApplier {
      */
     static Entity build(SweepContext ctx, EntityType<?> type, Appearance appearance) {
         CompoundTag payload = appearance.coat().map(Appearance.Coat::toPayload).orElseGet(CompoundTag::new);
+        for (Appearance.Trait trait : appearance.traits())
+            TraitAxis.of(trait).persist(trait.value(), payload);
+
         Entity entity = payload.isEmpty()
             ? type.create(ctx.level(), EntitySpawnReason.LOAD)
             : EntityType.loadEntityRecursive(type, payload, ctx.level(), EntitySpawnReason.LOAD,
@@ -50,6 +53,8 @@ final class AppearanceApplier {
         EntitySubjects.zeroRotations(entity);
         if (appearance.baby() && !ageDown(entity))
             LOG.warn("AppearanceApplier: {} did not take a baby form", EntityType.getKey(type));
+        for (Appearance.Trait trait : appearance.traits())
+            TraitAxis.of(trait).apply(ctx, trait.value(), entity);
         return entity;
     }
 

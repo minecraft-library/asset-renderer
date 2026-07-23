@@ -127,11 +127,22 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
      * which is a silently skipped reference rather than a loud failure.
      */
     private static Optional<Subject> babyOf(SweepContext ctx, EntityType<?> type) {
-        Subject baby = new Subject(type, Appearance.DEFAULT.asBaby(),
-            Optional.ofNullable(EntityRoster.DEFAULT_COAT.get(type)));
+        Subject baby = new Subject(type, defaultOf(type).appearance().asBaby(), defaultOf(type).qualifier());
         Entity probe = AppearanceApplier.build(ctx, type, Appearance.DEFAULT);
         if (probe == null || !AppearanceApplier.supportsBaby(probe)) return Optional.empty();
         return Optional.of(baby);
+    }
+
+    /**
+     * Returns the subject an axis other than the coat axis is rendered on top of.
+     *
+     * <p>One selection per model rather than one per coat: a coat is a different texture on the same
+     * mesh, so a second coat shows a reader nothing about the selected axis that the first did not.
+     * The subject is named for its default coat because a variant family always names its coat, and
+     * it carries no coat payload because plain construction already yields that coat.
+     */
+    private static Subject defaultOf(EntityType<?> type) {
+        return new Subject(type, Appearance.DEFAULT, Optional.ofNullable(EntityRoster.DEFAULT_COAT.get(type)));
     }
 
     @Override
@@ -176,11 +187,15 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                     if (!coat.name().equals(defaultCoat)) subjects.add(Subject.coated(type, coat));
             }
         }
-        List<Subject> withBabies = new ArrayList<>(subjects);
-        for (EntityType<?> type : selectTypes(ctx)) babyOf(ctx, type).ifPresent(withBabies::add);
-        LOG.info("EntitySweep built: {} subjects ({} of them babies)",
-            withBabies.size(), withBabies.size() - subjects.size());
-        return withBabies;
+        int coats = subjects.size();
+        for (EntityType<?> type : selectTypes(ctx)) babyOf(ctx, type).ifPresent(subjects::add);
+        int babies = subjects.size() - coats;
+        for (EntityType<?> type : selectTypes(ctx))
+            for (Appearance.Trait trait : EntityRoster.selections(ctx, type))
+                subjects.add(defaultOf(type).selecting(trait));
+        LOG.info("EntitySweep built: {} subjects ({} coats, {} babies, {} selections)",
+            subjects.size(), coats, babies, subjects.size() - coats - babies);
+        return subjects;
     }
 
     /**
