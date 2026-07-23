@@ -22,6 +22,7 @@
     "PhantomStateMixin",
     "PufferfishStateMixin",
     "ShadeFalseFullBrightMixin",
+    "SilenceAudioMixin",
     "SkipSetupAnimMixin",
     "SuppressShakingMixin",
     "TurtleEggBellyMixin",
