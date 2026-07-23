@@ -6,6 +6,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.asset.equipment.LayerType;
+import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -71,6 +72,108 @@ public class ArmorKit {
      */
     private static final float TRIM_INFLATE = 0.003f;
 
+    /**
+     * Vanilla's generic humanoid armor mesh, in model units in the Y-down model frame - the box each
+     * armor part is grown from. Worn armor is <em>not</em> derived from the wearer's own mesh: one
+     * shared humanoid armor set dresses every humanoid, so a skeleton's narrow limbs and a giant's
+     * scaled-up body wear exactly these boxes. Each entry is the part's pivot offset folded into its
+     * cube extents.
+     */
+    private static final @NotNull Map<SkinFace, Vector3f[]> ARMOR_MESH = Map.of(
+        SkinFace.HEAD, box(-4f, -8f, -4f, 4f, 0f, 4f),
+        SkinFace.TORSO, box(-4f, 0f, -2f, 4f, 12f, 2f),
+        SkinFace.RIGHT_ARM, box(-8f, 0f, -2f, -4f, 12f, 2f),
+        SkinFace.LEFT_ARM, box(4f, 0f, -2f, 8f, 12f, 2f),
+        SkinFace.RIGHT_LEG, box(-3.9f, 12f, -2f, 0.1f, 24f, 2f),
+        SkinFace.LEFT_LEG, box(-0.1f, 12f, -2f, 3.9f, 24f, 2f)
+    );
+
+    /**
+     * Per-side growth in model units for the layer-1 armor pieces (helmet, chestplate, boots).
+     */
+    private static final float OUTER_ARMOR_GROW = 1.0f;
+
+    /**
+     * Per-side growth in model units for the layer-2 leggings, so they sit inside the chestplate on
+     * the torso and inside the boots on the lower legs.
+     */
+    private static final float INNER_ARMOR_GROW = 0.5f;
+
+    /**
+     * Extra growth applied to the leg boxes on top of the slot's own, keeping the two leg shells from
+     * intersecting each other at the hip.
+     */
+    private static final float ARMOR_LEG_EXTEND = -0.1f;
+
+    /**
+     * Trim separation in model units - the model-unit equivalent of {@link #TRIM_INFLATE} in the
+     * skin renderer's normalized frame.
+     */
+    private static final float TRIM_GROW = 0.1f;
+
+    /**
+     * The render frame an entity's armor is built into: the same anchor and scales the entity's own
+     * geometry was built with, so the armor mesh lands in step with the body it dresses.
+     *
+     * <p>{@code meshScale} / {@code meshOffset} carry the whole-mesh transform the wearer's own body
+     * was built through, so a scaled-up humanoid wears a scaled-up shell - vanilla maps the very same
+     * transform over the shared armor set rather than giving those wearers a distinct mesh.
+     *
+     * @param baby whether the wearer renders in its baby form
+     * @param meshScale the wearer's whole-mesh uniform scale
+     * @param meshOffset the wearer's whole-mesh offset, the anchor its scale is taken about
+     * @param modelAnchor the model-space point mapped to the canvas centre
+     * @param ndcScale the model-units-to-NDC scale
+     * @param modelScale the per-render vertex pre-scale
+     */
+    public record EntityArmorFrame(
+        boolean baby, float meshScale, @NotNull Vector3f meshOffset,
+        @NotNull Vector3f modelAnchor, float ndcScale, float modelScale
+    ) {
+
+        /**
+         * The frame for a wearer whose mesh carries no whole-mesh transform.
+         */
+        public EntityArmorFrame(
+            boolean baby, @NotNull Vector3f modelAnchor, float ndcScale, float modelScale) {
+            this(baby, 1f, Vector3f.ZERO, modelAnchor, ndcScale, modelScale);
+        }
+
+        /**
+         * The frame for a wearer, reading the whole-mesh transform off the torso bone the armor is
+         * built around - the bone vanilla's own mesh transformer scales and re-anchors.
+         *
+         * @param baby whether the wearer renders in its baby form
+         * @param model the wearer's model
+         * @param modelAnchor the model-space point mapped to the canvas centre
+         * @param ndcScale the model-units-to-NDC scale
+         * @param modelScale the per-render vertex pre-scale
+         * @return the armor frame for that wearer
+         */
+        public static @NotNull EntityArmorFrame of(
+            boolean baby, @NotNull EntityModelData model,
+            @NotNull Vector3f modelAnchor, float ndcScale, float modelScale
+        ) {
+            EntityModelData.Bone torso = model.getBones().get(TORSO_BONE);
+            if (torso == null) return new EntityArmorFrame(baby, modelAnchor, ndcScale, modelScale);
+            return new EntityArmorFrame(baby, torso.getScale(), torso.getPivot(),
+                modelAnchor, ndcScale, modelScale);
+        }
+    }
+
+    /**
+     * The torso bone name the whole-mesh transform is read from.
+     */
+    private static final @NotNull String TORSO_BONE = "body";
+
+    /**
+     * A {@code [min, max]} bounds pair from its six extents.
+     */
+    private static @NotNull Vector3f @NotNull [] box(
+        float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+        return new Vector3f[]{ new Vector3f(minX, minY, minZ), new Vector3f(maxX, maxY, maxZ) };
+    }
+
     // ---------------------------------------------------------------------------------------
     // 3D armor (triangles for ModelEngine rasterization).
     // ---------------------------------------------------------------------------------------
@@ -100,13 +203,13 @@ public class ArmorKit {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
         helmet.ifPresent(piece ->
-            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.HELMET, itemFor(items, ArmorTrim.Slot.HELMET), engine));
+            addSkinScaledSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.HELMET, itemFor(items, ArmorTrim.Slot.HELMET), engine));
         chestplate.ifPresent(piece ->
-            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.CHESTPLATE, itemFor(items, ArmorTrim.Slot.CHESTPLATE), engine));
+            addSkinScaledSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.CHESTPLATE, itemFor(items, ArmorTrim.Slot.CHESTPLATE), engine));
         leggings.ifPresent(piece ->
-            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.LEGGINGS, itemFor(items, ArmorTrim.Slot.LEGGINGS), engine));
+            addSkinScaledSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.LEGGINGS, itemFor(items, ArmorTrim.Slot.LEGGINGS), engine));
         boots.ifPresent(piece ->
-            addSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.BOOTS, itemFor(items, ArmorTrim.Slot.BOOTS), engine));
+            addSkinScaledSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.BOOTS, itemFor(items, ArmorTrim.Slot.BOOTS), engine));
 
         return triangles;
     }
@@ -240,7 +343,14 @@ public class ArmorKit {
      * snake_case or camelCase spelling). Bones with no humanoid mapping are silently skipped, so a
      * non-humanoid entity simply yields no armor.
      *
-     * @param boneBounds map of bone name to {@code [min, max]} in normalized model space
+     * <p>An adult wears {@link #ARMOR_MESH the generic humanoid armor mesh} grown by the slot's own
+     * amount, mapped into the render frame - matching vanilla, which dresses every humanoid in one
+     * shared armor set rather than in a shell derived from the wearer's mesh. A baby still wears its
+     * own bone boxes: vanilla's baby armor is a separate mesh with different proportions and an extra
+     * waist part, which this does not yet transcribe.
+     *
+     * @param frame the render frame the armor is built into
+     * @param boneBounds map of bone name to {@code [min, max]}, for the baby form
      * @param helmet equipped helmet, or empty
      * @param chestplate equipped chestplate, or empty
      * @param leggings equipped leggings, or empty
@@ -251,6 +361,7 @@ public class ArmorKit {
      * @return the armor + trim triangles
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildEntityArmor3D(
+        @NotNull EntityArmorFrame frame,
         @NotNull Map<String, Vector3f[]> boneBounds,
         @NotNull Optional<ArmorPiece> helmet,
         @NotNull Optional<ArmorPiece> chestplate,
@@ -266,19 +377,111 @@ public class ArmorKit {
         // in the upright player frame (bounds turned about X) and turning the result back into the entity
         // frame lands it correctly once ENTITY_FACING is applied, with the geometry, normals, and inventory
         // shading all resolved in the final frame.
-        Map<SkinFace, Vector3f[]> bodyPositions = new EnumMap<>(SkinFace.class);
-        for (var entry : boneBounds.entrySet()) {
-            SkinFace part = HUMANOID_BONE_MAP.get(entry.getKey());
-            if (part != null)
-                bodyPositions.put(part, turnAboutXBounds(entry.getValue()));
+        ConcurrentList<VisibleTriangle> armor;
+        if (frame.baby()) {
+            Map<SkinFace, Vector3f[]> bodyPositions = new EnumMap<>(SkinFace.class);
+            for (var entry : boneBounds.entrySet()) {
+                SkinFace part = HUMANOID_BONE_MAP.get(entry.getKey());
+                if (part != null)
+                    bodyPositions.put(part, turnAboutXBounds(entry.getValue()));
+            }
+            armor = buildHumanoidArmor3D(bodyPositions, helmet, chestplate, leggings, boots, items, engine);
+        } else {
+            armor = buildGenericArmor3D(frame, helmet, chestplate, leggings, boots, items, engine);
         }
-        ConcurrentList<VisibleTriangle> armor =
-            buildHumanoidArmor3D(bodyPositions, helmet, chestplate, leggings, boots, items, engine);
 
+        Lighting.EntityLighting lighting =
+            Lighting.resolveEntity(EntityGeometryKit.DEFAULT_ENTITY_LIGHTING);
         ConcurrentList<VisibleTriangle> entityArmor = Concurrent.newList();
         for (VisibleTriangle triangle : armor)
-            entityArmor.add(turnAboutX(triangle));
+            entityArmor.add(turnAboutX(triangle, lighting));
         return entityArmor;
+    }
+
+    /**
+     * Builds the armor for one adult humanoid from the generic armor mesh: each equipped slot's parts
+     * grown by that slot's per-side amount, mapped into the render frame, then turned into the upright
+     * frame the armor unwrap is authored for. The boxes arrive already grown, so the emitter adds no
+     * further inflate.
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> buildGenericArmor3D(
+        @NotNull EntityArmorFrame frame,
+        @NotNull Optional<ArmorPiece> helmet,
+        @NotNull Optional<ArmorPiece> chestplate,
+        @NotNull Optional<ArmorPiece> leggings,
+        @NotNull Optional<ArmorPiece> boots,
+        @NotNull Map<ArmorTrim.Slot, ItemContext> items,
+        @NotNull Textures engine
+    ) {
+        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        // The trim rides the same frame as the armor it sits on, so its separation scales with the
+        // render rather than staying a constant that vanishes at small scales.
+        float trimInflate = TRIM_GROW * frame.ndcScale() * frame.modelScale();
+
+        Map<ArmorTrim.Slot, Optional<ArmorPiece>> equipped = new EnumMap<>(ArmorTrim.Slot.class);
+        equipped.put(ArmorTrim.Slot.HELMET, helmet);
+        equipped.put(ArmorTrim.Slot.CHESTPLATE, chestplate);
+        equipped.put(ArmorTrim.Slot.LEGGINGS, leggings);
+        equipped.put(ArmorTrim.Slot.BOOTS, boots);
+
+        for (var entry : equipped.entrySet()) {
+            ArmorTrim.Slot slot = entry.getKey();
+            entry.getValue().ifPresent(piece -> addSlot3D(triangles, armorBoxes(frame, slot), piece,
+                slot, itemFor(items, slot), engine, 0f, trimInflate));
+        }
+        return triangles;
+    }
+
+    /**
+     * The generic armor mesh boxes covering one slot, grown by that slot's per-side amount, mapped
+     * through the render frame and turned into the upright frame the armor unwrap is authored for.
+     */
+    private static @NotNull Map<SkinFace, Vector3f[]> armorBoxes(
+        @NotNull EntityArmorFrame frame, @NotNull ArmorTrim.Slot slot) {
+        Map<SkinFace, Vector3f[]> boxes = new EnumMap<>(SkinFace.class);
+        for (SkinFace part : partsForSlot(slot)) {
+            Vector3f[] base = ARMOR_MESH.get(part);
+            if (base == null) continue;
+            float grow = growFor(slot, part);
+            boxes.put(part, turnAboutXBounds(new Vector3f[]{
+                toRenderFrame(frame, base[0].x() - grow, base[0].y() - grow, base[0].z() - grow),
+                toRenderFrame(frame, base[1].x() + grow, base[1].y() + grow, base[1].z() + grow)
+            }));
+        }
+        return boxes;
+    }
+
+    /**
+     * The per-side growth for one part of one armor slot. Layer-2 leggings grow less than the layer-1
+     * pieces, and both leg shells grow less again so they clear each other at the hip.
+     */
+    private static float growFor(@NotNull ArmorTrim.Slot slot, @NotNull SkinFace part) {
+        float grow = slot == ArmorTrim.Slot.LEGGINGS ? INNER_ARMOR_GROW : OUTER_ARMOR_GROW;
+        if (part == SkinFace.RIGHT_LEG || part == SkinFace.LEFT_LEG)
+            return grow + ARMOR_LEG_EXTEND;
+        return grow;
+    }
+
+    /**
+     * Maps a point from model units into the render frame, applying the same pre-scale, anchor and
+     * NDC scale the entity's own geometry was built through.
+     */
+    private static @NotNull Vector3f toRenderFrame(@NotNull EntityArmorFrame frame, float x, float y, float z) {
+        // The wearer's whole-mesh transform first, so the shell is sized and seated like the body it
+        // dresses, then the render frame the body's own geometry was built through.
+        Vector3f offset = frame.meshOffset();
+        float mesh = frame.meshScale();
+        float mx = mesh * x + offset.x();
+        float my = mesh * y + offset.y();
+        float mz = mesh * z + offset.z();
+
+        Vector3f anchor = frame.modelAnchor();
+        float scale = frame.modelScale();
+        float ndc = frame.ndcScale();
+        return new Vector3f(
+            ndc * (scale * mx - anchor.x()),
+            ndc * (scale * my - anchor.y()),
+            ndc * (scale * mz - anchor.z()));
     }
 
     /**
@@ -305,16 +508,24 @@ public class ArmorKit {
      * Turns a built armor triangle 180 degrees about the X axis - the counterpart to
      * {@link #turnAboutXBounds} that maps the player-frame armor back into the entity's Y-down model
      * frame. Positions and the stored normal turn together (a pure rotation preserves winding, so
-     * culling is unaffected), and the inventory shade is recomputed from the turned normal so lighting
-     * resolves in the final frame.
+     * culling is unaffected), and the shade is recomputed from the turned normal so lighting resolves
+     * in the final frame.
+     *
+     * <p>The shade comes from the entity lighting basis, not the block / item inventory one: worn armor
+     * is part of the entity render and vanilla lights it with the same two-directional shader as the
+     * body it dresses. The shading normal is Y-flipped to match the kit's tuned light frame, exactly as
+     * the body's own faces are.
      */
-    private static @NotNull VisibleTriangle turnAboutX(@NotNull VisibleTriangle triangle) {
+    private static @NotNull VisibleTriangle turnAboutX(
+        @NotNull VisibleTriangle triangle, @NotNull Lighting.EntityLighting lighting) {
         Vector3f normal = turnAboutX(triangle.normal());
+        Vector3f shadingNormal = new Vector3f(normal.x(), -normal.y(), normal.z());
         return new VisibleTriangle(
             turnAboutX(triangle.position0()), turnAboutX(triangle.position1()), turnAboutX(triangle.position2()),
             triangle.uv0(), triangle.uv1(), triangle.uv2(),
             triangle.texture(), triangle.tintArgb(), normal,
-            Lighting.inventory(normal), triangle.traits(), triangle.debugTag());
+            lighting.shade(shadingNormal, triangle.traits().cullBackFaces()),
+            triangle.traits(), triangle.debugTag());
     }
 
     // ---------------------------------------------------------------------------------------
@@ -333,7 +544,11 @@ public class ArmorKit {
         };
     }
 
-    private static void addSlot3D(
+    /**
+     * Adds one slot's armor around bounds carried in the skin renderer's normalized frame, inflating
+     * by the constants calibrated for it.
+     */
+    private static void addSkinScaledSlot3D(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull Map<SkinFace, Vector3f[]> bodyPositions,
         @NotNull ArmorPiece piece,
@@ -341,9 +556,22 @@ public class ArmorKit {
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
+        float baseInflate = slot == ArmorTrim.Slot.LEGGINGS ? LEGGINGS_INFLATE : ARMOR_INFLATE;
+        addSlot3D(triangles, bodyPositions, piece, slot, item, engine, baseInflate, baseInflate + TRIM_INFLATE);
+    }
+
+    private static void addSlot3D(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull Map<SkinFace, Vector3f[]> bodyPositions,
+        @NotNull ArmorPiece piece,
+        @NotNull ArmorTrim.Slot slot,
+        @NotNull Optional<ItemContext> item,
+        @NotNull Textures engine,
+        float baseInflate,
+        float trimInflate
+    ) {
         SkinFace[] parts = partsForSlot(slot);
         boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
-        float baseInflate = useLeggingsLayer ? LEGGINGS_INFLATE : ARMOR_INFLATE;
 
         Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID, item);
         if (armorTexture.isEmpty()) return;
@@ -363,7 +591,7 @@ public class ArmorKit {
                     Vector3f[] bounds = bodyPositions.get(part);
                     if (bounds == null) continue;
                     triangles.addAll(buildPart3D(part, bounds[0], bounds[1],
-                        trimTexture.get(), baseInflate + TRIM_INFLATE));
+                        trimTexture.get(), trimInflate));
                 }
             }
         }

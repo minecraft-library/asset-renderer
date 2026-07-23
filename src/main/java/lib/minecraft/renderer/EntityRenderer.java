@@ -658,7 +658,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 if (!ctx.definition().humanoidArmor()) return;
                 EntityOptions options = ctx.options();
                 stack.append(this.slot, sink ->
-                    sink.addAll(ArmorKit.buildEntityArmor3D(ctx.buildResult().boneBounds(),
+                    sink.addAll(ArmorKit.buildEntityArmor3D(
+                        ArmorKit.EntityArmorFrame.of(options.getAppearance().isBaby(), ctx.model(),
+                            ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale()),
+                        ctx.buildResult().boneBounds(),
                         options.getArmor().getHelmet(), options.getArmor().getChestplate(),
                         options.getArmor().getLeggings(), options.getArmor().getBoots(),
                         options.getArmor().getItems(), ctx.textures())));

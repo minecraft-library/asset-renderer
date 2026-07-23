@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -91,17 +92,57 @@ class ArmorKitCitCompositeTest {
     }
 
     @Test
-    @DisplayName("entity armor sits on its bone bounds - the 180-about-X round trip preserves position")
+    @DisplayName("baby armor sits on its bone bounds - the 180-about-X round trip preserves position")
     void entityArmorPositionPreserved() {
-        List<EquipmentModel.Layer> iron = List.of(
-            new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
-        RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
         // A head bone whose y-range sits well away from the origin, so a stray single (non-round-trip)
         // turn about X would land the armor near -3..-2 instead of on the bone.
         Map<String, Vector3f[]> bones = Map.of("head",
             new Vector3f[]{ new Vector3f(0, 2, 0), new Vector3f(1, 3, 1) });
 
-        ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(bones,
+        float[] span = helmetYSpan(new ArmorKit.EntityArmorFrame(true, Vector3f.ZERO, 1f, 1f), bones);
+
+        // The armor box spans the bone's own [2, 3] y-range (plus the small inflate), not a flipped
+        // negative range - the double turn cancels on position and only re-seats the texture.
+        assertThat(span[0] > 1.5f, equalTo(true));
+        assertThat(span[1] < 3.5f, equalTo(true));
+    }
+
+    @Test
+    @DisplayName("adult armor wears the generic humanoid mesh, not the wearer's bones")
+    void adultArmorUsesGenericMesh() {
+        // Bone bounds nowhere near the humanoid head: an adult must ignore them entirely.
+        Map<String, Vector3f[]> bones = Map.of("head",
+            new Vector3f[]{ new Vector3f(0, 40, 0), new Vector3f(1, 41, 1) });
+
+        float[] span = helmetYSpan(new ArmorKit.EntityArmorFrame(false, Vector3f.ZERO, 1f, 1f), bones);
+
+        // The generic head box spans y [-8, 0] in model units, grown one unit per side by the
+        // layer-1 deformation - so [-9, 1], independent of the bones handed in.
+        assertThat((double) span[0], closeTo(-9d, 1e-4d));
+        assertThat((double) span[1], closeTo(1d, 1e-4d));
+    }
+
+    @Test
+    @DisplayName("adult armor scales with the render frame")
+    void adultArmorFollowsRenderFrame() {
+        float[] span = helmetYSpan(
+            new ArmorKit.EntityArmorFrame(false, Vector3f.ZERO, 1f, 2f), Map.of());
+
+        // Doubling the render's model scale doubles the shell with the body it dresses.
+        assertThat((double) span[0], closeTo(-18d, 1e-4d));
+        assertThat((double) span[1], closeTo(2d, 1e-4d));
+    }
+
+    /**
+     * The {@code [min, max]} y-extent of the iron-helmet triangles built for one frame.
+     */
+    private static float[] helmetYSpan(
+        @NotNull ArmorKit.EntityArmorFrame frame, @NotNull Map<String, Vector3f[]> bones) {
+        List<EquipmentModel.Layer> iron = List.of(
+            new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
+        RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
+
+        ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(frame, bones,
             Optional.of(ArmorPiece.of(ArmorMaterial.IRON)),
             Optional.empty(), Optional.empty(), Optional.empty(), Map.of(), new Textures(ctx));
 
@@ -113,10 +154,7 @@ class ArmorKitCitCompositeTest {
                 minY = Math.min(minY, vertex.y());
                 maxY = Math.max(maxY, vertex.y());
             }
-        // The armor box spans the bone's own [2, 3] y-range (plus the small inflate), not a flipped
-        // negative range - the double turn cancels on position and only re-seats the texture.
-        assertThat(minY > 1.5f, equalTo(true));
-        assertThat(maxY < 3.5f, equalTo(true));
+        return new float[]{ minY, maxY };
     }
 
     private static void buildHelmet(@NotNull RecordingContext ctx, @NotNull Map<ArmorTrim.Slot, ItemContext> items) {
