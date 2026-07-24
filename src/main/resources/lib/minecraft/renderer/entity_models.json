@@ -752,6 +752,7 @@
           },
           "geometry": "CreeperModel#createBodyLayer",
           "texture": "minecraft:textures/entity/creeper/creeper_armor.png",
+          "tint": "0xFF808080",
           "pipeline": {
             "emissive": true,
             "blend": "additive"
@@ -3081,6 +3082,7 @@
           },
           "geometry": "WitherBossModel#createBodyLayer",
           "texture": "minecraft:textures/entity/wither/wither_armor.png",
+          "tint": "0xFF808080",
           "pipeline": {
             "emissive": true,
             "blend": "additive"

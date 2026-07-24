@@ -511,7 +511,7 @@ final class EntityOverlayResolver {
         node.putIf("geometry", mesh.key());
         node.put("texture", namespaced(texture));
         node.putIf("texture_by", switchDispatchTextureBy(cn));
-        ColorSource tint = extractCutoutTint(cn);
+        ColorSource tint = extractOverlayTint(cn);
         if (tint.argb() != NO_TINT) node.putHex("tint", tint.argb());
         node.putIf("tint_by", tint.axisToken());
         node.putIf("pipeline", pipelineNode(
@@ -686,6 +686,19 @@ final class EntityOverlayResolver {
     private record ColorSource(int argb, @Nullable String axisToken) {}
 
     /**
+     * Statically resolves the colour a layer submits its overlay with - the render-supplied source
+     * first, then the fixed literal - or the no-tint identity when neither resolves.
+     *
+     * @param layerCn the layer class
+     * @return the resolved tint plus its {@code tint_by} axis, or the no-tint identity
+     */
+    private @NotNull ColorSource extractOverlayTint(@NotNull ClassNode layerCn) {
+        ColorSource sourced = extractCutoutTint(layerCn);
+        if (sourced.argb() != NO_TINT) return sourced;
+        return new ColorSource(submittedColorLiteral(layerCn), null);
+    }
+
+    /**
      * Statically resolves the {@code color} argument of a cutout-copy helper call: a
      * parameterless state getter chases into the {@code ColorLerper.getColor(DyeColor)}
      * evaluation at the WHITE default (the wool layers); a plain int state field chases the
@@ -716,6 +729,41 @@ final class EntityOverlayResolver {
             }
         }
         return new ColorSource(NO_TINT, null);
+    }
+
+    /**
+     * The fixed {@code color} argument of a {@code submitModel} call along the layer's super chain -
+     * the constant standing directly after the {@code OverlayTexture.NO_OVERLAY} argument it follows
+     * in vanilla's signature. This is how the energy swirl carries its half strength: it submits at
+     * {@code 0xFF808080} with full alpha rather than at the white the colour-less overload passes, so
+     * every texel it adds is scaled by {@code 128/255} before the blend, and an aura added at white
+     * comes out just under twice as bright. The walk climbs the super chain because the constant sits
+     * on {@code EnergySwirlLayer} while the roster names its two subclasses.
+     *
+     * <p>A white literal reads as the no-tint identity, so a layer submitting the default colour stays
+     * indistinguishable from one naming no colour at all.
+     *
+     * @param layerCn the layer class
+     * @return the submitted ARGB literal, or the no-tint identity when none resolves
+     */
+    private int submittedColorLiteral(@NotNull ClassNode layerCn) {
+        int[] argb = {NO_TINT};
+        AsmKit.walkSuperChain(this.cache, layerCn.name, level -> {
+            if (argb[0] != NO_TINT) return;
+            for (MethodNode method : level.methods) {
+                if ((method.access & Opcodes.ACC_STATIC) != 0 || AsmKit.INIT.equals(method.name)) continue;
+                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                    if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.OVERLAY_TEXTURE)
+                        || !VanillaSourceClasses.Fields.NO_OVERLAY.equals(((FieldInsnNode) in).name)) continue;
+                    AbstractInsnNode color = AsmKit.nextReal(in);
+                    Integer literal = color == null ? null : AsmKit.readIntLiteral(color);
+                    if (literal == null) continue;
+                    argb[0] = literal;
+                    return;
+                }
+            }
+        });
+        return argb[0];
     }
 
     /** The vocabulary-gated tint axis of a color-source member name ({@code getWoolColor} to {@code wool_color}). */
@@ -1674,7 +1722,7 @@ final class EntityOverlayResolver {
         MeshRef mesh = overlayMesh(modelLayerField);
         node.putIf("geometry", mesh.key());
         node.put("texture", namespaced(texture));
-        ColorSource tint = extractCutoutTint(cn);
+        ColorSource tint = extractOverlayTint(cn);
         if (tint.argb() != NO_TINT) node.putHex("tint", tint.argb());
         node.putIf("tint_by", tint.axisToken());
         node.putIf("pipeline", pipelineNode(

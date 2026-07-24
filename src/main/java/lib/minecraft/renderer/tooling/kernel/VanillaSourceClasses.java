@@ -99,6 +99,9 @@ public final class VanillaSourceClasses {
         /** {@code RenderType} - the factory product ({@code RenderTypes.*} return type). */
         public static final @NotNull String RENDER_TYPE = "net/minecraft/client/renderer/rendertype/RenderType";
 
+        /** {@code OverlayTexture} - the {@code submitModel} overlay argument, the anchor its colour follows. */
+        public static final @NotNull String OVERLAY_TEXTURE = "net/minecraft/client/renderer/texture/OverlayTexture";
+
         /** {@code RenderPipelines} - the static pipeline registry whose {@code <clinit>} build blocks carry the traits. */
         public static final @NotNull String RENDER_PIPELINES = "net/minecraft/client/renderer/RenderPipelines";
 
@@ -447,6 +450,9 @@ public final class VanillaSourceClasses {
 
         /** {@code DataComponents.ENCHANTMENT_GLINT_OVERRIDE} - the always-foil component the glint walk keys on. */
         public static final @NotNull String ENCHANTMENT_GLINT_OVERRIDE = "ENCHANTMENT_GLINT_OVERRIDE";
+
+        /** {@code OverlayTexture.NO_OVERLAY} - the {@code submitModel} argument its colour argument follows. */
+        public static final @NotNull String NO_OVERLAY = "NO_OVERLAY";
 
     }
 
