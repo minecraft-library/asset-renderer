@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling;
 
+import dev.simplified.gson.JsonTree;
+import dev.simplified.gson.exception.JsonException;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.webp.WebPWriteOptions;
@@ -11,8 +13,6 @@ import lib.minecraft.renderer.pipeline.ClientOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tooling.atlas.AtlasSidecar;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import dev.simplified.gson.exception.JsonException;
-import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 
 import java.io.File;

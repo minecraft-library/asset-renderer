@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.tooling;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.blockentity.BlockEntityRegistryDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.BlockEntityRegistryWalk;
 import lib.minecraft.renderer.tooling.blockentity.BlockEntitySubject;
 import lib.minecraft.renderer.tooling.geometry.GeometryFlow;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;

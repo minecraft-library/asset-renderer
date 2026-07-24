@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.asset.pack;
 
-import lib.minecraft.renderer.exception.PipelineException;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.exception.PipelineException;
 import org.jetbrains.annotations.NotNull;
 
 /**

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.kernel;
 
-import dev.simplified.gson.exception.JsonException;
 import dev.simplified.gson.JsonTree;
+import dev.simplified.gson.exception.JsonException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ClassReader;

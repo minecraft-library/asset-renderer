@@ -2,9 +2,9 @@ package lib.minecraft.renderer.asset.pack;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.pack.FormatRange.FormatVersion;
 import lib.minecraft.renderer.exception.PipelineException;
-import dev.simplified.gson.JsonTree;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

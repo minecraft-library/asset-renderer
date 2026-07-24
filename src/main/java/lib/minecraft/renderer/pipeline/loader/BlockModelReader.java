@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import com.google.gson.annotations.SerializedName;
-import lib.minecraft.renderer.exception.PipelineException;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
 import lib.minecraft.renderer.pipeline.util.ResourceDocument;

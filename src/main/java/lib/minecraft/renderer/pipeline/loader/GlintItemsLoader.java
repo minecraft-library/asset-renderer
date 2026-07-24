@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.util.ResourceDocument;
 import lib.minecraft.renderer.pipeline.util.BundledResource;
+import lib.minecraft.renderer.pipeline.util.ResourceDocument;
 import lib.minecraft.renderer.tooling.ToolingGlintItems;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lombok.experimental.UtilityClass;

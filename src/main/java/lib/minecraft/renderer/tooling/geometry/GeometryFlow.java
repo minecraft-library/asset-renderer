@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.geometry;
 
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import org.jetbrains.annotations.NotNull;
 

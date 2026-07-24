@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;

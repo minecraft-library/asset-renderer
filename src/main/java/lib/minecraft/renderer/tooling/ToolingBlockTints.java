@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling;
 
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingPipeline;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
