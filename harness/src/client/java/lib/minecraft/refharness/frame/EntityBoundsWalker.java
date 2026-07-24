@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -623,8 +624,10 @@ final class EntityBoundsWalker implements AutoCloseable {
      *       over-padding here used to ~2x the silhouette.</li>
      *   <li><b>Per-layer state gates</b> - a layer whose own {@code submit} bails on a render-state
      *       flag is asked that flag through {@link #stateFlag}: a wool layer on a sheared subject, a
-     *       ropes layer on a subject holding no leash. Named individually rather than derived,
-     *       because the flag a layer reads is the layer's own.</li>
+     *       ropes layer on a subject holding no leash, a wool undercoat on a baby. Named
+     *       individually rather than derived, because the flag a layer reads is the layer's own. A
+     *       layer that instead holds one mesh per age is not gated here at all - it is still drawn,
+     *       just from its other field, so {@link #pickAgeModelName} picks rather than rejects.</li>
      *   <li><b>{@link #NO_RENDER_LAYER_SUFFIXES Equipment-driven layers}</b> - any layer in
      *       the well-known no-render-at-zero-state class list returns {@code false}. Catches
      *       HumanoidArmorLayer / ItemInHandLayer / ElytraLayer / SaddleLayer / etc. without
@@ -656,6 +659,11 @@ final class EntityBoundsWalker implements AutoCloseable {
             // A sheared subject's wool layer bails at the top of its own submit, so walking it would
             // measure a coat that is not drawn and leave the reference framed for a woolly sheep.
             if (simpleName.endsWith("WoolLayer") && stateFlag(state, "isSheared", false)) return false;
+            // The undercoat holds ONE mesh and it is the adult's, so the age rule above has no pair to
+            // pick between - and its own submit returns outright on a baby. Walking it anyway measured
+            // a full-grown coat around a lamb and reserved the adult's width for it.
+            if (simpleName.endsWith("WoolUndercoatLayer")
+                && state instanceof LivingEntityRenderState living && living.isBaby) return false;
             // Wearing a harness is only half of the ropes layer's gate - it draws for a subject that
             // is holding a leash as well, and none of these subjects holds one. The equipment half
             // alone would measure the ropes mesh, which is the whole body at CubeDeformation(0.2) on
@@ -784,9 +792,15 @@ final class EntityBoundsWalker implements AutoCloseable {
      *
      * <p>Known multi-model layers (handled below):
      * <ul>
-     *   <li>{@code SheepWoolLayer} - {@code adultModel} vs {@code babyModel}, gated on
-     *       {@code state.isBaby}. Adult is the default; baby model is smaller, so walking both
-     *       at zero state didn't change the canvas - this case is included for correctness.</li>
+     *   <li><b>An adult mesh and a baby mesh</b> - gated on {@code state.isBaby}, and recognised by
+     *       vanilla's own field naming rather than by a list of classes: {@code adultModel} /
+     *       {@code babyModel} on {@code SheepWoolLayer}, {@code model} / {@code babyModel} on
+     *       {@code DrownedOuterLayer}, {@code noHatModel} / {@code noHatBabyModel} on
+     *       {@code VillagerProfessionLayer}. Reading the convention is what keeps a layer added in a
+     *       later version measured against the mesh its {@code submit} actually draws. Getting this
+     *       wrong is not a rounding error: a baby measured against the adult mesh sits in a canvas
+     *       whose margin nothing ever paints, and the parity metric centres the two images inside
+     *       their union, so two identical silhouettes come out vertically misaligned.</li>
      *   <li>{@code TropicalFishPatternLayer} - {@code modelSmall} vs {@code modelLarge}, gated
      *       on {@code state.pattern.base()}. The default pattern (KOB) is in {@code SMALL}, so
      *       only {@code modelSmall} renders for the headless tropical fish; the previous "walk
@@ -863,12 +877,10 @@ final class EntityBoundsWalker implements AutoCloseable {
     private static @org.jetbrains.annotations.Nullable String pickActiveModelName(
         RenderLayer<?, ?> layer, EntityRenderState state, java.util.Set<String> fieldNames
     ) {
+        String byAge = pickAgeModelName(state, fieldNames);
+        if (byAge != null) return byAge;
         for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
             String simple = c.getSimpleName();
-            if ("SheepWoolLayer".equals(simple)) {
-                boolean isBaby = state instanceof LivingEntityRenderState lrs && lrs.isBaby;
-                return isBaby ? "babyModel" : "adultModel";
-            }
             if ("TropicalFishPatternLayer".equals(simple)) {
                 // state.pattern is a TropicalFish$Pattern enum; pattern.base() returns
                 // TropicalFish$Pattern$Base, an enum with SMALL / LARGE values. Resolve via
@@ -890,6 +902,35 @@ final class EntityBoundsWalker implements AutoCloseable {
             }
         }
         return null;
+    }
+
+    /**
+     * For a layer holding both an adult and a baby mesh, returns the field name of the one its
+     * {@code submit} would draw at {@code state}; {@code null} when the layer names no baby mesh,
+     * leaving the caller's other rules to answer.
+     *
+     * <p>Vanilla names the pair rather than flagging it - {@code babyModel} beside {@code model} or
+     * {@code adultModel}, {@code noHatBabyModel} beside {@code noHatModel} - so the baby mesh is the
+     * field whose name says baby and the adult is the first that does not. Matching on the name
+     * keeps every such layer covered at once, including ones a later version adds; matching on the
+     * class would cover only the ones already known to be wrong.
+     *
+     * @param state the render state being measured
+     * @param fieldNames the layer's {@code Model} field names, in declaration order
+     * @return the field name of the age-appropriate mesh, or {@code null} when the layer names none
+     */
+    private static @org.jetbrains.annotations.Nullable String pickAgeModelName(
+        EntityRenderState state, java.util.Set<String> fieldNames
+    ) {
+        String baby = null;
+        String adult = null;
+        for (String name : fieldNames) {
+            if (name.toLowerCase(Locale.ROOT).contains("baby")) {
+                if (baby == null) baby = name;
+            } else if (adult == null) adult = name;
+        }
+        if (baby == null || adult == null) return null;
+        return state instanceof LivingEntityRenderState living && living.isBaby ? baby : adult;
     }
 
     /**
