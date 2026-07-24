@@ -604,10 +604,10 @@ final class EntityBoundsWalker implements AutoCloseable {
         "EarsLayer",
         "DolphinCarryingItemLayer",
         "FoxHeldItemLayer",
-        "RopesLayer"  // happy_ghast leash-holder gate (state.isLeashHolder && bodyItem.is(HARNESSES));
-                      // never fires for zero-state entity, but the layer's adultModel/babyModel
-                      // fields have CubeDeformation(0.2F) inflate that would inflate bounds by ~22
-                      // canvas pixels if walked - leaving the canvas oversized for the actual body
+        "RopesLayer"  // happy_ghast, gated on state.isLeashHolder AND bodyItem.is(HARNESSES) - the
+                      // equipment probe answers the second half, isLayerActiveForState the first.
+                      // Its adultModel/babyModel are the whole body at CubeDeformation(0.2) on the
+                      // 4x transformer, so walking them past either half oversizes the canvas
     );
 
     /**
@@ -615,12 +615,16 @@ final class EntityBoundsWalker implements AutoCloseable {
      * by default - we walk the layer's geometry. Returns {@code false} when the layer's submit
      * is known to skip rendering for this state, so the layer's model shouldn't pad bounds.
      * <p>
-     * Two gate families:
+     * Three gate families:
      * <ol>
      *   <li><b>{@code EnergySwirlLayer}</b> (charged creeper, wither armor electric overlay)
      *       - reflectively invokes {@code isPowered(state)} to detect the un-powered case.
      *       Specific because the charged-creeper mesh is visibly larger than the body, so
      *       over-padding here used to ~2x the silhouette.</li>
+     *   <li><b>Per-layer state gates</b> - a layer whose own {@code submit} bails on a render-state
+     *       flag is asked that flag through {@link #stateFlag}: a wool layer on a sheared subject, a
+     *       ropes layer on a subject holding no leash. Named individually rather than derived,
+     *       because the flag a layer reads is the layer's own.</li>
      *   <li><b>{@link #NO_RENDER_LAYER_SUFFIXES Equipment-driven layers}</b> - any layer in
      *       the well-known no-render-at-zero-state class list returns {@code false}. Catches
      *       HumanoidArmorLayer / ItemInHandLayer / ElytraLayer / SaddleLayer / etc. without
@@ -651,7 +655,12 @@ final class EntityBoundsWalker implements AutoCloseable {
             String simpleName = c.getSimpleName();
             // A sheared subject's wool layer bails at the top of its own submit, so walking it would
             // measure a coat that is not drawn and leave the reference framed for a woolly sheep.
-            if (simpleName.endsWith("WoolLayer") && isSheared(state)) return false;
+            if (simpleName.endsWith("WoolLayer") && stateFlag(state, "isSheared", false)) return false;
+            // Wearing a harness is only half of the ropes layer's gate - it draws for a subject that
+            // is holding a leash as well, and none of these subjects holds one. The equipment half
+            // alone would measure the ropes mesh, which is the whole body at CubeDeformation(0.2) on
+            // a 4x transformer, and reserve a canvas nothing draws into.
+            if (simpleName.endsWith("RopesLayer") && !stateFlag(state, "isLeashHolder", true)) return false;
             for (String suffix : NO_RENDER_LAYER_SUFFIXES) {
                 if (!simpleName.endsWith(suffix)) continue;
                 // The equipment-driven ones stop being unconditional for a reference that asked for
@@ -714,18 +723,27 @@ final class EntityBoundsWalker implements AutoCloseable {
     }
 
     /**
-     * Whether the render state reports the subject sheared, read off the same field the wool layer
-     * reads rather than off what the harness asked for - so the gate agrees with the draw even when
-     * the two are set by different routes.
+     * Reads a boolean off the render state by the name vanilla gives it, so a layer gate here is
+     * asked of the same field the layer's own {@code submit} reads rather than of what the harness
+     * asked for - the two are set by different routes, and only the field answers for the draw.
+     *
+     * <p>A state a vanilla refactor has moved the field off answers {@code whenUnreadable}, which
+     * every caller passes as the value that keeps walking the layer - over-padded bounds are
+     * preferable to clipped ones, the same fallback the rest of this gate takes.
+     *
+     * @param state the render state the layer would be drawn from
+     * @param fieldName the vanilla field name the layer's own gate reads
+     * @param whenUnreadable the answer to give when the state carries no such field
+     * @return whether the field is set, or {@code whenUnreadable} when it cannot be read
      */
-    private static boolean isSheared(EntityRenderState state) {
-        Field field = findFieldByName(state.getClass(), "isSheared");
-        if (field == null) return false;
+    private static boolean stateFlag(EntityRenderState state, String fieldName, boolean whenUnreadable) {
+        Field field = findFieldByName(state.getClass(), fieldName);
+        if (field == null) return whenUnreadable;
         try {
             field.setAccessible(true);
-            return field.get(state) instanceof Boolean sheared && sheared;
+            return field.get(state) instanceof Boolean flag ? flag : whenUnreadable;
         } catch (ReflectiveOperationException ignored) {
-            return false;
+            return whenUnreadable;
         }
     }
 
