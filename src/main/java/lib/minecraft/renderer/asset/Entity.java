@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.EntityAppearance;
+import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
@@ -353,7 +354,7 @@ public record Entity(
      *     their slot; empty for entities with no equipment layer
      * @param markings whether the entity supports the horse {@code markings} axis (a same-geometry
      *     translucent overlay over the coat, textured by the selected
-     *     {@link lib.minecraft.renderer.option.HorseMarking}); the default marking draws nothing
+     *     {@link HorseMarking}); the default marking draws nothing
      * @param humanoidArmor the worn-armor shell this entity is dressed in (skeletons, zombies, piglins),
      *     joined from the {@code layers} armor row's geometry reference at load; empty for an entity
      *     vanilla arms with no {@code HumanoidArmorLayer}. Being armored IS carrying a shell, so a

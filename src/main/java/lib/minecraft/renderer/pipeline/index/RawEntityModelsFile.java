@@ -4,6 +4,7 @@ import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -181,7 +182,7 @@ record RawShapeOption(
  * The {@code axes.size} axis (pufferfish meshes / salmon / slime scales).
  *
  * @param defaultOption the size the base mesh and unit scale represent
- * @param options the size options keyed by {@link lib.minecraft.renderer.option.Size} name (lower-case)
+ * @param options the size options keyed by {@link Size} name (lower-case)
  */
 record RawSizeAxis(
     @SerializedName("default") @Nullable String defaultOption,
