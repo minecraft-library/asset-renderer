@@ -263,7 +263,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // The engine bakes that explicit scale in 3D and centres the measured silhouette midpoint in
         // screen space (NATIVE_SCALE) - so a non-brick silhouette (cod's z=[-4,11] AABB vs its z=[0,7]
         // cube hug) stays tightly centred, without the old model-space anchor inverse. Per-entity
-        // setupRotations shifts (squid, pufferfish) ride on the model geometry.
+        // setupRotations shifts (squid) ride on the model geometry, applied at load - so they move the
+        // silhouette measured here and the geometry drawn from it together, and cannot disagree. That
+        // makes such a shift a no-op for a subject measured against its own bounds (this fit centres
+        // what it measured) and visible only inside a group-unioned canvas, which is where vanilla
+        // makes it visible too.
         //
         // PERSPECTIVE / OBLIQUE: a 3D model-scale fit can't correct strong foreshortening / depth-shear in
         // one pass (scaling the model changes the foreshortening), so unit-normalize the model into a
