@@ -60,15 +60,22 @@ public sealed interface AppearanceGate
     }
 
     /**
-     * Renders only once the row's tint axis holds a selected colour (the sheep wool undercoat, gated
-     * on {@code wool_color}). Carries the {@link #tintBy} axis token so the gate is self-contained.
+     * Renders only once the row's tint axis selects a colour that differs from the row's own baked
+     * tint - the sheep wool undercoat, gated on {@code wool_color}. Vanilla writes that as a dye
+     * comparison its layer returns early on ({@code woolColor == WHITE}), and the row's baked tint is
+     * the value that very dye resolves to, so the comparison travels as a colour rather than as a dye
+     * name and the gate needs no notion of which dye an axis starts at.
      *
      * @param tintBy the tint axis token whose selection activates the row
+     * @param defaultArgb the row's baked tint - the colour a selection has to differ from
      */
-    record TintedGate(@NotNull String tintBy) implements AppearanceGate {
+    record TintedGate(@NotNull String tintBy, int defaultArgb) implements AppearanceGate {
         @Override
         public boolean test(@NotNull EntityAppearance appearance) {
-            return TintAxis.ofToken(this.tintBy).flatMap(appearance::tint).isPresent();
+            return TintAxis.ofToken(this.tintBy)
+                .flatMap(axis -> appearance.tint(axis).map(axis::resolve))
+                .filter(argb -> argb != this.defaultArgb)
+                .isPresent();
         }
     }
 

@@ -36,6 +36,18 @@ public sealed interface DyeColor {
     int argb();
 
     /**
+     * The packed ARGB a sheep's wool draws in for this dye, which is not the dye's own colour.
+     * Vanilla routes wool through {@code ColorLerper.Type.SHEEP}, a table built by
+     * {@code ColorLerper.getModifiedColor(dye, 0.75f)}: each channel scaled to three quarters and
+     * floored, except {@code WHITE}, which returns {@code 0xFFE6E6E6} outright rather than a scaled
+     * {@code 0xF9FFFE}. Every other dye target - collars, the tropical fish's base and pattern -
+     * takes {@link #argb} unmodified.
+     *
+     * @return the wool ARGB value
+     */
+    int woolArgb();
+
+    /**
      * Creates a {@link Custom} dye colour from a packed RGB int. The alpha channel is forced to
      * {@code 0xFF}.
      *
@@ -61,13 +73,20 @@ public sealed interface DyeColor {
      * values as shipped by {@code net.minecraft.world.item.DyeColor} in MC 26.1. These values
      * have been stable across every version since 1.8 and drive both banner/shield pattern
      * rendering and leather-armour dye tinting.
+     *
+     * <p>Wool is {@code ColorLerper.Type.SHEEP}'s table - the same dyes put through
+     * {@code getModifiedColor(dye, 0.75f)}, so every constant but one derives its wool colour from
+     * its dye colour here rather than restating it, and {@code WHITE} is the sole full override,
+     * exactly as vanilla writes it. Deriving it is not decoration: it is what lets a reader check the
+     * relationship this doc claims against the code, instead of taking sixteen transcribed constants
+     * on trust.
      */
     @Getter
     @Accessors(fluent = true)
     @RequiredArgsConstructor
     enum Vanilla implements DyeColor {
 
-        WHITE     (0xFFF9FFFE),
+        WHITE     (0xFFF9FFFE, 0xFFE6E6E6),
         ORANGE    (0xFFF9801D),
         MAGENTA   (0xFFC74EBD),
         LIGHT_BLUE(0xFF3AB3DA),
@@ -85,9 +104,43 @@ public sealed interface DyeColor {
         BLACK     (0xFF1D1D21);
 
         /**
+         * The factor vanilla's wool table scales every dye but white by.
+         */
+        private static final float WOOL_BRIGHTNESS = 0.75f;
+
+        /**
          * The packed ARGB colour for this dye.
          */
         private final int argb;
+
+        /**
+         * The packed ARGB a sheep's wool draws in for this dye.
+         */
+        private final int woolArgb;
+
+        /**
+         * Constructs a dye whose wool colour is its own colour, scaled.
+         *
+         * @param argb the packed ARGB colour
+         */
+        Vanilla(int argb) {
+            this(argb, scaled(argb));
+        }
+
+        /**
+         * Scales each colour channel by {@link #WOOL_BRIGHTNESS} and truncates - which is
+         * {@code Mth.floor} over the non-negative values a channel can hold - then reassembles them
+         * opaque, in the order vanilla's {@code getModifiedColor} does.
+         *
+         * @param argb the packed ARGB colour to scale
+         * @return the scaled ARGB
+         */
+        private static int scaled(int argb) {
+            int red = (int) ((argb >> 16 & 0xFF) * WOOL_BRIGHTNESS);
+            int green = (int) ((argb >> 8 & 0xFF) * WOOL_BRIGHTNESS);
+            int blue = (int) ((argb & 0xFF) * WOOL_BRIGHTNESS);
+            return 0xFF000000 | red << 16 | green << 8 | blue;
+        }
 
         /**
          * Looks up a vanilla dye by enum name.
@@ -96,8 +149,11 @@ public sealed interface DyeColor {
          * @return the matching vanilla dye, or {@code null} if unknown
          */
         public static @Nullable Vanilla ofName(@NotNull String name) {
-            for (Vanilla dye : values())
-                if (dye.name().equals(name)) return dye;
+            for (Vanilla dye : values()) {
+                if (dye.name().equals(name))
+                    return dye;
+            }
+
             return null;
         }
 
@@ -110,6 +166,17 @@ public sealed interface DyeColor {
      * @param argb the packed ARGB value
      */
     record Custom(int argb) implements DyeColor {
+
+        /**
+         * A custom dye names one colour and vanilla's wool table has no row for it, so wool draws it
+         * as given rather than putting it through a scale vanilla never chose for it.
+         *
+         * @return {@link #argb}
+         */
+        @Override
+        public int woolArgb() {
+            return this.argb;
+        }
 
         /** {@inheritDoc} */
         @Override

@@ -497,10 +497,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 // serves both entities.
                 String texturePrefix = texturePrefix(ctx.definition());
                 for (Entity.OverlayLayer overlay : ctx.definition().overlays()) {
-                    // A tint-gated overlay (sheep wool undercoat) only renders once its tint_by colour
-                    // is selected; skip it for the default (untinted) entity so the default is unchanged.
-                    if (overlay.gate().filter(AppearanceGate.TintedGate.class::isInstance).isPresent()
-                        && !hasSelectedTint(overlay, appearance)) continue;
+                    // A tint-gated overlay (sheep wool undercoat) renders only once its tint_by axis
+                    // selects a colour differing from its baked tint, which is vanilla's own early
+                    // return on the dye its layer compares against. Evaluated through the gate rather
+                    // than beside it, so there is one definition of the condition.
+                    if (overlay.gate().filter(AppearanceGate.TintedGate.class::isInstance)
+                        .filter(gate -> !gate.test(appearance)).isPresent()) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
                     Optional<String> overlayRef = resolveOverlayTextureRef(overlay, appearance, texturePrefix);
                     // A texture_by overlay whose axis resolves to no texture draws nothing - the base /
@@ -545,7 +547,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 Optional<String> collarRef = ctx.definition().layers().collar();
                 if (collar.isEmpty() || collarRef.isEmpty()) return;
                 EntityModelData model = ctx.model();
-                int collarTint = collar.get().argb();
+                int collarTint = TintAxis.COLLAR.resolve(collar.get());
                 String ref = collarRef.get();
                 stack.append(this.slot, sink -> {
                     Optional<PixelBuffer> collarTex = ctx.textures().resolveEntityTextureAtTick(ref, ctx.tick());
@@ -887,28 +889,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * The effective multiplicative tint for a model overlay: the {@code tint_by} axis colour when the
      * overlay is dye-driven ({@code wool_color} sheep wool, {@code pattern_color} tropical fish) and
      * the appearance supplies that {@link TintAxis axis}' dye, else the overlay's baked
-     * {@link Entity.OverlayLayer#tintArgb() default tint}. The default keeps an
-     * unselected overlay unchanged; a selected dye multiplies the overlay by the dye's ARGB
-     * (mirroring vanilla's {@code coloredCutoutModelRender} colour arg), exactly like the collar tint.
+     * {@link Entity.OverlayLayer#tintArgb() default tint}. The default keeps an unselected overlay
+     * unchanged; a selected dye multiplies the overlay by whatever colour that axis draws the dye as
+     * ({@link TintAxis#resolve}), mirroring vanilla's {@code coloredCutoutModelRender} colour arg.
      */
     private static int resolveOverlayTint(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
-        return selectedOverlayTint(overlay, appearance).map(DyeColor::argb).orElse(overlay.tintArgb());
-    }
-
-    /**
-     * The dye selected for the overlay's {@code tint_by} axis, or empty when the overlay is untinted
-     * or the appearance leaves that axis at its default.
-     */
-    private static @NotNull Optional<DyeColor> selectedOverlayTint(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
-        return overlay.tintBy().flatMap(TintAxis::ofToken).flatMap(appearance::tint);
-    }
-
-    /**
-     * Whether the appearance supplies the overlay's {@code tint_by} axis colour. Drives both the tint
-     * override and the {@code requires_tint} render gate (the sheep wool undercoat).
-     */
-    private static boolean hasSelectedTint(@NotNull Entity.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
-        return selectedOverlayTint(overlay, appearance).isPresent();
+        return overlay.tintBy()
+            .flatMap(TintAxis::ofToken)
+            .flatMap(axis -> appearance.tint(axis).map(axis::resolve))
+            .orElse(overlay.tintArgb());
     }
 
     /**

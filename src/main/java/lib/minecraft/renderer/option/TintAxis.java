@@ -34,8 +34,17 @@ public enum TintAxis {
     /** A pattern overlay's tint (tropical fish {@code patternColor}). */
     PATTERN("pattern_color"),
 
-    /** A wool overlay's tint (sheep {@code getWoolColor}). */
-    WOOL("wool_color"),
+    /**
+     * A wool overlay's tint (sheep {@code getWoolColor}). The one axis whose target does not draw the
+     * selected dye's own colour: vanilla's render state fills it from {@code ColorLerper.Type.SHEEP}
+     * rather than from {@code getTextureDiffuseColor}.
+     */
+    WOOL("wool_color") {
+        @Override
+        public int resolve(@NotNull DyeColor dye) {
+            return dye.woolArgb();
+        }
+    },
 
     /** A collar overlay's tint (wolf / cat collar dye). */
     COLLAR("collar_color"),
@@ -52,15 +61,33 @@ public enum TintAxis {
     private final @NotNull String token;
 
     /**
+     * The ARGB a selected dye tints this axis' target with. Vanilla reads most dye targets straight
+     * off {@code DyeColor.getTextureDiffuseColor()}, which is the default here; an axis whose render
+     * state fills its colour from somewhere else overrides it. Owning the mapping on the axis is what
+     * keeps the renderer free of a per-token branch - it holds a {@link TintAxis} already and asks it.
+     *
+     * @param dye the selected dye
+     * @return the ARGB to tint by
+     */
+    public int resolve(@NotNull DyeColor dye) {
+        return dye.argb();
+    }
+
+    /**
      * Resolves a {@code tint_by} token to its axis.
      *
      * @param token the {@code tint_by} token from an overlay
      * @return the matching axis, or empty when no axis owns the token
      */
     public static @NotNull Optional<TintAxis> ofToken(@Nullable String token) {
-        if (token == null) return Optional.empty();
-        for (TintAxis axis : values())
-            if (axis.token.equals(token)) return Optional.of(axis);
+        if (token == null)
+            return Optional.empty();
+
+        for (TintAxis axis : values()) {
+            if (axis.token.equals(token))
+                return Optional.of(axis);
+        }
+
         return Optional.empty();
     }
 }

@@ -386,7 +386,7 @@ public final class EntityIndexBuilder {
             Optional<String> textureBy = Optional.ofNullable(entry.textureBy());
             // The overlay's render condition, parsed straight from its `when` object into the typed
             // AppearanceGate (flag/charged/tinted). Absent -> unconditional.
-            Optional<AppearanceGate> gate = parseOverlayGate(entry.when(), tintBy);
+            Optional<AppearanceGate> gate = parseOverlayGate(entry.when(), tintBy, overlayTint);
             // blend / alpha (default NORMAL / 1.0). `additive` -> the energy-swirl glow; `translucent` /
             // `normal` -> source-over. An un-annotated overlay keeps the NORMAL / 1.0 default.
             BlendMode blend = parseBlend(pipeline == null ? null : pipeline.blend(), diagnostics);
@@ -465,21 +465,28 @@ public final class EntityIndexBuilder {
     /**
      * Parses an overlay's {@code when} object into a typed {@link AppearanceGate}: {@code flag} maps to
      * {@link AppearanceGate.FlagGate}, {@code charged} to {@link AppearanceGate.ChargedGate}, and
-     * {@code tinted} to {@link AppearanceGate.TintedGate} (carrying the overlay's tint axis token so the
-     * gate is self-contained). Absent or unrecognised yields empty (unconditional).
+     * {@code tinted} to {@link AppearanceGate.TintedGate} (carrying the overlay's tint axis token and
+     * its baked tint, so the gate is self-contained). Absent or unrecognised yields empty
+     * (unconditional).
      *
      * @param when the overlay's {@code when} object, or {@code null} when absent
      * @param tintBy the overlay's tint axis token, used to seed a {@link AppearanceGate.TintedGate}
+     * @param tintArgb the overlay's baked tint - the colour a {@link AppearanceGate.TintedGate}
+     *     selection has to differ from, being what the dye vanilla's own comparison names resolves to
      * @return the parsed gate, or empty when unconditional
      */
-    private static @NotNull Optional<AppearanceGate> parseOverlayGate(@Nullable RawOverlayWhen when, @NotNull Optional<String> tintBy) {
+    private static @NotNull Optional<AppearanceGate> parseOverlayGate(
+        @Nullable RawOverlayWhen when,
+        @NotNull Optional<String> tintBy,
+        int tintArgb
+    ) {
         if (when == null) return Optional.empty();
         if (when.flag() != null)
             return Optional.of(new AppearanceGate.FlagGate(when.flag(), when.value()));
         if (when.charged())
             return Optional.of(new AppearanceGate.ChargedGate());
         if (when.tinted())
-            return Optional.of(new AppearanceGate.TintedGate(tintBy.orElse("")));
+            return Optional.of(new AppearanceGate.TintedGate(tintBy.orElse(""), tintArgb));
         return Optional.empty();
     }
 
