@@ -1107,6 +1107,10 @@
             "adult": {
               "geometry": "HappyGhastModel#createBodyLayer",
               "texture": "minecraft:textures/entity/ghast/happy_ghast.png"
+            },
+            "baby": {
+              "geometry": "HappyGhastModel#createBodyLayer@scaled=0.2375",
+              "texture": "minecraft:textures/entity/ghast/happy_ghast_baby.png"
             }
           }
         }
@@ -1183,6 +1187,10 @@
             "adult": {
               "geometry": "SquidModel#createBodyLayer",
               "texture": "minecraft:textures/entity/squid/glow_squid.png"
+            },
+            "baby": {
+              "geometry": "BabySquidModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/squid/glow_squid_baby.png"
             }
           }
         }
@@ -1799,6 +1807,10 @@
             "adult": {
               "geometry": "NautilusModel#createBodyLayer",
               "texture": "minecraft:textures/entity/nautilus/nautilus.png"
+            },
+            "baby": {
+              "geometry": "NautilusModel#createBabyBodyLayer",
+              "texture": "minecraft:textures/entity/nautilus/nautilus_baby.png"
             }
           }
         }
@@ -2599,6 +2611,10 @@
             "adult": {
               "geometry": "SquidModel#createBodyLayer",
               "texture": "minecraft:textures/entity/squid/squid.png"
+            },
+            "baby": {
+              "geometry": "BabySquidModel#createBodyLayer",
+              "texture": "minecraft:textures/entity/squid/squid_baby.png"
             }
           }
         }
