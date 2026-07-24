@@ -97,27 +97,45 @@ public class BlockGeometryKit {
         @NotNull SixFaces faces,
         int tintArgb
     ) {
-        return buildBoxTriangles(min, max, faces, tintArgb, false);
+        return buildBox(min, max, faces, tintArgb, true, false);
     }
 
     /**
-     * Builds a list of 12 triangles describing a box, marking every face as glinted when
-     * {@code glinted} is set so the rasterizer's foil mask covers the whole box. Used by
-     * {@code ArmorKit} to build worn-armor cubes that receive the enchantment glint, baking the flag
-     * at construction instead of rewriting the triangles afterward.
+     * Builds a list of 12 triangles describing a worn-armor box - two-sided, and glinted so the
+     * rasterizer's foil mask covers the armor rather than the whole body silhouette.
+     * <p>
+     * Vanilla submits worn armor through a pipeline that binds no culling alongside an alpha cutout, so
+     * where a box's near face is cut away by a transparent texel the far face of that same box shows
+     * through the hole. Culling the far faces drops those faces whole, which reads as a missing wedge
+     * wherever the armor stands clear of the body behind it.
+     * <p>
+     * On the entity render the flag additionally selects the per-face lighting form in
+     * {@link Lighting.EntityLighting#shade}, so a face the camera sees from behind is shaded by its
+     * camera-facing orientation - the choice vanilla's shader makes per pixel - while a face seen from
+     * the front shades identically either way. A player's own armor is not turned back into the entity
+     * frame, so it keeps the cull-blind {@link Lighting#inventory} shade baked here.
      *
      * @param min the minimum corner in model space
      * @param max the maximum corner in model space
      * @param faces the six face textures, keyed by {@link BlockFace} direction
      * @param tintArgb the ARGB tint applied to every face
-     * @param glinted whether every face is worn-armor geometry receiving the enchantment foil
      * @return the 12-triangle list
      */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildBoxTriangles(
+    public static @NotNull ConcurrentList<VisibleTriangle> buildArmorBoxTriangles(
+        @NotNull Vector3f min,
+        @NotNull Vector3f max,
+        @NotNull SixFaces faces,
+        int tintArgb
+    ) {
+        return buildBox(min, max, faces, tintArgb, false, true);
+    }
+
+    private static @NotNull ConcurrentList<VisibleTriangle> buildBox(
         @NotNull Vector3f min,
         @NotNull Vector3f max,
         @NotNull SixFaces faces,
         int tintArgb,
+        boolean cullBackFaces,
         boolean glinted
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
@@ -130,6 +148,7 @@ public class BlockGeometryKit {
                 corners[0], corners[1], corners[2], corners[3],
                 faces.byFace(face), tintArgb,
                 face.normal(),
+                cullBackFaces,
                 glinted
             );
         }
@@ -694,12 +713,13 @@ public class BlockGeometryKit {
         @NotNull PixelBuffer texture,
         int tintArgb,
         @NotNull Vector3f normal,
+        boolean cullBackFaces,
         boolean glinted
     ) {
         addQuad(out,
             topLeft, bottomLeft, bottomRight, topRight,
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            texture, tintArgb, normal, true, false, true, 0, glinted);
+            texture, tintArgb, normal, cullBackFaces, false, true, 0, glinted);
     }
 
     /**

@@ -577,7 +577,9 @@ public class ArmorKit {
      * <p>The shade comes from the entity lighting basis, not the block / item inventory one: worn armor
      * is part of the entity render and vanilla lights it with the same two-directional shader as the
      * body it dresses. The shading normal is Y-flipped to match the kit's tuned light frame, exactly as
-     * the body's own faces are.
+     * the body's own faces are. Armor boxes are built two-sided, so the shade resolves through the
+     * per-face form - a face the camera sees from behind is lit by its camera-facing orientation, and
+     * one seen from the front is lit by its own normal exactly as a culling cube would be.
      */
     private static @NotNull VisibleTriangle turnAboutX(
         @NotNull VisibleTriangle triangle, @NotNull Lighting.EntityLighting lighting) {
@@ -716,10 +718,8 @@ public class ArmorKit {
     ) {
         Vector3f inflatedMin = new Vector3f(min.x() - inflate, min.y() - inflate, min.z() - inflate);
         Vector3f inflatedMax = new Vector3f(max.x() + inflate, max.y() + inflate, max.z() + inflate);
-        // Build every armor / trim triangle already flagged glinted so the rasterizer's per-pixel
-        // glint mask restricts the enchantment foil to the armor, not the whole body silhouette.
-        return BlockGeometryKit.buildBoxTriangles(
-            inflatedMin, inflatedMax, part.cropAll(texture, overlay), ColorMath.WHITE, true);
+        return BlockGeometryKit.buildArmorBoxTriangles(
+            inflatedMin, inflatedMax, part.cropAll(texture, overlay), ColorMath.WHITE);
     }
 
     /**
