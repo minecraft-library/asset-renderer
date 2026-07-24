@@ -426,11 +426,17 @@ public final class EntityIndexBuilder {
         for (RawOverlay entry : overlays) {
             RawOverlayBaby baby = entry.baby();
             if (baby == null) continue;
+            // A delta naming its own mesh takes that mesh's deformation as the tooling baked it, so the
+            // row's grow is NOT inherited onto it - the adult inflate would land a second time on top
+            // of the baby factory's own. A delta reusing the age.baby mesh still inherits it.
+            Vector3f babyGrow = baby.grow() != null ? baby.grow()
+                : baby.geometry() != null ? null
+                : entry.grow();
             forms.add(new RawOverlay(
-                null,
+                baby.geometry(),
                 baby.texture() == null ? entry.texture() : baby.texture(),
                 entry.retainBones(), baby.noHatRoot(), entry.tint(), entry.tintBy(), entry.textureBy(),
-                baby.grow() == null ? entry.grow() : baby.grow(), entry.pipeline(), entry.skipBounds(), entry.when(), null));
+                babyGrow, entry.pipeline(), entry.skipBounds(), entry.when(), null));
         }
         if (forms.isEmpty()) return List.of();
         // Rows declared a baby form but the mesh they would materialise against is missing - the same

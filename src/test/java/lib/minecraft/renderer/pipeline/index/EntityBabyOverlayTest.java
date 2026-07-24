@@ -117,6 +117,7 @@ class EntityBabyOverlayTest {
     /** The {@code type} pass's age delta - the baby texture plus the subtree its baby form clears. */
     private static RawOverlayBaby typeBabyDelta() {
         return new RawOverlayBaby(
+            null,                                                  // geometry
             "minecraft:textures/entity/villager/baby/plains.png",  // texture
             "head",                                                // no_hat_root
             null);                                                 // grow
@@ -285,6 +286,7 @@ class EntityBabyOverlayTest {
             true,                                                               // skip_bounds
             null,                                                               // when
             new RawOverlayBaby(
+                null,                                                                    // geometry
                 "minecraft:textures/entity/equipment/llama_body/trader_llama_baby.png",  // texture
                 null,                                                                    // no_hat_root
                 new Vector3f(0.2f, 0.2f, 0.2f)));                                        // grow (baby caparison)

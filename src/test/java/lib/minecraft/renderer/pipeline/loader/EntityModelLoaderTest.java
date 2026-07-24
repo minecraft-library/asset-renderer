@@ -179,20 +179,49 @@ class EntityModelLoaderTest {
     }
 
     @Test
-    @DisplayName("a baby overlay list is carried only where an overlay declares a baby form")
+    @DisplayName("a baby overlay list is built per declared baby form, never copied off the adult one")
     void babyOverlayListOnlyWhereDeclared() {
-        // The baby list never falls back to the adult one: an entity with a baby mesh AND overlays but no
-        // declared baby form draws nothing over its baby, bit-for-bit as before the list existed. Sheep and
-        // drowned are the baby-bearing families that declare an overlay but no baby form of it.
+        // The baby list is assembled from the rows that declare a `baby` node, not cloned from the adult
+        // list. The sheep is the case that can tell those apart: it carries TWO adult passes and vanilla
+        // gives only one of them a baby form, because SheepWoolUndercoatLayer.submit returns outright on a
+        // baby while SheepWoolLayer swaps to its baby mesh. A list that fell back would dress a lamb in the
+        // undercoat vanilla never draws on it.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
-        for (String entityId : List.of("minecraft:sheep", "minecraft:drowned")) {
-            assertThat(entityId + " has a baby mesh", defs.get(entityId).axes().babyModel().isPresent(), is(true));
-            assertThat(entityId + " declares adult overlays", defs.get(entityId).overlays().isEmpty(), is(false));
-            assertThat(entityId + " declares no baby form, so its baby list is empty",
-                defs.get(entityId).axes().babyOverlays(), is(empty()));
-        }
+        Entity sheep = defs.get("minecraft:sheep");
+        assertThat("the sheep has a baby mesh", sheep.axes().babyModel().isPresent(), is(true));
+        assertThat("the sheep carries an undercoat pass and a wool pass", sheep.overlays().size(), is(2));
+        assertThat("only the wool pass has a baby form", sheep.axes().babyOverlays().size(), is(1));
+        assertThat("the baby wool binds the baby wool texture",
+            sheep.axes().babyOverlays().getFirst().textureRef(), is(Optional.of("sheep/sheep_wool_baby")));
+        assertThat("the baby wool keeps the row's dye axis",
+            sheep.axes().babyOverlays().getFirst().tintBy(), is(Optional.of("wool_color")));
+
         assertThat("a family with no baby mesh at all carries no baby list",
             defs.get("minecraft:wandering_trader").axes().babyOverlays(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("the drowned's baby outer layer binds its own mesh, not an inflate of the baby body")
+    void drownedBabyOuterLayerBindsItsOwnMesh() {
+        // End-to-end canary over the shipped resource. Vanilla bakes DROWNED_BABY_OUTER_LAYER as its own
+        // LayerDefinition, and BabyZombieModel#createBodyLayer hardcodes its two head cubes' deformations
+        // instead of driving them off the parameter - so the shell is NOT the baby body grown by the row's
+        // 0.25 and the delta has to name a mesh. Inheriting the row's grow instead would land the adult
+        // inflate a second time on top of the baby factory's own.
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null));
+        Entity drowned = defs.get("minecraft:drowned");
+        assertThat("the adult outer layer is the adult shell",
+            drowned.overlays().getFirst().textureRef(), is(Optional.of("zombie/drowned_outer_layer")));
+
+        List<OverlayLayer> babyPasses = drowned.axes().babyOverlays();
+        assertThat("the drowned ships exactly one baby outer pass", babyPasses.size(), is(1));
+        OverlayLayer shell = babyPasses.getFirst();
+        assertThat("the baby pass binds the baby outer texture",
+            shell.textureRef(), is(Optional.of("zombie/drowned_outer_layer_baby")));
+        assertThat("the baby shell is a mesh of its own, not the baby body",
+            shell.model(), is(not(sameInstance(drowned.axes().babyModel().orElseThrow()))));
+        assertThat("the baby shell stands proud, so it contributes to canvas bounds",
+            shell.skipBounds(), is(false));
     }
 
     @Test

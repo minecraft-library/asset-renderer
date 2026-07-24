@@ -518,7 +518,29 @@ final class EntityOverlayResolver {
             this.traits.layerInvokes(cn.name, EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
             this.traits.classifyBlend(cn.name), 1f));
         putGrow(node, mesh.grow());
+        node.putIf("baby", compositeBabyForm(cn));
         return node;
+    }
+
+    /**
+     * The composite row's {@code baby} delta, for a layer that bakes a {@code ModelLayers} baby mesh
+     * beside its adult one and forks on {@code isBaby} inside {@code submit} - the drowned's outer
+     * shell, the sheep's wool. Null when the layer bakes no baby mesh, which is most of them.
+     *
+     * <p>The mesh is named rather than inherited because a baby pass is not always the baby body: the
+     * drowned's outer shell is its own {@code LayerDefinition}, and its factory hardcodes two of the
+     * head cubes' deformations instead of driving them off the parameter, so no inflate of the body
+     * reaches it. Where the two DO coincide - vanilla registers the sheep's baby wool against the
+     * very {@code LayerDefinition} its baby body uses - the walk mints the key the age axis already
+     * registered and the pass stays coincident with the body it dresses.
+     *
+     * @param cn the layer class
+     * @return the baby delta node, or {@code null} when the layer bakes no baby mesh
+     */
+    private @Nullable JsonTree compositeBabyForm(@NotNull ClassNode cn) {
+        String babyField = findCtorBakedBabyField(cn);
+        if (babyField == null) return null;
+        return babyForm(findFirstBabyTextureLiteral(cn), null, overlayMesh(babyField).key());
     }
 
     /** The first ctor-baked non-baby {@code ModelLayers} field (name filter), or {@code null}. */
@@ -841,8 +863,37 @@ final class EntityOverlayResolver {
     /**
      * The first {@code <clinit>} texture literal flowing through
      * {@code withDefaultNamespace} into a non-baby {@code Identifier} field.
+     *
+     * @param cn the class whose {@code <clinit>} is walked
+     * @return the raw jar path, or {@code null} when the class binds none
      */
     static @Nullable String findFirstNonBabyTextureLiteral(@NotNull ClassNode cn) {
+        return findFirstTextureLiteral(cn, false);
+    }
+
+    /**
+     * The baby counterpart of {@link #findFirstNonBabyTextureLiteral} - the literal bound to a
+     * {@code BABY} {@code Identifier} field, which a layer holding one mesh per age draws its baby
+     * pass against ({@code drowned_outer_layer_baby}, {@code sheep_wool_baby}).
+     *
+     * @param cn the class whose {@code <clinit>} is walked
+     * @return the raw jar path, or {@code null} when the class binds no baby texture
+     */
+    static @Nullable String findFirstBabyTextureLiteral(@NotNull ClassNode cn) {
+        return findFirstTextureLiteral(cn, true);
+    }
+
+    /**
+     * The first {@code <clinit>} texture literal flowing through {@code withDefaultNamespace} into
+     * an {@code Identifier} field of the requested age. One walk serves both polarities: a field of
+     * the other age discards the pending literal rather than ending the walk, so neither can read
+     * the other's path.
+     *
+     * @param cn the class whose {@code <clinit>} is walked
+     * @param baby whether a {@code BABY} field is the one to accept rather than the one to reject
+     * @return the raw jar path, or {@code null} when the class binds none of that age
+     */
+    private static @Nullable String findFirstTextureLiteral(@NotNull ClassNode cn, boolean baby) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pendingPath = null;
@@ -862,7 +913,7 @@ final class EntityOverlayResolver {
                 && in instanceof FieldInsnNode fi
                 && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
                 && pendingPath != null && pendingIdentifier) {
-                if (!fi.name.contains("BABY")) return pendingPath;
+                if (fi.name.contains("BABY") == baby) return pendingPath;
                 pendingPath = null;
                 pendingIdentifier = false;
             }
@@ -1281,7 +1332,7 @@ final class EntityOverlayResolver {
             babyCategory = null;
         }
         String babyTexture = babyCategory == null ? null : probeCategoryTexture(prefix, babyCategory, defaultIds);
-        JsonTree baby = babyCategory == null ? null : babyForm(babyTexture, babyNoHatRoot);
+        JsonTree baby = babyCategory == null ? null : babyForm(babyTexture, babyNoHatRoot, null);
         List<JsonTree> rows = new ArrayList<>(categories.size());
         for (String category : categories) {
             boolean firstPass = rows.isEmpty();
@@ -1326,17 +1377,22 @@ final class EntityOverlayResolver {
     }
 
     /**
-     * The row's {@code baby} age delta - the members a baby render substitutes, geometry never
-     * among them. Null when neither member resolved, so the key is absent rather than empty.
+     * The row's {@code baby} age delta - the members a baby render substitutes. Null when none
+     * resolved, so the key is absent rather than empty.
      *
      * @param texture the raw jar path of the probed age texture, or {@code null} when none exists
      * @param noHatRoot the cleared-bone root of the age alternate mesh, or {@code null} when the
      *     site bakes no separate one
+     * @param geometry the baby mesh coordinate, or {@code null} to materialise against the
+     *     {@code age.baby} mesh the way a decor delta does
      * @return the delta node, or {@code null} when it would be empty
      */
-    private static @Nullable JsonTree babyForm(@Nullable String texture, @Nullable String noHatRoot) {
-        if (texture == null && noHatRoot == null) return null;
+    private static @Nullable JsonTree babyForm(
+        @Nullable String texture, @Nullable String noHatRoot, @Nullable String geometry
+    ) {
+        if (texture == null && noHatRoot == null && geometry == null) return null;
         return JsonTree.object()
+            .putIf("geometry", geometry)
             .putIf("texture", texture == null ? null : namespaced(texture))
             .putIf("no_hat_root", noHatRoot);
     }

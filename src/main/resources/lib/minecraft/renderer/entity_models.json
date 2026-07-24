@@ -852,7 +852,11 @@
           "layer_index": 4,
           "geometry": "DrownedModel#createBodyLayer",
           "texture": "minecraft:textures/entity/zombie/drowned_outer_layer.png",
-          "grow": 0.25
+          "grow": 0.25,
+          "baby": {
+            "geometry": "BabyDrownedModel#createBodyLayer@grow=0.25",
+            "texture": "minecraft:textures/entity/zombie/drowned_outer_layer_baby.png"
+          }
         }
       ],
       "layers": [
@@ -2334,7 +2338,11 @@
           "geometry": "SheepFurModel#createFurLayer",
           "texture": "minecraft:textures/entity/sheep/sheep_wool.png",
           "tint": "0xFFE6E6E6",
-          "tint_by": "wool_color"
+          "tint_by": "wool_color",
+          "baby": {
+            "geometry": "BabySheepModel#createBodyLayer",
+            "texture": "minecraft:textures/entity/sheep/sheep_wool_baby.png"
+          }
         }
       ]
     },

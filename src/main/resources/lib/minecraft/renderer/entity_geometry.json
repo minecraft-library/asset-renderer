@@ -12218,6 +12218,236 @@
         }
       }
     },
+    "BabyDrownedModel#createBodyLayer@grow=0.25": {
+      "source": {
+        "class": "net/minecraft/client/model/monster/zombie/BabyDrownedModel",
+        "method": "createBodyLayer",
+        "grow": 0.25
+      },
+      "texture_size": [
+        64,
+        64
+      ],
+      "y_axis": "DOWN",
+      "bones": {
+        "body": {
+          "pivot": [
+            0.0,
+            17.5,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                -2.5,
+                -1.0
+              ],
+              "size": [
+                4.0,
+                5.0,
+                2.0
+              ],
+              "uv": [
+                16,
+                16
+              ],
+              "grow": 0.25
+            }
+          ]
+        },
+        "head": {
+          "pivot": [
+            0.0,
+            15.25,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -3.0,
+                -6.25,
+                -3.0
+              ],
+              "size": [
+                6.0,
+                6.0,
+                6.0
+              ],
+              "uv": [
+                3,
+                3
+              ]
+            },
+            {
+              "origin": [
+                -3.0,
+                -6.15,
+                -3.0
+              ],
+              "size": [
+                6.0,
+                6.0,
+                6.0
+              ],
+              "uv": [
+                35,
+                3
+              ],
+              "grow": 0.25
+            }
+          ]
+        },
+        "hat": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "parent": "head",
+          "cubes": []
+        },
+        "right_arm": {
+          "pivot": [
+            -3.0,
+            15.5,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                -0.5,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                5.0,
+                2.0
+              ],
+              "uv": [
+                36,
+                16
+              ],
+              "grow": 0.25
+            }
+          ]
+        },
+        "left_arm": {
+          "pivot": [
+            3.0,
+            15.5,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                -0.5,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                5.0,
+                2.0
+              ],
+              "uv": [
+                28,
+                16
+              ],
+              "grow": 0.25
+            }
+          ]
+        },
+        "right_leg": {
+          "pivot": [
+            -1.0,
+            20.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                0.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                4.0,
+                2.0
+              ],
+              "uv": [
+                8,
+                16
+              ],
+              "grow": 0.25
+            }
+          ]
+        },
+        "left_leg": {
+          "pivot": [
+            1.0,
+            20.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                0.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                4.0,
+                2.0
+              ],
+              "uv": [
+                0,
+                16
+              ],
+              "grow": 0.25
+            }
+          ]
+        }
+      }
+    },
     "BabyDrownedModel#createBodyLayer": {
       "source": {
         "class": "net/minecraft/client/model/monster/zombie/BabyDrownedModel",
