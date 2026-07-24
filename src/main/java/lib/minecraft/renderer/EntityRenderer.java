@@ -530,15 +530,18 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         },
 
         /**
-         * The dyed collar (wolf, cat): a body-geometry cutout tinted by the collar colour, drawn on top
-         * of the base body when a collar colour is supplied and the resolved definition carries a collar
-         * texture (empty for a baby). The collar texture is transparent except the neck band, so the
-         * tinted band wins the coplanar depth tie (last-drawn LEQUAL) over the body beneath it.
+         * The collar (wolf, cat): a body-geometry cutout tinted by the collar colour, drawn on top of
+         * the base body when the appearance {@link EntityAppearance#collarTint() wears one} and the
+         * resolved definition carries a collar texture (empty for a baby). A tamed subject wears one
+         * whether or not a dye is named, which is what vanilla's renderers express by filling the
+         * collar colour for a tamed subject alone. The collar texture is transparent except the neck
+         * band, so the tinted band wins the coplanar depth tie (last-drawn LEQUAL) over the body
+         * beneath it.
          */
         COLLAR(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                Optional<DyeColor> collar = ctx.options().getAppearance().tint(TintAxis.COLLAR);
+                Optional<DyeColor> collar = ctx.options().getAppearance().collarTint();
                 Optional<String> collarRef = ctx.definition().layers().collar();
                 if (collar.isEmpty() || collarRef.isEmpty()) return;
                 EntityModelData model = ctx.model();

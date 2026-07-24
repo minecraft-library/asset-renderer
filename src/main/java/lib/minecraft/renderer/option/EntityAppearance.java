@@ -25,6 +25,15 @@ import java.util.Set;
 @Builder(toBuilder = true)
 public class EntityAppearance {
 
+    /** The {@link #getState() state} token a tamed subject selects - the wolf's tame coat. */
+    private static final @NotNull String TAME_STATE = "tame";
+
+    /**
+     * The collar dye an untouched tamed subject wears, matching the {@code DEFAULT_COLLAR_COLOR}
+     * both collar-bearing entities declare.
+     */
+    private static final @NotNull DyeColor DEFAULT_COLLAR_COLOR = DyeColor.Vanilla.RED;
+
     /**
      * Age selector. {@link Age#BABY} renders the entity's distinct baby mesh when it has one;
      * {@link Age#ADULT} (default) renders the adult mesh. Only affects entities with a dedicated
@@ -219,6 +228,29 @@ public class EntityAppearance {
      */
     public boolean isBaby() {
         return this.age == Age.BABY;
+    }
+
+    /**
+     * Whether this appearance selects the tamed state.
+     *
+     * @return {@code true} when {@link #getState() state} selects {@code tame}
+     */
+    public boolean isTamed() {
+        return this.state.filter(TAME_STATE::equals).isPresent();
+    }
+
+    /**
+     * The dye the collar draws with, or empty when no collar is worn. Vanilla ties the collar to
+     * tameness rather than to dyeing - a tamed subject always wears one, in the untouched default red
+     * until it is dyed - so a tamed appearance resolves a colour with {@link TintAxis#COLLAR} left
+     * unselected. Selecting that axis without the state resolves one too: vanilla cannot dye an
+     * untamed subject's collar, so naming a collar dye is itself a statement that the subject is tamed.
+     *
+     * @return the collar dye, or empty when the subject is neither tamed nor collar-dyed
+     */
+    public @NotNull Optional<DyeColor> collarTint() {
+        if (this.isTamed()) return Optional.of(this.tints.getOrDefault(TintAxis.COLLAR, DEFAULT_COLLAR_COLOR));
+        return this.tint(TintAxis.COLLAR);
     }
 
     /**

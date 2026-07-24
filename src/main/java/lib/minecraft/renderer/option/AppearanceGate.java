@@ -93,13 +93,13 @@ public sealed interface AppearanceGate
     }
 
     /**
-     * Renders only when a collar colour is supplied - the wolf / cat collar branch
-     * ({@code collarColor != null}).
+     * Renders only when a collar is worn - the wolf / cat collar branch
+     * ({@code collarColor != null}), which their renderers fill for a tamed subject alone.
      */
     record CollarColorGate() implements AppearanceGate {
         @Override
         public boolean test(@NotNull EntityAppearance appearance) {
-            return appearance.tint(TintAxis.COLLAR).isPresent();
+            return appearance.collarTint().isPresent();
         }
     }
 }
