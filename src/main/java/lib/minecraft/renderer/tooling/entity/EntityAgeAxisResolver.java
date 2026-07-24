@@ -80,16 +80,27 @@ final class EntityAgeAxisResolver {
      *     {@code null} on variant-axis / unresolved families
      * @param variantFamily whether the family carries a variant axis (baby textures then
      *     live per-option as {@code baby_texture} - the adult / baby options emit geometry only)
+     * @param setupYShift the renderer's {@code setupRotations} Y translation as an
+     *     {@code {adult, baby}} pair in blocks, or {@code null} when it applies none. It lives on the
+     *     age options rather than on {@code render} because vanilla brackets its rotations with
+     *     translates the age selects between - a family-level member could not hold both
      * @return the age node (always non-null)
      */
-    @NotNull JsonTree resolve(@Nullable String baseGeometry, @Nullable String adultTexture, boolean variantFamily) {
+    @NotNull JsonTree resolve(
+        @Nullable String baseGeometry, @Nullable String adultTexture, boolean variantFamily,
+        float @Nullable [] setupYShift
+    ) {
         JsonTree adult = JsonTree.object().putIf("geometry", baseGeometry);
         if (!variantFamily) adult.putIf("texture", adultTexture);
+        if (setupYShift != null && setupYShift[0] != 0f) adult.put("y_shift", setupYShift[0]);
         JsonTree node = JsonTree.object().put("default", "adult");
         JsonTree options = node.child("options");
         options.put("adult", adult);
         JsonTree baby = resolveBaby(baseGeometry, adultTexture, variantFamily);
-        if (baby != null) options.put("baby", baby);
+        if (baby != null) {
+            if (setupYShift != null && setupYShift[1] != 0f) baby.put("y_shift", setupYShift[1]);
+            options.put("baby", baby);
+        }
         return node;
     }
 

@@ -71,11 +71,14 @@ final class EntityAxesResolver {
      * @param overlays the family's resolved {@code overlays} rows, or {@code null}
      * @return the axes node
      */
-    @NotNull JsonTree resolve(@Nullable String baseGeometry, @Nullable String adultTexture, @Nullable JsonTree overlays) {
+    @NotNull JsonTree resolve(
+        @Nullable String baseGeometry, @Nullable String adultTexture, @Nullable JsonTree overlays,
+        float @Nullable [] setupYShift
+    ) {
         return JsonTree.object()
             .putIf("variant", this.variantNode)
             .putIf("state", this.state.resolve())
-            .put("age", this.age.resolve(baseGeometry, adultTexture, this.variantNode != null))
+            .put("age", this.age.resolve(baseGeometry, adultTexture, this.variantNode != null, setupYShift))
             .putIf("size", this.size.resolve())
             .putIf("shape", this.shape.resolve(adultTexture, overlays));
     }

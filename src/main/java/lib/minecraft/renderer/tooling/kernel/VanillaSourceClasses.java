@@ -123,6 +123,9 @@ public final class VanillaSourceClasses {
         /** {@code com.mojang.math.Axis} - the rotation-axis constants block-overlay transforms route through. */
         public static final @NotNull String MATH_AXIS = "com/mojang/math/Axis";
 
+        /** {@code LivingEntityRenderer} - the base declarer of {@code setupRotations}, below every override. */
+        public static final @NotNull String LIVING_ENTITY_RENDERER = "net/minecraft/client/renderer/entity/LivingEntityRenderer";
+
         /** {@code LivingEntityRenderState} - the parameter type on renderer state methods. */
         public static final @NotNull String LIVING_ENTITY_RENDER_STATE = "net/minecraft/client/renderer/entity/state/LivingEntityRenderState";
 

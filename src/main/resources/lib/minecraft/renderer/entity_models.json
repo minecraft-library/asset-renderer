@@ -1186,11 +1186,13 @@
           "options": {
             "adult": {
               "geometry": "SquidModel#createBodyLayer",
-              "texture": "minecraft:textures/entity/squid/glow_squid.png"
+              "texture": "minecraft:textures/entity/squid/glow_squid.png",
+              "y_shift": -0.70000005
             },
             "baby": {
               "geometry": "BabySquidModel#createBodyLayer",
-              "texture": "minecraft:textures/entity/squid/glow_squid_baby.png"
+              "texture": "minecraft:textures/entity/squid/glow_squid_baby.png",
+              "y_shift": -0.35000002
             }
           }
         }
@@ -2610,11 +2612,13 @@
           "options": {
             "adult": {
               "geometry": "SquidModel#createBodyLayer",
-              "texture": "minecraft:textures/entity/squid/squid.png"
+              "texture": "minecraft:textures/entity/squid/squid.png",
+              "y_shift": -0.70000005
             },
             "baby": {
               "geometry": "BabySquidModel#createBodyLayer",
-              "texture": "minecraft:textures/entity/squid/squid_baby.png"
+              "texture": "minecraft:textures/entity/squid/squid_baby.png",
+              "y_shift": -0.35000002
             }
           }
         }

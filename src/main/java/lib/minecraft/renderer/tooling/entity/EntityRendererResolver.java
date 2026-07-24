@@ -102,7 +102,9 @@ final class EntityRendererResolver {
         return node
             .putIf("render", this.renderTraits.resolve())                               // {scale?, yaw_addend?, tint?}
             .putIf("bones", this.bones.resolve())                                       // {hidden?, toggles?}
-            .put("axes", this.axes.resolve(baseGeometry, texturePath, overlays))        // age mandatory -> always present
+            // The setupRotations Y shift is per-age, so it rides the age options rather than `render`.
+            .put("axes", this.axes.resolve(baseGeometry, texturePath, overlays,
+                this.renderTraits.resolveSetupYShift()))                                // age mandatory -> always present
             .putIf("overlays", overlays)
             .putIf("block_overlays", this.blockOverlays.resolve())
             .putIf("layers", this.layers.resolve());

@@ -64,6 +64,9 @@ public final class EntityIndexBuilder {
      */
     private static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
 
+    /** Model units per block - the scale a vanilla {@code PoseStack} translate is expressed against. */
+    private static final float MODEL_UNITS_PER_BLOCK = 16f;
+
     private static final int WHITE = 0xFFFFFFFF;
 
     private EntityIndexBuilder() {}
@@ -185,6 +188,12 @@ public final class EntityIndexBuilder {
         RawRender render = family.render();
         float rendererScale = render == null || render.scale() == null ? 1f : render.scale();
         float setupYawAddend = render == null ? 0f : render.yawAddend();
+        // The setupRotations translate is per-age, so it rides the age options rather than `render`,
+        // and it is applied to the mesh here with the rest of the surgery rather than carried to render
+        // time: the renderer and the bounds walk both read the mesh, so moving it is what keeps the two
+        // from disagreeing about where the subject is.
+        RawAgeOption babyAge = ageBaby(family);
+        float babyYShift = babyAge == null ? 0f : babyAge.yShift();
         int baseTint = render == null || render.tint() == null ? WHITE : ArgbHex.parse(render.tint(), diagnostics);
 
         RawBones bones = family.bones();
@@ -199,7 +208,8 @@ public final class EntityIndexBuilder {
         boolean markings = markingsOf(family);
         Optional<Entity.HumanoidArmor> humanoidArmor = humanoidArmorOf(family, geometries, familyId, diagnostics);
         String babyCoord = babyGeometryOf(family);
-        Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyCoord));
+        Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
+            : Optional.ofNullable(geometries.get(babyCoord)).map(baby -> shiftModel(baby, babyYShift));
         List<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, babyCoord, babyModel, familyId, diagnostics);
 
         RawVariantAxis variant = variantAxis(family);
@@ -237,6 +247,9 @@ public final class EntityIndexBuilder {
         EntityModelData model = resolveModel(geometries, baseCoord, familyId);
         Map<String, BoneToggle> toggles = loadBoneToggles(boneToggleSpecs, model, familyId, diagnostics);
         model = applyHiddenBones(model, hiddenBones, familyId, diagnostics);
+        // Ahead of the overlay load so a same-geometry pass is materialised on the shifted mesh and
+        // travels with it; a pass on a mesh of its OWN would not, which the shift warns about.
+        model = shiftModel(model, adult.yShift());
         List<OverlayLayer> overlays = loadOverlays(familyOverlays, geometries, baseCoord, model, familyId, diagnostics);
         Optional<String> textureRef = adult.texture() == null ? Optional.empty() : Optional.of(stripEntity(adult.texture()));
 
@@ -928,6 +941,45 @@ public final class EntityIndexBuilder {
      * axis - surrounding the base mesh with the inflated overlay instead of z-fighting it. Bones, pivots,
      * rotations, UVs, and parent links are preserved verbatim.
      */
+    /**
+     * Translates a whole mesh along Y by a vanilla {@code PoseStack} distance in blocks - the
+     * {@code setupRotations} shift, applied as mesh surgery.
+     *
+     * <p>It lands on the mesh rather than on a render parameter because the renderer and the
+     * canvas-sizing bounds walk both read the mesh: moving it is what keeps a subject and the frame
+     * measured around it from disagreeing. That also makes the shift invisible for a subject measured
+     * against its OWN silhouette, which is correct - the fit centres what it measured, so subject and
+     * frame move together - and leaves it visible exactly where vanilla makes it visible, inside a
+     * canvas unioned across group members whose shifts differ.
+     *
+     * <p>Vanilla translates in world space where {@code +Y} is up, and the mesh is authored Y-down, so
+     * the sign flips on the way in. Only root bones move: a child's pivot is relative to its parent, so
+     * the whole tree follows them.
+     *
+     * @param source the mesh to translate
+     * @param blocks the vanilla translation in blocks, {@code 0f} to return the source untouched
+     * @return the translated mesh, or {@code source} when there is nothing to apply
+     */
+    private static @NotNull EntityModelData shiftModel(@NotNull EntityModelData source, float blocks) {
+        if (blocks == 0f) return source;
+        float delta = -blocks * MODEL_UNITS_PER_BLOCK;
+        LinkedHashMap<String, EntityModelData.Bone> shifted = new LinkedHashMap<>();
+        for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {
+            EntityModelData.Bone bone = e.getValue();
+            if (bone.getParent() != null) {
+                shifted.put(e.getKey(), bone);
+                continue;
+            }
+            Vector3f pivot = bone.getPivot();
+            shifted.put(e.getKey(), new EntityModelData.Bone(
+                new Vector3f(pivot.x(), pivot.y() + delta, pivot.z()),
+                bone.getRotation(), bone.getBindPoseRotation(),
+                bone.getScale(), bone.getCubes(), bone.getParent()));
+        }
+        return new EntityModelData(source.getTextureSize(), source.getInventoryYRotation(),
+            Concurrent.adoptLinkedMap(shifted), source.isCull());
+    }
+
     private static @NotNull EntityModelData inflateModel(@NotNull EntityModelData source, float delta) {
         LinkedHashMap<String, EntityModelData.Bone> inflated = new LinkedHashMap<>();
         for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {

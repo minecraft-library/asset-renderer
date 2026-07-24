@@ -155,8 +155,16 @@ record RawAgeAxis(@NotNull Map<String, RawAgeOption> options) {}
  *
  * @param geometry the option's geometry coordinate
  * @param texture the option's base texture path, or {@code null} when the option has none
+ * @param yShift the blocks the renderer's {@code setupRotations} translates this age along Y before
+ *     drawing it, {@code 0f} when absent. It sits on the option rather than on {@code render}
+ *     because vanilla brackets its rotations with translates the age selects between - the squid
+ *     lifts an adult by a different pair than a baby
  */
-record RawAgeOption(@Nullable String geometry, @Nullable String texture) {}
+record RawAgeOption(
+    @Nullable String geometry,
+    @Nullable String texture,
+    @SerializedName("y_shift") float yShift
+) {}
 
 /**
  * The {@code axes.shape} axis (tropical fish).
