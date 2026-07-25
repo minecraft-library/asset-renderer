@@ -44,14 +44,14 @@
           "right_arm"
         ],
         "toggles": {
-          "show_arms": {
+          "arms": {
             "bones": [
               "left_arm",
               "right_arm"
             ],
             "default": false
           },
-          "show_base_plate": {
+          "base_plate": {
             "bones": [
               "base_plate"
             ],

@@ -430,13 +430,22 @@ final class EntityBoneResolver {
     }
 
     /**
-     * Derives a toggle name from a state flag: strips the {@code has} / {@code is} prefix
-     * and snake_cases the stem ({@code hasChest} to {@code chest}) - naming only, never a
+     * Derives a toggle name from a state flag: strips the {@code has} / {@code is} / {@code show}
+     * prefix and snake_cases the stem ({@code hasChest} to {@code chest}) - naming only, never a
      * match gate.
+     *
+     * <p>A toggle names the thing it reaches, not a state of it, which is what leaves the corpus
+     * reading as bare nouns - {@code chest}, {@code horn}, {@code egg}, {@code stinger}. Carrying a
+     * flag's {@code show} through would break that for the two flags vanilla happens to spell that
+     * way, and would read as an assertion the name cannot keep: a toggle reference renders the
+     * flag's <em>other</em> state, so {@code show_base_plate} would name the render with no base
+     * plate. Stripping it says which bones the toggle reaches and leaves the direction to
+     * {@code default}, which is derived.
      */
     private static @NotNull String flagToToggleName(@NotNull String flag) {
         String stem = flag.startsWith("has") ? flag.substring(3)
             : flag.startsWith("is") ? flag.substring(2)
+            : flag.startsWith("show") ? flag.substring(4)
             : flag;
         return StringUtil.toSnakeCase(stem);
     }
