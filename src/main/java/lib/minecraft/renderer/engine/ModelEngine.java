@@ -11,6 +11,7 @@ import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Shading;
+import lib.minecraft.renderer.engine.raster.Composition;
 import lib.minecraft.renderer.engine.raster.RasterMath;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -52,7 +53,7 @@ import java.util.stream.IntStream;
  * functions with a {@code 1/256} fixed-point sample and an OpenGL top-left fill rule
  * (see {@link RasterMath}). Fragments are depth-tested ({@link #depthFails}, vanilla
  * {@code GL_LEQUAL}), texture-sampled, tinted ({@link BlendMode#MULTIPLY}), shaded
- * ({@link Shading}), and composited with the {@link BlendMode#NORMAL normal alpha blend}.
+ * ({@link Shading}), and composited through the triangle's {@link Composition}.
  *
  * <p><b>Back-face culling</b> uses a signed screen-space winding test after projection
  * ({@link #isBackFacing}), which is robust against camera and model rotations and does not depend
@@ -671,7 +672,7 @@ public class ModelEngine {
             // Hoist the surface traits once per triangle; the per-pixel loop below reads
             // emissive/glinted/blend/alpha off this local so the deref stays out of the hot path.
             SurfaceTraits tr = t.source.traits();
-            BlendMode blendMode = tr.blend();
+            Composition blendMode = tr.blend();
             // Depth comes off a plane solved once per triangle from the snapped screen positions, the
             // way graphics hardware sets one up, rather than blended per pixel from barycentric weights.
             // The two forms describe the same plane and differ only in where they round: solving once
@@ -781,10 +782,15 @@ public class ModelEngine {
                         : ColorMath.withAlpha(afterShade, Math.round(ColorMath.alpha(afterShade) * alphaScale));
                     // Colour composition is per-overlay (hoisted above): NORMAL source-over for
                     // bodies / eyes / texture-alpha shells (matching vanilla's TRANSLUCENT fragment
-                    // blend), ADD for the additive energy-swirl glow (creeper / wither). NORMAL is the
-                    // default - only an overlay declaring `blend: additive` moves; eyes stay NORMAL (an
-                    // earlier blanket ADD produced enderman eye (255,144,255) vs vanilla's (204,0,250)).
-                    int outArgb = ColorMath.blend(afterAlpha, buffer.getPixel(px, py), blendMode);
+                    // blend), ADDITIVE for the energy-swirl glow (creeper / wither), REPLACE for a
+                    // pass vanilla draws through a pipeline declaring no blend function - which writes
+                    // the fragment over the destination rather than into it, alpha included. NORMAL is
+                    // the default; eyes stay NORMAL (an earlier blanket additive produced enderman eye
+                    // (255,144,255) vs vanilla's (204,0,250)). NORMAL and REPLACE differ only where a
+                    // fragment's alpha is strictly between 0 and 255 - source-over returns the source
+                    // unchanged at 255, and a 0-alpha texel is discarded above - so declaring a pass
+                    // cutout costs nothing on geometry whose texels are all one or the other.
+                    int outArgb = blendMode.composite(afterAlpha, buffer.getPixel(px, py));
                     buffer.setPixel(px, py, outArgb);
                     // Mark the glint mask wherever a glinted (armor) fragment wins the pixel, so the
                     // foil compositor restricts the enchantment glint to the armor. Uses absolute

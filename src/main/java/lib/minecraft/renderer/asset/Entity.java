@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.asset;
 
 import dev.simplified.collection.Concurrent;
-import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.raster.Composition;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.HorseMarking;
@@ -558,10 +558,12 @@ public record Entity(
      *     {@code EntityAppearance.pattern}), or empty when the overlay texture is fixed at
      *     {@link #textureRef}
      * @param blend the colour-composition mode the rasterizer composites this overlay with -
-     *     {@link BlendMode#NORMAL} source-over (the default; also what a {@code translucent} node maps to,
-     *     since the slime shell's translucency is in its texture alpha) or {@link BlendMode#ADD} for the
-     *     additive energy-swirl glow ({@code blend: additive}). Parsed from the overlay's optional
-     *     {@code blend} node, orthogonal to {@link #emissive}
+     *     {@link Composition#NORMAL} source-over (the default; also what a {@code translucent} node maps
+     *     to, since the slime shell's translucency is in its texture alpha),
+     *     {@link Composition#ADDITIVE} for the energy-swirl glow ({@code blend: additive}) or
+     *     {@link Composition#REPLACE} for a pass vanilla draws through a pipeline declaring no blend
+     *     function ({@code blend: cutout}). Parsed from the overlay's optional {@code blend} node,
+     *     orthogonal to {@link #emissive}
      * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} from the overlay's optional
      *     {@code alpha} node, multiplied into the sampled texel's alpha before the {@link #blend}
      *     composite. {@code 1.0} (no-op) except for an overlay carrying an explicit multiplier (the warden
@@ -582,7 +584,7 @@ public record Entity(
         boolean skipBounds,
         @NotNull Optional<String> tintBy,
         @NotNull Optional<String> textureBy,
-        @NotNull BlendMode blend,
+        @NotNull Composition blend,
         float alpha,
         @NotNull Optional<AppearanceGate> gate,
         @NotNull Optional<EntityModelData> noHatModel

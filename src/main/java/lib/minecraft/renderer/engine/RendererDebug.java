@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.engine;
 
-import dev.simplified.image.pixel.BlendMode;
+import lib.minecraft.renderer.engine.raster.Composition;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -152,7 +152,7 @@ public final class RendererDebug {
                                    float u, float v, int tx, int ty,
                                    int rawTexel, int tintArgb, int afterTint,
                                    float shading, int afterShade,
-                                   @NotNull BlendMode blendMode, int outArgb) {
+                                   @NotNull Composition blendMode, int outArgb) {
         if (!pixelDumpContains(px, py)) return;
         System.out.println("[PX]\tWRITE\t" + px + "\t" + py + "\t" + depthVal
             + "\t" + tag

@@ -230,7 +230,10 @@
           "source": "SkeletonClothingLayer",
           "layer_index": 4,
           "geometry": "HumanoidModel#createMesh@grow=0.2",
-          "texture": "minecraft:textures/entity/skeleton/bogged_overlay.png"
+          "texture": "minecraft:textures/entity/skeleton/bogged_overlay.png",
+          "pipeline": {
+            "blend": "cutout"
+          }
         }
       ],
       "layers": [
@@ -852,6 +855,9 @@
           "layer_index": 4,
           "geometry": "DrownedModel#createBodyLayer",
           "texture": "minecraft:textures/entity/zombie/drowned_outer_layer.png",
+          "pipeline": {
+            "blend": "cutout"
+          },
           "grow": 0.25,
           "baby": {
             "geometry": "BabyDrownedModel#createBodyLayer@grow=0.25",
@@ -2343,7 +2349,10 @@
           "geometry": "SheepModel#createBodyLayer",
           "texture": "minecraft:textures/entity/sheep/sheep_wool_undercoat.png",
           "tint": "0xFFE6E6E6",
-          "tint_by": "wool_color"
+          "tint_by": "wool_color",
+          "pipeline": {
+            "blend": "cutout"
+          }
         },
         {
           "source": "SheepWoolLayer",
@@ -2356,6 +2365,9 @@
           "texture": "minecraft:textures/entity/sheep/sheep_wool.png",
           "tint": "0xFFE6E6E6",
           "tint_by": "wool_color",
+          "pipeline": {
+            "blend": "cutout"
+          },
           "baby": {
             "geometry": "BabySheepModel#createBodyLayer",
             "texture": "minecraft:textures/entity/sheep/sheep_wool_baby.png"
@@ -2645,7 +2657,10 @@
           "source": "SkeletonClothingLayer",
           "layer_index": 4,
           "geometry": "HumanoidModel#createMesh@grow=0.25",
-          "texture": "minecraft:textures/entity/skeleton/stray_overlay.png"
+          "texture": "minecraft:textures/entity/skeleton/stray_overlay.png",
+          "pipeline": {
+            "blend": "cutout"
+          }
         }
       ],
       "layers": [
@@ -2855,6 +2870,9 @@
                   "texture_by": "pattern",
                   "tint": "0xFFF9FFFE",
                   "tint_by": "pattern_color",
+                  "pipeline": {
+                    "blend": "cutout"
+                  },
                   "grow": 0.008
                 }
               ]
@@ -2871,6 +2889,9 @@
           "texture_by": "pattern",
           "tint": "0xFFF9FFFE",
           "tint_by": "pattern_color",
+          "pipeline": {
+            "blend": "cutout"
+          },
           "grow": 0.008
         }
       ]

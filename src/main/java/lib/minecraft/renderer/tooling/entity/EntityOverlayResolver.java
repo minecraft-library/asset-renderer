@@ -394,7 +394,7 @@ final class EntityOverlayResolver {
                     .put("texture", namespaced(pendingTexture));
                 node.putIf("pipeline", pipelineNode(
                     factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-                    EntityPipelineTraits.blendToken(factoryTraits), 1f));
+                    this.traits.blendTokenOf(mi.name), 1f));
                 this.diagnostics.info("eyes overlay '%s' via clinit RenderTypes.%s [D20]", simpleName(sourceClass), mi.name);
                 return node;
             }
@@ -435,7 +435,7 @@ final class EntityOverlayResolver {
                     .put("texture", namespaced(pendingTexture));
                 node.putIf("pipeline", pipelineNode(
                     factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-                    EntityPipelineTraits.blendToken(factoryTraits), 1f));
+                    this.traits.blendTokenOf(mi.name), 1f));
                 this.diagnostics.info("renderer-tail eyes via clinit RenderTypes.%s", mi.name);
                 return node;
             }
@@ -1036,9 +1036,10 @@ final class EntityOverlayResolver {
             this.diagnostics.info("provider layer '%s' texture unresolved - dropped", simpleName(site.layerClass()));
             return List.of();
         }
-        var factoryTraits = this.traits.traitsOf(renderTypeFactoryName(providers.get(2)));
+        String factoryName = renderTypeFactoryName(providers.get(2));
+        var factoryTraits = this.traits.traitsOf(factoryName);
         boolean emissive = factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING);
-        String blend = EntityPipelineTraits.blendToken(factoryTraits);
+        String blend = this.traits.blendTokenOf(factoryName);
 
         boolean primaryMesh = modelField == null || modelField.equals(this.geometryRef.primaryFieldName());
         JsonTree node = row(site.layerClass(), site.layerIndex());

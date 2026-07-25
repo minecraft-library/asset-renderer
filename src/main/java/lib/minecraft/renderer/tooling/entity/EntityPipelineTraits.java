@@ -17,6 +17,7 @@ import org.objectweb.asm.tree.MethodNode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,8 +37,34 @@ import java.util.Set;
  * <p>Build-block boundaries in {@code RenderPipelines.<clinit>} are marked by any
  * {@code PUTSTATIC}: traits accumulate until the boundary and reset after it, so one
  * pipeline's defines never leak into the next.
+ *
+ * <p>A layer may reach its render type only through a static helper it calls rather than through a
+ * factory in its own body, so the layer probe follows the statics a layer <em>actually invokes</em>
+ * up to {@link #HELPER_HOPS} deep. Following what a layer calls is what separates that from
+ * accepting every static in its hierarchy - a base class's helpers are inherited by every subclass,
+ * and crediting a layer with one it never calls would classify the whole corpus alike.
  */
 final class EntityPipelineTraits {
+
+    /**
+     * How many static calls deep the layer probe follows a helper before giving up. Vanilla's cutout
+     * helper delegates once before reaching a factory, so one hop finds nothing and two is the floor
+     * rather than a margin. The walk resolves each call the way the JVM would and stops at any
+     * target the extracted jar does not hold, which is what keeps it inside vanilla's own code.
+     */
+    private static final int HELPER_HOPS = 2;
+
+    /** The {@code blend} token of a pipeline whose fragments are added to the destination. */
+    static final @NotNull String BLEND_ADDITIVE = "additive";
+
+    /** The {@code blend} token of a pipeline that blends its fragments against the destination. */
+    static final @NotNull String BLEND_TRANSLUCENT = "translucent";
+
+    /**
+     * The {@code blend} token of a pipeline that declares no blend function at all - it writes each
+     * surviving fragment over the destination verbatim, alpha included, rather than compositing it.
+     */
+    static final @NotNull String BLEND_CUTOUT = "cutout";
 
     /** Field descriptor of a {@code java.util.function.Function}-backed factory field (JDK name, kit-local). */
     private static final @NotNull String FUNCTION_DESC = "Ljava/util/function/Function;";
@@ -86,12 +113,10 @@ final class EntityPipelineTraits {
     }
 
     /**
-     * Whether any {@code RenderTypes} factory invoked from the layer hierarchy's INSTANCE
+     * Whether any {@code RenderTypes} factory reached from the layer hierarchy's INSTANCE
      * methods carries the trait - the layer-body probe the overlay engine's emissive / blend
      * classification runs. The superclass walk picks up {@code RenderTypes.energySwirl} where
-     * it lives, in {@code EnergySwirlLayer.submit}; static methods are excluded because the
-     * {@code RenderLayer} base's static cutout helpers invoke {@code RenderTypes.entityCutout}
-     * themselves and would accept every layer.
+     * it lives, in {@code EnergySwirlLayer.submit}.
      *
      * @param layerClass the layer class's JVM internal name
      * @param trait the probed trait
@@ -111,55 +136,98 @@ final class EntityPipelineTraits {
     }
 
     /**
-     * The composite {@code blend} classification of a layer hierarchy: {@code "additive"}
-     * when any invoked factory's pipeline blends additively, else {@code "translucent"}
-     * when one blends translucent WITHOUT {@code NO_CARDINAL_LIGHTING} (the eyes pipelines
-     * are translucent full-bright and stay unannotated), else {@code null}
-     * (source-over normal). Instance methods only, per {@link #layerInvokes}.
+     * The composite {@code blend} classification of a layer hierarchy - the strongest token any
+     * reached factory yields, by {@link #blendRank}. Instance methods only, per
+     * {@link #layerInvokes}.
      *
      * @param layerClass the layer class's JVM internal name
-     * @return the blend token, or {@code null} for the default
+     * @return the blend token, or {@code null} for the source-over default
      */
     @Nullable String classifyBlend(@NotNull String layerClass) {
         String[] blend = {null};
         AsmKit.walkSuperChain(this.cache, layerClass, cn -> {
             for (String factory : instanceFactoryCalls(cn)) {
-                String token = blendToken(traitsOf(factory));
-                if ("additive".equals(token)) {
-                    blend[0] = token;
-                    return;
-                }
-                if (token != null && blend[0] == null) blend[0] = token;
+                String token = blendTokenOf(factory);
+                if (blendRank(token) > blendRank(blend[0])) blend[0] = token;
             }
         });
         return blend[0];
     }
 
-    /** The {@code RenderTypes} factory names invoked from the class's instance non-init methods. */
-    private static @NotNull List<String> instanceFactoryCalls(@NotNull ClassNode cn) {
+    /**
+     * The {@code blend} token of one {@code RenderTypes} factory, resolved through its pipeline:
+     * {@link #BLEND_ADDITIVE} when the build block pushed {@code BlendFunction.ADDITIVE},
+     * {@link #BLEND_TRANSLUCENT} when it pushed {@code BlendFunction.TRANSLUCENT} and the pipeline
+     * is not full-bright (the eyes pipelines are translucent full-bright and stay unannotated),
+     * {@link #BLEND_CUTOUT} when it pushed neither, and {@code null} when the factory or its
+     * pipeline could not be resolved at all.
+     *
+     * <p>That last distinction is the whole point of resolving here rather than from a trait set: an
+     * unresolved factory and a resolved one that declares no blend function both walk to an empty
+     * set, yet the first is an unknown that must default to source-over and the second is a positive
+     * finding that the destination is not read.
+     *
+     * @param factoryName the {@code RenderTypes} factory method name
+     * @return the blend token, or {@code null} when unresolved
+     */
+    @Nullable String blendTokenOf(@NotNull String factoryName) {
+        String pipelineField = resolveFactoryPipeline(factoryName);
+        if (pipelineField == null) return null;
+        Set<Trait> traits = pipelines().get(pipelineField);
+        if (traits == null) return null;
+        if (traits.contains(Trait.ADDITIVE)) return BLEND_ADDITIVE;
+        if (traits.contains(Trait.TRANSLUCENT))
+            return traits.contains(Trait.NO_CARDINAL_LIGHTING) ? null : BLEND_TRANSLUCENT;
+        return BLEND_CUTOUT;
+    }
+
+    /**
+     * How strongly a token claims a layer, so a hierarchy reaching several factories resolves to one
+     * without depending on walk order - additive over translucent over cutout over the default.
+     *
+     * @param token the blend token, or {@code null}
+     * @return the rank, {@code 0} for the default
+     */
+    private static int blendRank(@Nullable String token) {
+        if (BLEND_ADDITIVE.equals(token)) return 3;
+        if (BLEND_TRANSLUCENT.equals(token)) return 2;
+        if (BLEND_CUTOUT.equals(token)) return 1;
+        return 0;
+    }
+
+    /**
+     * The {@code RenderTypes} factory names the class's instance non-init methods reach, directly or
+     * through a static helper they invoke.
+     */
+    private @NotNull List<String> instanceFactoryCalls(@NotNull ClassNode cn) {
         List<String> out = new ArrayList<>();
         for (MethodNode method : cn.methods) {
             if ((method.access & Opcodes.ACC_STATIC) != 0) continue;
             if (AsmKit.INIT.equals(method.name)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-                if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) continue;
-                if (VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner)) out.add(mi.name);
-            }
+            collectFactoryCalls(method, out, new HashSet<>(), HELPER_HOPS);
         }
         return out;
     }
 
     /**
-     * The {@code blend} token of a trait set - {@code "additive"}, {@code "translucent"}
-     * (only when not full-bright), or {@code null} for source-over.
-     *
-     * @param traits the walked trait set
-     * @return the token, or {@code null}
+     * Collects the {@code RenderTypes} factories one method body reaches, descending into each
+     * static call it makes while hops remain. Resolution walks the super chain the way
+     * {@code invokestatic} does, since javac names the calling class rather than the declaring one
+     * when a subclass invokes an inherited static; a target the jar does not hold ends that branch,
+     * which is what confines the descent to vanilla's own code.
      */
-    static @Nullable String blendToken(@NotNull Set<Trait> traits) {
-        if (traits.contains(Trait.ADDITIVE)) return "additive";
-        if (traits.contains(Trait.TRANSLUCENT) && !traits.contains(Trait.NO_CARDINAL_LIGHTING)) return "translucent";
-        return null;
+    private void collectFactoryCalls(@NotNull MethodNode method, @NotNull List<String> out,
+                                     @NotNull Set<String> visited, int hops) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) continue;
+            if (VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner)) {
+                out.add(mi.name);
+                continue;
+            }
+            if (hops <= 0 || !visited.add(mi.owner + '.' + mi.name + mi.desc)) continue;
+            MethodNode helper = AsmKit.findMethodInHierarchy(this.cache, mi.owner, mi.name, mi.desc);
+            if (helper != null) collectFactoryCalls(helper, out, visited, hops - 1);
+        }
     }
 
     // ------------------------------------------------------------------------------------
