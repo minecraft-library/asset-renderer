@@ -329,13 +329,17 @@ public final class EntityRoster {
 
     /**
      * The bone toggles each model carries, named as the appearance names them rather than as the mesh
-     * names the bones they reach.
+     * names the bones they reach. A toggle names the thing rather than a state of it, so these read as
+     * bare nouns and the direction lives in the model's derived default - a toggle reference renders
+     * the flag's <em>other</em> state, which no name asserting one could stay true to. {@code chest}
+     * reaching {@code left_chest} / {@code right_chest} is the shape; {@code base_plate} matching its
+     * one bone exactly is a coincidence rather than the rule.
      *
      * <p>The bogged's shear toggle is not here: it is driven by the sheared flag rather than selected
      * on its own, so counting it twice would be counting one reference twice.
      */
     private static final Map<EntityType<?>, List<String>> BONE_TOGGLES = Map.of(
-        EntityType.ARMOR_STAND, List.of("show_arms", "show_base_plate"),
+        EntityType.ARMOR_STAND, List.of("arms", "base_plate"),
         EntityType.BEE, List.of("stinger"),
         EntityType.DONKEY, List.of("chest"),
         EntityType.MULE, List.of("chest"),
@@ -369,8 +373,8 @@ public final class EntityRoster {
     /** The bones one toggle name reaches, and what selecting it does to them. */
     private static Map<String, Boolean> toggleBones(String toggle) {
         return switch (toggle) {
-            case "show_arms" -> Map.of("left_arm", true, "right_arm", true);
-            case "show_base_plate" -> Map.of("base_plate", false);
+            case "arms" -> Map.of("left_arm", true, "right_arm", true);
+            case "base_plate" -> Map.of("base_plate", false);
             case "stinger" -> Map.of("stinger", true);
             case "chest" -> Map.of("left_chest", true, "right_chest", true);
             case "horn" -> Map.of("left_horn", false, "right_horn", false);
