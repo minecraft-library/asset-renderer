@@ -55,16 +55,23 @@ public final class EntityFrameRenderer implements FrameRenderer<Entity> {
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
     /**
-     * Half-extent of the orthographic depth range.
+     * Half-extent of the orthographic depth range - the span vanilla's own picture-in-picture entity
+     * renderer projects through, and the one every other frame renderer here already uses.
      *
-     * <p>The range has to fit the model's diagonal extent in the rotated, family-scaled frame. A
-     * 256 pixels-per-block scale plus the iso rotation, the chirality scale and a 6x giant push the
-     * nearest and farthest corners past the block-scale range, which clips a giant's front corners
-     * entirely. This value fits a giant comfortably while keeping the depth buffer precise enough to
-     * avoid z-fighting between adjacent cube faces - an order of magnitude further out was enough to
-     * cause visible front-corner cutouts on the ghast and dark artifacts on the dragon.
+     * <p>The range only has to fit the model's diagonal extent in the rotated, family-scaled frame,
+     * and the canvas cap is what bounds that: a family whose silhouette would exceed
+     * {@link lib.minecraft.refharness.HarnessConfig#MAX_CANVAS_SIZE} is shrunk to fit it, so the depth
+     * extent is bounded along with it. It was once ten times wider, from before the canvas fit was
+     * measured, to keep a 6x giant's front corners off the near plane; measured across the whole
+     * corpus at this range, no subject loses a pixel of coverage - giant, ghast and ender_dragon
+     * included.
+     *
+     * <p>The width is not free. Every window depth lands beside {@code 0.5}, where a {@code float} step
+     * is {@code 2^-24}, so widening the range coarsens what the reference can tell apart in direct
+     * proportion - and two surfaces closer than one step are recorded at the same depth, leaving their
+     * order to whichever drew last.
      */
-    private static final float DEPTH_RANGE = 10000.0f;
+    private static final float DEPTH_RANGE = 1000.0f;
 
     private final PipTarget pip = new PipTarget("entity", DEPTH_RANGE);
     private final EntityBoundsWalker walker = new EntityBoundsWalker();
