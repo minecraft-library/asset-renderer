@@ -53,17 +53,6 @@ public final class EntityIndexBuilder {
     private static final @NotNull String TEXTURE_PREFIX = "minecraft:textures/entity/";
     private static final @NotNull String TEXTURE_SUFFIX = ".png";
 
-    /**
-     * The auto-emitted depth-clearance inflate applied to same-geometry grow-less overlays (emissive
-     * eyes, {@code texture_by} profession / crackiness layers) so they win the coplanar depth tie against
-     * the base mesh. This is OUR artifact - vanilla submits the identical {@code ModelPart} with no
-     * deformation - so a same-geometry overlay carrying at most this much inflate is excluded from
-     * canvas-sizing bounds. A tinted separate-{@code LayerDefinition} overlay that merely dedupes into the
-     * base mesh (sheep wool undercoat: {@code tint_by wool_color}) is NOT stamped, so the tint gate
-     * excludes it.
-     */
-    private static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
-
     /** Model units per block - the scale a vanilla {@code PoseStack} translate is expressed against. */
     private static final float MODEL_UNITS_PER_BLOCK = 16f;
 
@@ -363,25 +352,23 @@ public final class EntityIndexBuilder {
             // LayerDefinition does. Applied before inflate so surviving cubes inflate together.
             EntityModelData retained = entry.retainBones() == null ? overlayModel : retainExactParts(overlayModel, entry.retainBones());
             boolean hasTint = entry.tint() != null;
-            boolean hasTintBy = entry.tintBy() != null;
-            // inflate: an explicit grow (real vanilla CubeDeformation - tropical_fish 0.008, llama carpet
-            // 0.5) wins; else a same-mesh grow-less overlay that RE-SUBMITS the base geometry with no
-            // colour tint gets the depth-clearance inflate (emissive eyes, texture_by profession /
-            // crackiness); every other overlay carries none.
-            float inflate = entry.grow() != null ? growScalar(entry.grow())
-                : sameGeometry && !hasTint && !hasTintBy ? DEPTH_CLEARANCE_INFLATE : 0f;
+            // inflate: an explicit grow is a real vanilla CubeDeformation (tropical_fish 0.008, llama
+            // carpet 0.5); every other overlay carries none. A same-mesh grow-less overlay re-submits the
+            // base geometry coincident with it, exactly as vanilla submits the identical ModelPart through
+            // a second render type, and the depth test resolves the tie in the overlay's favour because it
+            // draws second.
+            float inflate = entry.grow() != null ? growScalar(entry.grow()) : 0f;
             EntityModelData materialised = inflate != 0f ? inflateModel(retained, inflate) : retained;
             RawPipeline pipeline = entry.pipeline();
             boolean emissive = pipeline != null && pipeline.emissive();
             int overlayTint = hasTint ? ArgbHex.parse(entry.tint(), diagnostics) : WHITE;
-            // Same-geometry overlays carrying ONLY the auto-emitted depth-clearance inflate are excluded
-            // from the canvas-sizing bounds: they render the IDENTICAL cube tree as the base (vanilla
-            // submits the same ModelPart through a second render type with NO inflate), so the base
-            // already contributes their full silhouette extent. A LARGER inflate is a real vanilla
-            // CubeDeformation vanilla's own bounds walk includes, so it keeps contributing. An explicit
-            // skip_bounds (llama carpet, NO_RENDER_LAYER_SUFFIXES) always wins.
-            boolean depthClearanceOnly = sameGeometry && inflate <= DEPTH_CLEARANCE_INFLATE;
-            boolean skipBounds = entry.skipBounds() || depthClearanceOnly;
+            // A same-geometry overlay with no deformation of its own is excluded from the canvas-sizing
+            // bounds: it renders the IDENTICAL cube tree as the base, so the base already contributes its
+            // full silhouette extent. An explicit grow is a real vanilla CubeDeformation that vanilla's own
+            // bounds walk includes, so it keeps contributing. An explicit skip_bounds (llama carpet,
+            // NO_RENDER_LAYER_SUFFIXES) always wins.
+            boolean coincidentWithBase = sameGeometry && inflate == 0f;
+            boolean skipBounds = entry.skipBounds() || coincidentWithBase;
             Optional<String> tintBy = Optional.ofNullable(entry.tintBy());
             Optional<String> textureBy = Optional.ofNullable(entry.textureBy());
             // The overlay's render condition, parsed straight from its `when` object into the typed
@@ -413,9 +400,8 @@ public final class EntityIndexBuilder {
      *
      * <p>The derived row's geometry is deliberately {@code null} rather than the row's own coordinate: the
      * row names the ADULT mesh, so carrying it would flip {@link #loadOverlays}'s {@code sameGeometry}
-     * false, losing both the {@value #DEPTH_CLEARANCE_INFLATE} depth-clearance inflate (the pass would
-     * z-fight the baby body) and the derived bounds skip (the pass would re-enter the canvas union and
-     * move the baby canvas). Left null it defaults to {@code babyCoord}, which is the same mesh instance
+     * false, losing the derived bounds skip - the pass would re-enter the canvas union and move the baby
+     * canvas. Left null it defaults to {@code babyCoord}, which is the same mesh instance
      * {@link Entity.Axes#babyModel()} holds.
      *
      * @param overlays the family's raw overlay rows

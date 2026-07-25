@@ -104,17 +104,6 @@ public record Entity(
     }
 
     /**
-     * The auto-emitted depth-clearance inflate applied to same-geometry overlays (eyes, clothing
-     * patterns) so they win the coplanar depth tie against the base mesh. This is OUR artifact -
-     * vanilla submits the identical {@code ModelPart} with no deformation - so a same-geometry overlay
-     * carrying at most this much inflate is excluded from canvas-sizing bounds. A larger inflate is a
-     * real vanilla {@code CubeDeformation} (tropical_fish 0.008, llama carpet 0.5) that vanilla's bounds
-     * walk includes, so it keeps contributing. {@link EntityModelLoader} carries its own mirror
-     * constant for the native read; this copy backs the {@link OverlayLayer#skipBounds()} javadoc.
-     */
-    private static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
-
-    /**
      * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried} render
      * toggle (a sheared snow golem, an empty-handed enderman) - dropping both the rendered geometry and
      * its canvas-bounds contribution.
@@ -526,9 +515,8 @@ public record Entity(
      *     tropical-fish pattern colour). Defaults to {@code 0xFFFFFFFF} (white = no-op MULTIPLY)
      * @param skipBounds when {@code true} the overlay still renders but is excluded from the
      *     canvas-sizing bounds union - set for {@code skip_bounds=true} state-rendered decor layers the
-     *     harness also skips (llama carpet), and for same-geometry overlays carrying only the
-     *     auto-emitted {@value #DEPTH_CLEARANCE_INFLATE} depth-clearance inflate whose silhouette the
-     *     base mesh already covers
+     *     harness also skips (llama carpet), and for same-geometry overlays with no deformation of their
+     *     own, whose silhouette the base mesh already covers
      * @param tintBy the render-axis token whose selected colour overrides {@link #tintArgb} at render
      *     (e.g. {@code "wool_color"} for the sheep wool, tinted by {@code EntityAppearance.woolColor}), or
      *     empty when the tint is fixed at {@link #tintArgb}
