@@ -111,8 +111,8 @@ Full catalog + formulas in README's Mixins section. Quick reference:
 - `PufferfishStateMixin` — `puffState = STATE_FULL`.
 - `ZombieVillagerStateMixin` — `villagerData = default` (PLAINS/NONE/1).
 - `DonkeyModelMixin` / `LlamaModelMixin` — hide equipment-driven `left_chest`/`right_chest` bones.
-- `ArmorStandBasePlateMixin` (`ArmorStandModel.<init>`) — force `basePlate.visible = false` (asset-renderer toggles the base-plate bone off). Pinned at model construction, not via `showBasePlate`, because `SkipSetupAnimMixin` cancels the `setupAnim` that would otherwise apply the flag.
-- `TurtleEggBellyMixin` (`AdultTurtleModel.<init>`) — force `eggBelly.visible = false` (asset-renderer toggles the `egg_belly` bone off; a default turtle has `hasEgg = false`). Pinned at model construction for the same reason as `ArmorStandBasePlateMixin` — `setupAnim` (which sets `eggBelly.visible = hasEgg`) is cancelled.
+- `ArmorStandSpawnFlagsMixin` (`ArmorStandModel.<init>`) — force `left_arm` / `right_arm` invisible, reached through `root` because they are declared on `HumanoidModel`. Gives the stand the arms a freshly spawned one has. **Both flags this model reads live in one synched byte that defaults to zero, with opposite senses**: `showArms()` is `(flags & 4) != 0` (plain bit, spawned = no arms) while `showBasePlate()` is `(flags & 8) == 0` (inverted — the stored bit means "no base plate", spawned = plate kept). `SkipSetupAnimMixin` cancels the `setupAnim` that applies both, so every part keeps `ModelPart`'s constructed `visible = true` — right for the plate, wrong for the arms, so only the arms are pinned.
+- `TurtleEggBellyMixin` (`AdultTurtleModel.<init>`) — force `eggBelly.visible = false` (asset-renderer toggles the `egg_belly` bone off; a default turtle has `hasEgg = false`). Pinned at model construction for the same reason as `ArmorStandSpawnFlagsMixin` — `setupAnim` (which sets `eggBelly.visible = hasEgg`) is cancelled.
 
 ### Randomization to pin (common sources)
 

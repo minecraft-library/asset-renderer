@@ -348,8 +348,9 @@ public final class EntityRoster {
      * The bones a subject's selections force, mapped to the visibility they force them to.
      *
      * <p>Vanilla drives every one of these from {@code setupAnim}, which the harness does not run, so
-     * the flag has to be written onto the part. Two of them read backwards from the rest: a goat is
-     * horned and a bogged is mushroomed until something says otherwise.
+     * the flag has to be written onto the part. Three of them read backwards from the rest: a goat is
+     * horned, a bogged is mushroomed, and an armor stand keeps its base plate until something says
+     * otherwise - the last because the bit vanilla stores means "no base plate" rather than "show" it.
      *
      * @param type the entity type, which decides what a shared selection name reaches
      * @param appearance the selections being rendered
@@ -369,7 +370,7 @@ public final class EntityRoster {
     private static Map<String, Boolean> toggleBones(String toggle) {
         return switch (toggle) {
             case "show_arms" -> Map.of("left_arm", true, "right_arm", true);
-            case "show_base_plate" -> Map.of("base_plate", true);
+            case "show_base_plate" -> Map.of("base_plate", false);
             case "stinger" -> Map.of("stinger", true);
             case "chest" -> Map.of("left_chest", true, "right_chest", true);
             case "horn" -> Map.of("left_horn", false, "right_horn", false);
