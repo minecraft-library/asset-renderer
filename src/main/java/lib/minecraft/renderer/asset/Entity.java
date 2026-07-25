@@ -368,15 +368,48 @@ public record Entity(
      * {@code CubeDeformation.extend} (a leg's {@code -0.1}, a helmet's second box) rides its
      * {@code grow} and is summed onto the slot's deformation at render.
      *
+     * <p>Three of the sets are registered through a whole-mesh {@code MeshTransformer.scaling} -
+     * giant {@code 6.0}, husk {@code 1.0625}, wither skeleton {@code 1.2} - and that factor is
+     * {@link #meshScale}. It rides the wearer here rather than the mesh so the sets that differ
+     * only by it still share one geometry entry, and it is what sizes and seats the shell in step
+     * with the body it dresses.
+     *
      * @param mesh the ungrown armor mesh, joined from the geometry store
      * @param innerGrow the per-side growth the leggings layer applies
      * @param outerGrow the per-side growth the helmet / chestplate / boots layer applies
+     * @param meshScale the whole-mesh uniform scale the set is registered through, {@code 1} for
+     *     the eleven wearers registered unscaled
      */
     public record HumanoidArmor(
         @NotNull EntityModelData mesh,
         @NotNull Vector3f innerGrow,
-        @NotNull Vector3f outerGrow
-    ) {}
+        @NotNull Vector3f outerGrow,
+        float meshScale
+    ) {
+
+        /**
+         * The entity feet anchor a whole-mesh scale is taken about, in model units - vanilla's
+         * {@code MeshTransformer.scaling} expands to
+         * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, and {@code 24.016} is
+         * {@code 1.501} blocks at 16 units a block, the living-entity render chain's own
+         * {@code translate(0, -1.501, 0)}.
+         */
+        private static final float FEET_ANCHOR = 24.016f;
+
+        /**
+         * The offset the shell is seated at - the translate vanilla's whole-mesh transformer pairs
+         * with the scale, so that scaling happens about the wearer's feet rather than its origin.
+         *
+         * <p>Derived rather than carried: the same expression in the same precision the tooling
+         * baked the wearer's own bone pivots with, so the two agree bit for bit. A transcribed
+         * literal would not.
+         *
+         * @return the whole-mesh offset, zero at the identity scale
+         */
+        public @NotNull Vector3f meshOffset() {
+            return new Vector3f(0f, FEET_ANCHOR * (1f - this.meshScale), 0f);
+        }
+    }
 
     /**
      * One block-model overlay attached to an entity: a vanilla block (e.g. red mushroom block) rendered

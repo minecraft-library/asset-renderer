@@ -166,6 +166,7 @@ class EntityBabyOverlayTest {
                 "minecraft:textures/entity/villager/villager_collar.png",  // texture
                 null,                                                      // geometry
                 null,                                                      // grow
+                null,                                                      // scaled
                 null,                                                      // layer_type
                 null,                                                      // material_assets
                 null));                                                    // default_material
@@ -180,6 +181,7 @@ class EntityBabyOverlayTest {
                 null,                                  // texture
                 ADULT_COORD,                           // geometry
                 null,                                  // grow
+                null,                                  // scaled
                 "pig_saddle",                          // layer_type
                 Map.of("saddle", "minecraft:saddle"),  // material_assets
                 "saddle"));                            // default_material

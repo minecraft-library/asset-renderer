@@ -674,8 +674,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 EntityOptions options = ctx.options();
                 stack.append(this.slot, sink ->
                     sink.addAll(ArmorKit.buildEntityArmor3D(
-                        ArmorKit.EntityArmorFrame.of(options.getAppearance().isBaby(),
-                            armor, ctx.model(),
+                        new ArmorKit.EntityArmorFrame(options.getAppearance().isBaby(), armor,
                             ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale()),
                         ctx.buildResult().boneBounds(),
                         options.getArmor().getHelmet(), options.getArmor().getChestplate(),

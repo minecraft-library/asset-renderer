@@ -627,9 +627,11 @@ public final class EntityIndexBuilder {
 
     /**
      * Returns the worn-armor shell the family's armor row is dressed in - the row's mesh joined against
-     * the geometry table, plus the two layer deformations - or empty when the family carries no armor
-     * row. Absence IS "wears none": being armored is carrying a resolved shell, so a row whose mesh or
-     * deformations are missing warns and drops the wearer rather than dressing it in a guess.
+     * the geometry table, the two layer deformations, and the whole-mesh scale the set is registered
+     * through - or empty when the family carries no armor row. Absence IS "wears none": being armored is
+     * carrying a resolved shell, so a row whose mesh or deformations are missing warns and drops the
+     * wearer rather than dressing it in a guess. An absent {@code scaled} is the identity, which is what
+     * the eleven wearers vanilla registers unscaled omit.
      *
      * <p>The mesh arrives RAW - none of the entity mesh surgery (the hidden-bone strip, the
      * {@code retainExactParts} subset, the auto-emitted depth-clearance bump) touches it. Worn armor is
@@ -656,7 +658,8 @@ public final class EntityIndexBuilder {
                 diagnostics.warn("entity '%s' armor layer references geometry '%s' absent from entity_geometry", entityId, overlay.geometry());
                 return Optional.empty();
             }
-            return Optional.of(new Entity.HumanoidArmor(mesh, grow.inner(), grow.outer()));
+            return Optional.of(new Entity.HumanoidArmor(mesh, grow.inner(), grow.outer(),
+                overlay.scaled() == null ? 1f : overlay.scaled()));
         }
         return Optional.empty();
     }

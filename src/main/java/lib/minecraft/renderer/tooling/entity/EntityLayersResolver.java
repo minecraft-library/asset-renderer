@@ -229,9 +229,13 @@ final class EntityLayersResolver {
         String geometry = this.manifest.register(GeometryRequest.overlay(set.meshClass(), set.meshMethod(),
             this.entityId, ARMOR_TEXTURE_WIDTH, ARMOR_TEXTURE_HEIGHT, GeometryRequest.NO_GROW));
         this.diagnostics.info("armor row: mesh '%s' via set '%s'", geometry, name);
-        return row.put("overlay", JsonTree.object()
+        JsonTree overlay = JsonTree.object()
             .put("geometry", geometry)
-            .put("grow", growPair(set)));
+            .put("grow", growPair(set));
+        // Omitted at the identity, the way every other scale in the tree is - the eleven wearers
+        // vanilla registers unscaled write no key.
+        if (set.meshScale() != 1f) overlay.put("scaled", set.meshScale());
+        return row.put("overlay", overlay);
     }
 
     /**

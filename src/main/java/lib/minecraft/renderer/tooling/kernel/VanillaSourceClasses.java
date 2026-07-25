@@ -320,6 +320,9 @@ public final class VanillaSourceClasses {
         /** {@code ArmorModelSet.putFrom(ArmorModelSet, ImmutableMap$Builder)} - the armor-set registration call. */
         public static final @NotNull String PUT_FROM = "putFrom";
 
+        /** {@code ArmorModelSet.map(Function)} - the per-slot rewrite a scaled wearer registers through. */
+        public static final @NotNull String MAP = "map";
+
         /** {@code EntityRenderer.setupRotations} - the yaw-addend override. */
         public static final @NotNull String SETUP_ROTATIONS = "setupRotations";
 

@@ -47,11 +47,12 @@ import java.util.Map;
  * different base mesh (an extra {@code waist} part, its own unwrap); they are filtered out by that
  * descriptor, because a baby still wears its own bone boxes here.
  *
- * <p><b>The whole-mesh scale is deliberately not carried.</b> Three sets are registered through
- * {@code ArmorModelSet.map(MeshTransformer.scaling(F))} - giant {@code 6.0}, husk {@code 1.0625},
- * wither skeleton {@code 1.2} - but vanilla applies the very same transformer to those wearers'
- * own body layers, and the renderer already reads that scale off the wearer's torso bone. Carrying
- * it on the mesh as well would apply it twice.
+ * <p><b>The whole-mesh scale is carried, and the mesh stays unscaled.</b> Three sets are registered
+ * through {@code ArmorModelSet.map(MeshTransformer.scaling(F))} - giant {@code 6.0}, husk
+ * {@code 1.0625}, wither skeleton {@code 1.2} - and the factor rides the wearer's armor row rather
+ * than the geometry, so the four sets that share the generic mesh still share one geometry entry.
+ * The renderer applies it to the shell alone; the wearer's own body carries the same transformer
+ * baked into its geometry, so nothing is applied twice.
  */
 public final class ArmorMeshIndex {
 
@@ -71,13 +72,31 @@ public final class ArmorMeshIndex {
      * @param meshMethod the base mesh factory method name
      * @param innerGrow the 3-component growth the leggings layer applies
      * @param outerGrow the 3-component growth the helmet / chestplate / boots layer applies
+     * @param meshScale the whole-mesh uniform scale the set is registered through, {@code 1} for the
+     *     sets registered unscaled
      */
     public record Set(
         @NotNull String meshClass,
         @NotNull String meshMethod,
         float @NotNull [] innerGrow,
-        float @NotNull [] outerGrow
-    ) {}
+        float @NotNull [] outerGrow,
+        float meshScale
+    ) {
+
+        /**
+         * Returns a copy carrying {@code scale} as its whole-mesh scale.
+         *
+         * <p>A copy because the transformer is applied to a copy in vanilla too - the operand the
+         * scaled wearers rewrite is the shared generic set every unscaled wearer also registers, so
+         * stamping it in place would scale all of them.
+         *
+         * @param scale the whole-mesh uniform scale
+         * @return an otherwise-identical set registered through that scale
+         */
+        @NotNull Set scaled(float scale) {
+            return new Set(this.meshClass, this.meshMethod, this.innerGrow, this.outerGrow, scale);
+        }
+    }
 
     private final @NotNull Map<String, Set> sets;
 
@@ -112,11 +131,15 @@ public final class ArmorMeshIndex {
         // Armor sets reach their registration through a local slot in every adult case, so the walk
         // tracks the ASTORE and re-reads it at the ALOAD that feeds putFrom.
         AsmKit.SlotTracker<Set> slots = new AsmKit.SlotTracker<>();
+        // A MeshTransformer.scaling(F) reaches its registration through a slot of its own, so the
+        // factor is tracked the same way the set is and re-read at the ALOAD that feeds map().
+        AsmKit.SlotTracker<Float> scaleSlots = new AsmKit.SlotTracker<>();
         // The two most recent CubeDeformations pushed onto the operand stack. A set factory takes
         // (inner, outer) adjacently, so at the call these are exactly its two arguments.
         float[] priorGrow = null;
         float[] latestGrow = null;
         Float pendingFloat = null;
+        Float pendingScale = null;
         Set pendingSet = null;
         String pendingSetField = null;
 
@@ -169,15 +192,43 @@ public final class ArmorMeshIndex {
                 continue;
             }
 
-            if (in instanceof VarInsnNode vi && opcode == Opcodes.ASTORE && pendingSet != null) {
-                slots.store(vi.var, pendingSet);
+            // `INVOKESTATIC MeshTransformer.scaling(F)` - the whole-mesh scale the giant, the husk
+            // and the wither skeleton register the generic set through.
+            if (in instanceof MethodInsnNode mi
+                && opcode == Opcodes.INVOKESTATIC
+                && VanillaSourceClasses.Types.MESH_TRANSFORMER.equals(mi.owner)
+                && VanillaSourceClasses.Methods.SCALING.equals(mi.name)) {
+                pendingScale = pendingFloat;
+                pendingFloat = null;
+                continue;
+            }
+
+            if (in instanceof VarInsnNode vi && opcode == Opcodes.ASTORE) {
+                if (pendingSet != null) slots.store(vi.var, pendingSet);
+                else if (pendingScale != null) scaleSlots.store(vi.var, pendingScale);
                 pendingSet = null;
+                pendingScale = null;
                 continue;
             }
 
             if (in instanceof VarInsnNode vi && opcode == Opcodes.ALOAD) {
                 Set stored = slots.load(vi.var);
                 if (stored != null) pendingSet = stored;
+                Float storedScale = scaleSlots.load(vi.var);
+                if (storedScale != null) pendingScale = storedScale;
+                continue;
+            }
+
+            // `INVOKEVIRTUAL ArmorModelSet.map(Function)` - the transformer stamps onto a COPY, so
+            // the shared generic set the scaled wearers load is left unscaled for everyone else.
+            // Only a map that follows a scaling() carries one: createRoots makes ten map calls and
+            // three of them capture a transformer.
+            if (in instanceof MethodInsnNode mi
+                && opcode == Opcodes.INVOKEVIRTUAL
+                && VanillaSourceClasses.Types.ARMOR_MODEL_SET.equals(mi.owner)
+                && VanillaSourceClasses.Methods.MAP.equals(mi.name)) {
+                if (pendingSet != null && pendingScale != null) pendingSet = pendingSet.scaled(pendingScale);
+                pendingScale = null;
                 continue;
             }
 
@@ -239,7 +290,7 @@ public final class ArmorMeshIndex {
             diagnostics.warn("armor set '%s.%s' has no resolvable base mesh factory - set dropped", owner, method);
             return null;
         }
-        return new Set(base.getOwner(), base.getName(), innerGrow.clone(), outerGrow.clone());
+        return new Set(base.getOwner(), base.getName(), innerGrow.clone(), outerGrow.clone(), 1f);
     }
 
     /**

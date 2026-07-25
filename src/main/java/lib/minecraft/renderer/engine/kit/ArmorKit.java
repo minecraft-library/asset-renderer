@@ -127,62 +127,24 @@ public class ArmorKit {
      * The render frame an entity's armor is built into: the same anchor and scales the entity's own
      * geometry was built with, so the armor mesh lands in step with the body it dresses.
      *
-     * <p>{@code meshScale} / {@code meshOffset} carry the whole-mesh transform the wearer's own body
-     * was built through, so a scaled-up humanoid wears a scaled-up shell - vanilla maps the very same
-     * transform over the shared armor set rather than giving those wearers a distinct mesh. That is
-     * also why the emitted meshes deliberately do <em>not</em> carry it: read here off the wearer, it
-     * would otherwise be applied twice.
+     * <p>The whole-mesh transform a scaled-up humanoid's shell is sized and seated by is not here -
+     * it belongs to the armor set, and {@link Entity.HumanoidArmor#meshScale()} carries it. Vanilla
+     * maps the very same transformer over the shared set rather than giving those wearers a distinct
+     * mesh, so the factor is a property of what is worn and not of who wears it. Reading it back off
+     * the wearer's torso bone is what this record used to do; that only ever worked because those
+     * three wearers' bodies happen to be built through the same transformer, and it was silently
+     * wrong for a baby, whose own body pivot is not one.
      *
      * @param baby whether the wearer renders in its baby form
      * @param armor the armor shell the wearer is dressed in, or empty when it wears none
-     * @param meshScale the wearer's whole-mesh uniform scale
-     * @param meshOffset the wearer's whole-mesh offset, the anchor its scale is taken about
      * @param modelAnchor the model-space point mapped to the canvas centre
      * @param ndcScale the model-units-to-NDC scale
      * @param modelScale the per-render vertex pre-scale
      */
     public record EntityArmorFrame(
-        boolean baby, @NotNull Optional<Entity.HumanoidArmor> armor, float meshScale, @NotNull Vector3f meshOffset,
+        boolean baby, @NotNull Optional<Entity.HumanoidArmor> armor,
         @NotNull Vector3f modelAnchor, float ndcScale, float modelScale
-    ) {
-
-        /**
-         * The frame for a wearer whose own mesh carries no whole-mesh transform.
-         */
-        public EntityArmorFrame(
-            boolean baby, @NotNull Optional<Entity.HumanoidArmor> armor,
-            @NotNull Vector3f modelAnchor, float ndcScale, float modelScale) {
-            this(baby, armor, 1f, Vector3f.ZERO, modelAnchor, ndcScale, modelScale);
-        }
-
-        /**
-         * The frame for a wearer, reading the whole-mesh transform off the torso bone the armor is
-         * built around - the bone vanilla's own mesh transformer scales and re-anchors.
-         *
-         * @param baby whether the wearer renders in its baby form
-         * @param armor the armor shell the wearer is dressed in
-         * @param model the wearer's model
-         * @param modelAnchor the model-space point mapped to the canvas centre
-         * @param ndcScale the model-units-to-NDC scale
-         * @param modelScale the per-render vertex pre-scale
-         * @return the armor frame for that wearer
-         */
-        public static @NotNull EntityArmorFrame of(
-            boolean baby, @NotNull Optional<Entity.HumanoidArmor> armor, @NotNull EntityModelData model,
-            @NotNull Vector3f modelAnchor, float ndcScale, float modelScale
-        ) {
-            EntityModelData.Bone torso = model.getBones().get(TORSO_BONE);
-            float meshScale = torso == null ? 1f : torso.getScale();
-            Vector3f meshOffset = torso == null ? Vector3f.ZERO : torso.getPivot();
-            return new EntityArmorFrame(baby, armor, meshScale, meshOffset,
-                modelAnchor, ndcScale, modelScale);
-        }
-    }
-
-    /**
-     * The torso bone name the whole-mesh transform is read from.
-     */
-    private static final @NotNull String TORSO_BONE = "body";
+    ) {}
 
     // ---------------------------------------------------------------------------------------
     // 3D armor (triangles for ModelEngine rasterization).
@@ -468,8 +430,8 @@ public class ArmorKit {
                 Vector3f min = anchor.add(cube.getOrigin()).subtract(grow);
                 Vector3f max = min.add(cube.getSize()).add(grow).add(grow);
                 Vector3f[] corners = turnAboutXBounds(new Vector3f[]{
-                    toRenderFrame(frame, min.x(), min.y(), min.z()),
-                    toRenderFrame(frame, max.x(), max.y(), max.z())
+                    toRenderFrame(frame, armor, min.x(), min.y(), min.z()),
+                    toRenderFrame(frame, armor, max.x(), max.y(), max.z())
                 });
                 boxes.add(new ArmorBox(part, corners[0], corners[1]));
             }
@@ -517,11 +479,12 @@ public class ArmorKit {
      * Maps a point from model units into the render frame, applying the same pre-scale, anchor and
      * NDC scale the entity's own geometry was built through.
      */
-    private static @NotNull Vector3f toRenderFrame(@NotNull EntityArmorFrame frame, float x, float y, float z) {
-        // The wearer's whole-mesh transform first, so the shell is sized and seated like the body it
+    private static @NotNull Vector3f toRenderFrame(
+        @NotNull EntityArmorFrame frame, @NotNull Entity.HumanoidArmor armor, float x, float y, float z) {
+        // The set's own whole-mesh transform first, so the shell is sized and seated like the body it
         // dresses, then the render frame the body's own geometry was built through.
-        Vector3f offset = frame.meshOffset();
-        float mesh = frame.meshScale();
+        Vector3f offset = armor.meshOffset();
+        float mesh = armor.meshScale();
         float mx = mesh * x + offset.x();
         float my = mesh * y + offset.y();
         float mz = mesh * z + offset.z();
