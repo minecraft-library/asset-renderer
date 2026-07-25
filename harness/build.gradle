@@ -42,6 +42,13 @@ loom {
             if (project.hasProperty('refharnessPitchRollSweep')) {
                 property 'refharness.pitchRollSweep', project.property('refharnessPitchRollSweep').toString()
             }
+            // Depth-quantum probe: two overlapping quads a swept distance apart, measuring how
+            // finely the depth test can tell two surfaces apart. Writes outside the reference tree
+            // and re-renders nothing.
+            //   ./gradlew runRenderReferences -PrefharnessDepthQuantumProbe=true
+            if (project.hasProperty('refharnessDepthQuantumProbe')) {
+                property 'refharness.depthQuantumProbe', project.property('refharnessDepthQuantumProbe').toString()
+            }
             // Glint-only fast path: render just the animated-glint references under glint/,
             // skipping the full block/item/entity sweep. Driven by renderVanillaGlintReferences.
             if (project.hasProperty('refharnessGlintOnly')) {

@@ -100,5 +100,13 @@ public final class HarnessConfig {
      */
     public static final boolean PITCH_ROLL_SWEEP = Boolean.getBoolean("refharness.pitchRollSweep");
 
+    /**
+     * Diagnostic flag: when {@code true}, the run renders the depth-quantum probe instead of any
+     * reference sweep - two overlapping quads a swept distance apart, whose contested band says how
+     * finely the depth test can tell two surfaces apart. Writes outside the reference tree and
+     * re-renders nothing.
+     */
+    public static final boolean DEPTH_QUANTUM_PROBE = Boolean.getBoolean("refharness.depthQuantumProbe");
+
     private HarnessConfig() {}
 }

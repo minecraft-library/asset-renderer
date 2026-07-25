@@ -3,6 +3,7 @@ package lib.minecraft.refharness;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.sweep.ArmorSweep;
 import lib.minecraft.refharness.sweep.BlockSweep;
+import lib.minecraft.refharness.sweep.DepthQuantumSweep;
 import lib.minecraft.refharness.sweep.EntitySweep;
 import lib.minecraft.refharness.sweep.GlintSweep;
 import lib.minecraft.refharness.sweep.ItemSweep;
@@ -24,7 +25,9 @@ public enum HarnessMode {
     /** Only the armored-mob diagnostics. */
     ARMOR,
     /** Only the diagnostic pitch x roll pose sweep, which writes outside the reference tree. */
-    PITCH_ROLL;
+    PITCH_ROLL,
+    /** Only the diagnostic depth-quantum probe, which writes outside the reference tree. */
+    DEPTH_QUANTUM;
 
     /**
      * Resolves the mode from the harness properties.
@@ -42,6 +45,7 @@ public enum HarnessMode {
         if (HarnessConfig.PLAYERS_ONLY) selected.add(PLAYERS);
         if (HarnessConfig.ARMOR_ONLY) selected.add(ARMOR);
         if (HarnessConfig.PITCH_ROLL_SWEEP) selected.add(PITCH_ROLL);
+        if (HarnessConfig.DEPTH_QUANTUM_PROBE) selected.add(DEPTH_QUANTUM);
         if (selected.size() > 1)
             throw new IllegalStateException("More than one harness mode selected: " + selected);
         return selected.isEmpty() ? FULL : selected.getFirst();
@@ -59,6 +63,7 @@ public enum HarnessMode {
             case PLAYERS -> List.of(new PlayerSweep());
             case ARMOR -> List.of(new ArmorSweep());
             case PITCH_ROLL -> List.of(new PitchRollSweep());
+            case DEPTH_QUANTUM -> List.of(new DepthQuantumSweep());
         };
     }
 }
