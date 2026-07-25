@@ -955,9 +955,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         // Apply the block's tint to its tint-indexed faces, exactly as the block icon does - a
         // carried grass block's top face (tintindex 0) samples the grass colormap green, while its
-        // untinted dirt sides stay white. Sampled against the default biome (there is no world
-        // context for a held block); untinted (tintindex -1) faces keep white.
-        int blockTint = BlockRenderer.resolveBlockTint(context, block.get(), Biome.Vanilla.PLAINS);
+        // untinted dirt sides stay white. A held block reaches vanilla's tint through
+        // BlockTintSource.color(state) rather than colorInWorld - the submit carries no level and no
+        // position - so the biome the entity stands in never reaches it and the no-world-context
+        // point applies; untinted (tintindex -1) faces keep white.
+        int blockTint = BlockRenderer.resolveBlockTint(context, block.get(), Biome.INVENTORY_DEFAULT);
         var forceRefs = Textures.resolveForceTranslucentRefs(
             block.get().model().getElements(), block.get().model().getTextures());
         ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(

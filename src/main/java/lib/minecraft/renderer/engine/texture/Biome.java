@@ -48,6 +48,30 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
     int SWAMP_GRASS_COLD = 0xFF4C763C;
 
     /**
+     * The tint point vanilla resolves a block at when it has no world context - a block-item GUI
+     * icon, or a block an entity holds. Vanilla answers both through
+     * {@code BlockTintSource.color(BlockState)} rather than {@code colorInWorld}, so the biome the
+     * subject stands in never reaches the tint. It is not a single colormap point, because vanilla
+     * resolves the three targets differently in hand:
+     * <ul>
+     * <li><b>grass</b> - {@code GrassColor.getDefaultColor() = get(0.5, 1.0)}, the grass colormap
+     *     centre {@code (127, 127)}; reproduced by sampling at temperature {@code 0.5} / downfall
+     *     {@code 1.0} with no grass override.</li>
+     * <li><b>foliage</b> - the fixed {@code FoliageColor.FOLIAGE_DEFAULT} constant rather than a
+     *     colormap sample at all; carried as a foliage override.</li>
+     * <li><b>dry foliage</b> - the fixed {@code DryFoliageColor} default, likewise an override.</li>
+     * </ul>
+     * A block whose tint target is {@code CONSTANT} ignores this entirely and keeps its own baked
+     * colour.
+     */
+    @NotNull Biome INVENTORY_DEFAULT = builder("inventory_default")
+        .temperature(0.5f)
+        .downfall(1.0f)
+        .foliageColorOverride(0xFF48B518)
+        .dryFoliageColorOverride(0xFF5C3C32)
+        .build();
+
+    /**
      * The biome identifier, e.g. {@code "minecraft:plains"}.
      *
      * @return the biome id

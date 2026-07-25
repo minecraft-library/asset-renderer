@@ -69,30 +69,6 @@ public final class TestBlockParityVanilla {
     private static final int RENDER_SIZE = 512;
 
     /**
-     * Biome modelling vanilla's no-world-context "in hand" tint - the colour
-     * {@code BlockTintSource.color(state)} returns for a block-item GUI icon, which the harness now
-     * bakes into every reference (see {@code BlockFrameRenderer.resolveInventoryTints}). Vanilla
-     * resolves each tint target differently in hand, so this is not a single biome point:
-     * <ul>
-     * <li><b>grass</b> - {@code GrassColor.getDefaultColor() = get(0.5, 1.0)}, the grass colormap
-     *     centre {@code (127, 127)}; reproduced by sampling at {@code temperature 0.5 / downfall
-     *     1.0} with no grass override.</li>
-     * <li><b>foliage</b> - the fixed {@code FoliageColor.FOLIAGE_DEFAULT = 0xFF48B518} constant, NOT
-     *     a colormap sample; injected as a foliage override.</li>
-     * <li><b>dry foliage</b> - the fixed {@code DryFoliageColor} default {@code 0xFF5C3C32};
-     *     injected as a dry-foliage override.</li>
-     * </ul>
-     * Constant-tinted blocks (birch / spruce leaves, lily_pad) ignore the biome and use the fixed
-     * colour baked into {@code block_tints.json}.
-     */
-    private static final @NotNull Biome INVENTORY_DEFAULT_BIOME = Biome.builder("inventory_default")
-        .temperature(0.5f)
-        .downfall(1.0f)
-        .foliageColorOverride(0xFF48B518)
-        .dryFoliageColorOverride(0xFF5C3C32)
-        .build();
-
-    /**
      * Runs the parity sweep.
      *
      * @param args {@code args[0]} optional comma-separated list of block ids
@@ -205,7 +181,7 @@ public final class TestBlockParityVanilla {
                 .output(OutputOptions.builder()
                     .canvasSize(RENDER_SIZE)
                     .build())
-                .biome(INVENTORY_DEFAULT_BIOME)
+                .biome(Biome.INVENTORY_DEFAULT)
                 .build();
             ImageData java = javaRenderer.render(options);
             BufferedImage javaImg = java.toBufferedImage();
