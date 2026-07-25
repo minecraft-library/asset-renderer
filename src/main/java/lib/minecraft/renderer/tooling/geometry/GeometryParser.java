@@ -2081,7 +2081,14 @@ public final class GeometryParser {
                 // applies to and resets when the next addOrReplaceChild finalises the bone.
                 if (methodInsn.desc.startsWith("(F") && !methodInsn.desc.startsWith("(FF")) {
                     requireStack(state, 1, "PartPose.scaled(F)");
-                    state.frame.pendingScale = popFloatWithDiagnostics(state, "PartPose.scaled(F)");
+                    float scale = popFloatWithDiagnostics(state, "PartPose.scaled(F)");
+                    state.frame.pendingScale = scale;
+                    // scaled(F) writes six fields, not three: it multiplies the pivot by F as well as
+                    // the three scale components. A pose that offsets and then scales means the offset
+                    // is expressed in the scaled frame, so leaving the pivot alone places the bone -
+                    // and every child hanging off it - at the unscaled offset.
+                    for (int axis = 0; axis < state.frame.pendingPivot.length; axis++)
+                        state.frame.pendingPivot[axis] *= scale;
                 }
             }
             default -> { }
