@@ -18,10 +18,8 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * Resolves the {@code block_overlays[]} array - block-model composites on entity bodies
@@ -148,44 +146,12 @@ final class EntityBlockOverlayResolver {
     }
 
     /**
-     * The {@code $Variant} enum's canonical block: its {@code <clinit>} pairs each constant
-     * with the {@code Blocks.X} it wraps; the {@code DEFAULT} alias picks the canonical one,
-     * resolved to its registered id through the registry index.
+     * The {@code $Variant} enum's canonical block - the {@code DEFAULT} alias's entry in the
+     * enum's block table. The coats that wrap a different one carry it on their own variant
+     * option, so the row itself only ever names the default.
      */
     private @Nullable String resolveVariantDefaultBlock(@NotNull String variantClass) {
-        ClassNode cn = this.cache.load(variantClass);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
-        if (clinit == null) return null;
-        Map<String, String> constantToBlocksField = new LinkedHashMap<>();
-        String pendingBlocksField = null;
-        String pendingAlias = null;
-        String defaultConstant = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.BLOCKS)) {
-                pendingBlocksField = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (AsmKit.isGetStatic(in, variantClass)) {
-                pendingAlias = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, variantClass) && in instanceof FieldInsnNode put) {
-                if (EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue().equals(put.name) && pendingAlias != null)
-                    defaultConstant = pendingAlias;
-                else if (pendingBlocksField != null)
-                    constantToBlocksField.put(put.name, pendingBlocksField);
-                pendingBlocksField = null;
-                pendingAlias = null;
-            }
-        }
-        String blocksField = defaultConstant == null ? null : constantToBlocksField.get(defaultConstant);
-        if (blocksField == null) return null;
-        BlockRegistryIndex.Entry entry = this.blocks.byField(blocksField);
-        if (entry == null) {
-            this.diagnostics.warn("Blocks.%s has no registration entry [D25]", blocksField);
-            return null;
-        }
-        return entry.id();
+        return VariantBlockTable.of(this.cache, this.blocks, variantClass, this.diagnostics).defaultBlockId();
     }
 
     /**

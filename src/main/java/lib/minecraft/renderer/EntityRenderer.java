@@ -1067,7 +1067,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int tick
     ) {
         return switch (scope) {
-            case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, modelScale, texture, tick);
+            case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, modelScale, texture, tick,
+                boundsBlockOverlays(definition, this.javaEntities.get(entityId)));
             case GROUP_UNION -> computeGroupUnionScreenBounds(entityId, definition, transform, modelScale, texture, tick);
         };
     }
@@ -1141,13 +1142,26 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * is mostly transparent, so a whole-quad AABB would over-size the canvas; walking the opaque
      * sub-rectangle per face keeps it tight to what renders. The vanilla harness measures the same
      * block-model layers in its family-fit pre-pass, so both canvases fit the overlay uncropped.
+     * <p>
+     * The rows measured are supplied rather than read off {@code definition}, so a variant coat can
+     * be measured against the block the family's default coat draws - see
+     * {@link #boundsBlockOverlays}.
+     *
+     * @param definition the definition whose model and model overlays are measured
+     * @param transform the render orientation the silhouette is measured through
+     * @param modelScale the per-render vertex pre-scale
+     * @param texture the base texture the model's silhouette is measured against
+     * @param tick the animation tick the block overlays are built at
+     * @param blockOverlays the block-overlay rows to measure
+     * @return the unioned screen-space bounds
      */
     private @NotNull Box computeUnionScreenBounds(
         @NotNull Entity definition,
         @NotNull Matrix4f transform,
         float modelScale,
         @NotNull PixelBuffer texture,
-        int tick
+        int tick,
+        @NotNull List<Entity.BlockOverlayLayer> blockOverlays
     ) {
         Box bounds = EntityGeometryKit.computeScreenBounds(definition.model(), transform, modelScale, texture);
         RendererDebug.baseBounds(bounds);
@@ -1165,9 +1179,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // = buildEntityFitMatrix(ZERO, modelScale), so the positions live in the entity-pixel frame
         // the body bounds use), then union its alpha-tight silhouette measured through the render
         // orientation.
-        if (!definition.blockOverlays().isEmpty()) {
+        if (!blockOverlays.isEmpty()) {
             Matrix4f fitNeutral = EntityGeometryKit.buildEntityFitMatrix(Vector3f.ZERO, modelScale);
-            for (Entity.BlockOverlayLayer blockOverlay : definition.blockOverlays()) {
+            for (Entity.BlockOverlayLayer blockOverlay : blockOverlays) {
                 ConcurrentList<VisibleTriangle> tris = buildBlockOverlayTriangles(this.context, blockOverlay, definition.model(), fitNeutral, tick);
                 Box boBounds = EntityGeometryKit.computeBlockOverlayScreenBounds(tris, transform);
                 bounds = unionBoxes(bounds, boBounds);
@@ -1204,11 +1218,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer texture,
         int tick
     ) {
-        Box bounds = computeUnionScreenBounds(definition, transform, modelScale, texture, tick);
+        Entity base = this.javaEntities.get(entityId);
+        Box bounds = computeUnionScreenBounds(definition, transform, modelScale, texture, tick,
+            boundsBlockOverlays(definition, base));
         // Option-encoded variant coats live on the base definition's axes.variants rather than as
         // separate group-member rows, so union each coat's silhouette here. A no-op while variant is
         // id-encoded (each coat is a member row measured below) or the model has no variant axis.
-        bounds = unionVariantSilhouettes(bounds, this.javaEntities.get(entityId), transform, tick);
+        bounds = unionVariantSilhouettes(bounds, base, transform, tick);
         List<String> members = definition.members();
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
@@ -1218,7 +1234,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Optional<PixelBuffer> memberTexture = resolveGroupMemberTexture(memberDef);
             if (memberTexture.isEmpty()) continue;
             float memberScale = memberDef.rendererScale();
-            Box memberBounds = computeUnionScreenBounds(memberDef, transform, memberScale, memberTexture.get(), tick);
+            Box memberBounds = computeUnionScreenBounds(memberDef, transform, memberScale, memberTexture.get(), tick,
+                memberDef.blockOverlays());
             bounds = unionBoxes(bounds, memberBounds);
             bounds = unionVariantSilhouettes(bounds, memberDef, transform, tick);
         }
@@ -1230,6 +1247,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * ({@link Entity.Axes#variants()}) into {@code bounds}, each measured at its
      * own coat texture + render scale (mirroring the group-member walk). A no-op when the definition is
      * absent or carries no variant coats (id-encoded / non-variant models).
+     * <p>
+     * Every coat measures its block overlays as the DEFAULT coat draws them - see
+     * {@link #boundsBlockOverlays} - so a family whose coats differ only in which block they carry
+     * keeps one canvas.
      */
     private @NotNull Box unionVariantSilhouettes(@NotNull Box bounds, @Nullable Entity definition, @NotNull Matrix4f transform, int tick) {
         if (definition == null) return bounds;
@@ -1237,9 +1258,43 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             if (coat.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> coatTexture = resolveGroupMemberTexture(coat);
             if (coatTexture.isEmpty()) continue;
-            bounds = unionBoxes(bounds, computeUnionScreenBounds(coat, transform, coat.rendererScale(), coatTexture.get(), tick));
+            bounds = unionBoxes(bounds, computeUnionScreenBounds(coat, transform, coat.rendererScale(),
+                coatTexture.get(), tick, boundsBlockOverlays(coat, definition)));
         }
         return bounds;
+    }
+
+    /**
+     * A definition's block overlays as the canvas pre-pass sees them: every fixed row drawing the
+     * block the family's default coat draws rather than the one the selected coat draws.
+     *
+     * <p>Vanilla sizes an entity's frame from a freshly built render state, whose variant is the
+     * enum's default, so the pre-pass resolves the default coat's block model and never the coat
+     * being drawn. A mooshroom's canvas is therefore the red mushroom's on both coats, and the brown
+     * one - taller by a texel of sprite - simply reaches further up inside it. Sizing per coat
+     * instead would give the two coats different canvases where the reference gives them one.
+     *
+     * <p>Fixed rows correspond one-for-one in order because the appearance drops them all or none;
+     * a selectable row is left alone, its block being the caller's held one, which the pre-pass does
+     * see.
+     *
+     * @param definition the definition being measured
+     * @param base the family's base definition, whose rows carry the default coat's blocks
+     * @return the rows to measure, the argument's own when there is nothing to substitute
+     */
+    private static @NotNull List<Entity.BlockOverlayLayer> boundsBlockOverlays(
+        @NotNull Entity definition, @Nullable Entity base) {
+        List<Entity.BlockOverlayLayer> rows = definition.blockOverlays();
+        if (base == null || rows.isEmpty()) return rows;
+        List<Entity.BlockOverlayLayer> defaults = base.blockOverlays().stream()
+            .filter(row -> !row.selectable()).toList();
+        List<Entity.BlockOverlayLayer> out = new ArrayList<>(rows.size());
+        int fixed = 0;
+        for (Entity.BlockOverlayLayer row : rows)
+            out.add(row.selectable() || fixed >= defaults.size()
+                ? row
+                : row.withBlockId(defaults.get(fixed++).blockId()));
+        return List.copyOf(out);
     }
 
     /**

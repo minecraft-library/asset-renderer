@@ -1626,7 +1626,8 @@
               "textures": {
                 "wild": "minecraft:textures/entity/cow/mooshroom_brown.png"
               },
-              "baby_texture": "minecraft:textures/entity/cow/mooshroom_brown_baby.png"
+              "baby_texture": "minecraft:textures/entity/cow/mooshroom_brown_baby.png",
+              "block": "minecraft:brown_mushroom"
             },
             "red": {
               "textures": {

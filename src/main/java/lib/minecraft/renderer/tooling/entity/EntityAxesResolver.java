@@ -4,6 +4,7 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -35,10 +36,11 @@ final class EntityAxesResolver {
         @NotNull VariantIndex variants,
         @NotNull EntityGeometryRefResolver geometryRef,
         @NotNull GeometryManifest manifest,
+        @NotNull BlockRegistryIndex blocks,
         @NotNull Diagnostics diagnostics
     ) {
         this.variant = new EntityVariantAxisResolver(session.cache(), subject, variants, layerDefinitions,
-            geometryRef, manifest, diagnostics.child("variant"));
+            geometryRef, manifest, blocks, diagnostics.child("variant"));
         this.state = new EntityStateAxisResolver(subject, variants, diagnostics.child("state"));
         this.age = new EntityAgeAxisResolver(session.cache(), subject, layerDefinitions, geometryRef,
             manifest, diagnostics.child("age"));

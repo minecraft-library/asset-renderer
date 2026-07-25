@@ -135,11 +135,14 @@ record RawVariantAxis(
  * @param textures the per-state textures ({@code wild} / {@code tame} / {@code angry}), or {@code null}
  * @param babyTexture the option's baby texture path, or {@code null} when the option has none
  * @param geometry the option's own geometry coordinate overriding the family mesh, or {@code null}
+ * @param block the block this coat's fixed block overlays draw (the mooshroom's brown mushroom), or
+ *     {@code null} when they draw the one the {@code block_overlays[]} rows already name
  */
 record RawVariantOption(
     @Nullable Map<String, String> textures,
     @SerializedName("baby_texture") @Nullable String babyTexture,
-    @Nullable String geometry
+    @Nullable String geometry,
+    @Nullable String block
 ) {}
 
 /**

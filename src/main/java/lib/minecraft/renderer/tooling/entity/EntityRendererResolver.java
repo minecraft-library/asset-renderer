@@ -72,7 +72,7 @@ final class EntityRendererResolver {
         this.renderTraits = new EntityRenderTraitsResolver(session.cache(), subject, this.diagnostics.child("render"));
         this.bones = new EntityBoneResolver(session.cache(), subject, this.geometryRef, this.diagnostics.child("bones"));
         this.axes = new EntityAxesResolver(session, subject, layerDefinitions, variants, this.geometryRef,
-            manifest, this.diagnostics.child("axes"));
+            manifest, blocks, this.diagnostics.child("axes"));
         this.overlays = new EntityOverlayResolver(session.cache(), subject, this.layerRoster, layerDefinitions,
             this.geometryRef, pipelineTraits, manifest, this.diagnostics.child("overlays"));
         this.blockOverlays = new EntityBlockOverlayResolver(session.cache(), subject, this.layerRoster, blocks,

@@ -7,6 +7,7 @@ import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -61,6 +62,7 @@ final class EntityVariantAxisResolver {
     private final @NotNull LayerDefinitionIndex layerDefinitions;
     private final @NotNull EntityGeometryRefResolver geometryRef;
     private final @NotNull GeometryManifest manifest;
+    private final @NotNull BlockRegistryIndex blocks;
     private final @NotNull Diagnostics diagnostics;
 
     EntityVariantAxisResolver(
@@ -70,6 +72,7 @@ final class EntityVariantAxisResolver {
         @NotNull LayerDefinitionIndex layerDefinitions,
         @NotNull EntityGeometryRefResolver geometryRef,
         @NotNull GeometryManifest manifest,
+        @NotNull BlockRegistryIndex blocks,
         @NotNull Diagnostics diagnostics
     ) {
         this.cache = cache;
@@ -78,6 +81,7 @@ final class EntityVariantAxisResolver {
         this.layerDefinitions = layerDefinitions;
         this.geometryRef = geometryRef;
         this.manifest = manifest;
+        this.blocks = blocks;
         this.diagnostics = diagnostics;
     }
 
@@ -269,13 +273,15 @@ final class EntityVariantAxisResolver {
             if (defaultConstant == null)
                 this.diagnostics.info("variant default '%s' via first map key [D1] (enum has no DEFAULT)", dflt);
 
+            VariantBlockTable table = VariantBlockTable.of(this.cache, this.blocks, enumInternal, this.diagnostics);
             JsonTree node = JsonTree.object().put("id_encoded", false).put("default", dflt);
             JsonTree options = node.child("options");
             for (Map.Entry<String, List<String>> coat : coats.byConstant().entrySet()) {
                 String id = variantId(coat.getKey(), ids);
                 options.put(id, JsonTree.object()
                     .put("textures", JsonTree.object().put("wild", fullPath(coat.getValue().getFirst())))
-                    .putIf("baby_texture", fullPath(coat.getValue().size() > 1 ? coat.getValue().get(1) : null)));
+                    .putIf("baby_texture", fullPath(coat.getValue().size() > 1 ? coat.getValue().get(1) : null))
+                    .putIf("block", coatBlock(table, coat.getKey())));
             }
             this.diagnostics.info("variant axis (enum-map '%s'): %d options, default '%s' [D1]",
                 enumInternal, coats.byConstant().size(), dflt);
@@ -429,6 +435,21 @@ final class EntityVariantAxisResolver {
             }
         }
         return out;
+    }
+
+    /**
+     * The block a coat draws its block overlays as, when that is not the one the
+     * {@code block_overlays[]} row already carries. Vanilla holds the block on the variant
+     * constant, so a coat that wraps the default's block needs no member - it is the identity, and
+     * omitting it keeps a family whose coats all wrap one block (or none at all) byte-unchanged.
+     *
+     * @param table the variant enum's constant-to-block table
+     * @param constantName the coat's enum constant name
+     * @return the coat's block id, or {@code null} when it is the row's own
+     */
+    private static @Nullable String coatBlock(@NotNull VariantBlockTable table, @NotNull String constantName) {
+        String block = table.byConstant().get(constantName);
+        return block == null || block.equals(table.defaultBlockId()) ? null : block;
     }
 
     /** A constant's serialized id, falling back to the lowercase constant name at INFO. */

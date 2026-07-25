@@ -288,6 +288,10 @@ public final class EntityIndexBuilder {
      * overrides the family mesh, else the base coordinate) with the family's bone toggles, hidden-bone
      * strip, and overlays materialised on it, plus the option's {@code wild} coat texture and per-state
      * textures. The built definition carries an empty {@code axes.variants} - it is a leaf coat.
+     *
+     * <p>A coat naming its own {@code block} redraws the family's fixed block overlays as that block -
+     * the mooshroom's brown mushrooms against the red ones its rows carry. Only the fixed rows move:
+     * a selectable row's block is the caller's held one, supplied at render.
      */
     private static @NotNull Entity buildVariantRow(
         @NotNull String rowId,
@@ -304,13 +308,29 @@ public final class EntityIndexBuilder {
         Optional<String> textureRef = variantWildTexture(optionObj);
         return Entity.builder()
             .id(ResourceId.parse(rowId))
-            .model(model).textureRef(textureRef).overlays(overlays).blockOverlays(ctx.blockOverlays())
+            .model(model).textureRef(textureRef).overlays(overlays)
+            .blockOverlays(coatBlockOverlays(ctx.blockOverlays(), optionObj.block()))
             .baseTintArgb(ctx.baseTint()).setupYawAddend(ctx.setupYawAddend()).rendererScale(ctx.rendererScale())
             .boneToggles(toggles)
             .axes(new Entity.Axes(stateTextures, ctx.babyModel(), ctx.babyOverlays(), Optional.empty(),
                 Map.of(), Map.of(), Map.of(), Optional.empty(), ctx.stateDefault(), Optional.empty()))
             .layers(new Entity.Layers(ctx.collarTexture(), ctx.equipment(), ctx.markings(), ctx.humanoidArmor()))
             .build();
+    }
+
+    /**
+     * The family's block overlays as one coat draws them: unchanged when the coat names no block of
+     * its own, else every fixed row redrawn as that block. A selectable row is left alone - its
+     * block id is a placeholder the caller's carried selection replaces at render, so rewriting it
+     * here would be overwritten anyway and would read as though the coat had chosen it.
+     */
+    private static @NotNull List<BlockOverlayLayer> coatBlockOverlays(
+        @NotNull List<BlockOverlayLayer> blockOverlays, @Nullable String coatBlock) {
+        if (coatBlock == null || blockOverlays.isEmpty()) return blockOverlays;
+        List<BlockOverlayLayer> out = new ArrayList<>(blockOverlays.size());
+        for (BlockOverlayLayer overlay : blockOverlays)
+            out.add(overlay.selectable() ? overlay : overlay.withBlockId(coatBlock));
+        return List.copyOf(out);
     }
 
     // ------------------------------------------------------------------------------------
