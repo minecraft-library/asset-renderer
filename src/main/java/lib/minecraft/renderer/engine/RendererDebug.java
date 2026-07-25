@@ -94,6 +94,17 @@ public final class RendererDebug {
 
     // --- pixel trace ---
 
+    /**
+     * Whether the per-pixel trace is armed, so a kit that would have to build its
+     * {@link VisibleTriangle#debugTag() debug tags} on the fly can skip the work when nothing will
+     * read them.
+     *
+     * @return true when {@code -Dasset.entity.pixel.dump} was set and parsed
+     */
+    public static boolean tracingPixels() {
+        return PIXEL_DUMP_RECT != null;
+    }
+
     private static boolean pixelDumpContains(int px, int py) {
         if (PIXEL_DUMP_RECT == null) return false;
         return px >= PIXEL_DUMP_RECT[0] && py >= PIXEL_DUMP_RECT[1]

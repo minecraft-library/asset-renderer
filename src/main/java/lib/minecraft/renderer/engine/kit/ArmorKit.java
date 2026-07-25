@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
@@ -26,6 +27,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -718,8 +720,29 @@ public class ArmorKit {
     ) {
         Vector3f inflatedMin = new Vector3f(min.x() - inflate, min.y() - inflate, min.z() - inflate);
         Vector3f inflatedMax = new Vector3f(max.x() + inflate, max.y() + inflate, max.z() + inflate);
-        return BlockGeometryKit.buildArmorBoxTriangles(
+        ConcurrentList<VisibleTriangle> box = BlockGeometryKit.buildArmorBoxTriangles(
             inflatedMin, inflatedMax, part.cropAll(texture, overlay), ColorMath.WHITE);
+        return RendererDebug.tracingPixels() ? tagged(box, part, overlay) : box;
+    }
+
+    /**
+     * Names each triangle of one armor box for the per-pixel trace, so a dump reads
+     * {@code right_leg:north} rather than {@code null} where two shell faces contest a pixel. The
+     * shared box builder emits two triangles per face in {@link BlockFace#CACHED_VALUES} order,
+     * which is what lets the face be recovered from the position.
+     *
+     * @param box the box's twelve triangles as the builder emitted them
+     * @param part the body part the box is textured through
+     * @param overlay whether the box reads that part's overlay half - the helmet's second box
+     * @return the same triangles, each carrying a {@code part:face} tag
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> tagged(
+        @NotNull ConcurrentList<VisibleTriangle> box, @NotNull SkinFace part, boolean overlay) {
+        String name = part.name().toLowerCase(Locale.ROOT) + (overlay ? "_overlay" : "");
+        ConcurrentList<VisibleTriangle> out = Concurrent.newList();
+        for (int index = 0; index < box.size(); index++)
+            out.add(box.get(index).withDebugTag(name + ":" + BlockFace.CACHED_VALUES[index / 2].direction()));
+        return out;
     }
 
     /**

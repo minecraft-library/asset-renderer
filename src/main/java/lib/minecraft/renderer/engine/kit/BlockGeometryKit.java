@@ -114,6 +114,9 @@ public class BlockGeometryKit {
      * camera-facing orientation - the choice vanilla's shader makes per pixel - while a face seen from
      * the front shades identically either way. A player's own armor is not turned back into the entity
      * frame, so it keeps the cull-blind {@link Lighting#inventory} shade baked here.
+     * <p>
+     * The result is emitted two triangles per face in {@link BlockFace#CACHED_VALUES} order, which is
+     * how {@code ArmorKit} recovers each triangle's face to name it for the per-pixel trace.
      *
      * @param min the minimum corner in model space
      * @param max the maximum corner in model space
