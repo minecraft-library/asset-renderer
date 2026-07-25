@@ -2019,7 +2019,7 @@ public final class GeometryParser {
     }
 
     /**
-     * Handles {@code PartPose.offset / rotation / offsetAndRotation / scaled} calls,
+     * Handles {@code PartPose.offset / rotation / offsetAndRotation / scaled / withScale} calls,
      * consuming literals off {@link WalkState#numStack} and storing the result on
      * {@link CallFrame#pendingPivot} / {@link CallFrame#pendingRotation} /
      * {@link CallFrame#pendingScale} for the next {@code addOrReplaceChild} flush. Rotation
@@ -2089,6 +2089,17 @@ public final class GeometryParser {
                     // and every child hanging off it - at the unscaled offset.
                     for (int axis = 0; axis < state.frame.pendingPivot.length; axis++)
                         state.frame.pendingPivot[axis] *= scale;
+                }
+            }
+            case "withScale" -> {
+                // PartPose.withScale(F) is scaled(F)'s sibling and not its synonym: it copies the
+                // pivot and the rotation through untouched and only assigns the three scale
+                // components, where scaled(F) multiplies the pivot by F as well. A pose that offsets
+                // and then calls withScale is stating an offset in the unscaled frame, so touching
+                // the pivot here would displace the bone and everything hanging off it.
+                if (methodInsn.desc.startsWith("(F") && !methodInsn.desc.startsWith("(FF")) {
+                    requireStack(state, 1, "PartPose.withScale(F)");
+                    state.frame.pendingScale = popFloatWithDiagnostics(state, "PartPose.withScale(F)");
                 }
             }
             default -> { }
@@ -2326,7 +2337,8 @@ public final class GeometryParser {
         float @NotNull [] pendingRotation = { 0, 0, 0 };
 
         /**
-         * Uniform scale from {@code PartPose.scaled}; {@code 1f} when no scale was applied.
+         * Uniform scale from {@code PartPose.scaled} or {@code PartPose.withScale}; {@code 1f} when
+         * no scale was applied.
          */
         float pendingScale = 1f;
 
