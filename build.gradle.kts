@@ -88,7 +88,7 @@ dependencies {
     api("com.github.simplified-dev:collections") { version { strictly("2f2aa58") } }
     api("com.github.simplified-dev:utils") { version { strictly("37dc4a8") } }
     api("com.github.simplified-dev:image") { version { strictly("898b0b6") } }
-    api("com.github.simplified-dev:gson-extras") { version { strictly("37a2c2f") } }
+    api("com.github.simplified-dev:gson-extras") { version { strictly("2ba8143") } }
     api("com.github.simplified-dev:reflection") { version { strictly("b2cf834") } }
     api("com.github.simplified-dev:client") { version { strictly("5a5d32e") } }
 
