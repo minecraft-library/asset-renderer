@@ -606,6 +606,39 @@ tasks {
         }
     }
 
+    // Whole-tree variant: drives the harness with -PrefharnessEverySweep=true so ONE client boot
+    // renders every reference the tree holds - blocks, items, entities, the player, glint AND armor.
+    // renderVanillaReferences covers only the first four, so a harness change to a frame renderer
+    // two sweeps share leaves the others holding ground truth recorded by the old code. Use this
+    // after any harness render change; the narrower tasks stay for scoped iteration.
+    //   ./gradlew :asset-renderer:renderVanillaAllReferences
+    register<Exec>("renderVanillaAllReferences") {
+        description = "Runs the sibling vanilla-reference-harness mod over EVERY sweep in one boot - blocks, items, entities, player, glint and armor - writing the whole reference tree to asset-renderer's vanilla cache. The one to run after a harness render change; renderVanillaReferences skips glint/ and armor/."
+        group = "tooling"
+        workingDir = file("../vanilla-reference-harness")
+        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val baseArgs = mutableListOf<String>()
+        if (isWindows) {
+            baseArgs.add("cmd")
+            baseArgs.add("/c")
+        }
+        baseArgs.add(gradlewPath)
+        baseArgs.add("runRenderReferences")
+        baseArgs.add("--no-daemon")
+        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
+        baseArgs.add("-PrefharnessEverySweep=true")
+        if (project.hasProperty("refharnessTargets")) {
+            baseArgs.add("-PrefharnessTargets=${project.property("refharnessTargets")}")
+        }
+        commandLine = baseArgs
+        doFirst {
+            println("renderVanillaAllReferences: writing the whole reference tree to ${outputDir.asFile.absolutePath}")
+            outputDir.asFile.mkdirs()
+        }
+    }
+
     // `./gradlew fonts` now lives in the minecraft-text build at
     // W:/Workspace/Java/Minecraft-Library/minecraft-text. Run it from there when a
     // Minecraft version bump requires regenerating the OTF files.
