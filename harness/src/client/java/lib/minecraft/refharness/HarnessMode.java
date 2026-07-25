@@ -16,8 +16,15 @@ import java.util.List;
 /** Which sweeps a run performs. Selected once, from the harness properties. */
 public enum HarnessMode {
 
-    /** The reference sweep proper - blocks, items, entities and the player. */
+    /**
+     * The reference sweep proper - blocks, items, entities and the player. Despite the name this is
+     * not the whole reference tree: the glint and armor sweeps are not in it, so a renderer change
+     * this mode covers can still leave those two behind. {@link #EVERY} is the one that covers all of
+     * it.
+     */
     FULL,
+    /** Every reference sweep there is, in one run - {@link #FULL}'s four plus glint and armor. */
+    EVERY,
     /** Only the animated-glint frame sequences. */
     GLINT,
     /** Only the player references. */
@@ -41,6 +48,7 @@ public enum HarnessMode {
      */
     public static HarnessMode resolve() {
         List<HarnessMode> selected = new ArrayList<>();
+        if (HarnessConfig.EVERY_SWEEP) selected.add(EVERY);
         if (HarnessConfig.GLINT_ONLY) selected.add(GLINT);
         if (HarnessConfig.PLAYERS_ONLY) selected.add(PLAYERS);
         if (HarnessConfig.ARMOR_ONLY) selected.add(ARMOR);
@@ -59,6 +67,8 @@ public enum HarnessMode {
     public List<Sweep<?>> sweeps() {
         return switch (this) {
             case FULL -> List.of(new BlockSweep(), new ItemSweep(), new EntitySweep(), new PlayerSweep());
+            case EVERY -> List.of(new BlockSweep(), new ItemSweep(), new EntitySweep(), new PlayerSweep(),
+                new GlintSweep(), new ArmorSweep());
             case GLINT -> List.of(new GlintSweep());
             case PLAYERS -> List.of(new PlayerSweep());
             case ARMOR -> List.of(new ArmorSweep());

@@ -4,7 +4,8 @@ Single-purpose headless Fabric mod that drives the real MC client to produce the
 
 ## Build / run
 - JDK 25 (Loom toolchain; `JAVA_25` mixin compat), Gradle 9.4.1, Fabric Loom 1.16-SNAPSHOT, Fabric Loader 0.19.2, Fabric API 0.147.0+26.1.2, MC 26.1.2.
-- Full sweep (blocks + items + entities, ~5 min warm): `./gradlew runRenderReferences [-PrefharnessTargets=ns:id,...]` from this dir, or `./gradlew :asset-renderer:renderVanillaReferences` from asset-renderer (output → asset-renderer's cache).
+- Full sweep (blocks + items + entities, ~5 min warm): `./gradlew runRenderReferences [-PrefharnessTargets=ns:id,...]` from this dir, or `./gradlew :asset-renderer:renderVanillaReferences` from asset-renderer (output → asset-renderer's cache). **Not the whole tree** - it leaves `glint/` and `armor/` alone, which is 337 of 2310 references.
+- Whole tree in one boot - **run this after any change to a frame renderer**: `./gradlew runRenderReferences -PrefharnessEverySweep=true`, or `./gradlew :asset-renderer:renderVanillaAllReferences`. Every sweep in one client launch, measured at **152s** against 125s for the incomplete full sweep and 195s for the three narrower tasks run separately - it pays the boot once. The narrow modes below stay for scoped iteration; relying on them is what left stale ground truth on disk twice.
 - Glint-only (fast, decoupled): `./gradlew runRenderReferences -PrefharnessGlintOnly=true`, or `./gradlew :asset-renderer:renderVanillaGlintReferences`.
 - Armor-only (fast, decoupled): `./gradlew runRenderReferences -PrefharnessArmorOnly=true`, or `./gradlew :asset-renderer:renderVanillaArmorReferences`. `ArmorSweep` renders a fixed roster of **armored** mobs, adult and baby (zombie / piglin, iron and dyed leather), which the main entity sweep cannot produce - it equips nothing and ages nothing. Diagnostic, not a byte-stable reference set: each subject is fit to 80% of a square canvas so the armor shell (which the bounds walker cannot see - `HumanoidArmorLayer` holds an `ArmorModelSet`, not a `Model` field) stays inside the frame, and the consuming diff crops and aligns by silhouette.
 - Output dirs under the output root: `blocks/`, `entities/`, `items/`, `glint/` (+ `glint/atlas_uv.json`), `armor/`.
@@ -12,7 +13,7 @@ Single-purpose headless Fabric mod that drives the real MC client to produce the
 
 ## Sweep architecture
 
-`RefHarnessRenderer` advances one sweep step per client tick after a 60-tick warmup. A run's sweeps come from `HarnessMode` - `FULL` is block → item → entity → player; `GLINT`, `PLAYERS`, `ARMOR` and `PITCH_ROLL` each run one sweep alone. Setting two mode properties now **throws** rather than letting the first silently win.
+`RefHarnessRenderer` advances one sweep step per client tick after a 60-tick warmup. A run's sweeps come from `HarnessMode` - `FULL` is block → item → entity → player, `EVERY` is those four plus glint and armor; `GLINT`, `PLAYERS`, `ARMOR` and `PITCH_ROLL` each run one sweep alone. Setting two mode properties now **throws** rather than letting the first silently win. **`FULL` is the odd name** - `EVERY` is the one that renders the whole reference tree, and the gap between them is where stale ground truth accumulated twice.
 
 Every sweep implements `api.Sweep` (`outputDir` / `enumerate` / `key` / `canvas` / `render`, plus the `prepare` / `beforeSubject` / `afterSweep` hooks) and is driven by `api.SweepRunner`, which owns the work index, the tally, the completion latch and the one-PNG-per-tick pacing. **Every sweep renders exactly one subject per tick**, entity variants included - the readback is async, so firing a second render before the prior one lands would corrupt it.
 

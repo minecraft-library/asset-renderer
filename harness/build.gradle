@@ -64,6 +64,12 @@ loom {
             if (project.hasProperty('refharnessArmorOnly')) {
                 property 'refharness.armorOnly', project.property('refharnessArmorOnly').toString()
             }
+            // Whole-tree sweep: every reference sweep in one client boot, so a change to a
+            // renderer two sweeps share cannot leave one of them behind. Driven by
+            // renderVanillaAllReferences.
+            if (project.hasProperty('refharnessEverySweep')) {
+                property 'refharness.everySweep', project.property('refharnessEverySweep').toString()
+            }
             if (project.hasProperty('refharnessBoundsDump')) {
                 property 'refharness.boundsDump', project.property('refharnessBoundsDump').toString()
             }

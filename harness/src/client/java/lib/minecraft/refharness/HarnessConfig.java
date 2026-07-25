@@ -90,6 +90,16 @@ public final class HarnessConfig {
     public static final boolean ARMOR_ONLY = Boolean.getBoolean("refharness.armorOnly");
 
     /**
+     * When {@code true}, the harness runs <em>every</em> reference sweep in one boot - the block /
+     * item / entity / player sweeps plus {@link GlintSweep} and {@link ArmorSweep}, which no other
+     * mode runs alongside them. Each narrowing mode above renders part of the tree, so a change to a
+     * frame renderer two of them share leaves whichever sweep nobody re-ran holding ground truth
+     * recorded by the old code; this mode is the one that cannot. Pair with
+     * {@code -PrefharnessEverySweep=true} on {@code renderVanillaAllReferences}.
+     */
+    public static final boolean EVERY_SWEEP = Boolean.getBoolean("refharness.everySweep");
+
+    /**
      * Diagnostic flag: when {@code true}, the entity sweeper renders the first filtered
      * target {@code 24 * 24 = 576} times - every combination of pitch (0°-345° in 15°
      * steps) and roll (0°-345° in 15° steps), holding yaw at the
