@@ -153,6 +153,12 @@ public final class VanillaSourceClasses {
         /** {@code EntityModel} - the model-hierarchy walk sentinel (never walked past). */
         public static final @NotNull String ENTITY_MODEL = CLIENT_MODEL_ROOT + "EntityModel";
 
+        /** {@code EntityDataAccessor} - the key a synched entity field is registered and read under. */
+        public static final @NotNull String ENTITY_DATA_ACCESSOR = "net/minecraft/network/syncher/EntityDataAccessor";
+
+        /** {@code Byte} - the boxed carrier a synched flags byte is defined and read as. */
+        public static final @NotNull String BYTE = "java/lang/Byte";
+
         /** {@code ModelLayers} - the static-field registry of baked {@code ModelLayerLocation}s. */
         public static final @NotNull String MODEL_LAYERS = CLIENT_MODEL_GEOM_ROOT + "ModelLayers";
 
@@ -301,6 +307,12 @@ public final class VanillaSourceClasses {
 
         /** {@code EntityRenderer.getTextureLocation} - the texture-binding override. */
         public static final @NotNull String GET_TEXTURE_LOCATION = "getTextureLocation";
+
+        /** {@code Entity.defineSynchedData} - where a synched field's default value is registered. */
+        public static final @NotNull String DEFINE_SYNCHED_DATA = "defineSynchedData";
+
+        /** {@code Byte.valueOf} - the box a synched flags default is registered through. */
+        public static final @NotNull String VALUE_OF = "valueOf";
 
         /** {@code Identifier.withDefaultNamespace(String)} - the texture-path wrapping factory. */
         public static final @NotNull String WITH_DEFAULT_NAMESPACE = "withDefaultNamespace";
@@ -485,6 +497,9 @@ public final class VanillaSourceClasses {
 
         /** The {@code MeshDefinition} return-type reference descriptor. */
         public static final @NotNull String MESH_DEFINITION_REF = ref(Types.MESH_DEFINITION);
+
+        /** The {@code EntityDataAccessor} field reference descriptor - a synched field's registration key. */
+        public static final @NotNull String ENTITY_DATA_ACCESSOR_REF = ref(Types.ENTITY_DATA_ACCESSOR);
 
         /**
          * Descriptor of the adult armor-set factory

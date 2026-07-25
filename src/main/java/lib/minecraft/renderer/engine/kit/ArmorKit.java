@@ -291,29 +291,23 @@ public class ArmorKit {
 
     /**
      * Maps a vanilla humanoid bone name to the {@link SkinFace} body part it drives for entity
-     * armor. Accepts both the snake_case ({@code right_arm}) and camelCase ({@code rightArm})
-     * spellings that appear across vanilla model classes so either bytecode-derived naming
-     * resolves. Bones absent from this map are non-humanoid and carry no armor.
+     * armor, keyed on the snake_case names vanilla authors its bones under. Bones absent from this
+     * map are non-humanoid and carry no armor.
      */
-    private static final @NotNull Map<String, SkinFace> HUMANOID_BONE_MAP = Map.ofEntries(
-        Map.entry("head", SkinFace.HEAD),
-        Map.entry("body", SkinFace.TORSO),
-        Map.entry("right_arm", SkinFace.RIGHT_ARM),
-        Map.entry("left_arm", SkinFace.LEFT_ARM),
-        Map.entry("right_leg", SkinFace.RIGHT_LEG),
-        Map.entry("left_leg", SkinFace.LEFT_LEG),
-        Map.entry("rightArm", SkinFace.RIGHT_ARM),
-        Map.entry("leftArm", SkinFace.LEFT_ARM),
-        Map.entry("rightLeg", SkinFace.RIGHT_LEG),
-        Map.entry("leftLeg", SkinFace.LEFT_LEG)
+    private static final @NotNull Map<String, SkinFace> HUMANOID_BONE_MAP = Map.of(
+        "head", SkinFace.HEAD,
+        "body", SkinFace.TORSO,
+        "right_arm", SkinFace.RIGHT_ARM,
+        "left_arm", SkinFace.LEFT_ARM,
+        "right_leg", SkinFace.RIGHT_LEG,
+        "left_leg", SkinFace.LEFT_LEG
     );
 
     /**
      * Builds armor triangles for an entity by mapping its bone bounding boxes to humanoid
      * armor slots via {@link #HUMANOID_BONE_MAP} (the standard {@code head} / {@code body} /
-     * {@code right_arm} / {@code left_arm} / {@code right_leg} / {@code left_leg} names, in either
-     * snake_case or camelCase spelling). Bones with no humanoid mapping are silently skipped, so a
-     * non-humanoid entity simply yields no armor.
+     * {@code right_arm} / {@code left_arm} / {@code right_leg} / {@code left_leg} names). Bones with
+     * no humanoid mapping are silently skipped, so a non-humanoid entity simply yields no armor.
      *
      * <p>An adult wears the armor mesh its renderer names, mapped into the render frame - matching
      * vanilla, which dresses a humanoid in one of a handful of shared armor sets rather than in a shell

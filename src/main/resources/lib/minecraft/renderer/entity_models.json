@@ -40,15 +40,14 @@
       "bones": {
         "hidden": [
           "hat",
-          "leftArm",
-          "rightArm",
-          "base_plate"
+          "left_arm",
+          "right_arm"
         ],
         "toggles": {
           "show_arms": {
             "bones": [
-              "leftArm",
-              "rightArm"
+              "left_arm",
+              "right_arm"
             ],
             "default": false
           },
@@ -56,7 +55,7 @@
             "bones": [
               "base_plate"
             ],
-            "default": false
+            "default": true
           }
         }
       },

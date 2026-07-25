@@ -27,9 +27,13 @@ import java.util.Map;
 
 /**
  * Node {@code bones} - bone-visibility deltas from a single model-hierarchy walk:
- * {@code hidden} (unconditional ctor {@code visible = false} writes plus state-gated
- * zero-state-false writes, minus renderer re-enables - the Illusioner pattern) and
- * {@code toggles} (state-gated reveals / hides: chest, horns, mushrooms).
+ * {@code hidden} (unconditional ctor {@code visible = false} writes plus the state-gated writes
+ * whose zero state renders hidden, minus renderer re-enables - the Illusioner pattern) and
+ * {@code toggles} (state-gated reveals / hides: chest, horns, mushrooms, base plate).
+ *
+ * <p>Which state-gated bones are hidden by default is asked of
+ * {@link EntitySpawnFlagResolver} rather than assumed, because a flag packed into a synched byte
+ * is free to store the negative and so read {@code true} on a spawned entity.
  *
  * <p>The {@code hasChest} literal gate generalises to any render-state boolean with a
  * zero-state-false default; gate detection relies on the {@code :Z} descriptor to type the
@@ -44,6 +48,7 @@ final class EntityBoneResolver {
     private final @NotNull EntitySubject subject;
     private final @NotNull EntityGeometryRefResolver geometryRef;
     private final @NotNull Diagnostics diagnostics;
+    private final @NotNull EntitySpawnFlagResolver spawnFlags;
 
     EntityBoneResolver(
         @NotNull ClassNodeCache cache,
@@ -55,6 +60,7 @@ final class EntityBoneResolver {
         this.subject = subject;
         this.geometryRef = geometryRef;
         this.diagnostics = diagnostics;
+        this.spawnFlags = new EntitySpawnFlagResolver(cache, subject, diagnostics);
     }
 
     /**
@@ -68,15 +74,16 @@ final class EntityBoneResolver {
         if (entry == null) return null;
         HierarchyScan scan = scanModelHierarchy(entry.factoryClass());
 
-        // hidden = unconditional + state-gated (zero-state-false renders hidden), minus the
+        // hidden = unconditional + state-gated whose zero state renders hidden, minus the
         // renderer's own ctor re-enables; model fields translate to geometry bone names via
-        // the ctor getChild map (fields with no entry pass through unchanged).
+        // the ctor getChild map.
         LinkedHashSet<String> hiddenFields = new LinkedHashSet<>(scan.unconditionalHidden());
-        for (LinkedHashSet<String> gated : scan.stateGatedByFlag().values()) hiddenFields.addAll(gated);
+        for (Map.Entry<String, LinkedHashSet<String>> gate : scan.stateGatedByFlag().entrySet())
+            if (!visibleAtZeroState(gate.getKey())) hiddenFields.addAll(gate.getValue());
         LinkedHashSet<String> reEnabled = collectReEnabledBones();
         hiddenFields.removeAll(reEnabled);
         LinkedHashSet<String> hidden = new LinkedHashSet<>();
-        for (String field : hiddenFields) hidden.add(scan.fieldToBone().getOrDefault(field, field));
+        for (String field : hiddenFields) hidden.add(boneName(scan, field));
 
         // toggles: field-gated reveal (chest - hidden by default), inline-gated hide (goat
         // horns - left/right pairs group under a shared stem), negated-branch gate (bogged
@@ -84,8 +91,8 @@ final class EntityBoneResolver {
         Map<String, Toggle> toggles = new LinkedHashMap<>();
         for (Map.Entry<String, LinkedHashSet<String>> gate : scan.stateGatedByFlag().entrySet()) {
             List<String> bones = new ArrayList<>();
-            for (String field : gate.getValue()) bones.add(scan.fieldToBone().getOrDefault(field, field));
-            toggles.put(flagToToggleName(gate.getKey()), new Toggle(bones, false));
+            for (String field : gate.getValue()) bones.add(boneName(scan, field));
+            toggles.put(flagToToggleName(gate.getKey()), new Toggle(bones, visibleAtZeroState(gate.getKey())));
         }
         Map<String, List<String>> inlineGroups = new LinkedHashMap<>();
         for (String bone : scan.inlineGatedBones())
@@ -94,7 +101,7 @@ final class EntityBoneResolver {
             toggles.putIfAbsent(group.getKey(), new Toggle(group.getValue(), true));
         for (Map.Entry<String, NegatedGate> gate : scan.negatedGatedByFlag().entrySet()) {
             List<String> bones = new ArrayList<>();
-            for (String field : gate.getValue().fields()) bones.add(scan.fieldToBone().getOrDefault(field, field));
+            for (String field : gate.getValue().fields()) bones.add(boneName(scan, field));
             toggles.putIfAbsent(flagToToggleName(gate.getKey()), new Toggle(bones, gate.getValue().defaultVisible()));
         }
 
@@ -156,8 +163,14 @@ final class EntityBoneResolver {
 
     /**
      * Walks the model class chain once, up to (excluding) {@code EntityModel} /
-     * {@code Object}: each class's first ctor feeds the unconditional hides + the
-     * field-to-bone map; every other method feeds the three gate collectors.
+     * {@code Object}: every ctor feeds the unconditional hides + the field-to-bone map;
+     * every other method feeds the three gate collectors.
+     *
+     * <p>Every ctor, not the first: a model that offers both a {@code (root)} and a
+     * {@code (root, Function)} form builds its parts in the wider one and delegates from the
+     * narrower, so reading only the first declared leaves the whole class's fields unmapped -
+     * which is how {@code HumanoidModel}'s inherited arms and legs used to reach the emitted
+     * JSON spelled as Java fields.
      */
     private @NotNull HierarchyScan scanModelHierarchy(@NotNull String modelClass) {
         HierarchyScan scan = new HierarchyScan(new LinkedHashMap<>(), new LinkedHashSet<>(),
@@ -166,15 +179,15 @@ final class EntityBoneResolver {
         while (current != null && !current.equals(VanillaSourceClasses.Types.ENTITY_MODEL) && !current.equals(AsmKit.OBJECT_INTERNAL)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) break;
-            MethodNode ctor = AsmKit.findMethod(cn, AsmKit.INIT);
-            if (ctor != null) {
-                collectUnconditionalHidden(cn, ctor, scan.unconditionalHidden());
-                collectFieldToBoneNameMap(cn, ctor, scan.fieldToBone());
-            }
             // State-gated visibility can live in setupAnim, prepareMobModel, or any other
             // override hook - walk every non-init method for the gate shapes.
             for (MethodNode method : cn.methods) {
-                if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+                if (AsmKit.CLINIT.equals(method.name)) continue;
+                if (AsmKit.INIT.equals(method.name)) {
+                    collectUnconditionalHidden(cn, method, scan.unconditionalHidden());
+                    collectFieldToBoneNameMap(cn, method, scan.fieldToBone());
+                    continue;
+                }
                 collectGates(cn, method, scan);
             }
             current = cn.superName;
@@ -377,6 +390,32 @@ final class EntityBoneResolver {
             if (members.size() > entry.getValue().bones().size())
                 entry.setValue(new Toggle(new ArrayList<>(members), entry.getValue().defaultVisible()));
         }
+    }
+
+    /**
+     * Whether a positive-gated flag's bones render on a freshly spawned entity - which is what
+     * the flag itself reads there, since the write is {@code bone.visible = state.<flag>}.
+     *
+     * <p>Not always {@code false}: vanilla packs several flags into one synched byte and a packed
+     * flag may store the negative, so a zero byte can read {@code true}. An armor stand's base
+     * plate is the corpus's one such bone.
+     */
+    private boolean visibleAtZeroState(@NotNull String flag) {
+        return this.spawnFlags.spawnValue(flag);
+    }
+
+    /**
+     * The geometry bone name behind a model field: the ctor {@code getChild} map where the
+     * field was built there, else the field's own name snake-cased.
+     *
+     * <p>The fallback is the convention rather than a guess - vanilla authors every bone
+     * snake_case and every field holding one camelCase, so a field the map missed still names
+     * the bone it holds. Passing the field name through raw instead emits a name no geometry
+     * can carry, which resolves to nothing and takes the toggle down with it.
+     */
+    private static @NotNull String boneName(@NotNull HierarchyScan scan, @NotNull String field) {
+        String bone = scan.fieldToBone().get(field);
+        return bone != null ? bone : StringUtil.toSnakeCase(field);
     }
 
     /**
