@@ -73,11 +73,6 @@ public class ArmorKit {
     private static final float LEGGINGS_INFLATE = 0.008f;
 
     /**
-     * Additional inflate for trim so it sits above the armor base and avoids z-fighting.
-     */
-    private static final float TRIM_INFLATE = 0.003f;
-
-    /**
      * The body part and skin layer one armor-mesh bone is textured from.
      *
      * @param face the body part whose unwrap the box is cropped through
@@ -127,12 +122,6 @@ public class ArmorKit {
      * cycle rather than a hierarchy.
      */
     private static final int MAX_BONE_DEPTH = 8;
-
-    /**
-     * Trim separation in model units - the model-unit equivalent of {@link #TRIM_INFLATE} in the
-     * skin renderer's normalized frame.
-     */
-    private static final float TRIM_GROW = 0.1f;
 
     /**
      * The render frame an entity's armor is built into: the same anchor and scales the entity's own
@@ -436,9 +425,6 @@ public class ArmorKit {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Optional<Entity.HumanoidArmor> armor = frame.armor();
         if (armor.isEmpty()) return triangles;
-        // The trim rides the same frame as the armor it sits on, so its separation scales with the
-        // render rather than staying a constant that vanishes at small scales.
-        float trimInflate = TRIM_GROW * frame.ndcScale() * frame.modelScale();
 
         Map<ArmorTrim.Slot, Optional<ArmorPiece>> equipped = new EnumMap<>(ArmorTrim.Slot.class);
         equipped.put(ArmorTrim.Slot.HELMET, helmet);
@@ -449,7 +435,7 @@ public class ArmorKit {
         for (var entry : equipped.entrySet()) {
             ArmorTrim.Slot slot = entry.getKey();
             entry.getValue().ifPresent(piece -> addMeshSlot3D(triangles,
-                armorBoxes(frame, armor.get(), slot), piece, slot, itemFor(items, slot), engine, trimInflate));
+                armorBoxes(frame, armor.get(), slot), piece, slot, itemFor(items, slot), engine));
         }
         return triangles;
     }
@@ -626,7 +612,7 @@ public class ArmorKit {
 
     /**
      * Adds one slot's armor around bounds carried in the skin renderer's normalized frame, inflating
-     * by the constants calibrated for it.
+     * by the constant calibrated for it.
      */
     private static void addSkinScaledSlot3D(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
@@ -636,8 +622,8 @@ public class ArmorKit {
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
-        float baseInflate = slot == ArmorTrim.Slot.LEGGINGS ? LEGGINGS_INFLATE : ARMOR_INFLATE;
-        addSlot3D(triangles, bodyPositions, piece, slot, item, engine, baseInflate, baseInflate + TRIM_INFLATE);
+        addSlot3D(triangles, bodyPositions, piece, slot, item, engine,
+            slot == ArmorTrim.Slot.LEGGINGS ? LEGGINGS_INFLATE : ARMOR_INFLATE);
     }
 
     private static void addSlot3D(
@@ -647,8 +633,7 @@ public class ArmorKit {
         @NotNull ArmorTrim.Slot slot,
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine,
-        float baseInflate,
-        float trimInflate
+        float inflate
     ) {
         SkinFace[] parts = partsForSlot(slot);
         boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
@@ -659,7 +644,7 @@ public class ArmorKit {
         for (SkinFace part : parts) {
             Vector3f[] bounds = bodyPositions.get(part);
             if (bounds == null) continue;
-            triangles.addAll(buildPart3D(part, false, bounds[0], bounds[1], armorTexture.get(), baseInflate));
+            triangles.addAll(buildPart3D(part, false, bounds[0], bounds[1], armorTexture.get(), inflate));
         }
 
         if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
@@ -671,7 +656,7 @@ public class ArmorKit {
                     Vector3f[] bounds = bodyPositions.get(part);
                     if (bounds == null) continue;
                     triangles.addAll(buildPart3D(part, false, bounds[0], bounds[1],
-                        trimTexture.get(), trimInflate));
+                        trimTexture.get(), inflate));
                 }
             }
         }
@@ -679,7 +664,7 @@ public class ArmorKit {
 
     /**
      * Adds one slot's armor around boxes already grown and mapped into the render frame, so nothing
-     * beyond the trim's own separation is inflated here.
+     * is inflated here.
      */
     private static void addMeshSlot3D(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
@@ -687,8 +672,7 @@ public class ArmorKit {
         @NotNull ArmorPiece piece,
         @NotNull ArmorTrim.Slot slot,
         @NotNull Optional<ItemContext> item,
-        @NotNull Textures engine,
-        float trimInflate
+        @NotNull Textures engine
     ) {
         boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
         Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece,
@@ -705,7 +689,7 @@ public class ArmorKit {
                 .ifPresent(trimTexture -> {
                     for (ArmorBox box : boxes)
                         triangles.addAll(buildPart3D(box.part().face(), box.part().overlay(),
-                            box.min(), box.max(), trimTexture, trimInflate));
+                            box.min(), box.max(), trimTexture, 0f));
                 });
         }
     }
