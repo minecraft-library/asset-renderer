@@ -55,10 +55,20 @@ public final class PlayerFrameRenderer implements FrameRenderer<PlayerFrameRende
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
     /**
-     * Half-extent of the orthographic depth range. Matches the entity path: the iso rotation and the
-     * fit scale push a humanoid's nearest and farthest corners well past the block-scale range.
+     * Half-extent of the orthographic depth range - the span vanilla's own picture-in-picture
+     * renderer projects through, and the one every other frame renderer here uses.
+     *
+     * <p>It was once ten times wider, on the reasoning that the iso rotation and the fit scale push a
+     * humanoid's corners past a block-scale range. The fit is what makes that unnecessary: the
+     * silhouette is measured and scaled to {@link #FILL} of a capped canvas, so the depth extent is
+     * bounded along with it.
+     *
+     * <p>The width is not free. Every window depth lands beside {@code 0.5}, where a {@code float}
+     * step is {@code 2^-24}, so the range sets in direct proportion how close two surfaces may be
+     * before the reference records them at the same depth and leaves their order to whichever drew
+     * last.
      */
-    private static final float DEPTH_RANGE = 10000.0f;
+    private static final float DEPTH_RANGE = 1000.0f;
 
     /** Fraction of the canvas the fitted silhouette spans - matches asset-renderer {@code PLAYER_FILL}. */
     private static final float FILL = 1.0f;
