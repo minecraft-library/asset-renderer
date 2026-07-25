@@ -18,6 +18,8 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.SkinFace;
+import lib.minecraft.renderer.option.Age;
+import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
@@ -174,7 +176,8 @@ class ArmorKitCitCompositeTest {
 
     /** The shell that same wearer's baby is dressed in. */
     private static @NotNull Optional<Entity.HumanoidArmor> babyShell() {
-        return genericShell().map(Entity.HumanoidArmor::forBaby);
+        return genericShell().map(shell -> shell.forAppearance(
+            EntityAppearance.builder().age(Age.BABY).build()));
     }
 
     /**

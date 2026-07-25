@@ -47,6 +47,9 @@ public final class VanillaSourceClasses {
         /** {@code MeshTransformer} - layer-level scale / mesh-mutation wraps. */
         public static final @NotNull String MESH_TRANSFORMER = MODEL_BUILDERS_ROOT + "MeshTransformer";
 
+        /** {@code BabyModelTransform} - the aged-down whole-mesh transformer, a per-top-level-bone rewrite. */
+        public static final @NotNull String BABY_MODEL_TRANSFORM = CLIENT_MODEL_ROOT + "BabyModelTransform";
+
         /** {@code CubeListBuilder} - the cube-chain builder. */
         public static final @NotNull String CUBE_LIST_BUILDER = MODEL_BUILDERS_ROOT + "CubeListBuilder";
 
@@ -483,6 +486,16 @@ public final class VanillaSourceClasses {
 
         /** {@code OverlayTexture.NO_OVERLAY} - the {@code submitModel} argument its colour argument follows. */
         public static final @NotNull String NO_OVERLAY = "NO_OVERLAY";
+
+        /**
+         * Suffix of {@code HumanoidModel.ADULT_ARMOR_PARTS_PER_SLOT} /
+         * {@code BABY_ARMOR_PARTS_PER_SLOT} - the per-slot part table an armor-set factory hands its
+         * fan-out, and the one thing in {@code createRoots} that says which shell a set builds.
+         */
+        public static final @NotNull String ARMOR_PARTS_PER_SLOT_SUFFIX = "_ARMOR_PARTS_PER_SLOT";
+
+        /** Prefix of the aged-down member of that pair. */
+        public static final @NotNull String BABY_ARMOR_PARTS_PREFIX = "BABY";
 
     }
 

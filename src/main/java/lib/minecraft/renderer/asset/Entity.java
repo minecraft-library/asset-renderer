@@ -132,9 +132,11 @@ public record Entity(
      * {@link Entity} the renderer iterates unconditionally, with no scattered {@code !baby} gates - the
      * render-time policy the reader deliberately leaves off the loaded data.
      *
+     * <p>The worn-armor shell resolves ahead of them all and outside the fork, against whichever
+     * selection the wearer's own second shell names.
+     *
      * <p>The nine axis semantics apply in a fixed short-circuit order: (1) a baby swaps in the baby mesh,
-     * substitutes the {@link Axes#babyOverlays() baby overlay list} for the adult one, swaps the worn-armor
-     * shell for the wearer's baby one, and DROPS block
+     * substitutes the {@link Axes#babyOverlays() baby overlay list} for the adult one, and DROPS block
      * overlays / collar / equipment - each carries adult geometry that would render adult-sized around
      * the smaller baby body, which is exactly why the overlay passes are a distinct list rather than the
      * adult one, and the substituted list is empty unless an overlay declares a baby form, so a pass with
@@ -161,12 +163,16 @@ public record Entity(
             .map(coat -> this.axes().variants().getOrDefault(coat, this))
             .orElse(this);
         EntityBuilder builder = definition.toBuilder();
+        // The worn shell resolves ahead of the age fork and outside it, because the axis that
+        // selects a wearer's second shell is the wearer's own - six swap on age and the armor stand
+        // on size - and vanilla picks the set off the flag alone rather than off the body mesh.
+        Optional<HumanoidArmor> armor = definition.layers().humanoidArmor()
+            .map(shell -> shell.forAppearance(appearance));
         if (appearance.isBaby() && definition.axes().babyModel().isPresent()) {
             builder.model(definition.axes().babyModel().get())
                 .overlays(gatedOverlays(definition.axes().babyOverlays(), appearance))
                 .blockOverlays(List.of())
-                .layers(new Layers(Optional.empty(), List.of(), definition.layers().markings(),
-                    definition.layers().humanoidArmor().map(HumanoidArmor::forBaby)));
+                .layers(new Layers(Optional.empty(), List.of(), definition.layers().markings(), armor));
         } else {
             builder.overlays(gatedOverlays(definition.overlays(), appearance));
             // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
@@ -202,6 +208,8 @@ public record Entity(
             // rather than resolving self-similar to the default.
             appearance.getSize().map(definition.axes().sizeScales()::get)
                 .ifPresent(scale -> builder.rendererScale(definition.rendererScale() * scale));
+            builder.layers(new Layers(definition.layers().collar(), definition.layers().equipment(),
+                definition.layers().markings(), armor));
         }
         // The base_color axis (tropical fish) overrides the model base_tint with the selected dye; absent
         // (default) keeps the baked base_tint.
@@ -376,12 +384,15 @@ public record Entity(
      * only by it still share one geometry entry, and it is what sizes and seats the shell in step
      * with the body it dresses.
      *
-     * <p>A wearer with a baby form is dressed in a shell of its own rather than in a smaller copy of
-     * this one - its own mesh, its own two deformations, its own sheet - and that shell rides
-     * {@link #baby} so the age fold in {@link Entity#resolve} swaps to it the way every other axis
-     * swaps. The six wearers vanilla registers a second set for carry one; the rest answer
-     * {@link #forBaby()} with themselves, which is vanilla's own way of saying a wearer has no
-     * distinct baby form.
+     * <p>A wearer vanilla hands a second armor set is dressed in a shell of its own rather than in a
+     * smaller copy of this one - its own mesh, its own two deformations, sometimes its own sheet -
+     * and that shell rides {@link #alternate} together with the appearance selection that reaches
+     * it. Seven wearers carry one; the rest answer {@link #forAppearance} with themselves, which is
+     * vanilla's own way of saying a wearer has only the one shell.
+     *
+     * <p>The selection is carried rather than assumed because vanilla reaches both kinds through one
+     * flag and this pipeline through two axes: six wearers swap on {@code age}, and the armor stand
+     * on {@code size}, whose {@code isBaby} is literally {@code isSmall}.
      *
      * @param mesh the ungrown armor mesh, joined from the geometry store
      * @param innerGrow the per-side growth the leggings layer applies
@@ -390,7 +401,7 @@ public record Entity(
      *     the eleven wearers registered unscaled
      * @param form which of the two shells this is - what says which parts each slot covers, which
      *     equipment layer it draws through, and whether it is trimmed
-     * @param baby the distinct shell this wearer's baby is dressed in, empty when it has none
+     * @param alternate the shell this wearer's other form is dressed in, empty when it has none
      */
     public record HumanoidArmor(
         @NotNull EntityModelData mesh,
@@ -398,7 +409,7 @@ public record Entity(
         @NotNull Vector3f outerGrow,
         float meshScale,
         @NotNull ArmorForm form,
-        @NotNull Optional<HumanoidArmor> baby
+        @NotNull Optional<AlternateShell> alternate
     ) {
 
         /**
@@ -425,14 +436,26 @@ public record Entity(
         }
 
         /**
-         * The shell a baby of this wearer is dressed in - its own when vanilla registers one, else
-         * this one.
+         * The shell this wearer is dressed in for a given appearance - its second one when the
+         * appearance selects it, else this one.
          *
-         * @return the baby's shell
+         * @param appearance the render-axis selections
+         * @return the shell to dress the wearer in
          */
-        public @NotNull HumanoidArmor forBaby() {
-            return this.baby.orElse(this);
+        public @NotNull HumanoidArmor forAppearance(@NotNull EntityAppearance appearance) {
+            return this.alternate
+                .filter(shell -> shell.when().test(appearance))
+                .map(AlternateShell::shell)
+                .orElse(this);
         }
+
+        /**
+         * The second shell a wearer is dressed in, and the appearance selection that reaches it.
+         *
+         * @param when the selection that swaps to this shell
+         * @param shell the shell itself
+         */
+        public record AlternateShell(@NotNull AppearanceGate when, @NotNull HumanoidArmor shell) {}
     }
 
     /**

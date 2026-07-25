@@ -1323,6 +1323,365 @@
         }
       }
     },
+    "ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER": {
+      "source": {
+        "class": "net/minecraft/client/model/object/armorstand/ArmorStandModel",
+        "method": "createBodyLayer",
+        "baby": "HumanoidModel.BABY_TRANSFORMER"
+      },
+      "texture_size": [
+        64,
+        64
+      ],
+      "y_axis": "DOWN",
+      "bones": {
+        "head": {
+          "pivot": [
+            0.0,
+            12.75,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                -7.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                7.0,
+                2.0
+              ],
+              "uv": [
+                0,
+                0
+              ]
+            }
+          ],
+          "scale": 0.75
+        },
+        "hat": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "parent": "head",
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                -8.0,
+                -4.0
+              ],
+              "size": [
+                8.0,
+                8.0,
+                8.0
+              ],
+              "uv": [
+                32,
+                0
+              ],
+              "grow": 0.5
+            }
+          ],
+          "scale": 0.75
+        },
+        "body": {
+          "pivot": [
+            0.0,
+            12.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -6.0,
+                0.0,
+                -1.5
+              ],
+              "size": [
+                12.0,
+                3.0,
+                3.0
+              ],
+              "uv": [
+                0,
+                26
+              ]
+            }
+          ],
+          "scale": 0.5
+        },
+        "right_arm": {
+          "pivot": [
+            -2.5,
+            13.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                -2.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                12.0,
+                2.0
+              ],
+              "uv": [
+                24,
+                0
+              ]
+            }
+          ],
+          "scale": 0.5
+        },
+        "left_arm": {
+          "pivot": [
+            2.5,
+            13.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                0.0,
+                -2.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                12.0,
+                2.0
+              ],
+              "uv": [
+                32,
+                16
+              ],
+              "mirror": true
+            }
+          ],
+          "scale": 0.5
+        },
+        "right_leg": {
+          "pivot": [
+            -0.95,
+            18.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                0.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                11.0,
+                2.0
+              ],
+              "uv": [
+                8,
+                0
+              ]
+            }
+          ],
+          "scale": 0.5
+        },
+        "left_leg": {
+          "pivot": [
+            0.95,
+            18.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                0.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                11.0,
+                2.0
+              ],
+              "uv": [
+                40,
+                16
+              ],
+              "mirror": true
+            }
+          ],
+          "scale": 0.5
+        },
+        "right_body_stick": {
+          "pivot": [
+            0.0,
+            12.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -3.0,
+                3.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                7.0,
+                2.0
+              ],
+              "uv": [
+                16,
+                0
+              ]
+            }
+          ],
+          "scale": 0.5
+        },
+        "left_body_stick": {
+          "pivot": [
+            0.0,
+            12.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                1.0,
+                3.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                7.0,
+                2.0
+              ],
+              "uv": [
+                48,
+                16
+              ]
+            }
+          ],
+          "scale": 0.5
+        },
+        "shoulder_stick": {
+          "pivot": [
+            0.0,
+            12.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                10.0,
+                -1.0
+              ],
+              "size": [
+                8.0,
+                2.0,
+                2.0
+              ],
+              "uv": [
+                0,
+                48
+              ]
+            }
+          ],
+          "scale": 0.5
+        },
+        "base_plate": {
+          "pivot": [
+            0.0,
+            18.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -6.0,
+                11.0,
+                -6.0
+              ],
+              "size": [
+                12.0,
+                1.0,
+                12.0
+              ],
+              "uv": [
+                0,
+                32
+              ]
+            }
+          ],
+          "scale": 0.5
+        }
+      }
+    },
     "ArmorStandArmorModel#createBaseMesh": {
       "source": {
         "class": "net/minecraft/client/model/object/armorstand/ArmorStandArmorModel",
@@ -1549,6 +1908,243 @@
               "mirror": true
             }
           ]
+        }
+      }
+    },
+    "ArmorStandArmorModel#createBaseMesh@baby=HumanoidModel.BABY_TRANSFORMER": {
+      "source": {
+        "class": "net/minecraft/client/model/object/armorstand/ArmorStandArmorModel",
+        "method": "createBaseMesh",
+        "baby": "HumanoidModel.BABY_TRANSFORMER"
+      },
+      "texture_size": [
+        64,
+        32
+      ],
+      "y_axis": "DOWN",
+      "bones": {
+        "head": {
+          "pivot": [
+            0.0,
+            12.75,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                -8.0,
+                -4.0
+              ],
+              "size": [
+                8.0,
+                8.0,
+                8.0
+              ],
+              "uv": [
+                0,
+                0
+              ]
+            }
+          ],
+          "scale": 0.75
+        },
+        "hat": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "parent": "head",
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                -8.0,
+                -4.0
+              ],
+              "size": [
+                8.0,
+                8.0,
+                8.0
+              ],
+              "uv": [
+                32,
+                0
+              ],
+              "grow": 0.5
+            }
+          ],
+          "scale": 0.75
+        },
+        "body": {
+          "pivot": [
+            0.0,
+            12.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                8.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                16,
+                16
+              ]
+            }
+          ],
+          "scale": 0.5
+        },
+        "right_arm": {
+          "pivot": [
+            -2.5,
+            13.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -3.0,
+                -2.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                40,
+                16
+              ]
+            }
+          ],
+          "scale": 0.5
+        },
+        "left_arm": {
+          "pivot": [
+            2.5,
+            13.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                -2.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                40,
+                16
+              ],
+              "mirror": true
+            }
+          ],
+          "scale": 0.5
+        },
+        "right_leg": {
+          "pivot": [
+            -0.95,
+            17.5,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                0,
+                16
+              ],
+              "grow": -0.1
+            }
+          ],
+          "scale": 0.5
+        },
+        "left_leg": {
+          "pivot": [
+            0.95,
+            17.5,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                12.0,
+                4.0
+              ],
+              "uv": [
+                0,
+                16
+              ],
+              "grow": -0.1,
+              "mirror": true
+            }
+          ],
+          "scale": 0.5
         }
       }
     },

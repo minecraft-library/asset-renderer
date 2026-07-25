@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
+import lib.minecraft.renderer.tooling.geometry.BabyMeshTransform;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -73,6 +74,9 @@ public final class LayerDefinitionIndex {
      * @param appliedMeshTransformerScale the composed scale of every
      *     {@code .apply(MeshTransformer.scaling(F))} chained onto the factory result
      *     ({@code 1f} = none)
+     * @param appliedBabyTransform the aged-down whole-mesh transformer chained onto the factory
+     *     result, or {@code null} when none is - the armor stand's small body is the one entry in
+     *     26.1 that carries one
      */
     public record Entry(
         @NotNull String factoryClass,
@@ -83,14 +87,22 @@ public final class LayerDefinitionIndex {
         @NotNull String layerField,
         float @NotNull [] grow,
         @Nullable Float floatParam,
-        float appliedMeshTransformerScale
+        float appliedMeshTransformerScale,
+        @Nullable BabyMeshTransform appliedBabyTransform
     ) {
 
         /** A copy with {@link #appliedMeshTransformerScale} multiplied by {@code factor}. */
         private @NotNull Entry composeAppliedScale(float factor) {
             return new Entry(this.factoryClass, this.factoryMethod, this.factoryDesc, this.texWidthOverride,
                 this.texHeightOverride, this.layerField, this.grow, this.floatParam,
-                this.appliedMeshTransformerScale * factor);
+                this.appliedMeshTransformerScale * factor, this.appliedBabyTransform);
+        }
+
+        /** A copy carrying the aged-down transformer an {@code apply} chains onto the factory result. */
+        private @NotNull Entry composeBabyTransform(@NotNull BabyMeshTransform transform) {
+            return new Entry(this.factoryClass, this.factoryMethod, this.factoryDesc, this.texWidthOverride,
+                this.texHeightOverride, this.layerField, this.grow, this.floatParam,
+                this.appliedMeshTransformerScale, transform);
         }
 
     }
@@ -156,6 +168,10 @@ public final class LayerDefinitionIndex {
         // of a static MeshTransformer field, or ALOAD of a tracked slot). Consumed by the next
         // `invokevirtual apply(MeshTransformer)` to fold into pendingDirect.
         Float pendingAppliedMTScale = null;
+        // The aged-down transformer the MeshTransformer most recently pushed resolves to, when it
+        // is one. Read only where the scaling resolve declines, so the ten scaling-bound fields
+        // never pay for the second walk.
+        BabyMeshTransform pendingAppliedBaby = null;
 
         for (AbstractInsnNode in = createRoots.instructions.getFirst(); in != null; in = in.getNext()) {
             int opcode = in.getOpcode();
@@ -204,6 +220,7 @@ public final class LayerDefinitionIndex {
                 pendingDeformationGrow = null;
                 pendingFloat = null;
                 pendingAppliedMTScale = null;
+                pendingAppliedBaby = null;
                 continue;
             }
 
@@ -211,11 +228,18 @@ public final class LayerDefinitionIndex {
             // class-level static transformer onto the LayerDefinition via apply(). Resolved via
             // the field owner's <clinit>; non-canonical initialisers (indy-backed
             // DONKEY_TRANSFORMER, compound applies) resolve to null, leaving the chain at 1f.
+            //
+            // A field the scaling resolve declines may still be an aged-down transformer - the
+            // MeshTransformer type covers both, and three vanilla classes spell BABY_TRANSFORMER
+            // as a scaling while a fourth spells it as a BabyModelTransform.
             if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
                 && VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF.equals(fi.desc)) {
                 pendingAppliedMTScale = AsmKit.resolveStaticScalingFactor(cache, fi.owner, fi.name,
                     VanillaSourceClasses.Types.MESH_TRANSFORMER, VanillaSourceClasses.Methods.SCALING,
                     VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF);
+                pendingAppliedBaby = pendingAppliedMTScale != null
+                    ? null
+                    : BabyMeshTransform.resolve(cache, fi.owner, fi.name);
                 continue;
             }
 
@@ -239,7 +263,7 @@ public final class LayerDefinitionIndex {
                 if (AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION)) {
                     pendingMesh = new Entry(mi.owner, mi.name, mi.desc, null, null,
                         pendingLayerField == null ? "" : pendingLayerField,
-                        growOf(pendingDeformationGrow), null, 1f);
+                        growOf(pendingDeformationGrow), null, 1f, null);
                     pendingDeformationGrow = null;
                     continue;
                 }
@@ -248,7 +272,7 @@ public final class LayerDefinitionIndex {
                     && pendingMesh != null) {
                     pendingDirect = new Entry(pendingMesh.factoryClass(), pendingMesh.factoryMethod(),
                         pendingMesh.factoryDesc(), widthHeight[0], widthHeight[1],
-                        pendingMesh.layerField(), pendingMesh.grow(), null, 1f);
+                        pendingMesh.layerField(), pendingMesh.grow(), null, 1f, null);
                     pendingMesh = null;
                     continue;
                 }
@@ -260,7 +284,7 @@ public final class LayerDefinitionIndex {
                     Float floatParam = pendingFloat != null && mi.desc.startsWith("(F)") ? pendingFloat : null;
                     pendingDirect = new Entry(mi.owner, mi.name, mi.desc, null, null,
                         pendingLayerField == null ? "" : pendingLayerField,
-                        growOf(pendingDeformationGrow), floatParam, 1f);
+                        growOf(pendingDeformationGrow), floatParam, 1f, null);
                     pendingDeformationGrow = null;
                     pendingFloat = null;
                 }
@@ -300,9 +324,11 @@ public final class LayerDefinitionIndex {
             if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.LAYER_DEFINITION,
                     VanillaSourceClasses.Methods.APPLY, APPLY_DESC)
                 && pendingDirect != null
-                && pendingAppliedMTScale != null) {
-                pendingDirect = pendingDirect.composeAppliedScale(pendingAppliedMTScale);
+                && (pendingAppliedMTScale != null || pendingAppliedBaby != null)) {
+                if (pendingAppliedMTScale != null) pendingDirect = pendingDirect.composeAppliedScale(pendingAppliedMTScale);
+                if (pendingAppliedBaby != null) pendingDirect = pendingDirect.composeBabyTransform(pendingAppliedBaby);
                 pendingAppliedMTScale = null;
+                pendingAppliedBaby = null;
                 // Inline apply consumes the scaling result directly off the operand stack -
                 // clear the slot mirror so a later unrelated ASTORE doesn't pick it up.
                 pendingScalingMTFloat = null;
@@ -319,11 +345,12 @@ public final class LayerDefinitionIndex {
                     pendingDirect.factoryClass(), pendingDirect.factoryMethod(), pendingDirect.factoryDesc(),
                     pendingDirect.texWidthOverride(), pendingDirect.texHeightOverride(),
                     pendingLayerField, pendingDirect.grow(), pendingDirect.floatParam(),
-                    pendingDirect.appliedMeshTransformerScale())));
+                    pendingDirect.appliedMeshTransformerScale(), pendingDirect.appliedBabyTransform())));
                 pendingLayerField = null;
                 pendingDirect = null;
                 pendingMesh = null;
                 pendingAppliedMTScale = null;
+                pendingAppliedBaby = null;
             }
         }
 
@@ -468,7 +495,8 @@ public final class LayerDefinitionIndex {
         if (delegate == null || !delegate.desc.equals(entry.factoryDesc())) return entry;
         return new Entry(delegate.owner, delegate.name, delegate.desc,
             entry.texWidthOverride(), entry.texHeightOverride(), entry.layerField(),
-            entry.grow(), entry.floatParam(), entry.appliedMeshTransformerScale());
+            entry.grow(), entry.floatParam(), entry.appliedMeshTransformerScale(),
+            entry.appliedBabyTransform());
     }
 
 }

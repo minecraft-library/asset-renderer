@@ -177,6 +177,10 @@ public final class GeometryParser {
             state.poseParamSlot = poseParam.slot();
             state.poseParamOffset = poseParam.offset().clone();
         }
+        // The aged-down whole-mesh transformer the registration wraps this factory's result in.
+        // Carried rather than folded into meshTransformerScale: it rewrites a pose per top-level
+        // bone through one of two operators, which no single factor can express.
+        state.babyTransform = request.babyTransform();
         state.currentSource = request;
         state.diagnostics = diagnostics;
         walkInstructions(instructions, state, cache);
@@ -195,6 +199,7 @@ public final class GeometryParser {
         applyRetainedNamesFilter(state);
         applyClearedBonesFilter(state);
         applyMeshTransformerScaling(state);
+        applyBabyMeshTransform(state);
 
         if (state.bones.isEmpty()) return null;
 
@@ -377,6 +382,72 @@ public final class GeometryParser {
                 bone.addProperty("scale", combined);
             }
         }
+    }
+
+    /**
+     * Bakes the captured {@link WalkState#babyTransform} into every emitted bone - the aged-down
+     * proportions vanilla's {@code BabyModelTransform} gives a mesh at registration.
+     *
+     * <p>Vanilla rewrites the pose of each of the root's <b>direct children</b>, choosing the head
+     * operator for the names the transformer holds and the body operator for the rest, and leaves
+     * grandchildren untouched by reference. So the factor and the offset are decided by a bone's
+     * <b>top-level ancestor</b>, not by the bone itself.
+     *
+     * <p>Two halves, matching the shape {@link #applyMeshTransformerScaling} already has:
+     * <ul>
+     *   <li>The <b>offset</b> is a single translate on the top-level bone, applied <em>before</em>
+     *       the scale, so a top-level pivot lands at {@code (pivot + offset) * f}. Descendants
+     *       inherit it through the parent chain and must not be offset again.</li>
+     *   <li>The <b>factor</b> multiplies every bone's pivot and {@code scale}, top-level and
+     *       descendant alike, because vanilla's bone scale propagates down the chain at render and
+     *       this codebase's does not - the same inverse the whole-mesh scale pass relies on.</li>
+     * </ul>
+     *
+     * <p>Cubes are left untouched: the kit multiplies local cube vertices by the bone's
+     * {@code scale} at the pivot translate, which is where vanilla's own propagated scale lands.
+     *
+     * <p>Runs after the whole-mesh scale pass, which is the order vanilla composes them in - a
+     * registration scales the {@code LayerDefinition} it then transforms. No mesh in 26.1 carries
+     * both.
+     *
+     * @param state the parse state whose emitted bones are re-walked and transformed in place
+     */
+    private static void applyBabyMeshTransform(@NotNull WalkState state) {
+        BabyMeshTransform transform = state.babyTransform;
+        if (transform == null) return;
+        for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
+            String top = topLevelAncestor(entry.getKey(), state.boneParents);
+            boolean head = transform.isHeadPart(top);
+            float f = head ? transform.headFactor() : transform.bodyFactor();
+            float offsetY = head ? transform.headYOffset() : transform.bodyYOffset();
+            float offsetZ = head ? transform.headZOffset() : 0f;
+            boolean isTop = entry.getKey().equals(top);
+
+            JsonObject bone = entry.getValue().getAsJsonObject();
+            JsonArray pivot = bone.getAsJsonArray("pivot");
+            if (pivot != null && pivot.size() == 3) {
+                float px = pivot.get(0).getAsFloat();
+                float py = pivot.get(1).getAsFloat() + (isTop ? offsetY : 0f);
+                float pz = pivot.get(2).getAsFloat() + (isTop ? offsetZ : 0f);
+                JsonArray transformed = new JsonArray();
+                transformed.add(f * px);
+                transformed.add(f * py);
+                transformed.add(f * pz);
+                bone.add("pivot", transformed);
+            }
+            float existing = bone.has("scale") ? bone.get("scale").getAsFloat() : 1f;
+            float combined = existing * f;
+            if (combined == 1f) bone.remove("scale");
+            else bone.addProperty("scale", combined);
+        }
+    }
+
+    /** The top-level bone a bone descends from - itself when it has no parent. */
+    private static @NotNull String topLevelAncestor(@NotNull String bone, @NotNull Map<String, String> parents) {
+        String cursor = bone;
+        for (String parent = parents.get(cursor); parent != null; parent = parents.get(cursor))
+            cursor = parent;
+        return cursor;
     }
 
     /**
@@ -2523,6 +2594,14 @@ public final class GeometryParser {
          * {@code .apply(scaling(a)).apply(scaling(b))} composes as {@code a * b}.
          */
         float meshTransformerScale = 1f;
+
+        /**
+         * The aged-down whole-mesh transformer the registration applies (set from
+         * {@link GeometryRequest#babyTransform()}), re-walked into the emitted bone tree by
+         * {@link #applyBabyMeshTransform} after {@link #walkInstructions} returns. {@code null}
+         * for every mesh vanilla registers untransformed.
+         */
+        @Nullable BabyMeshTransform babyTransform;
 
         /**
          * The 3-component inflate captured from the most recent {@code new CubeDeformation}

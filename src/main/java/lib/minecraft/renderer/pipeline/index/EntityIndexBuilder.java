@@ -20,6 +20,7 @@ import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.raster.Composition;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.pipeline.util.ArgbHex;
@@ -255,7 +256,8 @@ public final class EntityIndexBuilder {
             .baseTintArgb(baseTint).setupYawAddend(setupYawAddend).rendererScale(rendererScale)
             .boneToggles(toggles)
             .axes(new Entity.Axes(stateTextures, babyModel, babyOverlays,
-                buildLargeShape(family, geometries, familyId, diagnostics), buildSizeModels(family, geometries),
+                buildLargeShape(family, geometries, familyId, diagnostics),
+                buildSizeModels(family, geometries, hiddenBones, familyId, diagnostics),
                 buildSizeScales(family), Map.of(), Optional.empty(), stateDefaultOf(family), sizeDefaultOf(family)))
             .layers(new Entity.Layers(collarTexture, equipment, markings, humanoidArmor))
             .build());
@@ -646,9 +648,9 @@ public final class EntityIndexBuilder {
      * a shared set vanilla hands the wearer, not a derivative of the wearer's own mesh, so anything done
      * to the body must not follow it onto the shell.
      *
-     * <p>The row's {@code baby} node, where it carries one, is folded in as a second shell the age
-     * axis swaps to. A wearer without one dresses its baby in the adult shell, which is what vanilla
-     * does when it hands its armor layer one set twice.
+     * <p>The row's {@code alternate} node, where it carries one, is folded in as a second shell the
+     * axis it names swaps to. A wearer without one dresses both its forms in the same shell, which
+     * is what vanilla does when it hands its armor layer one set twice.
      */
     private static @NotNull Optional<Entity.HumanoidArmor> humanoidArmorOf(
         @NotNull RawModel family,
@@ -663,15 +665,59 @@ public final class EntityIndexBuilder {
                 diagnostics.warn("entity '%s' armor layer carries no mesh reference or deformations - wearer dropped", entityId);
                 return Optional.empty();
             }
-            RawArmorBaby raw = overlay.baby();
-            Optional<Entity.HumanoidArmor> baby = raw == null
-                ? Optional.empty()
-                : shellOf(raw.geometry(), raw.grow(), raw.scaled(), ArmorForm.BABY, Optional.empty(),
-                    geometries, entityId, diagnostics);
-            if (raw != null && baby.isEmpty()) return Optional.empty();
-            return shellOf(overlay.geometry(), overlay.grow(), overlay.scaled(), ArmorForm.ADULT, baby,
+            RawArmorAlternate raw = overlay.alternate();
+            Optional<Entity.HumanoidArmor.AlternateShell> alternate = Optional.empty();
+            if (raw != null) {
+                alternate = alternateShellOf(raw, geometries, entityId, diagnostics);
+                if (alternate.isEmpty()) return Optional.empty();
+            }
+            return shellOf(overlay.geometry(), overlay.grow(), overlay.scaled(), ArmorForm.ADULT, alternate,
                 geometries, entityId, diagnostics);
         }
+        return Optional.empty();
+    }
+
+    /**
+     * The second shell an armor row carries, paired with the selection that reaches it. Empty when
+     * either the mesh or the selection is unreadable, which drops the whole wearer rather than
+     * dressing one of its forms in the other's shell.
+     */
+    private static @NotNull Optional<Entity.HumanoidArmor.AlternateShell> alternateShellOf(
+        @NotNull RawArmorAlternate raw,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull String entityId,
+        @NotNull Diagnostics diagnostics
+    ) {
+        Optional<AppearanceGate> when = parseAlternateGate(raw.when());
+        if (when.isEmpty()) {
+            diagnostics.warn("entity '%s' alternate armor shell names no appearance selection - wearer dropped", entityId);
+            return Optional.empty();
+        }
+        ArmorForm form = ArmorForm.BABY.name().equalsIgnoreCase(raw.form()) ? ArmorForm.BABY : ArmorForm.ADULT;
+        return shellOf(raw.geometry(), raw.grow(), raw.scaled(), form, Optional.empty(),
+            geometries, entityId, diagnostics)
+            .map(shell -> new Entity.HumanoidArmor.AlternateShell(when.get(), shell));
+    }
+
+    /**
+     * Parses an alternate shell's {@code when} object into the typed selection that swaps to it -
+     * {@code age} to an {@link AppearanceGate.AgeGate} and {@code size} to an
+     * {@link AppearanceGate.SizeGate}. Empty for an absent or unreadable option, which is a shell
+     * nothing could ever select rather than one that always applies.
+     */
+    private static @NotNull Optional<AppearanceGate> parseAlternateGate(@Nullable RawLayerWhen when) {
+        if (when == null) return Optional.empty();
+        if (when.age() != null)
+            return enumOf(Age.class, when.age()).map(AppearanceGate.AgeGate::new);
+        if (when.size() != null)
+            return enumOf(Size.class, when.size()).map(AppearanceGate.SizeGate::new);
+        return Optional.empty();
+    }
+
+    /** The constant of an enum matching a lower-case option token, or empty when it names none. */
+    private static <E extends Enum<E>> @NotNull Optional<E> enumOf(@NotNull Class<E> type, @NotNull String token) {
+        for (E constant : type.getEnumConstants())
+            if (constant.name().equalsIgnoreCase(token)) return Optional.of(constant);
         return Optional.empty();
     }
 
@@ -686,7 +732,7 @@ public final class EntityIndexBuilder {
         @Nullable RawArmorGrow grow,
         @Nullable Float scaled,
         @NotNull ArmorForm form,
-        @NotNull Optional<Entity.HumanoidArmor> baby,
+        @NotNull Optional<Entity.HumanoidArmor.AlternateShell> alternate,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String entityId,
         @NotNull Diagnostics diagnostics
@@ -703,7 +749,7 @@ public final class EntityIndexBuilder {
             return Optional.empty();
         }
         return Optional.of(new Entity.HumanoidArmor(mesh, grow.inner(), grow.outer(),
-            scaled == null ? 1f : scaled, form, baby));
+            scaled == null ? 1f : scaled, form, alternate));
     }
 
     /**
@@ -768,19 +814,34 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * Resolves the family's {@code size} axis geometry alternatives (pufferfish small / medium) into
-     * {@code Size -> mesh}. Options carrying a {@code scale} (not a {@code geometry}) are skipped; the
-     * default size is the base mesh and never appears here.
+     * Resolves the family's {@code size} axis geometry alternatives (pufferfish small / medium, the
+     * small armor stand) into {@code Size -> mesh}. Options carrying a {@code scale} (not a
+     * {@code geometry}) are skipped; the default size is the base mesh and never appears here.
+     *
+     * <p>A size mesh is the same subject's body at another size, so it takes the same surgery the
+     * base body does - the hidden-bone strip and the age's Y shift. Reaching for the raw mesh instead
+     * drew the armor stand's arms on its small form and not on its full one, off one mesh the strip
+     * had run over and one it had not. The two fish carry an empty hidden list and no shift, so both
+     * passes are the identity on every subject that had a size axis before.
      */
-    private static @NotNull Map<Size, EntityModelData> buildSizeModels(@NotNull RawModel family, @NotNull Map<String, EntityModelData> geometries) {
+    private static @NotNull Map<Size, EntityModelData> buildSizeModels(
+        @NotNull RawModel family,
+        @NotNull Map<String, EntityModelData> geometries,
+        @Nullable List<String> hiddenBones,
+        @NotNull String entityId,
+        @NotNull Diagnostics diagnostics
+    ) {
         Map<String, RawSizeOption> options = sizeOptions(family);
         if (options == null) return Map.of();
+        float yShift = adultOption(family).yShift();
         Map<Size, EntityModelData> out = new LinkedHashMap<>();
         for (Map.Entry<String, RawSizeOption> option : options.entrySet()) {
             RawSizeOption body = option.getValue();
             if (body.geometry() == null) continue;
             EntityModelData mesh = geometries.get(body.geometry());
-            if (mesh != null) out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
+            if (mesh == null) continue;
+            mesh = shiftModel(applyHiddenBones(mesh, hiddenBones, entityId, diagnostics), yShift);
+            out.put(Size.valueOf(option.getKey().toUpperCase(Locale.ROOT)), mesh);
         }
         return out;
     }

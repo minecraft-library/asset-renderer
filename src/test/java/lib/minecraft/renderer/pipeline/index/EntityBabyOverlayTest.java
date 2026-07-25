@@ -177,13 +177,13 @@ class EntityBabyOverlayTest {
     private static RawLayer equipmentLayer() {
         return new RawLayer(
             null,                        // id
-            new RawLayerWhen("saddle"),  // when
+            new RawLayerWhen("saddle", null, null),  // when
             new RawLayerOverlay(
                 null,                                  // texture
                 ADULT_COORD,                           // geometry
                 null,                                  // grow
                 null,                                  // scaled
-                null,                                  // baby
+                null,                                  // alternate
                 "pig_saddle",                          // layer_type
                 Map.of("saddle", "minecraft:saddle"),  // material_assets
                 "saddle"));                            // default_material

@@ -79,6 +79,8 @@ public final class GeometryFlow {
             source.put("fparam", floatParams[0]);
         if (request.appliedMeshTransformerScale() != 1f)
             source.put("scaled", request.appliedMeshTransformerScale());
+        BabyMeshTransform baby = request.babyTransform();
+        if (baby != null) source.put("baby", baby.discriminator());
         int[] intParams = request.paramIntValues();
         if (intParams != null) {
             JsonTree bound = source.childArray("iparam");

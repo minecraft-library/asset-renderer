@@ -68,6 +68,14 @@
               "texture": "minecraft:textures/entity/armorstand/armorstand.png"
             }
           }
+        },
+        "size": {
+          "default": "large",
+          "options": {
+            "small": {
+              "geometry": "ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER"
+            }
+          }
         }
       },
       "layers": [
@@ -80,6 +88,17 @@
             "grow": {
               "inner": 0.5,
               "outer": 1.0
+            },
+            "alternate": {
+              "when": {
+                "size": "small"
+              },
+              "geometry": "ArmorStandArmorModel#createBaseMesh@baby=HumanoidModel.BABY_TRANSFORMER",
+              "grow": {
+                "inner": 0.5,
+                "outer": 1.0
+              },
+              "form": "adult"
             }
           }
         }
@@ -876,7 +895,10 @@
               "inner": 0.5,
               "outer": 1.0
             },
-            "baby": {
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
               "geometry": "HumanoidModel#createBabyArmorMesh",
               "grow": {
                 "inner": [
@@ -889,7 +911,8 @@
                   0.5,
                   0.3
                 ]
-              }
+              },
+              "form": "baby"
             }
           }
         }
@@ -1431,7 +1454,10 @@
               "outer": 1.0
             },
             "scaled": 1.0625,
-            "baby": {
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
               "geometry": "HumanoidModel#createBabyArmorMesh",
               "grow": {
                 "inner": [
@@ -1444,7 +1470,8 @@
                   0.5,
                   0.3
                 ]
-              }
+              },
+              "form": "baby"
             }
           }
         }
@@ -2154,12 +2181,16 @@
               "inner": 0.5,
               "outer": 1.02
             },
-            "baby": {
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
               "geometry": "HumanoidModel#createBabyArmorMesh@pose=0.5,-0.5,0.0",
               "grow": {
                 "inner": 0.7,
                 "outer": 0.7
-              }
+              },
+              "form": "baby"
             }
           }
         }
@@ -3436,7 +3467,10 @@
               "inner": 0.5,
               "outer": 1.0
             },
-            "baby": {
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
               "geometry": "HumanoidModel#createBabyArmorMesh",
               "grow": {
                 "inner": [
@@ -3449,7 +3483,8 @@
                   0.5,
                   0.3
                 ]
-              }
+              },
+              "form": "baby"
             }
           }
         }
@@ -3650,7 +3685,10 @@
               "inner": 0.5,
               "outer": 1.0
             },
-            "baby": {
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
               "geometry": "HumanoidModel#createBabyArmorMesh",
               "grow": {
                 "inner": [
@@ -3663,7 +3701,8 @@
                   0.5,
                   0.3
                 ]
-              }
+              },
+              "form": "baby"
             }
           }
         }
@@ -3697,12 +3736,16 @@
               "inner": 0.5,
               "outer": 1.02
             },
-            "baby": {
+            "alternate": {
+              "when": {
+                "age": "baby"
+              },
               "geometry": "HumanoidModel#createBabyArmorMesh@pose=0.5,-0.5,0.0",
               "grow": {
                 "inner": 0.7,
                 "outer": 0.7
-              }
+              },
+              "form": "baby"
             }
           }
         }

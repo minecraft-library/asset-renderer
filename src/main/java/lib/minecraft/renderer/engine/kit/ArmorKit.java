@@ -423,9 +423,7 @@ public class ArmorKit {
             ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
             if (coveredBySlot(tree, armor.form(), slot, entry.getKey()))
                 for (EntityModelData.Cube cube : bone.getCubes())
-                    cubes.add(new EntityModelData.Cube(cube.getOrigin(), cube.getSize(), cube.getUv(),
-                        deformation.add(cube.getGrow()), cube.isMirror(), cube.getPivot(), cube.getRotation(),
-                        cube.getFaceUv()));
+                    cubes.add(grownBy(cube, deformation));
             Vector3f pivot = bone.getParent() == null ? bone.getPivot().add(seat) : bone.getPivot();
             bones.put(entry.getKey(), new EntityModelData.Bone(pivot, bone.getRotation(),
                 bone.getBindPoseRotation(), bone.getScale(), cubes, bone.getParent()));
@@ -477,9 +475,13 @@ public class ArmorKit {
      * second box), which is the sum vanilla's mesh builder performs in the same order. Bone order is the
      * mesh's own, so a part and the overlay box parented to it stay adjacent.
      *
-     * <p>A part collapses to one axis-aligned box because the armor meshes are plain box tables - no bone
-     * carries a rotation or a scale. That is a property of those meshes, not an assumption about entity
-     * geometry in general.
+     * <p>A part collapses to one axis-aligned box because the armor meshes are plain box tables - no
+     * bone carries a rotation. A bone's uniform {@code scale} <em>is</em> honoured: every shell
+     * vanilla registers untransformed leaves it at the identity, but the shell an aged-down
+     * whole-mesh transformer builds carries one per bone, and drawing that shell unscaled would put a
+     * full-size helmet on a half-size body. It multiplies each operand rather than the assembled
+     * corners, so at the identity every existing wearer's arithmetic is the same expression on the
+     * same values and cannot round differently.
      */
     private static @NotNull List<ArmorBox> armorBoxes(
         @NotNull EntityArmorFrame frame, @NotNull Entity.HumanoidArmor armor, @NotNull ArmorTrim.Slot slot) {
@@ -489,10 +491,11 @@ public class ArmorKit {
         for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
             if (!coveredBySlot(tree, armor.form(), slot, entry.getKey())) continue;
             Vector3f anchor = chainedPivot(tree, entry.getValue());
+            float scale = entry.getValue().getScale();
             for (EntityModelData.Cube cube : entry.getValue().getCubes()) {
-                Vector3f grow = deformation.add(cube.getGrow());
-                Vector3f min = anchor.add(cube.getOrigin()).subtract(grow);
-                Vector3f max = min.add(cube.getSize()).add(grow).add(grow);
+                Vector3f grow = deformation.add(cube.getGrow()).multiply(scale);
+                Vector3f min = anchor.add(cube.getOrigin().multiply(scale)).subtract(grow);
+                Vector3f max = min.add(cube.getSize().multiply(scale)).add(grow).add(grow);
                 Vector3f[] corners = turnAboutXBounds(new Vector3f[]{
                     toRenderFrame(frame, armor, min.x(), min.y(), min.z()),
                     toRenderFrame(frame, armor, max.x(), max.y(), max.z())
@@ -501,6 +504,17 @@ public class ArmorKit {
             }
         }
         return boxes;
+    }
+
+    /**
+     * The same cube carrying the slot's deformation summed onto its own - the pair vanilla's mesh
+     * builder adds, in that order.
+     */
+    private static @NotNull EntityModelData.Cube grownBy(
+        @NotNull EntityModelData.Cube cube, @NotNull Vector3f deformation) {
+        return new EntityModelData.Cube(cube.getOrigin(), cube.getSize(), cube.getUv(),
+            deformation.add(cube.getGrow()), cube.isMirror(), cube.getPivot(), cube.getRotation(),
+            cube.getFaceUv());
     }
 
     /**

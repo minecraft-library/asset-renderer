@@ -21,9 +21,11 @@ import java.util.Map;
  *   <li><b>mesh</b> - each option registers its own {@code GeometryRequest}, whether the mesh is a
  *       distinct factory (pufferfish small / medium from the renderer ctor's multiple
  *       {@code ModelLayers.PUFFERFISH_*} references, big = primary) or the primary factory under a
- *       {@code MeshTransformer.scaling} factor (salmon 0.5 / 1.5 off {@code SALMON_SMALL} /
- *       {@code SALMON_LARGE}). Both bake to a mesh: vanilla's {@code SalmonRenderer} likewise holds
- *       three baked {@code SalmonModel} instances and picks one, so the scaled mesh is emitted as
+ *       whole-mesh transformer - a {@code MeshTransformer.scaling} factor (salmon 0.5 / 1.5 off
+ *       {@code SALMON_SMALL} / {@code SALMON_LARGE}) or the aged-down rewrite the armor stand's
+ *       {@code ARMOR_STAND_SMALL} is registered through. All three bake to a mesh: vanilla's
+ *       {@code SalmonRenderer} likewise holds three baked {@code SalmonModel} instances and picks
+ *       one, and {@code ArmorStandRenderer} holds two, so the transformed mesh is emitted as
  *       geometry the parser bakes the transformer into, not a render-time scale rider.</li>
  *   <li><b>scale</b> - the option multiplies {@code rendererScale}: slime / magma_cube 2.0 / 4.0
  *       proportional to their natural-size set (size-proportional per {@code SlimeRenderer.scale} at
@@ -121,9 +123,10 @@ final class EntitySizeAxisResolver {
         for (Map.Entry<String, LayerDefinitionIndex.Entry> candidate : candidates.entrySet()) {
             LayerDefinitionIndex.Entry entry = candidate.getValue();
             String key = this.manifest.register(GeometryRequest.shape(
-                entry.factoryClass(), entry.factoryMethod(), this.subject.entityId(),
-                entry.texWidthOverride(), entry.texHeightOverride(),
-                entry.floatParam(), entry.grow(), entry.appliedMeshTransformerScale()));
+                    entry.factoryClass(), entry.factoryMethod(), this.subject.entityId(),
+                    entry.texWidthOverride(), entry.texHeightOverride(),
+                    entry.floatParam(), entry.grow(), entry.appliedMeshTransformerScale())
+                .withBabyTransform(entry.appliedBabyTransform()));
             options.put(candidate.getKey(), JsonTree.object().put("geometry", key));
         }
         this.diagnostics.info("size axis via P37 membership: options %s", options.keySet());
@@ -134,10 +137,16 @@ final class EntitySizeAxisResolver {
      * Assembles the node: the non-default delta options in size-domain order, option-less default (the
      * base mesh the family {@code geometry} already renders). The domain lives in the size-axis policy,
      * not a per-family {@code values} list.
+     *
+     * <p>The default is the <b>last</b> option-less member rather than the first, which matters only
+     * for a family that fills fewer than two of the three: the armor stand's one option is
+     * {@code small}, and the mesh its {@code geometry} already renders is the full-size one rather
+     * than a middling one. Every family filling two options has exactly one member left, so the two
+     * readings agree on all of them.
      */
     private static @NotNull JsonTree sizeNode(@NotNull List<String> domain, @NotNull Map<String, JsonTree> options) {
-        String dflt = domain.getFirst();
-        for (String member : domain)
+        String dflt = domain.getLast();
+        for (String member : domain.reversed())
             if (!options.containsKey(member)) {
                 dflt = member;
                 break;

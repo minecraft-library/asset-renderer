@@ -1418,8 +1418,8 @@ public final class PipelineParityDump {
     }
 
     /**
-     * Returns an appearance gate as a tagged record. All seven cases are handled although the entity
-     * reader can only produce three - the switch is exhaustive over the sealed interface, so a new case
+     * Returns an appearance gate as a tagged record. All nine cases are handled although the entity
+     * reader can only produce five - the switch is exhaustive over the sealed interface, so a new case
      * is a compile error here rather than a silent hole in the dump.
      *
      * @param gate the gate to emit
@@ -1448,6 +1448,14 @@ public final class PipelineParityDump {
             }
             case AppearanceGate.MarkingsGate ignored -> root.addProperty("gate", "markings");
             case AppearanceGate.CollarColorGate ignored -> root.addProperty("gate", "collar_color");
+            case AppearanceGate.AgeGate age -> {
+                root.addProperty("gate", "age");
+                root.addProperty("value", age.value().name());
+            }
+            case AppearanceGate.SizeGate size -> {
+                root.addProperty("gate", "size");
+                root.addProperty("value", size.value().name());
+            }
         }
         return root;
     }

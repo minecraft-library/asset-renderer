@@ -359,26 +359,30 @@ record RawArmorGrow(
 ) {}
 
 /**
- * A {@code layers[].when} gate. Only the {@code equipment} slot is read; {@code collar_color} and
- * {@code markings} presence is derived from the layer {@code id} instead.
+ * A {@code when} gate, on a {@code layers[]} row or on the armor row's second shell. The
+ * {@code equipment} slot gates a row; the {@code age} and {@code size} options select an armor
+ * row's alternate shell. {@code collar_color} and {@code markings} presence is derived from the
+ * layer {@code id} instead.
  *
  * @param equipment the equipment slot this layer is gated on, or {@code null}
+ * @param age the age option that selects this shell, or {@code null}
+ * @param size the size option that selects this shell, or {@code null}
  */
-record RawLayerWhen(@Nullable String equipment) {}
+record RawLayerWhen(@Nullable String equipment, @Nullable String age, @Nullable String size) {}
 
 /**
  * A {@code layers[].overlay} body. Serves the collar layer (reads {@code texture}), the equipment layers
  * (read {@code geometry} / {@code layer_type} / {@code material_assets} / {@code default_material}) and
- * the armor row (reads {@code geometry} / {@code grow} / {@code scaled} / {@code baby}); the marking
- * layer's {@code texture_by} / {@code textures_by_value} are not read.
+ * the armor row (reads {@code geometry} / {@code grow} / {@code scaled} / {@code alternate}); the
+ * marking layer's {@code texture_by} / {@code textures_by_value} are not read.
  *
  * @param texture the collar overlay texture path, or {@code null}
  * @param geometry the equipment or armor overlay geometry coordinate, or {@code null}
  * @param grow the armor row's two layer deformations, or {@code null} for every other row
  * @param scaled the whole-mesh scale the armor set is registered through, or {@code null} at the
  *     identity - the eleven wearers vanilla registers unscaled
- * @param baby the distinct shell this wearer's baby is dressed in, or {@code null} when vanilla
- *     dresses its baby in the adult one
+ * @param alternate the shell this wearer's other form is dressed in, or {@code null} when vanilla
+ *     hands its armor layer one shell twice
  * @param layerType the equipment render layer's serialized id ({@code pig_saddle}), or {@code null}
  * @param materialAssets the equipment asset id per selectable material, or {@code null}
  * @param defaultMaterial the equipment default material, or {@code null}
@@ -388,23 +392,32 @@ record RawLayerOverlay(
     @Nullable String geometry,
     @Nullable RawArmorGrow grow,
     @Nullable Float scaled,
-    @Nullable RawArmorBaby baby,
+    @Nullable RawArmorAlternate alternate,
     @SerializedName("layer_type") @Nullable String layerType,
     @SerializedName("material_assets") @Nullable Map<String, String> materialAssets,
     @SerializedName("default_material") @Nullable String defaultMaterial
 ) {}
 
 /**
- * The armor row's {@code baby} node - the shell vanilla dresses this wearer's baby in, carrying the
- * same three members the adult shell writes into the row's {@code overlay} body.
+ * The armor row's {@code alternate} node - the second shell vanilla hands this wearer's armor layer,
+ * carrying the same three members the first writes into the row's {@code overlay} body plus the
+ * selection that reaches it and which of the two shells it is.
  *
- * @param geometry the baby shell's geometry coordinate
- * @param grow the baby set's two layer deformations
- * @param scaled the whole-mesh scale the baby set is registered through, or {@code null} at the
- *     identity - which is every baby set vanilla registers
+ * <p>Both extras are carried rather than assumed. Vanilla reaches every second set through one flag,
+ * but the six aged-down ones answer this pipeline's {@code age} axis while the armor stand's answers
+ * {@code size}; and the stand's shell is aged-down geometry on the <em>adult</em> per-slot parts,
+ * sheets and trim, so the form does not follow from the selection either.
+ *
+ * @param when the appearance selection that swaps to this shell
+ * @param geometry the shell's geometry coordinate
+ * @param grow the set's two layer deformations
+ * @param scaled the whole-mesh scale the set is registered through, or {@code null} at the identity
+ * @param form which of vanilla's two shells this is ({@code adult} / {@code baby})
  */
-record RawArmorBaby(
+record RawArmorAlternate(
+    @Nullable RawLayerWhen when,
     @Nullable String geometry,
     @Nullable RawArmorGrow grow,
-    @Nullable Float scaled
+    @Nullable Float scaled,
+    @Nullable String form
 ) {}

@@ -73,12 +73,19 @@ enum EntityAxisPolicies implements NavigationPolicy {
      * The shape / size axis membership plus option naming: which entities carry a
      * multi-mesh body axis and which axis it is. Detection of the extra body meshes is
      * generic (via renderer-constructor references); the axis classification and the
-     * field-suffix-to-option naming ({@code PUFFERFISH_MEDIUM} to {@code medium}, matched
-     * against the {@link #SIZE_DOMAIN} domain; shape domain fixed {@code [small, large]})
-     * are declared here.
+     * field-suffix-to-option naming ({@code PUFFERFISH_MEDIUM} to {@code medium},
+     * {@code ARMOR_STAND_SMALL} to {@code small}, matched against the {@link #SIZE_DOMAIN}
+     * domain; shape domain fixed {@code [small, large]}) are declared here.
+     *
+     * <p>The armor stand belongs here rather than under the age axis because vanilla's own word
+     * for the selection is {@code Small} - the flag it persists, the accessor it reads and the
+     * layer it registers all say so. Its renderer routes that flag through {@code isBaby} to reach
+     * the armor layer and then carves itself back out of the aged-down sheets and trim, which is a
+     * detail of vanilla's plumbing rather than a statement that a small stand is a young one.
      */
     SHAPE_SIZE_MEMBERSHIP(
-        Map.of("minecraft:pufferfish", "size", "minecraft:salmon", "size", "minecraft:tropical_fish", "shape"),
+        Map.of("minecraft:pufferfish", "size", "minecraft:salmon", "size",
+            "minecraft:armor_stand", "size", "minecraft:tropical_fish", "shape"),
         "P37: 'the only vanilla entity with distinct body shapes/sizes' judgments"
             + " (legacy ToolingEntityModels:414-448); detection generic per D2/D3, membership + naming declared");
 

@@ -7,13 +7,13 @@ import org.jetbrains.annotations.NotNull;
  * whether the gated overlay / layer renders for a given {@link EntityAppearance}. An absent {@code when}
  * is modelled as no gate (an {@code Optional.empty()} on the owning row), meaning unconditional.
  *
- * <p>Each arm names the exact vanilla branch its condition expresses. The seven arms mirror the seven
+ * <p>Each arm names the exact vanilla branch its condition expresses. The nine arms mirror the nine
  * {@code when} forms the tooling emits.
  */
 public sealed interface AppearanceGate
     permits AppearanceGate.StateGate, AppearanceGate.FlagGate, AppearanceGate.ChargedGate,
     AppearanceGate.TintedGate, AppearanceGate.EquipmentGate, AppearanceGate.MarkingsGate,
-    AppearanceGate.CollarColorGate {
+    AppearanceGate.CollarColorGate, AppearanceGate.AgeGate, AppearanceGate.SizeGate {
 
     /**
      * Reports whether the gated row renders for the given appearance.
@@ -107,6 +107,32 @@ public sealed interface AppearanceGate
         @Override
         public boolean test(@NotNull EntityAppearance appearance) {
             return appearance.collarTint().isPresent();
+        }
+    }
+
+    /**
+     * Renders when the {@code age} axis selects {@link #value} - the aged-down worn-armor shell the
+     * six wearers vanilla registers a second armor set for are dressed in.
+     *
+     * @param value the age that activates the row
+     */
+    record AgeGate(@NotNull Age value) implements AppearanceGate {
+        @Override
+        public boolean test(@NotNull EntityAppearance appearance) {
+            return appearance.getAge() == this.value;
+        }
+    }
+
+    /**
+     * Renders when the {@code size} axis selects {@link #value} - the shell a small armor stand
+     * wears, which is a different mesh rather than the full-size one drawn smaller.
+     *
+     * @param value the size that activates the row
+     */
+    record SizeGate(@NotNull Size value) implements AppearanceGate {
+        @Override
+        public boolean test(@NotNull EntityAppearance appearance) {
+            return appearance.getSize().filter(this.value::equals).isPresent();
         }
     }
 }

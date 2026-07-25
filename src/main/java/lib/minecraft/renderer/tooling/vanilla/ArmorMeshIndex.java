@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
+import lib.minecraft.renderer.tooling.geometry.BabyMeshTransform;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -22,6 +23,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Walks {@code LayerDefinitions.createRoots} once per session for the worn-armor meshes, keying
@@ -94,6 +96,12 @@ public final class ArmorMeshIndex {
      * @param textureHeight the atlas height the set's slots are wrapped at
      * @param armOffset the 3-component offset the mesh factory seats the shell's arms through,
      *     {@code {0, 0, 0}} for the adult sets and for the baby set vanilla passes an unset pose to
+     * @param babyParts whether the set's factory hands its fan-out the aged-down per-slot part
+     *     table - read off the {@code *_ARMOR_PARTS_PER_SLOT} constant the factory passes, because
+     *     that is where vanilla decides it and it does not follow from the set's name
+     * @param babyTransform the aged-down whole-mesh transformer the registration re-applies the set
+     *     through, or {@code null} for a set registered untransformed. It is what makes the small
+     *     armor stand's shell a different shell rather than the adult one under another name
      */
     public record Set(
         @NotNull String meshClass,
@@ -104,7 +112,9 @@ public final class ArmorMeshIndex {
         float meshScale,
         int textureWidth,
         int textureHeight,
-        float @NotNull [] armOffset
+        float @NotNull [] armOffset,
+        boolean babyParts,
+        @Nullable BabyMeshTransform babyTransform
     ) {
 
         /** The unset arm offset - what an adult set, and a baby set at {@code PartPose.ZERO}, carries. */
@@ -122,7 +132,22 @@ public final class ArmorMeshIndex {
          */
         @NotNull Set scaled(float scale) {
             return new Set(this.meshClass, this.meshMethod, this.meshDesc, this.innerGrow, this.outerGrow,
-                scale, this.textureWidth, this.textureHeight, this.armOffset);
+                scale, this.textureWidth, this.textureHeight, this.armOffset, this.babyParts, this.babyTransform);
+        }
+
+        /**
+         * Returns a copy registered through an aged-down whole-mesh transformer.
+         *
+         * <p>A copy for the same reason {@link #scaled} makes one - the operand the small armor
+         * stand re-registers is the very set the full-size one is registered from, so stamping it
+         * in place would shrink both.
+         *
+         * @param transform the transformer the registration applies
+         * @return an otherwise-identical set registered through it
+         */
+        @NotNull Set transformed(@NotNull BabyMeshTransform transform) {
+            return new Set(this.meshClass, this.meshMethod, this.meshDesc, this.innerGrow, this.outerGrow,
+                this.meshScale, this.textureWidth, this.textureHeight, this.armOffset, this.babyParts, transform);
         }
 
         /**
@@ -134,7 +159,7 @@ public final class ArmorMeshIndex {
          */
         @NotNull Set wrappedAt(int width, int height) {
             return new Set(this.meshClass, this.meshMethod, this.meshDesc, this.innerGrow, this.outerGrow,
-                this.meshScale, width, height, this.armOffset);
+                this.meshScale, width, height, this.armOffset, this.babyParts, this.babyTransform);
         }
 
         /**
@@ -142,10 +167,10 @@ public final class ArmorMeshIndex {
          * deformations, same scale, same atlas, same pose.
          *
          * <p>Vanilla's way of saying a wearer has no distinct baby form is to hand its armor layer
-         * one set twice, and the two wearers that pass a second set without meaning a baby are
-         * caught here rather than by name: the piglin brute passes literally the same field twice,
-         * and the small armor stand's set is the adult one re-registered through a transformer the
-         * layer then refuses to read as a baby at all.
+         * one set twice, and the piglin brute - which passes literally the same field twice - is
+         * caught here rather than by name. The small armor stand is not: its second set is the
+         * adult one re-registered through an aged-down transformer, which builds genuinely
+         * different boxes, so it compares as the distinct shell it is.
          *
          * @param other the set to compare against
          * @return whether the two sets are the same shell
@@ -158,7 +183,8 @@ public final class ArmorMeshIndex {
                 && this.meshScale == other.meshScale
                 && this.textureWidth == other.textureWidth
                 && this.textureHeight == other.textureHeight
-                && Arrays.equals(this.armOffset, other.armOffset);
+                && Arrays.equals(this.armOffset, other.armOffset)
+                && Objects.equals(this.babyTransform, other.babyTransform);
         }
 
         /**
@@ -347,6 +373,10 @@ public final class ArmorMeshIndex {
                 if (pendingSet != null && pendingLambda != null) {
                     int[] atlas = resolveWrapAtlas(cache, pendingLambda);
                     if (atlas != null) pendingSet = pendingSet.wrappedAt(atlas[0], atlas[1]);
+                    // A wrap that applies a transformer rather than creating a LayerDefinition -
+                    // the small armor stand's, and the only one in createRoots.
+                    BabyMeshTransform baby = resolveWrapBabyTransform(cache, pendingLambda);
+                    if (baby != null) pendingSet = pendingSet.transformed(baby);
                 }
                 pendingScale = null;
                 pendingLambda = null;
@@ -426,7 +456,62 @@ public final class ArmorMeshIndex {
         }
         int[] atlas = resolveFactoryAtlas(cache, owner, method, desc, 0);
         return new Set(base.getOwner(), base.getName(), base.getDesc(), innerGrow.clone(), outerGrow.clone(),
-            1f, atlas == null ? 0 : atlas[0], atlas == null ? 0 : atlas[1], armOffset.clone());
+            1f, atlas == null ? 0 : atlas[0], atlas == null ? 0 : atlas[1], armOffset.clone(),
+            resolveBabyParts(cache, owner, method, desc, 0), null);
+    }
+
+    /**
+     * Whether a set factory hands its four-slot fan-out the aged-down per-slot part table.
+     *
+     * <p>Read rather than taken from the factory's name, because the two do not have to agree: the
+     * armor stand's small set is built by an <em>adult</em> factory and re-registered through an
+     * aged-down transformer, so it keeps the adult table - which is what puts its shell on the
+     * full-size sheets and lets it draw a trim, exactly as {@code HumanoidArmorLayer} carves it out
+     * of the baby layer type. The walk follows the same delegate chain the atlas read does.
+     */
+    private static boolean resolveBabyParts(
+        @NotNull ClassNodeCache cache,
+        @NotNull String owner,
+        @NotNull String method,
+        @NotNull String desc,
+        int depth
+    ) {
+        if (depth > MAX_DELEGATE_DEPTH) return false;
+        MethodNode node = AsmKit.findMethodInHierarchy(cache, owner, method, desc);
+        if (node == null) return false;
+
+        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
+            if (in.getOpcode() == Opcodes.GETSTATIC
+                && in instanceof FieldInsnNode fi
+                && fi.name.endsWith(VanillaSourceClasses.Fields.ARMOR_PARTS_PER_SLOT_SUFFIX))
+                return fi.name.startsWith(VanillaSourceClasses.Fields.BABY_ARMOR_PARTS_PREFIX);
+
+        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
+            if (in.getOpcode() == Opcodes.INVOKESTATIC
+                && in instanceof MethodInsnNode mi
+                && desc.equals(mi.desc)
+                && isArmorSetFactory(mi.name)
+                && !mi.owner.equals(owner))
+                return resolveBabyParts(cache, mi.owner, mi.name, desc, depth + 1);
+        return false;
+    }
+
+    /**
+     * The aged-down transformer a registration's slot-wrap lambda applies, or {@code null} when the
+     * lambda applies none - which is every wrap but one.
+     */
+    private static @Nullable BabyMeshTransform resolveWrapBabyTransform(
+        @NotNull ClassNodeCache cache, @NotNull Handle lambda) {
+        MethodNode node = AsmKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
+        if (node == null) return null;
+        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
+            if (in.getOpcode() == Opcodes.GETSTATIC
+                && in instanceof FieldInsnNode fi
+                && VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF.equals(fi.desc)) {
+                BabyMeshTransform resolved = BabyMeshTransform.resolve(cache, fi.owner, fi.name);
+                if (resolved != null) return resolved;
+            }
+        return null;
     }
 
     /**

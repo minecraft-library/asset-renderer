@@ -21,6 +21,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -33,8 +34,9 @@ import java.util.Map;
  * <ul>
  *   <li><b>Armor</b> - a {@code HumanoidArmorLayer} site, carrying the worn-armor mesh as a
  *       plain {@code overlay.geometry} reference plus the armor set's two deformations, and the
- *       same shape again under {@code overlay.baby} for the wearers vanilla hands a second,
- *       genuinely distinct shell.</li>
+ *       same shape again under {@code overlay.alternate} for the wearers vanilla hands a second,
+ *       genuinely distinct shell. That node names the appearance selection that reaches it, since
+ *       vanilla reaches both its second sets through one flag but two of this pipeline's axes.</li>
  *   <li><b>Collar</b> - structural detection (a null-gated {@code DyeColor} state read in
  *       the typed submit); the gate mirrors vanilla's actual
  *       {@code collarColor != null && !isInvisible} branch as
@@ -51,6 +53,15 @@ final class EntityLayersResolver {
 
     /** The markings axis name - the sole enum-map token routed to a layers row. */
     private static final @NotNull String MARKINGS_TOKEN = "markings";
+
+    /** The two axes a second armor set can be selected by, and the age axis's aged-down option. */
+    private static final @NotNull String AGE_AXIS = "age";
+    private static final @NotNull String SIZE_AXIS = "size";
+    private static final @NotNull String BABY_OPTION = "baby";
+
+    /** The two shells vanilla builds, named as {@code ArmorForm} spells them. */
+    private static final @NotNull String ADULT_FORM = "adult";
+    private static final @NotNull String BABY_FORM = "baby";
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull String entityId;
@@ -226,23 +237,75 @@ final class EntityLayersResolver {
         this.diagnostics.info("armor row: set '%s'", name);
         JsonTree overlay = shellNode(set);
 
-        // A second set is a distinct baby shell only when it is a distinct shell. Vanilla hands the
-        // layer one set twice to say a wearer has no baby form, and two wearers pass a second that
-        // resolves to the same shell anyway - the piglin brute's is the same field and the small
-        // armor stand's is the adult set re-registered, which the layer itself refuses to read as a
-        // baby.
+        // A second set is a distinct shell only when it is a distinct shell. Vanilla hands the
+        // layer one set twice to say a wearer has only the one, and the piglin brute passes the
+        // same field twice and means nothing by it.
         if (named.size() > 1) {
-            String babyName = named.get(1);
-            ArmorMeshIndex.Set baby = this.armorMeshes.get(babyName);
-            if (baby == null)
-                this.diagnostics.error("armor row names baby mesh '%s', which LayerDefinitions registers no armor set for - baby left in the adult shell",
-                    babyName);
-            else if (!baby.sameShellAs(set)) {
-                overlay.put("baby", shellNode(baby));
-                this.diagnostics.info("armor row: baby set '%s'", babyName);
+            String alternateName = named.get(1);
+            ArmorMeshIndex.Set alternate = this.armorMeshes.get(alternateName);
+            if (alternate == null)
+                this.diagnostics.error("armor row names second mesh '%s', which LayerDefinitions registers no armor set for - wearer left in one shell",
+                    alternateName);
+            else if (!alternate.sameShellAs(set)) {
+                String option = distinguishingToken(name, alternateName);
+                String axis = option == null ? null : axisOf(option);
+                if (axis == null)
+                    this.diagnostics.error("armor row's second set '%s' names no axis option against '%s' - wearer left in one shell",
+                        alternateName, name);
+                else {
+                    overlay.put("alternate", alternateNode(alternate, axis, option));
+                    this.diagnostics.info("armor row: second set '%s' selected by %s=%s", alternateName, axis, option);
+                }
             }
         }
         return row.put("overlay", overlay);
+    }
+
+    /**
+     * The one name token the second armor set carries that the first does not - the option that
+     * selects it.
+     *
+     * <p>Vanilla names every armor set {@code <wearer>_ARMOR} and every second one by inserting a
+     * single word: {@code ZOMBIE_ARMOR} against {@code ZOMBIE_BABY_ARMOR}, {@code ARMOR_STAND_ARMOR}
+     * against {@code ARMOR_STAND_SMALL_ARMOR}. The inserted word is the appearance option, so the
+     * row can say which selection reaches its second shell instead of naming one of them and making
+     * the other read as it.
+     *
+     * @return the single distinguishing token, or {@code null} when the two names differ by
+     *     anything other than exactly one
+     */
+    private static @Nullable String distinguishingToken(@NotNull String first, @NotNull String second) {
+        List<String> base = List.of(first.split("_"));
+        List<String> extra = Arrays.stream(second.split("_")).filter(token -> !base.contains(token)).toList();
+        return extra.size() == 1 ? extra.getFirst() : null;
+    }
+
+    /**
+     * The axis an option belongs to - the size domain holds its own members and the age axis holds
+     * the aged-down one. {@code null} for a token neither axis names, which is an unrecognised
+     * registration rather than a new axis.
+     */
+    private static @Nullable String axisOf(@NotNull String option) {
+        if (EntityAxisPolicies.SIZE_DOMAIN.strings().contains(option)) return SIZE_AXIS;
+        return BABY_OPTION.equals(option) ? AGE_AXIS : null;
+    }
+
+    /**
+     * The second shell's payload: the same members the adult shell writes, plus the selection that
+     * reaches it and which of vanilla's two shells it is.
+     *
+     * <p>The form is read off the set's own part table rather than off the option that selects it,
+     * because they do not have to agree - the small armor stand's shell is aged-down geometry built
+     * from the <em>adult</em> factory, so it keeps the adult per-slot parts, the full-size sheets
+     * and its trim, which is exactly the carve-out {@code HumanoidArmorLayer} spends a branch on.
+     */
+    private @NotNull JsonTree alternateNode(@NotNull ArmorMeshIndex.Set set, @NotNull String axis, @NotNull String option) {
+        JsonTree node = JsonTree.object()
+            .put("when", JsonTree.object().put(axis, option))
+            .put("geometry", registerShell(set))
+            .put("grow", growPair(set));
+        if (set.meshScale() != 1f) node.put("scaled", set.meshScale());
+        return node.put("form", set.babyParts() ? BABY_FORM : ADULT_FORM);
     }
 
     /**
@@ -251,15 +314,24 @@ final class EntityLayersResolver {
      * {@code overlay} and a baby shell writes the same shape into that overlay's {@code baby}.
      */
     private @NotNull JsonTree shellNode(@NotNull ArmorMeshIndex.Set set) {
-        String geometry = this.manifest.register(GeometryRequest.armor(set.meshClass(), set.meshMethod(),
-            this.entityId, set.textureWidth(), set.textureHeight(), poseParamOf(set)));
         JsonTree node = JsonTree.object()
-            .put("geometry", geometry)
+            .put("geometry", registerShell(set))
             .put("grow", growPair(set));
         // Omitted at the identity, the way every other scale in the tree is - the eleven wearers
         // vanilla registers unscaled write no key.
         if (set.meshScale() != 1f) node.put("scaled", set.meshScale());
         return node;
+    }
+
+    /**
+     * Registers one shell's mesh and returns its geometry coordinate. The mesh is registered ungrown
+     * and unscaled - both ride the row - but an aged-down whole-mesh transformer is baked, because it
+     * builds different boxes rather than resizing the same ones.
+     */
+    private @NotNull String registerShell(@NotNull ArmorMeshIndex.Set set) {
+        return this.manifest.register(GeometryRequest.armor(set.meshClass(), set.meshMethod(),
+                this.entityId, set.textureWidth(), set.textureHeight(), poseParamOf(set))
+            .withBabyTransform(set.babyTransform()));
     }
 
     /**
