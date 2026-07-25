@@ -262,7 +262,7 @@ final class EntityBoundsWalker implements AutoCloseable {
                 // equipment layer with no texture contributes no bounds. A true overlay - one with no
                 // LayerType, such as a sheep's wool or a mooshroom's body - has no equipment texture by
                 // nature and still falls back to the wearer's body texture.
-                if (reflectLayerType(layer) != null) continue;
+                if (reflectLayerType(layer, state) != null) continue;
                 layerTexture = texture;
             }
             for (Model<?> layerModel : findLayerModels(layer, state)) {
@@ -703,9 +703,8 @@ final class EntityBoundsWalker implements AutoCloseable {
      *
      * <p>Scoped to a named request rather than applied wherever a subject happens to be wearing
      * something, because two sweeps outside the reference tree equip theirs deliberately and frame
-     * them with a reserved margin instead of a measurement - a margin that exists precisely because
-     * this walk could not see the shell. Widening the walk to them would reframe every one of their
-     * diagnostics as a side effect of a change that is about the entity tree.
+     * them with a reserved margin instead of a measurement. Widening the walk to them would reframe
+     * every one of their diagnostics as a side effect of a change that is about the entity tree.
      */
     private static final String[] EQUIPMENT_AXES = {"equip", "armor"};
 
@@ -836,9 +835,13 @@ final class EntityBoundsWalker implements AutoCloseable {
                     // body with no armour standing proud of it. The set is a record, so its
                     // components are the meshes; naming them by field and slot keeps the picker below
                     // able to tell them apart.
+                    //
+                    // The component is admitted on what it HOLDS, not on what it declares: the set is
+                    // generic in its mesh type, so every component erases to Object and a declared-type
+                    // test rejects all four. That is what left the armour unmeasured while the gate
+                    // above was already open for it.
                     if (value != null && value.getClass().isRecord()) {
                         for (java.lang.reflect.RecordComponent component : value.getClass().getRecordComponents()) {
-                            if (!Model.class.isAssignableFrom(component.getType())) continue;
                             java.lang.reflect.Method accessor = component.getAccessor();
                             accessor.setAccessible(true);
                             if (accessor.invoke(value) instanceof Model<?> m)
@@ -851,16 +854,49 @@ final class EntityBoundsWalker implements AutoCloseable {
             cls = cls.getSuperclass();
         }
         if (fieldModels.isEmpty()) return models;
-        String activeName = pickActiveModelName(layer, state, fieldModels.keySet());
+        java.util.LinkedHashMap<String, Model<?>> ofAge = atAge(state, fieldModels);
+        String activeName = pickActiveModelName(layer, state, ofAge.keySet());
         if (activeName != null) {
-            Model<?> active = fieldModels.get(activeName);
+            Model<?> active = ofAge.get(activeName);
             if (active != null) {
                 models.add(active);
                 return models;
             }
         }
-        models.addAll(fieldModels.values());
+        models.addAll(ofAge.values());
         return models;
+    }
+
+    /**
+     * The models of the age {@code state} is at, when the layer names both ages, else all of them.
+     *
+     * <p>The age pick is by <b>group</b> rather than by model, where a group is one field of the
+     * layer: a field holding a single mesh is its own group, and a field holding a set of them is one
+     * group of four. A layer naming an adult mesh beside a baby one therefore resolves to exactly the
+     * one mesh it always did, while the armour layer resolves to all four of the age it wears - which
+     * is what its {@code submit} draws, one slot at a time.
+     *
+     * @param state the render state being measured
+     * @param fieldModels the layer's models keyed by field, in declaration order
+     * @return the age-matching subset, or {@code fieldModels} when the layer names only one age
+     */
+    private static java.util.LinkedHashMap<String, Model<?>> atAge(
+        EntityRenderState state, java.util.LinkedHashMap<String, Model<?>> fieldModels
+    ) {
+        java.util.LinkedHashSet<String> groups = new java.util.LinkedHashSet<>();
+        for (String name : fieldModels.keySet()) groups.add(groupOf(name));
+        String chosen = pickAgeModelName(state, groups);
+        if (chosen == null) return fieldModels;
+        java.util.LinkedHashMap<String, Model<?>> out = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, Model<?>> entry : fieldModels.entrySet())
+            if (chosen.equals(groupOf(entry.getKey()))) out.put(entry.getKey(), entry.getValue());
+        return out.isEmpty() ? fieldModels : out;
+    }
+
+    /** The field a model name belongs to - the whole name, or the part before a set component's dot. */
+    private static String groupOf(String modelName) {
+        int dot = modelName.indexOf('.');
+        return dot < 0 ? modelName : modelName.substring(0, dot);
     }
 
     /**
@@ -877,8 +913,6 @@ final class EntityBoundsWalker implements AutoCloseable {
     private static @org.jetbrains.annotations.Nullable String pickActiveModelName(
         RenderLayer<?, ?> layer, EntityRenderState state, java.util.Set<String> fieldNames
     ) {
-        String byAge = pickAgeModelName(state, fieldNames);
-        if (byAge != null) return byAge;
         for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
             String simple = c.getSimpleName();
             if ("TropicalFishPatternLayer".equals(simple)) {
@@ -991,7 +1025,7 @@ final class EntityBoundsWalker implements AutoCloseable {
      *     layer, or an unresolved asset) so the caller falls back to the body texture
      */
     private NativeImage equipmentTexture(RenderLayer<?, ?> layer, EntityRenderState state) {
-        EquipmentClientInfo.LayerType layerType = reflectLayerType(layer);
+        EquipmentClientInfo.LayerType layerType = reflectLayerType(layer, state);
         if (layerType == null) return null;
         ItemStack worn = firstWornItem(state);
         if (worn == null || worn.isEmpty()) return null;
@@ -1052,7 +1086,7 @@ final class EntityBoundsWalker implements AutoCloseable {
      * @param layer the render layer
      * @return the layer type, or {@code null} when the layer declares none
      */
-    private static EquipmentClientInfo.LayerType reflectLayerType(RenderLayer<?, ?> layer) {
+    private static EquipmentClientInfo.LayerType reflectLayerType(RenderLayer<?, ?> layer, EntityRenderState state) {
         for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass())
             for (Field f : c.getDeclaredFields()) {
                 if (!EquipmentClientInfo.LayerType.class.isAssignableFrom(f.getType())) continue;
@@ -1062,6 +1096,15 @@ final class EntityBoundsWalker implements AutoCloseable {
                 } catch (ReflectiveOperationException | RuntimeException ignored) {
                 }
             }
+        // Worn humanoid armour picks its layer per slot inside submit, so there is no one field and no
+        // one answer - but for measuring there is: a baby reads the baby sheet in all four slots, and an
+        // adult's leggings sheet paints a subset of the boxes its chestplate and boots already reserve
+        // on the layer-1 sheet, so the union either way is the layer-1 one.
+        for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass())
+            if (c.getSimpleName().equals("HumanoidArmorLayer"))
+                return state instanceof LivingEntityRenderState living && living.isBaby
+                    ? EquipmentClientInfo.LayerType.HUMANOID_BABY
+                    : EquipmentClientInfo.LayerType.HUMANOID;
         // A layer that hardcodes its LayerType inline in submit rather than storing it in a field
         // (the wolf's body armour, the llama's carpet) can't be reflected off an instance; name it.
         for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
