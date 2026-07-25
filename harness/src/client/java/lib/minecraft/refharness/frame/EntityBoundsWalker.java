@@ -1771,12 +1771,13 @@ final class EntityBoundsWalker implements AutoCloseable {
      * Which mesh each size-bearing renderer keeps per size, and the render-state field that picks
      * between them.
      *
-     * <p>Named rather than derived: both renderers hold three plain {@code Model} fields and choose
+     * <p>Named rather than derived: these renderers hold plain {@code Model} fields and choose
      * inside {@code submit}, so there is nothing about the field itself that says which size it is.
      * Guessing from declaration order would measure the wrong mesh the first time vanilla reorders
      * them, and measuring the wrong mesh is the failure that reports framing rather than the render.
      *
-     * @param stateField the render-state field naming the size, read as an integer or as an ordinal
+     * @param stateField the render-state field naming the size, read as an integer, as an ordinal,
+     *     or as the flag a two-mesh renderer picks on
      * @param modelFields the renderer's meshes, smallest first
      */
     private record SizeModels(String stateField, List<String> modelFields) {}
@@ -1784,7 +1785,8 @@ final class EntityBoundsWalker implements AutoCloseable {
     private static final Map<String, SizeModels> SIZE_MODELS = Map.of(
         "PufferfishRenderer", new SizeModels("puffState", List.of("small", "mid", "big")),
         "SalmonRenderer", new SizeModels("variant",
-            List.of("smallSalmonModel", "mediumSalmonModel", "largeSalmonModel")));
+            List.of("smallSalmonModel", "mediumSalmonModel", "largeSalmonModel")),
+        "ArmorStandRenderer", new SizeModels("isSmall", List.of("smallModel", "bigModel")));
 
     /**
      * Resolves the size-specific mesh for a renderer that keeps one per size.
@@ -1809,6 +1811,10 @@ final class EntityBoundsWalker implements AutoCloseable {
             int index = switch (value) {
                 case Integer size -> size;
                 case Enum<?> size -> size.ordinal();
+                // A two-mesh renderer picks on a flag rather than a size, so the flag indexes the
+                // list the same way an ordinal does - set means the smaller mesh, which is where
+                // "smallest first" puts it.
+                case Boolean small -> small ? 0 : 1;
                 case null, default -> -1;
             };
             if (index < 0 || index >= models.modelFields().size()) return null;

@@ -42,7 +42,7 @@ final class AppearanceApplier {
     static Entity build(SweepContext ctx, EntityType<?> type, Appearance appearance) {
         CompoundTag payload = appearance.coat().map(Appearance.Coat::toPayload).orElseGet(CompoundTag::new);
         for (Appearance.Trait trait : appearance.traits())
-            TraitAxis.of(trait).persist(trait.value(), payload);
+            TraitAxis.of(trait).persist(type, trait.value(), payload);
 
         Entity entity = payload.isEmpty()
             ? type.create(ctx.level(), EntitySpawnReason.LOAD)

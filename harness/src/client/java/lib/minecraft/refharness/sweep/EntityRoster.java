@@ -165,6 +165,11 @@ public final class EntityRoster {
             select(selections, TraitAxis.SIZE, "medium", "large");
         if (type == EntityType.SALMON) select(selections, TraitAxis.SIZE, "small", "large");
         if (type == EntityType.PUFFERFISH) select(selections, TraitAxis.SIZE, "small", "medium");
+        // An armour stand's small form is a size for the same reason a salmon's is: a second mesh
+        // vanilla bakes and picks between at submit. Vanilla routes the flag through isBaby to reach
+        // the armour layer, then carves the stand back out of the aged-down sheets - so the stand
+        // wears its full-size sheets and draws its trim, which is what the asset side models.
+        if (type == EntityType.ARMOR_STAND) select(selections, TraitAxis.SIZE, "small");
         // Every dye, not one representative: sixteen renders of an ARGB multiply cost seconds, and a
         // sampled axis cannot say which of the sixteen a regression moved.
         if (type == EntityType.SHEEP) selectDyes(selections, TraitAxis.WOOL_COLOR);

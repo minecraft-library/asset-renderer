@@ -7,6 +7,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.NeutralMob;
@@ -110,7 +111,7 @@ enum TraitAxis {
      */
     MARKINGS("markings") {
         @Override
-        void persist(String value, CompoundTag payload) {
+        void persist(EntityType<?> type, String value, CompoundTag payload) {
             for (Markings markings : Markings.values())
                 if (markings.name().toLowerCase(Locale.ROOT).equals(value)) {
                     int coat = payload.getIntOr(HORSE_VARIANT, 0) & 0xFF;
@@ -131,7 +132,7 @@ enum TraitAxis {
      */
     PATTERN("pattern") {
         @Override
-        void persist(String value, CompoundTag payload) {
+        void persist(EntityType<?> type, String value, CompoundTag payload) {
             for (TropicalFish.Pattern pattern : TropicalFish.Pattern.values())
                 if (pattern.getSerializedName().equals(value)) {
                     int colours = payload.getIntOr(FISH_VARIANT, 0) & 0xFFFF0000;
@@ -145,7 +146,7 @@ enum TraitAxis {
     /** A villager's biome type, which rides in the compound vanilla persists its trade data under. */
     VILLAGER_TYPE("villager_type") {
         @Override
-        void persist(String value, CompoundTag payload) {
+        void persist(EntityType<?> type, String value, CompoundTag payload) {
             villagerData(payload).putString("type", Identifier.withDefaultNamespace(value).toString());
         }
     },
@@ -153,7 +154,7 @@ enum TraitAxis {
     /** A villager's profession, which rides in the same compound as its type. */
     VILLAGER_PROFESSION("villager_profession") {
         @Override
-        void persist(String value, CompoundTag payload) {
+        void persist(EntityType<?> type, String value, CompoundTag payload) {
             villagerData(payload).putString("profession", Identifier.withDefaultNamespace(value).toString());
         }
     },
@@ -167,7 +168,7 @@ enum TraitAxis {
      */
     VILLAGER_LEVEL("villager_level") {
         @Override
-        void persist(String value, CompoundTag payload) {
+        void persist(EntityType<?> type, String value, CompoundTag payload) {
             int level = BADGES.indexOf(value) + 1;
             if (level == 0) throw new IllegalArgumentException("No vanilla trade badge named '" + value + "'");
             villagerData(payload).putInt("level", level);
@@ -196,7 +197,7 @@ enum TraitAxis {
      */
     CHARGED("charged") {
         @Override
-        void persist(String value, CompoundTag payload) {
+        void persist(EntityType<?> type, String value, CompoundTag payload) {
             payload.putBoolean("powered", true);
         }
 
@@ -210,12 +211,23 @@ enum TraitAxis {
     TOGGLE("toggle") {},
 
     /**
-     * How big the subject is, which vanilla splits three ways: a slime carries a size, a salmon
-     * carries a named one, and a pufferfish carries how far it has puffed up.
+     * How big the subject is, which vanilla splits four ways: a slime carries a size, a salmon
+     * carries a named one, a pufferfish carries how far it has puffed up, and an armour stand
+     * carries a flag.
+     *
+     * <p>The stand's is persisted rather than set because its setter is private, and it is the
+     * reason this axis is asked which type it is applying to - {@code small} means a different tag
+     * on a stand than on a salmon, and writing both would put a key on each that nothing reads.
      */
     SIZE("size") {
         @Override
-        void persist(String value, CompoundTag payload) {
+        void persist(EntityType<?> type, String value, CompoundTag payload) {
+            if (type == EntityType.ARMOR_STAND) {
+                if (!SMALL.equals(value))
+                    throw new IllegalArgumentException("An armour stand has no size named '" + value + "'");
+                payload.putBoolean("Small", true);
+                return;
+            }
             SALMON_SIZES.stream().filter(value::equals).findFirst()
                 .ifPresent(size -> payload.putString("type", size));
         }
@@ -247,7 +259,7 @@ enum TraitAxis {
      */
     COLLAR_COLOR("collar_color") {
         @Override
-        void persist(String value, CompoundTag payload) {
+        void persist(EntityType<?> type, String value, CompoundTag payload) {
             payload.putByte("CollarColor", (byte) dye(value).getId());
         }
 
@@ -268,7 +280,7 @@ enum TraitAxis {
     /** A tropical fish's body dye, which vanilla keeps in the third byte of its packed variant. */
     BASE_COLOR("base_color") {
         @Override
-        void persist(String value, CompoundTag payload) {
+        void persist(EntityType<?> type, String value, CompoundTag payload) {
             packFishColour(payload, dye(value).getId(), 16);
         }
     },
@@ -276,7 +288,7 @@ enum TraitAxis {
     /** A tropical fish's pattern dye, which vanilla keeps in the fourth byte of the same integer. */
     PATTERN_COLOR("pattern_color") {
         @Override
-        void persist(String value, CompoundTag payload) {
+        void persist(EntityType<?> type, String value, CompoundTag payload) {
             packFishColour(payload, dye(value).getId(), 24);
         }
     },
@@ -362,6 +374,9 @@ enum TraitAxis {
     /** The sizes a salmon is persisted under, which are its only mechanism - its setter is private. */
     private static final List<String> SALMON_SIZES = List.of("small", "medium", "large");
 
+    /** The one size an armour stand has besides its full one. */
+    private static final String SMALL = "small";
+
     /** The trade badges, in the order vanilla numbers them from one. */
     static final List<String> BADGES = List.of("stone", "iron", "gold", "emerald", "diamond");
 
@@ -422,10 +437,12 @@ enum TraitAxis {
     /**
      * Writes one selection into the payload vanilla's deserialiser reads.
      *
+     * @param type the entity type being built, for the axes vanilla persists under a different key
+     *     per subject
      * @param value the option selected
      * @param payload the payload being assembled, already carrying any coat
      */
-    void persist(String value, CompoundTag payload) {}
+    void persist(EntityType<?> type, String value, CompoundTag payload) {}
 
     /**
      * Applies one selection to the built entity.
