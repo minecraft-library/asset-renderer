@@ -66,16 +66,6 @@ import java.util.stream.IntStream;
 public class ModelEngine {
 
     /**
-     * Per-pixel depth comparison epsilon. Absorbs floating-point noise between mathematically
-     * equal coplanar depths so the deterministic insertion-order paint sequence survives the
-     * strict {@code depth <= depthBuffer} rejection. Chosen small enough that legitimate
-     * geometry separation (e.g. lock front at z=16 vs body SOUTH at z=15, a one-unit gap in
-     * model space) stays resolvable but large enough that float-precision jitter around a
-     * shared plane is collapsed.
-     */
-    private static final float DEPTH_EPSILON = 1e-4f;
-
-    /**
      * Minimum framebuffer height (in pixels) before tiled parallel rasterization kicks in.
      * Below this threshold the tiled path's overhead (ForkJoin splits, per-tile depth-slice
      * allocation, triangle iteration per tile) outweighs the parallel speedup. Small renders
@@ -113,6 +103,26 @@ public class ModelEngine {
      * pipelines read this single constant.
      */
     private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("asset.snap.grid", "400"));
+
+    /**
+     * Half-extent of the orthographic depth range the raster depth is resolved against - the span
+     * vanilla's own picture-in-picture entity renderer projects through, {@code zNear = -1000} to
+     * {@code zFar = +1000}.
+     *
+     * <p>It is what decides how far apart two surfaces have to be before vanilla can tell them apart.
+     * Vanilla's viewport transform lands every window depth beside {@code 0.5}, where a {@code float}
+     * step is {@code 2^-24}, so forming that value rounds away everything finer - about six bits, lost
+     * purely to centring the range on {@code 0.5}. Two surfaces closer than one step are the same depth
+     * to vanilla, and their order falls to whichever drew last. Comparing raw camera-space depth instead
+     * resolves roughly two orders of magnitude finer than that, which sounds harmless and is not: it
+     * decides coplanar contests outright that vanilla leaves to draw order.
+     *
+     * <p>Overridable via {@code -Dasset.depth.range=N} for empirical sweeps; {@code N <= 0} compares raw
+     * camera-space depth. Swept over {@code 125} to {@code 4000}, fleet parity is a broad shallow basin
+     * whose floor sits on this value.
+     */
+    private static final float VANILLA_DEPTH_RANGE = Float.parseFloat(System.getProperty("asset.depth.range", "1000"));
+
 
     /**
      * Reciprocal of {@link #SUBPIXEL_PRECISION} (the grid cell size), precomputed so
@@ -345,11 +355,9 @@ public class ModelEngine {
      * <li><b>{@link Lens.Kind#ORTHOGRAPHIC}</b> - the flatten is a pure uniform scale, so raw
      *     post-rotation bounds are proportional to the screen silhouette and the fit bakes a 3D
      *     {@code scale(fit).translate(-centre)} into the model transform ({@code null} 2D fit). Keeping
-     *     the fit in 3D leaves the depth in the fitted frame, so the fixed {@link #DEPTH_EPSILON}
-     *     emissive slack in {@link #depthFails} - which is <b>not</b> scale-invariant - stays
-     *     bit-for-bit, the screen-linear no-divide interpolation path is preserved, and the
-     *     {@link Projection#VANILLA_ISO} emissive-overlay depth tie-breaks are unaffected. A 2D fit would
-     *     match on screen but silently shift those tie-breaks.</li>
+     *     the fit in 3D leaves the depth in the fitted frame, which preserves the screen-linear
+     *     no-divide interpolation path and leaves the {@link Projection#VANILLA_ISO} coplanar depth
+     *     tie-breaks unaffected. A 2D fit would match on screen but silently shift those tie-breaks.</li>
      * </ul>
      *
      * <p>A {@link FitRequest.Mode#NATIVE_SCALE} request short-circuits the measurement: the caller has
@@ -378,8 +386,8 @@ public class ModelEngine {
 
         if (request.mode() == FitRequest.Mode.NATIVE_SCALE) {
             // Caller-sized canvas: bake the explicit model-units-to-NDC scale in 3D (uniform scale
-            // commutes through the rotation, so the depth frame scales with it - keeping DEPTH_EPSILON
-            // behaviour aligned with the orthographic auto-fill arm) and centre the caller's measured
+            // commutes through the rotation, so the depth frame scales with it, keeping this arm's
+            // depth behaviour aligned with the orthographic auto-fill one) and centre the caller's measured
             // bounds midpoint in screen space. The bounds were measured through `orient` at the same
             // native geometry scale, WITHOUT this fit scale; after the S(fit) bake the projected midpoint
             // scales by `fit`, so project `fit * midpoint` to get the screen-space centre to subtract.
@@ -465,6 +473,7 @@ public class ModelEngine {
         float scale = Math.min(width, height) * this.lens.projectionScale();
         float offsetX = width * 0.5f;
         float offsetY = height * 0.5f;
+        float depthGrid = VANILLA_DEPTH_RANGE > 0f ? scale / (2f * VANILLA_DEPTH_RANGE) : 0f;
 
         // Pass 1: transform + project + backface cull, in parallel. Each triangle's projection is
         // pure functional - reads only the per-triangle vertex data and the shared immutable
@@ -493,7 +502,7 @@ public class ModelEngine {
         if (height < MIN_TILED_HEIGHT) {
             float[] depthBuffer = new float[width * height];
             Arrays.fill(depthBuffer, Float.NEGATIVE_INFINITY);
-            rasterizeTile(prepared, buffer, depthBuffer, width, height, 0, height);
+            rasterizeTile(prepared, buffer, depthBuffer, width, height, 0, height, depthGrid);
             return;
         }
 
@@ -508,7 +517,7 @@ public class ModelEngine {
 
             float[] depthSlice = new float[width * (tileEnd - tileStart)];
             Arrays.fill(depthSlice, Float.NEGATIVE_INFINITY);
-            rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd);
+            rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd, depthGrid);
         });
     }
 
@@ -623,6 +632,8 @@ public class ModelEngine {
      * @param height the full image height
      * @param tileStart the inclusive first scanline row this tile owns
      * @param tileEnd the exclusive last scanline row this tile owns
+     * @param depthGrid the camera-space-to-window-depth scale to round each interpolated depth through,
+     *     or {@code 0} to leave it unrounded
      */
     private static void rasterizeTile(
         @NotNull List<Projected> prepared,
@@ -631,7 +642,8 @@ public class ModelEngine {
         int width,
         int height,
         int tileStart,
-        int tileEnd
+        int tileEnd,
+        float depthGrid
     ) {
         // The buffer owns its coverage mask when recording is enabled (absent otherwise); read it once
         // per tile so the per-pixel mark below stays a plain null-checked field access, not a getter.
@@ -660,6 +672,31 @@ public class ModelEngine {
             // emissive/glinted/blend/alpha off this local so the deref stays out of the hot path.
             SurfaceTraits tr = t.source.traits();
             BlendMode blendMode = tr.blend();
+            // Depth comes off a plane solved once per triangle from the snapped screen positions, the
+            // way graphics hardware sets one up, rather than blended per pixel from barycentric weights.
+            // The two forms describe the same plane and differ only in where they round: solving once
+            // into two gradients gives two coplanar triangles slightly different gradients, so their
+            // depth planes cross somewhere inside any overlap - which is the shape vanilla's own coplanar
+            // contests take, resolving one way over part of a seam and the other way over the rest. A
+            // perspective lens keeps the barycentric form, its depth being the un-fitted model-space one.
+            float dzdx = 0f;
+            float dzdy = 0f;
+            boolean planeDepth = !t.perspectiveCorrect;
+            if (planeDepth) {
+                float ax = t.s1.x() - t.s0.x();
+                float ay = t.s1.y() - t.s0.y();
+                float bx = t.s2.x() - t.s0.x();
+                float by = t.s2.y() - t.s0.y();
+                float det = ax * by - bx * ay;
+                if (det == 0f) {
+                    planeDepth = false;
+                } else {
+                    float az = t.z1 - t.z0;
+                    float bz = t.z2 - t.z0;
+                    dzdx = (az * by - bz * ay) / det;
+                    dzdy = (ax * bz - bx * az) / det;
+                }
+            }
             float alphaScale = tr.alpha();
 
             // Pineda incremental edge functions. Hoist the edge value computation to the
@@ -693,9 +730,12 @@ public class ModelEngine {
                         continue;
                     }
 
-                    float depthVal = bary[0] * t.z0 + bary[1] * t.z1 + bary[2] * t.z2;
+                    float depthVal = planeDepth
+                        ? t.z0 + dzdx * (px + 0.5f - t.s0.x()) + dzdy * (py + 0.5f - t.s0.y())
+                        : bary[0] * t.z0 + bary[1] * t.z1 + bary[2] * t.z2;
+                    if (depthGrid > 0f) depthVal = onVanillaDepthGrid(depthVal, depthGrid);
                     int idx = (py - tileStart) * width + px;
-                    if (depthFails(depthVal, depth[idx], tr.emissive())) {
+                    if (depthFails(depthVal, depth[idx])) {
                         RendererDebug.pixelSkipDepth(px, py, depthVal, t.source.debugTag(), depth[idx]);
                         continue;
                     }
@@ -781,34 +821,27 @@ public class ModelEngine {
     }
 
     /**
-     * Tests whether a fragment fails the depth test against the existing depth-buffer value at
-     * its pixel. Two flavours:
-     * <ul>
-     * <li><b>Standard</b>: matches vanilla's {@code GL_LEQUAL} - a fragment passes when it is at
-     *     or in front of the stored depth, so a coplanar LATER fragment overwrites the earlier one
-     *     (last-drawn wins), reproducing the way a model's overlay element paints over an
-     *     identically-shaped base (grass_block tinted {@code #overlay} over its dirt
-     *     {@code #side}).</li>
-     * <li><b>Emissive</b>: same, plus a {@link #DEPTH_EPSILON} slack so an emissive overlay
-     *     rendered AT - or within FP noise behind - the base it's painted on top of
-     *     (spider/enderman eye overlays re-using the base entity's geometry post-bone_overrides)
-     *     survives the test and blends additively. Behind-by-more-than-FP-noise is still rejected
-     *     normally.</li>
-     * </ul>
+     * Tests whether a fragment fails the depth test against the existing depth-buffer value at its
+     * pixel - vanilla's {@code GL_LEQUAL}, with no tolerance either way.
+     *
+     * <p>A fragment passes when it is at or in front of the stored depth, so a coplanar later fragment
+     * overwrites the earlier one and the last drawn wins, reproducing the way a model's overlay element
+     * paints over an identically-shaped base (grass_block's tinted {@code #overlay} over its dirt
+     * {@code #side}).
+     *
+     * <p>Emissive fragments once carried a slack here, so an overlay drawn at - or a shade behind - the
+     * base it sits on still blended rather than being culled. Nothing needs it: the overlays it was
+     * written for are pushed clear of their base by the loader's depth clearance, and every emissive
+     * fragment already skips the depth <em>write</em>, so a stack of them accumulates against the opaque
+     * depth behind whatever order they arrive in. Swept across four orders of magnitude the slack
+     * decided two rows in the corpus, both charged auras, and both are closer without it.
      *
      * @param depthVal the candidate fragment's depth
      * @param existingDepth the depth currently stored at this pixel
-     * @param emissive whether the source triangle is an emissive overlay
      * @return {@code true} if the fragment should be rejected
      */
-    private static boolean depthFails(float depthVal, float existingDepth, boolean emissive) {
-        // Vanilla's GL_LEQUAL: a coplanar later fragment passes and overwrites the earlier one
-        // (last-drawn wins). The previous `<= existingDepth + DEPTH_EPSILON` was first-drawn-wins,
-        // which diverged from vanilla wherever a model paints a coplanar overlay over a base
-        // (grass_block tinted `#overlay` over its dirt `#side`). Emissive overlays keep the
-        // epsilon slack so one rendered at - or within FP noise behind - the base it sits on
-        // (spider / enderman eye re-using base geometry) still blends instead of being culled.
-        return depthVal < existingDepth - (emissive ? DEPTH_EPSILON : 0f);
+    private static boolean depthFails(float depthVal, float existingDepth) {
+        return depthVal < existingDepth;
     }
 
     /**
@@ -987,6 +1020,24 @@ public class ModelEngine {
             planeDepth(z0, slopeX, slopeY, r0, s1),
             planeDepth(z0, slopeX, slopeY, r0, s2)
         };
+    }
+
+    /**
+     * Rounds one camera-space depth onto the window-depth grid vanilla resolves, and returns it in
+     * camera-space units so every consumer downstream is unchanged.
+     *
+     * <p>The round trip is the point: {@code 0.5f - depth * k} is vanilla's own window depth, and forming
+     * it in {@code float} rounds away everything finer than an ULP at {@code 0.5}. Undoing the map
+     * afterwards is exact - subtracting two nearby values loses nothing - so what comes back is the
+     * original depth carrying vanilla's resolution rather than this renderer's.
+     *
+     * @param depth the camera-space depth
+     * @param k the camera-space-to-window-depth scale, {@code scale / (2 * range)}
+     * @return the depth rounded onto vanilla's grid, in camera-space units
+     */
+    private static float onVanillaDepthGrid(float depth, float k) {
+        float window = 0.5f - depth * k;
+        return (0.5f - window) / k;
     }
 
     /**

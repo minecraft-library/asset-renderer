@@ -31,9 +31,9 @@ import static org.hamcrest.Matchers.is;
  *     (tiled; 512-row buffer after SSAA=2) and {@code renderSize=128} (serial; below the
  *     MIN_TILED_HEIGHT threshold) paths must produce identical pixels for the same input.</li>
  * <li><b>Painter's-algorithm determinism survives parallel Pass 1.</b> Tests exercise blocks
- *     with coplanar faces (piston head/body, white_banner) where the DEPTH_EPSILON tie-break
- *     has to continue picking the first-drawn coplanar triangle deterministically even when
- *     triangle transforms execute out-of-order.</li>
+ *     with coplanar faces (piston head/body, white_banner) where the depth tie-break has to
+ *     continue picking the same coplanar triangle deterministically even when triangle
+ *     transforms execute out-of-order.</li>
  * </ol>
  * CRC32 pins per block keep the test honest: a future rasterization-math change that silently
  * drifts output will break the pin even if determinism still holds.
