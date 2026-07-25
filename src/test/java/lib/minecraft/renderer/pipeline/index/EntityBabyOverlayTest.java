@@ -167,6 +167,7 @@ class EntityBabyOverlayTest {
                 null,                                                      // geometry
                 null,                                                      // grow
                 null,                                                      // scaled
+                null,                                                      // baby
                 null,                                                      // layer_type
                 null,                                                      // material_assets
                 null));                                                    // default_material
@@ -182,6 +183,7 @@ class EntityBabyOverlayTest {
                 ADULT_COORD,                           // geometry
                 null,                                  // grow
                 null,                                  // scaled
+                null,                                  // baby
                 "pig_saddle",                          // layer_type
                 Map.of("saddle", "minecraft:saddle"),  // material_assets
                 "saddle"));                            // default_material

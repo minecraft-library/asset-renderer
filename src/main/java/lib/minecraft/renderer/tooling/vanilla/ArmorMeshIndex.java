@@ -9,6 +9,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -17,6 +18,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -43,9 +45,20 @@ import java.util.Map;
  * from the generic set in nothing but an outer {@code 1.02} - shares the generic set's geometry entry
  * rather than duplicating it.
  *
- * <p><b>Adult sets only.</b> Vanilla's baby sets take a third {@code PartPose} argument and a
- * different base mesh (an extra {@code waist} part, its own unwrap); they are filtered out by that
- * descriptor, because a baby still wears its own bone boxes here.
+ * <p><b>Baby sets are indexed too, and they are a different mesh rather than a smaller one.</b>
+ * Vanilla's {@code createBabyArmorMeshSet(inner, outer, PartPose)} builds
+ * {@code createBabyArmorMesh}, whose boxes, part list and unwrap are its own: a {@code waist} part
+ * the adult mesh has no counterpart for, a pair of feet parented under the legs, and a 64x64 sheet
+ * against the adult's 64x32. The trailing pose is a mesh argument rather than a layer one - it seats
+ * the shell's two arms - so it rides the geometry request and distinguishes the piglin family's baby
+ * mesh from the generic one. Its base factory sits behind a <em>capturing</em> lambda, so the
+ * {@code INVOKEDYNAMIC} chase resolves the handle and then descends one hop into it.
+ *
+ * <p><b>The texture size is read, not assumed.</b> Every set reaches its registration through an
+ * {@code ArmorModelSet.map} whose lambda wraps each slot's mesh in
+ * {@code LayerDefinition.create(mesh, w, h)}, and that call site is the only statement of the
+ * atlas the unwrap is resolved against. A later {@code map} that wraps rather than creates - the
+ * whole-mesh scale below - leaves the size it was already carrying alone.
  *
  * <p><b>The whole-mesh scale is carried, and the mesh stays unscaled.</b> Three sets are registered
  * through {@code ArmorModelSet.map(MeshTransformer.scaling(F))} - giant {@code 6.0}, husk
@@ -64,24 +77,38 @@ public final class ArmorMeshIndex {
     private static final int MAX_DELEGATE_DEPTH = 4;
 
     /**
-     * One armor set vanilla builds: the mesh every slot is cut from, plus the per-side growth the
-     * two armor layers apply to it. The mesh is parsed ungrown and the two growths travel on the
-     * wearer's row, so two sets differing only in a deformation share one geometry entry.
+     * One armor set vanilla builds: the mesh every slot is cut from, the atlas it is unwrapped
+     * against, and the per-side growth the two armor layers apply to it. The mesh is parsed ungrown
+     * and the two growths travel on the wearer's row, so two sets differing only in a deformation
+     * share one geometry entry.
      *
      * @param meshClass the base mesh factory's class JVM internal name
      * @param meshMethod the base mesh factory method name
+     * @param meshDesc the base mesh factory's descriptor - what says whether it takes a pose, and in
+     *     which parameter slot
      * @param innerGrow the 3-component growth the leggings layer applies
      * @param outerGrow the 3-component growth the helmet / chestplate / boots layer applies
      * @param meshScale the whole-mesh uniform scale the set is registered through, {@code 1} for the
      *     sets registered unscaled
+     * @param textureWidth the atlas width the set's slots are wrapped at
+     * @param textureHeight the atlas height the set's slots are wrapped at
+     * @param armOffset the 3-component offset the mesh factory seats the shell's arms through,
+     *     {@code {0, 0, 0}} for the adult sets and for the baby set vanilla passes an unset pose to
      */
     public record Set(
         @NotNull String meshClass,
         @NotNull String meshMethod,
+        @NotNull String meshDesc,
         float @NotNull [] innerGrow,
         float @NotNull [] outerGrow,
-        float meshScale
+        float meshScale,
+        int textureWidth,
+        int textureHeight,
+        float @NotNull [] armOffset
     ) {
+
+        /** The unset arm offset - what an adult set, and a baby set at {@code PartPose.ZERO}, carries. */
+        public static final float @NotNull [] NO_ARM_OFFSET = {0f, 0f, 0f};
 
         /**
          * Returns a copy carrying {@code scale} as its whole-mesh scale.
@@ -94,7 +121,62 @@ public final class ArmorMeshIndex {
          * @return an otherwise-identical set registered through that scale
          */
         @NotNull Set scaled(float scale) {
-            return new Set(this.meshClass, this.meshMethod, this.innerGrow, this.outerGrow, scale);
+            return new Set(this.meshClass, this.meshMethod, this.meshDesc, this.innerGrow, this.outerGrow,
+                scale, this.textureWidth, this.textureHeight, this.armOffset);
+        }
+
+        /**
+         * Returns a copy unwrapped against the given atlas.
+         *
+         * @param width the atlas width
+         * @param height the atlas height
+         * @return an otherwise-identical set carrying that atlas
+         */
+        @NotNull Set wrappedAt(int width, int height) {
+            return new Set(this.meshClass, this.meshMethod, this.meshDesc, this.innerGrow, this.outerGrow,
+                this.meshScale, width, height, this.armOffset);
+        }
+
+        /**
+         * Whether another set dresses its wearer in the very same shell - same mesh, same two
+         * deformations, same scale, same atlas, same pose.
+         *
+         * <p>Vanilla's way of saying a wearer has no distinct baby form is to hand its armor layer
+         * one set twice, and the two wearers that pass a second set without meaning a baby are
+         * caught here rather than by name: the piglin brute passes literally the same field twice,
+         * and the small armor stand's set is the adult one re-registered through a transformer the
+         * layer then refuses to read as a baby at all.
+         *
+         * @param other the set to compare against
+         * @return whether the two sets are the same shell
+         */
+        public boolean sameShellAs(@NotNull Set other) {
+            return this.meshClass.equals(other.meshClass)
+                && this.meshMethod.equals(other.meshMethod)
+                && Arrays.equals(this.innerGrow, other.innerGrow)
+                && Arrays.equals(this.outerGrow, other.outerGrow)
+                && this.meshScale == other.meshScale
+                && this.textureWidth == other.textureWidth
+                && this.textureHeight == other.textureHeight
+                && Arrays.equals(this.armOffset, other.armOffset);
+        }
+
+        /**
+         * The parameter slot the mesh factory takes its pose in, or {@code -1} when it takes none.
+         *
+         * <p>Read off the descriptor rather than assumed, because it is the descriptor that says
+         * whether this set's mesh is seated through a pose at all - the adult factories take only a
+         * deformation. Every argument is a reference, so the argument index is the slot index and the
+         * factory is static, so there is no receiver ahead of them.
+         *
+         * @return the pose parameter's local-variable slot, or {@code -1}
+         */
+        public int poseSlot() {
+            Type[] arguments = Type.getArgumentTypes(this.meshDesc);
+            for (int index = 0; index < arguments.length; index++)
+                if (arguments[index].getSort() == Type.OBJECT
+                    && VanillaSourceClasses.Types.PART_POSE.equals(arguments[index].getInternalName())) return index;
+            return -1;
         }
     }
 
@@ -138,8 +220,12 @@ public final class ArmorMeshIndex {
         // (inner, outer) adjacently, so at the call these are exactly its two arguments.
         float[] priorGrow = null;
         float[] latestGrow = null;
+        // The pose most recently pushed - the third argument of a baby set factory, and nothing
+        // else in createRoots reaches one.
+        float[] latestPose = null;
         Float pendingFloat = null;
         Float pendingScale = null;
+        Handle pendingLambda = null;
         Set pendingSet = null;
         String pendingSetField = null;
 
@@ -173,6 +259,13 @@ public final class ArmorMeshIndex {
                 continue;
             }
 
+            // `GETSTATIC <owner>.<field>: PartPose` - the baby set factory's arm offset.
+            if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
+                && VanillaSourceClasses.Descs.PART_POSE_REF.equals(fi.desc)) {
+                latestPose = LayerDefinitionIndex.resolvePartPoseField(cache, fi.owner, fi.name);
+                continue;
+            }
+
             // `GETSTATIC ModelLayers.<X>_ARMOR: ArmorModelSet` - the registration target.
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
                 && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(((FieldInsnNode) in).desc)) {
@@ -186,9 +279,25 @@ public final class ArmorMeshIndex {
                 && opcode == Opcodes.INVOKESTATIC
                 && VanillaSourceClasses.Descs.ARMOR_MESH_SET_DESC.equals(mi.desc)
                 && isArmorSetFactory(mi.name)) {
-                pendingSet = resolveSet(cache, mi.owner, mi.name, priorGrow, latestGrow, diagnostics);
+                pendingSet = resolveSet(cache, mi.owner, mi.name, mi.desc, priorGrow, latestGrow,
+                    Set.NO_ARM_OFFSET, diagnostics);
                 priorGrow = null;
                 latestGrow = null;
+                continue;
+            }
+
+            // `INVOKESTATIC <Model>.createBabyArmorMeshSet(inner, outer, armOffset)` - the same
+            // shape one argument wider, and the argument is what makes the piglin family's baby
+            // shell a distinct mesh rather than a distinct deformation.
+            if (in instanceof MethodInsnNode mi
+                && opcode == Opcodes.INVOKESTATIC
+                && VanillaSourceClasses.Descs.BABY_ARMOR_MESH_SET_DESC.equals(mi.desc)
+                && VanillaSourceClasses.Methods.CREATE_BABY_ARMOR_MESH_SET.equals(mi.name)) {
+                pendingSet = resolveSet(cache, mi.owner, mi.name, mi.desc, priorGrow, latestGrow,
+                    latestPose, diagnostics);
+                priorGrow = null;
+                latestGrow = null;
+                latestPose = null;
                 continue;
             }
 
@@ -200,6 +309,13 @@ public final class ArmorMeshIndex {
                 && VanillaSourceClasses.Methods.SCALING.equals(mi.name)) {
                 pendingScale = pendingFloat;
                 pendingFloat = null;
+                continue;
+            }
+
+            // The lambda a following `map` rewrites each slot through - the wrap that states the
+            // atlas, or the transformer wrap that only re-applies a scale.
+            if (in instanceof InvokeDynamicInsnNode indy) {
+                pendingLambda = AsmKit.extractLambdaHandle(indy);
                 continue;
             }
 
@@ -228,7 +344,12 @@ public final class ArmorMeshIndex {
                 && VanillaSourceClasses.Types.ARMOR_MODEL_SET.equals(mi.owner)
                 && VanillaSourceClasses.Methods.MAP.equals(mi.name)) {
                 if (pendingSet != null && pendingScale != null) pendingSet = pendingSet.scaled(pendingScale);
+                if (pendingSet != null && pendingLambda != null) {
+                    int[] atlas = resolveWrapAtlas(cache, pendingLambda);
+                    if (atlas != null) pendingSet = pendingSet.wrappedAt(atlas[0], atlas[1]);
+                }
                 pendingScale = null;
+                pendingLambda = null;
                 continue;
             }
 
@@ -239,7 +360,11 @@ public final class ArmorMeshIndex {
                 && mi.desc.startsWith(PUT_FROM_PREFIX)
                 && pendingSetField != null
                 && pendingSet != null) {
-                out.put(pendingSetField.toLowerCase(Locale.ROOT), pendingSet);
+                if (pendingSet.textureWidth() > 0 && pendingSet.textureHeight() > 0)
+                    out.put(pendingSetField.toLowerCase(Locale.ROOT), pendingSet);
+                else
+                    diagnostics.warn("armor set '%s' names no atlas through its slot wrap - set dropped",
+                        pendingSetField);
                 pendingSetField = null;
                 pendingSet = null;
             }
@@ -261,65 +386,178 @@ public final class ArmorMeshIndex {
         return this.sets.get(armorMeshName);
     }
 
-    /** Whether a method name is one of the two spellings vanilla gives its adult armor-set factory. */
+    /** Whether a method name is one of the three spellings vanilla gives an armor-set factory. */
     private static boolean isArmorSetFactory(@NotNull String name) {
         return VanillaSourceClasses.Methods.CREATE_ARMOR_MESH_SET.equals(name)
-            || VanillaSourceClasses.Methods.CREATE_ARMOR_LAYER_SET.equals(name);
+            || VanillaSourceClasses.Methods.CREATE_ARMOR_LAYER_SET.equals(name)
+            || VanillaSourceClasses.Methods.CREATE_BABY_ARMOR_MESH_SET.equals(name);
     }
 
     /**
-     * Resolves one {@code createArmorMeshSet(inner, outer)} call site into a set: the base mesh
-     * factory behind the delegate chain, paired with the two call-site deformations. A call site
-     * whose deformations could not be read is dropped with a WARN rather than defaulted, since a
-     * silently zero-grown armor shell would render inside the body it dresses.
+     * Resolves one armor-set factory call site into a set: the base mesh factory behind the delegate
+     * chain, paired with the two call-site deformations and the pose the baby factory seats its arms
+     * through. A call site whose deformations or pose could not be read is dropped with a WARN rather
+     * than defaulted, since a silently zero-grown armor shell would render inside the body it
+     * dresses and a silently unset pose would put the piglin family's baby arms where the generic
+     * baby's are.
      */
     private static @Nullable Set resolveSet(
         @NotNull ClassNodeCache cache,
         @NotNull String owner,
         @NotNull String method,
+        @NotNull String desc,
         float @Nullable [] innerGrow,
         float @Nullable [] outerGrow,
+        float @Nullable [] armOffset,
         @NotNull Diagnostics diagnostics
     ) {
         if (innerGrow == null || outerGrow == null) {
             diagnostics.warn("armor set '%s.%s' has unreadable deformations - set dropped", owner, method);
             return null;
         }
-        Handle base = resolveBaseMeshFactory(cache, owner, method, 0);
+        if (armOffset == null) {
+            diagnostics.warn("armor set '%s.%s' has an unreadable arm offset - set dropped", owner, method);
+            return null;
+        }
+        Handle base = resolveBaseMeshFactory(cache, owner, method, desc, 0);
         if (base == null) {
             diagnostics.warn("armor set '%s.%s' has no resolvable base mesh factory - set dropped", owner, method);
             return null;
         }
-        return new Set(base.getOwner(), base.getName(), innerGrow.clone(), outerGrow.clone(), 1f);
+        int[] atlas = resolveFactoryAtlas(cache, owner, method, desc, 0);
+        return new Set(base.getOwner(), base.getName(), base.getDesc(), innerGrow.clone(), outerGrow.clone(),
+            1f, atlas == null ? 0 : atlas[0], atlas == null ? 0 : atlas[1], armOffset.clone());
+    }
+
+    /**
+     * The atlas a set factory wraps its own four slots at, or {@code null} when it hands back bare
+     * meshes for the registration to wrap.
+     *
+     * <p>Vanilla spells the wrap in whichever of the two places suits the factory's return type: a
+     * factory yielding {@code ArmorModelSet<MeshDefinition>} leaves it to the {@code map} at the
+     * registration, while one yielding {@code ArmorModelSet<LayerDefinition>} - the armor stand's and
+     * the zombie villager's - has already applied it inside itself. Looking in both is what keeps the
+     * atlas derived for every set rather than for most of them.
+     */
+    private static int @Nullable [] resolveFactoryAtlas(
+        @NotNull ClassNodeCache cache,
+        @NotNull String owner,
+        @NotNull String method,
+        @NotNull String desc,
+        int depth
+    ) {
+        if (depth > MAX_DELEGATE_DEPTH) return null;
+        MethodNode node = AsmKit.findMethodInHierarchy(cache, owner, method, desc);
+        if (node == null) return null;
+
+        int[] direct = atlasIn(node);
+        if (direct != null) return direct;
+
+        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (!(in instanceof InvokeDynamicInsnNode indy)) continue;
+            Handle handle = AsmKit.extractLambdaHandle(indy);
+            if (handle == null) continue;
+            int[] wrapped = resolveWrapAtlas(cache, handle);
+            if (wrapped != null) return wrapped;
+        }
+
+        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
+            if (in.getOpcode() == Opcodes.INVOKESTATIC
+                && in instanceof MethodInsnNode mi
+                && desc.equals(mi.desc)
+                && isArmorSetFactory(mi.name)
+                && !mi.owner.equals(owner))
+                return resolveFactoryAtlas(cache, mi.owner, mi.name, desc, depth + 1);
+        return null;
+    }
+
+    /**
+     * The atlas a lambda body wraps a mesh at, or {@code null} when it wraps something already
+     * wrapped ({@code LayerDefinition.apply}) and so states no atlas of its own.
+     */
+    private static int @Nullable [] resolveWrapAtlas(@NotNull ClassNodeCache cache, @NotNull Handle lambda) {
+        MethodNode node = AsmKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
+        return node == null ? null : atlasIn(node);
+    }
+
+    /** The {@code LayerDefinition.create(mesh, w, h)} dimensions in a method body, or {@code null}. */
+    private static int @Nullable [] atlasIn(@NotNull MethodNode node) {
+        Integer prior = null;
+        Integer latest = null;
+        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext()) {
+            Integer literal = AsmKit.readIntLiteral(in);
+            if (literal != null) {
+                prior = latest;
+                latest = literal;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.INVOKESTATIC
+                && in instanceof MethodInsnNode mi
+                && VanillaSourceClasses.Types.LAYER_DEFINITION.equals(mi.owner)
+                && VanillaSourceClasses.Methods.CREATE.equals(mi.name)
+                && prior != null && latest != null)
+                return new int[]{prior, latest};
+        }
+        return null;
     }
 
     /**
      * The base mesh factory an armor-set factory fans out over its four slots. A factory that
      * delegates the whole set to another model's ({@code AbstractPiglinModel} to
      * {@code PlayerModel} to {@code HumanoidModel}) is followed through; otherwise the factory's
-     * first {@code INVOKEDYNAMIC} carries the mesh method reference, and its handle is the answer.
+     * first mesh-producing {@code INVOKEDYNAMIC} carries it.
+     *
+     * <p>The adult factory passes its base mesh as a plain method reference, so the handle IS the
+     * answer. The baby factory has to close over the pose it seats the arms through, so its handle
+     * names a synthesised body that carries the capture ahead of the deformation; the walk descends
+     * one hop into that body and takes the call it forwards to. A lambda is recognised by what it
+     * produces - a {@code MeshDefinition} - rather than by its javac name.
      */
     private static @Nullable Handle resolveBaseMeshFactory(
-        @NotNull ClassNodeCache cache, @NotNull String owner, @NotNull String method, int depth) {
+        @NotNull ClassNodeCache cache,
+        @NotNull String owner,
+        @NotNull String method,
+        @NotNull String desc,
+        int depth
+    ) {
         if (depth > MAX_DELEGATE_DEPTH) return null;
-        MethodNode node = AsmKit.findMethodInHierarchy(cache, owner, method,
-            VanillaSourceClasses.Descs.ARMOR_MESH_SET_DESC);
+        MethodNode node = AsmKit.findMethodInHierarchy(cache, owner, method, desc);
         if (node == null) return null;
 
         for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
             if (in.getOpcode() == Opcodes.INVOKESTATIC
                 && in instanceof MethodInsnNode mi
-                && VanillaSourceClasses.Descs.ARMOR_MESH_SET_DESC.equals(mi.desc)
+                && desc.equals(mi.desc)
                 && isArmorSetFactory(mi.name)
                 && !mi.owner.equals(owner))
-                return resolveBaseMeshFactory(cache, mi.owner, mi.name, depth + 1);
+                return resolveBaseMeshFactory(cache, mi.owner, mi.name, desc, depth + 1);
 
         for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext()) {
             if (!(in instanceof InvokeDynamicInsnNode indy)) continue;
             Handle handle = AsmKit.extractLambdaHandle(indy);
-            if (handle != null && VanillaSourceClasses.Descs.BASE_ARMOR_MESH_DESC.equals(handle.getDesc()))
-                return handle;
+            if (handle == null
+                || !AsmKit.descriptorReturns(handle.getDesc(), VanillaSourceClasses.Types.MESH_DEFINITION))
+                continue;
+            if (VanillaSourceClasses.Descs.BASE_ARMOR_MESH_DESC.equals(handle.getDesc())) return handle;
+            Handle forwarded = resolveForwardedMeshFactory(cache, handle);
+            if (forwarded != null) return forwarded;
         }
+        return null;
+    }
+
+    /**
+     * The mesh factory a capturing lambda body forwards to - the single {@code INVOKESTATIC}
+     * producing a {@code MeshDefinition} inside it - or {@code null} when the body reaches none.
+     */
+    private static @Nullable Handle resolveForwardedMeshFactory(
+        @NotNull ClassNodeCache cache, @NotNull Handle lambda) {
+        MethodNode node = AsmKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
+        if (node == null) return null;
+        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
+            if (in.getOpcode() == Opcodes.INVOKESTATIC
+                && in instanceof MethodInsnNode mi
+                && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION))
+                return new Handle(Opcodes.H_INVOKESTATIC, mi.owner, mi.name, mi.desc, false);
         return null;
     }
 

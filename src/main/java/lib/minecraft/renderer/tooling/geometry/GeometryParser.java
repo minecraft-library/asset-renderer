@@ -170,6 +170,13 @@ public final class GeometryParser {
             state.refParamOwner = refParam.ownerInternal();
             state.refParamValue = refParam.value();
         }
+        // Bind a PartPose parameter to a concrete offset so the factory's reads of it fold - splits
+        // {@code createBabyArmorMesh(CubeDeformation, PartPose)} into one shell per pose.
+        GeometryRequest.PoseParam poseParam = request.poseParam();
+        if (poseParam != null) {
+            state.poseParamSlot = poseParam.slot();
+            state.poseParamOffset = poseParam.offset().clone();
+        }
         state.currentSource = request;
         state.diagnostics = diagnostics;
         walkInstructions(instructions, state, cache);
@@ -1186,6 +1193,10 @@ public final class GeometryParser {
                 // sentinel so the upcoming {@code getstatic <Enum>.<C>; if_acmp*} resolves.
                 if (state.refParamOwner != null && varInsn.var == state.refParamSlot)
                     state.refStack.add(WalkState.REF_PARAM_SENTINEL);
+                // Bound-pose split: loading the bound pose slot arms the offset accessor that
+                // follows it, so only reads of THAT pose fold to the bound literal.
+                if (state.poseParamOffset != null && varInsn.var == state.poseParamSlot)
+                    state.poseLoaded = true;
                 float[] deformationInflate = state.cubeDeformationSlots.get(varInsn.var);
                 if (deformationInflate != null)
                     state.pendingInflate = deformationInflate.clone();
@@ -2029,6 +2040,19 @@ public final class GeometryParser {
      * @param state the parse state whose pending pivot / rotation / scale are set
      */
     private static void handlePartPose(@NotNull MethodInsnNode methodInsn, @NotNull WalkState state) {
+        // A read of the bound pose's offset - the baby armor shell's factory seats its two arms by
+        // adding the pose it was called with to a literal, so the accessor has to answer with the
+        // bound value for the arithmetic that follows to fold. Only a read of the armed slot folds;
+        // any other pose keeps the walk's existing behaviour of pushing nothing.
+        int poseAxis = VanillaSourceClasses.Methods.PART_POSE_OFFSETS.indexOf(methodInsn.name);
+        if (poseAxis >= 0
+            && VanillaSourceClasses.Descs.FLOAT_ACCESSOR_DESC.equals(methodInsn.desc)
+            && state.poseParamOffset != null
+            && state.poseLoaded) {
+            state.numStack.push(state.poseParamOffset[poseAxis]);
+            state.poseLoaded = false;
+            return;
+        }
         switch (methodInsn.name) {
             case "offset" -> {
                 if (methodInsn.desc.startsWith("(FFF")) {
@@ -2425,6 +2449,17 @@ public final class GeometryParser {
         @Nullable String refParamOwner;
         @Nullable String refParamValue;
         int refParamSlot = -1;
+
+        /**
+         * Bound-pose evaluation (set from {@link GeometryRequest#poseParam()}). When
+         * {@link #poseParamOffset} is non-null, {@code ALOAD <poseParamSlot>} arms
+         * {@link #poseLoaded} and the {@code PartPose.x() / y() / z()} that follows pushes the
+         * bound component instead of leaving the arithmetic around it unresolvable. Used to build
+         * one armor shell per pose the baby set factory is called with.
+         */
+        float @Nullable [] poseParamOffset;
+        int poseParamSlot = -1;
+        boolean poseLoaded;
 
         /**
          * Object-reference branch stack for {@link #refParamOwner} evaluation. Holds either

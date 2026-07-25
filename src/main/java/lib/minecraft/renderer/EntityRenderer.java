@@ -303,6 +303,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 screenBounds = unionBoxes(screenBounds, EntityGeometryKit.computeScreenBounds(
                     ElytraKit.wingsMesh(options.getAppearance().isBaby(), bodyBoneBounds),
                     renderOrient, modelScale, wingTexture.get()));
+            // And the worn-armor shell, for the same reason: it stands clear of the body on every
+            // side vanilla inflates it, and a baby's is a hooded shroud around a body a third its
+            // bulk. Gated on a piece actually being equipped, so an unarmored render - which is all
+            // but fourteen rows of the entity sweep - measures exactly what it measured before.
+            Optional<Box> armorBounds = resolved.humanoidArmor().flatMap(shell -> ArmorKit.screenBounds(shell,
+                options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+                options.getArmor().getLeggings(), options.getArmor().getBoots(),
+                options.getArmor().getItems(), renderOrient, modelScale, this.textures));
+            if (armorBounds.isPresent()) screenBounds = unionBoxes(screenBounds, armorBounds.get());
             RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
             canvasW = fit.canvasW();
@@ -674,9 +683,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 EntityOptions options = ctx.options();
                 stack.append(this.slot, sink ->
                     sink.addAll(ArmorKit.buildEntityArmor3D(
-                        new ArmorKit.EntityArmorFrame(options.getAppearance().isBaby(), armor,
+                        new ArmorKit.EntityArmorFrame(armor,
                             ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale()),
-                        ctx.buildResult().boneBounds(),
                         options.getArmor().getHelmet(), options.getArmor().getChestplate(),
                         options.getArmor().getLeggings(), options.getArmor().getBoots(),
                         options.getArmor().getItems(), ctx.textures())));

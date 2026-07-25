@@ -6,6 +6,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
@@ -16,9 +17,14 @@ import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.CubeUnwrap;
+import lib.minecraft.renderer.face.EntityFace;
+import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.face.SkinFace;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
+import lib.minecraft.renderer.tensor.Box;
+import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -26,6 +32,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -73,48 +80,51 @@ public class ArmorKit {
     private static final float LEGGINGS_INFLATE = 0.008f;
 
     /**
-     * The body part and skin layer one armor-mesh bone is textured from.
+     * One armor box ready to build: the shell bone and cube it comes from, and its corners in the
+     * render frame. The cube travels rather than a resolved crop because a slot's boxes are textured
+     * twice - once from the armor sheet and once from the trim - and each crop is a read of the cube's
+     * own unwrap against a different sheet.
      *
-     * @param face the body part whose unwrap the box is cropped through
-     * @param overlay whether the box reads the overlay half of that part's unwrap rather than the base
-     */
-    private record MeshPart(@NotNull SkinFace face, boolean overlay) {}
-
-    /**
-     * One armor box ready to build: the unwrap it is textured through and its corners in the render
-     * frame.
-     *
-     * @param part the body part and skin layer the box is cropped from
+     * @param bone the shell bone the cube belongs to, for the per-pixel trace
+     * @param cube the shell cube the box was built from
      * @param min the box's lower corner
      * @param max the box's upper corner
      */
-    private record ArmorBox(@NotNull MeshPart part, @NotNull Vector3f min, @NotNull Vector3f max) {}
+    private record ArmorBox(
+        @NotNull String bone,
+        @NotNull EntityModelData.Cube cube,
+        @NotNull Vector3f min,
+        @NotNull Vector3f max
+    ) {}
 
     /**
-     * The body part each armor-mesh bone is textured from. The helmet's second box - vanilla's
-     * {@code hat} part - reads the head's overlay half, the same region the skin renderer draws a
-     * player's hat layer from.
+     * The body part each armor-mesh bone of the <em>player's</em> shell is textured from - the skin
+     * path, which dresses the player's own normalized body boxes rather than a mesh. The helmet's
+     * second box reads the head's overlay half, the same region the skin renderer draws a player's hat
+     * layer from.
      */
-    private static final @NotNull Map<String, MeshPart> ARMOR_MESH_PARTS = Map.of(
-        "head", new MeshPart(SkinFace.HEAD, false),
-        "hat", new MeshPart(SkinFace.HEAD, true),
-        "body", new MeshPart(SkinFace.TORSO, false),
-        "right_arm", new MeshPart(SkinFace.RIGHT_ARM, false),
-        "left_arm", new MeshPart(SkinFace.LEFT_ARM, false),
-        "right_leg", new MeshPart(SkinFace.RIGHT_LEG, false),
-        "left_leg", new MeshPart(SkinFace.LEFT_LEG, false)
+    private static final @NotNull Map<String, SkinFace> SKIN_PARTS = Map.of(
+        "head", SkinFace.HEAD,
+        "body", SkinFace.TORSO,
+        "right_arm", SkinFace.RIGHT_ARM,
+        "left_arm", SkinFace.LEFT_ARM,
+        "right_leg", SkinFace.RIGHT_LEG,
+        "left_leg", SkinFace.LEFT_LEG
     );
 
     /**
-     * The armor-mesh parts each equipment slot keeps, matching vanilla's own per-slot part sets. The
-     * helmet keeps its part <em>and that part's children</em> - which is what puts the {@code hat} box
-     * on a helmet - where the other three keep exactly the parts they name.
+     * The model-frame face each render-frame face of a shell box reads its texture through. A shell's
+     * unwrap is authored in vanilla's Y-down model frame while the boxes here are built upright, and
+     * the two frames differ by exactly {@link #turnAboutX}'s half turn - which swaps up with down and
+     * north with south and leaves the two sides where they are.
      */
-    private static final @NotNull Map<ArmorTrim.Slot, List<String>> SLOT_PARTS = Map.of(
-        ArmorTrim.Slot.HELMET, List.of("head"),
-        ArmorTrim.Slot.CHESTPLATE, List.of("body", "right_arm", "left_arm"),
-        ArmorTrim.Slot.LEGGINGS, List.of("body", "right_leg", "left_leg"),
-        ArmorTrim.Slot.BOOTS, List.of("right_leg", "left_leg")
+    private static final @NotNull Map<BlockFace, EntityFace> MESH_FACES = Map.of(
+        BlockFace.DOWN, EntityFace.UP,
+        BlockFace.UP, EntityFace.DOWN,
+        BlockFace.NORTH, EntityFace.SOUTH,
+        BlockFace.SOUTH, EntityFace.NORTH,
+        BlockFace.WEST, EntityFace.WEST,
+        BlockFace.EAST, EntityFace.EAST
     );
 
     /**
@@ -135,14 +145,13 @@ public class ArmorKit {
      * three wearers' bodies happen to be built through the same transformer, and it was silently
      * wrong for a baby, whose own body pivot is not one.
      *
-     * @param baby whether the wearer renders in its baby form
      * @param armor the armor shell the wearer is dressed in, or empty when it wears none
      * @param modelAnchor the model-space point mapped to the canvas centre
      * @param ndcScale the model-units-to-NDC scale
      * @param modelScale the per-render vertex pre-scale
      */
     public record EntityArmorFrame(
-        boolean baby, @NotNull Optional<Entity.HumanoidArmor> armor,
+        @NotNull Optional<Entity.HumanoidArmor> armor,
         @NotNull Vector3f modelAnchor, float ndcScale, float modelScale
     ) {}
 
@@ -290,33 +299,13 @@ public class ArmorKit {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Maps a vanilla humanoid bone name to the {@link SkinFace} body part it drives for entity
-     * armor, keyed on the snake_case names vanilla authors its bones under. Bones absent from this
-     * map are non-humanoid and carry no armor.
-     */
-    private static final @NotNull Map<String, SkinFace> HUMANOID_BONE_MAP = Map.of(
-        "head", SkinFace.HEAD,
-        "body", SkinFace.TORSO,
-        "right_arm", SkinFace.RIGHT_ARM,
-        "left_arm", SkinFace.LEFT_ARM,
-        "right_leg", SkinFace.RIGHT_LEG,
-        "left_leg", SkinFace.LEFT_LEG
-    );
-
-    /**
-     * Builds armor triangles for an entity by mapping its bone bounding boxes to humanoid
-     * armor slots via {@link #HUMANOID_BONE_MAP} (the standard {@code head} / {@code body} /
-     * {@code right_arm} / {@code left_arm} / {@code right_leg} / {@code left_leg} names). Bones with
-     * no humanoid mapping are silently skipped, so a non-humanoid entity simply yields no armor.
-     *
-     * <p>An adult wears the armor mesh its renderer names, mapped into the render frame - matching
-     * vanilla, which dresses a humanoid in one of a handful of shared armor sets rather than in a shell
-     * derived from the wearer's own mesh. A baby still wears its own bone boxes: vanilla's baby armor
-     * is a separate mesh with different proportions and an extra waist part, which this does not yet
-     * carry.
+     * Builds armor triangles for an entity from the shell it is dressed in, mapped into the render
+     * frame - matching vanilla, which dresses a humanoid in one of a handful of shared armor sets
+     * rather than in a shell derived from the wearer's own mesh. A baby is dressed in its own shell
+     * the same way; the age fold picked which one before this was reached, so nothing here branches on
+     * it.
      *
      * @param frame the render frame the armor is built into
-     * @param boneBounds map of bone name to {@code [min, max]}, for the baby form
      * @param helmet equipped helmet, or empty
      * @param chestplate equipped chestplate, or empty
      * @param leggings equipped leggings, or empty
@@ -328,7 +317,6 @@ public class ArmorKit {
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildEntityArmor3D(
         @NotNull EntityArmorFrame frame,
-        @NotNull Map<String, Vector3f[]> boneBounds,
         @NotNull Optional<ArmorPiece> helmet,
         @NotNull Optional<ArmorPiece> chestplate,
         @NotNull Optional<ArmorPiece> leggings,
@@ -336,25 +324,15 @@ public class ArmorKit {
         @NotNull Map<ArmorTrim.Slot, ItemContext> items,
         @NotNull Textures engine
     ) {
-        // The armor is textured with the SkinFace skin unwrap, authored for the upright player frame
-        // (the player applies a plain R_Y(180) facing). An entity's bone geometry lives in the Y-down
-        // model frame and is turned upright by the renderer's ENTITY_FACING = R_Z(180), which also flips
-        // Y - so the two frames differ by a 180-degree turn about X (Y and Z negated). Building the armor
-        // in the upright player frame (bounds turned about X) and turning the result back into the entity
-        // frame lands it correctly once ENTITY_FACING is applied, with the geometry, normals, and inventory
-        // shading all resolved in the final frame.
-        ConcurrentList<VisibleTriangle> armor;
-        if (frame.baby()) {
-            Map<SkinFace, Vector3f[]> bodyPositions = new EnumMap<>(SkinFace.class);
-            for (var entry : boneBounds.entrySet()) {
-                SkinFace part = HUMANOID_BONE_MAP.get(entry.getKey());
-                if (part != null)
-                    bodyPositions.put(part, turnAboutXBounds(entry.getValue()));
-            }
-            armor = buildHumanoidArmor3D(bodyPositions, helmet, chestplate, leggings, boots, items, engine);
-        } else {
-            armor = buildGenericArmor3D(frame, helmet, chestplate, leggings, boots, items, engine);
-        }
+        // The armor sheets are authored for the upright player frame (the player applies a plain
+        // R_Y(180) facing). An entity's bone geometry lives in the Y-down model frame and is turned
+        // upright by the renderer's ENTITY_FACING = R_Z(180), which also flips Y - so the two frames
+        // differ by a 180-degree turn about X (Y and Z negated). Building the armor in the upright
+        // player frame (bounds turned about X) and turning the result back into the entity frame lands
+        // it correctly once ENTITY_FACING is applied, with the geometry, normals, and inventory shading
+        // all resolved in the final frame.
+        ConcurrentList<VisibleTriangle> armor =
+            buildGenericArmor3D(frame, helmet, chestplate, leggings, boots, items, engine);
 
         Lighting.EntityLighting lighting =
             Lighting.resolveEntity(EntityGeometryKit.DEFAULT_ENTITY_LIGHTING);
@@ -365,9 +343,101 @@ public class ArmorKit {
     }
 
     /**
-     * Builds the armor for one adult humanoid from the shell it is dressed in: each equipped slot's
-     * parts of that mesh, grown by the slot's deformation, mapped into the render frame, then turned
-     * into the upright frame the armor unwrap is authored for.
+     * The alpha-tight screen bounds of the armor a wearer would draw, for the canvas fit.
+     *
+     * <p>Worn armor is a shell <em>around</em> the wearer rather than a decal on it - an inflated
+     * helmet, a boot flare, and above all a baby's hooded shroud all stand clear of the body. The
+     * orthographic fit sizes from measured bounds rather than from the rendered triangles, so a shell
+     * nobody measured crops at the canvas edge.
+     *
+     * <p>Measured per equipped slot through that slot's own composited sheet, the same alpha-tight
+     * walk an equipment overlay gets, over the very parts and deformations
+     * {@link #buildEntityArmor3D} will draw. Empty when nothing is equipped, so an unarmored render
+     * is untouched.
+     *
+     * @param armor the shell the wearer is dressed in
+     * @param helmet equipped helmet, or empty
+     * @param chestplate equipped chestplate, or empty
+     * @param leggings equipped leggings, or empty
+     * @param boots equipped boots, or empty
+     * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override
+     * @param screenTransform the model-to-screen transform the bounds are accumulated through
+     * @param modelScale the per-render vertex pre-scale
+     * @param engine the texture engine for pack-aware texture resolution
+     * @return the union of the equipped slots' screen bounds, or empty when none contributes
+     */
+    public static @NotNull Optional<Box> screenBounds(
+        @NotNull Entity.HumanoidArmor armor,
+        @NotNull Optional<ArmorPiece> helmet,
+        @NotNull Optional<ArmorPiece> chestplate,
+        @NotNull Optional<ArmorPiece> leggings,
+        @NotNull Optional<ArmorPiece> boots,
+        @NotNull Map<ArmorTrim.Slot, ItemContext> items,
+        @NotNull Matrix4f screenTransform,
+        float modelScale,
+        @NotNull Textures engine
+    ) {
+        Map<ArmorTrim.Slot, Optional<ArmorPiece>> equipped = new EnumMap<>(ArmorTrim.Slot.class);
+        equipped.put(ArmorTrim.Slot.HELMET, helmet);
+        equipped.put(ArmorTrim.Slot.CHESTPLATE, chestplate);
+        equipped.put(ArmorTrim.Slot.LEGGINGS, leggings);
+        equipped.put(ArmorTrim.Slot.BOOTS, boots);
+
+        Box union = null;
+        for (Map.Entry<ArmorTrim.Slot, Optional<ArmorPiece>> entry : equipped.entrySet()) {
+            ArmorTrim.Slot slot = entry.getKey();
+            if (entry.getValue().isEmpty()) continue;
+            Optional<PixelBuffer> sheet = resolveArmorTexture(engine, entry.getValue().get(),
+                armor.form().layerType(slot), itemFor(items, slot));
+            if (sheet.isEmpty()) continue;
+            Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(armor, slot), screenTransform,
+                modelScale * armor.meshScale(), sheet.get());
+            union = union == null ? slotBounds : new Box(
+                Math.min(union.minX(), slotBounds.minX()),
+                Math.min(union.minY(), slotBounds.minY()),
+                Math.min(union.minZ(), slotBounds.minZ()),
+                Math.max(union.maxX(), slotBounds.maxX()),
+                Math.max(union.maxY(), slotBounds.maxY()),
+                Math.max(union.maxZ(), slotBounds.maxZ()));
+        }
+        return Optional.ofNullable(union);
+    }
+
+    /**
+     * The shell as one slot wears it: every bone the shell has, keeping cubes only on the parts that
+     * slot covers and growing each by the slot's deformation.
+     *
+     * <p>The bones a slot does not cover stay in the tree with their cubes dropped, which is what
+     * vanilla's own per-slot prune does and what keeps a kept bone's ancestor chain resolvable - a
+     * baby's boots keep the feet parented under legs the boots themselves do not draw. The whole-mesh
+     * seat rides the root pivots pre-scale, so the caller's scale carries it.
+     */
+    private static @NotNull EntityModelData slotMesh(
+        @NotNull Entity.HumanoidArmor armor, @NotNull ArmorTrim.Slot slot) {
+        EntityModelData tree = armor.mesh();
+        Vector3f deformation = slot == ArmorTrim.Slot.LEGGINGS ? armor.innerGrow() : armor.outerGrow();
+        Vector3f seat = armor.meshOffset().multiply(1f / armor.meshScale());
+        LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
+        for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
+            EntityModelData.Bone bone = entry.getValue();
+            ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
+            if (coveredBySlot(tree, armor.form(), slot, entry.getKey()))
+                for (EntityModelData.Cube cube : bone.getCubes())
+                    cubes.add(new EntityModelData.Cube(cube.getOrigin(), cube.getSize(), cube.getUv(),
+                        deformation.add(cube.getGrow()), cube.isMirror(), cube.getPivot(), cube.getRotation(),
+                        cube.getFaceUv()));
+            Vector3f pivot = bone.getParent() == null ? bone.getPivot().add(seat) : bone.getPivot();
+            bones.put(entry.getKey(), new EntityModelData.Bone(pivot, bone.getRotation(),
+                bone.getBindPoseRotation(), bone.getScale(), cubes, bone.getParent()));
+        }
+        return new EntityModelData(tree.getTextureSize(), tree.getInventoryYRotation(),
+            Concurrent.adoptLinkedMap(bones), tree.isCull());
+    }
+
+    /**
+     * Builds the armor for one humanoid from the shell it is dressed in: each equipped slot's parts of
+     * that mesh, grown by the slot's deformation, mapped into the render frame, then turned into the
+     * upright frame the armor unwrap is authored for.
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildGenericArmor3D(
         @NotNull EntityArmorFrame frame,
@@ -391,7 +461,8 @@ public class ArmorKit {
         for (var entry : equipped.entrySet()) {
             ArmorTrim.Slot slot = entry.getKey();
             entry.getValue().ifPresent(piece -> addMeshSlot3D(triangles,
-                armorBoxes(frame, armor.get(), slot), piece, slot, itemFor(items, slot), engine));
+                armorBoxes(frame, armor.get(), slot), armor.get().form(), piece, slot,
+                itemFor(items, slot), engine));
         }
         return triangles;
     }
@@ -416,8 +487,7 @@ public class ArmorKit {
         Vector3f deformation = slot == ArmorTrim.Slot.LEGGINGS ? armor.innerGrow() : armor.outerGrow();
         List<ArmorBox> boxes = new ArrayList<>();
         for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
-            MeshPart part = ARMOR_MESH_PARTS.get(entry.getKey());
-            if (part == null || !coveredBySlot(tree, slot, entry.getKey())) continue;
+            if (!coveredBySlot(tree, armor.form(), slot, entry.getKey())) continue;
             Vector3f anchor = chainedPivot(tree, entry.getValue());
             for (EntityModelData.Cube cube : entry.getValue().getCubes()) {
                 Vector3f grow = deformation.add(cube.getGrow());
@@ -427,7 +497,7 @@ public class ArmorKit {
                     toRenderFrame(frame, armor, min.x(), min.y(), min.z()),
                     toRenderFrame(frame, armor, max.x(), max.y(), max.z())
                 });
-                boxes.add(new ArmorBox(part, corners[0], corners[1]));
+                boxes.add(new ArmorBox(entry.getKey(), cube, corners[0], corners[1]));
             }
         }
         return boxes;
@@ -436,11 +506,12 @@ public class ArmorKit {
     /**
      * Whether a slot's armor covers this bone. Vanilla keeps the helmet's part <em>and its
      * children</em>, and exactly the named parts for the other three slots - so the head's overlay box
-     * rides a helmet and nothing else.
+     * rides a helmet and nothing else, and a baby's boots reach the feet parented under its legs
+     * without dragging the legs along.
      */
     private static boolean coveredBySlot(
-        @NotNull EntityModelData tree, @NotNull ArmorTrim.Slot slot, @NotNull String bone) {
-        List<String> parts = SLOT_PARTS.get(slot);
+        @NotNull EntityModelData tree, @NotNull ArmorForm form, @NotNull ArmorTrim.Slot slot, @NotNull String bone) {
+        List<String> parts = form.parts(slot);
         if (parts.contains(bone)) return true;
         if (slot != ArmorTrim.Slot.HELMET) return false;
         String cursor = bone;
@@ -543,16 +614,16 @@ public class ArmorKit {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * The {@link SkinFace} body parts an armor slot covers - {@link #SLOT_PARTS the same per-slot
-     * table} the mesh path prunes by, read through the body part each part name is textured from.
+     * The {@link SkinFace} body parts an armor slot covers - the adult shell's own per-slot part
+     * table, read through the body part each part name is textured from.
      */
     private static final @NotNull Map<ArmorTrim.Slot, SkinFace[]> SLOT_FACES =
         new EnumMap<>(ArmorTrim.Slot.class);
 
     static {
-        for (Map.Entry<ArmorTrim.Slot, List<String>> entry : SLOT_PARTS.entrySet())
-            SLOT_FACES.put(entry.getKey(), entry.getValue().stream()
-                .map(name -> ARMOR_MESH_PARTS.get(name).face())
+        for (ArmorTrim.Slot slot : ArmorTrim.Slot.values())
+            SLOT_FACES.put(slot, ArmorForm.ADULT.parts(slot).stream()
+                .map(SKIN_PARTS::get)
                 .distinct()
                 .toArray(SkinFace[]::new));
     }
@@ -601,7 +672,7 @@ public class ArmorKit {
         for (SkinFace part : parts) {
             Vector3f[] bounds = bodyPositions.get(part);
             if (bounds == null) continue;
-            triangles.addAll(buildPart3D(part, false, bounds[0], bounds[1], armorTexture.get(), inflate));
+            triangles.addAll(buildSkinBox3D(part, bounds[0], bounds[1], armorTexture.get(), inflate));
         }
 
         if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
@@ -612,7 +683,7 @@ public class ArmorKit {
                 for (SkinFace part : parts) {
                     Vector3f[] bounds = bodyPositions.get(part);
                     if (bounds == null) continue;
-                    triangles.addAll(buildPart3D(part, false, bounds[0], bounds[1],
+                    triangles.addAll(buildSkinBox3D(part, bounds[0], bounds[1],
                         trimTexture.get(), inflate));
                 }
             }
@@ -621,39 +692,40 @@ public class ArmorKit {
 
     /**
      * Adds one slot's armor around boxes already grown and mapped into the render frame, so nothing
-     * is inflated here.
+     * is inflated here. The shell's form picks the equipment layer the sheet is composited from and
+     * whether a trim is drawn at all - a baby's four slots all read the baby sheet, and vanilla draws
+     * no trim over one.
      */
     private static void addMeshSlot3D(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull List<ArmorBox> boxes,
+        @NotNull ArmorForm form,
         @NotNull ArmorPiece piece,
         @NotNull ArmorTrim.Slot slot,
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
-        boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
-        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece,
-            useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID, item);
+        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, form.layerType(slot), item);
         if (armorTexture.isEmpty()) return;
 
         for (ArmorBox box : boxes)
-            triangles.addAll(buildPart3D(box.part().face(), box.part().overlay(),
-                box.min(), box.max(), armorTexture.get(), 0f));
+            triangles.addAll(buildMeshBox3D(box, armorTexture.get()));
 
-        if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
-            String trimLayer = useLeggingsLayer ? "humanoid_leggings" : "humanoid";
-            resolveTrimTexture(engine, trimLayer, piece.trimPattern().get(), piece.trimColor().get())
-                .ifPresent(trimTexture -> {
-                    for (ArmorBox box : boxes)
-                        triangles.addAll(buildPart3D(box.part().face(), box.part().overlay(),
-                            box.min(), box.max(), trimTexture, 0f));
-                });
-        }
+        if (piece.trimColor().isEmpty() || piece.trimPattern().isEmpty()) return;
+        form.trimLayer(slot)
+            .flatMap(layer -> resolveTrimTexture(engine, layer, piece.trimPattern().get(), piece.trimColor().get()))
+            .ifPresent(trimTexture -> {
+                for (ArmorBox box : boxes)
+                    triangles.addAll(buildMeshBox3D(box, trimTexture));
+            });
     }
 
-    private static @NotNull ConcurrentList<VisibleTriangle> buildPart3D(
+    /**
+     * Builds one box of the player's own armor, around bounds carried in the skin renderer's
+     * normalized frame and read through that body part's fixed skin rectangles.
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> buildSkinBox3D(
         @NotNull SkinFace part,
-        boolean overlay,
         @NotNull Vector3f min,
         @NotNull Vector3f max,
         @NotNull PixelBuffer texture,
@@ -662,8 +734,47 @@ public class ArmorKit {
         Vector3f inflatedMin = new Vector3f(min.x() - inflate, min.y() - inflate, min.z() - inflate);
         Vector3f inflatedMax = new Vector3f(max.x() + inflate, max.y() + inflate, max.z() + inflate);
         ConcurrentList<VisibleTriangle> box = BlockGeometryKit.buildArmorBoxTriangles(
-            inflatedMin, inflatedMax, part.cropAll(texture, overlay), ColorMath.WHITE);
-        return RendererDebug.tracingPixels() ? tagged(box, part, overlay) : box;
+            inflatedMin, inflatedMax, part.cropAll(texture, false), ColorMath.WHITE);
+        return RendererDebug.tracingPixels()
+            ? tagged(box, part.name().toLowerCase(Locale.ROOT))
+            : box;
+    }
+
+    /**
+     * Builds one box of a shell, read through the cube's own unwrap against the sheet.
+     *
+     * <p>The unwrap is the cube's rather than a table's because a shell states where each of its boxes
+     * sits on its sheet, and the two shells state different things - the baby's head is a nine-wide box
+     * at the sheet's origin where the adult's is eight-wide, and its feet and waist have no counterpart
+     * in the skin layout at all. On the adult shell the two agree box for box, the helmet's second box
+     * included: that shell IS the skin unwrap, mirrored left limbs and all.
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> buildMeshBox3D(
+        @NotNull ArmorBox box, @NotNull PixelBuffer texture) {
+        ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildArmorBoxTriangles(
+            box.min(), box.max(), cropCube(texture, box.cube()), ColorMath.WHITE);
+        return RendererDebug.tracingPixels() ? tagged(triangles, box.bone()) : triangles;
+    }
+
+    /**
+     * Crops one shell cube's six faces out of a sheet, turning each render-frame face into the
+     * model-frame one the shell's unwrap addresses.
+     */
+    private static @NotNull SixFaces cropCube(
+        @NotNull PixelBuffer sheet, @NotNull EntityModelData.Cube cube) {
+        return new SixFaces(
+            cropFace(sheet, cube, BlockFace.DOWN),
+            cropFace(sheet, cube, BlockFace.UP),
+            cropFace(sheet, cube, BlockFace.NORTH),
+            cropFace(sheet, cube, BlockFace.SOUTH),
+            cropFace(sheet, cube, BlockFace.WEST),
+            cropFace(sheet, cube, BlockFace.EAST));
+    }
+
+    /** One render-frame face of a shell cube, cropped through the model-frame face it pairs with. */
+    private static @NotNull PixelBuffer cropFace(
+        @NotNull PixelBuffer sheet, @NotNull EntityModelData.Cube cube, @NotNull BlockFace face) {
+        return CubeUnwrap.crop(sheet, cube.getUv(), cube.getSize(), cube.isMirror(), MESH_FACES.get(face));
     }
 
     /**
@@ -673,13 +784,11 @@ public class ArmorKit {
      * which is what lets the face be recovered from the position.
      *
      * @param box the box's twelve triangles as the builder emitted them
-     * @param part the body part the box is textured through
-     * @param overlay whether the box reads that part's overlay half - the helmet's second box
+     * @param name the part the box belongs to
      * @return the same triangles, each carrying a {@code part:face} tag
      */
     private static @NotNull ConcurrentList<VisibleTriangle> tagged(
-        @NotNull ConcurrentList<VisibleTriangle> box, @NotNull SkinFace part, boolean overlay) {
-        String name = part.name().toLowerCase(Locale.ROOT) + (overlay ? "_overlay" : "");
+        @NotNull ConcurrentList<VisibleTriangle> box, @NotNull String name) {
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (int index = 0; index < box.size(); index++)
             out.add(box.get(index).withDebugTag(name + ":" + BlockFace.CACHED_VALUES[index / 2].direction()));

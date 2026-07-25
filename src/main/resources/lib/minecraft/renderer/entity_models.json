@@ -875,6 +875,21 @@
             "grow": {
               "inner": 0.5,
               "outer": 1.0
+            },
+            "baby": {
+              "geometry": "HumanoidModel#createBabyArmorMesh",
+              "grow": {
+                "inner": [
+                  -0.1,
+                  0.3,
+                  0.3
+                ],
+                "outer": [
+                  -0.1,
+                  0.5,
+                  0.3
+                ]
+              }
             }
           }
         }
@@ -1415,7 +1430,22 @@
               "inner": 0.5,
               "outer": 1.0
             },
-            "scaled": 1.0625
+            "scaled": 1.0625,
+            "baby": {
+              "geometry": "HumanoidModel#createBabyArmorMesh",
+              "grow": {
+                "inner": [
+                  -0.1,
+                  0.3,
+                  0.3
+                ],
+                "outer": [
+                  -0.1,
+                  0.5,
+                  0.3
+                ]
+              }
+            }
           }
         }
       ]
@@ -2123,6 +2153,13 @@
             "grow": {
               "inner": 0.5,
               "outer": 1.02
+            },
+            "baby": {
+              "geometry": "HumanoidModel#createBabyArmorMesh@pose=0.5,-0.5,0.0",
+              "grow": {
+                "inner": 0.7,
+                "outer": 0.7
+              }
             }
           }
         }
@@ -3398,6 +3435,21 @@
             "grow": {
               "inner": 0.5,
               "outer": 1.0
+            },
+            "baby": {
+              "geometry": "HumanoidModel#createBabyArmorMesh",
+              "grow": {
+                "inner": [
+                  -0.1,
+                  0.3,
+                  0.3
+                ],
+                "outer": [
+                  -0.1,
+                  0.5,
+                  0.3
+                ]
+              }
             }
           }
         }
@@ -3597,6 +3649,21 @@
             "grow": {
               "inner": 0.5,
               "outer": 1.0
+            },
+            "baby": {
+              "geometry": "HumanoidModel#createBabyArmorMesh",
+              "grow": {
+                "inner": [
+                  -0.1,
+                  0.3,
+                  0.3
+                ],
+                "outer": [
+                  -0.1,
+                  0.5,
+                  0.3
+                ]
+              }
             }
           }
         }
@@ -3629,6 +3696,13 @@
             "grow": {
               "inner": 0.5,
               "outer": 1.02
+            },
+            "baby": {
+              "geometry": "HumanoidModel#createBabyArmorMesh@pose=0.5,-0.5,0.0",
+              "grow": {
+                "inner": 0.7,
+                "outer": 0.7
+              }
             }
           }
         }

@@ -94,35 +94,14 @@ class ArmorKitCitCompositeTest {
     }
 
     @Test
-    @DisplayName("baby armor sits on its bone bounds - the 180-about-X round trip preserves position")
-    void entityArmorPositionPreserved() {
-        // A head bone whose y-range sits well away from the origin, so a stray single (non-round-trip)
-        // turn about X would land the armor near -3..-2 instead of on the bone.
-        Map<String, Vector3f[]> bones = Map.of("head",
-            new Vector3f[]{ new Vector3f(0, 2, 0), new Vector3f(1, 3, 1) });
-
-        float[] span = helmetYSpan(
-            new ArmorKit.EntityArmorFrame(true, genericShell(), Vector3f.ZERO, 1f, 1f), bones);
-
-        // The armor box spans the bone's own [2, 3] y-range (plus the small inflate), not a flipped
-        // negative range - the double turn cancels on position and only re-seats the texture.
-        assertThat(span[0] > 1.5f, equalTo(true));
-        assertThat(span[1] < 3.5f, equalTo(true));
-    }
-
-    @Test
-    @DisplayName("adult armor wears the generic humanoid mesh, not the wearer's bones")
+    @DisplayName("adult armor wears the generic humanoid mesh")
     void adultArmorUsesGenericMesh() {
-        // Bone bounds nowhere near the humanoid head: an adult must ignore them entirely.
-        Map<String, Vector3f[]> bones = Map.of("head",
-            new Vector3f[]{ new Vector3f(0, 40, 0), new Vector3f(1, 41, 1) });
-
         float[] span = helmetYSpan(
-            new ArmorKit.EntityArmorFrame(false, genericShell(), Vector3f.ZERO, 1f, 1f), bones);
+            new ArmorKit.EntityArmorFrame(genericShell(), Vector3f.ZERO, 1f, 1f));
 
         // The generic head box spans y [-8, 0] in model units; a helmet keeps that part AND its
         // children, so the outer span is the head's overlay box, grown a further half unit on top of
-        // the layer-1 deformation - [-9.5, 1.5], independent of the bones handed in.
+        // the layer-1 deformation - [-9.5, 1.5].
         assertThat((double) span[0], closeTo(-9.5d, 1e-4d));
         assertThat((double) span[1], closeTo(1.5d, 1e-4d));
     }
@@ -131,11 +110,57 @@ class ArmorKitCitCompositeTest {
     @DisplayName("adult armor scales with the render frame")
     void adultArmorFollowsRenderFrame() {
         float[] span = helmetYSpan(
-            new ArmorKit.EntityArmorFrame(false, genericShell(), Vector3f.ZERO, 1f, 2f), Map.of());
+            new ArmorKit.EntityArmorFrame(genericShell(), Vector3f.ZERO, 1f, 2f));
 
         // Doubling the render's model scale doubles the shell with the body it dresses.
         assertThat((double) span[0], closeTo(-19d, 1e-4d));
         assertThat((double) span[1], closeTo(3d, 1e-4d));
+    }
+
+    @Test
+    @DisplayName("a baby wears its own shell, not the adult one")
+    void babyArmorWearsBabyShell() {
+        float[] span = helmetYSpan(
+            new ArmorKit.EntityArmorFrame(babyShell(), Vector3f.ZERO, 1f, 1f));
+
+        // The baby shell's head is a nine-wide box hung off a pivot at y 15, spanning y [8, 16] in
+        // model units, and its outer deformation grows half a unit on that axis. Nothing about that
+        // span exists on the adult shell, whose head sits at the origin.
+        assertThat((double) span[0], closeTo(7.5d, 1e-4d));
+        assertThat((double) span[1], closeTo(16.5d, 1e-4d));
+    }
+
+    @Test
+    @DisplayName("a baby draws its armor from the baby sheet and never a trim")
+    void babyArmorReadsBabySheet() {
+        List<EquipmentModel.Layer> iron = List.of(
+            new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
+        RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
+
+        ArmorKit.buildEntityArmor3D(new ArmorKit.EntityArmorFrame(babyShell(), Vector3f.ZERO, 1f, 1f),
+            Optional.of(trimmed()), Optional.empty(), Optional.empty(), Optional.empty(),
+            Map.of(), new Textures(ctx));
+
+        assertThat(ctx.resolved, equalTo(List.of("minecraft:entity/equipment/humanoid_baby/iron")));
+    }
+
+    @Test
+    @DisplayName("an adult draws its trim from the humanoid atlas")
+    void adultArmorReadsTrimAtlas() {
+        List<EquipmentModel.Layer> iron = List.of(
+            new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
+        RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
+
+        ArmorKit.buildEntityArmor3D(new ArmorKit.EntityArmorFrame(genericShell(), Vector3f.ZERO, 1f, 1f),
+            Optional.of(trimmed()), Optional.empty(), Optional.empty(), Optional.empty(),
+            Map.of(), new Textures(ctx));
+
+        assertThat(ctx.resolved.contains("minecraft:trims/entity/humanoid/coast"), equalTo(true));
+    }
+
+    /** An iron helmet carrying a trim, so the trim pass is reached for whichever form is dressed. */
+    private static @NotNull ArmorPiece trimmed() {
+        return ArmorPiece.of(ArmorMaterial.IRON, ArmorTrim.Color.COPPER, ArmorTrim.Pattern.COAST);
     }
 
     /**
@@ -147,16 +172,20 @@ class ArmorKitCitCompositeTest {
             .get("minecraft:zombie").humanoidArmor();
     }
 
+    /** The shell that same wearer's baby is dressed in. */
+    private static @NotNull Optional<Entity.HumanoidArmor> babyShell() {
+        return genericShell().map(Entity.HumanoidArmor::forBaby);
+    }
+
     /**
      * The {@code [min, max]} y-extent of the iron-helmet triangles built for one frame.
      */
-    private static float[] helmetYSpan(
-        @NotNull ArmorKit.EntityArmorFrame frame, @NotNull Map<String, Vector3f[]> bones) {
+    private static float[] helmetYSpan(@NotNull ArmorKit.EntityArmorFrame frame) {
         List<EquipmentModel.Layer> iron = List.of(
             new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
 
-        ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(frame, bones,
+        ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(frame,
             Optional.of(ArmorPiece.of(ArmorMaterial.IRON)),
             Optional.empty(), Optional.empty(), Optional.empty(), Map.of(), new Textures(ctx));
 

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.asset;
 
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -132,7 +133,8 @@ public record Entity(
      * render-time policy the reader deliberately leaves off the loaded data.
      *
      * <p>The nine axis semantics apply in a fixed short-circuit order: (1) a baby swaps in the baby mesh,
-     * substitutes the {@link Axes#babyOverlays() baby overlay list} for the adult one, and DROPS block
+     * substitutes the {@link Axes#babyOverlays() baby overlay list} for the adult one, swaps the worn-armor
+     * shell for the wearer's baby one, and DROPS block
      * overlays / collar / equipment - each carries adult geometry that would render adult-sized around
      * the smaller baby body, which is exactly why the overlay passes are a distinct list rather than the
      * adult one, and the substituted list is empty unless an overlay declares a baby form, so a pass with
@@ -164,7 +166,7 @@ public record Entity(
                 .overlays(gatedOverlays(definition.axes().babyOverlays(), appearance))
                 .blockOverlays(List.of())
                 .layers(new Layers(Optional.empty(), List.of(), definition.layers().markings(),
-                    definition.layers().humanoidArmor()));
+                    definition.layers().humanoidArmor().map(HumanoidArmor::forBaby)));
         } else {
             builder.overlays(gatedOverlays(definition.overlays(), appearance));
             // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
@@ -374,17 +376,29 @@ public record Entity(
      * only by it still share one geometry entry, and it is what sizes and seats the shell in step
      * with the body it dresses.
      *
+     * <p>A wearer with a baby form is dressed in a shell of its own rather than in a smaller copy of
+     * this one - its own mesh, its own two deformations, its own sheet - and that shell rides
+     * {@link #baby} so the age fold in {@link Entity#resolve} swaps to it the way every other axis
+     * swaps. The six wearers vanilla registers a second set for carry one; the rest answer
+     * {@link #forBaby()} with themselves, which is vanilla's own way of saying a wearer has no
+     * distinct baby form.
+     *
      * @param mesh the ungrown armor mesh, joined from the geometry store
      * @param innerGrow the per-side growth the leggings layer applies
      * @param outerGrow the per-side growth the helmet / chestplate / boots layer applies
      * @param meshScale the whole-mesh uniform scale the set is registered through, {@code 1} for
      *     the eleven wearers registered unscaled
+     * @param form which of the two shells this is - what says which parts each slot covers, which
+     *     equipment layer it draws through, and whether it is trimmed
+     * @param baby the distinct shell this wearer's baby is dressed in, empty when it has none
      */
     public record HumanoidArmor(
         @NotNull EntityModelData mesh,
         @NotNull Vector3f innerGrow,
         @NotNull Vector3f outerGrow,
-        float meshScale
+        float meshScale,
+        @NotNull ArmorForm form,
+        @NotNull Optional<HumanoidArmor> baby
     ) {
 
         /**
@@ -408,6 +422,16 @@ public record Entity(
          */
         public @NotNull Vector3f meshOffset() {
             return new Vector3f(0f, FEET_ANCHOR * (1f - this.meshScale), 0f);
+        }
+
+        /**
+         * The shell a baby of this wearer is dressed in - its own when vanilla registers one, else
+         * this one.
+         *
+         * @return the baby's shell
+         */
+        public @NotNull HumanoidArmor forBaby() {
+            return this.baby.orElse(this);
         }
     }
 

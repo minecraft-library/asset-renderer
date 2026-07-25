@@ -369,14 +369,16 @@ record RawLayerWhen(@Nullable String equipment) {}
 /**
  * A {@code layers[].overlay} body. Serves the collar layer (reads {@code texture}), the equipment layers
  * (read {@code geometry} / {@code layer_type} / {@code material_assets} / {@code default_material}) and
- * the armor row (reads {@code geometry} / {@code grow} / {@code scaled}); the marking layer's
- * {@code texture_by} / {@code textures_by_value} are not read.
+ * the armor row (reads {@code geometry} / {@code grow} / {@code scaled} / {@code baby}); the marking
+ * layer's {@code texture_by} / {@code textures_by_value} are not read.
  *
  * @param texture the collar overlay texture path, or {@code null}
  * @param geometry the equipment or armor overlay geometry coordinate, or {@code null}
  * @param grow the armor row's two layer deformations, or {@code null} for every other row
  * @param scaled the whole-mesh scale the armor set is registered through, or {@code null} at the
  *     identity - the eleven wearers vanilla registers unscaled
+ * @param baby the distinct shell this wearer's baby is dressed in, or {@code null} when vanilla
+ *     dresses its baby in the adult one
  * @param layerType the equipment render layer's serialized id ({@code pig_saddle}), or {@code null}
  * @param materialAssets the equipment asset id per selectable material, or {@code null}
  * @param defaultMaterial the equipment default material, or {@code null}
@@ -386,7 +388,23 @@ record RawLayerOverlay(
     @Nullable String geometry,
     @Nullable RawArmorGrow grow,
     @Nullable Float scaled,
+    @Nullable RawArmorBaby baby,
     @SerializedName("layer_type") @Nullable String layerType,
     @SerializedName("material_assets") @Nullable Map<String, String> materialAssets,
     @SerializedName("default_material") @Nullable String defaultMaterial
+) {}
+
+/**
+ * The armor row's {@code baby} node - the shell vanilla dresses this wearer's baby in, carrying the
+ * same three members the adult shell writes into the row's {@code overlay} body.
+ *
+ * @param geometry the baby shell's geometry coordinate
+ * @param grow the baby set's two layer deformations
+ * @param scaled the whole-mesh scale the baby set is registered through, or {@code null} at the
+ *     identity - which is every baby set vanilla registers
+ */
+record RawArmorBaby(
+    @Nullable String geometry,
+    @Nullable RawArmorGrow grow,
+    @Nullable Float scaled
 ) {}

@@ -32,7 +32,9 @@ import java.util.Map;
  *
  * <ul>
  *   <li><b>Armor</b> - a {@code HumanoidArmorLayer} site, carrying the worn-armor mesh as a
- *       plain {@code overlay.geometry} reference plus the armor set's two deformations.</li>
+ *       plain {@code overlay.geometry} reference plus the armor set's two deformations, and the
+ *       same shape again under {@code overlay.baby} for the wearers vanilla hands a second,
+ *       genuinely distinct shell.</li>
  *   <li><b>Collar</b> - structural detection (a null-gated {@code DyeColor} state read in
  *       the typed submit); the gate mirrors vanilla's actual
  *       {@code collarColor != null && !isInvisible} branch as
@@ -49,12 +51,6 @@ final class EntityLayersResolver {
 
     /** The markings axis name - the sole enum-map token routed to a layers row. */
     private static final @NotNull String MARKINGS_TOKEN = "markings";
-
-    /** The atlas every armor mesh is baked against, from the {@code LayerDefinition.create} wrap. */
-    private static final int ARMOR_TEXTURE_WIDTH = 64;
-
-    /** The armor atlas height - half the entity default, matching the player skin's base layer. */
-    private static final int ARMOR_TEXTURE_HEIGHT = 32;
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull String entityId;
@@ -219,23 +215,61 @@ final class EntityLayersResolver {
             .putInt("layer_index", site.layerIndex())
             .put("id", "armor");
 
-        String name = resolveArmorMesh();
+        List<String> named = resolveArmorMeshes();
+        String name = named.isEmpty() ? null : named.getFirst();
         ArmorMeshIndex.Set set = name == null ? null : this.armorMeshes.get(name);
         if (set == null) {
             this.diagnostics.error("armor row names mesh '%s', which LayerDefinitions registers no armor set for - wearer left bare",
                 name == null ? "<unnamed>" : name);
             return row;
         }
-        String geometry = this.manifest.register(GeometryRequest.overlay(set.meshClass(), set.meshMethod(),
-            this.entityId, ARMOR_TEXTURE_WIDTH, ARMOR_TEXTURE_HEIGHT, GeometryRequest.NO_GROW));
-        this.diagnostics.info("armor row: mesh '%s' via set '%s'", geometry, name);
-        JsonTree overlay = JsonTree.object()
+        this.diagnostics.info("armor row: set '%s'", name);
+        JsonTree overlay = shellNode(set);
+
+        // A second set is a distinct baby shell only when it is a distinct shell. Vanilla hands the
+        // layer one set twice to say a wearer has no baby form, and two wearers pass a second that
+        // resolves to the same shell anyway - the piglin brute's is the same field and the small
+        // armor stand's is the adult set re-registered, which the layer itself refuses to read as a
+        // baby.
+        if (named.size() > 1) {
+            String babyName = named.get(1);
+            ArmorMeshIndex.Set baby = this.armorMeshes.get(babyName);
+            if (baby == null)
+                this.diagnostics.error("armor row names baby mesh '%s', which LayerDefinitions registers no armor set for - baby left in the adult shell",
+                    babyName);
+            else if (!baby.sameShellAs(set)) {
+                overlay.put("baby", shellNode(baby));
+                this.diagnostics.info("armor row: baby set '%s'", babyName);
+            }
+        }
+        return row.put("overlay", overlay);
+    }
+
+    /**
+     * One shell's payload - its registered mesh, the two deformations the armor layers apply to it,
+     * and the whole-mesh scale it is registered through. The adult shell writes this into the row's
+     * {@code overlay} and a baby shell writes the same shape into that overlay's {@code baby}.
+     */
+    private @NotNull JsonTree shellNode(@NotNull ArmorMeshIndex.Set set) {
+        String geometry = this.manifest.register(GeometryRequest.armor(set.meshClass(), set.meshMethod(),
+            this.entityId, set.textureWidth(), set.textureHeight(), poseParamOf(set)));
+        JsonTree node = JsonTree.object()
             .put("geometry", geometry)
             .put("grow", growPair(set));
         // Omitted at the identity, the way every other scale in the tree is - the eleven wearers
         // vanilla registers unscaled write no key.
-        if (set.meshScale() != 1f) overlay.put("scaled", set.meshScale());
-        return row.put("overlay", overlay);
+        if (set.meshScale() != 1f) node.put("scaled", set.meshScale());
+        return node;
+    }
+
+    /**
+     * The pose binding a shell's mesh factory is evaluated at, or {@code null} when the factory takes
+     * no pose. The adult factories take none; the baby ones are built at the pose their set was
+     * registered with, which is what makes the piglin family's baby shell a distinct mesh.
+     */
+    private static GeometryRequest.@Nullable PoseParam poseParamOf(@NotNull ArmorMeshIndex.Set set) {
+        int slot = set.poseSlot();
+        return slot < 0 ? null : new GeometryRequest.PoseParam(slot, set.armOffset());
     }
 
     /**
@@ -256,24 +290,24 @@ final class EntityLayersResolver {
     }
 
     /**
-     * The name of the armor set this renderer dresses its subject in, or {@code null} when the
-     * renderer does not name one itself. The name is a lookup key into the registrations
-     * {@code LayerDefinitions} makes - it identifies the mesh and its deformations, and never ships.
+     * The armor sets this renderer dresses its subject in, in the order it hands them to its armor
+     * layer - the adult shell first and the baby one, when it names a second, after it. The names are
+     * lookup keys into the registrations {@code LayerDefinitions} makes - they identify the meshes and
+     * their deformations, and never ship.
      *
      * <p>Vanilla does not build worn armor from the wearer's own model - it hands the layer a shared
      * armor set, and most humanoids share one. A renderer that wears a different set holds it as a
-     * static, so the first such field along the constructor chain names the mesh. Leaf-first, because
-     * a subclass that passes the set down to its super's constructor is the one that names it, and
-     * first-wins within a class because vanilla's layer takes the adult set before the baby one.
+     * static, so the fields along the constructor chain name the meshes. Leaf-first, because a
+     * subclass that passes its sets down to its super's constructor is the one that names them, and
+     * declaration order is the layer's own argument order: adult, then baby.
      *
-     * <p>A renderer handed its set as a constructor argument (the piglin family) names no field of its
-     * own - but the registration that hands it one does, so the walk falls back to the armor set among
-     * the {@code ModelLayers} references in the renderer-factory lambda. First-wins there for the same
-     * reason it wins within a class: the adult set is passed before the baby one.
+     * <p>A renderer handed its sets as constructor arguments (the piglin family) names no field of its
+     * own - but the registration that hands them over does, so the walk falls back to the armor sets
+     * among the {@code ModelLayers} references in the renderer-factory lambda, in the same order.
      *
-     * @return the lowercased field name, or {@code null} when no armor set is named
+     * @return the lowercased field names in layer-argument order, empty when no armor set is named
      */
-    private @Nullable String resolveArmorMesh() {
+    private @NotNull List<String> resolveArmorMeshes() {
         List<String> named = new ArrayList<>();
         AsmKit.walkSuperChain(this.cache, this.rendererClass, cn -> {
             if (!named.isEmpty()) return;
@@ -284,20 +318,20 @@ final class EntityLayersResolver {
                     if (!(in instanceof FieldInsnNode field)) continue;
                     if (!VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc)) continue;
                     named.add(field.name.toLowerCase(Locale.ROOT));
-                    return;
                 }
+                if (!named.isEmpty()) return;
             }
         });
-        if (!named.isEmpty()) return named.getFirst();
+        if (!named.isEmpty()) return named;
 
         ClassNode modelLayers = this.cache.load(VanillaSourceClasses.Types.MODEL_LAYERS);
-        if (modelLayers == null) return null;
+        if (modelLayers == null) return named;
         for (String layerField : this.registrationLayerFields) {
             FieldNode field = AsmKit.findField(modelLayers, layerField);
             if (field != null && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
-                return layerField.toLowerCase(Locale.ROOT);
+                named.add(layerField.toLowerCase(Locale.ROOT));
         }
-        return null;
+        return named;
     }
 
 }

@@ -402,6 +402,47 @@ public final class LayerDefinitionIndex {
     }
 
     /**
+     * Resolves a static {@code PartPose} field to its {@code (x, y, z)} offset by walking the
+     * owner's {@code <clinit>} for the literals its bind pushes.
+     *
+     * <p>Read as "the first three floats this field's initialiser pushes" rather than off a
+     * constructor shape, because vanilla spells the two poses that reach an armor set two ways -
+     * {@code PartPose.ZERO} through the {@code offsetAndRotation(FFFFFF)} factory and the baby
+     * piglin's arm offset through the nine-argument record constructor. Both lead with the offset,
+     * and only the offset is read: the mesh factory that consumes the pose touches nothing but
+     * {@code x()} / {@code y()} / {@code z()}.
+     *
+     * @param cache the per-session class cache
+     * @param ownerInternalName the field owner's JVM internal name
+     * @param fieldName the static field name
+     * @return the 3-component offset, or {@code null} when unresolvable
+     */
+    static float @Nullable [] resolvePartPoseField(
+        @NotNull ClassNodeCache cache,
+        @NotNull String ownerInternalName,
+        @NotNull String fieldName
+    ) {
+        ClassNode owner = cache.load(ownerInternalName);
+        MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
+        if (clinit == null) return null;
+        float[] literals = new float[3];
+        int seen = 0;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            Float literal = AsmKit.readFloatLiteral(in);
+            if (literal != null) {
+                if (seen < 3) literals[seen] = literal;
+                seen++;
+                continue;
+            }
+            if (in.getOpcode() != Opcodes.PUTSTATIC) continue;
+            if (AsmKit.isPutStatic(in, ownerInternalName, fieldName) && seen >= 3)
+                return new float[]{literals[0], literals[1], literals[2]};
+            seen = 0;
+        }
+        return null;
+    }
+
+    /**
      * Rewrites a pure-delegate factory ({@code INVOKESTATIC other; ARETURN} and nothing else)
      * to its delegate target, so entities sharing a layer factory through a no-op delegate
      * collapse onto one geometry key by construction. Entries whose factory has any other

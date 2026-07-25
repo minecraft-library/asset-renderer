@@ -15,6 +15,7 @@ import lib.minecraft.renderer.asset.Entity.TransformOp.Translate;
 import lib.minecraft.renderer.asset.Entity.TransformOp;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.raster.Composition;
@@ -644,6 +645,10 @@ public final class EntityIndexBuilder {
      * {@code retainExactParts} subset, the auto-emitted depth-clearance bump) touches it. Worn armor is
      * a shared set vanilla hands the wearer, not a derivative of the wearer's own mesh, so anything done
      * to the body must not follow it onto the shell.
+     *
+     * <p>The row's {@code baby} node, where it carries one, is folded in as a second shell the age
+     * axis swaps to. A wearer without one dresses its baby in the adult shell, which is what vanilla
+     * does when it hands its armor layer one set twice.
      */
     private static @NotNull Optional<Entity.HumanoidArmor> humanoidArmorOf(
         @NotNull RawModel family,
@@ -654,21 +659,51 @@ public final class EntityIndexBuilder {
         for (RawLayer layer : nullToEmpty(family.layers())) {
             if (!"armor".equals(layer.id())) continue;
             RawLayerOverlay overlay = layer.overlay();
-            RawArmorGrow grow = overlay == null ? null : overlay.grow();
-            if (overlay == null || overlay.geometry() == null
-                || grow == null || grow.inner() == null || grow.outer() == null) {
+            if (overlay == null) {
                 diagnostics.warn("entity '%s' armor layer carries no mesh reference or deformations - wearer dropped", entityId);
                 return Optional.empty();
             }
-            EntityModelData mesh = geometries.get(overlay.geometry());
-            if (mesh == null) {
-                diagnostics.warn("entity '%s' armor layer references geometry '%s' absent from entity_geometry", entityId, overlay.geometry());
-                return Optional.empty();
-            }
-            return Optional.of(new Entity.HumanoidArmor(mesh, grow.inner(), grow.outer(),
-                overlay.scaled() == null ? 1f : overlay.scaled()));
+            RawArmorBaby raw = overlay.baby();
+            Optional<Entity.HumanoidArmor> baby = raw == null
+                ? Optional.empty()
+                : shellOf(raw.geometry(), raw.grow(), raw.scaled(), ArmorForm.BABY, Optional.empty(),
+                    geometries, entityId, diagnostics);
+            if (raw != null && baby.isEmpty()) return Optional.empty();
+            return shellOf(overlay.geometry(), overlay.grow(), overlay.scaled(), ArmorForm.ADULT, baby,
+                geometries, entityId, diagnostics);
         }
         return Optional.empty();
+    }
+
+    /**
+     * One shell of an armor row - its mesh joined against the geometry table, the two layer
+     * deformations, and the whole-mesh scale the set is registered through. Absence IS "wears none":
+     * being armored is carrying a resolved shell, so a shell whose mesh or deformations are missing
+     * warns and drops the wearer rather than dressing it in a guess.
+     */
+    private static @NotNull Optional<Entity.HumanoidArmor> shellOf(
+        @Nullable String geometry,
+        @Nullable RawArmorGrow grow,
+        @Nullable Float scaled,
+        @NotNull ArmorForm form,
+        @NotNull Optional<Entity.HumanoidArmor> baby,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull String entityId,
+        @NotNull Diagnostics diagnostics
+    ) {
+        if (geometry == null || grow == null || grow.inner() == null || grow.outer() == null) {
+            diagnostics.warn("entity '%s' %s armor shell carries no mesh reference or deformations - wearer dropped",
+                entityId, form.name().toLowerCase(Locale.ROOT));
+            return Optional.empty();
+        }
+        EntityModelData mesh = geometries.get(geometry);
+        if (mesh == null) {
+            diagnostics.warn("entity '%s' %s armor shell references geometry '%s' absent from entity_geometry",
+                entityId, form.name().toLowerCase(Locale.ROOT), geometry);
+            return Optional.empty();
+        }
+        return Optional.of(new Entity.HumanoidArmor(mesh, grow.inner(), grow.outer(),
+            scaled == null ? 1f : scaled, form, baby));
     }
 
     /**

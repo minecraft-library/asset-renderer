@@ -2,6 +2,8 @@ package lib.minecraft.renderer.tooling.kernel;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+
 /**
  * The only home for vanilla class / ASM / member-name strings in tooling - one class, nested
  * static groups.
@@ -329,6 +331,19 @@ public final class VanillaSourceClasses {
          */
         public static final @NotNull String CREATE_ARMOR_LAYER_SET = "createArmorLayerSet";
 
+        /**
+         * {@code <Model>.createBabyArmorMeshSet(CubeDeformation, CubeDeformation, PartPose)} - the
+         * baby armor-set factory, distinguished from the adult one by the trailing pose argument it
+         * seats the shell's arms through.
+         */
+        public static final @NotNull String CREATE_BABY_ARMOR_MESH_SET = "createBabyArmorMeshSet";
+
+        /**
+         * {@code PartPose.x()} / {@code y()} / {@code z()} - the three offset accessors a mesh
+         * factory reads a pose argument through, indexed by the axis each answers.
+         */
+        public static final @NotNull List<String> PART_POSE_OFFSETS = List.of("x", "y", "z");
+
         /** {@code ArmorModelSet.putFrom(ArmorModelSet, ImmutableMap$Builder)} - the armor-set registration call. */
         public static final @NotNull String PUT_FROM = "putFrom";
 
@@ -512,6 +527,20 @@ public final class VanillaSourceClasses {
         /** Descriptor of the base armor-mesh factory {@code (CubeDeformation)MeshDefinition}. */
         public static final @NotNull String BASE_ARMOR_MESH_DESC =
             of(MESH_DEFINITION_REF, CUBE_DEFORMATION_REF);
+
+        /** The {@code PartPose} field / parameter reference descriptor - the pose carrier. */
+        public static final @NotNull String PART_POSE_REF = ref(Types.PART_POSE);
+
+        /**
+         * Descriptor of the baby armor-set factory
+         * {@code (CubeDeformation inner, CubeDeformation outer, PartPose armOffset)ArmorModelSet} -
+         * the trailing pose is what separates it from the adult two-argument shape.
+         */
+        public static final @NotNull String BABY_ARMOR_MESH_SET_DESC =
+            of(ARMOR_MODEL_SET_REF, CUBE_DEFORMATION_REF, CUBE_DEFORMATION_REF, PART_POSE_REF);
+
+        /** Descriptor of a no-argument {@code float} accessor - {@code PartPose}'s three offsets. */
+        public static final @NotNull String FLOAT_ACCESSOR_DESC = of("F");
 
         /**
          * Composes a method descriptor from already-valid type descriptors.
