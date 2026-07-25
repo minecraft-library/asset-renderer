@@ -470,8 +470,8 @@ public class ModelEngine {
         // pure functional - reads only the per-triangle vertex data and the shared immutable
         // transform - so a parallelStream over the FJP common pool scales this across cores.
         // map().filter().toList() preserves encounter order, which Pass 2's painter's algorithm
-        // requires: the rasterizer iterates `prepared` in original insertion order so the
-        // DEPTH_EPSILON tie-break deterministically picks the first-drawn of any coplanar pair
+        // requires: the rasterizer iterates `prepared` in original insertion order, and that order
+        // is what decides a coplanar pair - GL_LEQUAL passes the tie, so the last drawn wins
         // (see the comment on the depth test below).
         List<Projected> rawPrepared = triangles.parallelStream()
             .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, this.lens, fit))
@@ -482,8 +482,8 @@ public class ModelEngine {
         // Pass 2: tiled rasterization. Split the framebuffer into N horizontal Y-bands and
         // rasterize each band in parallel. Every band owns its own depth-buffer slice, so the
         // inner raster loop never contends with sibling threads. Every band still iterates the
-        // full prepared list in original insertion order so painter's semantics - the
-        // DEPTH_EPSILON tie-break that makes the first-drawn coplanar face win - are preserved
+        // full prepared list in original insertion order so painter's semantics - the tie-break
+        // that makes the last-drawn coplanar face win - are preserved
         // within each tile; triangles rasterize into disjoint Y ranges across tiles, so the final
         // image is byte-identical to the serial path.
         //
@@ -538,10 +538,10 @@ public class ModelEngine {
      * The narrower gate avoids the mooshroom-block-overlay regression an earlier
      * {@code !cullBackFaces()} version produced (mooshroom 0.56 -> 4.48).
      * <p>
-     * Non-translucent triangles stay in emission order to preserve the painter's-algorithm
-     * coplanar tie-break the {@link #DEPTH_EPSILON depth epsilon} relies on; reordering them
-     * would non-deterministically pick among coplanar siblings (same-face quad halves, base
-     * vs overlay at zero inflate).
+     * Non-translucent triangles stay in emission order because that order <em>is</em> the
+     * painter's-algorithm coplanar tie-break - {@link #depthFails} passes an equal depth, so the
+     * last drawn wins; reordering them would non-deterministically pick among coplanar siblings
+     * (same-face quad halves, base vs overlay at zero inflate, a limb flush against its torso).
      */
     private static @NotNull List<Projected> sortNoCullBackToFront(@NotNull List<Projected> prepared) {
         int total = prepared.size();
@@ -693,7 +693,7 @@ public class ModelEngine {
                         continue;
                     }
 
-                    float depthVal = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
+                    float depthVal = bary[0] * t.z0 + bary[1] * t.z1 + bary[2] * t.z2;
                     int idx = (py - tileStart) * width + px;
                     if (depthFails(depthVal, depth[idx], tr.emissive())) {
                         RendererDebug.pixelSkipDepth(px, py, depthVal, t.source.debugTag(), depth[idx]);
@@ -911,21 +911,100 @@ public class ModelEngine {
         Vector3f p2 = triangle.position2().transform(transform);
         Vector3f normal = triangle.normal().transformNormal(transform).normalize();
 
-        Vector2f s0 = snapToCoverageGrid(project2D(perspective, p0, scale, offsetX, offsetY, fit));
-        Vector2f s1 = snapToCoverageGrid(project2D(perspective, p1, scale, offsetX, offsetY, fit));
-        Vector2f s2 = snapToCoverageGrid(project2D(perspective, p2, scale, offsetX, offsetY, fit));
+        Vector2f r0 = project2D(perspective, p0, scale, offsetX, offsetY, fit);
+        Vector2f r1 = project2D(perspective, p1, scale, offsetX, offsetY, fit);
+        Vector2f r2 = project2D(perspective, p2, scale, offsetX, offsetY, fit);
+
+        Vector2f s0 = snapToCoverageGrid(r0);
+        Vector2f s1 = snapToCoverageGrid(r1);
+        Vector2f s2 = snapToCoverageGrid(r2);
 
         RendererDebug.pixelTriangle(triangle, s0, s1, s2, p0, p1, p2);
 
         if (triangle.traits().cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
         RasterMath.EdgeCoefficients edges = RasterMath.EdgeCoefficients.of(s0, s1, s2);
+        float[] rasterDepth = depthOnUnsnappedPlane(r0, r1, r2, s0, s1, s2, p0.z(), p1.z(), p2.z());
         // Per-vertex inverse clip-w for perspective-correct interpolation. depthScale is a flat 1 for
         // parallel projections, where the perspectiveCorrect flag is false and the rasterizer keeps the
         // screen-linear no-divide path.
         boolean perspectiveCorrect = perspective.kind() == Lens.Kind.PERSPECTIVE;
         return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal, edges,
+            rasterDepth[0], rasterDepth[1], rasterDepth[2],
             perspective.depthScale(p0.z()), perspective.depthScale(p1.z()), perspective.depthScale(p2.z()),
             perspectiveCorrect);
+    }
+
+    /**
+     * Re-reads each vertex's depth off the triangle's <b>unsnapped</b> plane at its <b>snapped</b>
+     * screen position, so the coverage snap moves coverage without moving depth.
+     *
+     * <p>The rasterizer interpolates depth as {@code bary . z} with the barycentric weights taken from
+     * the snapped vertices ({@link #snapToCoverageGrid}) while the {@code z} values belong to the
+     * unsnapped ones. Depth is affine in screen space here (there is no perspective-correct depth
+     * path - see the rasterizer's {@code depthVal}), so that pairing tilts every triangle's depth plane
+     * by an amount computed from its own vertices. Two <em>genuinely coplanar</em> triangles therefore
+     * stop agreeing: the worn-armour chestplate's torso box and its arm box overlap by two model units
+     * at identical {@code z}, and the tilt put the arm a consistent 60 ULP in front, so it won a
+     * contest vanilla resolves the other way - not as a tie the draw order breaks, but outright,
+     * whichever order they were drawn in.
+     *
+     * <p>Substituting the plane's own value at the snapped vertex restores it: barycentric
+     * interpolation of an affine function over the snapped triangle reproduces that function exactly,
+     * so the depth sampled anywhere inside is the unsnapped plane's depth there, and coplanar
+     * triangles agree again to within float rounding. The solve runs in {@code double} because its
+     * whole purpose is to leave no systematic residue between two triangles of one plane. A triangle
+     * with no unsnapped screen area has no plane to read, and keeps its vertex depths unchanged.
+     *
+     * @param r0 the first vertex's unsnapped screen position
+     * @param r1 the second vertex's unsnapped screen position
+     * @param r2 the third vertex's unsnapped screen position
+     * @param s0 the first vertex's snapped screen position
+     * @param s1 the second vertex's snapped screen position
+     * @param s2 the third vertex's snapped screen position
+     * @param z0 the first vertex's camera-space depth
+     * @param z1 the second vertex's camera-space depth
+     * @param z2 the third vertex's camera-space depth
+     * @return the three raster depths, in vertex order
+     */
+    private static float @NotNull [] depthOnUnsnappedPlane(
+        @NotNull Vector2f r0, @NotNull Vector2f r1, @NotNull Vector2f r2,
+        @NotNull Vector2f s0, @NotNull Vector2f s1, @NotNull Vector2f s2,
+        float z0, float z1, float z2
+    ) {
+        double dx1 = (double) r1.x() - r0.x();
+        double dy1 = (double) r1.y() - r0.y();
+        double dx2 = (double) r2.x() - r0.x();
+        double dy2 = (double) r2.y() - r0.y();
+        double denominator = dx1 * dy2 - dx2 * dy1;
+        if (denominator == 0d) return new float[]{ z0, z1, z2 };
+
+        double dz1 = (double) z1 - z0;
+        double dz2 = (double) z2 - z0;
+        double slopeX = (dz1 * dy2 - dz2 * dy1) / denominator;
+        double slopeY = (dx1 * dz2 - dx2 * dz1) / denominator;
+        return new float[]{
+            planeDepth(z0, slopeX, slopeY, r0, s0),
+            planeDepth(z0, slopeX, slopeY, r0, s1),
+            planeDepth(z0, slopeX, slopeY, r0, s2)
+        };
+    }
+
+    /**
+     * Evaluates a depth plane, anchored at {@code origin} with the given screen-space slopes, at one
+     * snapped screen position.
+     *
+     * @param anchorDepth the depth at {@code origin}
+     * @param slopeX the plane's depth gradient along screen X
+     * @param slopeY the plane's depth gradient along screen Y
+     * @param origin the unsnapped screen position the plane is anchored at
+     * @param at the snapped screen position to read the plane at
+     * @return the plane's depth at {@code at}
+     */
+    private static float planeDepth(
+        float anchorDepth, double slopeX, double slopeY, @NotNull Vector2f origin, @NotNull Vector2f at) {
+        return (float) (anchorDepth
+            + slopeX * ((double) at.x() - origin.x())
+            + slopeY * ((double) at.y() - origin.y()));
     }
 
     /**
@@ -1036,6 +1115,11 @@ public class ModelEngine {
      * @param s2 the third vertex projected and coverage-snapped to screen space
      * @param normal the camera-space transformed, normalized surface normal
      * @param edges the precomputed fixed-point edge coefficients for the incremental coverage walk
+     * @param z0 the first vertex's raster depth - its plane's depth at its snapped position (see
+     *     {@link #depthOnUnsnappedPlane}), which is what the per-pixel depth test interpolates;
+     *     {@code p0.z()} stays the true camera-space depth the translucent sort keys off
+     * @param z1 the second vertex's raster depth
+     * @param z2 the third vertex's raster depth
      * @param iw0 the first vertex's inverse clip-{@code w} ({@link Lens#depthScale}), for perspective-correct interpolation
      * @param iw1 the second vertex's inverse clip-{@code w}
      * @param iw2 the third vertex's inverse clip-{@code w}
@@ -1051,6 +1135,9 @@ public class ModelEngine {
         @NotNull Vector2f s2,
         @NotNull Vector3f normal,
         @NotNull RasterMath.EdgeCoefficients edges,
+        float z0,
+        float z1,
+        float z2,
         float iw0,
         float iw1,
         float iw2,
