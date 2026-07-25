@@ -216,7 +216,7 @@ public final class AppearanceCodec {
                 case VILLAGER_LEVEL -> {
                     Optional<VillagerLevel> level = enumOf(VillagerLevel.class, value);
                     if (level.isEmpty()) return malformed(fileName, "unknown villager_level '" + value + "'");
-                    appearance.villagerLevel(level.get());
+                    appearance.villagerLevel(level);
                 }
                 case SHEARED -> {
                     if (!"true".equals(value)) return malformed(fileName, "sheared must be 'true'");
@@ -313,8 +313,8 @@ public final class AppearanceCodec {
             tokens.add(token(AppearanceKey.Axis.VILLAGER_TYPE, appearance.getVillagerType().name()));
         if (appearance.getVillagerProfession() != VillagerProfession.NONE)
             tokens.add(token(AppearanceKey.Axis.VILLAGER_PROFESSION, appearance.getVillagerProfession().name()));
-        if (appearance.getVillagerLevel() != VillagerLevel.NONE)
-            tokens.add(token(AppearanceKey.Axis.VILLAGER_LEVEL, appearance.getVillagerLevel().name()));
+        appearance.getVillagerLevel().ifPresent(level ->
+            tokens.add(token(AppearanceKey.Axis.VILLAGER_LEVEL, level.name())));
         if (appearance.isSheared()) tokens.add(token(AppearanceKey.Axis.SHEARED, "true"));
         if (appearance.isCharged()) tokens.add(token(AppearanceKey.Axis.CHARGED, "true"));
         if (appearance.isElytra()) tokens.add(token(AppearanceKey.Axis.ELYTRA, "true"));

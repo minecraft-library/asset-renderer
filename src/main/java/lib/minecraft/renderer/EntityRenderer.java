@@ -43,6 +43,7 @@ import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
+import lib.minecraft.renderer.option.VillagerLevel;
 import lib.minecraft.renderer.option.VillagerType;
 import lib.minecraft.renderer.option.slot.EntitySlot;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
@@ -741,8 +742,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@code crackiness} (iron golem, empty at {@code NONE} so the overlay is skipped),
      * {@code weathering} (copper-golem eyes, always resolves to the state's eye texture), and the
      * villager profession-layer trio {@code type} / {@code profession} / {@code profession_level}
-     * (prefix-relative sub-paths the {@code texturePrefix} qualifies; {@code profession} and
-     * {@code profession_level} resolve empty at their {@code NONE} default so the overlay is skipped).
+     * (prefix-relative sub-paths the {@code texturePrefix} qualifies; {@code profession} resolves
+     * empty at its {@code NONE} default so the overlay is skipped, and {@code profession_level}
+     * resolves empty only for a profession that draws no badge - vanilla has no badge-less job
+     * villager, so an unnamed tier resolves to the first rather than to nothing).
      * The {@code type} axis resolves its biome under the pass' own robe directory, mirroring the layer's
      * {@code isBaby ? "baby" : "type"} token swap.
      * The default keeps an unselected overlay unchanged; a selection swaps in that axis' texture.
@@ -768,7 +771,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             return professionTextureRef(appearance, texturePrefix);
         if (overlay.textureBy().filter("profession_level"::equals).isPresent())
             return appearance.getVillagerProfession().drawsBadge()
-                ? appearance.getVillagerLevel().overlaySubPath().map(sub -> texturePrefix + "/" + sub)
+                ? Optional.of(texturePrefix + "/"
+                    + appearance.getVillagerLevel().orElseGet(VillagerLevel::minimum).overlaySubPath())
                 : Optional.empty();
         return overlay.textureRef();
     }

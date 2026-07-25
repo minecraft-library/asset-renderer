@@ -144,9 +144,10 @@ public final class TestEntityRender3D {
         // -Dasset.entity.profession=farmer names a villager profession (VillagerProfession); default NONE.
         Optional<String> professionName = Optional.ofNullable(System.getProperty("asset.entity.profession")).filter(s -> !s.isBlank());
         VillagerProfession villagerProfession = professionName.map(VillagerProfession::ofName).orElse(VillagerProfession.NONE);
-        // -Dasset.entity.level=gold names a villager trade badge tier (VillagerLevel); default NONE (no badge).
+        // -Dasset.entity.level=gold names a villager trade badge tier (VillagerLevel); unnamed leaves a
+        // job villager on vanilla's first tier, which is what an unspecified level clamps up to.
         Optional<String> villagerLevelName = Optional.ofNullable(System.getProperty("asset.entity.level")).filter(s -> !s.isBlank());
-        VillagerLevel villagerLevel = villagerLevelName.map(VillagerLevel::ofName).orElse(VillagerLevel.NONE);
+        Optional<VillagerLevel> villagerLevel = villagerLevelName.map(VillagerLevel::ofName);
         boolean sheared = Boolean.getBoolean("asset.entity.sheared");
         boolean charged = Boolean.getBoolean("asset.entity.charged");
         // -Dasset.entity.elytra=true wears an elytra (the WINGS model overlay); default false.
@@ -212,7 +213,7 @@ public final class TestEntityRender3D {
                 + (weathering == CopperWeathering.UNAFFECTED ? "" : "_weathering-" + weathering.name().toLowerCase(java.util.Locale.ROOT))
                 + (villagerType == VillagerType.PLAINS ? "" : "_type-" + villagerType.name().toLowerCase(java.util.Locale.ROOT))
                 + (villagerProfession == VillagerProfession.NONE ? "" : "_prof-" + villagerProfession.name().toLowerCase(java.util.Locale.ROOT))
-                + (villagerLevel == VillagerLevel.NONE ? "" : "_level-" + villagerLevel.name().toLowerCase(java.util.Locale.ROOT))
+                + villagerLevel.map(l -> "_level-" + l.name().toLowerCase(java.util.Locale.ROOT)).orElse("")
                 + (toggles.isEmpty() ? "" : "_toggle-" + String.join("-", toggles))
                 + (equipment.isEmpty() ? "" : "_equip-" + equipment.entrySet().stream()
                     .map(en -> en.getValue().isEmpty() ? en.getKey() : en.getKey() + "-" + en.getValue())

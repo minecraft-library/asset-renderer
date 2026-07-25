@@ -156,15 +156,17 @@ public class EntityAppearance {
 
     /**
      * Villager / zombie-villager trade level badge - the small emblem over the profession clothes.
-     * When set to a non-{@link VillagerLevel#NONE} tier and the selected
-     * {@link #villagerProfession profession} {@link VillagerProfession#drawsBadge() draws a badge}
-     * (a real job), the resolved entity's {@code texture_by: profession_level} overlay draws that
-     * tier's {@code <prefix>/profession_level/<badge>} texture; {@link VillagerLevel#NONE} (default)
-     * or a {@code NONE} / {@code NITWIT} profession draws no badge. Ignored by entities without a
-     * villager profession layer.
+     * Whenever the selected {@link #villagerProfession profession}
+     * {@link VillagerProfession#drawsBadge() draws a badge} (a real job), the resolved entity's
+     * {@code texture_by: profession_level} overlay draws a tier's
+     * {@code <prefix>/profession_level/<badge>} texture: the tier named here, or
+     * {@link VillagerLevel#minimum() the first} when empty (default), which is what vanilla clamps
+     * an unspecified level up to. A {@code NONE} or {@code NITWIT} profession draws no badge whatever
+     * is named here, and neither does a baby. Ignored by entities without a villager profession
+     * layer.
      */
     @lombok.Builder.Default
-    private final @NotNull VillagerLevel villagerLevel = VillagerLevel.NONE;
+    private final @NotNull Optional<VillagerLevel> villagerLevel = Optional.empty();
 
     /**
      * Whether the entity renders sheared. When {@code true} the resolved definition drops its
