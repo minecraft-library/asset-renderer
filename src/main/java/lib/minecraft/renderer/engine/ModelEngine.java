@@ -11,7 +11,6 @@ import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Shading;
-import lib.minecraft.renderer.engine.raster.Composition;
 import lib.minecraft.renderer.engine.raster.RasterMath;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -53,7 +52,7 @@ import java.util.stream.IntStream;
  * functions with a {@code 1/256} fixed-point sample and an OpenGL top-left fill rule
  * (see {@link RasterMath}). Fragments are depth-tested ({@link #depthFails}, vanilla
  * {@code GL_LEQUAL}), texture-sampled, tinted ({@link BlendMode#MULTIPLY}), shaded
- * ({@link Shading}), and composited through the triangle's {@link Composition}.
+ * ({@link Shading}), and composited through the triangle's {@link BlendMode}.
  *
  * <p><b>Back-face culling</b> uses a signed screen-space winding test after projection
  * ({@link #isBackFacing}), which is robust against camera and model rotations and does not depend
@@ -696,7 +695,7 @@ public class ModelEngine {
             // Hoist the surface traits once per triangle; the per-pixel loop below reads
             // emissive/glinted/blend/alpha off this local so the deref stays out of the hot path.
             SurfaceTraits tr = t.source.traits();
-            Composition blendMode = tr.blend();
+            BlendMode blendMode = tr.blend();
             // Depth comes off a plane solved once per triangle from the snapped screen positions, the
             // way graphics hardware sets one up, rather than blended per pixel from barycentric weights.
             // The two forms describe the same plane and differ only in where they round: solving once
@@ -820,7 +819,7 @@ public class ModelEngine {
                     // fragment's alpha is strictly between 0 and 255 - source-over returns the source
                     // unchanged at 255, and a 0-alpha texel is discarded above - so declaring a pass
                     // cutout costs nothing on geometry whose texels are all one or the other.
-                    int outArgb = blendMode.composite(afterAlpha, buffer.getPixel(px, py));
+                    int outArgb = ColorMath.blend(afterAlpha, buffer.getPixel(px, py), blendMode);
                     buffer.setPixel(px, py, outArgb);
                     // Mark the glint mask wherever a glinted (armor) fragment wins the pixel, so the
                     // foil compositor restricts the enchantment glint to the armor. Uses absolute

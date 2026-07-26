@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.index;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
 import lib.minecraft.renderer.asset.Entity.BoneToggle;
 import lib.minecraft.renderer.asset.Entity.EquipmentOverlay;
@@ -18,7 +19,6 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.engine.raster.Composition;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.AppearanceGate;
@@ -399,7 +399,7 @@ public final class EntityIndexBuilder {
             Optional<AppearanceGate> gate = parseOverlayGate(entry.when(), tintBy, overlayTint);
             // blend / alpha (default NORMAL / 1.0). `additive` -> the energy-swirl glow; `translucent` /
             // `normal` -> source-over. An un-annotated overlay keeps the NORMAL / 1.0 default.
-            Composition blend = parseBlend(pipeline == null ? null : pipeline.blend(), diagnostics);
+            BlendMode blend = parseBlend(pipeline == null ? null : pipeline.blend(), diagnostics);
             float alpha = pipeline == null || pipeline.alpha() == null ? 1f : pipeline.alpha();
             // depth_write / sorted are vanilla's own DepthStencilState.writeDepth and
             // RenderSetup.sortOnUpload, each omitted at its identity: an un-annotated pass writes depth
@@ -506,10 +506,10 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * Parses an overlay's optional {@code blend} token into a {@link Composition}. {@code "additive"} maps
-     * to {@link Composition#ADDITIVE} and {@code "cutout"} to {@link Composition#REPLACE};
-     * {@code "translucent"}, {@code "normal"} and an absent token all map to {@link Composition#NORMAL}
-     * source-over. An unrecognised value warns and falls back to {@link Composition#NORMAL}.
+     * Parses an overlay's optional {@code blend} token into a {@link BlendMode}. {@code "additive"} maps
+     * to {@link BlendMode#ADD} and {@code "cutout"} to {@link BlendMode#REPLACE};
+     * {@code "translucent"}, {@code "normal"} and an absent token all map to {@link BlendMode#NORMAL}
+     * source-over. An unrecognised value warns and falls back to {@link BlendMode#NORMAL}.
      *
      * <p>{@code translucent} and {@code normal} share a mapping because source-over is right for both -
      * a translucent pass carries its translucency in the texture's alpha. {@code cutout} is the token
@@ -517,15 +517,15 @@ public final class EntityIndexBuilder {
      * so every fragment surviving the alpha threshold is written over the destination rather than into
      * it, alpha included.
      */
-    private static @NotNull Composition parseBlend(@Nullable String blend, @NotNull Diagnostics diagnostics) {
-        if (blend == null) return Composition.NORMAL;
+    private static @NotNull BlendMode parseBlend(@Nullable String blend, @NotNull Diagnostics diagnostics) {
+        if (blend == null) return BlendMode.NORMAL;
         return switch (blend.toLowerCase(Locale.ROOT)) {
-            case "additive" -> Composition.ADDITIVE;
-            case "cutout" -> Composition.REPLACE;
-            case "translucent", "normal" -> Composition.NORMAL;
+            case "additive" -> BlendMode.ADD;
+            case "cutout" -> BlendMode.REPLACE;
+            case "translucent", "normal" -> BlendMode.NORMAL;
             default -> {
                 diagnostics.warn("unknown overlay blend '%s' (expected normal/additive/translucent/cutout); using normal", blend);
-                yield Composition.NORMAL;
+                yield BlendMode.NORMAL;
             }
         };
     }

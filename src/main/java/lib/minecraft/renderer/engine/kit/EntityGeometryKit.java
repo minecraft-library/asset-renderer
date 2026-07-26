@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
@@ -10,7 +11,6 @@ import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Lighting;
-import lib.minecraft.renderer.engine.raster.Composition;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.EntityFace;
@@ -99,9 +99,9 @@ public class EntityGeometryKit {
      * @param tintArgb ARGB tint multiplied into every sampled texel; {@link ColorMath#WHITE}
      *     ({@code 0xFFFFFFFF}) is a no-op tint
      * @param blend the colour-composition mode baked onto every emitted triangle -
-     *     {@link Composition#NORMAL} source-over (the default for bodies and texture-alpha overlays),
-     *     {@link Composition#ADDITIVE} for an additive-glow overlay (creeper / wither energy swirl
-     *     declaring {@code blend: additive}) or {@link Composition#REPLACE} for a cutout pass
+     *     {@link BlendMode#NORMAL} source-over (the default for bodies and texture-alpha overlays),
+     *     {@link BlendMode#ADD} for an additive-glow overlay (creeper / wither energy swirl
+     *     declaring {@code blend: additive}) or {@link BlendMode#REPLACE} for a cutout pass
      *     (declaring {@code blend: cutout})
      * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} baked onto every emitted
      *     triangle - {@code 1.0} (no-op) except for an overlay declaring an explicit {@code alpha}
@@ -116,7 +116,7 @@ public class EntityGeometryKit {
         float ndcScale,
         float modelScale,
         int tintArgb,
-        @NotNull Composition blend,
+        @NotNull BlendMode blend,
         float alpha,
         boolean writesDepth,
         boolean sorted,
@@ -139,14 +139,14 @@ public class EntityGeometryKit {
          */
         public EntityBuildParams(
             @NotNull Vector3f centreAnchor, boolean emissive, float ndcScale, float modelScale,
-            int tintArgb, @NotNull Composition blend, float alpha, boolean writesDepth, boolean sorted
+            int tintArgb, @NotNull BlendMode blend, float alpha, boolean writesDepth, boolean sorted
         ) {
             this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, blend, alpha, writesDepth, sorted,
                  DEFAULT_ENTITY_LIGHTING);
         }
 
         /**
-         * Constructs build params compositing with the standard {@link Composition#NORMAL source-over}
+         * Constructs build params compositing with the standard {@link BlendMode#NORMAL source-over}
          * blend at full opacity and the {@link #DEFAULT_ENTITY_LIGHTING default entity lighting frame} -
          * the default for every base body and texture-alpha overlay.
          *
@@ -159,7 +159,7 @@ public class EntityGeometryKit {
         public EntityBuildParams(
             @NotNull Vector3f centreAnchor, boolean emissive, float ndcScale, float modelScale, int tintArgb
         ) {
-            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, Composition.NORMAL, 1f, true, false);
+            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, BlendMode.NORMAL, 1f, true, false);
         }
     }
 
@@ -236,7 +236,7 @@ public class EntityGeometryKit {
         float scale = params.ndcScale();
         float modelScale = params.modelScale();
         int tintArgb = params.tintArgb();
-        Composition blend = params.blend();
+        BlendMode blend = params.blend();
         float alpha = params.alpha();
         boolean writesDepth = params.writesDepth();
         boolean sorted = params.sorted();

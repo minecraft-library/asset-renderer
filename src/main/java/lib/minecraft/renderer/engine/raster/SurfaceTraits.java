@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine.raster;
 
+import dev.simplified.image.pixel.BlendMode;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -10,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
  * A triangle's surface character is declared once at construction rather than threaded as loose
  * flags. The {@code with*} helpers compose a new traits value for a derived triangle; they never
  * mutate a built {@code VisibleTriangle}. The four-argument constructor is the common case - opaque
- * or texture-alpha geometry that composites with the standard {@link Composition#NORMAL source-over}
+ * or texture-alpha geometry that composites with the standard {@link BlendMode#NORMAL source-over}
  * blend at full opacity, writes depth and draws in emission order; only overlays that declare an
  * explicit {@code pipeline} node in {@code entity_models.json} carry a non-default {@link #blend} /
  * {@link #alpha} / {@link #writesDepth} / {@link #sorted}.
@@ -40,9 +41,9 @@ import org.jetbrains.annotations.NotNull;
  *     it lands on the armor rather than the whole silhouette. Always {@code false} for bare skin,
  *     blocks, items, and entity bodies
  * @param blend the colour-composition mode the rasterizer composites this fragment with -
- *     {@link Composition#NORMAL} (source-over, the default for every body and texture-alpha
- *     translucent surface), {@link Composition#ADDITIVE} (the creeper / wither energy swirl) or
- *     {@link Composition#REPLACE} (a cutout pass, which writes the fragment over the destination
+ *     {@link BlendMode#NORMAL} (source-over, the default for every body and texture-alpha
+ *     translucent surface), {@link BlendMode#ADD} (the creeper / wither energy swirl) or
+ *     {@link BlendMode#REPLACE} (a cutout pass, which writes the fragment over the destination
  *     rather than into it). Declared per-overlay by the {@code blend} JSON node; distinct from
  *     {@link #emissive} (shading) and {@link #translucent} (painter's-order sorting)
  * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} applied to the sampled texel's
@@ -62,7 +63,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public record SurfaceTraits(boolean cullBackFaces, boolean emissive,
                             boolean translucent, boolean glinted,
-                            @NotNull Composition blend, float alpha,
+                            @NotNull BlendMode blend, float alpha,
                             boolean writesDepth, boolean sorted) {
 
     /**
@@ -72,7 +73,7 @@ public record SurfaceTraits(boolean cullBackFaces, boolean emissive,
     public static final SurfaceTraits OPAQUE_BODY = new SurfaceTraits(true, false, false, false);
 
     /**
-     * Constructs traits for the common case - {@link Composition#NORMAL source-over} composition at
+     * Constructs traits for the common case - {@link BlendMode#NORMAL source-over} composition at
      * full opacity ({@code alpha 1.0}), writing depth and drawn in emission order. Only overlays
      * carrying an explicit {@code pipeline} JSON node use the canonical eight-argument constructor;
      * every other call site (blocks, bodies, texture-alpha overlays) uses this.
@@ -83,7 +84,7 @@ public record SurfaceTraits(boolean cullBackFaces, boolean emissive,
      * @param glinted the enchantment-foil flag
      */
     public SurfaceTraits(boolean cullBackFaces, boolean emissive, boolean translucent, boolean glinted) {
-        this(cullBackFaces, emissive, translucent, glinted, Composition.NORMAL, 1f, true, false);
+        this(cullBackFaces, emissive, translucent, glinted, BlendMode.NORMAL, 1f, true, false);
     }
 
     /**

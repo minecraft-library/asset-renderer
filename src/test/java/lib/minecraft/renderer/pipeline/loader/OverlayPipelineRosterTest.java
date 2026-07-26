@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.engine.raster.Composition;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -76,7 +76,7 @@ class OverlayPipelineRosterTest {
     void energySwirlsWriteAndSort() {
         Set<String> flagged = new TreeSet<>();
         index().forEach((id, entity) -> entity.overlays().forEach(overlay -> {
-            if (overlay.blend() != Composition.ADDITIVE) return;
+            if (overlay.blend() != BlendMode.ADD) return;
             flagged.add(id);
             assertThat(id + " writes depth", overlay.writesDepth(), is(true));
             assertThat(id + " sorts", overlay.sorted(), is(true));

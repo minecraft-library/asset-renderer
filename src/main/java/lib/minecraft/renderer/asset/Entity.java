@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.asset;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.raster.Composition;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.HorseMarking;
@@ -605,10 +605,10 @@ public record Entity(
      *     {@code EntityAppearance.pattern}), or empty when the overlay texture is fixed at
      *     {@link #textureRef}
      * @param blend the colour-composition mode the rasterizer composites this overlay with -
-     *     {@link Composition#NORMAL} source-over (the default; also what a {@code translucent} node maps
+     *     {@link BlendMode#NORMAL} source-over (the default; also what a {@code translucent} node maps
      *     to, since the slime shell's translucency is in its texture alpha),
-     *     {@link Composition#ADDITIVE} for the energy-swirl glow ({@code blend: additive}) or
-     *     {@link Composition#REPLACE} for a pass vanilla draws through a pipeline declaring no blend
+     *     {@link BlendMode#ADD} for the energy-swirl glow ({@code blend: additive}) or
+     *     {@link BlendMode#REPLACE} for a pass vanilla draws through a pipeline declaring no blend
      *     function ({@code blend: cutout}). Parsed from the overlay's optional {@code blend} node,
      *     orthogonal to {@link #emissive}
      * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} from the overlay's optional
@@ -636,7 +636,7 @@ public record Entity(
         boolean skipBounds,
         @NotNull Optional<String> tintBy,
         @NotNull Optional<String> textureBy,
-        @NotNull Composition blend,
+        @NotNull BlendMode blend,
         float alpha,
         boolean writesDepth,
         boolean sorted,
