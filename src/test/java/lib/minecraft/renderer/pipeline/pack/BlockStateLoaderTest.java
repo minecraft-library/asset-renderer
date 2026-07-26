@@ -19,6 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -45,6 +46,33 @@ class BlockStateLoaderTest {
         BlockStateLoader.BlockStates result = load(van);
         ApplyDto variant = result.variants().get("minecraft:thing").get("");
         assertThat(variant.model(), is("minecraft:block/a"));
+    }
+
+    @Test
+    @DisplayName("a weighted variants array is retained whole, in declaration order, beside that first entry")
+    void variantWeightedRetainsEveryEntry() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/blockstates/spin.json"),
+            "{\"variants\":{\"\":[{\"model\":\"minecraft:block/s\"},{\"model\":\"minecraft:block/s\",\"y\":90},"
+                + "{\"model\":\"minecraft:block/s\",\"y\":180},{\"model\":\"minecraft:block/s\",\"y\":270}]}}");
+
+        ApplyDto variant = load(van).variants().get("minecraft:spin").get("");
+        assertThat("first entry still wins the scalar members", variant.y(), is(0));
+        assertThat(variant.weighted().size(), is(4));
+        assertThat(variant.weighted().stream().map(ApplyDto::y).toList(), is(List.of(0, 90, 180, 270)));
+        assertThat("the entries carry no nested list", variant.weighted().getFirst().weighted().isEmpty(), is(true));
+    }
+
+    @Test
+    @DisplayName("a bare object and a one-entry array both offer no choice, so neither is retained")
+    void variantWithoutChoiceRetainsNothing() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/blockstates/plain.json"), "{\"variants\":{\"\":{\"model\":\"minecraft:block/p\"}}}");
+        write(van.resolve("assets/minecraft/blockstates/lone.json"), "{\"variants\":{\"\":[{\"model\":\"minecraft:block/l\"}]}}");
+
+        BlockStateLoader.BlockStates result = load(van);
+        assertThat(result.variants().get("minecraft:plain").get("").weighted().isEmpty(), is(true));
+        assertThat(result.variants().get("minecraft:lone").get("").weighted().isEmpty(), is(true));
     }
 
     @Test

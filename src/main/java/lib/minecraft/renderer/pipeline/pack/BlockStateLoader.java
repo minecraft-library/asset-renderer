@@ -296,9 +296,25 @@ public class BlockStateLoader {
      * @param x the whole-model X rotation in degrees (0, 90, 180, or 270)
      * @param y the whole-model Y rotation in degrees (0, 90, 180, or 270)
      * @param uvlock whether UVs should be locked to the block grid during rotation
+     * @param weighted the authored array's usable entries in declaration order, or empty when the value
+     *     was a bare object or a one-entry array. Carried raw and uninterpreted: which entry a render
+     *     draws is vanilla's choice to make, and it is made downstream once the pack stack has merged.
+     *     The members above stay the first entry either way, so the weighted-first rule is unchanged
      */
     @JsonAdapter(ApplyDto.Adapter.class)
-    public record ApplyDto(@NotNull String model, int x, int y, boolean uvlock) {
+    public record ApplyDto(@NotNull String model, int x, int y, boolean uvlock,
+                           @NotNull ConcurrentList<ApplyDto> weighted) {
+
+        /**
+         * Constructs an apply from one authored object, reading each member through the shared
+         * primitive-or-default accessors.
+         *
+         * @param object the authored apply object
+         * @param weighted the sibling entries this object was picked from, empty when there are none
+         */
+        ApplyDto(@NotNull JsonObject object, @NotNull ConcurrentList<ApplyDto> weighted) {
+            this(string(object, "model"), integer(object, "x"), integer(object, "y"), bool(object, "uvlock"), weighted);
+        }
 
         /**
          * Reads one apply, applying the weighted-first rule (harness {@code FirstVariantRandomSource -> 0}
@@ -321,6 +337,25 @@ public class BlockStateLoader {
                     out.nullValue();
                     return;
                 }
+                // An apply that kept its siblings writes back as the array it was read from, so a round
+                // trip recovers the same authored list rather than collapsing it to the first entry.
+                if (!value.weighted().isEmpty()) {
+                    out.beginArray();
+                    for (ApplyDto entry : value.weighted()) writeObject(out, entry);
+                    out.endArray();
+                    return;
+                }
+                writeObject(out, value);
+            }
+
+            /**
+             * Writes one apply's scalar members as a JSON object.
+             *
+             * @param out the writer to emit to
+             * @param value the apply to write
+             * @throws IOException if the underlying writer fails
+             */
+            private static void writeObject(@NotNull JsonWriter out, @NotNull ApplyDto value) throws IOException {
                 out.beginObject();
                 out.name("model").value(value.model());
                 out.name("x").value(value.x());
@@ -337,8 +372,25 @@ public class BlockStateLoader {
                     : json;
                 if (candidate == null || !candidate.isJsonObject()) return null;
 
-                JsonObject object = candidate.getAsJsonObject();
-                return new ApplyDto(string(object, "model"), integer(object, "x"), integer(object, "y"), bool(object, "uvlock"));
+                return new ApplyDto(candidate.getAsJsonObject(), weighted(json));
+            }
+
+            /**
+             * The authored array's usable entries in declaration order, or an empty list for a bare
+             * object or a one-entry array. A lone entry is the weighted-first pick itself, so recording
+             * it would only duplicate the scalar members.
+             *
+             * @param json the raw apply value
+             * @return the authored entries, empty when the value offers no choice
+             */
+            private static @NotNull ConcurrentList<ApplyDto> weighted(@NotNull JsonElement json) {
+                if (!json.isJsonArray() || json.getAsJsonArray().size() < 2) return Concurrent.newList();
+
+                ConcurrentList<ApplyDto> entries = Concurrent.newList();
+                for (JsonElement entry : json.getAsJsonArray())
+                    if (entry.isJsonObject()) entries.add(new ApplyDto(entry.getAsJsonObject(), Concurrent.newList()));
+
+                return entries.size() < 2 ? Concurrent.newList() : entries.toUnmodifiable();
             }
         }
     }

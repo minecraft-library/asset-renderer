@@ -20,6 +20,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Assembles the runtime block-entity index from the two pure reads: joins each raw
@@ -67,12 +68,13 @@ public final class BlockEntityAssembler {
 
                 // A block bound to a blockstate "variant" contributes a state-conditional model, not
                 // the block's primary geometry (e.g. the ceiling hanging sign's straight-chain mesh
-                // under "attached=true"). Rotation/uvlock are unused here, so 0/0/false.
+                // under "attached=true"). Rotation/uvlock are unused here, so 0/0/false, and a
+                // block-entity mesh is never one of an authored array, so there is nothing to draw.
                 if (block.variant() != null) {
                     variantModels.computeIfAbsent(blockId, k -> new HashMap<>())
                         .put(block.variant(),
                             new Block.Variant(modelId, 0, 0, false, new Block.BoneGeometry(boneModel),
-                                BlockStateKey.parse(block.variant())));
+                                BlockStateKey.parse(block.variant()), Optional.empty()));
                     continue;
                 }
 

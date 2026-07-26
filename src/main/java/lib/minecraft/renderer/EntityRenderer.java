@@ -10,6 +10,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.engine.ModelEngine;
@@ -912,6 +913,29 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
+     * The variant vanilla draws for a block an entity carries, but only where that draw is a choice:
+     * the block's default state must have authored an array, and the drawn entry must resolve to
+     * element geometry. Empty otherwise, which leaves the caller on the block's own model exactly as
+     * before - the case for every block whose default state authors a single variant, and so for every
+     * block-overlay subject in the corpus but the enderman's grass_block.
+     * <p>
+     * A carried block is always drawn at its default state, because a {@link Entity.BlockOverlayLayer}
+     * names a block id and carries no state of its own; vanilla's own carried-block references are set
+     * from {@code defaultBlockState()} too. The lookup is by the joined default-state key, falling back
+     * to the unconditional {@code ""} key a property-less block authors.
+     *
+     * @param block the carried block
+     * @return the variant to draw, empty when the default state authors no array
+     */
+    private static @NotNull Optional<Block.Variant> carriedVariant(@NotNull Block block) {
+        Block.Variant authored = block.variants().get(block.defaultStateKey());
+        if (authored == null) authored = block.variants().get("");
+        if (authored == null) return Optional.empty();
+
+        return authored.noPosition().filter(variant -> variant.geometry() instanceof Block.ElementGeometry);
+    }
+
+    /**
      * Builds the rasterizer-ready triangles for one {@link Entity.BlockOverlayLayer}.
      * Composes the overlay's transform chain (in vanilla block units) with the optional bone
      * anchor (whose pivot+rotation comes from the entity geometry, divided by 16 to convert from
@@ -942,6 +966,20 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Optional<Block> block = context.findBlock(overlay.blockId());
         if (block.isEmpty()) return Concurrent.newList();
 
+        // A carried block is an IN-WORLD block, and vanilla reaches it through its BLOCKSTATE:
+        // CarriedBlockLayer hands the resolver a BlockState, which takes BlockModelSet.get(state) ->
+        // BlockStateModelSet.get(state) and draws the blockstate model, variant rotation baked in.
+        // Where that state's key authored an array vanilla draws one entry of it, and having no world
+        // position to seed the draw with it uses a constant, which the index build already resolved.
+        // This is the MIRROR IMAGE of the inventory-icon rule, not the same decision - an icon is
+        // reached through the item model and so takes neither the draw nor the variant rotation.
+        // Empty for every block whose default state authors a single variant, which is all but 34 of
+        // the 971 and every block any entity currently carries bar grass_block.
+        Optional<Block.Variant> drawn = carriedVariant(block.get());
+        ModelData blockModel = drawn.isPresent() && drawn.get().geometry() instanceof Block.ElementGeometry element
+            ? element.model()
+            : block.get().model();
+
         // Pre-load each face's texture by dereferencing #variable bindings against the model's
         // texture map, exactly mirroring {@code BlockRenderer.Isometric3D.buildFromBlockElements}.
         // Faces whose ref still resolves to a {@code #} after dereference (broken bindings) skip
@@ -949,7 +987,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // carried animated block matches the block-icon path (which also flattens to frame 0 by default).
         Textures textures = new Textures(context);
         ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-            block.get().model().getElements(), block.get().model().getTextures(),
+            blockModel.getElements(), blockModel.getTextures(),
             id -> textures.tryResolveTextureAtTick(id, tick));
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
@@ -961,9 +999,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // point applies; untinted (tintindex -1) faces keep white.
         int blockTint = BlockRenderer.resolveBlockTint(context, block.get(), Biome.INVENTORY_DEFAULT);
         var forceRefs = Textures.resolveForceTranslucentRefs(
-            block.get().model().getElements(), block.get().model().getTextures());
+            blockModel.getElements(), blockModel.getTextures());
         ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(
-            block.get().model().getElements(), faceTextures, blockTint, ColorMath.WHITE, forceRefs);
+            blockModel.getElements(), faceTextures, blockTint, ColorMath.WHITE, forceRefs);
         if (blockTris.isEmpty()) return Concurrent.newList();
 
         // Compose the per-overlay transform matrix in vanilla block units. PoseStack ops apply
@@ -983,6 +1021,22 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // corner-at-origin convention before the chain applies. Appended last so that, in
         // column-vector composition, this op is rightmost and applies first to the input vertex.
         blockUnitChain = blockUnitChain.translate(0.5f, 0.5f, 0.5f);
+
+        // The drawn variant's own rotation, appended AFTER that translate so it is rightmost and
+        // therefore applies first, to the still-origin-centred cube - which makes it a rotation about
+        // the cube's own centre, where vanilla bakes it ({@code FaceBakery.rotateVertexBy} about
+        // {@code BLOCK_MIDDLE} (0.5, 0.5, 0.5)). Both angles are negated for the same reason
+        // {@code BlockRenderer.buildVariantRotation} negates them: blockstate rotation is specified in
+        // the opposite sense from this codebase's right-handed matrices. Built with the fluent rotate
+        // path (post-multiply, bit-identical to vanilla's {@code PoseStack.mulPose}) applying X then Y,
+        // matching that method's composite. No uvlock counter-rotation is applied because no shipped
+        // array carries {@code uvlock}; one that did would need the kit's variantRotationX/Y pair, the
+        // way the block path passes it.
+        if (drawn.isPresent() && drawn.get().hasRotation()) {
+            Block.Variant variant = drawn.get();
+            if (variant.x() != 0) blockUnitChain = blockUnitChain.rotateX((float) Math.toRadians(-variant.x()));
+            if (variant.y() != 0) blockUnitChain = blockUnitChain.rotateY((float) Math.toRadians(-variant.y()));
+        }
 
         // Bone anchor: the attached bone's FULL ancestor chain in entity pixel-units - the same
         // {@code translateAndRotate} composition the kit applies at render, so an attach bone with

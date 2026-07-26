@@ -250,9 +250,16 @@ public record Block(
      * @param properties the variant's blockstate key parsed once at load into a {@code property -> value}
      *     map ({@code facing=east,half=lower} to {@code {facing=east, half=lower}}); empty for a
      *     multipart apply, which matches through its {@code when} condition rather than a key
+     * @param noPosition the entry vanilla draws for this key when the draw has no world position behind
+     *     it - a block an entity holds or carries - resolved once at index build, or empty when the key
+     *     authored a single variant and so offers no choice. Vanilla picks between an authored array's
+     *     entries at random, seeded by the block's position; with no position it seeds with a constant
+     *     instead, which makes the choice fixed rather than arbitrary. Present for the 34 blocks that
+     *     author such an array, and its own {@code noPosition} is always empty
      */
     public record Variant(@NotNull String modelId, int x, int y, boolean uvlock,
-                          @NotNull VariantGeometry geometry, @NotNull ConcurrentMap<String, String> properties) {
+                          @NotNull VariantGeometry geometry, @NotNull ConcurrentMap<String, String> properties,
+                          @NotNull Optional<Variant> noPosition) {
 
         /**
          * Reports whether this variant applies a whole-model rotation.

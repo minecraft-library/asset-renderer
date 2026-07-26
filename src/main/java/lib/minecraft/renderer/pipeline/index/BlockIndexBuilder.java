@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -61,6 +62,13 @@ public class BlockIndexBuilder {
     private static final Set<String> INVISIBLE_BLOCK_NAMES = Set.of(
         "air", "barrier", "moving_piston", "structure_void"
     );
+
+    /**
+     * The seed vanilla draws a weighted variant with when the draw has no world position to hash - a
+     * block an entity holds or carries. Hardcoded at the one vanilla call site that resolves such a
+     * block, so it is a property of that draw rather than of any block.
+     */
+    private static final long NO_POSITION_SEED = 42L;
 
     /**
      * Builds and filters the renderer's block index.
@@ -215,8 +223,34 @@ public class BlockIndexBuilder {
      * @return the resolved variant with its geometry baked in
      */
     private static @NotNull Block.Variant bakeVariant(@NotNull ApplyDto apply, @NotNull ConcurrentMap<String, String> properties, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+        Optional<Block.Variant> noPosition = apply.weighted().isEmpty()
+            ? Optional.empty()
+            : Optional.of(bakeVariant(drawWithoutPosition(apply.weighted()), properties, blockModels));
+
         return new Block.Variant(apply.model(), apply.x(), apply.y(), apply.uvlock(),
-            new Block.ElementGeometry(resolveVariantModel(apply.model(), blockModels)), properties);
+            new Block.ElementGeometry(resolveVariantModel(apply.model(), blockModels)), properties, noPosition);
+    }
+
+    /**
+     * Draws one entry of an authored weighted list the way vanilla draws a block it has no position
+     * for - a block an entity holds or carries. Resolved here rather than at render because this is the
+     * first point after the pack stack has merged, and the draw is fixed once the list is: the seed is a
+     * constant, so the same list always yields the same entry.
+     * <p>
+     * Reproduces vanilla's own draw rather than approximating it. Vanilla's random source is
+     * {@link Random} under a different name - the same seed scramble and the same {@code nextInt}, both
+     * branches - and it draws {@code nextInt(totalWeight)}. Every list shipped in 26.1 is weightless, so
+     * the bound is the entry count and the draw is the index; a list that ever carried explicit weights
+     * would need a cumulative walk instead, and would silently draw the wrong entry without one.
+     * <p>
+     * Package-private so the draw can be pinned by a test without building a whole index; a change to
+     * the seed or the source would otherwise only show up as a moved parity row.
+     *
+     * @param weighted the authored entries in declaration order, at least two
+     * @return the entry to draw
+     */
+    static @NotNull ApplyDto drawWithoutPosition(@NotNull ConcurrentList<ApplyDto> weighted) {
+        return weighted.get(new Random(NO_POSITION_SEED).nextInt(weighted.size()));
     }
 
     /**
