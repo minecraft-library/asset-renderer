@@ -22,22 +22,23 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Block sweep. Every block's ground truth is its 3D in-world render at the standard iso pose - this
- * is a block-parity sweep, never an item-icon sweep. Per block:
+ * Block sweep. Every block's ground truth is a 3D render at the standard iso pose: the inventory
+ * icon vanilla draws where it draws one from a block model, and the block's own 3D model where that
+ * icon is a flat sprite. Per block:
  * <ol>
- *   <li><b>Plain blocks</b> render through {@link BlockFrameRenderer} - the vanilla block-model
- *       pipeline at the standard iso {@code display.gui} pose. This bypasses the item-model
- *       dispatch, so blocks whose item model uses {@code item/generated} as a parent (rails, vines,
- *       ladders, lily_pad, seagrass, sculk_vein, doors, hanging signs) render as actual 3D geometry
- *       rather than the flat 2D billboard the inventory icon would show.</li>
+ *   <li><b>Plain blocks</b> render through {@link BlockFrameRenderer} at the block's authored
+ *       {@code display.gui} pose. A block whose item definition is a plain {@code model} root naming
+ *       a block model draws that item model's own bake, at the identity model state; a block whose
+ *       item model uses {@code item/generated} as a parent (rails, vines, ladders, lily_pad,
+ *       seagrass, sculk_vein, doors, hanging signs) has no 3D icon to reproduce and draws its
+ *       blockstate model instead, a flat 2D billboard being no use as block ground truth.</li>
  *   <li><b>{@link EntityBlock} blocks</b> with a registered block-entity renderer (chest,
  *       shulker_box, banner, sign, decorated_pot, skull, bell, beacon, ...) render through
  *       {@link BlockEntityFrameRenderer} so their per-entity art is captured.</li>
  *   <li><b>{@link EntityBlock} blocks without a renderer</b> (barrel, hopper, brewing_stand,
  *       furnace, chiseled_bookshelf, calibrated_sculk_sensor, ...) fall back to the same plain-block
- *       path - NOT the item model. Their visible geometry is the static block model, and routing
- *       them through the item icon would draw a flat 2D sprite or a divergent inventory model that
- *       does not reflect the 3D block.</li>
+ *       path and take the same split there. Their visible geometry is a static block model either
+ *       way; what the split decides is only whether the blockstate's orientation reaches it.</li>
  * </ol>
  *
  * <p>No block is ever placed in the world: there is no camera dependency, no per-tick re-snap, no

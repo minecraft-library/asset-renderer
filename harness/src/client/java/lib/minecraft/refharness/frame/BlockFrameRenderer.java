@@ -36,14 +36,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Renders a {@link BlockState} directly through the vanilla block-model rendering pipeline
- * ({@link SubmitNodeStorage#submitBlockModel}), bypassing the item-model dispatch that
- * {@link ItemFrameRenderer} relies on. The two paths converge for full-cube blocks whose item
- * model inherits from {@code block/block.json}, but they diverge for blocks whose item model
- * uses {@code item/generated} as its parent (rails, vines, ladders, lily_pad, seagrass,
- * sculk_vein, doors, hanging signs, ...). Those blocks render as flat 2D billboards through
- * the inventory path; this renderer always emits the actual 3D block geometry at the standard
- * iso pose, which is what asset-renderer's {@code BlockRenderer.ISOMETRIC_3D} produces.
+ * Renders a block as its inventory icon where vanilla has one, and as its 3D block model where
+ * vanilla's icon is a flat sprite - both through the vanilla block-model rendering pipeline
+ * ({@link SubmitNodeStorage#submitBlockModel}) at the block's authored {@code display.gui} pose.
+ *
+ * <p>Which geometry a block gets is {@link BlockIconGeometry#resolve}'s answer. A block whose item
+ * definition is a plain {@code minecraft:model} root naming a block model draws the quads vanilla
+ * baked for that item, at the identity model state - so no blockstate variant rotation and no
+ * multipart assembly reaches it, which is what makes a stair present its riser to the camera and a
+ * fence icon a post with two arms. Everything else - blocks whose item model uses
+ * {@code item/generated} as its parent (rails, vines, ladders, lily_pad, seagrass, sculk_vein,
+ * doors, hanging signs, ...), and dispatch-rooted or block-entity items - has no vanilla 3D icon at
+ * all, and keeps this sweep's own render off {@link BlockStateModelSet}: the actual 3D block
+ * geometry for its default state, a flat 2D billboard being no use as block ground truth.
+ *
+ * <p><b>The split is the contract.</b> An earlier form of this renderer took every block's geometry
+ * from {@link BlockStateModelSet}, on the grounds that a block sweep wants 3D geometry rather than
+ * an inventory icon. That is right for the sprite-icon blocks and wrong for the rest: it paired
+ * in-world orientation with the inventory pose, a combination vanilla never draws, and it silently
+ * cost 107 blocks their icon's orientation and 52 more their inventory model. The sweep's subject is
+ * whatever asset-renderer's {@code BlockRenderer.ISOMETRIC_3D} draws, and that is the vanilla icon
+ * wherever one exists.
  *
  * <p>Pose chain (col-vector form, applied right-to-left to a model vertex):
  * <pre>
@@ -124,6 +137,9 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
             LOG.warn("BlockFrameRenderer: empty parts list for {}", state);
             return false;
         }
+
+        // Where vanilla bakes a block-model icon, that bake IS the subject.
+        BlockIconGeometry.swapIn(client, state, partsScratch);
 
         // tripwire_hook hard-coded shading fix (see CardinalSnapPart). Vanilla's putBakedQuad lights
         // each quad by BakedQuad.direction = FaceBakery.calculateFacing(verts), whose sub-ULP winding
