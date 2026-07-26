@@ -724,6 +724,13 @@ public class ModelEngine {
             }
             float alphaScale = tr.alpha();
 
+            // Last texel of the face's own rectangle on each axis, hoisted once per triangle. A
+            // quad's two triangles each carry the diagonal's opposite corners, so the max over
+            // three vertices is the whole face's extent either way.
+            PixelBuffer texture = t.source.texture();
+            int lastTexelX = lastTexel(t.source.uv0().x(), t.source.uv1().x(), t.source.uv2().x(), texture.width());
+            int lastTexelY = lastTexel(t.source.uv0().y(), t.source.uv1().y(), t.source.uv2().y(), texture.height());
+
             // Pineda incremental edge functions. Hoist the edge value computation to the
             // bbox top-left, then walk by stepX per pixel in X and stepY per pixel in Y. Per-
             // pixel coverage test drops to 3 add + sign check + at-most-3 top-left checks; no
@@ -779,9 +786,8 @@ public class ModelEngine {
                         v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
                     }
 
-                    PixelBuffer texture = t.source.texture();
-                    int tx = Math.clamp((int) (u * texture.width()), 0, texture.width() - 1);
-                    int ty = Math.clamp((int) (v * texture.height()), 0, texture.height() - 1);
+                    int tx = Math.clamp((int) (u * texture.width()), 0, lastTexelX);
+                    int ty = Math.clamp((int) (v * texture.height()), 0, lastTexelY);
                     int rawTexel = texture.getPixel(tx, ty);
                     if (ColorMath.alpha(rawTexel) == 0) {
                         RendererDebug.pixelSkipAlpha(px, py, depthVal, t.source.debugTag(), u, v, tx, ty, rawTexel);
@@ -847,6 +853,34 @@ public class ModelEngine {
     }
 
     /**
+     * Returns the last texel index the rectangle a face's three UV corners span reaches on one axis.
+     *
+     * <p>{@code (int) (coord * texels)} maps the half-open interval {@code [t, t+1)} to texel
+     * {@code t}, which is right everywhere strictly inside a face and steps one texel <b>past</b> it
+     * at the face's own closed upper edge - a value the interpolation produces <b>exactly</b>
+     * whenever that edge lands exactly on a sample point, which for a left-right symmetric subject
+     * on an odd-width canvas is its whole front corner. The texel it steps onto belongs to the
+     * neighbouring face in the sheet, so the fragment is drawn in a colour from geometry it is not
+     * part of. Bounding it is the guard the fetch carries against the texture's own edge, one level
+     * finer.
+     *
+     * <p>Rounding <b>up</b> and stepping back one is what distinguishes the two: a rect ending on a
+     * whole texel keeps the last one inside it ({@code 24.0 -> 23}) while one ending part-way keeps
+     * the texel it reaches into ({@code 23.7 -> 23}). The floor at {@code 0} keeps the range
+     * non-empty for a face whose UVs collapse to a line.
+     *
+     * @param c0 the first corner's coordinate on this axis, normalized
+     * @param c1 the second corner's coordinate on this axis, normalized
+     * @param c2 the third corner's coordinate on this axis, normalized
+     * @param texels the texture's size along this axis
+     * @return the highest texel index the face covers, clamped to the texture
+     */
+    private static int lastTexel(float c0, float c1, float c2, int texels) {
+        float high = Math.max(c0, Math.max(c1, c2));
+        return Math.clamp((int) Math.ceil(high * texels) - 1, 0, texels - 1);
+    }
+
+    /**
      * Tests whether a fragment fails the depth test against the existing depth-buffer value at its
      * pixel - vanilla's {@code GL_LEQUAL}, with no tolerance either way.
      *
@@ -887,15 +921,21 @@ public class ModelEngine {
      *       silverfish segments, witch hat - because the integer edge-function ratio
      *       collapses to {@code n / (2n)}), our UV interpolation hits exact texel
      *       boundaries like {@code v * texH = 8.0} and {@code (int)8.0 = 8} samples the
-     *       adjacent (often transparent) texel. Vanilla's GPU computes the same exact
-     *       bary but its hardware fragment-attribute interpolation rounds the result
-     *       just below the boundary, so it samples texel {@code 7} instead.</li>
+     *       adjacent (often transparent) texel.</li>
      *   <li>When the {@code 1/256} fixed-point edge function lands at {@code 0} (sample
-     *       exactly on a triangle edge in fixed-point), our top-left fill rule resolves
-     *       it deterministically; the GPU's resolution differs at column-vertical edges
-     *       shared between two faces in iso projection (the canonical witch {@code x=21}
-     *       column).</li>
+     *       exactly on a triangle edge in fixed-point), our fill rule resolves it
+     *       deterministically, and so does the GPU's.</li>
      * </ul>
+     * <p><b>The snap does not reach the canvas-centre column, and nothing tuned into it can.</b> A
+     * left-right symmetric subject centred on an odd-width canvas has a front corner at a model
+     * {@code x} of exactly {@code 0}, so the projection lands it on {@code offsetX} - a whole pixel
+     * centre, {@code 90.5} on a 181-wide canvas - by construction and identically in both
+     * renderers. That coordinate is already <em>on</em> the {@code 1/400} grid, so snapping returns
+     * it unchanged and there is no perturbation to be had at any grid size. The tie it leaves is
+     * settled by the two rules that own it: the fill-rule classification in
+     * {@code RasterMath.EdgeCoefficients}, which decides which of the two faces meeting at the
+     * corner takes the sample, and {@link #lastTexel}, which keeps the fetch inside the face that
+     * won it.
      * Snapping the projected vertex position to a {@code 1/400} grid before edge
      * classification perturbs both effects: the bary at sample {@code (px + 0.5, py + 0.5)}
      * shifts off the exact-{@code 0.5} line, and the edge function shifts off the exact

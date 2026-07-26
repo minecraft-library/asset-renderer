@@ -127,7 +127,11 @@ public class RasterMath {
      * factory negates all A/B/C and denom so the {@code >= 0} inside test works regardless
      * of winding. The {@code topLeftXX} flags pre-evaluate
      * {@link RasterMath#isTopOrLeftEdge isTopOrLeftEdge} on the quantized integer
-     * endpoints; the per-pixel test reads the boolean directly.
+     * endpoints; the per-pixel test reads the boolean directly. <b>They are negated along with
+     * the coefficients</b> - negating an edge's coefficients is exactly reversing its direction,
+     * and the classification is antisymmetric under that reversal, so the two have to move
+     * together or a triangle submitted the other way round gets the opposite fill rule from the
+     * neighbour it shares an edge with.
      * <p>
      * The {@code stepXij} / {@code stepYij} fields are {@code A_ij * P} and {@code B_ij * P}
      * respectively, where {@code P =} {@link RasterMath#FIXED_POINT_PRECISION}. The
@@ -220,6 +224,12 @@ public class RasterMath {
                 a20 = -a20; b20 = -b20; c20 = -c20;
                 a01 = -a01; b01 = -b01; c01 = -c01;
                 denom = -denom;
+                // Negating an edge's coefficients is reversing its direction - e_ji == -e_ij
+                // identically - and the classification reads that direction and is antisymmetric
+                // under reversing it, so the flags move with the coefficients.
+                topLeft12 = !topLeft12;
+                topLeft20 = !topLeft20;
+                topLeft01 = !topLeft01;
             }
             return new EdgeCoefficients(
                 a12, b12, c12, a20, b20, c20, a01, b01, c01, denom,
@@ -301,13 +311,23 @@ public class RasterMath {
      * fixed-point endpoints so the classification is deterministic regardless of upstream
      * float drift.
      * <ul>
-     * <li>Top edge: horizontal ({@code sy == ey}) going left ({@code sx > ex})</li>
-     * <li>Left edge: non-horizontal going down ({@code ey > sy})</li>
+     * <li>Top edge: horizontal ({@code sy == ey}) going right ({@code ex > sx})</li>
+     * <li>Left edge: non-horizontal going up ({@code ey < sy})</li>
      * </ul>
+     *
+     * <p><b>The two arms follow from the winding rather than being free to choose.</b> Callers hand
+     * the edge in the direction the {@link EdgeCoefficients#of sign-normalized} coefficients
+     * evaluate it, which is the winding where {@code e >= 0} marks the interior - clockwise on
+     * screen with Y running down. Under that winding {@code e_ij >= 0} puts the interior to the left
+     * of a downward edge, so a downward edge is the triangle's <em>right</em> one and the
+     * <em>upward</em> edge is its left; the horizontal arm follows the same derivation and lands on
+     * left-to-right for top. The mirrored reading is equally self-consistent - it still hands every
+     * shared edge to exactly one side - but it is the bottom-right rule, and it hands that edge to
+     * the opposite side from the GPU.
      */
     private static boolean isTopOrLeftEdge(long sx, long sy, long ex, long ey) {
-        if (sy == ey) return sx > ex;
-        return ey > sy;
+        if (sy == ey) return ex > sx;
+        return ey < sy;
     }
 
     /**
