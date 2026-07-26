@@ -1187,12 +1187,37 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int rawH = Math.max(1, (int) Math.ceil(extentY * pxPerEntityUnit)) + 2 * padding;
         int longest = Math.max(rawW, rawH);
         float shrink = longest > maxCanvasSize ? (float) maxCanvasSize / longest : 1f;
-        int canvasW = Math.max(1, (int) Math.ceil(rawW * shrink));
+        int canvasW = evenWidth(Math.max(1, (int) Math.ceil(rawW * shrink)));
         int canvasH = Math.max(1, (int) Math.ceil(rawH * shrink));
         float effectivePxPerEntityUnit = pxPerEntityUnit * shrink;
         int minDim = Math.min(canvasW, canvasH);
         float ndcScale = effectivePxPerEntityUnit / (minDim * projectionScale);
         return new CanvasFit(canvasW, canvasH, ndcScale);
+    }
+
+    /**
+     * Rounds a canvas width up to the next even value, so the fit's anchor lands on a pixel boundary
+     * rather than on a pixel centre.
+     *
+     * <p>A left-right symmetric subject's front vertical corner <b>is</b> the anchor the fit centres,
+     * so it projects to exactly {@code width / 2} whatever the subject's extent - the content width
+     * cancels out entirely. At an odd width that is a half-integer, which is exactly a pixel centre
+     * and therefore exactly a sample point, and the screen edge where the corner's two faces meet
+     * passes through it; the sample is then decided by which face the fill rule and the texel fetch
+     * hand it to rather than by coverage. At an even width it is an integer - a pixel boundary no
+     * sample can land on - so the tie never forms.
+     *
+     * <p>Only the width has such an axis, since a subject is symmetric left to right and not top to
+     * bottom, so the height is left alone. The vanilla-reference-harness rounds its own canvas width
+     * the same way in {@code EntitySweep}, so the reference and this render stay in lockstep; the
+     * bump cannot move an already-even canvas, and it cannot exceed
+     * {@link EntityOptions#getMaxCanvasSize() maxCanvasSize}, which is itself even by default.
+     *
+     * @param width the canvas width in pixels
+     * @return the width, rounded up to the next even value
+     */
+    private static int evenWidth(int width) {
+        return width + (width & 1);
     }
 
     /**
