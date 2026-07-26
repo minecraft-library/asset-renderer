@@ -51,6 +51,7 @@ Group `visual` - main() entry points live in `src/test/java/lib/minecraft/render
 - `build/` - Gradle output.
 - `.jmh/` - manually-captured JMH session outputs (gitignored scratch).
 - Fonts live in sibling `minecraft-text` repo now; `./gradlew fonts` is gone from here.
+- `notes/` - gitignored **working notes**: research packs, per-effort ledgers, frozen baselines and probe TSVs. Read them when picking up an effort that is still live; they are not permanent history and nothing downstream reads them. **A finding that has to outlive the session belongs in this file, not only in a note** - which is why every closed ledger item's mechanism and every measured-and-declined alternative is written up here. Keeping `notes/` untracked is a decision, not drift: tracking it would push ~40 probe TSVs and a 2311-line reference manifest into the history of a library whose consumers have no use for them, and would invite a ledger to be maintained as a deliverable. The cost accepted is that re-verifying an old revert means re-running a sweep, which is minutes of machine time and not correctness, since the sweeps are exactly reproducible.
 
 ## Developer scripts
 Live in `scripts/` (not bundled into the JAR):
