@@ -26,7 +26,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Resolver for the geometry a block's inventory icon is drawn from, shared by
- * {@link BlockFrameRenderer}.
+ * {@link BlockFrameRenderer} and by the static block half of {@link BlockEntityFrameRenderer} - a
+ * block entity does not stop a block from having an icon vanilla bakes from a block model.
  *
  * <p>Vanilla draws a block-item icon from the item model named by the stack's
  * {@code minecraft:item_model} component, baked at {@code BlockModelRotation.IDENTITY} - it never

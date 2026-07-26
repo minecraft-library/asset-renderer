@@ -34,7 +34,9 @@ import java.util.List;
  *       blockstate model instead, a flat 2D billboard being no use as block ground truth.</li>
  *   <li><b>{@link EntityBlock} blocks</b> with a registered block-entity renderer (chest,
  *       shulker_box, banner, sign, decorated_pot, skull, bell, beacon, ...) render through
- *       {@link BlockEntityFrameRenderer} so their per-entity art is captured.</li>
+ *       {@link BlockEntityFrameRenderer} so their per-entity art is captured. Its static block
+ *       half takes the same split as the plain path, so a shelf and a structure_block draw the
+ *       icon vanilla bakes for them and their block entity still submits on top.</li>
  *   <li><b>{@link EntityBlock} blocks without a renderer</b> (barrel, hopper, brewing_stand,
  *       furnace, chiseled_bookshelf, calibrated_sculk_sensor, ...) fall back to the same plain-block
  *       path and take the same split there. Their visible geometry is a static block model either

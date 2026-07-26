@@ -66,11 +66,18 @@ import java.util.function.Consumer;
  * Renders a block-entity-bearing {@link BlockState} via vanilla's
  * {@link BlockEntityRenderDispatcher} - the same renderer that draws signs / beds / banners /
  * bells / campfires / heads / shulker_boxes / decorated_pots / shelves / copper_golem_statues
- * in-world. Inventory icons for these blocks use {@code item/generated} 2D billboard sprites
- * (because their item models do), so the existing {@link ItemFrameRenderer} dispatch produces a
- * flat sprite that has nothing to do with the actual block geometry. Routing them through this
- * BE-renderer path captures the real 3D geometry vanilla draws in-world, which is what
- * asset-renderer's {@code BlockRenderer} composes via {@code Block.Entity.parts()}.
+ * in-world. Where such a block's item model is a {@code minecraft:special} root, vanilla's own
+ * inventory icon is that block-entity mesh, and the {@link ItemFrameRenderer} dispatch would draw
+ * it through a {@code SpecialModelRenderer} rather than through the model pipeline; routing these
+ * blocks here captures the same 3D geometry vanilla draws in-world, which is what asset-renderer's
+ * {@code BlockRenderer} composes via {@code Block.Entity.parts()}.
+ *
+ * <p><b>The static block half takes the icon split.</b> A block entity does not stop a block from
+ * having an inventory icon vanilla bakes from a block model - 22 of the 55 blocks reaching
+ * {@link #submitRawBlockEntity} have one, the shelves and {@code structure_block} among them - so
+ * that half runs {@link BlockIconGeometry#swapIn} exactly as {@link BlockFrameRenderer} does. The
+ * block-entity submit is unaffected and still runs on top: an icon-backed block whose entity adds
+ * geometry composes both, the same way the blockstate model and the entity mesh composed before.
  *
  * <p>Setup: a transient {@link BlockEntity} is constructed via
  * {@code EntityBlock.newBlockEntity(pos, state)}, given a {@link Level}
@@ -264,7 +271,7 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
     /**
      * Raw in-world BE render path - the standard block-centred iso pose. Submits the static block
      * model first (beacon cube, suspicious_sand overlay base) then the BE renderer on top. Used
-     * for every block-entity except the three icon-composition families.
+     * for every block-entity except the icon-composition families.
      */
     private void submitRawBlockEntity(PipScope scope, Minecraft client, BlockState state,
                                       BlockEntityRenderer<BlockEntity, BlockEntityRenderState> renderer,
@@ -272,15 +279,20 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
         PoseStack poseStack = blockCenteredPose(scope);
 
         // 1. Submit the static block model first - same call BlockFrameRenderer makes for plain
-        //    blocks. For blocks where the BE adds geometry on top of an existing block model
-        //    (beacon = obsidian/glass cube + beacon stand; suspicious_sand = full cube + brushed
-        //    item overlay), this draws the cube part. For blocks where the block model is empty
+        //    blocks, and it takes the same split: where vanilla bakes the block's inventory icon
+        //    from a block model, that bake replaces the blockstate parts, so a shelf draws
+        //    block/<wood>_shelf_inventory rather than the multipart's assembled shelf and
+        //    structure_block draws block/structure_block rather than its default mode's model.
+        //    For blocks where the BE adds geometry on top of an existing block model (beacon =
+        //    obsidian/glass cube + beacon stand; suspicious_sand = full cube + brushed item
+        //    overlay), this draws the cube part. For blocks where the block model is empty
         //    (signs, chests, banners), it's a no-op and the BE renderer supplies all geometry.
         BlockStateModelSet modelSet = client.getModelManager().getBlockStateModelSet();
         BlockStateModel blockStateModel = modelSet.get(state);
         if (blockStateModel != null) {
             partsScratch.clear();
             blockStateModel.collectParts(random, partsScratch);
+            BlockIconGeometry.swapIn(client, state, partsScratch);
             if (!partsScratch.isEmpty()) {
                 RenderType renderType = Sheets.cutoutBlockSheet();
                 storage.submitBlockModel(poseStack, renderType, partsScratch, NO_TINTS,
