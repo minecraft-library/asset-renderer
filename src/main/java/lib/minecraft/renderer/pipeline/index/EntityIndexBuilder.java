@@ -401,13 +401,19 @@ public final class EntityIndexBuilder {
             // `normal` -> source-over. An un-annotated overlay keeps the NORMAL / 1.0 default.
             Composition blend = parseBlend(pipeline == null ? null : pipeline.blend(), diagnostics);
             float alpha = pipeline == null || pipeline.alpha() == null ? 1f : pipeline.alpha();
+            // depth_write / sorted are vanilla's own DepthStencilState.writeDepth and
+            // RenderSetup.sortOnUpload, each omitted at its identity: an un-annotated pass writes depth
+            // (what DepthStencilState.DEFAULT declares) and draws in emission order.
+            boolean writesDepth = pipeline == null || pipeline.depthWrite() == null || pipeline.depthWrite();
+            boolean sorted = pipeline != null && pipeline.sorted();
             // The suppressed-pass mesh: vanilla's clearChild(root).clearRecursively() over the SAME
             // materialised mesh, so the alternate differs from the primary in nothing but the emptied
             // subtree. Derived here rather than from a second geometry coordinate precisely so
             // sameGeometry, the depth-clearance inflate and the derived skipBounds above all stand.
             Optional<EntityModelData> noHatModel = entry.noHatRoot() == null ? Optional.empty()
                 : clearSubtreeCubes(materialised, entry.noHatRoot(), entityId, diagnostics);
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, textureBy, blend, alpha, gate, noHatModel));
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, textureBy,
+                blend, alpha, writesDepth, sorted, gate, noHatModel));
         }
         return out;
     }

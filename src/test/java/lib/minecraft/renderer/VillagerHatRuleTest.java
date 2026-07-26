@@ -114,7 +114,8 @@ class VillagerHatRuleTest {
      */
     private static OverlayLayer pass(String textureBy, String textureRef) {
         return new OverlayLayer(new EntityModelData(), Optional.of(textureRef), false, 0xFFFFFFFF, true,
-            Optional.empty(), Optional.of(textureBy), Composition.NORMAL, 1f, Optional.empty(), Optional.empty());
+            Optional.empty(), Optional.of(textureBy), Composition.NORMAL, 1f, true, false,
+            Optional.empty(), Optional.empty());
     }
 
 }

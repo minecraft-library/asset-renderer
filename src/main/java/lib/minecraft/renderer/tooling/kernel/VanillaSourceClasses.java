@@ -113,6 +113,16 @@ public final class VanillaSourceClasses {
         /** {@code BlendFunction} - the blend-mode enum ({@code TRANSLUCENT} / {@code ADDITIVE} constants). */
         public static final @NotNull String BLEND_FUNCTION = "com/mojang/blaze3d/pipeline/BlendFunction";
 
+        /** {@code DepthStencilState} - the depth-test / depth-write state a build block declares. */
+        public static final @NotNull String DEPTH_STENCIL_STATE = "com/mojang/blaze3d/pipeline/DepthStencilState";
+
+        /** {@code RenderPipeline$Snippet} - the shared builder prefix a build block inherits its state from. */
+        public static final @NotNull String RENDER_PIPELINE_SNIPPET = "com/mojang/blaze3d/pipeline/RenderPipeline$Snippet";
+
+        /** {@code RenderSetup$RenderSetupBuilder} - the render-type builder carrying {@code sortOnUpload}. */
+        public static final @NotNull String RENDER_SETUP_BUILDER =
+            "net/minecraft/client/renderer/rendertype/RenderSetup$RenderSetupBuilder";
+
         /** {@code EquipmentClientInfo$LayerType} - the equipment texture-subdir enum ({@code <clinit>} id LDCs). */
         public static final @NotNull String EQUIPMENT_LAYER_TYPE = "net/minecraft/client/resources/model/EquipmentClientInfo$LayerType";
 
@@ -703,6 +713,15 @@ public final class VanillaSourceClasses {
 
         /** {@code BlendFunction.ADDITIVE} - the additive-glow blend constant (energy swirl). */
         public static final @NotNull String ADDITIVE = "ADDITIVE";
+
+        /** {@code DepthStencilState.DEFAULT} - the {@code LESS_THAN_OR_EQUAL}, depth-writing state. */
+        public static final @NotNull String DEPTH_STENCIL_DEFAULT = "DEFAULT";
+
+        /** {@code RenderPipeline$Builder.withDepthStencilState} - the depth-state builder call. */
+        public static final @NotNull String WITH_DEPTH_STENCIL_STATE = "withDepthStencilState";
+
+        /** {@code RenderSetup$RenderSetupBuilder.sortOnUpload} - the back-to-front quad-sort declaration. */
+        public static final @NotNull String SORT_ON_UPLOAD = "sortOnUpload";
 
     }
 

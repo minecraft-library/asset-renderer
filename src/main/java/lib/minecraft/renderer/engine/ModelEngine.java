@@ -60,9 +60,10 @@ import java.util.stream.IntStream;
  * on the per-triangle surface normal. Individual triangles can opt out of culling by setting
  * {@link SurfaceTraits#cullBackFaces()} to {@code false} - used for two-sided geometry such as
  * glass panes, leaves, banners, and the interior faces of beds and other non-convex blocks.
- * Translucent (partial-alpha shell) triangles are additionally sorted back-to-front by quad depth
- * ({@link #sortNoCullBackToFront}), and emissive overlays skip the depth write so nested
- * translucent layers accumulate.
+ * Translucent (partial-alpha shell) triangles, and any pass whose render type declares vanilla's
+ * {@code sortOnUpload}, are additionally sorted back-to-front by quad depth
+ * ({@link #sortNoCullBackToFront}); a pass vanilla registers with the depth write disabled skips it
+ * here too, so its nested layers accumulate against the opaque depth behind them.
  */
 public class ModelEngine {
 
@@ -540,13 +541,17 @@ public class ModelEngine {
      * pixel (78,15) goes from (73,123,63,180) to (96,161,82,233) which lands within 1-7 channel
      * units of vanilla's (95,158,75,233). Slime delta 14.86 -> 0.09.
      * <p>
-     * Gates on {@link SurfaceTraits#translucent()} rather than {@link
-     * SurfaceTraits#cullBackFaces()} so alpha-cutout no-cull cubes (warden tendrils, mushroom
-     * block-overlays whose texels are strictly alpha 0 or 255) stay in emission order. Sorting
-     * those would shuffle a base/overlay coplanar pair non-deterministically because their
-     * alpha-255 fragments depth-resolve on emission-order tie-break rather than a true blend.
-     * The narrower gate avoids the mooshroom-block-overlay regression an earlier
-     * {@code !cullBackFaces()} version produced (mooshroom 0.56 -> 4.48).
+     * Gates on {@link SurfaceTraits#translucent()} or the pass's declared
+     * {@link SurfaceTraits#sorted()} rather than on {@link SurfaceTraits#cullBackFaces()}, so
+     * alpha-cutout no-cull cubes (warden tendrils, mushroom block-overlays whose texels are strictly
+     * alpha 0 or 255) stay in emission order. Sorting those would shuffle a base/overlay coplanar
+     * pair non-deterministically because their alpha-255 fragments depth-resolve on emission-order
+     * tie-break rather than a true blend. The narrower gate avoids the mooshroom-block-overlay
+     * regression an earlier {@code !cullBackFaces()} version produced (mooshroom 0.56 -&gt; 4.48).
+     * <p>
+     * The {@code sorted} arm is vanilla's {@code RenderSetup.sortOnUpload}, which the energy swirl
+     * declares. It only bites alongside {@link SurfaceTraits#writesDepth()} - with no depth write
+     * every fragment passes, and saturating addition does not care what order it arrives in.
      * <p>
      * Non-translucent triangles stay in emission order because that order <em>is</em> the
      * painter's-algorithm coplanar tie-break - {@link #depthFails} passes an equal depth, so the
@@ -557,12 +562,12 @@ public class ModelEngine {
         int total = prepared.size();
         int translucentCount = 0;
         for (Projected p : prepared)
-            if (p.source().traits().translucent()) translucentCount++;
+            if (sortsBackToFront(p)) translucentCount++;
         if (translucentCount == 0) return prepared;
         List<Projected> opaque = new ArrayList<>(total - translucentCount);
         List<Projected> translucent = new ArrayList<>(translucentCount);
         for (Projected p : prepared) {
-            if (p.source().traits().translucent()) translucent.add(p);
+            if (sortsBackToFront(p)) translucent.add(p);
             else opaque.add(p);
         }
         // Smaller depth value = farther in our convention; we want farthest first so closer
@@ -581,38 +586,57 @@ public class ModelEngine {
     }
 
     /**
-     * Depth sort key for a translucent triangle that is stable across the two triangles a quad is
-     * split into. A quad emits {@code (TL, BL, BR)} and {@code (TL, BR, TR)}, both sharing the
-     * {@code TL-BR} diagonal - which is the hypotenuse, i.e. the longest edge of each triangle. The
-     * midpoint depth of that longest edge is therefore the same value for both triangles (the quad's
-     * diagonal centre), so sorting on it keeps a quad's halves together and orders quads back-to-front
-     * the way vanilla's per-quad translucent sort does. Uses screen-space edge lengths to pick the
-     * diagonal (the visual triangulation) and camera-space {@code z} for the depth value.
+     * Whether a triangle belongs to a pass drawn back-to-front - either partial-alpha geometry whose
+     * translucency is in its texture, or a pass whose render type declares vanilla's
+     * {@code sortOnUpload}.
      *
-     * @param t the projected translucent triangle
+     * @param t the projected triangle
+     * @return whether this triangle sorts rather than keeping emission order
+     */
+    private static boolean sortsBackToFront(@NotNull Projected t) {
+        return t.source().traits().translucent() || t.source().traits().sorted();
+    }
+
+    /**
+     * Depth sort key for a triangle that is stable across the two triangles a quad is split into. A
+     * quad emits {@code (TL, BL, BR)} and {@code (TL, BR, TR)}, both sharing the {@code TL-BR}
+     * diagonal, which for the rectangle every cube face is is the longest of the three edges. The
+     * midpoint depth of that diagonal is therefore the same value for both triangles - and for a
+     * parallelogram it is also the quad's centroid, the point vanilla's own {@code MeshData.sortQuads}
+     * keys on - so sorting on it keeps a quad's halves together and orders quads back-to-front the way
+     * vanilla does.
+     * <p>
+     * <b>The longest edge is measured in camera space, not on screen.</b> An iso projection turns a
+     * square face into a rhombus whose short diagonal is no longer than its sides, so a screen-space
+     * test picks a different edge for each half of such a quad and splits it; the halves then sort
+     * apart, and once a sorted pass also writes depth they fight along the diagonal they share. In
+     * camera space a cube face is still a rectangle, and its diagonal is unambiguously longest.
+     *
+     * @param t the projected triangle
      * @return the parent quad's diagonal-midpoint depth (smaller = farther)
      */
     private static float quadDepthKey(@NotNull Projected t) {
-        float e01 = screenDistSq(t.s0(), t.s1());
-        float e12 = screenDistSq(t.s1(), t.s2());
-        float e20 = screenDistSq(t.s2(), t.s0());
+        float e01 = camDistSq(t.p0(), t.p1());
+        float e12 = camDistSq(t.p1(), t.p2());
+        float e20 = camDistSq(t.p2(), t.p0());
         if (e01 >= e12 && e01 >= e20) return (t.p0().z() + t.p1().z()) * 0.5f;
         if (e12 >= e20) return (t.p1().z() + t.p2().z()) * 0.5f;
         return (t.p2().z() + t.p0().z()) * 0.5f;
     }
 
     /**
-     * Squared Euclidean distance between two screen-space points, used by {@link #quadDepthKey} to pick
-     * a triangle's longest edge (the shared quad diagonal) without a square root.
+     * Squared Euclidean distance between two camera-space points, used by {@link #quadDepthKey} to
+     * pick a triangle's longest edge (the shared quad diagonal) without a square root.
      *
-     * @param a the first screen-space point
-     * @param b the second screen-space point
+     * @param a the first camera-space point
+     * @param b the second camera-space point
      * @return the squared distance between {@code a} and {@code b}
      */
-    private static float screenDistSq(@NotNull Vector2f a, @NotNull Vector2f b) {
+    private static float camDistSq(@NotNull Vector3f a, @NotNull Vector3f b) {
         float dx = a.x() - b.x();
         float dy = a.y() - b.y();
-        return dx * dx + dy * dy;
+        float dz = a.z() - b.z();
+        return dx * dx + dy * dy + dz * dz;
     }
 
     /**
@@ -801,25 +825,21 @@ public class ModelEngine {
                         u, v, tx, ty,
                         rawTexel, t.source.tintArgb(), afterTint,
                         shading, afterShade, blendMode, outArgb);
-                    // Depth written for non-emissive pixels. Emissive fragments deliberately
-                    // skip the depth write so that overlapping translucent layers (breeze wind
-                    // cone with 3 nested cubes at the same Y plane) can all accumulate via
-                    // source-over instead of the first-drawn polygon's depth value rejecting
-                    // every subsequent polygon at the same screen pixel. Mirrors vanilla's
-                    // breeze pipeline behaviour where `sortOnUpload` + LESS_THAN_OR_EQUAL
-                    // depth lets all wind polygons render in back-to-front order; our
-                    // bone-order emission isn't depth-sorted, but skipping the depth write
-                    // lets every emissive polygon compare against the original opaque depth
-                    // (body / background) regardless of which emissive polygon drew first.
+                    // Depth is written when the pass declares it - vanilla's
+                    // DepthStencilState.writeDepth, carried per overlay rather than inferred from
+                    // any other flag. A pass registered write-disabled (the eyes pipelines) lets its
+                    // nested polygons all compare against the original opaque depth behind them and
+                    // accumulate whatever order they arrive in. A pass that DOES write - every body,
+                    // and the energy swirl, which declares DepthStencilState.DEFAULT - occludes its
+                    // own later fragments, which is what stops a two-sided inflated shell adding its
+                    // far faces on top of its near ones.
                     //
-                    // Non-emissive partial-alpha layers (slime outer shell) still depend on
-                    // painter's order - they must be inserted into the bone/triangle list
-                    // AFTER any opaque content meant to be visible behind them. The slime
-                    // outer-shell extra_bone is appended last for exactly this reason.
-                    // {@link #sortNoCullBackToFront} additionally sorts partial-alpha (translucent)
-                    // triangles back-to-front so the closer face writes LAST, matching vanilla's
-                    // translucent draw order.
-                    if (!tr.emissive())
+                    // Partial-alpha layers (slime outer shell) still depend on painter's order -
+                    // they must be inserted into the bone/triangle list AFTER any opaque content
+                    // meant to be visible behind them. The slime outer-shell extra_bone is appended
+                    // last for exactly this reason. {@link #sortNoCullBackToFront} additionally
+                    // draws a pass vanilla sorts back-to-front, so the closer face writes LAST.
+                    if (tr.writesDepth())
                         depth[idx] = depthVal;
                 }
             }
@@ -837,10 +857,11 @@ public class ModelEngine {
      *
      * <p>Emissive fragments once carried a slack here, so an overlay drawn at - or a shade behind - the
      * base it sits on still blended rather than being culled. Nothing needs it: the overlays it was
-     * written for are pushed clear of their base by the loader's depth clearance, and every emissive
-     * fragment already skips the depth <em>write</em>, so a stack of them accumulates against the opaque
-     * depth behind whatever order they arrive in. Swept across four orders of magnitude the slack
-     * decided two rows in the corpus, both charged auras, and both are closer without it.
+     * written for are pushed clear of their base by the loader's depth clearance, and a pass vanilla
+     * registers write-disabled skips the depth <em>write</em>, so a stack of its fragments accumulates
+     * against the opaque depth behind whatever order they arrive in. Swept across four orders of
+     * magnitude the slack decided two rows in the corpus, both charged auras, and both are closer
+     * without it.
      *
      * @param depthVal the candidate fragment's depth
      * @param existingDepth the depth currently stored at this pixel

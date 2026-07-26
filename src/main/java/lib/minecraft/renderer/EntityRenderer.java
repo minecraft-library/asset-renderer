@@ -529,13 +529,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                         Optional<PixelBuffer> overlayTex = overlayRef.map(s -> ctx.textures().resolveEntityTextureAtTick(s, ctx.tick()))
                             .orElseGet(() -> Optional.of(ctx.baseTexture()));
                         if (overlayTex.isEmpty()) return;
-                        // The overlay's declared blend / alpha (default NORMAL / 1.0) ride onto every
-                        // emitted triangle via EntityBuildParams - the additive energy-swirl glow and
-                        // the warden pulsating-spots opacity multiplier; every un-annotated overlay
-                        // keeps the source-over full-opacity default.
+                        // The overlay's declared pipeline state rides onto every emitted triangle via
+                        // EntityBuildParams - the additive energy-swirl glow, the warden pulsating-spots
+                        // opacity multiplier, and the depth-write / quad-sort pair vanilla declares on
+                        // the pass itself; every un-annotated overlay keeps the source-over full-opacity
+                        // depth-writing default.
                         sink.addAll(EntityGeometryKit.buildTriangles(overlayMesh, overlayTex.get(),
                             new EntityGeometryKit.EntityBuildParams(ctx.modelAnchor(), overlay.emissive(),
-                                ctx.ndcScale(), ctx.modelScale(), overlayTint, overlay.blend(), overlay.alpha())
+                                ctx.ndcScale(), ctx.modelScale(), overlayTint, overlay.blend(), overlay.alpha(),
+                                overlay.writesDepth(), overlay.sorted())
                         ).triangles());
                     });
                 }

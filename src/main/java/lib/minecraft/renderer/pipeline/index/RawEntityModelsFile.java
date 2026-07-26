@@ -275,11 +275,18 @@ record RawOverlayBaby(
  * @param emissive whether the overlay renders full-bright
  * @param blend the composition token ({@code additive} / {@code translucent} / {@code normal}), or {@code null}
  * @param alpha the per-fragment opacity, boxed so an absent member falls to {@code 1f}
+ * @param depthWrite whether the pass writes the depth buffer, boxed so an absent member falls to
+ *     {@code true} - the value {@code DepthStencilState.DEFAULT} carries and all but the eyes-style
+ *     passes declare
+ * @param sorted whether the pass's quads are drawn back-to-front, from vanilla's
+ *     {@code RenderSetup.sortOnUpload}; absent means submission order
  */
 record RawPipeline(
     boolean emissive,
     @Nullable String blend,
-    @Nullable Float alpha
+    @Nullable Float alpha,
+    @SerializedName("depth_write") @Nullable Boolean depthWrite,
+    boolean sorted
 ) {}
 
 /**

@@ -118,12 +118,14 @@ public class EntityGeometryKit {
         int tintArgb,
         @NotNull Composition blend,
         float alpha,
+        boolean writesDepth,
+        boolean sorted,
         @NotNull LightingFrame lighting
     ) {
         /**
-         * Constructs build params compositing with an explicit blend / opacity and the
+         * Constructs build params compositing with an explicit pipeline declaration and the
          * {@link #DEFAULT_ENTITY_LIGHTING default entity lighting frame}. Only a caller substituting the
-         * lighting (a mirror, a borrowed angle) uses the canonical eight-argument constructor.
+         * lighting (a mirror, a borrowed angle) uses the canonical ten-argument constructor.
          *
          * @param centreAnchor model-space point that maps to the canvas centre
          * @param emissive whether every emitted triangle renders full-bright
@@ -132,12 +134,15 @@ public class EntityGeometryKit {
          * @param tintArgb ARGB tint multiplied into every sampled texel
          * @param blend the colour-composition mode baked onto every emitted triangle
          * @param alpha the per-fragment opacity multiplier baked onto every emitted triangle
+         * @param writesDepth whether a surviving fragment writes its depth
+         * @param sorted whether the pass's quads are drawn back-to-front
          */
         public EntityBuildParams(
             @NotNull Vector3f centreAnchor, boolean emissive, float ndcScale, float modelScale,
-            int tintArgb, @NotNull Composition blend, float alpha
+            int tintArgb, @NotNull Composition blend, float alpha, boolean writesDepth, boolean sorted
         ) {
-            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, blend, alpha, DEFAULT_ENTITY_LIGHTING);
+            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, blend, alpha, writesDepth, sorted,
+                 DEFAULT_ENTITY_LIGHTING);
         }
 
         /**
@@ -154,7 +159,7 @@ public class EntityGeometryKit {
         public EntityBuildParams(
             @NotNull Vector3f centreAnchor, boolean emissive, float ndcScale, float modelScale, int tintArgb
         ) {
-            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, Composition.NORMAL, 1f);
+            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, Composition.NORMAL, 1f, true, false);
         }
     }
 
@@ -233,6 +238,8 @@ public class EntityGeometryKit {
         int tintArgb = params.tintArgb();
         Composition blend = params.blend();
         float alpha = params.alpha();
+        boolean writesDepth = params.writesDepth();
+        boolean sorted = params.sorted();
         Lighting.EntityLighting lighting = Lighting.resolveEntity(params.lighting());
 
         Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
@@ -359,14 +366,16 @@ public class EntityGeometryKit {
                         effUv[0], effUv[1], effUv[2],
                         texture, tintArgb,
                         normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha), debugTag
+                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha,
+                                          writesDepth, sorted), debugTag
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[2], corners[3],
                         effUv[0], effUv[2], effUv[3],
                         texture, tintArgb,
                         normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha), debugTag
+                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha,
+                                          writesDepth, sorted), debugTag
                     ));
                 }
             }

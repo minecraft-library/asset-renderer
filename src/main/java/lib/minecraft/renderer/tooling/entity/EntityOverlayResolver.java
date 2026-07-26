@@ -325,15 +325,27 @@ final class EntityOverlayResolver {
     /**
      * The {@code pipeline} node - {@code emissive} is the walked NO_CARDINAL_LIGHTING trait
      * (absent = shaded), {@code blend} the additive / translucent classification (absent =
-     * normal), {@code alpha} the fractional frozen-frame opacity (absent = 1.0). Null when
-     * every member is at its default.
+     * normal), {@code alpha} the fractional frozen-frame opacity (absent = 1.0),
+     * {@code depth_write} the pipeline's {@code DepthStencilState.writeDepth} (absent = writes,
+     * which is what {@code DepthStencilState.DEFAULT} declares) and {@code sorted} its
+     * {@code RenderSetup.sortOnUpload} (absent = drawn in submission order). Each member omits its
+     * identity, so the node is null when the pass is an ordinary shaded source-over one.
+     *
+     * @param emissive whether the pass skips cardinal lighting
+     * @param blend the blend token, or {@code null} for source-over
+     * @param alpha the opacity multiplier
+     * @param writesDepth whether the pass writes the depth buffer
+     * @param sorted whether the pass's quads are drawn back-to-front
      */
-    private static @Nullable JsonTree pipelineNode(boolean emissive, @Nullable String blend, float alpha) {
-        if (!emissive && blend == null && alpha >= 1f) return null;
+    private static @Nullable JsonTree pipelineNode(boolean emissive, @Nullable String blend, float alpha,
+                                                   boolean writesDepth, boolean sorted) {
+        if (!emissive && blend == null && alpha >= 1f && writesDepth && !sorted) return null;
         JsonTree node = JsonTree.object();
         if (emissive) node.put("emissive", true);
         if (blend != null) node.put("blend", blend);
         if (alpha < 1f) node.put("alpha", alpha);
+        if (!writesDepth) node.put("depth_write", false);
+        if (sorted) node.put("sorted", true);
         return node;
     }
 
@@ -394,7 +406,8 @@ final class EntityOverlayResolver {
                     .put("texture", namespaced(pendingTexture));
                 node.putIf("pipeline", pipelineNode(
                     factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-                    this.traits.blendTokenOf(mi.name), 1f));
+                    this.traits.blendTokenOf(mi.name), 1f,
+                    this.traits.factoryWritesDepth(mi.name), this.traits.factorySortsQuads(mi.name)));
                 this.diagnostics.info("eyes overlay '%s' via clinit RenderTypes.%s [D20]", simpleName(sourceClass), mi.name);
                 return node;
             }
@@ -435,7 +448,8 @@ final class EntityOverlayResolver {
                     .put("texture", namespaced(pendingTexture));
                 node.putIf("pipeline", pipelineNode(
                     factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-                    this.traits.blendTokenOf(mi.name), 1f));
+                    this.traits.blendTokenOf(mi.name), 1f,
+                    this.traits.factoryWritesDepth(mi.name), this.traits.factorySortsQuads(mi.name)));
                 this.diagnostics.info("renderer-tail eyes via clinit RenderTypes.%s", mi.name);
                 return node;
             }
@@ -516,7 +530,8 @@ final class EntityOverlayResolver {
         node.putIf("tint_by", tint.axisToken());
         node.putIf("pipeline", pipelineNode(
             this.traits.layerInvokes(cn.name, EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-            this.traits.classifyBlend(cn.name), 1f));
+            this.traits.classifyBlend(cn.name), 1f,
+            this.traits.layerWritesDepth(cn.name), this.traits.layerSortsQuads(cn.name)));
         putGrow(node, mesh.grow());
         node.putIf("baby", compositeBabyForm(cn));
         return node;
@@ -1040,6 +1055,8 @@ final class EntityOverlayResolver {
         var factoryTraits = this.traits.traitsOf(factoryName);
         boolean emissive = factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING);
         String blend = this.traits.blendTokenOf(factoryName);
+        boolean writesDepth = this.traits.factoryWritesDepth(factoryName);
+        boolean sorted = this.traits.factorySortsQuads(factoryName);
 
         boolean primaryMesh = modelField == null || modelField.equals(this.geometryRef.primaryFieldName());
         JsonTree node = row(site.layerClass(), site.layerIndex());
@@ -1047,7 +1064,7 @@ final class EntityOverlayResolver {
             node.putIf("geometry", this.geometryRef.primaryKey())
                 .put("texture", texture.path())
                 .putIf("texture_by", texture.textureBy())
-                .putIf("pipeline", pipelineNode(emissive, blend, 1f));
+                .putIf("pipeline", pipelineNode(emissive, blend, 1f, writesDepth, sorted));
             return List.of(node);
         }
         if (alpha >= EntityOverlayPolicies.FULL_MESH_REUSE_ALPHA_EPSILON.floatValue()) {
@@ -1056,7 +1073,7 @@ final class EntityOverlayResolver {
             node.putIf("geometry", this.geometryRef.primaryKey())
                 .put("texture", texture.path())
                 .putIf("texture_by", texture.textureBy())
-                .putIf("pipeline", pipelineNode(emissive, blend, 1f))
+                .putIf("pipeline", pipelineNode(emissive, blend, 1f, writesDepth, sorted))
                 .put("skip_bounds", true);
             return List.of(node);
         }
@@ -1074,7 +1091,7 @@ final class EntityOverlayResolver {
         node.put("geometry", key)
             .put("texture", texture.path())
             .putIf("texture_by", texture.textureBy())
-            .putIf("pipeline", pipelineNode(emissive, blend, alpha))
+            .putIf("pipeline", pipelineNode(emissive, blend, alpha, writesDepth, sorted))
             .put("skip_bounds", true);
         JsonTree bones = node.childArray("retain_bones");
         for (String bone : retain) bones.add(bone);
@@ -1728,7 +1745,8 @@ final class EntityOverlayResolver {
         node.putIf("tint_by", tint.axisToken());
         node.putIf("pipeline", pipelineNode(
             this.traits.layerInvokes(cn.name, EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-            this.traits.classifyBlend(cn.name), 1f));
+            this.traits.classifyBlend(cn.name), 1f,
+            this.traits.layerWritesDepth(cn.name), this.traits.layerSortsQuads(cn.name)));
         putGrow(node, mesh.grow());
         return node;
     }

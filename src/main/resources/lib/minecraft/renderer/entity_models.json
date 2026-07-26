@@ -290,7 +290,8 @@
           "geometry": "BreezeModel#createWindLayer",
           "texture": "minecraft:textures/entity/breeze/breeze_wind.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "sorted": true
           }
         },
         {
@@ -299,7 +300,9 @@
           "geometry": "BreezeModel#createBodyLayer",
           "texture": "minecraft:textures/entity/breeze/breeze_eyes.png",
           "pipeline": {
-            "blend": "translucent"
+            "blend": "translucent",
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -563,7 +566,9 @@
           "geometry": "SpiderModel#createSpiderBodyLayer@scaled=0.7",
           "texture": "minecraft:textures/entity/spider/spider_eyes.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -667,7 +672,9 @@
           "texture": "minecraft:textures/entity/copper_golem/copper_golem_eyes.png",
           "texture_by": "weathering",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -776,7 +783,8 @@
           "tint": "0xFF808080",
           "pipeline": {
             "emissive": true,
-            "blend": "additive"
+            "blend": "additive",
+            "sorted": true
           },
           "grow": 2.0
         }
@@ -952,7 +960,9 @@
           "geometry": "EndermanModel#createBodyLayer",
           "texture": "minecraft:textures/entity/enderman/enderman_eyes.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ],
@@ -1029,7 +1039,9 @@
           "geometry": "EnderDragonModel#createBodyLayer",
           "texture": "minecraft:textures/entity/enderdragon/dragon_eyes.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -2066,7 +2078,9 @@
           "geometry": "PhantomModel#createBodyLayer",
           "texture": "minecraft:textures/entity/phantom/phantom_eyes.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -2593,7 +2607,8 @@
           "geometry": "SlimeModel#createOuterBodyLayer",
           "texture": "minecraft:textures/entity/slime/slime.png",
           "pipeline": {
-            "blend": "translucent"
+            "blend": "translucent",
+            "sorted": true
           }
         }
       ]
@@ -2682,7 +2697,9 @@
           "geometry": "SpiderModel#createSpiderBodyLayer",
           "texture": "minecraft:textures/entity/spider/spider_eyes.png",
           "pipeline": {
-            "emissive": true
+            "emissive": true,
+            "depth_write": false,
+            "sorted": true
           }
         }
       ]
@@ -3109,7 +3126,9 @@
           "geometry": "WardenModel#createBodyLayer",
           "texture": "minecraft:textures/entity/warden/warden_bioluminescent_layer.png",
           "pipeline": {
-            "blend": "translucent"
+            "blend": "translucent",
+            "depth_write": false,
+            "sorted": true
           },
           "skip_bounds": true
         },
@@ -3120,7 +3139,9 @@
           "texture": "minecraft:textures/entity/warden/warden_pulsating_spots_1.png",
           "pipeline": {
             "blend": "translucent",
-            "alpha": 0.25
+            "alpha": 0.25,
+            "depth_write": false,
+            "sorted": true
           },
           "skip_bounds": true,
           "retain_bones": [
@@ -3176,7 +3197,8 @@
           "tint": "0xFF808080",
           "pipeline": {
             "emissive": true,
-            "blend": "additive"
+            "blend": "additive",
+            "sorted": true
           },
           "grow": 0.5
         }

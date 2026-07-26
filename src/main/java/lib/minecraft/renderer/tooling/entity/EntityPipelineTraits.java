@@ -89,8 +89,18 @@ final class EntityPipelineTraits {
     /** ClientAcquisition field name to build-block trait set - the ONE {@code RenderPipelines.<clinit>} walk, lazy. */
     private @Nullable Map<String, Set<Trait>> pipelineTraits;
 
+    /**
+     * Pipeline (and snippet) field name to the {@code writeDepth} its {@code DepthStencilState}
+     * declares, filled by the same {@code <clinit>} walk that fills {@link #pipelineTraits}. Absent
+     * where no state was declared and none could be inherited from a snippet.
+     */
+    private final @NotNull Map<String, Boolean> pipelineDepthWrite = new LinkedHashMap<>();
+
     /** Factory name to resolved trait set - the per-factory memo. */
     private final @NotNull Map<String, Set<Trait>> factoryTraits = new LinkedHashMap<>();
+
+    /** Factory name to whether its {@code RenderSetup} declares {@code sortOnUpload} - the per-factory memo. */
+    private final @NotNull Map<String, Boolean> factorySorts = new LinkedHashMap<>();
 
     EntityPipelineTraits(@NotNull ClassNodeCache cache) {
         this.cache = cache;
@@ -182,6 +192,98 @@ final class EntityPipelineTraits {
     }
 
     /**
+     * Whether one {@code RenderTypes} factory's pipeline writes depth - vanilla's
+     * {@code DepthStencilState.writeDepth}, which is a pipeline declaration in its own right rather
+     * than a consequence of the {@code EMISSIVE} define. {@code DepthStencilState.DEFAULT} is
+     * {@code (LESS_THAN_OR_EQUAL, true)}, and a pipeline declaring no state of its own inherits the
+     * one on the snippet it was built from, so an unresolved factory answers {@code true} - the
+     * value all but a handful of pipelines carry.
+     *
+     * @param factoryName the {@code RenderTypes} factory method name
+     * @return whether fragments of this pass write the depth buffer
+     */
+    boolean factoryWritesDepth(@NotNull String factoryName) {
+        String pipelineField = resolveFactoryPipeline(factoryName);
+        if (pipelineField == null) return true;
+        pipelines();
+        return this.pipelineDepthWrite.getOrDefault(pipelineField, Boolean.TRUE);
+    }
+
+    /**
+     * Whether one {@code RenderTypes} factory's {@code RenderSetup} declares {@code sortOnUpload} -
+     * the flag that has vanilla sort the pass's quads back-to-front by centroid before it
+     * rasterizes them. Read off the factory body, or off the lambda a memoized
+     * {@code Function}-backed factory is bound to, since that is where the builder chain lives.
+     *
+     * @param factoryName the {@code RenderTypes} factory method name
+     * @return whether this pass's quads are drawn back-to-front
+     */
+    boolean factorySortsQuads(@NotNull String factoryName) {
+        return this.factorySorts.computeIfAbsent(factoryName, name -> {
+            ClassNode renderTypes = this.cache.load(VanillaSourceClasses.Types.RENDER_TYPES);
+            if (renderTypes == null) return false;
+            for (MethodNode method : renderTypes.methods) {
+                if (!name.equals(method.name)) continue;
+                if (declaresSortOnUpload(method)) return true;
+                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                    if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
+                    if (!renderTypes.name.equals(fi.owner)) continue;
+                    if (!FUNCTION_DESC.equals(fi.desc) && !BIFUNCTION_DESC.equals(fi.desc)) continue;
+                    MethodNode lambda = chaseFunctionFieldLambda(renderTypes, fi.name);
+                    if (lambda != null && declaresSortOnUpload(lambda)) return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    /**
+     * Whether every {@code RenderTypes} factory the layer hierarchy reaches writes depth. Instance
+     * methods only, per {@link #layerInvokes} - a layer reaching none answers {@code true}, the
+     * default every ordinary pass carries.
+     *
+     * @param layerClass the layer class's JVM internal name
+     * @return whether the layer's pass writes depth
+     */
+    boolean layerWritesDepth(@NotNull String layerClass) {
+        boolean[] writes = {true};
+        AsmKit.walkSuperChain(this.cache, layerClass, cn -> {
+            for (String factory : instanceFactoryCalls(cn))
+                if (!factoryWritesDepth(factory)) writes[0] = false;
+        });
+        return writes[0];
+    }
+
+    /**
+     * Whether any {@code RenderTypes} factory the layer hierarchy reaches sorts its quads. Instance
+     * methods only, per {@link #layerInvokes}.
+     *
+     * @param layerClass the layer class's JVM internal name
+     * @return whether the layer's pass is drawn back-to-front
+     */
+    boolean layerSortsQuads(@NotNull String layerClass) {
+        boolean[] sorts = {false};
+        AsmKit.walkSuperChain(this.cache, layerClass, cn -> {
+            if (sorts[0]) return;
+            for (String factory : instanceFactoryCalls(cn))
+                if (factorySortsQuads(factory)) {
+                    sorts[0] = true;
+                    return;
+                }
+        });
+        return sorts[0];
+    }
+
+    /** Whether a method body invokes {@code RenderSetup$RenderSetupBuilder.sortOnUpload}. */
+    private static boolean declaresSortOnUpload(@NotNull MethodNode method) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDER_SETUP_BUILDER,
+                                       VanillaSourceClasses.Defines.SORT_ON_UPLOAD))
+                return true;
+        return false;
+    }
+
+    /**
      * How strongly a token claims a layer, so a hierarchy reaching several factories resolves to one
      * without depending on walk order - additive over translucent over cutout over the default.
      *
@@ -255,11 +357,24 @@ final class EntityPipelineTraits {
     }
 
     /**
-     * The {@code RenderPipelines.X} field a lambda-backed factory field builds against:
-     * pairs the {@code <clinit>} {@code invokedynamic}; {@code PUTSTATIC <fieldName>} chain
-     * and reads the bound lambda's first pipeline reference.
+     * The {@code RenderPipelines.X} field a lambda-backed factory field builds against - the first
+     * pipeline reference in the lambda the field is bound to.
      */
     private static @Nullable String chaseFunctionFieldPipeline(@NotNull ClassNode renderTypes, @NotNull String fieldName) {
+        MethodNode lambda = chaseFunctionFieldLambda(renderTypes, fieldName);
+        if (lambda == null) return null;
+        for (AbstractInsnNode li = lambda.instructions.getFirst(); li != null; li = li.getNext())
+            if (AsmKit.isGetStatic(li, VanillaSourceClasses.Types.RENDER_PIPELINES))
+                return ((FieldInsnNode) li).name;
+        return null;
+    }
+
+    /**
+     * The lambda body a memoized {@code Function} / {@code BiFunction} factory field is bound to:
+     * pairs the {@code <clinit>} {@code invokedynamic}; {@code PUTSTATIC <fieldName>} chain and
+     * resolves the captured handle back to its synthetic method.
+     */
+    private static @Nullable MethodNode chaseFunctionFieldLambda(@NotNull ClassNode renderTypes, @NotNull String fieldName) {
         MethodNode clinit = AsmKit.findMethod(renderTypes, AsmKit.CLINIT);
         if (clinit == null) return null;
         Handle pendingLambda = null;
@@ -269,14 +384,8 @@ final class EntityPipelineTraits {
                 if (handle != null) pendingLambda = handle;
                 continue;
             }
-            if (AsmKit.isPutStatic(in, renderTypes.name, fieldName) && pendingLambda != null) {
-                MethodNode lambda = AsmKit.findMethod(renderTypes, pendingLambda.getName(), pendingLambda.getDesc());
-                if (lambda == null) return null;
-                for (AbstractInsnNode li = lambda.instructions.getFirst(); li != null; li = li.getNext())
-                    if (AsmKit.isGetStatic(li, VanillaSourceClasses.Types.RENDER_PIPELINES))
-                        return ((FieldInsnNode) li).name;
-                return null;
-            }
+            if (AsmKit.isPutStatic(in, renderTypes.name, fieldName) && pendingLambda != null)
+                return AsmKit.findMethod(renderTypes, pendingLambda.getName(), pendingLambda.getDesc());
         }
         return null;
     }
@@ -297,10 +406,42 @@ final class EntityPipelineTraits {
 
         EnumSet<Trait> block = EnumSet.noneOf(Trait.class);
         String pendingDefine = null;
+        Boolean blockDepthWrite = null;
+        Boolean pendingBoolean = null;
+        List<String> blockSnippets = new ArrayList<>();
         for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingDefine = literal;
+                continue;
+            }
+            Boolean flag = AsmKit.readBooleanLiteral(in);
+            if (flag != null) {
+                pendingBoolean = flag;
+                continue;
+            }
+            // The depth-stencil state, in the two shapes vanilla writes it: the shared DEFAULT
+            // constant (LESS_THAN_OR_EQUAL, writeDepth true) and an explicit
+            // `new DepthStencilState(CompareOp, writeDepth)` whose flag is the boolean standing on
+            // the stack when the constructor is reached.
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DEPTH_STENCIL_STATE)
+                && in instanceof FieldInsnNode dsf
+                && VanillaSourceClasses.Defines.DEPTH_STENCIL_DEFAULT.equals(dsf.name)) {
+                blockDepthWrite = Boolean.TRUE;
+                continue;
+            }
+            if (AsmKit.isInvokeSpecial(in, VanillaSourceClasses.Types.DEPTH_STENCIL_STATE, AsmKit.INIT)
+                && pendingBoolean != null) {
+                blockDepthWrite = pendingBoolean;
+                pendingBoolean = null;
+                continue;
+            }
+            // A block builds on zero or more snippets and inherits whatever state it does not
+            // declare itself, so a pipeline naming no DepthStencilState (breeze wind) still has one.
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.RENDER_PIPELINES)
+                && in instanceof FieldInsnNode sf
+                && VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RENDER_PIPELINE_SNIPPET).equals(sf.desc)) {
+                blockSnippets.add(sf.name);
                 continue;
             }
             if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
@@ -320,8 +461,20 @@ final class EntityPipelineTraits {
             }
             if (in.getOpcode() == Opcodes.PUTSTATIC && in instanceof FieldInsnNode fi) {
                 out.put(fi.name, block.isEmpty() ? Set.of() : Collections.unmodifiableSet(EnumSet.copyOf(block)));
+                if (blockDepthWrite == null)
+                    for (String snippet : blockSnippets) {
+                        Boolean inherited = this.pipelineDepthWrite.get(snippet);
+                        if (inherited != null) {
+                            blockDepthWrite = inherited;
+                            break;
+                        }
+                    }
+                if (blockDepthWrite != null) this.pipelineDepthWrite.put(fi.name, blockDepthWrite);
                 block = EnumSet.noneOf(Trait.class);
                 pendingDefine = null;
+                blockDepthWrite = null;
+                pendingBoolean = null;
+                blockSnippets.clear();
             }
         }
         this.pipelineTraits = out;

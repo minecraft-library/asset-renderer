@@ -4,15 +4,23 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The surface concerns the rasterizer reads off each {@link VisibleTriangle}, grouped into one value
- * carried by the triangle: four boolean flags plus the overlay's colour-composition mode and opacity
+ * carried by the triangle: six boolean flags plus the overlay's colour-composition mode and opacity
  * multiplier.
  * <p>
  * A triangle's surface character is declared once at construction rather than threaded as loose
  * flags. The {@code with*} helpers compose a new traits value for a derived triangle; they never
  * mutate a built {@code VisibleTriangle}. The four-argument constructor is the common case - opaque
  * or texture-alpha geometry that composites with the standard {@link Composition#NORMAL source-over}
- * blend at full opacity; only overlays that declare an explicit {@code blend} / {@code alpha} node in
- * {@code entity_models.json} carry a non-default {@link #blend} / {@link #alpha}.
+ * blend at full opacity, writes depth and draws in emission order; only overlays that declare an
+ * explicit {@code pipeline} node in {@code entity_models.json} carry a non-default {@link #blend} /
+ * {@link #alpha} / {@link #writesDepth} / {@link #sorted}.
+ * <p>
+ * <b>{@link #emissive}, {@link #writesDepth} and {@link #sorted} are three separate declarations
+ * vanilla makes, not one.</b> Emissive is the {@code EMISSIVE} shader define; the depth write is the
+ * pipeline's {@code DepthStencilState.writeDepth}; the sort is the render type's
+ * {@code sortOnUpload}. Vanilla splits them every way: the eyes pass is emissive and does not write
+ * depth, the energy swirl is emissive and does, the slime shell is neither emissive nor unsorted.
+ * Inferring any of them from another loses the passes that disagree.
  *
  * @param cullBackFaces when {@code true} the engine's back-face culling pass may discard this
  *     triangle; set to {@code false} for two-sided geometry such as leaves, glass panes, banners, and
@@ -42,10 +50,20 @@ import org.jetbrains.annotations.NotNull;
  *     overlay declaring an explicit {@code alpha} JSON node (the warden pulsating-spots glow at
  *     {@code 0.25}). Rides its own path because a fractional layer opacity cannot be carried in the
  *     overlay tint's alpha byte (the {@code MULTIPLY} tint blend preserves the texel's alpha)
+ * @param writesDepth whether a surviving fragment writes its depth, from the pass's
+ *     {@code DepthStencilState.writeDepth}. True for every body and for the energy swirl, false for
+ *     the eyes-style passes vanilla registers with an explicit write-disabled state. A pass that
+ *     writes depth occludes its own later fragments, which is what stops a two-sided inflated shell
+ *     accumulating its far faces on top of its near ones
+ * @param sorted whether the pass's quads are drawn back-to-front by camera-space centroid, from the
+ *     render type's {@code sortOnUpload}. Only meaningful alongside {@link #writesDepth}: it is the
+ *     order that decides which of two overlapping fragments writes first, and vanilla's own order is
+ *     a per-quad approximation, so a quad drawn later can still lose the test over part of its area
  */
 public record SurfaceTraits(boolean cullBackFaces, boolean emissive,
                             boolean translucent, boolean glinted,
-                            @NotNull Composition blend, float alpha) {
+                            @NotNull Composition blend, float alpha,
+                            boolean writesDepth, boolean sorted) {
 
     /**
      * Opaque, back-face-culled, non-emissive body geometry compositing with the standard source-over
@@ -55,9 +73,9 @@ public record SurfaceTraits(boolean cullBackFaces, boolean emissive,
 
     /**
      * Constructs traits for the common case - {@link Composition#NORMAL source-over} composition at
-     * full opacity ({@code alpha 1.0}). Only overlays carrying an explicit {@code blend} /
-     * {@code alpha} JSON node use the canonical six-argument constructor; every other call site
-     * (blocks, bodies, texture-alpha overlays) uses this.
+     * full opacity ({@code alpha 1.0}), writing depth and drawn in emission order. Only overlays
+     * carrying an explicit {@code pipeline} JSON node use the canonical eight-argument constructor;
+     * every other call site (blocks, bodies, texture-alpha overlays) uses this.
      *
      * @param cullBackFaces the back-face-culling flag
      * @param emissive the full-bright (skip-shading) flag
@@ -65,7 +83,7 @@ public record SurfaceTraits(boolean cullBackFaces, boolean emissive,
      * @param glinted the enchantment-foil flag
      */
     public SurfaceTraits(boolean cullBackFaces, boolean emissive, boolean translucent, boolean glinted) {
-        this(cullBackFaces, emissive, translucent, glinted, Composition.NORMAL, 1f);
+        this(cullBackFaces, emissive, translucent, glinted, Composition.NORMAL, 1f, true, false);
     }
 
     /**
@@ -75,7 +93,8 @@ public record SurfaceTraits(boolean cullBackFaces, boolean emissive,
      * @return a copy with the given cull-back-faces flag
      */
     public @NotNull SurfaceTraits withCullBackFaces(boolean value) {
-        return new SurfaceTraits(value, this.emissive, this.translucent, this.glinted, this.blend, this.alpha);
+        return new SurfaceTraits(value, this.emissive, this.translucent, this.glinted, this.blend, this.alpha,
+                                 this.writesDepth, this.sorted);
     }
 
     /**
@@ -85,7 +104,8 @@ public record SurfaceTraits(boolean cullBackFaces, boolean emissive,
      * @return a copy with the given glinted flag
      */
     public @NotNull SurfaceTraits withGlinted(boolean value) {
-        return new SurfaceTraits(this.cullBackFaces, this.emissive, this.translucent, value, this.blend, this.alpha);
+        return new SurfaceTraits(this.cullBackFaces, this.emissive, this.translucent, value, this.blend, this.alpha,
+                                 this.writesDepth, this.sorted);
     }
 
     /**
@@ -95,6 +115,7 @@ public record SurfaceTraits(boolean cullBackFaces, boolean emissive,
      * @return a copy with the given emissive flag
      */
     public @NotNull SurfaceTraits withEmissive(boolean value) {
-        return new SurfaceTraits(this.cullBackFaces, value, this.translucent, this.glinted, this.blend, this.alpha);
+        return new SurfaceTraits(this.cullBackFaces, value, this.translucent, this.glinted, this.blend, this.alpha,
+                                 this.writesDepth, this.sorted);
     }
 }

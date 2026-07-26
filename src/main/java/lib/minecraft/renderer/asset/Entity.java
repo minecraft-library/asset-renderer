@@ -616,6 +616,11 @@ public record Entity(
      *     composite. {@code 1.0} (no-op) except for an overlay carrying an explicit multiplier (the warden
      *     pulsating-spots glow at {@code 0.25}) - a fractional layer opacity that cannot ride the tint's
      *     alpha byte (the MULTIPLY tint blend preserves the texel alpha)
+     * @param writesDepth whether the pass writes the depth buffer, from its
+     *     {@code DepthStencilState.writeDepth}. Independent of {@link #emissive} - vanilla's eyes pass is
+     *     emissive and write-disabled, its energy swirl is emissive and writes - so a two-sided inflated
+     *     shell like the charged aura occludes its own far faces exactly where vanilla's does
+     * @param sorted whether the pass's quads are drawn back-to-front, from its {@code sortOnUpload}
      * @param gate the render condition parsed from the overlay's {@code when} object (the sheep wool
      *     {@code sheared} flag, the wool undercoat {@code tinted} axis, the creeper {@code charged} axis),
      *     or empty when the overlay renders unconditionally
@@ -633,6 +638,8 @@ public record Entity(
         @NotNull Optional<String> textureBy,
         @NotNull Composition blend,
         float alpha,
+        boolean writesDepth,
+        boolean sorted,
         @NotNull Optional<AppearanceGate> gate,
         @NotNull Optional<EntityModelData> noHatModel
     ) {}
