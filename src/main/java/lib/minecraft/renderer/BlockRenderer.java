@@ -177,8 +177,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // unchanged - only the authored overrides move. A non-default projection, rotation, or
             // facing keeps the projection path, since the caller drove that pose deliberately. The
             // chosen pose drives the camera AND the inventory relight together (view.lighting() defaults
-            // to tracking the pose); the blockstate variant rotation (buildVariantRotation) still supplies
-            // per-state orientation, and the rasterize call applies no separate model-spin.
+            // to tracking the pose); the rasterize call applies no separate model-spin. A caller-named
+            // state still orients through buildVariantRotation; the icon does not - see
+            // buildPrimaryGeometry.
             View resolved = resolveIconView(block, options.getOutput());
             LightingFrame lighting = resolved.lighting();
 
@@ -340,8 +341,15 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
 
+            // A caller who names no state is asking for the inventory icon. Where vanilla has one of
+            // its own (Block#modelIcon), it is this block's model baked at the identity model state,
+            // so the default state selects the model and nothing else. Where it has none - a sprite
+            // icon, or a block entity's mesh - the 3D render is this pipeline's own stand-in and keeps
+            // the default state's orientation, there being no vanilla pose to reproduce.
+            boolean identityModelState = options.getVariant().isEmpty() && block.modelIcon();
+
             stack.append(BlockSlot.PRIMARY,
-                sink -> sink.addAll(buildPrimaryGeometry(block, be, effectiveProps, tint, untintedTint, tick)));
+                sink -> sink.addAll(buildPrimaryGeometry(block, be, effectiveProps, tint, untintedTint, tick, identityModelState)));
 
             // Atlas-time composition: merge Block.Entity parts into the primary geometry (bed foot onto
             // head, decorated_pot sides onto base, banner flag onto post). Gated on mergeParts - scene
@@ -405,9 +413,20 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * (bell) keep their blockstate model as the primary and merge the bone body in the ADDITIVE
          * slot, so they fall through here. A state-conditional bone variant (the ceiling hanging sign's
          * straight-chain mesh under {@code attached=true}) overrides the default bone geometry; the
-         * blockstate variant rotation still applies (matching the element path).
+         * blockstate variant rotation applies exactly where the element path applies it.
+         * <p>
+         * {@code identityModelState} is the inventory icon, and the blockstate plays no part in one.
+         * Vanilla bakes a block item's icon from the model its {@code minecraft:item_model} component
+         * names, at {@code BlockModelRotation.IDENTITY} - so the icon carries no variant model, no
+         * variant rotation, no {@code uvlock} and no multipart assembly. That model is what
+         * {@code BlockIndexBuilder} has already stamped onto {@link Block#model()} for every block the
+         * flag is set on, so the icon is one build of it. It is visibly all three: a stair presents
+         * its riser rather than its back, a fence icon is a post and two arms rather than the
+         * multipart's four, and a button icon is {@code block/oak_button_inventory} rather than the
+         * wall button its default state selects. A caller who names a state asked for that state and
+         * gets the whole blockstate treatment.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildPrimaryGeometry(@NotNull Block block, @Nullable Block.Entity be, @NotNull ConcurrentMap<String, String> effectiveProps, int tint, int untintedTint, int tick) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildPrimaryGeometry(@NotNull Block block, @Nullable Block.Entity be, @NotNull ConcurrentMap<String, String> effectiveProps, int tint, int untintedTint, int tick, boolean identityModelState) {
             if (be != null && !be.additive()) {
                 Block.Variant boneVariant = resolveVariant(block, effectiveProps);
                 Block.Entity.BoneModel boneToUse = boneVariant != null && boneVariant.geometry() instanceof Block.BoneGeometry(Block.Entity.BoneModel boneModel)
@@ -418,6 +437,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     boneTriangles = applyRotation(boneTriangles, buildVariantRotation(boneVariant));
                 return boneTriangles;
             }
+            if (identityModelState)
+                return buildFromBlockElements(block.model(), null, tint, untintedTint, tick, block.id().id(), effectiveProps);
             if (block.multipart().isPresent())
                 return assembleMultipart(block.multipart().get(), effectiveProps, tint, untintedTint, tick, block.id().id());
             // Resolve the blockstate variant BEFORE building geometry so its model id can override

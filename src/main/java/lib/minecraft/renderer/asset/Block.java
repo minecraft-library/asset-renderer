@@ -66,6 +66,12 @@ import java.util.Optional;
  *     model's gui, a plain leaf to its own resolved model), falling back to this block's own model gui,
  *     or empty when no gui is authored anywhere. Baked at index build so the icon renderer reads it
  *     without walking the item dispatch tree at render time
+ * @param modelIcon whether vanilla draws this block's inventory icon from a block model rather than a
+ *     flat item sprite - true exactly when the block-item's tree is a plain {@code model} root naming
+ *     a block model, which is what {@link #model()} then holds. Vanilla bakes such an icon at the
+ *     identity model state, so it carries neither a blockstate variant's rotation nor a multipart
+ *     assembly; a false here means vanilla's icon is a sprite (doors, wall torches, comparators) or a
+ *     block-entity renderer's mesh, and the 3D render is this pipeline's own stand-in
  */
 public record Block(
     @NotNull ResourceId id,
@@ -79,7 +85,8 @@ public record Block(
     @NotNull Source source,
     @NotNull ConcurrentMap<String, String> defaultState,
     @NotNull ResourceId itemBlockId,
-    @NotNull Optional<ModelTransform> iconGui
+    @NotNull Optional<ModelTransform> iconGui,
+    boolean modelIcon
 ) {
 
     /**

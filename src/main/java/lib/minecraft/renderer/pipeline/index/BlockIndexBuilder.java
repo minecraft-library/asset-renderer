@@ -404,11 +404,19 @@ public class BlockIndexBuilder {
             String blockId = blockResource.id();
 
             ModelData modelToUse = model;
+            // An entry in itemDefs is exactly a block-item whose tree is a plain model root naming a
+            // block model - vanilla's inventory icon for it IS that model, baked at the identity model
+            // state. The flag rides along so the icon renderer knows when it is reproducing vanilla
+            // rather than standing in for a sprite; it clears when the named model failed to load, in
+            // which case modelToUse is not that model.
             String itemModelRef = itemDefs.get(blockId);
+            boolean modelIcon = itemModelRef != null;
             if (itemModelRef != null && !itemModelRef.equals(modelId)) {
                 ModelData override = blockModels.get(itemModelRef);
                 if (override != null)
                     modelToUse = override;
+                else
+                    modelIcon = false;
             }
 
             HashMap<String, String> textures = spriteBindings(modelToUse);
@@ -430,6 +438,8 @@ public class BlockIndexBuilder {
                 textures.put("#entity", entity.textureId());
                 tint = new Block.Tint(Block.TintTarget.NONE, Optional.empty());
                 source = Block.Source.TILE_ENTITY;
+                // A block entity's icon is a vanilla SpecialModelRenderer's mesh, never a block model.
+                modelIcon = false;
             }
 
             ResourceId itemBlockId = itemBlockIdFor(blockItemAliases, blockId);
@@ -445,7 +455,8 @@ public class BlockIndexBuilder {
                 source,
                 defaultStateFor(blockDefaultStates, blockId),
                 itemBlockId,
-                iconGuiFor(itemBlockId, modelToUse, itemTrees, itemModels)
+                iconGuiFor(itemBlockId, modelToUse, itemTrees, itemModels),
+                modelIcon
             ));
         }
 
@@ -511,7 +522,8 @@ public class BlockIndexBuilder {
                 Block.Source.TILE_ENTITY,
                 defaultStateFor(blockDefaultStates, blockId),
                 itemBlockId,
-                iconGuiFor(itemBlockId, model, itemTrees, itemModels)
+                iconGuiFor(itemBlockId, model, itemTrees, itemModels),
+                false
             ));
         }
     }
@@ -622,7 +634,10 @@ public class BlockIndexBuilder {
                 source,
                 defaultStateFor(blockDefaultStates, blockId),
                 itemBlockId,
-                iconGuiFor(itemBlockId, modelToUse, itemTrees, itemModels)));
+                iconGuiFor(itemBlockId, modelToUse, itemTrees, itemModels),
+                // The resolver tries the item def first, so the model is vanilla's icon exactly when
+                // that is where it came from; a first-variant fallback is this pipeline's stand-in.
+                hit.modelId().equals(itemDefs.get(blockId))));
             blockstateOnlyIds.add(blockId);
         }
         return blockstateOnlyIds;
