@@ -339,6 +339,19 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
                 canvasH = Math.max(1, (int) Math.ceil(canvasH * shrink));
                 scale *= shrink;
             }
+            // Round the width up to even, so the anchor lands on a pixel boundary rather than on a
+            // pixel centre. A left-right symmetric subject's front vertical corner IS the anchor
+            // this canvas centres, so it projects to exactly width / 2 whatever its extent - the
+            // content width cancels out. At an odd width that is a half-integer, exactly a pixel
+            // centre and so exactly a sample point, and the screen edge where the corner's two
+            // faces meet passes through it; which face owns the sample is then settled by the
+            // rasterizer's fill rule instead of by coverage, and the column carries a
+            // disproportionate share of any difference between two renderers. At an even width it
+            // is an integer, a pixel boundary no sample can land on. Only the width has such an
+            // axis - a subject is symmetric left to right, not top to bottom - so the height is
+            // left alone. The asset-renderer rounds its own canvas width the same way in
+            // EntityRenderer#evenWidth; the two have to agree or the comparison measures framing.
+            canvasW += canvasW & 1;
             fits.put(entry.getKey(),
                 Canvas.of(canvasW, canvasH, new Canvas.Fit(scale, b.centerX(), b.centerY())));
         }
