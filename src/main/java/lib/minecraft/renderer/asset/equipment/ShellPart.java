@@ -110,7 +110,7 @@ public sealed interface ShellPart {
         /** {@inheritDoc} */
         @Override
         public @NotNull Box boxFor(@NotNull ArmorSlot slot) {
-            Vector3f growth = slot.grow(this.innerGrowth, this.outerGrowth);
+            Vector3f growth = slot.onLayer(this.innerGrowth, this.outerGrowth);
             Vector3f min = this.origin.subtract(growth);
             Vector3f max = min.add(this.size).add(growth).add(growth);
             return Box.of(min, max);

@@ -42,7 +42,7 @@ public enum ArmorForm {
         ArmorSlot.CHESTPLATE, List.of("body", "right_arm", "left_arm"),
         ArmorSlot.LEGGINGS, List.of("body", "right_leg", "left_leg"),
         ArmorSlot.BOOTS, List.of("right_leg", "left_leg")
-    ), true),
+    )),
 
     /** The distinct shell a baby wears, drawn from {@code humanoid_baby} and never trimmed. */
     BABY(Map.of(
@@ -50,14 +50,12 @@ public enum ArmorForm {
         ArmorSlot.CHESTPLATE, List.of("body", "right_arm", "left_arm"),
         ArmorSlot.LEGGINGS, List.of("waist", "right_leg", "left_leg"),
         ArmorSlot.BOOTS, List.of("right_foot", "left_foot")
-    ), false);
+    ));
 
     private final @NotNull Map<ArmorSlot, List<String>> parts;
-    private final boolean trimmed;
 
-    ArmorForm(@NotNull Map<ArmorSlot, List<String>> parts, boolean trimmed) {
+    ArmorForm(@NotNull Map<ArmorSlot, List<String>> parts) {
         this.parts = parts;
-        this.trimmed = trimmed;
     }
 
     /**
@@ -67,7 +65,7 @@ public enum ArmorForm {
      * @param slot the armor slot
      * @return the part names that slot names
      */
-    public @NotNull List<String> parts(@NotNull ArmorSlot slot) {
+    private @NotNull List<String> parts(@NotNull ArmorSlot slot) {
         return this.parts.get(slot);
     }
 
@@ -104,14 +102,16 @@ public enum ArmorForm {
     }
 
     /**
-     * The equipment layer a slot's armor texture is composited from.
+     * The equipment layer a slot's armor texture is composited from. A baby draws every one of its four
+     * slots from the one baby sheet; on the adult shell the layer is the one the slot wears, which the
+     * slot answers for itself.
      *
      * @param slot the armor slot
      * @return the layer the slot draws through
      */
     public @NotNull LayerType layerType(@NotNull ArmorSlot slot) {
         if (this == BABY) return LayerType.HUMANOID_BABY;
-        return slot == ArmorSlot.LEGGINGS ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID;
+        return slot.onLayer(LayerType.HUMANOID_LEGGINGS, LayerType.HUMANOID);
     }
 
     /**
@@ -119,11 +119,16 @@ public enum ArmorForm {
      * trim. Named after the layer the slot draws through, which is what vanilla keys its trim assets
      * by.
      *
+     * <p>Read off that layer rather than off a flag the form carries, which is what vanilla's own early
+     * return keys on: its equipment renderer returns before submitting a trim whenever the layer is the
+     * baby one, and no baby trim atlas ships to sample.
+     *
      * @param slot the armor slot
      * @return the trim atlas name, or empty when this form is never trimmed
      */
     public @NotNull Optional<String> trimLayer(@NotNull ArmorSlot slot) {
-        return this.trimmed ? Optional.of(layerType(slot).getId()) : Optional.empty();
+        LayerType layer = layerType(slot);
+        return layer == LayerType.HUMANOID_BABY ? Optional.empty() : Optional.of(layer.getId());
     }
 
     /**

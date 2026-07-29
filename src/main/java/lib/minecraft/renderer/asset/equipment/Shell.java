@@ -34,9 +34,10 @@ import java.util.Optional;
  * reaches both kinds through one flag and this pipeline through two axes: six wearers swap on
  * {@code age}, and the armour stand on {@code size}, whose {@code isBaby} is literally {@code isSmall}.
  *
- * <p>Everything that varies by <em>shell</em> is answered here and everything that varies by
- * <em>slot</em> is answered by {@link ArmorSlot}, which is why {@link #grow} reads one off the other
- * rather than either carrying both.
+ * <p>Everything that varies by <em>shell</em> is answered here, everything that varies by its
+ * <em>shape</em> by the {@link #form} it names, and everything that varies by <em>slot</em> by
+ * {@link ArmorSlot} - so whatever dresses a wearer asks each of the three for its own answer rather
+ * than reaching any of them through a delegate here.
  *
  * <p>Two bones in the corpus are shipped oddities rather than defects to normalise, and both belong to
  * vanilla rather than to this pipeline. {@code inner_body} ships on both baby shells, is named by no
@@ -110,38 +111,6 @@ public record Shell(
      */
     public @NotNull Vector3f meshOffset() {
         return new Vector3f(0f, FEET_ANCHOR * (1f - this.meshScale), 0f);
-    }
-
-    /**
-     * The equipment layer a slot's armour texture is composited from.
-     *
-     * @param slot the armour slot
-     * @return the layer the slot draws through on this shell
-     */
-    public @NotNull LayerType sheet(@NotNull ArmorSlot slot) {
-        return this.form.layerType(slot);
-    }
-
-    /**
-     * The {@code trims/entity/} atlas a slot's trim is permuted from, empty when this shell is never
-     * trimmed.
-     *
-     * @param slot the armour slot
-     * @return the trim atlas name, or empty when this shell draws no trim
-     */
-    public @NotNull Optional<String> trimLayer(@NotNull ArmorSlot slot) {
-        return this.form.trimLayer(slot);
-    }
-
-    /**
-     * Which of this shell's two deformations a slot wears. The choice is the slot's - vanilla registers
-     * an armour set with exactly two - so the slot is asked and answers with one of the pair.
-     *
-     * @param slot the armour slot
-     * @return the per-side growth that slot applies to this shell's cubes
-     */
-    public @NotNull Vector3f grow(@NotNull ArmorSlot slot) {
-        return slot.grow(this.innerGrow, this.outerGrow);
     }
 
     /**

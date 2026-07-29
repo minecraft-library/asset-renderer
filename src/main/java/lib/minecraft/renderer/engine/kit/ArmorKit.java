@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /**
  * Generates 3D armor overlay geometry and 2D armor sprite layers for humanoid renders. Given the
@@ -81,10 +82,10 @@ public class ArmorKit {
     ) {}
 
     /**
-     * The frame a shell's unwrap is authored in, relative to the upright frame its boxes are built in.
-     * A shell states its strips in vanilla's Y-down model frame, so a render-frame face reads its
-     * texture through the face this turn maps it onto - up with down and north with south swapped,
-     * the two sides left where they are.
+     * The entity's Y-down model frame, relative to the upright frame the armor sheets are authored for
+     * and the armor is built in. Every use of it here is geometric - a corner pair turned out of one
+     * frame and a built triangle's positions and normal turned back into the other - since the two
+     * frames differ by a half turn about X, with Y and Z negated and the two sides left where they are.
      */
     private static final @NotNull Turn MODEL_FRAME = Turn.HALF_X;
 
@@ -108,17 +109,10 @@ public class ArmorKit {
         @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull Textures engine
     ) {
-        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        List<ShellPart> body = bodyRows(bodyPositions);
-
-        for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
-            ArmorSlot slot = entry.getKey();
-            addSlot3D(triangles, resolveBoxes(body, slot), ArmorForm.ADULT.layerType(slot),
-                ArmorForm.ADULT.trimLayer(slot), entry.getValue(),
-                Optional.ofNullable(items.get(slot)), engine);
-        }
-
-        return triangles;
+        // The player's rows are its own body boxes in the render scope's frame, which is the frame they
+        // are drawn in, so nothing crosses a frame on the way - and the player is always dressed adult.
+        return buildArmor3D(bodyRows(bodyPositions), UnaryOperator.identity(), ArmorForm.ADULT,
+            equipped, items, engine);
     }
 
     /**
@@ -153,34 +147,6 @@ public class ArmorKit {
         }
 
         return rows;
-    }
-
-    /**
-     * The rows one slot draws, each resolved to the box that slot wears it at. Used by the player's
-     * build, whose rows are already in the frame they are drawn in; the mesh build resolves its own,
-     * because its boxes still have to cross into the render frame.
-     */
-    private static @NotNull List<SlotBox> resolveBoxes(
-        @NotNull List<ShellPart> rows, @NotNull ArmorSlot slot) {
-        List<SlotBox> boxes = new ArrayList<>();
-
-        for (ShellPart row : rows) {
-            if (!row.coveredBy(slot)) continue;
-            boxes.add(new SlotBox(row, row.boxFor(slot)));
-        }
-
-        return boxes;
-    }
-
-    /**
-     * The worn pieces in {@link ArmorSlot} declaration order, so the emission order is this kit's
-     * rather than whatever iteration order the caller's map happens to have.
-     */
-    private static @NotNull Map<ArmorSlot, ArmorPiece> inCompositeOrder(
-        @NotNull Map<ArmorSlot, ArmorPiece> equipped) {
-        Map<ArmorSlot, ArmorPiece> ordered = new EnumMap<>(ArmorSlot.class);
-        ordered.putAll(equipped);
-        return ordered;
     }
 
     // ---------------------------------------------------------------------------------------
@@ -293,8 +259,9 @@ public class ArmorKit {
         // player frame (bounds turned about X) and turning the result back into the entity frame lands
         // it correctly once ENTITY_FACING is applied, with the geometry, normals, and inventory shading
         // all resolved in the final frame.
-        ConcurrentList<VisibleTriangle> upright =
-            buildGenericArmor3D(shell, modelAnchor, ndcScale, modelScale, equipped, items, engine);
+        ConcurrentList<VisibleTriangle> upright = buildArmor3D(shell.walk().parts(),
+            box -> intoRenderFrame(shell, modelAnchor, ndcScale, modelScale, box), shell.form(),
+            equipped, items, engine);
 
         Lighting.EntityLighting lighting =
             Lighting.resolveEntity(EntityGeometryKit.DEFAULT_ENTITY_LIGHTING);
@@ -337,7 +304,7 @@ public class ArmorKit {
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
             ArmorSlot slot = entry.getKey();
             Optional<PixelBuffer> sheet = resolveArmorTexture(engine, entry.getValue(),
-                shell.sheet(slot), Optional.ofNullable(items.get(slot)));
+                shell.form().layerType(slot), Optional.ofNullable(items.get(slot)));
             if (sheet.isEmpty()) continue;
             Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(shell, slot), screenTransform,
                 modelScale * shell.meshScale(), sheet.get());
@@ -358,7 +325,7 @@ public class ArmorKit {
     private static @NotNull EntityModelData slotMesh(
         @NotNull Shell shell, @NotNull ArmorSlot slot) {
         EntityModelData tree = shell.mesh();
-        Vector3f deformation = shell.grow(slot);
+        Vector3f deformation = slot.onLayer(shell.innerGrow(), shell.outerGrow());
         Vector3f seat = shell.meshOffset().multiply(1f / shell.meshScale());
         LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
         for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
@@ -376,40 +343,9 @@ public class ArmorKit {
     }
 
     /**
-     * Builds the armor for one humanoid from the shell it is dressed in: each equipped slot's parts of
-     * that mesh, grown by the slot's deformation, mapped into the render frame, then turned into the
-     * upright frame the armor unwrap is authored for.
-     */
-    private static @NotNull ConcurrentList<VisibleTriangle> buildGenericArmor3D(
-        @NotNull Shell shell,
-        @NotNull Vector3f modelAnchor,
-        float ndcScale,
-        float modelScale,
-        @NotNull Map<ArmorSlot, ArmorPiece> equipped,
-        @NotNull Map<ArmorSlot, ItemContext> items,
-        @NotNull Textures engine
-    ) {
-        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-
-        for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
-            ArmorSlot slot = entry.getKey();
-            addSlot3D(triangles, armorBoxes(shell, slot, modelAnchor, ndcScale, modelScale),
-                shell.sheet(slot), shell.trimLayer(slot), entry.getValue(),
-                Optional.ofNullable(items.get(slot)), engine);
-        }
-        return triangles;
-    }
-
-    /**
-     * The armor mesh's boxes covering one slot, mapped through the render frame and turned into the
-     * upright frame the armor unwrap is authored for.
-     *
-     * <p>The slot picks which of the shell's two deformations it wears - the leggings the inner one, the
-     * other three the outer - then keeps the rows vanilla keeps for that slot. Each row is grown by
-     * that deformation plus its own {@code CubeDeformation.extend} (a leg's {@code -0.1}, a helmet's
-     * second box), which is the sum vanilla's mesh builder performs in the same order. Row order is the
-     * mesh's own bone order and then each bone's own cube order, so a part and the overlay box parented
-     * to it stay adjacent - which is what decides a coplanar tie.
+     * One box of a worn shell mapped through the render frame and then turned into the upright frame
+     * the armor unwrap is authored for. This crossing is the only thing the mesh arm hands
+     * {@link #resolveBoxes} that the player's arm does not.
      *
      * <p>A row collapses to one axis-aligned box because the armor meshes are plain box tables - no
      * bone carries a rotation. A bone's uniform {@code scale} <em>is</em> honoured: every shell
@@ -419,20 +355,14 @@ public class ArmorKit {
      * corners, so at the identity every existing wearer's arithmetic is the same expression on the
      * same values and cannot round differently.
      */
-    private static @NotNull List<SlotBox> armorBoxes(
-        @NotNull Shell shell, @NotNull ArmorSlot slot,
-        @NotNull Vector3f modelAnchor, float ndcScale, float modelScale) {
-        List<SlotBox> boxes = new ArrayList<>();
-        for (ShellPart row : shell.walk().parts()) {
-            if (!row.coveredBy(slot)) continue;
-            Box box = row.boxFor(slot);
-            Vector3f[] corners = intoUprightFrameBounds(new Vector3f[]{
-                toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.minX(), box.minY(), box.minZ()),
-                toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.maxX(), box.maxY(), box.maxZ())
-            });
-            boxes.add(new SlotBox(row, Box.of(corners[0], corners[1])));
-        }
-        return boxes;
+    private static @NotNull Box intoRenderFrame(
+        @NotNull Shell shell, @NotNull Vector3f modelAnchor, float ndcScale, float modelScale,
+        @NotNull Box box) {
+        Vector3f[] corners = intoUprightFrameBounds(new Vector3f[]{
+            toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.minX(), box.minY(), box.minZ()),
+            toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.maxX(), box.maxY(), box.maxZ())
+        });
+        return Box.of(corners[0], corners[1]);
     }
 
     /**
@@ -525,24 +455,88 @@ public class ArmorKit {
     // ---------------------------------------------------------------------------------------
 
     /**
+     * Builds one wearer's armor from a flat list of rows: each equipped slot's rows of that list,
+     * resolved into the frame they are drawn in and textured through the form's answers for that slot.
+     *
+     * <p>Both wearers reach this, and they differ in exactly three arguments. A worn shell hands its
+     * own cubes, the crossing into the render frame, and its own form; the player hands its own body
+     * boxes, the identity, and the adult form it is always dressed in. Nothing downstream of here
+     * branches on which of the two it is serving.
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> buildArmor3D(
+        @NotNull List<ShellPart> rows,
+        @NotNull UnaryOperator<Box> intoFrame,
+        @NotNull ArmorForm form,
+        @NotNull Map<ArmorSlot, ArmorPiece> equipped,
+        @NotNull Map<ArmorSlot, ItemContext> items,
+        @NotNull Textures engine
+    ) {
+        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+
+        for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
+            ArmorSlot slot = entry.getKey();
+            addSlot3D(triangles, resolveBoxes(rows, slot, intoFrame), form, slot, entry.getValue(),
+                Optional.ofNullable(items.get(slot)), engine);
+        }
+
+        return triangles;
+    }
+
+    /**
+     * The rows one slot draws, each resolved to the box that slot wears it at and then into the frame
+     * it is drawn in.
+     *
+     * <p>The slot picks which of the two deformations it wears - the leggings the inner one, the other
+     * three the outer - and keeps only the rows vanilla keeps for it. A worn shell's row is grown by
+     * that deformation plus its own {@code CubeDeformation.extend} (a leg's {@code -0.1}, a helmet's
+     * second box), which is the sum vanilla's mesh builder performs in the same order; the player's is
+     * its body box inflated by the scalar the slot is calibrated for. Row order is the list's own -
+     * for a shell the mesh's bone order and then each bone's cube order, so a part and the overlay box
+     * parented to it stay adjacent, which is what decides a coplanar tie.
+     */
+    private static @NotNull List<SlotBox> resolveBoxes(
+        @NotNull List<ShellPart> rows, @NotNull ArmorSlot slot,
+        @NotNull UnaryOperator<Box> intoFrame) {
+        List<SlotBox> boxes = new ArrayList<>();
+
+        for (ShellPart row : rows) {
+            if (!row.coveredBy(slot)) continue;
+            boxes.add(new SlotBox(row, intoFrame.apply(row.boxFor(slot))));
+        }
+
+        return boxes;
+    }
+
+    /**
+     * The worn pieces in {@link ArmorSlot} declaration order, so the emission order is this kit's
+     * rather than whatever iteration order the caller's map happens to have.
+     */
+    private static @NotNull Map<ArmorSlot, ArmorPiece> inCompositeOrder(
+        @NotNull Map<ArmorSlot, ArmorPiece> equipped) {
+        Map<ArmorSlot, ArmorPiece> ordered = new EnumMap<>(ArmorSlot.class);
+        ordered.putAll(equipped);
+        return ordered;
+    }
+
+    /**
      * Adds one slot's armor around boxes already resolved into the frame they are drawn in, so nothing
      * is grown or inflated here.
      *
-     * <p>The sheet and the trim atlas are the shell's answers - a worn shell hands its own, and the
-     * player is dressed in the adult one - and every box is textured twice when the piece carries a
-     * trim, once from each sheet in that order. The slot itself is not passed: everything that varied
-     * by slot was answered while the boxes were being resolved.
+     * <p>The sheet and the trim atlas are the form's answers for the slot - a worn shell hands its own
+     * form, and the player is dressed in the adult one - and every box is textured twice when the piece
+     * carries a trim, once from each sheet in that order.
      */
     private static void addSlot3D(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull List<SlotBox> boxes,
-        @NotNull LayerType sheet,
-        @NotNull Optional<String> trimLayer,
+        @NotNull ArmorForm form,
+        @NotNull ArmorSlot slot,
         @NotNull ArmorPiece piece,
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
-        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, sheet, item);
+        Optional<PixelBuffer> armorTexture =
+            resolveArmorTexture(engine, piece, form.layerType(slot), item);
         if (armorTexture.isEmpty()) return;
 
         for (SlotBox box : boxes)
@@ -550,7 +544,7 @@ public class ArmorKit {
 
         if (piece.trim().isEmpty()) return;
         ArmorTrim trim = piece.trim().get();
-        trimLayer
+        form.trimLayer(slot)
             .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
             .ifPresent(trimTexture -> {
                 for (SlotBox box : boxes)

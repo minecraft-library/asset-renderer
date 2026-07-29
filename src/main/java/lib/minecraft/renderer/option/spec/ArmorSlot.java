@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.option.spec;
 
-import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -24,7 +23,7 @@ public enum ArmorSlot {
     /** Leggings - armor layer 2, painted first so layer-1 pieces composite over it. */
     LEGGINGS("leggings") {
         @Override
-        public @NotNull Vector3f grow(@NotNull Vector3f inner, @NotNull Vector3f outer) {
+        public <T> @NotNull T onLayer(@NotNull T inner, @NotNull T outer) {
             return inner;
         }
 
@@ -89,16 +88,22 @@ public enum ArmorSlot {
     private final @NotNull String key;
 
     /**
-     * Which of the two armor layers this slot wears - the leggings the inner one, the other three
-     * the outer. Vanilla registers an armor set with exactly two, so the choice is the slot's rather
-     * than the shell's, and it is asked of whatever pair is in hand: a shell's own deformations, or
-     * one of its cubes' growths with that cube's deformation already summed in.
+     * Whichever of a pair of per-layer values belongs to the armor layer this slot wears - the leggings
+     * the inner one, the other three the outer. Vanilla registers an armor set with exactly two of
+     * everything that varies by layer, so the choice is the slot's rather than the shell's, and it is
+     * asked of whatever pair is in hand: a shell's own deformations, one of its cubes' growths with that
+     * cube's deformation already summed in, or the equipment layer the slot's sheet is composited from.
+     * <p>
+     * Generic on purpose. The pairs are not all of one type, and the equipment layer is declared in a
+     * package this one deliberately does not depend on - so a signature naming it would mint that edge
+     * back, and an overload per type would restate one selection once per type it is asked about.
      *
+     * @param <T> the type of the paired values
      * @param inner the innermost layer's value
      * @param outer the outer layer's value
      * @return whichever of the two this slot wears
      */
-    public @NotNull Vector3f grow(@NotNull Vector3f inner, @NotNull Vector3f outer) {
+    public <T> @NotNull T onLayer(@NotNull T inner, @NotNull T outer) {
         return outer;
     }
 
