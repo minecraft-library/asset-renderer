@@ -5,6 +5,7 @@ import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
+import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.equipment.ShellWalk;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -14,6 +15,7 @@ import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
+import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -414,7 +416,7 @@ public record Entity(
         @NotNull ArmorForm form,
         @NotNull Optional<AlternateShell> alternate,
         @NotNull ShellWalk walk
-    ) {
+    ) implements Shell {
 
         /**
          * Constructs a shell, resolving its {@link #walk} from the mesh and the form it is built from -
@@ -448,17 +450,27 @@ public record Entity(
         private static final float FEET_ANCHOR = 24.016f;
 
         /**
-         * The offset the shell is seated at - the translate vanilla's whole-mesh transformer pairs
-         * with the scale, so that scaling happens about the wearer's feet rather than its origin.
+         * {@inheritDoc}
          *
          * <p>Derived rather than carried: the same expression in the same precision the tooling
          * baked the wearer's own bone pivots with, so the two agree bit for bit. A transcribed
          * literal would not.
-         *
-         * @return the whole-mesh offset, zero at the identity scale
          */
+        @Override
         public @NotNull Vector3f meshOffset() {
             return new Vector3f(0f, FEET_ANCHOR * (1f - this.meshScale), 0f);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull LayerType sheet(@NotNull ArmorSlot slot) {
+            return this.form.layerType(slot);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Optional<String> trimLayer(@NotNull ArmorSlot slot) {
+            return this.form.trimLayer(slot);
         }
 
         /**

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.option.spec;
 
-import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +25,7 @@ public enum ArmorSlot {
     /** Leggings - armor layer 2, painted first so layer-1 pieces composite over it. */
     LEGGINGS("leggings") {
         @Override
-        public @NotNull Vector3f grow(@NotNull Entity.HumanoidArmor shell) {
+        public @NotNull Vector3f grow(@NotNull Shell shell) {
             return shell.innerGrow();
         }
 
@@ -90,7 +90,7 @@ public enum ArmorSlot {
      * @param shell the shell being worn
      * @return the per-side growth this slot applies to the shell's cubes
      */
-    public @NotNull Vector3f grow(@NotNull Entity.HumanoidArmor shell) {
+    public @NotNull Vector3f grow(@NotNull Shell shell) {
         return shell.outerGrow();
     }
 

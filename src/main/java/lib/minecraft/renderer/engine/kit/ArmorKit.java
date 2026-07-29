@@ -5,9 +5,9 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
-import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
+import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
@@ -217,7 +217,7 @@ public class ArmorKit {
      * the same way; the age fold picked which one before this was reached, so nothing here branches on
      * it.
      *
-     * @param armor the shell the wearer is dressed in
+     * @param shell the shell the wearer is dressed in
      * @param modelAnchor the model-space point mapped to the canvas centre
      * @param ndcScale the model-units-to-NDC scale
      * @param modelScale the per-render vertex pre-scale
@@ -228,7 +228,7 @@ public class ArmorKit {
      * @return the armor + trim triangles
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildEntityArmor3D(
-        @NotNull Entity.HumanoidArmor armor,
+        @NotNull Shell shell,
         @NotNull Vector3f modelAnchor,
         float ndcScale,
         float modelScale,
@@ -244,7 +244,7 @@ public class ArmorKit {
         // it correctly once ENTITY_FACING is applied, with the geometry, normals, and inventory shading
         // all resolved in the final frame.
         ConcurrentList<VisibleTriangle> upright =
-            buildGenericArmor3D(armor, modelAnchor, ndcScale, modelScale, equipped, items, engine);
+            buildGenericArmor3D(shell, modelAnchor, ndcScale, modelScale, equipped, items, engine);
 
         Lighting.EntityLighting lighting =
             Lighting.resolveEntity(EntityGeometryKit.DEFAULT_ENTITY_LIGHTING);
@@ -267,7 +267,7 @@ public class ArmorKit {
      * {@link #buildEntityArmor3D} will draw. Empty when nothing is equipped, so an unarmored render
      * is untouched.
      *
-     * @param armor the shell the wearer is dressed in
+     * @param shell the shell the wearer is dressed in
      * @param equipped the worn pieces keyed by slot; an unworn slot is absent
      * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override
      * @param screenTransform the model-to-screen transform the bounds are accumulated through
@@ -276,7 +276,7 @@ public class ArmorKit {
      * @return the union of the equipped slots' screen bounds, or empty when none contributes
      */
     public static @NotNull Optional<Box> screenBounds(
-        @NotNull Entity.HumanoidArmor armor,
+        @NotNull Shell shell,
         @NotNull Map<ArmorSlot, ArmorPiece> equipped,
         @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull Matrix4f screenTransform,
@@ -287,10 +287,10 @@ public class ArmorKit {
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
             ArmorSlot slot = entry.getKey();
             Optional<PixelBuffer> sheet = resolveArmorTexture(engine, entry.getValue(),
-                armor.form().layerType(slot), Optional.ofNullable(items.get(slot)));
+                shell.sheet(slot), Optional.ofNullable(items.get(slot)));
             if (sheet.isEmpty()) continue;
-            Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(armor, slot), screenTransform,
-                modelScale * armor.meshScale(), sheet.get());
+            Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(shell, slot), screenTransform,
+                modelScale * shell.meshScale(), sheet.get());
             union = union == null ? slotBounds : new Box(
                 Math.min(union.minX(), slotBounds.minX()),
                 Math.min(union.minY(), slotBounds.minY()),
@@ -312,15 +312,15 @@ public class ArmorKit {
      * seat rides the root pivots pre-scale, so the caller's scale carries it.
      */
     private static @NotNull EntityModelData slotMesh(
-        @NotNull Entity.HumanoidArmor armor, @NotNull ArmorSlot slot) {
-        EntityModelData tree = armor.mesh();
-        Vector3f deformation = slot.grow(armor);
-        Vector3f seat = armor.meshOffset().multiply(1f / armor.meshScale());
+        @NotNull Shell shell, @NotNull ArmorSlot slot) {
+        EntityModelData tree = shell.mesh();
+        Vector3f deformation = shell.grow(slot);
+        Vector3f seat = shell.meshOffset().multiply(1f / shell.meshScale());
         LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
         for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
             ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
-            if (armor.walk().covers(slot, entry.getKey()))
+            if (shell.walk().covers(slot, entry.getKey()))
                 for (EntityModelData.Cube cube : bone.getCubes())
                     cubes.add(grownBy(cube, deformation));
             Vector3f pivot = bone.getParent() == null ? bone.getPivot().add(seat) : bone.getPivot();
@@ -337,7 +337,7 @@ public class ArmorKit {
      * upright frame the armor unwrap is authored for.
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildGenericArmor3D(
-        @NotNull Entity.HumanoidArmor armor,
+        @NotNull Shell shell,
         @NotNull Vector3f modelAnchor,
         float ndcScale,
         float modelScale,
@@ -349,8 +349,8 @@ public class ArmorKit {
 
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
             ArmorSlot slot = entry.getKey();
-            addMeshSlot3D(triangles, armorBoxes(armor, slot, modelAnchor, ndcScale, modelScale),
-                armor.form(), entry.getValue(), slot, Optional.ofNullable(items.get(slot)), engine);
+            addMeshSlot3D(triangles, armorBoxes(shell, slot, modelAnchor, ndcScale, modelScale),
+                shell, entry.getValue(), slot, Optional.ofNullable(items.get(slot)), engine);
         }
         return triangles;
     }
@@ -374,21 +374,21 @@ public class ArmorKit {
      * same values and cannot round differently.
      */
     private static @NotNull List<ArmorBox> armorBoxes(
-        @NotNull Entity.HumanoidArmor armor, @NotNull ArmorSlot slot,
+        @NotNull Shell shell, @NotNull ArmorSlot slot,
         @NotNull Vector3f modelAnchor, float ndcScale, float modelScale) {
-        Vector3f deformation = slot.grow(armor);
+        Vector3f deformation = shell.grow(slot);
         List<ArmorBox> boxes = new ArrayList<>();
-        for (Map.Entry<String, EntityModelData.Bone> entry : armor.mesh().getBones().entrySet()) {
-            if (!armor.walk().covers(slot, entry.getKey())) continue;
-            Vector3f anchor = armor.walk().anchor(entry.getKey());
+        for (Map.Entry<String, EntityModelData.Bone> entry : shell.mesh().getBones().entrySet()) {
+            if (!shell.walk().covers(slot, entry.getKey())) continue;
+            Vector3f anchor = shell.walk().anchor(entry.getKey());
             float scale = entry.getValue().getScale();
             for (EntityModelData.Cube cube : entry.getValue().getCubes()) {
                 Vector3f grow = deformation.add(cube.getGrow()).multiply(scale);
                 Vector3f min = anchor.add(cube.getOrigin().multiply(scale)).subtract(grow);
                 Vector3f max = min.add(cube.getSize().multiply(scale)).add(grow).add(grow);
                 Vector3f[] corners = intoUprightFrameBounds(new Vector3f[]{
-                    toRenderFrame(armor, modelAnchor, ndcScale, modelScale, min.x(), min.y(), min.z()),
-                    toRenderFrame(armor, modelAnchor, ndcScale, modelScale, max.x(), max.y(), max.z())
+                    toRenderFrame(shell, modelAnchor, ndcScale, modelScale, min.x(), min.y(), min.z()),
+                    toRenderFrame(shell, modelAnchor, ndcScale, modelScale, max.x(), max.y(), max.z())
                 });
                 boxes.add(new ArmorBox(entry.getKey(), cube, corners[0], corners[1]));
             }
@@ -412,7 +412,7 @@ public class ArmorKit {
      * NDC scale the entity's own geometry was built through.
      *
      * <p>The whole-mesh transform a scaled-up humanoid's shell is sized and seated by belongs to the
-     * armor set rather than to the render, and {@link Entity.HumanoidArmor#meshScale()} carries it.
+     * armor set rather than to the render, and {@link Shell#meshScale()} carries it.
      * Vanilla maps the very same transformer over the shared set rather than giving those wearers a
      * distinct mesh, so the factor is a property of what is worn and not of who wears it - reading it
      * back off the wearer's torso bone only ever worked because those three wearers' bodies happen to be
@@ -420,12 +420,12 @@ public class ArmorKit {
      * not one.
      */
     private static @NotNull Vector3f toRenderFrame(
-        @NotNull Entity.HumanoidArmor armor, @NotNull Vector3f modelAnchor, float ndcScale,
+        @NotNull Shell shell, @NotNull Vector3f modelAnchor, float ndcScale,
         float modelScale, float x, float y, float z) {
         // The set's own whole-mesh transform first, so the shell is sized and seated like the body it
         // dresses, then the render frame the body's own geometry was built through.
-        Vector3f offset = armor.meshOffset();
-        float mesh = armor.meshScale();
+        Vector3f offset = shell.meshOffset();
+        float mesh = shell.meshScale();
         float mx = mesh * x + offset.x();
         float my = mesh * y + offset.y();
         float mz = mesh * z + offset.z();
@@ -552,20 +552,20 @@ public class ArmorKit {
 
     /**
      * Adds one slot's armor around boxes already grown and mapped into the render frame, so nothing
-     * is inflated here. The shell's form picks the equipment layer the sheet is composited from and
-     * whether a trim is drawn at all - a baby's four slots all read the baby sheet, and vanilla draws
-     * no trim over one.
+     * is inflated here. The shell picks the equipment layer the sheet is composited from and whether
+     * a trim is drawn at all - a baby's four slots all read the baby sheet, and vanilla draws no trim
+     * over one.
      */
     private static void addMeshSlot3D(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull List<ArmorBox> boxes,
-        @NotNull ArmorForm form,
+        @NotNull Shell shell,
         @NotNull ArmorPiece piece,
         @NotNull ArmorSlot slot,
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
-        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, form.layerType(slot), item);
+        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, shell.sheet(slot), item);
         if (armorTexture.isEmpty()) return;
 
         for (ArmorBox box : boxes)
@@ -573,7 +573,7 @@ public class ArmorKit {
 
         if (piece.trim().isEmpty()) return;
         ArmorTrim trim = piece.trim().get();
-        form.trimLayer(slot)
+        shell.trimLayer(slot)
             .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
             .ifPresent(trimTexture -> {
                 for (ArmorBox box : boxes)
