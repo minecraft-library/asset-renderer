@@ -87,7 +87,8 @@ public record Shell(
         @NotNull ArmorForm form,
         @NotNull Optional<Alternate> alternate
     ) {
-        this(mesh, innerGrow, outerGrow, meshScale, form, alternate, ShellWalk.of(mesh, form));
+        this(mesh, innerGrow, outerGrow, meshScale, form, alternate,
+            ShellWalk.of(mesh, form, innerGrow, outerGrow));
     }
 
     /**
@@ -140,7 +141,7 @@ public record Shell(
      * @return the per-side growth that slot applies to this shell's cubes
      */
     public @NotNull Vector3f grow(@NotNull ArmorSlot slot) {
-        return slot.grow(this);
+        return slot.grow(this.innerGrow, this.outerGrow);
     }
 
     /**

@@ -6,6 +6,7 @@ import lib.minecraft.renderer.option.spec.ArmorSlot;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -126,33 +127,36 @@ public enum ArmorForm {
     }
 
     /**
-     * The player's own body parts each slot covers, resolved once from {@link #ADULT}'s part table by
-     * reading each bone name back to the body box it dresses.
+     * The slots covering each of the player's own body parts, resolved once from {@link #ADULT}'s part
+     * table by reading each bone name back to the body box it dresses.
      */
-    private static final @NotNull Map<ArmorSlot, HumanoidPart[]> PLAYER_PARTS = new EnumMap<>(ArmorSlot.class);
+    private static final @NotNull Map<HumanoidPart, Set<ArmorSlot>> PLAYER_SLOTS = new EnumMap<>(HumanoidPart.class);
 
     static {
-        for (ArmorSlot slot : ArmorSlot.values())
-            PLAYER_PARTS.put(slot, ADULT.parts(slot).stream()
-                .map(HumanoidPart::byBoneName)
-                .distinct()
-                .toArray(HumanoidPart[]::new));
+        for (HumanoidPart part : HumanoidPart.CACHED_VALUES) {
+            EnumSet<ArmorSlot> slots = EnumSet.noneOf(ArmorSlot.class);
+
+            for (ArmorSlot slot : ArmorSlot.values())
+                if (ADULT.parts(slot).contains(part.boneName())) slots.add(slot);
+
+            PLAYER_SLOTS.put(part, Set.copyOf(slots));
+        }
     }
 
     /**
-     * The player's own body parts a slot's armor covers.
+     * The slots whose armor covers one of the player's own body parts.
      *
      * <p><b>Restricted to {@link #ADULT}, and the restriction is the guard rather than an oversight.</b>
      * The player is always drawn at adult proportions, and only six of the twelve bone names in the
      * armor corpus have a body part at all - a baby shell's {@code waist} and its two feet have none.
-     * A form-parameterised accessor would make those reachable, where the miss would resolve to
-     * {@code null} and the box would be dropped silently rather than raising anything.
+     * A form-parameterised accessor would make those reachable, where the miss would drop a box
+     * silently rather than raising anything.
      *
-     * @param slot the armor slot
-     * @return the body parts that slot's armor covers
+     * @param part the player body part
+     * @return the slots whose armor draws that part, empty when none does
      */
-    public static @NotNull HumanoidPart @NotNull [] playerParts(@NotNull ArmorSlot slot) {
-        return PLAYER_PARTS.get(slot).clone();
+    public static @NotNull Set<ArmorSlot> playerSlots(@NotNull HumanoidPart part) {
+        return PLAYER_SLOTS.get(part);
     }
 
 }

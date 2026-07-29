@@ -21,7 +21,6 @@ import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.face.Turn;
-import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
@@ -34,12 +33,13 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 
 /**
  * Generates 3D armor overlay geometry and 2D armor sprite layers for humanoid renders. Given the
@@ -67,19 +67,17 @@ import java.util.OptionalInt;
 public class ArmorKit {
 
     /**
-     * One armor box ready to build: the shell bone and unwrap it comes from, and its corners in the
-     * render frame. The unwrap travels rather than a resolved crop because a slot's boxes are textured
-     * twice - once from the armor sheet and once from the trim - and each crop is a read of the same
-     * unwrap against a different sheet.
+     * One armor box ready to build: the row it was resolved from, and its corners in the frame it is
+     * drawn in. The row travels rather than a resolved crop because a slot's boxes are textured twice -
+     * once from the armor sheet and once from the trim - and each crop is a read of the same row
+     * against a different sheet.
      *
-     * @param bone the shell bone the box belongs to, for the per-pixel trace
-     * @param unwrap where the box reads its faces from on whichever sheet it is textured with
+     * @param row the row the box was resolved from, which answers for its texture and its trace name
      * @param min the box's lower corner
      * @param max the box's upper corner
      */
-    private record ArmorBox(
-        @NotNull String bone,
-        @NotNull Unwrap.Atlas unwrap,
+    private record SlotBox(
+        @NotNull ShellPart row,
         @NotNull Vector3f min,
         @NotNull Vector3f max
     ) {}
@@ -113,14 +111,70 @@ public class ArmorKit {
         @NotNull Textures engine
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        List<ShellPart> body = bodyRows(bodyPositions);
 
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
             ArmorSlot slot = entry.getKey();
-            addSlot3D(triangles, bodyPositions, entry.getValue(), slot,
+            addSlot3D(triangles, resolveBoxes(body, slot), ArmorForm.ADULT.layerType(slot),
+                ArmorForm.ADULT.trimLayer(slot), entry.getValue(),
                 Optional.ofNullable(items.get(slot)), engine);
         }
 
         return triangles;
+    }
+
+    /**
+     * The player's own body as armor rows - one per box a slot could draw over it, in the body's own
+     * part order.
+     *
+     * <p>The player is dressed in the adult shell's answers rather than in its boxes: which slots reach
+     * a part is that shell's part table read back through the body box each bone dresses, while the box
+     * itself is the player's own, in the scope's frame. A part no slot reaches contributes no row.
+     *
+     * <p>The second box a helmet draws over the head is a row of its own here rather than a branch
+     * inside the first, which is what makes it the peer of the layer box that the shell's {@code hat}
+     * cube already is on the mesh path. It is emitted directly after the box it sits over, and it is
+     * covered by exactly the slots that keep a named part's children - the helmet alone.
+     */
+    private static @NotNull List<ShellPart> bodyRows(@NotNull Map<HumanoidPart, Box> bodyPositions) {
+        List<ShellPart> rows = new ArrayList<>();
+
+        for (HumanoidPart part : HumanoidPart.CACHED_VALUES) {
+            Box bounds = bodyPositions.get(part);
+            if (bounds == null) continue;
+            Set<ArmorSlot> slots = ArmorForm.playerSlots(part);
+            if (slots.isEmpty()) continue;
+
+            rows.add(new ShellPart.Body(part, false, slots, bounds));
+
+            EnumSet<ArmorSlot> second = EnumSet.noneOf(ArmorSlot.class);
+            for (ArmorSlot slot : slots)
+                if (slot.keepsChildren()) second.add(slot);
+            if (!second.isEmpty())
+                rows.add(new ShellPart.Body(part, true, Set.copyOf(second), bounds));
+        }
+
+        return rows;
+    }
+
+    /**
+     * The rows one slot draws, each resolved to the box that slot wears it at. Used by the player's
+     * build, whose rows are already in the frame they are drawn in; the mesh build resolves its own,
+     * because its boxes still have to cross into the render frame.
+     */
+    private static @NotNull List<SlotBox> resolveBoxes(
+        @NotNull List<ShellPart> rows, @NotNull ArmorSlot slot) {
+        List<SlotBox> boxes = new ArrayList<>();
+
+        for (ShellPart row : rows) {
+            if (!row.coveredBy(slot)) continue;
+            Box box = row.boxFor(slot);
+            boxes.add(new SlotBox(row,
+                new Vector3f(box.minX(), box.minY(), box.minZ()),
+                new Vector3f(box.maxX(), box.maxY(), box.maxZ())));
+        }
+
+        return boxes;
     }
 
     /**
@@ -350,8 +404,9 @@ public class ArmorKit {
 
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
             ArmorSlot slot = entry.getKey();
-            addMeshSlot3D(triangles, armorBoxes(shell, slot, modelAnchor, ndcScale, modelScale),
-                shell, entry.getValue(), slot, Optional.ofNullable(items.get(slot)), engine);
+            addSlot3D(triangles, armorBoxes(shell, slot, modelAnchor, ndcScale, modelScale),
+                shell.sheet(slot), shell.trimLayer(slot), entry.getValue(),
+                Optional.ofNullable(items.get(slot)), engine);
         }
         return triangles;
     }
@@ -375,18 +430,18 @@ public class ArmorKit {
      * corners, so at the identity every existing wearer's arithmetic is the same expression on the
      * same values and cannot round differently.
      */
-    private static @NotNull List<ArmorBox> armorBoxes(
+    private static @NotNull List<SlotBox> armorBoxes(
         @NotNull Shell shell, @NotNull ArmorSlot slot,
         @NotNull Vector3f modelAnchor, float ndcScale, float modelScale) {
-        List<ArmorBox> boxes = new ArrayList<>();
-        for (ShellPart part : shell.walk().parts()) {
-            if (!part.coveredBy(slot)) continue;
-            Box box = part.boxFor(slot, shell);
+        List<SlotBox> boxes = new ArrayList<>();
+        for (ShellPart row : shell.walk().parts()) {
+            if (!row.coveredBy(slot)) continue;
+            Box box = row.boxFor(slot);
             Vector3f[] corners = intoUprightFrameBounds(new Vector3f[]{
                 toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.minX(), box.minY(), box.minZ()),
                 toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.maxX(), box.maxY(), box.maxZ())
             });
-            boxes.add(new ArmorBox(part.bone(), part.unwrap(), corners[0], corners[1]));
+            boxes.add(new SlotBox(row, corners[0], corners[1]));
         }
         return boxes;
     }
@@ -481,142 +536,53 @@ public class ArmorKit {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Adds one slot's armor around bounds carried in the skin renderer's normalized frame, inflating
-     * by the amount that slot is calibrated for.
+     * Adds one slot's armor around boxes already resolved into the frame they are drawn in, so nothing
+     * is grown or inflated here.
      *
-     * <p>The player is dressed in the adult shell, so the sheet and the trim atlas are that form's -
-     * the same two answers the mesh path reads off the shell it was handed, rather than a second pair
-     * of literals that happen to agree with them.
+     * <p>The sheet and the trim atlas are the shell's answers - a worn shell hands its own, and the
+     * player is dressed in the adult one - and every box is textured twice when the piece carries a
+     * trim, once from each sheet in that order. The slot itself is not passed: everything that varied
+     * by slot was answered while the boxes were being resolved.
      */
     private static void addSlot3D(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull Map<HumanoidPart, Box> bodyPositions,
+        @NotNull List<SlotBox> boxes,
+        @NotNull LayerType sheet,
+        @NotNull Optional<String> trimLayer,
         @NotNull ArmorPiece piece,
-        @NotNull ArmorSlot slot,
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
-        HumanoidPart[] parts = ArmorForm.playerParts(slot);
-
-        Optional<PixelBuffer> armorTexture =
-            resolveArmorTexture(engine, piece, ArmorForm.ADULT.layerType(slot), item);
+        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, sheet, item);
         if (armorTexture.isEmpty()) return;
 
-        for (HumanoidPart part : parts) {
-            Box bounds = bodyPositions.get(part);
-            if (bounds == null) continue;
-            addSkinPart3D(triangles, part, bounds, armorTexture.get(), slot);
-        }
+        for (SlotBox box : boxes)
+            triangles.addAll(buildBox3D(box, armorTexture.get()));
 
         if (piece.trim().isEmpty()) return;
         ArmorTrim trim = piece.trim().get();
-        ArmorForm.ADULT.trimLayer(slot)
+        trimLayer
             .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
             .ifPresent(trimTexture -> {
-                for (HumanoidPart part : parts) {
-                    Box bounds = bodyPositions.get(part);
-                    if (bounds == null) continue;
-                    addSkinPart3D(triangles, part, bounds, trimTexture, slot);
-                }
+                for (SlotBox box : boxes)
+                    triangles.addAll(buildBox3D(box, trimTexture));
             });
     }
 
     /**
-     * Adds one body part's boxes for one slot - the layer box, and the second box the helmet draws over
-     * the head on top of it.
+     * Builds one box of armor, read through its own row against the sheet it is textured with.
      *
-     * <p>That second box is the shell's {@code hat} cube, which the mesh path has always drawn and this
-     * one used to drop: {@link ArmorSlot#keepsChildren()} says a helmet covers the parts it names
-     * <em>and their children</em>, and {@code hat} is the head's. It reads the part's overlay
-     * rectangle - the head's is at {@code uv (32, 0)}, which is that very cube's origin on vanilla's own
-     * sheet - and it sits at the slot's {@link ArmorSlot#skinOverlayInflate() second inflation}, the
-     * ratio the cube's own further deformation puts it at.
-     */
-    private static void addSkinPart3D(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull HumanoidPart part,
-        @NotNull Box bounds,
-        @NotNull PixelBuffer texture,
-        @NotNull ArmorSlot slot
-    ) {
-        triangles.addAll(buildSkinBox3D(part, bounds, texture, slot.skinInflate(), false));
-
-        if (slot.keepsChildren())
-            triangles.addAll(buildSkinBox3D(part, bounds, texture, slot.skinOverlayInflate(), true));
-    }
-
-    /**
-     * Adds one slot's armor around boxes already grown and mapped into the render frame, so nothing
-     * is inflated here. The shell picks the equipment layer the sheet is composited from and whether
-     * a trim is drawn at all - a baby's four slots all read the baby sheet, and vanilla draws no trim
-     * over one.
-     */
-    private static void addMeshSlot3D(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull List<ArmorBox> boxes,
-        @NotNull Shell shell,
-        @NotNull ArmorPiece piece,
-        @NotNull ArmorSlot slot,
-        @NotNull Optional<ItemContext> item,
-        @NotNull Textures engine
-    ) {
-        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, shell.sheet(slot), item);
-        if (armorTexture.isEmpty()) return;
-
-        for (ArmorBox box : boxes)
-            triangles.addAll(buildMeshBox3D(box, armorTexture.get()));
-
-        if (piece.trim().isEmpty()) return;
-        ArmorTrim trim = piece.trim().get();
-        shell.trimLayer(slot)
-            .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
-            .ifPresent(trimTexture -> {
-                for (ArmorBox box : boxes)
-                    triangles.addAll(buildMeshBox3D(box, trimTexture));
-            });
-    }
-
-    /**
-     * Builds one box of the player's own armor, around bounds carried in the skin renderer's
-     * normalized frame and read through that body part's own skin rectangles, on the base layer or the
-     * overlay one.
-     */
-    private static @NotNull ConcurrentList<VisibleTriangle> buildSkinBox3D(
-        @NotNull HumanoidPart part,
-        @NotNull Box bounds,
-        @NotNull PixelBuffer texture,
-        float inflate,
-        boolean overlayLayer
-    ) {
-        Vector3f inflatedMin = new Vector3f(
-            bounds.minX() - inflate, bounds.minY() - inflate, bounds.minZ() - inflate);
-        Vector3f inflatedMax = new Vector3f(
-            bounds.maxX() + inflate, bounds.maxY() + inflate, bounds.maxZ() + inflate);
-        return BlockGeometryKit.buildBox(
-            inflatedMin, inflatedMax, part.textures(texture, overlayLayer), ColorMath.WHITE,
-            SurfaceTraits.WORN_SHELL,
-            RendererDebug.tracingPixels()
-                ? part.name().toLowerCase(Locale.ROOT) + (overlayLayer ? "_overlay" : "")
-                : null);
-    }
-
-    /**
-     * Builds one box of a shell, read through the cube's own unwrap against the sheet - each
-     * render-frame face turned into the model-frame one that unwrap addresses.
-     *
-     * <p>The unwrap is the cube's rather than a table's because a shell states where each of its boxes
-     * sits on its sheet, and the two shells state different things - the baby's head is a nine-wide box
-     * at the sheet's origin where the adult's is eight-wide, and its feet and waist have no counterpart
-     * in the skin layout at all. On the adult shell the two agree box for box, the helmet's second box
+     * <p>A worn shell's row reads its cube's own unwrap, turned into the model frame that unwrap
+     * addresses; the player's reads its body part's own skin rectangles, which resolve that turn when
+     * the part is declared. On the adult shell the two agree box for box, the helmet's second box
      * included: that shell IS the skin unwrap, mirrored left limbs and all.
      */
-    private static @NotNull ConcurrentList<VisibleTriangle> buildMeshBox3D(
-        @NotNull ArmorBox box, @NotNull PixelBuffer texture) {
+    private static @NotNull ConcurrentList<VisibleTriangle> buildBox3D(
+        @NotNull SlotBox box, @NotNull PixelBuffer texture) {
         return BlockGeometryKit.buildBox(
-            box.min(), box.max(),
-            face -> box.unwrap().crop(texture, MODEL_FRAME.apply(face)), ColorMath.WHITE,
+            box.min(), box.max(), box.row().textures(texture), ColorMath.WHITE,
             SurfaceTraits.WORN_SHELL,
-            RendererDebug.tracingPixels() ? box.bone() : null);
+            RendererDebug.tracingPixels() ? box.row().trace() : null);
     }
 
     /**

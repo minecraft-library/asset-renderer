@@ -468,10 +468,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             };
             if (piece.isEmpty()) continue;
 
-            boolean partInSlot = false;
-            for (HumanoidPart slotPart : ArmorForm.playerParts(slot))
-                if (slotPart == part) { partInSlot = true; break; }
-            if (!partInSlot) continue;
+            if (!ArmorForm.playerSlots(part).contains(slot)) continue;
 
             ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h,
                 Optional.ofNullable(options.getArmor().getItems().get(slot)), engine.textures());

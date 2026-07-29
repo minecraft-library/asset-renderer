@@ -55,9 +55,12 @@ public record ShellWalk(
      *
      * @param mesh the shell's ungrown mesh
      * @param form which of the two shells it is, which decides what each slot covers
+     * @param innerGrow the per-side growth the innermost armour layer applies
+     * @param outerGrow the per-side growth the outer armour layer applies
      * @return the resolved walk
      */
-    public static @NotNull ShellWalk of(@NotNull EntityModelData mesh, @NotNull ArmorForm form) {
+    public static @NotNull ShellWalk of(@NotNull EntityModelData mesh, @NotNull ArmorForm form,
+                                        @NotNull Vector3f innerGrow, @NotNull Vector3f outerGrow) {
         Map<ArmorSlot, Set<String>> covered = new EnumMap<>(ArmorSlot.class);
 
         for (ArmorSlot slot : ArmorSlot.values()) {
@@ -83,10 +86,11 @@ public record ShellWalk(
             float scale = entry.getValue().getScale();
 
             for (EntityModelData.Cube cube : entry.getValue().getCubes())
-                parts.add(new ShellPart(bone,
+                parts.add(new ShellPart.Mesh(bone,
                     new Unwrap.Atlas(cube.getUv(), cube.getSize(), cube.isMirror()), drawnBy,
                     anchor.add(cube.getOrigin().multiply(scale)), cube.getSize().multiply(scale),
-                    cube.getGrow(), scale));
+                    innerGrow.add(cube.getGrow()).multiply(scale),
+                    outerGrow.add(cube.getGrow()).multiply(scale)));
         }
 
         return new ShellWalk(List.copyOf(parts), Map.copyOf(covered));

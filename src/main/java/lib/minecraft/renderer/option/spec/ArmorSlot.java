@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.option.spec;
 
-import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +24,8 @@ public enum ArmorSlot {
     /** Leggings - armor layer 2, painted first so layer-1 pieces composite over it. */
     LEGGINGS("leggings") {
         @Override
-        public @NotNull Vector3f grow(@NotNull Shell shell) {
-            return shell.innerGrow();
+        public @NotNull Vector3f grow(@NotNull Vector3f inner, @NotNull Vector3f outer) {
+            return inner;
         }
 
         @Override
@@ -83,15 +82,17 @@ public enum ArmorSlot {
     private final @NotNull String key;
 
     /**
-     * Which of a shell's two deformations this slot wears - the leggings the inner one, the other
-     * three the outer. Vanilla registers an armor set with exactly two, so the choice is the slot's
-     * rather than the shell's.
+     * Which of the two armor layers this slot wears - the leggings the inner one, the other three
+     * the outer. Vanilla registers an armor set with exactly two, so the choice is the slot's rather
+     * than the shell's, and it is asked of whatever pair is in hand: a shell's own deformations, or
+     * one of its cubes' growths with that cube's deformation already summed in.
      *
-     * @param shell the shell being worn
-     * @return the per-side growth this slot applies to the shell's cubes
+     * @param inner the innermost layer's value
+     * @param outer the outer layer's value
+     * @return whichever of the two this slot wears
      */
-    public @NotNull Vector3f grow(@NotNull Shell shell) {
-        return shell.outerGrow();
+    public @NotNull Vector3f grow(@NotNull Vector3f inner, @NotNull Vector3f outer) {
+        return outer;
     }
 
     /**
