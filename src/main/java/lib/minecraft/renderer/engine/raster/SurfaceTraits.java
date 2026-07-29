@@ -73,6 +73,26 @@ public record SurfaceTraits(boolean cullBackFaces, boolean emissive,
     public static final SurfaceTraits OPAQUE_BODY = new SurfaceTraits(true, false, false, false);
 
     /**
+     * Worn-armour geometry - two-sided and glinted. It differs from {@link #OPAQUE_BODY} in exactly
+     * these two bits, which is the whole of how armour geometry differs from block geometry.
+     * <p>
+     * <b>The cull flag is a coverage contract before it is a lighting one.</b> Vanilla submits worn
+     * armour through a pipeline that binds no culling alongside an alpha cutout, so where a box's near
+     * face is cut away by a transparent texel the far face of that same box shows through the hole.
+     * Culling the far faces drops them whole, which reads as a missing wedge wherever the shell stands
+     * clear of the body behind it. On an entity render the flag then also selects the per-face lighting
+     * form in {@code Lighting.EntityLighting#shade}, so a face the camera sees from behind is shaded by
+     * its camera-facing orientation - the choice vanilla's shader makes per pixel - while a face seen
+     * from the front shades identically either way. A player's own armour is not turned back into the
+     * entity frame, so it keeps the cull-blind {@code Lighting#inventory} shade the builder bakes.
+     * <p>
+     * The glint flag is what puts the enchantment foil on the armour rather than on the whole
+     * silhouette: the rasterizer records a per-pixel mask wherever a glinted fragment wins the depth
+     * test, and the compositor applies the foil only there.
+     */
+    public static final SurfaceTraits WORN_SHELL = new SurfaceTraits(false, false, false, true);
+
+    /**
      * Constructs traits for the common case - {@link BlendMode#NORMAL source-over} composition at
      * full opacity ({@code alpha 1.0}), writing depth and drawn in emission order. Only overlays
      * carrying an explicit {@code pipeline} JSON node use the canonical eight-argument constructor;

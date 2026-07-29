@@ -14,11 +14,11 @@ import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.HumanoidPart;
-import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
@@ -48,7 +48,7 @@ import java.util.OptionalInt;
  * <p>
  * The armor texture is a 64x32 atlas whose UV layout matches the top half of the vanilla 64x64
  * player skin - the base layer plus the head's overlay, which the helmet's second box reads -
- * so {@link HumanoidPart#cropAll(PixelBuffer, boolean) cropAll} and
+ * so {@link HumanoidPart#textures(PixelBuffer, boolean) textures} and
  * {@link HumanoidPart#crop(PixelBuffer, Face, boolean) crop} work directly on the armor
  * texture. Armor pieces whose texture region is transparent (e.g. the head area of a leggings
  * layer) produce invisible geometry that the depth buffer or alpha compositing discards
@@ -617,15 +617,15 @@ public class ArmorKit {
             bounds.minX() - inflate, bounds.minY() - inflate, bounds.minZ() - inflate);
         Vector3f inflatedMax = new Vector3f(
             bounds.maxX() + inflate, bounds.maxY() + inflate, bounds.maxZ() + inflate);
-        ConcurrentList<VisibleTriangle> box = BlockGeometryKit.buildArmorBoxTriangles(
-            inflatedMin, inflatedMax, part.cropAll(texture, false), ColorMath.WHITE);
-        return RendererDebug.tracingPixels()
-            ? tagged(box, part.name().toLowerCase(Locale.ROOT))
-            : box;
+        return BlockGeometryKit.buildBox(
+            inflatedMin, inflatedMax, part.textures(texture, false), ColorMath.WHITE,
+            SurfaceTraits.WORN_SHELL,
+            RendererDebug.tracingPixels() ? part.name().toLowerCase(Locale.ROOT) : null);
     }
 
     /**
-     * Builds one box of a shell, read through the cube's own unwrap against the sheet.
+     * Builds one box of a shell, read through the cube's own unwrap against the sheet - each
+     * render-frame face turned into the model-frame one that unwrap addresses.
      *
      * <p>The unwrap is the cube's rather than a table's because a shell states where each of its boxes
      * sits on its sheet, and the two shells state different things - the baby's head is a nine-wide box
@@ -635,43 +635,13 @@ public class ArmorKit {
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildMeshBox3D(
         @NotNull ArmorBox box, @NotNull PixelBuffer texture) {
-        ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildArmorBoxTriangles(
-            box.min(), box.max(), cropCube(texture, box.cube()), ColorMath.WHITE);
-        return RendererDebug.tracingPixels() ? tagged(triangles, box.bone()) : triangles;
-    }
-
-    /**
-     * Crops one shell cube's six faces out of a sheet, turning each render-frame face into the
-     * model-frame one the shell's unwrap addresses.
-     */
-    private static @NotNull SixFaces cropCube(
-        @NotNull PixelBuffer sheet, @NotNull EntityModelData.Cube cube) {
+        EntityModelData.Cube cube = box.cube();
         Unwrap.Atlas unwrap = new Unwrap.Atlas(cube.getUv(), cube.getSize(), cube.isMirror());
-        return new SixFaces(
-            unwrap.crop(sheet, MODEL_FRAME.apply(Face.DOWN)),
-            unwrap.crop(sheet, MODEL_FRAME.apply(Face.UP)),
-            unwrap.crop(sheet, MODEL_FRAME.apply(Face.NORTH)),
-            unwrap.crop(sheet, MODEL_FRAME.apply(Face.SOUTH)),
-            unwrap.crop(sheet, MODEL_FRAME.apply(Face.WEST)),
-            unwrap.crop(sheet, MODEL_FRAME.apply(Face.EAST)));
-    }
-
-    /**
-     * Names each triangle of one armor box for the per-pixel trace, so a dump reads
-     * {@code right_leg:north} rather than {@code null} where two shell faces contest a pixel. The
-     * shared box builder emits two triangles per face in {@link Face#CACHED_VALUES} order,
-     * which is what lets the face be recovered from the position.
-     *
-     * @param box the box's twelve triangles as the builder emitted them
-     * @param name the part the box belongs to
-     * @return the same triangles, each carrying a {@code part:face} tag
-     */
-    private static @NotNull ConcurrentList<VisibleTriangle> tagged(
-        @NotNull ConcurrentList<VisibleTriangle> box, @NotNull String name) {
-        ConcurrentList<VisibleTriangle> out = Concurrent.newList();
-        for (int index = 0; index < box.size(); index++)
-            out.add(box.get(index).withDebugTag(name + ":" + Face.CACHED_VALUES[index / 2].direction()));
-        return out;
+        return BlockGeometryKit.buildBox(
+            box.min(), box.max(),
+            face -> unwrap.crop(texture, MODEL_FRAME.apply(face)), ColorMath.WHITE,
+            SurfaceTraits.WORN_SHELL,
+            RendererDebug.tracingPixels() ? box.bone() : null);
     }
 
     /**

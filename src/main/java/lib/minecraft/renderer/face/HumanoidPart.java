@@ -249,22 +249,14 @@ public enum HumanoidPart {
     }
 
     /**
-     * Crops all six faces of this part out of the skin image into a {@link SixFaces} ready to feed
-     * the block geometry kit's box-triangle builder.
+     * This part's six skin rectangles as a per-face supplier, ready to feed a box builder.
      *
      * @param skin the source skin image
      * @param overlayLayer whether to crop the overlay layer instead of the base layer
-     * @return the six cropped faces keyed by {@link Face} direction
+     * @return a supplier cropping this part's face out of {@code skin} on demand
      */
-    public @NotNull SixFaces cropAll(@NotNull PixelBuffer skin, boolean overlayLayer) {
-        return new SixFaces(
-            crop(skin, Face.DOWN, overlayLayer),
-            crop(skin, Face.UP, overlayLayer),
-            crop(skin, Face.NORTH, overlayLayer),
-            crop(skin, Face.SOUTH, overlayLayer),
-            crop(skin, Face.WEST, overlayLayer),
-            crop(skin, Face.EAST, overlayLayer)
-        );
+    public @NotNull FaceTextures textures(@NotNull PixelBuffer skin, boolean overlayLayer) {
+        return face -> crop(skin, face, overlayLayer);
     }
 
     /**

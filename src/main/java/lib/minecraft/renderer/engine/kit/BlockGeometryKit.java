@@ -8,13 +8,14 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.CornerPhase;
 import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.face.SixFaces;
+import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -23,6 +24,7 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 import java.util.Optional;
@@ -68,80 +70,72 @@ public class BlockGeometryKit {
      * <p>
      * Every face uses the full {@code [0, 1]} UV rectangle.
      *
-     * @param faces the six face textures, keyed by {@link Face} direction
+     * @param textures the texture each face paints
      * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
      * @return the 12-triangle list, ready for rasterization
      */
     public static @NotNull ConcurrentList<VisibleTriangle> unitCube(
-        @NotNull SixFaces faces,
+        @NotNull FaceTextures textures,
         int tintArgb
     ) {
-        return buildBoxTriangles(
+        return buildBox(
             new Vector3f(-0.5f, -0.5f, -0.5f),
             new Vector3f(0.5f, 0.5f, 0.5f),
-            faces,
+            textures,
             tintArgb
         );
     }
 
     /**
-     * Builds a list of 12 triangles describing a box defined by minimum and maximum corners.
+     * Builds a list of 12 triangles describing an opaque, back-face-culled box defined by minimum and
+     * maximum corners, emitting untagged triangles.
      *
      * @param min the minimum corner in model space
      * @param max the maximum corner in model space
-     * @param faces the six face textures, keyed by {@link Face} direction
+     * @param textures the texture each face paints
      * @param tintArgb the ARGB tint applied to every face
      * @return the 12-triangle list
      */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildBoxTriangles(
+    public static @NotNull ConcurrentList<VisibleTriangle> buildBox(
         @NotNull Vector3f min,
         @NotNull Vector3f max,
-        @NotNull SixFaces faces,
+        @NotNull FaceTextures textures,
         int tintArgb
     ) {
-        return buildBox(min, max, faces, tintArgb, true, false);
+        return buildBox(min, max, textures, tintArgb, SurfaceTraits.OPAQUE_BODY, null);
     }
 
     /**
-     * Builds a list of 12 triangles describing a worn-armor box - two-sided, and glinted so the
-     * rasterizer's foil mask covers the armor rather than the whole body silhouette.
+     * Builds a list of 12 triangles describing a box, carrying the surface character and the
+     * per-pixel-trace name the caller declares.
      * <p>
-     * Vanilla submits worn armor through a pipeline that binds no culling alongside an alpha cutout, so
-     * where a box's near face is cut away by a transparent texel the far face of that same box shows
-     * through the hole. Culling the far faces drops those faces whole, which reads as a missing wedge
-     * wherever the armor stands clear of the body behind it.
+     * <b>One builder serves every box this renderer draws</b> - a block's unit cube, an item slab, the
+     * player's own body boxes, the cape, and a worn armour shell. Armour geometry does not differ from
+     * block geometry by a code path; it differs by the two bits between
+     * {@link SurfaceTraits#OPAQUE_BODY} and {@link SurfaceTraits#WORN_SHELL}, which is why those two
+     * constants are the whole of the distinction and why they carry their own reasons.
      * <p>
-     * On the entity render the flag additionally selects the per-face lighting form in
-     * {@link Lighting.EntityLighting#shade}, so a face the camera sees from behind is shaded by its
-     * camera-facing orientation - the choice vanilla's shader makes per pixel - while a face seen from
-     * the front shades identically either way. A player's own armor is not turned back into the entity
-     * frame, so it keeps the cull-blind {@link Lighting#inventory} shade baked here.
-     * <p>
-     * The result is emitted two triangles per face in {@link Face#CACHED_VALUES} order, which is
-     * how {@code ArmorKit} recovers each triangle's face to name it for the per-pixel trace.
+     * {@code debugPart} names the box for the per-pixel trace and each face's two triangles carry
+     * {@code part:face}. Without a tag an armour fragment logs {@code tag=null} and the trace skips it
+     * entirely, which has misread the armour seam twice - so a caller holding a name passes it whenever
+     * {@link RendererDebug#tracingPixels()} reports the dump armed. The name reaches the triangle as an
+     * argument rather than being recovered downstream from emission order.
      *
      * @param min the minimum corner in model space
      * @param max the maximum corner in model space
-     * @param faces the six face textures, keyed by {@link Face} direction
+     * @param textures the texture each face paints
      * @param tintArgb the ARGB tint applied to every face
+     * @param surface the surface character every triangle of the box carries
+     * @param debugPart the box's name for the per-pixel trace, or {@code null} to emit untagged
      * @return the 12-triangle list
      */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildArmorBoxTriangles(
+    public static @NotNull ConcurrentList<VisibleTriangle> buildBox(
         @NotNull Vector3f min,
         @NotNull Vector3f max,
-        @NotNull SixFaces faces,
-        int tintArgb
-    ) {
-        return buildBox(min, max, faces, tintArgb, false, true);
-    }
-
-    private static @NotNull ConcurrentList<VisibleTriangle> buildBox(
-        @NotNull Vector3f min,
-        @NotNull Vector3f max,
-        @NotNull SixFaces faces,
+        @NotNull FaceTextures textures,
         int tintArgb,
-        boolean cullBackFaces,
-        boolean glinted
+        @NotNull SurfaceTraits surface,
+        @Nullable String debugPart
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Box box = Box.of(min, max);
@@ -151,10 +145,10 @@ public class BlockGeometryKit {
             addQuad(
                 triangles,
                 corners[0], corners[1], corners[2], corners[3],
-                faces.byFace(face), tintArgb,
+                textures.byFace(face), tintArgb,
                 face.normal(),
-                cullBackFaces,
-                glinted
+                surface,
+                debugPart == null ? null : debugPart + ":" + face.direction()
             );
         }
 
@@ -260,7 +254,7 @@ public class BlockGeometryKit {
                         corners[0], corners[1], corners[2], corners[3],
                         uv[0], uv[1], uv[2], uv[3],
                         texture, tintArgb, normal,
-                        !isPlaneCube, translucent, true, 0, false);
+                        new SurfaceTraits(!isPlaneCube, false, translucent, false), true, 0, null);
                 }
             }
         }
@@ -570,11 +564,10 @@ public class BlockGeometryKit {
                     uv[0], uv[1], uv[2], uv[3],
                     texture, faceTint,
                     faceNormal,
-                    !twoSided,
-                    translucent,
+                    new SurfaceTraits(!twoSided, false, translucent, false),
                     element.isShade(),
                     element.getLightEmission(),
-                    false
+                    null
                 );
             }
         }
@@ -718,13 +711,13 @@ public class BlockGeometryKit {
         @NotNull PixelBuffer texture,
         int tintArgb,
         @NotNull Vector3f normal,
-        boolean cullBackFaces,
-        boolean glinted
+        @NotNull SurfaceTraits traits,
+        @Nullable String debugTag
     ) {
         addQuad(out,
             topLeft, bottomLeft, bottomRight, topRight,
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            texture, tintArgb, normal, cullBackFaces, false, true, 0, glinted);
+            texture, tintArgb, normal, traits, true, 0, debugTag);
     }
 
     /**
@@ -740,15 +733,15 @@ public class BlockGeometryKit {
      * of a {@code "shade": false} element) the shade is instead {@link Shading#DISABLED}, so the
      * relight pass renders it full-bright to match vanilla's in-world {@code getShade(dir, false) == 1.0}.
      *
-     * @param cullBackFaces whether the rasterizer culls the away-facing side of these triangles
-     * @param translucent whether the face samples partial-alpha texels and must sort back-to-front
+     * @param traits the surface character both triangles carry, declared by the caller
      * @param directionalLight whether the face receives {@code ITEMS_3D} shading, or full-bright when
      *     {@code false} (a {@code "shade": false} element)
      * @param lightEmission the element's {@code light_emission} level {@code 0-15}: raises the baked
      *     shade floor to {@code emission / 15}, full-bright at {@code 15};
      *     {@code 0} leaves the shade untouched. The floor is a real {@code [0,1]} scalar (not the
      *     {@link Shading#DISABLED} sentinel, which renders black on the un-relit Held3D path)
-     * @param glinted whether the face is worn-armor geometry receiving the enchantment foil
+     * @param debugTag the {@code part:face} label for the per-pixel trace, or {@code null} when the
+     *     dump is not armed
      */
     private static void addQuad(
         @NotNull ConcurrentList<VisibleTriangle> out,
@@ -763,11 +756,10 @@ public class BlockGeometryKit {
         @NotNull PixelBuffer texture,
         int tintArgb,
         @NotNull Vector3f normal,
-        boolean cullBackFaces,
-        boolean translucent,
+        @NotNull SurfaceTraits traits,
         boolean directionalLight,
         int lightEmission,
-        boolean glinted
+        @Nullable String debugTag
     ) {
         // Shade baked per triangle (see the javadoc): inventory cardinal shade, or full-bright
         // DISABLED for a "shade": false element. light_emission folds on top by
@@ -786,9 +778,8 @@ public class BlockGeometryKit {
         } else {
             shading = Lighting.inventory(normal);
         }
-        SurfaceTraits traits = new SurfaceTraits(cullBackFaces, false, translucent, glinted);
-        out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, traits, null));
-        out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, traits, null));
+        out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, traits, debugTag));
+        out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, traits, debugTag));
     }
 
 }

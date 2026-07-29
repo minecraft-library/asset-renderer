@@ -13,7 +13,7 @@ import lib.minecraft.renderer.engine.compose.RasterPass;
 import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.face.SixFaces;
+import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.option.PortalOptions;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -585,7 +585,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             // shading mask is scope-local pooled scratch.
             PixelBuffer white = PixelBuffer.create(1, 1);
             white.setPixel(0, 0, ColorMath.WHITE);
-            ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), SixFaces.uniform(white));
+            ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), FaceTextures.uniform(white));
             try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(target.width(), target.height())) {
                 PixelBuffer shadingMask = maskLease.buffer();
                 engine.rasterize(triangles, shadingMask);
@@ -624,7 +624,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
          */
         private static @NotNull ConcurrentList<VisibleTriangle> buildGeometry(
             @NotNull PortalOptions.Portal portal,
-            @NotNull SixFaces faces
+            @NotNull FaceTextures faces
         ) {
             if (portal == PortalOptions.Portal.END_GATEWAY)
                 return BlockGeometryKit.unitCube(faces, ColorMath.WHITE);
@@ -632,7 +632,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             // End portal slab: x and z span the full unit range, y clipped to vanilla's [BOTTOM, TOP].
             // Model space is [-0.5, +0.5] per axis (see GeometryKit.unitCube), so the slab's Y
             // offsets are measured from the cube's centre.
-            return BlockGeometryKit.buildBoxTriangles(
+            return BlockGeometryKit.buildBox(
                 new Vector3f(-0.5f, END_PORTAL_SLAB_BOTTOM_Y - 0.5f, -0.5f),
                 new Vector3f(0.5f, END_PORTAL_SLAB_TOP_Y - 0.5f, 0.5f),
                 faces,

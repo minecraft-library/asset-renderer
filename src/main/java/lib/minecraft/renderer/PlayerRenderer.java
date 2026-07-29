@@ -28,8 +28,8 @@ import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.face.HumanoidPart;
-import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.option.PlayerOptions;
@@ -304,9 +304,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     private static final @NotNull Turn CAPE_FRAME = Turn.MIRROR_Y;
 
     /**
-     * Crops the 6 face textures for the cape cube out of a cape texture, through the cube's own atlas
-     * unwrap read in the {@link #CAPE_FRAME cape frame}. The cape model is a 10x16x1 box at UV origin
-     * (0,0), so the vanilla cube unwrap lays it out as:
+     * Reads each face of the cape cube out of a cape texture, through the cube's own atlas unwrap in
+     * the {@link #CAPE_FRAME cape frame}. The cape model is a 10x16x1 box at UV origin (0,0), so the
+     * vanilla cube unwrap lays it out as:
      * <pre>
      * y=0:  [1px edge][10px BOTTOM][1px edge][10px TOP]
      * y=1:  [1px WEST][10px NORTH ][1px EAST][10px SOUTH]  (16 rows)
@@ -316,16 +316,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * / {@link Face#NORTH NORTH} face points outward, away from the body - so the design lands
      * outward and the lining against the back.
      */
-    private static @NotNull SixFaces cropCapeFaces(@NotNull PixelBuffer cape) {
+    private static @NotNull FaceTextures capeTextures(@NotNull PixelBuffer cape) {
         Unwrap.Atlas unwrap = new Unwrap.Atlas(CAPE_UV, CAPE_SIZE, false);
-        return new SixFaces(
-            unwrap.crop(cape, CAPE_FRAME.apply(Face.DOWN)),
-            unwrap.crop(cape, CAPE_FRAME.apply(Face.UP)),
-            unwrap.crop(cape, CAPE_FRAME.apply(Face.NORTH)),
-            unwrap.crop(cape, CAPE_FRAME.apply(Face.SOUTH)),
-            unwrap.crop(cape, CAPE_FRAME.apply(Face.WEST)),
-            unwrap.crop(cape, CAPE_FRAME.apply(Face.EAST))
-        );
+        return face -> unwrap.crop(cape, CAPE_FRAME.apply(face));
     }
 
     /**
@@ -353,8 +346,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         Vector3f capeMin = new Vector3f(cx - capeW / 2f, capeTop - capeH, capeBack - capeD);
         Vector3f capeMax = new Vector3f(cx + capeW / 2f, capeTop, capeBack);
 
-        SixFaces faces = cropCapeFaces(capeTexture);
-        triangles.addAll(BlockGeometryKit.buildBoxTriangles(capeMin, capeMax, faces, ColorMath.WHITE));
+        triangles.addAll(BlockGeometryKit.buildBox(capeMin, capeMax, capeTextures(capeTexture), ColorMath.WHITE));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -513,12 +505,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
             stack.append(PlayerSlot3D.BODY, sink -> {
-                sink.addAll(BlockGeometryKit.unitCube(HumanoidPart.HEAD.cropAll(skin, false), ColorMath.WHITE));
+                sink.addAll(BlockGeometryKit.unitCube(HumanoidPart.HEAD.textures(skin, false), ColorMath.WHITE));
                 if (options.getSkin().isRenderOverlay() && hasHatOverlay(skin))
-                    sink.addAll(BlockGeometryKit.buildBoxTriangles(
+                    sink.addAll(BlockGeometryKit.buildBox(
                         new Vector3f(-0.52f, -0.52f, -0.52f),
                         new Vector3f(0.52f, 0.52f, 0.52f),
-                        HumanoidPart.HEAD.cropAll(skin, true), ColorMath.WHITE));
+                        HumanoidPart.HEAD.textures(skin, true), ColorMath.WHITE));
             });
             appendArmor(stack, PlayerOptions.Type.SKULL, options, engine);
 
@@ -651,12 +643,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     ) {
         Vector3f min = new Vector3f(box.minX(), box.minY(), box.minZ());
         Vector3f max = new Vector3f(box.maxX(), box.maxY(), box.maxZ());
-        triangles.addAll(BlockGeometryKit.buildBoxTriangles(min, max, part.cropAll(skin, false), ColorMath.WHITE));
+        triangles.addAll(BlockGeometryKit.buildBox(min, max, part.textures(skin, false), ColorMath.WHITE));
         if (options.getSkin().isRenderOverlay() && hasOverlay(skin))
-            triangles.addAll(BlockGeometryKit.buildBoxTriangles(
+            triangles.addAll(BlockGeometryKit.buildBox(
                 new Vector3f(min.x() - OVERLAY_INFLATE, min.y() - OVERLAY_INFLATE, min.z() - OVERLAY_INFLATE),
                 new Vector3f(max.x() + OVERLAY_INFLATE, max.y() + OVERLAY_INFLATE, max.z() + OVERLAY_INFLATE),
-                part.cropAll(skin, true), ColorMath.WHITE));
+                part.textures(skin, true), ColorMath.WHITE));
     }
 
     /**

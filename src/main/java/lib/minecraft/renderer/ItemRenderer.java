@@ -40,7 +40,7 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.face.SixFaces;
+import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.option.ItemOptions;
@@ -433,10 +433,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         PixelBuffer composite = BannerKit.composite2D(engine.textures(), baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
 
-        return BlockGeometryKit.buildBoxTriangles(
+        return BlockGeometryKit.buildBox(
             new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
             new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-            SixFaces.uniform(composite),
+            FaceTextures.uniform(composite),
             ColorMath.WHITE
         );
     }
@@ -833,10 +833,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint, tint, forceRefs);
             }
             PixelBuffer texture = composeTintedLayers(this.context, engine, item, options, cit, tick);
-            return BlockGeometryKit.buildBoxTriangles(
+            return BlockGeometryKit.buildBox(
                 new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
                 new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-                SixFaces.uniform(texture),
+                FaceTextures.uniform(texture),
                 ColorMath.WHITE
             );
         }

@@ -32,8 +32,8 @@
  *       is built from, and the skin regions their faces read. Its rectangles are the atlas unwrap
  *       under the model-frame turn, so the player skin unwrap and the entity cube unwrap are one
  *       function.</li>
- *   <li>{@link lib.minecraft.renderer.face.SixFaces SixFaces} - small immutable holder of one value
- *       per face, used for per-face texture maps and other small face-keyed tables.</li>
+ *   <li>{@link lib.minecraft.renderer.face.FaceTextures FaceTextures} - the texture a box paints on
+ *       each of its six faces, answered one face at a time.</li>
  * </ul>
  *
  * @see lib.minecraft.renderer.face.Face
