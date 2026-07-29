@@ -601,10 +601,10 @@ public class ArmorKit {
     }
 
     /**
-     * Resolves and permutes a 3D entity-armor trim texture. Unlike {@link TrimKit}'s item-slot
-     * path, this pulls the trim from the {@code trims/entity/{layer}} atlas ({@code humanoid} or
-     * {@code humanoid_leggings}) and runs the same {@link TrimKit#permute paletted permutation}
-     * against the shared {@code trim_palette} key and the material's colour strip.
+     * Resolves and permutes a 3D entity-armor trim texture. Only the base pattern's id is this path's
+     * own - the {@code trims/entity/{layer}} atlas ({@code humanoid} or {@code humanoid_leggings})
+     * rather than {@link TrimKit}'s item-slot {@code trims/items/} stem - so it builds that and hands
+     * the rest to the resolve both trim paths share.
      *
      * @param engine the texture engine for pack-aware texture resolution
      * @param layer the entity trim layer ({@code humanoid} or {@code humanoid_leggings})
@@ -618,18 +618,8 @@ public class ArmorKit {
         @NotNull ArmorTrim.Pattern pattern,
         @NotNull ArmorTrim.Color color
     ) {
-        String patternId = "minecraft:trims/entity/" + layer + "/" + pattern.getKey();
-        String paletteKeyId = "minecraft:trims/color_palettes/trim_palette";
-        String colorPaletteId = "minecraft:trims/color_palettes/" + color.getKey();
-
-        Optional<PixelBuffer> base = engine.tryResolveTexture(patternId);
-        Optional<PixelBuffer> paletteKey = engine.tryResolveTexture(paletteKeyId);
-        Optional<PixelBuffer> colorPalette = engine.tryResolveTexture(colorPaletteId);
-
-        if (base.isEmpty() || paletteKey.isEmpty() || colorPalette.isEmpty())
-            return Optional.empty();
-
-        return Optional.of(TrimKit.permute(base.get(), paletteKey.get(), colorPalette.get()));
+        return TrimKit.permuteFrom(engine,
+            "minecraft:trims/entity/" + layer + "/" + pattern.getKey(), color.getKey());
     }
 
 }

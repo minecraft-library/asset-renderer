@@ -158,6 +158,35 @@ class ArmorKitCitCompositeTest {
         assertThat(ctx.resolved.contains("minecraft:trims/entity/humanoid/coast"), equalTo(true));
     }
 
+    @Test
+    @DisplayName("both trim paths resolve the same triple in the same order, differing only in the base id")
+    void trimPathsDifferOnlyInTheBaseId() {
+        // The two paths share one resolve, so what has to be pinned is that only the first of the three
+        // ids is the caller's. The entity half is reachable from a render; the item half is reachable
+        // from no sweep and no other test, which is why it is asserted here rather than measured.
+        RecordingContext entity = new RecordingContext(List.of(), CitResult.NONE);
+        ArmorKit.resolveTrimTexture(new Textures(entity), LayerType.HUMANOID.getId(),
+            ArmorTrim.Pattern.COAST, ArmorTrim.Color.COPPER);
+
+        RecordingContext item = new RecordingContext(List.of(), CitResult.NONE);
+        TrimKit.resolve(new Textures(item),
+            ArmorSlot.CHESTPLATE.getKey(), ArmorTrim.Color.COPPER.getKey());
+
+        RecordingContext parsed = new RecordingContext(List.of(), CitResult.NONE);
+        TrimKit.resolveFromTextureRef(new Textures(parsed), "minecraft:trims/items/chestplate_trim_copper");
+
+        assertThat(entity.resolved, equalTo(List.of(
+            "minecraft:trims/entity/humanoid/coast",
+            "minecraft:trims/color_palettes/trim_palette",
+            "minecraft:trims/color_palettes/copper")));
+        assertThat(item.resolved, equalTo(List.of(
+            "minecraft:trims/items/chestplate_trim",
+            "minecraft:trims/color_palettes/trim_palette",
+            "minecraft:trims/color_palettes/copper")));
+        // The filename round trip lands on the same three ids as the (slot, material) call it parses to.
+        assertThat(parsed.resolved, equalTo(item.resolved));
+    }
+
     /** An iron helmet carrying a trim, so the trim pass is reached for whichever form is dressed. */
     private static @NotNull ArmorPiece trimmed() {
         return ArmorPiece.of(ArmorMaterial.IRON, ArmorTrim.Color.COPPER, ArmorTrim.Pattern.COAST);

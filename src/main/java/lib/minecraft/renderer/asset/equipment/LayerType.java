@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.equipment;
 
+import lib.minecraft.renderer.asset.pack.rule.CitType;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -81,6 +82,32 @@ public enum LayerType {
      */
     public static @NotNull Optional<LayerType> fromId(@NotNull String id) {
         return Optional.ofNullable(BY_ID.get(id));
+    }
+
+    /**
+     * The CIT retexture subject a resource pack addresses this layer through - {@code type=elytra} for
+     * the wings and {@code type=armor} for the other eighteen, which is the only split OptiFine's own
+     * {@code type=} vocabulary makes across these constants.
+     *
+     * @return the CIT subject a pack retextures this layer as
+     */
+    public @NotNull CitType citType() {
+        return this == WINGS ? CitType.ELYTRA : CitType.ARMOR;
+    }
+
+    /**
+     * The path a texture of this layer sits under, joined to a bare stem - so {@code iron} under
+     * {@link #HUMANOID} becomes {@code entity/equipment/humanoid/iron}. Namespace-free: the caller
+     * supplies that.
+     *
+     * <p>The convention is total over all 19 constants and it is stated here, where the {@code id} that
+     * names the subdir is declared, rather than at whichever consumer happens to be building a path.
+     *
+     * @param name the bare texture stem name
+     * @return the namespace-relative texture path
+     */
+    public @NotNull String texturePath(@NotNull String name) {
+        return "entity/equipment/" + this.id + "/" + name;
     }
 
 }

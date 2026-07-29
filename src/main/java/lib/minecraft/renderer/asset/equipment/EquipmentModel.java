@@ -60,7 +60,7 @@ public record EquipmentModel(@NotNull Map<LayerType, List<Layer>> layers) {
          * @return the resolvable namespaced texture id
          */
         public @NotNull ResourceId textureLocation(@NotNull LayerType type) {
-            return new ResourceId(this.texture.namespace(), "entity/equipment/" + type.getId() + "/" + this.texture.name());
+            return new ResourceId(this.texture.namespace(), type.texturePath(this.texture.name()));
         }
 
     }

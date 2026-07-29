@@ -375,9 +375,8 @@ public final class PipelineRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * Walks the merged CIT rule list first-match-wins for the layer type's subject
-     * ({@code type=elytra} for {@link LayerType#WINGS}, else {@code type=armor}), returning the winning
-     * rule's output. Empty on a vanilla-only stack (no {@code optifine/} tree, so no rules). The glint
+     * Walks the merged CIT rule list first-match-wins for the subject the layer type names
+     * ({@link LayerType#citType()}), returning the winning rule's output. Empty on a vanilla-only stack (no {@code optifine/} tree, so no rules). The glint
      * stays {@link GlintPolicy#DEFAULT}: armor enchant glint rides {@code ArmorPiece.enchanted} onto a
      * separate {@code PixelMask} channel, not the CIT glint the item override grafts, so a
      * {@code type=enchantment} rule never colours a CIT-armor override.
@@ -385,7 +384,7 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull CitResult resolveArmorTextureOverride(
         @NotNull ArmorMaterial material, @NotNull LayerType layerType, @NotNull ItemContext item) {
-        CitType want = layerType == LayerType.WINGS ? CitType.ELYTRA : CitType.ARMOR;
+        CitType want = layerType.citType();
         for (CitRule rule : this.stack.rules().citRules()) {
             if (rule.type() != want) continue;
             if (rule.matches(item)) return CitResult.of(rule.output(), GlintPolicy.DEFAULT);
