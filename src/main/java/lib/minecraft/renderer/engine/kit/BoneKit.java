@@ -4,6 +4,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.face.EntityFace;
+import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -331,7 +332,8 @@ public class BoneKit {
         float texWidth,
         float texHeight
     ) {
-        Vector2f[] uv = resolveFaceUv(face.mirror(cube.isMirror()), cube, size, texWidth, texHeight);
+        EntityFace strip = cube.isMirror() ? Turn.MIRROR_X.apply(face) : face;
+        Vector2f[] uv = resolveFaceUv(strip, cube, size, texWidth, texHeight);
         return face.permuteToPolygonOrder(uv);
     }
 

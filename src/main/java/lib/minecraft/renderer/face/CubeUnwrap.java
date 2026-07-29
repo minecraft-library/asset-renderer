@@ -45,7 +45,7 @@ public class CubeUnwrap {
         // A mirrored cube reads the opposite side's strip on the two side faces and reads every
         // strip right to left, which is the same pair of moves the skin table's legacy left-limb
         // fallback makes.
-        Vector4f rect = face.mirror(mirror).defaultUv(uv, size);
+        Vector4f rect = (mirror ? Turn.MIRROR_X.apply(face) : face).defaultUv(uv, size);
         float u0 = rect.x();
         float v0 = rect.y();
         float uSpan = rect.z() - u0;

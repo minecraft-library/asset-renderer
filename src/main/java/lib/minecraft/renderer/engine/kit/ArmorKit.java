@@ -18,9 +18,9 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.face.CubeUnwrap;
-import lib.minecraft.renderer.face.EntityFace;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.face.SkinFace;
+import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
@@ -84,19 +84,12 @@ public class ArmorKit {
     ) {}
 
     /**
-     * The model-frame face each render-frame face of a shell box reads its texture through. A shell's
-     * unwrap is authored in vanilla's Y-down model frame while the boxes here are built upright, and
-     * the two frames differ by exactly {@link #turnAboutX}'s half turn - which swaps up with down and
-     * north with south and leaves the two sides where they are.
+     * The frame a shell's unwrap is authored in, relative to the upright frame its boxes are built in.
+     * A shell states its strips in vanilla's Y-down model frame, so a render-frame face reads its
+     * texture through the face this turn maps it onto - up with down and north with south swapped,
+     * the two sides left where they are.
      */
-    private static final @NotNull Map<BlockFace, EntityFace> MESH_FACES = Map.of(
-        BlockFace.DOWN, EntityFace.UP,
-        BlockFace.UP, EntityFace.DOWN,
-        BlockFace.NORTH, EntityFace.SOUTH,
-        BlockFace.SOUTH, EntityFace.NORTH,
-        BlockFace.WEST, EntityFace.WEST,
-        BlockFace.EAST, EntityFace.EAST
-    );
+    private static final @NotNull Turn MODEL_FRAME = Turn.HALF_X;
 
     /**
      * Guard on the bone parent chain walked by {@link #chainedPivot} - the armor meshes are two deep,
@@ -293,7 +286,7 @@ public class ArmorKit {
             Lighting.resolveEntity(EntityGeometryKit.DEFAULT_ENTITY_LIGHTING);
         ConcurrentList<VisibleTriangle> entityArmor = Concurrent.newList();
         for (VisibleTriangle triangle : armor)
-            entityArmor.add(turnAboutX(triangle, lighting));
+            entityArmor.add(intoModelFrame(triangle, lighting));
         return entityArmor;
     }
 
@@ -428,7 +421,7 @@ public class ArmorKit {
                 Vector3f grow = deformation.add(cube.getGrow()).multiply(scale);
                 Vector3f min = anchor.add(cube.getOrigin().multiply(scale)).subtract(grow);
                 Vector3f max = min.add(cube.getSize().multiply(scale)).add(grow).add(grow);
-                Vector3f[] corners = turnAboutXBounds(new Vector3f[]{
+                Vector3f[] corners = intoUprightFrameBounds(new Vector3f[]{
                     toRenderFrame(frame, armor, min.x(), min.y(), min.z()),
                     toRenderFrame(frame, armor, max.x(), max.y(), max.z())
                 });
@@ -489,45 +482,44 @@ public class ArmorKit {
     }
 
     /**
-     * Turns a point 180 degrees about the X axis - negating Y and Z. Its own inverse.
+     * Turns a {@code [min, max]} bounding box out of the model frame, re-sorting the negated Y and Z
+     * extents so the result stays a valid {@code [min, max]} pair - the turn swaps which of the two
+     * corners is the lower one on those axes.
      */
-    private static @NotNull Vector3f turnAboutX(@NotNull Vector3f point) {
-        return new Vector3f(point.x(), -point.y(), -point.z());
-    }
-
-    /**
-     * Turns a {@code [min, max]} bounding box 180 degrees about the X axis, re-sorting the negated Y and
-     * Z extents so the result stays a valid {@code [min, max]} pair.
-     */
-    private static @NotNull Vector3f @NotNull [] turnAboutXBounds(@NotNull Vector3f @NotNull [] bounds) {
-        Vector3f min = bounds[0];
-        Vector3f max = bounds[1];
+    private static @NotNull Vector3f @NotNull [] intoUprightFrameBounds(@NotNull Vector3f @NotNull [] bounds) {
+        Vector3f low = MODEL_FRAME.apply(bounds[1]);
+        Vector3f high = MODEL_FRAME.apply(bounds[0]);
         return new Vector3f[]{
-            new Vector3f(min.x(), -max.y(), -max.z()),
-            new Vector3f(max.x(), -min.y(), -min.z())
+            new Vector3f(bounds[0].x(), low.y(), low.z()),
+            new Vector3f(bounds[1].x(), high.y(), high.z())
         };
     }
 
     /**
-     * Turns a built armor triangle 180 degrees about the X axis - the counterpart to
-     * {@link #turnAboutXBounds} that maps the player-frame armor back into the entity's Y-down model
-     * frame. Positions and the stored normal turn together (a pure rotation preserves winding, so
-     * culling is unaffected), and the shade is recomputed from the turned normal so lighting resolves
-     * in the final frame.
+     * Maps a built armor triangle from the upright player frame back into the entity's Y-down model
+     * frame. Positions and the stored normal turn together (a half turn is a pure rotation and
+     * preserves winding, so culling is unaffected), and the shade is recomputed from the turned normal
+     * so lighting resolves in the final frame.
+     *
+     * <p><b>Two different turns happen here, and only one of them is the frame change.</b> The
+     * geometry takes the half turn about X; the shading normal then takes a further Y mirror, because
+     * the kit's tuned light frame is reflected in Y from the geometry frame - exactly as the body's
+     * own faces are.
      *
      * <p>The shade comes from the entity lighting basis, not the block / item inventory one: worn armor
      * is part of the entity render and vanilla lights it with the same two-directional shader as the
-     * body it dresses. The shading normal is Y-flipped to match the kit's tuned light frame, exactly as
-     * the body's own faces are. Armor boxes are built two-sided, so the shade resolves through the
-     * per-face form - a face the camera sees from behind is lit by its camera-facing orientation, and
-     * one seen from the front is lit by its own normal exactly as a culling cube would be.
+     * body it dresses. Armor boxes are built two-sided, so the shade resolves through the per-face
+     * form - a face the camera sees from behind is lit by its camera-facing orientation, and one seen
+     * from the front is lit by its own normal exactly as a culling cube would be.
      */
-    private static @NotNull VisibleTriangle turnAboutX(
+    private static @NotNull VisibleTriangle intoModelFrame(
         @NotNull VisibleTriangle triangle, @NotNull Lighting.EntityLighting lighting) {
-        Vector3f normal = turnAboutX(triangle.normal());
-        Vector3f shadingNormal = new Vector3f(normal.x(), -normal.y(), normal.z());
+        Vector3f normal = MODEL_FRAME.apply(triangle.normal());
+        Vector3f shadingNormal = Turn.MIRROR_Y.apply(normal);
         return new VisibleTriangle(
-            turnAboutX(triangle.position0()), turnAboutX(triangle.position1()), turnAboutX(triangle.position2()),
+            MODEL_FRAME.apply(triangle.position0()),
+            MODEL_FRAME.apply(triangle.position1()),
+            MODEL_FRAME.apply(triangle.position2()),
             triangle.uv0(), triangle.uv1(), triangle.uv2(),
             triangle.texture(), triangle.tintArgb(), normal,
             lighting.shade(shadingNormal, triangle.traits().cullBackFaces()),
@@ -665,7 +657,7 @@ public class ArmorKit {
     /** One render-frame face of a shell cube, cropped through the model-frame face it pairs with. */
     private static @NotNull PixelBuffer cropFace(
         @NotNull PixelBuffer sheet, @NotNull EntityModelData.Cube cube, @NotNull BlockFace face) {
-        return CubeUnwrap.crop(sheet, cube.getUv(), cube.getSize(), cube.isMirror(), MESH_FACES.get(face));
+        return CubeUnwrap.crop(sheet, cube.getUv(), cube.getSize(), cube.isMirror(), MODEL_FRAME.entityFace(face));
     }
 
     /**

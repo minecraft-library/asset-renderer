@@ -280,30 +280,6 @@ public enum EntityFace {
     }
 
     /**
-     * Returns the face whose UV strip should be sampled when the cube's {@code mirror} flag is
-     * {@code true}, otherwise returns this face unchanged.
-     * <p>
-     * Vanilla's {@code ModelPart.Cube} ctor swaps the cube's {@code x} and {@code maxX}
-     * variables before building polygon vertices when {@code mirror=true}, which has the net
-     * effect of placing vanilla's WEST polygon UV onto the +X face and vanilla's EAST polygon
-     * UV onto the -X face. Other faces ({@link #UP}/{@link #DOWN}/{@link #NORTH}/{@link #SOUTH})
-     * stay on their natural UV strip; their U axis is U-flipped separately via
-     * {@link Vector4f#toUvCorners}'s mirror arg at the call site.
-     *
-     * @param mirrored the cube's {@code mirror} flag
-     * @return {@link #WEST} for {@link #EAST} (and vice versa) when {@code mirrored} is
-     *     {@code true}; this face otherwise
-     */
-    public @NotNull EntityFace mirror(boolean mirrored) {
-        if (!mirrored) return this;
-        return switch (this) {
-            case EAST -> WEST;
-            case WEST -> EAST;
-            default -> this;
-        };
-    }
-
-    /**
      * Parses a lowercase direction name ({@code "down"}, {@code "up"}, {@code "north"},
      * {@code "south"}, {@code "west"}, {@code "east"}) into its {@code EntityFace} constant via
      * an O(1) lookup against {@link #BY_NAME}. Returns {@code null} when the name is

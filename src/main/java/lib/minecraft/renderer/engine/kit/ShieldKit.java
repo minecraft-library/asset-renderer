@@ -11,6 +11,7 @@ import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.face.EntityFace;
+import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -169,7 +170,7 @@ public class ShieldKit {
         Vector3f size = new Vector3f(sx, sy, sz);
 
         for (BlockFace face : BlockFace.CACHED_VALUES) {
-            Vector4f rect = entityFaceFor(face).defaultUv(texOffs, size);
+            Vector4f rect = Turn.HALF_X.entityFace(face).defaultUv(texOffs, size);
             Vector2f[] uv = rect.toUvCorners(SHIELD_TEXTURE_SIZE, SHIELD_TEXTURE_SIZE, 0, false);
             Vector3f[] corners = face.corners(box);
             Vector3f normal = face.normal();
@@ -187,23 +188,6 @@ public class ShieldKit {
                 texture, ColorMath.WHITE, normal, shading, SurfaceTraits.OPAQUE_BODY
             ));
         }
-    }
-
-    /**
-     * Maps a block-model face to the vanilla entity-cube face that supplies its UV strip, after the
-     * special {@code scale(1, -1, -1)} ({@code 180}-degree X rotation) baked into the geometry. The
-     * X rotation swaps front/back ({@code NORTH}/{@code SOUTH}) and top/bottom ({@code UP}/
-     * {@code DOWN}) while leaving the {@code EAST}/{@code WEST} sides on their own strip.
-     */
-    private static @NotNull EntityFace entityFaceFor(@NotNull BlockFace face) {
-        return switch (face) {
-            case SOUTH -> EntityFace.NORTH;
-            case NORTH -> EntityFace.SOUTH;
-            case UP -> EntityFace.DOWN;
-            case DOWN -> EntityFace.UP;
-            case EAST -> EntityFace.EAST;
-            case WEST -> EntityFace.WEST;
-        };
     }
 
 }

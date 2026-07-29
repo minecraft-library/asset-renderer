@@ -145,7 +145,7 @@ public enum SkinFace {
             SkinFace mirror = legacyMirrorSource();
 
             if (mirror != this)
-                return cropRect(skin, mirror.mapping(mirrorFaceX(face), false), true);
+                return cropRect(skin, mirror.mapping(Turn.MIRROR_X.apply(face), false), true);
         }
 
         return cropRect(skin, rect, false);
@@ -183,18 +183,6 @@ public enum SkinFace {
             case LEFT_ARM -> RIGHT_ARM;
             case LEFT_LEG -> RIGHT_LEG;
             default -> this;
-        };
-    }
-
-    /**
-     * Swaps {@link BlockFace#WEST} and {@link BlockFace#EAST} for a sagittal-plane (X-axis) mirror;
-     * the front, back, top, and bottom faces keep their slot (their pixels are flipped instead).
-     */
-    private static @NotNull BlockFace mirrorFaceX(@NotNull BlockFace face) {
-        return switch (face) {
-            case WEST -> BlockFace.EAST;
-            case EAST -> BlockFace.WEST;
-            default -> face;
         };
     }
 
