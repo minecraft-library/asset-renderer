@@ -245,7 +245,7 @@ public final class TestPlayerRender {
         cells.add(new Cell("boots only 2D", base(size).type(PlayerOptions.Type.FULL)
             .dimension(PlayerOptions.Dimension.TWO_D).armor(ArmorOptions.builder().boots(Optional.of(iron)).build()).build()));
         cells.add(new Cell("enchanted iron 3D", allSlots(base(size).type(PlayerOptions.Type.FULL),
-            new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), Optional.empty(), true)).build()));
+            new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), true)).build()));
         return cells;
     }
 
@@ -255,7 +255,7 @@ public final class TestPlayerRender {
      * glint is watchable on each slot in both dimensions.
      */
     private static @NotNull List<Cell> glintPerSlot(int size) {
-        ArmorPiece iron = new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), Optional.empty(), true);
+        ArmorPiece iron = new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), true);
         List<Cell> cells = new ArrayList<>();
         for (PlayerOptions.Dimension dim : PlayerOptions.Dimension.values()) {
             String d = dim == PlayerOptions.Dimension.THREE_D ? "3D" : "2D";

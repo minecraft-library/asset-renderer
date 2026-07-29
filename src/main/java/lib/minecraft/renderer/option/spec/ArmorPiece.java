@@ -6,22 +6,17 @@ import java.util.Optional;
 
 /**
  * The configuration for a single equipped armor slot: which material texture to render, an
- * optional trim colour and pattern, an optional leather dye colour, and whether the piece carries
- * an enchantment glint.
+ * optional trim, an optional leather dye colour, and whether the piece carries an enchantment glint.
  *
  * @param material the armor material that selects the base texture atlas
- * @param trimColor the trim colour palette that recolours the grayscale trim pattern, or empty for
- *     no trim; must be present together with {@code trimPattern} for a trim to render
- * @param trimPattern the trim pattern shape overlaid on the armor, or empty for no trim; must be
- *     present together with {@code trimColor} for a trim to render
+ * @param trim the trim overlaid on the base layer, or empty for an untrimmed piece
  * @param dyeColor the ARGB leather dye applied to the {@link ArmorMaterial#LEATHER} base layer, or
  *     empty for vanilla's default leather tint; ignored for non-leather materials
  * @param enchanted whether the piece carries the enchantment glint overlay
  */
 public record ArmorPiece(
     @NotNull ArmorMaterial material,
-    @NotNull Optional<ArmorTrim.Color> trimColor,
-    @NotNull Optional<ArmorTrim.Pattern> trimPattern,
+    @NotNull Optional<ArmorTrim> trim,
     @NotNull Optional<Integer> dyeColor,
     boolean enchanted
 ) {
@@ -33,7 +28,7 @@ public record ArmorPiece(
      * @return the armor piece
      */
     public static @NotNull ArmorPiece of(@NotNull ArmorMaterial material) {
-        return new ArmorPiece(material, Optional.empty(), Optional.empty(), Optional.empty(), false);
+        return new ArmorPiece(material, Optional.empty(), Optional.empty(), false);
     }
 
     /**
@@ -49,7 +44,7 @@ public record ArmorPiece(
         @NotNull ArmorTrim.Color color,
         @NotNull ArmorTrim.Pattern pattern
     ) {
-        return new ArmorPiece(material, Optional.of(color), Optional.of(pattern), Optional.empty(), false);
+        return new ArmorPiece(material, Optional.of(new ArmorTrim(pattern, color)), Optional.empty(), false);
     }
 
     /**
@@ -59,7 +54,7 @@ public record ArmorPiece(
      * @return the armor piece
      */
     public static @NotNull ArmorPiece dyedLeather(int dyeColor) {
-        return new ArmorPiece(ArmorMaterial.LEATHER, Optional.empty(), Optional.empty(), Optional.of(dyeColor), false);
+        return new ArmorPiece(ArmorMaterial.LEATHER, Optional.empty(), Optional.of(dyeColor), false);
     }
 
 }

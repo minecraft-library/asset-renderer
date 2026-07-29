@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -51,7 +52,32 @@ public class ArmorOptions {
      * on the piece so every {@code ArmorPiece.of(...)} call site stays untouched.
      */
     @lombok.Builder.Default
-    private final @NotNull Map<ArmorTrim.Slot, ItemContext> items = Map.of();
+    private final @NotNull Map<ArmorSlot, ItemContext> items = Map.of();
+
+    /**
+     * The equipped pieces keyed by slot, in {@link ArmorSlot} declaration order - the back-to-front
+     * composite order every consumer iterates. An unequipped slot is absent rather than mapped to an
+     * empty value, so a consumer walks only what is worn.
+     *
+     * @return the equipped pieces, in composite order
+     */
+    public @NotNull Map<ArmorSlot, ArmorPiece> equipped() {
+        Map<ArmorSlot, ArmorPiece> pieces = new EnumMap<>(ArmorSlot.class);
+        this.helmet.ifPresent(piece -> pieces.put(ArmorSlot.HELMET, piece));
+        this.chestplate.ifPresent(piece -> pieces.put(ArmorSlot.CHESTPLATE, piece));
+        this.leggings.ifPresent(piece -> pieces.put(ArmorSlot.LEGGINGS, piece));
+        this.boots.ifPresent(piece -> pieces.put(ArmorSlot.BOOTS, piece));
+        return pieces;
+    }
+
+    /**
+     * Whether any equipped piece carries the enchantment glint.
+     *
+     * @return {@code true} when at least one worn piece is enchanted
+     */
+    public boolean hasEnchanted() {
+        return equipped().values().stream().anyMatch(ArmorPiece::enchanted);
+    }
 
     /**
      * Opens a builder seeded from this instance's current values, for deriving a variant with a

@@ -424,7 +424,7 @@ public final class AppearanceCodec {
     /** Builds the four-slot uniform armour set the {@code armor} token names. */
     private static @NotNull ArmorOptions uniformArmor(@NotNull ArmorMaterial material, @NotNull Optional<Integer> dye) {
         ArmorPiece piece = dye
-            .map(rgb -> new ArmorPiece(material, Optional.empty(), Optional.empty(), Optional.of(0xFF000000 | rgb), false))
+            .map(rgb -> new ArmorPiece(material, Optional.empty(), Optional.of(0xFF000000 | rgb), false))
             .orElseGet(() -> ArmorPiece.of(material));
         return ArmorOptions.builder()
             .helmet(Optional.of(piece))

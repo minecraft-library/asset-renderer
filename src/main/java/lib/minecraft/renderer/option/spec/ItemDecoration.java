@@ -30,7 +30,7 @@ public class ItemDecoration {
      * paletted permutation and composites it as an overlay.
      */
     @lombok.Builder.Default
-    private final @NotNull Optional<ArmorTrim.Slot> trimSlot = Optional.empty();
+    private final @NotNull Optional<ArmorSlot> trimSlot = Optional.empty();
 
     /**
      * The trim colour that selects the palette for the trim overlay. Use the {@code _DARKER}

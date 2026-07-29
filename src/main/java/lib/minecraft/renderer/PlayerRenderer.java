@@ -33,7 +33,7 @@ import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.slot.PlayerSlot2D;
 import lib.minecraft.renderer.option.slot.PlayerSlot3D;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
-import lib.minecraft.renderer.option.spec.ArmorTrim;
+import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -227,16 +227,6 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         } catch (IOException ex) {
             throw new RenderException(ex, "Failed to fetch texture from '%s'", url);
         }
-    }
-
-    /**
-     * Whether any of the four armor slots carries an enchanted piece.
-     */
-    private static boolean hasEnchantedArmor(@NotNull PlayerOptions options) {
-        return ArmorKit.hasEnchantedArmor(
-            options.getArmor().getHelmet(), options.getArmor().getChestplate(),
-            options.getArmor().getLeggings(), options.getArmor().getBoots()
-        );
     }
 
     /**
@@ -470,7 +460,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         BodyPart2D[] parts = layout2D(options.getType(), so[0], so[1]);
 
         boolean overlay = options.getSkin().isRenderOverlay();
-        boolean enchanted = hasEnchantedArmor(options);
+        boolean enchanted = options.getArmor().hasEnchanted();
 
         // Compose the front-facing body as an ordered ImageLayer stack folded into the raster target;
         // the pass records the single glint mask (recordMask = enchanted), which the ARMOR / trim
@@ -505,7 +495,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     }
 
     /**
-     * Composites all armor slots that cover the given body part in {@link ArmorTrim.Slot} declaration
+     * Composites all armor slots that cover the given body part in {@link ArmorSlot} declaration
      * order - layer-2 leggings first so the chestplate / boots win on overlapping parts (torso, legs).
      */
     private static void compositeArmor2D(
@@ -515,7 +505,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull PlayerOptions options,
         @NotNull RasterEngine engine
     ) {
-        for (ArmorTrim.Slot slot : ArmorTrim.Slot.values()) {
+        for (ArmorSlot slot : ArmorSlot.values()) {
             Optional<ArmorPiece> piece = switch (slot) {
                 case HELMET -> options.getArmor().getHelmet();
                 case CHESTPLATE -> options.getArmor().getChestplate();
@@ -666,7 +656,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull PlayerOptions options
     ) {
         int size = options.getOutput().getCanvasSize();
-        boolean enchanted = hasEnchantedArmor(options);
+        boolean enchanted = options.getArmor().hasEnchanted();
         int ssaa = Math.max(1, options.getOutput().getSupersample());
         // The glint mask is recorded at the raster size, then box-downsampled to the output so the
         // foil is confined to the armor (not the bare body) after the SSAA blit.
@@ -743,9 +733,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     private static void appendArmor(@NotNull LayerStack<GeometryLayer> stack, @NotNull PlayerOptions.Type type,
                                     @NotNull PlayerOptions options, @NotNull ModelEngine engine) {
         stack.append(PlayerSlot3D.ARMOR, sink -> sink.addAll(ArmorKit.buildHumanoidArmor3D(
-            armorBoundsFor(type),
-            options.getArmor().getHelmet(), options.getArmor().getChestplate(),
-            options.getArmor().getLeggings(), options.getArmor().getBoots(),
+            armorBoundsFor(type), options.getArmor().equipped(),
             options.getArmor().getItems(), engine.textures())));
     }
 

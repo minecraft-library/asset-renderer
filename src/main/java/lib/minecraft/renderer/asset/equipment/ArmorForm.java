@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.asset.equipment;
 
-import lib.minecraft.renderer.option.spec.ArmorTrim;
+import lib.minecraft.renderer.option.spec.ArmorSlot;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -32,24 +32,24 @@ public enum ArmorForm {
 
     /** The shell every armored humanoid wears at full size, on the {@code humanoid} sheets. */
     ADULT(Map.of(
-        ArmorTrim.Slot.HELMET, List.of("head"),
-        ArmorTrim.Slot.CHESTPLATE, List.of("body", "right_arm", "left_arm"),
-        ArmorTrim.Slot.LEGGINGS, List.of("body", "right_leg", "left_leg"),
-        ArmorTrim.Slot.BOOTS, List.of("right_leg", "left_leg")
+        ArmorSlot.HELMET, List.of("head"),
+        ArmorSlot.CHESTPLATE, List.of("body", "right_arm", "left_arm"),
+        ArmorSlot.LEGGINGS, List.of("body", "right_leg", "left_leg"),
+        ArmorSlot.BOOTS, List.of("right_leg", "left_leg")
     ), true),
 
     /** The distinct shell a baby wears, drawn from {@code humanoid_baby} and never trimmed. */
     BABY(Map.of(
-        ArmorTrim.Slot.HELMET, List.of("head"),
-        ArmorTrim.Slot.CHESTPLATE, List.of("body", "right_arm", "left_arm"),
-        ArmorTrim.Slot.LEGGINGS, List.of("waist", "right_leg", "left_leg"),
-        ArmorTrim.Slot.BOOTS, List.of("right_foot", "left_foot")
+        ArmorSlot.HELMET, List.of("head"),
+        ArmorSlot.CHESTPLATE, List.of("body", "right_arm", "left_arm"),
+        ArmorSlot.LEGGINGS, List.of("waist", "right_leg", "left_leg"),
+        ArmorSlot.BOOTS, List.of("right_foot", "left_foot")
     ), false);
 
-    private final @NotNull Map<ArmorTrim.Slot, List<String>> parts;
+    private final @NotNull Map<ArmorSlot, List<String>> parts;
     private final boolean trimmed;
 
-    ArmorForm(@NotNull Map<ArmorTrim.Slot, List<String>> parts, boolean trimmed) {
+    ArmorForm(@NotNull Map<ArmorSlot, List<String>> parts, boolean trimmed) {
         this.parts = parts;
         this.trimmed = trimmed;
     }
@@ -61,7 +61,7 @@ public enum ArmorForm {
      * @param slot the armor slot
      * @return the part names that slot covers
      */
-    public @NotNull List<String> parts(@NotNull ArmorTrim.Slot slot) {
+    public @NotNull List<String> parts(@NotNull ArmorSlot slot) {
         return this.parts.get(slot);
     }
 
@@ -71,9 +71,9 @@ public enum ArmorForm {
      * @param slot the armor slot
      * @return the layer the slot draws through
      */
-    public @NotNull LayerType layerType(@NotNull ArmorTrim.Slot slot) {
+    public @NotNull LayerType layerType(@NotNull ArmorSlot slot) {
         if (this == BABY) return LayerType.HUMANOID_BABY;
-        return slot == ArmorTrim.Slot.LEGGINGS ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID;
+        return slot == ArmorSlot.LEGGINGS ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID;
     }
 
     /**
@@ -84,7 +84,7 @@ public enum ArmorForm {
      * @param slot the armor slot
      * @return the trim atlas name, or empty when this form is never trimmed
      */
-    public @NotNull Optional<String> trimLayer(@NotNull ArmorTrim.Slot slot) {
+    public @NotNull Optional<String> trimLayer(@NotNull ArmorSlot slot) {
         return this.trimmed ? Optional.of(layerType(slot).getId()) : Optional.empty();
     }
 

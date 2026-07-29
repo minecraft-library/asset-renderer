@@ -309,9 +309,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // bulk. Gated on a piece actually being equipped, so an unarmored render - which is all
             // but fourteen rows of the entity sweep - measures exactly what it measured before.
             Optional<Box> armorBounds = resolved.humanoidArmor().flatMap(shell -> ArmorKit.screenBounds(shell,
-                options.getArmor().getHelmet(), options.getArmor().getChestplate(),
-                options.getArmor().getLeggings(), options.getArmor().getBoots(),
-                options.getArmor().getItems(), renderOrient, modelScale, this.textures));
+                options.getArmor().equipped(), options.getArmor().getItems(),
+                renderOrient, modelScale, this.textures));
             if (armorBounds.isPresent()) screenBounds = unionBoxes(screenBounds, armorBounds.get());
             RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
@@ -368,10 +367,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (startTriangles.isEmpty())
             return Timeline.still(PixelBuffer.create(canvasW, canvasH));
 
-        boolean enchanted = ArmorKit.hasEnchantedArmor(
-            options.getArmor().getHelmet(), options.getArmor().getChestplate(),
-            options.getArmor().getLeggings(), options.getArmor().getBoots()
-        );
+        boolean enchanted = options.getArmor().hasEnchanted();
 
         // Rasterize + optional FXAA + supersample-downscale + masked glint via the shared tail. The
         // glint mask is recorded at the raster size and downsampled so the foil is confined to the
@@ -688,9 +684,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     sink.addAll(ArmorKit.buildEntityArmor3D(
                         new ArmorKit.EntityArmorFrame(armor,
                             ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale()),
-                        options.getArmor().getHelmet(), options.getArmor().getChestplate(),
-                        options.getArmor().getLeggings(), options.getArmor().getBoots(),
-                        options.getArmor().getItems(), ctx.textures())));
+                        options.getArmor().equipped(), options.getArmor().getItems(), ctx.textures())));
             }
         };
 

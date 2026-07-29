@@ -22,6 +22,7 @@ import lib.minecraft.renderer.face.EntityFace;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.face.SkinFace;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
+import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -160,13 +161,24 @@ public class ArmorKit {
     // ---------------------------------------------------------------------------------------
 
     /**
+     * The order the <em>player's own</em> armor is emitted in, which is deliberately not
+     * {@link ArmorSlot}'s declared composite order.
+     *
+     * <p>Every other consumer - the mesh path and the 2D compositor - walks the declared order, which
+     * paints the layer-2 leggings first so the layer-1 pieces composite over them. This path emits the
+     * helmet first and the leggings third. It is unobservable today because the two inflations separate
+     * every shared bone, so no equal-depth contest arises between them; the divergence is spelled out
+     * here rather than left implicit in the emission sequence.
+     */
+    private static final @NotNull ArmorSlot @NotNull [] SKIN_SLOT_ORDER = {
+        ArmorSlot.HELMET, ArmorSlot.CHESTPLATE, ArmorSlot.LEGGINGS, ArmorSlot.BOOTS
+    };
+
+    /**
      * Builds all armor and trim triangles for a humanoid body.
      *
      * @param bodyPositions map from body part to its {@code [min, max]} bounding box corners
-     * @param helmet equipped helmet, or empty
-     * @param chestplate equipped chestplate, or empty
-     * @param leggings equipped leggings, or empty
-     * @param boots equipped boots, or empty
+     * @param equipped the worn pieces keyed by slot; an unworn slot is absent
      * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override; empty
      *     leaves each slot on its equipment-model texture
      * @param engine the texture engine for pack-aware texture resolution
@@ -174,34 +186,31 @@ public class ArmorKit {
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildHumanoidArmor3D(
         @NotNull Map<SkinFace, Vector3f[]> bodyPositions,
-        @NotNull Optional<ArmorPiece> helmet,
-        @NotNull Optional<ArmorPiece> chestplate,
-        @NotNull Optional<ArmorPiece> leggings,
-        @NotNull Optional<ArmorPiece> boots,
-        @NotNull Map<ArmorTrim.Slot, ItemContext> items,
+        @NotNull Map<ArmorSlot, ArmorPiece> equipped,
+        @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull Textures engine
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
-        helmet.ifPresent(piece ->
-            addSkinScaledSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.HELMET, itemFor(items, ArmorTrim.Slot.HELMET), engine));
-        chestplate.ifPresent(piece ->
-            addSkinScaledSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.CHESTPLATE, itemFor(items, ArmorTrim.Slot.CHESTPLATE), engine));
-        leggings.ifPresent(piece ->
-            addSkinScaledSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.LEGGINGS, itemFor(items, ArmorTrim.Slot.LEGGINGS), engine));
-        boots.ifPresent(piece ->
-            addSkinScaledSlot3D(triangles, bodyPositions, piece, ArmorTrim.Slot.BOOTS, itemFor(items, ArmorTrim.Slot.BOOTS), engine));
+        for (ArmorSlot slot : SKIN_SLOT_ORDER) {
+            ArmorPiece piece = equipped.get(slot);
+            if (piece == null) continue;
+            addSkinScaledSlot3D(triangles, bodyPositions, piece, slot,
+                Optional.ofNullable(items.get(slot)), engine);
+        }
 
         return triangles;
     }
 
     /**
-     * The equipped item context for a slot, or empty when the caller supplied none - the pack-rule
-     * (CIT) override is consulted only for a present item, so an empty map keeps the override dormant.
+     * The worn pieces in {@link ArmorSlot} declaration order, so the emission order is this kit's
+     * rather than whatever iteration order the caller's map happens to have.
      */
-    private static @NotNull Optional<ItemContext> itemFor(
-        @NotNull Map<ArmorTrim.Slot, ItemContext> items, @NotNull ArmorTrim.Slot slot) {
-        return Optional.ofNullable(items.get(slot));
+    private static @NotNull Map<ArmorSlot, ArmorPiece> inCompositeOrder(
+        @NotNull Map<ArmorSlot, ArmorPiece> equipped) {
+        Map<ArmorSlot, ArmorPiece> ordered = new EnumMap<>(ArmorSlot.class);
+        ordered.putAll(equipped);
+        return ordered;
     }
 
     // ---------------------------------------------------------------------------------------
@@ -228,7 +237,7 @@ public class ArmorKit {
     public static void compositeSlot2D(
         @NotNull PixelBuffer target,
         @NotNull SkinFace part,
-        @NotNull ArmorTrim.Slot slot,
+        @NotNull ArmorSlot slot,
         @NotNull ArmorPiece piece,
         int x, int y, int w, int h,
         @NotNull Optional<ItemContext> item,
@@ -238,7 +247,7 @@ public class ArmorKit {
         // stamp the armor / trim sprite coverage into it so the enchantment foil lands on the armor,
         // not the bare skin. Absent when the caller records no mask - then stampMaskScaled is a no-op.
         PixelMask mask = target.mask().orElse(null);
-        boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
+        boolean useLeggingsLayer = slot == ArmorSlot.LEGGINGS;
         Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID, item);
         armorTexture.ifPresent(tex -> {
             PixelBuffer face = part.crop(tex, BlockFace.SOUTH, false);
@@ -246,15 +255,15 @@ public class ArmorKit {
             stampMaskScaled(mask, face, x, y, w, h);
         });
 
-        if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
+        piece.trim().ifPresent(trim -> {
             String trimLayer = useLeggingsLayer ? "humanoid_leggings" : "humanoid";
-            resolveTrimTexture(engine, trimLayer, piece.trimPattern().get(), piece.trimColor().get())
+            resolveTrimTexture(engine, trimLayer, trim.pattern(), trim.color())
                 .ifPresent(trimTex -> {
                     PixelBuffer face = part.crop(trimTex, BlockFace.SOUTH, false);
                     target.blitScaled(face, x, y, w, h);
                     stampMaskScaled(mask, face, x, y, w, h);
                 });
-        }
+        });
     }
 
     /**
@@ -279,21 +288,6 @@ public class ArmorKit {
         }
     }
 
-    /**
-     * Returns whether any of the given armor pieces is enchanted.
-     */
-    public static boolean hasEnchantedArmor(
-        @NotNull Optional<ArmorPiece> helmet,
-        @NotNull Optional<ArmorPiece> chestplate,
-        @NotNull Optional<ArmorPiece> leggings,
-        @NotNull Optional<ArmorPiece> boots
-    ) {
-        return helmet.map(ArmorPiece::enchanted).orElse(false)
-            || chestplate.map(ArmorPiece::enchanted).orElse(false)
-            || leggings.map(ArmorPiece::enchanted).orElse(false)
-            || boots.map(ArmorPiece::enchanted).orElse(false);
-    }
-
     // ---------------------------------------------------------------------------------------
     // Entity armor (maps bone names to humanoid SkinFace parts).
     // ---------------------------------------------------------------------------------------
@@ -306,10 +300,7 @@ public class ArmorKit {
      * it.
      *
      * @param frame the render frame the armor is built into
-     * @param helmet equipped helmet, or empty
-     * @param chestplate equipped chestplate, or empty
-     * @param leggings equipped leggings, or empty
-     * @param boots equipped boots, or empty
+     * @param equipped the worn pieces keyed by slot; an unworn slot is absent
      * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override; empty
      *     leaves each slot on its equipment-model texture
      * @param engine the texture engine for pack-aware texture resolution
@@ -317,11 +308,8 @@ public class ArmorKit {
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildEntityArmor3D(
         @NotNull EntityArmorFrame frame,
-        @NotNull Optional<ArmorPiece> helmet,
-        @NotNull Optional<ArmorPiece> chestplate,
-        @NotNull Optional<ArmorPiece> leggings,
-        @NotNull Optional<ArmorPiece> boots,
-        @NotNull Map<ArmorTrim.Slot, ItemContext> items,
+        @NotNull Map<ArmorSlot, ArmorPiece> equipped,
+        @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull Textures engine
     ) {
         // The armor sheets are authored for the upright player frame (the player applies a plain
@@ -331,8 +319,7 @@ public class ArmorKit {
         // player frame (bounds turned about X) and turning the result back into the entity frame lands
         // it correctly once ENTITY_FACING is applied, with the geometry, normals, and inventory shading
         // all resolved in the final frame.
-        ConcurrentList<VisibleTriangle> armor =
-            buildGenericArmor3D(frame, helmet, chestplate, leggings, boots, items, engine);
+        ConcurrentList<VisibleTriangle> armor = buildGenericArmor3D(frame, equipped, items, engine);
 
         Lighting.EntityLighting lighting =
             Lighting.resolveEntity(EntityGeometryKit.DEFAULT_ENTITY_LIGHTING);
@@ -356,10 +343,7 @@ public class ArmorKit {
      * is untouched.
      *
      * @param armor the shell the wearer is dressed in
-     * @param helmet equipped helmet, or empty
-     * @param chestplate equipped chestplate, or empty
-     * @param leggings equipped leggings, or empty
-     * @param boots equipped boots, or empty
+     * @param equipped the worn pieces keyed by slot; an unworn slot is absent
      * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override
      * @param screenTransform the model-to-screen transform the bounds are accumulated through
      * @param modelScale the per-render vertex pre-scale
@@ -368,27 +352,17 @@ public class ArmorKit {
      */
     public static @NotNull Optional<Box> screenBounds(
         @NotNull Entity.HumanoidArmor armor,
-        @NotNull Optional<ArmorPiece> helmet,
-        @NotNull Optional<ArmorPiece> chestplate,
-        @NotNull Optional<ArmorPiece> leggings,
-        @NotNull Optional<ArmorPiece> boots,
-        @NotNull Map<ArmorTrim.Slot, ItemContext> items,
+        @NotNull Map<ArmorSlot, ArmorPiece> equipped,
+        @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull Matrix4f screenTransform,
         float modelScale,
         @NotNull Textures engine
     ) {
-        Map<ArmorTrim.Slot, Optional<ArmorPiece>> equipped = new EnumMap<>(ArmorTrim.Slot.class);
-        equipped.put(ArmorTrim.Slot.HELMET, helmet);
-        equipped.put(ArmorTrim.Slot.CHESTPLATE, chestplate);
-        equipped.put(ArmorTrim.Slot.LEGGINGS, leggings);
-        equipped.put(ArmorTrim.Slot.BOOTS, boots);
-
         Box union = null;
-        for (Map.Entry<ArmorTrim.Slot, Optional<ArmorPiece>> entry : equipped.entrySet()) {
-            ArmorTrim.Slot slot = entry.getKey();
-            if (entry.getValue().isEmpty()) continue;
-            Optional<PixelBuffer> sheet = resolveArmorTexture(engine, entry.getValue().get(),
-                armor.form().layerType(slot), itemFor(items, slot));
+        for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
+            ArmorSlot slot = entry.getKey();
+            Optional<PixelBuffer> sheet = resolveArmorTexture(engine, entry.getValue(),
+                armor.form().layerType(slot), Optional.ofNullable(items.get(slot)));
             if (sheet.isEmpty()) continue;
             Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(armor, slot), screenTransform,
                 modelScale * armor.meshScale(), sheet.get());
@@ -413,9 +387,9 @@ public class ArmorKit {
      * seat rides the root pivots pre-scale, so the caller's scale carries it.
      */
     private static @NotNull EntityModelData slotMesh(
-        @NotNull Entity.HumanoidArmor armor, @NotNull ArmorTrim.Slot slot) {
+        @NotNull Entity.HumanoidArmor armor, @NotNull ArmorSlot slot) {
         EntityModelData tree = armor.mesh();
-        Vector3f deformation = slot == ArmorTrim.Slot.LEGGINGS ? armor.innerGrow() : armor.outerGrow();
+        Vector3f deformation = slot == ArmorSlot.LEGGINGS ? armor.innerGrow() : armor.outerGrow();
         Vector3f seat = armor.meshOffset().multiply(1f / armor.meshScale());
         LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
         for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
@@ -439,28 +413,18 @@ public class ArmorKit {
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildGenericArmor3D(
         @NotNull EntityArmorFrame frame,
-        @NotNull Optional<ArmorPiece> helmet,
-        @NotNull Optional<ArmorPiece> chestplate,
-        @NotNull Optional<ArmorPiece> leggings,
-        @NotNull Optional<ArmorPiece> boots,
-        @NotNull Map<ArmorTrim.Slot, ItemContext> items,
+        @NotNull Map<ArmorSlot, ArmorPiece> equipped,
+        @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull Textures engine
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Optional<Entity.HumanoidArmor> armor = frame.armor();
         if (armor.isEmpty()) return triangles;
 
-        Map<ArmorTrim.Slot, Optional<ArmorPiece>> equipped = new EnumMap<>(ArmorTrim.Slot.class);
-        equipped.put(ArmorTrim.Slot.HELMET, helmet);
-        equipped.put(ArmorTrim.Slot.CHESTPLATE, chestplate);
-        equipped.put(ArmorTrim.Slot.LEGGINGS, leggings);
-        equipped.put(ArmorTrim.Slot.BOOTS, boots);
-
-        for (var entry : equipped.entrySet()) {
-            ArmorTrim.Slot slot = entry.getKey();
-            entry.getValue().ifPresent(piece -> addMeshSlot3D(triangles,
-                armorBoxes(frame, armor.get(), slot), armor.get().form(), piece, slot,
-                itemFor(items, slot), engine));
+        for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
+            ArmorSlot slot = entry.getKey();
+            addMeshSlot3D(triangles, armorBoxes(frame, armor.get(), slot), armor.get().form(),
+                entry.getValue(), slot, Optional.ofNullable(items.get(slot)), engine);
         }
         return triangles;
     }
@@ -484,9 +448,9 @@ public class ArmorKit {
      * same values and cannot round differently.
      */
     private static @NotNull List<ArmorBox> armorBoxes(
-        @NotNull EntityArmorFrame frame, @NotNull Entity.HumanoidArmor armor, @NotNull ArmorTrim.Slot slot) {
+        @NotNull EntityArmorFrame frame, @NotNull Entity.HumanoidArmor armor, @NotNull ArmorSlot slot) {
         EntityModelData tree = armor.mesh();
-        Vector3f deformation = slot == ArmorTrim.Slot.LEGGINGS ? armor.innerGrow() : armor.outerGrow();
+        Vector3f deformation = slot == ArmorSlot.LEGGINGS ? armor.innerGrow() : armor.outerGrow();
         List<ArmorBox> boxes = new ArrayList<>();
         for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
             if (!coveredBySlot(tree, armor.form(), slot, entry.getKey())) continue;
@@ -524,10 +488,10 @@ public class ArmorKit {
      * without dragging the legs along.
      */
     private static boolean coveredBySlot(
-        @NotNull EntityModelData tree, @NotNull ArmorForm form, @NotNull ArmorTrim.Slot slot, @NotNull String bone) {
+        @NotNull EntityModelData tree, @NotNull ArmorForm form, @NotNull ArmorSlot slot, @NotNull String bone) {
         List<String> parts = form.parts(slot);
         if (parts.contains(bone)) return true;
-        if (slot != ArmorTrim.Slot.HELMET) return false;
+        if (slot != ArmorSlot.HELMET) return false;
         String cursor = bone;
         for (int depth = 0; depth < MAX_BONE_DEPTH; depth++) {
             EntityModelData.Bone node = tree.getBones().get(cursor);
@@ -631,11 +595,11 @@ public class ArmorKit {
      * The {@link SkinFace} body parts an armor slot covers - the adult shell's own per-slot part
      * table, read through the body part each part name is textured from.
      */
-    private static final @NotNull Map<ArmorTrim.Slot, SkinFace[]> SLOT_FACES =
-        new EnumMap<>(ArmorTrim.Slot.class);
+    private static final @NotNull Map<ArmorSlot, SkinFace[]> SLOT_FACES =
+        new EnumMap<>(ArmorSlot.class);
 
     static {
-        for (ArmorTrim.Slot slot : ArmorTrim.Slot.values())
+        for (ArmorSlot slot : ArmorSlot.values())
             SLOT_FACES.put(slot, ArmorForm.ADULT.parts(slot).stream()
                 .map(SKIN_PARTS::get)
                 .distinct()
@@ -648,7 +612,7 @@ public class ArmorKit {
      * @param slot the armor slot
      * @return the body parts that slot's armor covers
      */
-    public static @NotNull SkinFace @NotNull [] partsForSlot(@NotNull ArmorTrim.Slot slot) {
+    public static @NotNull SkinFace @NotNull [] partsForSlot(@NotNull ArmorSlot slot) {
         return SLOT_FACES.get(slot).clone();
     }
 
@@ -660,25 +624,25 @@ public class ArmorKit {
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull Map<SkinFace, Vector3f[]> bodyPositions,
         @NotNull ArmorPiece piece,
-        @NotNull ArmorTrim.Slot slot,
+        @NotNull ArmorSlot slot,
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
         addSlot3D(triangles, bodyPositions, piece, slot, item, engine,
-            slot == ArmorTrim.Slot.LEGGINGS ? LEGGINGS_INFLATE : ARMOR_INFLATE);
+            slot == ArmorSlot.LEGGINGS ? LEGGINGS_INFLATE : ARMOR_INFLATE);
     }
 
     private static void addSlot3D(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull Map<SkinFace, Vector3f[]> bodyPositions,
         @NotNull ArmorPiece piece,
-        @NotNull ArmorTrim.Slot slot,
+        @NotNull ArmorSlot slot,
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine,
         float inflate
     ) {
         SkinFace[] parts = partsForSlot(slot);
-        boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
+        boolean useLeggingsLayer = slot == ArmorSlot.LEGGINGS;
 
         Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID, item);
         if (armorTexture.isEmpty()) return;
@@ -689,10 +653,11 @@ public class ArmorKit {
             triangles.addAll(buildSkinBox3D(part, bounds[0], bounds[1], armorTexture.get(), inflate));
         }
 
-        if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
+        if (piece.trim().isPresent()) {
+            ArmorTrim trim = piece.trim().get();
             String trimLayer = useLeggingsLayer ? "humanoid_leggings" : "humanoid";
             Optional<PixelBuffer> trimTexture = resolveTrimTexture(
-                engine, trimLayer, piece.trimPattern().get(), piece.trimColor().get());
+                engine, trimLayer, trim.pattern(), trim.color());
             if (trimTexture.isPresent()) {
                 for (SkinFace part : parts) {
                     Vector3f[] bounds = bodyPositions.get(part);
@@ -715,7 +680,7 @@ public class ArmorKit {
         @NotNull List<ArmorBox> boxes,
         @NotNull ArmorForm form,
         @NotNull ArmorPiece piece,
-        @NotNull ArmorTrim.Slot slot,
+        @NotNull ArmorSlot slot,
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
@@ -725,9 +690,10 @@ public class ArmorKit {
         for (ArmorBox box : boxes)
             triangles.addAll(buildMeshBox3D(box, armorTexture.get()));
 
-        if (piece.trimColor().isEmpty() || piece.trimPattern().isEmpty()) return;
+        if (piece.trim().isEmpty()) return;
+        ArmorTrim trim = piece.trim().get();
         form.trimLayer(slot)
-            .flatMap(layer -> resolveTrimTexture(engine, layer, piece.trimPattern().get(), piece.trimColor().get()))
+            .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
             .ifPresent(trimTexture -> {
                 for (ArmorBox box : boxes)
                     triangles.addAll(buildMeshBox3D(box, trimTexture));

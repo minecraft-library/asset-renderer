@@ -22,6 +22,7 @@ import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
+import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -55,7 +56,7 @@ class ArmorKitCitCompositeTest {
         CitResult hit = new CitResult(Optional.of(new ResourceId("minecraft", "cit/base")), subs, Optional.empty(), GlintPolicy.DEFAULT);
 
         RecordingContext ctx = new RecordingContext(leatherLayers(), hit);
-        buildHelmet(ctx, Map.of(ArmorTrim.Slot.HELMET, ItemContext.ofItem("minecraft:leather_helmet")));
+        buildHelmet(ctx, Map.of(ArmorSlot.HELMET, ItemContext.ofItem("minecraft:leather_helmet")));
 
         assertThat(ctx.resolved, equalTo(List.of("minecraft:cit/base", "minecraft:cit/overlay")));
     }
@@ -64,7 +65,7 @@ class ArmorKitCitCompositeTest {
     @DisplayName("a NONE override falls through to the equipment model's own layer paths")
     void noneFallsThroughToModel() {
         RecordingContext ctx = new RecordingContext(leatherLayers(), CitResult.NONE);
-        buildHelmet(ctx, Map.of(ArmorTrim.Slot.HELMET, ItemContext.ofItem("minecraft:leather_helmet")));
+        buildHelmet(ctx, Map.of(ArmorSlot.HELMET, ItemContext.ofItem("minecraft:leather_helmet")));
 
         assertThat(ctx.resolved, equalTo(List.of(
             "minecraft:entity/equipment/humanoid/leather",
@@ -89,8 +90,8 @@ class ArmorKitCitCompositeTest {
             new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
 
-        ArmorKit.buildHumanoidArmor3D(headBounds(), Optional.of(ArmorPiece.of(ArmorMaterial.IRON)),
-            Optional.empty(), Optional.empty(), Optional.empty(), Map.of(), new Textures(ctx));
+        ArmorKit.buildHumanoidArmor3D(headBounds(),
+            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), new Textures(ctx));
 
         assertThat(ctx.resolved, equalTo(List.of("minecraft:entity/equipment/humanoid/iron")));
     }
@@ -140,8 +141,7 @@ class ArmorKitCitCompositeTest {
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
 
         ArmorKit.buildEntityArmor3D(new ArmorKit.EntityArmorFrame(babyShell(), Vector3f.ZERO, 1f, 1f),
-            Optional.of(trimmed()), Optional.empty(), Optional.empty(), Optional.empty(),
-            Map.of(), new Textures(ctx));
+            Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), new Textures(ctx));
 
         assertThat(ctx.resolved, equalTo(List.of("minecraft:entity/equipment/humanoid_baby/iron")));
     }
@@ -154,8 +154,7 @@ class ArmorKitCitCompositeTest {
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
 
         ArmorKit.buildEntityArmor3D(new ArmorKit.EntityArmorFrame(genericShell(), Vector3f.ZERO, 1f, 1f),
-            Optional.of(trimmed()), Optional.empty(), Optional.empty(), Optional.empty(),
-            Map.of(), new Textures(ctx));
+            Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), new Textures(ctx));
 
         assertThat(ctx.resolved.contains("minecraft:trims/entity/humanoid/coast"), equalTo(true));
     }
@@ -189,8 +188,7 @@ class ArmorKitCitCompositeTest {
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
 
         ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(frame,
-            Optional.of(ArmorPiece.of(ArmorMaterial.IRON)),
-            Optional.empty(), Optional.empty(), Optional.empty(), Map.of(), new Textures(ctx));
+            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), new Textures(ctx));
 
         assertThat(armor.isEmpty(), equalTo(false));
         float minY = Float.MAX_VALUE;
@@ -203,9 +201,9 @@ class ArmorKitCitCompositeTest {
         return new float[]{ minY, maxY };
     }
 
-    private static void buildHelmet(@NotNull RecordingContext ctx, @NotNull Map<ArmorTrim.Slot, ItemContext> items) {
-        ArmorKit.buildHumanoidArmor3D(headBounds(), Optional.of(ArmorPiece.of(ArmorMaterial.LEATHER)),
-            Optional.empty(), Optional.empty(), Optional.empty(), items, new Textures(ctx));
+    private static void buildHelmet(@NotNull RecordingContext ctx, @NotNull Map<ArmorSlot, ItemContext> items) {
+        ArmorKit.buildHumanoidArmor3D(headBounds(),
+            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.LEATHER)), items, new Textures(ctx));
     }
 
     private static @NotNull List<EquipmentModel.Layer> leatherLayers() {
