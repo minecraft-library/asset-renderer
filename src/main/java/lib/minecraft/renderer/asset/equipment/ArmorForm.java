@@ -1,11 +1,16 @@
 package lib.minecraft.renderer.asset.equipment;
 
+import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.face.SkinFace;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The two shapes vanilla's worn armor comes in - the shell an adult humanoid is dressed in and the
@@ -55,14 +60,46 @@ public enum ArmorForm {
     }
 
     /**
-     * The shell parts a slot's armor covers. A helmet keeps its part <em>and that part's
-     * children</em>, matching vanilla; the other three keep exactly the parts they name.
+     * The shell parts a slot's armor names. A helmet also covers those parts' <em>children</em>,
+     * which {@link #covers} resolves against a mesh; the other three cover exactly what they name.
      *
      * @param slot the armor slot
-     * @return the part names that slot covers
+     * @return the part names that slot names
      */
     public @NotNull List<String> parts(@NotNull ArmorSlot slot) {
         return this.parts.get(slot);
+    }
+
+    /**
+     * Whether a slot's armor covers this bone of a shell.
+     *
+     * <p>Vanilla keeps the helmet's part <em>and its children</em>, and exactly the named parts for the
+     * other three slots - so the head's overlay box rides a helmet and nothing else, and a baby's boots
+     * reach the feet parented under its legs without dragging the legs along.
+     *
+     * <p>The parent walk is bounded by the set of bones already visited rather than by a depth cap. The
+     * armor shells are two hops deep at most, so the two agree on everything shipped; a visiting set is
+     * what actually rules out the cycle the cap was standing in for.
+     *
+     * @param tree the shell whose bone hierarchy resolves the parent chain
+     * @param slot the armor slot
+     * @param bone the bone name to test
+     * @return {@code true} when that slot's armor draws this bone's cubes
+     */
+    public boolean covers(@NotNull EntityModelData tree, @NotNull ArmorSlot slot, @NotNull String bone) {
+        List<String> named = parts(slot);
+        if (named.contains(bone)) return true;
+        if (!slot.keepsChildren()) return false;
+
+        Set<String> visited = new HashSet<>();
+        String cursor = bone;
+        while (visited.add(cursor)) {
+            EntityModelData.Bone node = tree.getBones().get(cursor);
+            if (node == null || node.getParent() == null) return false;
+            cursor = node.getParent();
+            if (named.contains(cursor)) return true;
+        }
+        return false;
     }
 
     /**
@@ -86,6 +123,48 @@ public enum ArmorForm {
      */
     public @NotNull Optional<String> trimLayer(@NotNull ArmorSlot slot) {
         return this.trimmed ? Optional.of(layerType(slot).getId()) : Optional.empty();
+    }
+
+    /**
+     * The body part each armor-mesh bone of the <em>player's</em> shell is textured from - the skin
+     * path, which dresses the player's own normalized body boxes rather than a mesh.
+     */
+    private static final @NotNull Map<String, SkinFace> SKIN_PARTS = Map.of(
+        "head", SkinFace.HEAD,
+        "body", SkinFace.TORSO,
+        "right_arm", SkinFace.RIGHT_ARM,
+        "left_arm", SkinFace.LEFT_ARM,
+        "right_leg", SkinFace.RIGHT_LEG,
+        "left_leg", SkinFace.LEFT_LEG
+    );
+
+    /**
+     * The player's own body parts each slot covers, resolved once from {@link #ADULT}'s part table.
+     */
+    private static final @NotNull Map<ArmorSlot, SkinFace[]> PLAYER_PARTS = new EnumMap<>(ArmorSlot.class);
+
+    static {
+        for (ArmorSlot slot : ArmorSlot.values())
+            PLAYER_PARTS.put(slot, ADULT.parts(slot).stream()
+                .map(SKIN_PARTS::get)
+                .distinct()
+                .toArray(SkinFace[]::new));
+    }
+
+    /**
+     * The player's own body parts a slot's armor covers.
+     *
+     * <p><b>Restricted to {@link #ADULT}, and the restriction is the guard rather than an oversight.</b>
+     * The player is always drawn at adult proportions, and only six of the twelve bone names in the
+     * armor corpus have a body part at all - a baby shell's {@code waist} and its two feet have none.
+     * A form-parameterised accessor would make those reachable, where the miss would resolve to
+     * {@code null} and the box would be dropped silently rather than raising anything.
+     *
+     * @param slot the armor slot
+     * @return the body parts that slot's armor covers
+     */
+    public static @NotNull SkinFace @NotNull [] playerParts(@NotNull ArmorSlot slot) {
+        return PLAYER_PARTS.get(slot).clone();
     }
 
 }

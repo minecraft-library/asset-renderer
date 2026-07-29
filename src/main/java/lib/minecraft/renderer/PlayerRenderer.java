@@ -9,6 +9,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -515,7 +516,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             if (piece.isEmpty()) continue;
 
             boolean partInSlot = false;
-            for (SkinFace slotPart : ArmorKit.partsForSlot(slot))
+            for (SkinFace slotPart : ArmorForm.playerParts(slot))
                 if (slotPart == part) { partInSlot = true; break; }
             if (!partInSlot) continue;
 

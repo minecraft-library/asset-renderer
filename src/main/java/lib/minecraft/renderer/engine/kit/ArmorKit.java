@@ -66,21 +66,6 @@ import java.util.OptionalInt;
 public class ArmorKit {
 
     /**
-     * Per-side inflation in model units for the layer-1 pieces (helmet, chestplate, boots) so armor
-     * sits visibly above the skin geometry.
-     */
-    private static final float ARMOR_INFLATE = 0.015f;
-
-    /**
-     * Per-side inflation for the layer-2 leggings. Smaller than {@link #ARMOR_INFLATE} so the
-     * leggings sit <em>inside</em> the chestplate on the torso and inside the boots on the lower
-     * legs - mirroring vanilla's armor layers (layer 1 inflated {@code 1.0px}, layer 2
-     * {@code 0.5px}). Without the inset the two coplanar torso cubes z-fight and the leggings waist
-     * shows through the chestplate.
-     */
-    private static final float LEGGINGS_INFLATE = 0.008f;
-
-    /**
      * One armor box ready to build: the shell bone and cube it comes from, and its corners in the
      * render frame. The cube travels rather than a resolved crop because a slot's boxes are textured
      * twice - once from the armor sheet and once from the trim - and each crop is a read of the cube's
@@ -99,21 +84,6 @@ public class ArmorKit {
     ) {}
 
     /**
-     * The body part each armor-mesh bone of the <em>player's</em> shell is textured from - the skin
-     * path, which dresses the player's own normalized body boxes rather than a mesh. The helmet's
-     * second box reads the head's overlay half, the same region the skin renderer draws a player's hat
-     * layer from.
-     */
-    private static final @NotNull Map<String, SkinFace> SKIN_PARTS = Map.of(
-        "head", SkinFace.HEAD,
-        "body", SkinFace.TORSO,
-        "right_arm", SkinFace.RIGHT_ARM,
-        "left_arm", SkinFace.LEFT_ARM,
-        "right_leg", SkinFace.RIGHT_LEG,
-        "left_leg", SkinFace.LEFT_LEG
-    );
-
-    /**
      * The model-frame face each render-frame face of a shell box reads its texture through. A shell's
      * unwrap is authored in vanilla's Y-down model frame while the boxes here are built upright, and
      * the two frames differ by exactly {@link #turnAboutX}'s half turn - which swaps up with down and
@@ -129,8 +99,8 @@ public class ArmorKit {
     );
 
     /**
-     * Guard on the bone parent chain - the armor meshes are two deep, so anything beyond this is a
-     * cycle rather than a hierarchy.
+     * Guard on the bone parent chain walked by {@link #chainedPivot} - the armor meshes are two deep,
+     * so anything beyond this is a cycle rather than a hierarchy.
      */
     private static final int MAX_BONE_DEPTH = 8;
 
@@ -195,7 +165,7 @@ public class ArmorKit {
         for (ArmorSlot slot : SKIN_SLOT_ORDER) {
             ArmorPiece piece = equipped.get(slot);
             if (piece == null) continue;
-            addSkinScaledSlot3D(triangles, bodyPositions, piece, slot,
+            addSlot3D(triangles, bodyPositions, piece, slot,
                 Optional.ofNullable(items.get(slot)), engine);
         }
 
@@ -247,23 +217,21 @@ public class ArmorKit {
         // stamp the armor / trim sprite coverage into it so the enchantment foil lands on the armor,
         // not the bare skin. Absent when the caller records no mask - then stampMaskScaled is a no-op.
         PixelMask mask = target.mask().orElse(null);
-        boolean useLeggingsLayer = slot == ArmorSlot.LEGGINGS;
-        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID, item);
+        Optional<PixelBuffer> armorTexture =
+            resolveArmorTexture(engine, piece, ArmorForm.ADULT.layerType(slot), item);
         armorTexture.ifPresent(tex -> {
             PixelBuffer face = part.crop(tex, BlockFace.SOUTH, false);
             target.blitScaled(face, x, y, w, h);
             stampMaskScaled(mask, face, x, y, w, h);
         });
 
-        piece.trim().ifPresent(trim -> {
-            String trimLayer = useLeggingsLayer ? "humanoid_leggings" : "humanoid";
-            resolveTrimTexture(engine, trimLayer, trim.pattern(), trim.color())
-                .ifPresent(trimTex -> {
-                    PixelBuffer face = part.crop(trimTex, BlockFace.SOUTH, false);
-                    target.blitScaled(face, x, y, w, h);
-                    stampMaskScaled(mask, face, x, y, w, h);
-                });
-        });
+        piece.trim().ifPresent(trim -> ArmorForm.ADULT.trimLayer(slot)
+            .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
+            .ifPresent(trimTex -> {
+                PixelBuffer face = part.crop(trimTex, BlockFace.SOUTH, false);
+                target.blitScaled(face, x, y, w, h);
+                stampMaskScaled(mask, face, x, y, w, h);
+            }));
     }
 
     /**
@@ -389,13 +357,13 @@ public class ArmorKit {
     private static @NotNull EntityModelData slotMesh(
         @NotNull Entity.HumanoidArmor armor, @NotNull ArmorSlot slot) {
         EntityModelData tree = armor.mesh();
-        Vector3f deformation = slot == ArmorSlot.LEGGINGS ? armor.innerGrow() : armor.outerGrow();
+        Vector3f deformation = slot.grow(armor);
         Vector3f seat = armor.meshOffset().multiply(1f / armor.meshScale());
         LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
         for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
             ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
-            if (coveredBySlot(tree, armor.form(), slot, entry.getKey()))
+            if (armor.form().covers(tree, slot, entry.getKey()))
                 for (EntityModelData.Cube cube : bone.getCubes())
                     cubes.add(grownBy(cube, deformation));
             Vector3f pivot = bone.getParent() == null ? bone.getPivot().add(seat) : bone.getPivot();
@@ -450,10 +418,10 @@ public class ArmorKit {
     private static @NotNull List<ArmorBox> armorBoxes(
         @NotNull EntityArmorFrame frame, @NotNull Entity.HumanoidArmor armor, @NotNull ArmorSlot slot) {
         EntityModelData tree = armor.mesh();
-        Vector3f deformation = slot == ArmorSlot.LEGGINGS ? armor.innerGrow() : armor.outerGrow();
+        Vector3f deformation = slot.grow(armor);
         List<ArmorBox> boxes = new ArrayList<>();
         for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
-            if (!coveredBySlot(tree, armor.form(), slot, entry.getKey())) continue;
+            if (!armor.form().covers(tree, slot, entry.getKey())) continue;
             Vector3f anchor = chainedPivot(tree, entry.getValue());
             float scale = entry.getValue().getScale();
             for (EntityModelData.Cube cube : entry.getValue().getCubes()) {
@@ -479,27 +447,6 @@ public class ArmorKit {
         return new EntityModelData.Cube(cube.getOrigin(), cube.getSize(), cube.getUv(),
             deformation.add(cube.getGrow()), cube.isMirror(), cube.getPivot(), cube.getRotation(),
             cube.getFaceUv());
-    }
-
-    /**
-     * Whether a slot's armor covers this bone. Vanilla keeps the helmet's part <em>and its
-     * children</em>, and exactly the named parts for the other three slots - so the head's overlay box
-     * rides a helmet and nothing else, and a baby's boots reach the feet parented under its legs
-     * without dragging the legs along.
-     */
-    private static boolean coveredBySlot(
-        @NotNull EntityModelData tree, @NotNull ArmorForm form, @NotNull ArmorSlot slot, @NotNull String bone) {
-        List<String> parts = form.parts(slot);
-        if (parts.contains(bone)) return true;
-        if (slot != ArmorSlot.HELMET) return false;
-        String cursor = bone;
-        for (int depth = 0; depth < MAX_BONE_DEPTH; depth++) {
-            EntityModelData.Bone node = tree.getBones().get(cursor);
-            if (node == null || node.getParent() == null) return false;
-            cursor = node.getParent();
-            if (parts.contains(cursor)) return true;
-        }
-        return false;
     }
 
     /**
@@ -592,35 +539,14 @@ public class ArmorKit {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * The {@link SkinFace} body parts an armor slot covers - the adult shell's own per-slot part
-     * table, read through the body part each part name is textured from.
-     */
-    private static final @NotNull Map<ArmorSlot, SkinFace[]> SLOT_FACES =
-        new EnumMap<>(ArmorSlot.class);
-
-    static {
-        for (ArmorSlot slot : ArmorSlot.values())
-            SLOT_FACES.put(slot, ArmorForm.ADULT.parts(slot).stream()
-                .map(SKIN_PARTS::get)
-                .distinct()
-                .toArray(SkinFace[]::new));
-    }
-
-    /**
-     * Maps an armor slot to the {@link SkinFace} body parts it covers.
-     *
-     * @param slot the armor slot
-     * @return the body parts that slot's armor covers
-     */
-    public static @NotNull SkinFace @NotNull [] partsForSlot(@NotNull ArmorSlot slot) {
-        return SLOT_FACES.get(slot).clone();
-    }
-
-    /**
      * Adds one slot's armor around bounds carried in the skin renderer's normalized frame, inflating
-     * by the constant calibrated for it.
+     * by the amount that slot is calibrated for.
+     *
+     * <p>The player is dressed in the adult shell, so the sheet and the trim atlas are that form's -
+     * the same two answers the mesh path reads off the shell it was handed, rather than a second pair
+     * of literals that happen to agree with them.
      */
-    private static void addSkinScaledSlot3D(
+    private static void addSlot3D(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull Map<SkinFace, Vector3f[]> bodyPositions,
         @NotNull ArmorPiece piece,
@@ -628,23 +554,11 @@ public class ArmorKit {
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
-        addSlot3D(triangles, bodyPositions, piece, slot, item, engine,
-            slot == ArmorSlot.LEGGINGS ? LEGGINGS_INFLATE : ARMOR_INFLATE);
-    }
+        SkinFace[] parts = ArmorForm.playerParts(slot);
+        float inflate = slot.skinInflate();
 
-    private static void addSlot3D(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull Map<SkinFace, Vector3f[]> bodyPositions,
-        @NotNull ArmorPiece piece,
-        @NotNull ArmorSlot slot,
-        @NotNull Optional<ItemContext> item,
-        @NotNull Textures engine,
-        float inflate
-    ) {
-        SkinFace[] parts = partsForSlot(slot);
-        boolean useLeggingsLayer = slot == ArmorSlot.LEGGINGS;
-
-        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer ? LayerType.HUMANOID_LEGGINGS : LayerType.HUMANOID, item);
+        Optional<PixelBuffer> armorTexture =
+            resolveArmorTexture(engine, piece, ArmorForm.ADULT.layerType(slot), item);
         if (armorTexture.isEmpty()) return;
 
         for (SkinFace part : parts) {
@@ -653,20 +567,17 @@ public class ArmorKit {
             triangles.addAll(buildSkinBox3D(part, bounds[0], bounds[1], armorTexture.get(), inflate));
         }
 
-        if (piece.trim().isPresent()) {
-            ArmorTrim trim = piece.trim().get();
-            String trimLayer = useLeggingsLayer ? "humanoid_leggings" : "humanoid";
-            Optional<PixelBuffer> trimTexture = resolveTrimTexture(
-                engine, trimLayer, trim.pattern(), trim.color());
-            if (trimTexture.isPresent()) {
+        if (piece.trim().isEmpty()) return;
+        ArmorTrim trim = piece.trim().get();
+        ArmorForm.ADULT.trimLayer(slot)
+            .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
+            .ifPresent(trimTexture -> {
                 for (SkinFace part : parts) {
                     Vector3f[] bounds = bodyPositions.get(part);
                     if (bounds == null) continue;
-                    triangles.addAll(buildSkinBox3D(part, bounds[0], bounds[1],
-                        trimTexture.get(), inflate));
+                    triangles.addAll(buildSkinBox3D(part, bounds[0], bounds[1], trimTexture, inflate));
                 }
-            }
-        }
+            });
     }
 
     /**
