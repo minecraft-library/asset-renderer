@@ -3,7 +3,6 @@ package lib.minecraft.renderer.pipeline.pack;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.equipment.EquipmentAssets;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -20,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -113,14 +113,15 @@ class EquipmentModelLoaderTest {
     }
 
     @Test
-    @DisplayName("unknown asset id resolves to MISSING; an unknown layer type is dropped")
+    @DisplayName("an unknown asset id is absent from the index; an unknown layer type is dropped")
     void missingAndUnknownLayer() throws IOException {
         Path van = tmp.resolve("vanilla");
         write(van.resolve("assets/minecraft/equipment/iron.json"), """
             {"layers":{"humanoid":[{"texture":"minecraft:iron"}],"future_slot":[{"texture":"minecraft:iron"}]}}""");
 
-        EquipmentAssets assets = load(van);
-        assertThat(assets.get(new ResourceId("minecraft", "nonexistent")), is(EquipmentModel.MISSING));
+        Map<ResourceId, EquipmentModel> assets = load(van);
+        assertThat("the loader reports what it parsed; the MISSING default is the context's",
+            assets.containsKey(new ResourceId("minecraft", "nonexistent")), is(false));
 
         EquipmentModel iron = assets.get(new ResourceId("minecraft", "iron"));
         assertThat(iron.getLayers(LayerType.HUMANOID).size(), is(1));
@@ -135,8 +136,8 @@ class EquipmentModelLoaderTest {
         write(van.resolve("assets/minecraft/equipment/iron.json"), """
             {"layers":{"humanoid":[{"texture":"minecraft:iron"}]}}""");
 
-        EquipmentAssets assets = load(van);
-        assertThat(assets.get(new ResourceId("minecraft", "broken")), is(EquipmentModel.MISSING));
+        Map<ResourceId, EquipmentModel> assets = load(van);
+        assertThat(assets.containsKey(new ResourceId("minecraft", "broken")), is(false));
         assertThat(assets.get(new ResourceId("minecraft", "iron")).getLayers(LayerType.HUMANOID).size(), is(1));
     }
 
@@ -159,7 +160,7 @@ class EquipmentModelLoaderTest {
         assertThat(layer.texture(), is(new ResourceId("minecraft", "custom_iron")));
     }
 
-    private static EquipmentAssets load(Path vanillaRoot) {
+    private static Map<ResourceId, EquipmentModel> load(Path vanillaRoot) {
         return EquipmentModelLoader.load(PackStack.of(Concurrent.newList(pack(PackId.VANILLA, vanillaRoot, Set.of("minecraft")))));
     }
 

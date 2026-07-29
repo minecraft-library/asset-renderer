@@ -14,7 +14,6 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.equipment.EquipmentAssets;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -96,7 +95,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntities;
     private final @NotNull TextureSynthesizer synthesizer;
-    private final @NotNull EquipmentAssets equipmentAssets;
+    private final @NotNull Map<ResourceId, EquipmentModel> equipmentModels;
 
     /**
      * The block ids in atlas-grouping order (primary tag then id), precomputed once, shared unmodifiable.
@@ -151,7 +150,7 @@ public final class PipelineRendererContext implements RendererContext {
             itemTints, glintItems, models.items(), itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
-        EquipmentAssets equipmentAssets = EquipmentModelLoader.load(stack);
+        Map<ResourceId, EquipmentModel> equipmentModels = EquipmentModelLoader.load(stack);
 
         return new PipelineRendererContext(
             stack,
@@ -166,7 +165,7 @@ public final class PipelineRendererContext implements RendererContext {
             bannerPatterns,
             blockEntities,
             synthesizer,
-            equipmentAssets,
+            equipmentModels,
             sortedBlockIds(blockIndex, blockTags),
             sortedItemIds(itemIndex)
         );
@@ -419,7 +418,7 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull List<EquipmentModel.Layer> resolveEquipmentLayers(
         @NotNull ResourceId assetId, @NotNull LayerType layerType) {
-        return this.equipmentAssets.get(assetId).getLayers(layerType);
+        return this.equipmentModels.getOrDefault(assetId, EquipmentModel.MISSING).getLayers(layerType);
     }
 
     /**

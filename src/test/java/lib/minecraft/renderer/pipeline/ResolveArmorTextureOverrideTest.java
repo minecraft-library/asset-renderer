@@ -4,7 +4,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.equipment.EquipmentAssets;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
@@ -27,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
@@ -118,7 +118,7 @@ class ResolveArmorTextureOverrideTest {
             stack, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(),
-            new TextureSynthesizer(PalettedPermutationLoader.load(stack)), EquipmentAssets.EMPTY,
+            new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Map.of(),
             Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
     }
 

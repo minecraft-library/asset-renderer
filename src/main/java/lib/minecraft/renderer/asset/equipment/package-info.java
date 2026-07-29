@@ -5,10 +5,10 @@
  * <p>{@link lib.minecraft.renderer.asset.equipment.EquipmentModel EquipmentModel} mirrors vanilla's
  * {@code EquipmentClientInfo}: a map from {@link lib.minecraft.renderer.asset.equipment.LayerType LayerType}
  * to the ordered {@link lib.minecraft.renderer.asset.equipment.EquipmentModel.Layer Layer} list a slot
- * composites. {@link lib.minecraft.renderer.asset.equipment.EquipmentAssets EquipmentAssets} is the
- * loaded index keyed by asset id, populated by
+ * composites. The loaded index keyed by asset id is the pipeline's own - populated by
  * {@link lib.minecraft.renderer.pipeline.pack.EquipmentModelLoader EquipmentModelLoader} and served
- * through {@code RendererContext.resolveEquipmentLayers}. Layer texture stems resolve to
+ * through {@code RendererContext.resolveEquipmentLayers}, which is where an unresolvable id becomes
+ * {@link lib.minecraft.renderer.asset.equipment.EquipmentModel#MISSING MISSING}. Layer texture stems resolve to
  * {@code entity/equipment/<layer>/<stem>} via
  * {@link lib.minecraft.renderer.asset.equipment.EquipmentModel.Layer#textureLocation(lib.minecraft.renderer.asset.equipment.LayerType) textureLocation}.
  */

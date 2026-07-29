@@ -15,7 +15,7 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.equipment.EquipmentAssets;
+import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -215,7 +216,7 @@ class PipelineRendererContextTest {
         context = new PipelineRendererContext(
             stack, blockIndex, itemIndex, itemTrees, itemModels, entityIndex, colorMaps,
             blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, synthesizer,
-            EquipmentAssets.EMPTY,
+            Map.of(),
             Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
     }
 
@@ -235,6 +236,16 @@ class PipelineRendererContextTest {
     @DisplayName("findBlock returns empty for unknown ids")
     void findBlockMissing() {
         assertThat(context.findBlock("minecraft:unknown").isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("resolveEquipmentLayers is total - an unshipped asset id yields MISSING's empty layers, never a throw")
+    void equipmentLookupIsTotal() {
+        // The equipment index is the pipeline's own map and the MISSING default is applied here, at the
+        // one seam that serves it. That totality is what an armour render relies on: a material naming
+        // an asset the stack does not ship draws nothing rather than failing the whole frame.
+        assertThat(context.resolveEquipmentLayers(new ResourceId("minecraft", "unshipped"), LayerType.HUMANOID),
+            is(empty()));
     }
 
     @Test

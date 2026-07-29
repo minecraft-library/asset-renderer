@@ -13,10 +13,10 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Exercises {@link EquipmentModel}, its {@link EquipmentModel.Layer#textureLocation(LayerType) texture
- * path derivation}, and the {@link EquipmentAssets} / {@link EquipmentModel#MISSING} absent-lookup
+ * path derivation}, and the {@link EquipmentModel#MISSING} absent-lookup
  * fallbacks.
  */
-@DisplayName("EquipmentModel + Layer + EquipmentAssets")
+@DisplayName("EquipmentModel + Layer")
 class EquipmentModelTest {
 
     @Test
@@ -43,12 +43,6 @@ class EquipmentModelTest {
     @DisplayName("MISSING has no layers for any type")
     void missing() {
         assertThat(EquipmentModel.MISSING.getLayers(LayerType.HUMANOID).isEmpty(), is(true));
-    }
-
-    @Test
-    @DisplayName("EquipmentAssets.get returns MISSING for an absent asset id")
-    void assetsGetMissing() {
-        assertThat(EquipmentAssets.EMPTY.get(new ResourceId("minecraft", "iron")), is(EquipmentModel.MISSING));
     }
 
 }

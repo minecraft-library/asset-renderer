@@ -6,7 +6,6 @@ import com.google.gson.annotations.SerializedName;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.equipment.EquipmentAssets;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.pack.PackContainer;
@@ -27,7 +26,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 
 /**
- * Parses each pack's {@code assets/<ns>/equipment/*.json} into an {@link EquipmentAssets} index for the
+ * Parses each pack's {@code assets/<ns>/equipment/*.json} into an asset-id-keyed index for the
  * data-driven equipment texture-resolution surface. Unlike the concatenating atlas sources, equipment
  * files <b>replace</b> per asset id across the stack ascending, so a higher pack's {@code iron.json}
  * shadows the vanilla one wholesale (matching vanilla's per-file asset override).
@@ -35,8 +34,12 @@ import java.util.TreeMap;
  * <p>Not a direct {@link EquipmentModel} deserialize: Gson keys an enum map by constant name, while the
  * json keys the layer map by the serialized id, so the file is read into a String-keyed
  * {@link RawEquipmentFile} and assembled through {@link LayerType#fromId} - the same raw-then-assemble
- * split the entity model loader uses. A vanilla-only stack yields the 45 vanilla equipment assets;
- * every id resolves through {@code EquipmentAssets.get}, so iteration order never affects a render.
+ * split the entity model loader uses. A vanilla-only stack yields the 45 vanilla equipment assets.
+ *
+ * <p><b>The index reports what it parsed and applies no default.</b> An id the stack ships no file for
+ * is simply absent; turning that absence into {@link EquipmentModel#MISSING} is
+ * {@code RendererContext.resolveEquipmentLayers}' job, at the one seam that serves the index. So the
+ * map is ordered for determinism rather than for lookup, and iteration order never reaches a render.
  */
 @UtilityClass
 public class EquipmentModelLoader {
@@ -50,7 +53,7 @@ public class EquipmentModelLoader {
      * @param stack the resolved pack stack
      * @return the equipment-asset index, deterministically ordered by asset id
      */
-    public static @NotNull EquipmentAssets load(@NotNull PackStack stack) {
+    public static @NotNull Map<ResourceId, EquipmentModel> load(@NotNull PackStack stack) {
         Map<ResourceId, EquipmentModel> models = new TreeMap<>(Comparator.comparing(ResourceId::id));
         for (ResourcePack pack : stack.ascending()) {
             PackContainer container = pack.container();
@@ -60,7 +63,7 @@ public class EquipmentModelLoader {
                     scanRoot(container, namespace, prefix, models);
                 }
         }
-        return new EquipmentAssets(Collections.unmodifiableSortedMap((TreeMap<ResourceId, EquipmentModel>) models));
+        return Collections.unmodifiableSortedMap((TreeMap<ResourceId, EquipmentModel>) models);
     }
 
     /** Scans one {@code (root x namespace)} equipment subtree in sorted path order, replacing per asset id. */
