@@ -21,6 +21,11 @@ import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.UnaryOperator;
 
 /**
@@ -135,11 +140,15 @@ public class PlayerOptions implements RenderOptions {
      * statement of the same numbers - {@link #SKULL} is one 8x8 head, {@link #BUST} is 20 by 16 from
      * the torso's floor to the head's ceiling, {@link #FULL} the 32 by 16 of the whole vanilla body.
      * <p>
+     * <p>Both layouts fall out of the same two inputs and neither is tabulated: {@link #boxes()} seats
+     * each part in this scope's own model frame for the 3D render, and {@link #layout2D} places each
+     * part's canvas rectangle for the 2D one. A scope's four union integers and each part's own pixel
+     * box are all either of them reads, which is why they are answered here rather than at a renderer.
+     * <p>
      * {@link #SKULL} is the one scope that {@link HumanoidPart#centred centres} its part instead of
      * seating it in the body lattice, which is why it also carries a different scale: an 8-pixel head
      * spanning one unit is {@code 0.125} per pixel against the body's {@code 0.03}.
      */
-    @Getter
     public enum Type {
 
         /**
@@ -174,20 +183,24 @@ public class PlayerOptions implements RenderOptions {
         /**
          * The parts this scope draws, in draw order.
          */
-        @Getter(AccessLevel.NONE)
-        private final @NotNull HumanoidPart @NotNull [] parts;
+        private final @NotNull List<HumanoidPart> parts;
 
         private final int minPixelX;
-        @Getter(AccessLevel.NONE)
         private final int maxPixelX;
-        @Getter(AccessLevel.NONE)
         private final int minPixelY;
         private final int maxPixelY;
+
+        /**
+         * Each part this scope draws, in the box this scope seats it in - the same answer
+         * {@link #boxOf} gives, tabulated once per constant because it depends on nothing but the
+         * scope.
+         */
+        private final @NotNull Map<HumanoidPart, Box> boxes;
 
         Type(float unitsPerPixel, boolean centred, @NotNull HumanoidPart @NotNull ... parts) {
             this.unitsPerPixel = unitsPerPixel;
             this.centred = centred;
-            this.parts = parts;
+            this.parts = List.of(parts);
 
             int minX = Integer.MAX_VALUE;
             int maxX = Integer.MIN_VALUE;
@@ -203,6 +216,10 @@ public class PlayerOptions implements RenderOptions {
             this.maxPixelX = maxX;
             this.minPixelY = minY;
             this.maxPixelY = maxY;
+
+            Map<HumanoidPart, Box> seated = new EnumMap<>(HumanoidPart.class);
+            for (HumanoidPart part : parts) seated.put(part, boxOf(part));
+            this.boxes = Collections.unmodifiableMap(seated);
         }
 
         /**
@@ -210,8 +227,8 @@ public class PlayerOptions implements RenderOptions {
          *
          * @return this scope's parts
          */
-        public @NotNull HumanoidPart @NotNull [] parts() {
-            return this.parts.clone();
+        public @NotNull List<HumanoidPart> parts() {
+            return this.parts;
         }
 
         /**
@@ -226,22 +243,80 @@ public class PlayerOptions implements RenderOptions {
         }
 
         /**
-         * Pixel width of the 2D body composite, before output scaling.
+         * Every part this scope draws, keyed to the box this scope seats it in.
          *
-         * @return the union pixel width of this scope's parts
+         * <p>The same answers {@link #boxOf} gives, in an {@link EnumMap} so the iteration order is
+         * ordinal order. Tabulated per constant rather than assembled per render, because a scope's
+         * boxes are a function of the scope alone.
+         *
+         * @return this scope's parts and their boxes
          */
-        public int getBodyWidth() {
+        public @NotNull Map<HumanoidPart, Box> boxes() {
+            return this.boxes;
+        }
+
+        /**
+         * This scope's 2D front-facing layout on a square canvas - each part it draws, and the canvas
+         * rectangle that part is blitted into.
+         *
+         * <p>The scale fills the canvas height with the scope's own pixel height and the body is
+         * centred horizontally. The front view then lays the lattice out directly: a part's canvas X is
+         * how far its left edge sits from the scope's own left edge, and its canvas Y is how far its
+         * <em>top</em> edge sits below the scope's top - the one inversion, because the lattice counts
+         * Y upward and a canvas counts it down. The rectangle's extent is the part's own.
+         *
+         * <p>Answered here because it reads nothing but this scope's four union integers and each
+         * part's own pixel box, which is the same table {@link #boxes} is derived from.
+         *
+         * @param canvasSize the square canvas edge in pixels
+         * @return the parts in draw order, each with its canvas rectangle
+         */
+        public @NotNull List<BodyPart2D> layout2D(int canvasSize) {
+            int scale = canvasSize / bodyHeight();
+            int offsetX = (canvasSize - bodyWidth() * scale) / 2;
+            List<BodyPart2D> layout = new ArrayList<>(this.parts.size());
+
+            for (HumanoidPart part : this.parts)
+                layout.add(new BodyPart2D(part,
+                    offsetX + (part.minPixelX() - this.minPixelX) * scale,
+                    (this.maxPixelY - part.maxPixelY()) * scale,
+                    part.pixelWidth() * scale,
+                    part.pixelHeight() * scale));
+
+            return List.copyOf(layout);
+        }
+
+        /**
+         * Pixel width of the 2D body composite, before output scaling - the union pixel width of this
+         * scope's parts.
+         */
+        private int bodyWidth() {
             return this.maxPixelX - this.minPixelX;
         }
 
         /**
-         * Pixel height of the 2D body composite, before output scaling.
-         *
-         * @return the union pixel height of this scope's parts
+         * Pixel height of the 2D body composite, before output scaling - the union pixel height of this
+         * scope's parts.
          */
-        public int getBodyHeight() {
+        private int bodyHeight() {
             return this.maxPixelY - this.minPixelY;
         }
+
+        /**
+         * One body part and the canvas rectangle it is drawn in, in output pixels with Y counted
+         * downward.
+         *
+         * <p>The five travel together at every site that draws the 2D composite - the skin pass, the
+         * overlay pass, and each armour slot's sheet and trim - so they travel as one value rather than
+         * as a part plus four loose integers.
+         *
+         * @param part the body part to crop and blit
+         * @param x left edge of the destination rectangle
+         * @param y top edge of the destination rectangle
+         * @param w destination width in pixels
+         * @param h destination height in pixels
+         */
+        public record BodyPart2D(@NotNull HumanoidPart part, int x, int y, int w, int h) {}
 
     }
 

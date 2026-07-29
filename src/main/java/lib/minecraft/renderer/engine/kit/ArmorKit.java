@@ -21,6 +21,7 @@ import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.face.Turn;
+import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
@@ -154,28 +155,23 @@ public class ArmorKit {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Composites the 2D front-facing armor and trim sprites for a single body part onto the
-     * canvas at the given position and scale. The slot determines whether to use the humanoid
-     * (layer 1) or humanoid_leggings (layer 2) texture atlas.
+     * Composites the 2D front-facing armor and trim sprites for one body part into the canvas rectangle
+     * its layout row names. The slot determines whether to use the humanoid (layer 1) or
+     * humanoid_leggings (layer 2) texture atlas.
      *
      * @param target the target buffer
-     * @param part the body part whose south face to crop from the armor atlas
+     * @param row the body part whose south face to crop, and the canvas rectangle to blit it into
      * @param slot the armor slot that determines the texture layer
      * @param piece the armor piece to render
-     * @param x the destination X on the buffer
-     * @param y the destination Y on the buffer
-     * @param w the destination width
-     * @param h the destination height
      * @param item the equipped item identity, for the pack-rule (CIT) texture override; empty leaves the
      *     slot on its equipment-model texture
      * @param engine the texture engine for pack-aware texture resolution
      */
     public static void compositeSlot2D(
         @NotNull PixelBuffer target,
-        @NotNull HumanoidPart part,
+        @NotNull PlayerOptions.Type.BodyPart2D row,
         @NotNull ArmorSlot slot,
         @NotNull ArmorPiece piece,
-        int x, int y, int w, int h,
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
@@ -185,19 +181,24 @@ public class ArmorKit {
         PixelMask mask = target.mask().orElse(null);
         Optional<PixelBuffer> armorTexture =
             resolveArmorTexture(engine, piece, ArmorForm.ADULT.layerType(slot), item);
-        armorTexture.ifPresent(tex -> {
-            PixelBuffer face = part.crop(tex, Face.SOUTH, false);
-            target.blitScaled(face, x, y, w, h);
-            stampMaskScaled(mask, face, x, y, w, h);
-        });
+        armorTexture.ifPresent(tex -> blit2D(target, mask, row, tex));
 
         piece.trim().ifPresent(trim -> ArmorForm.ADULT.trimLayer(slot)
             .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
-            .ifPresent(trimTex -> {
-                PixelBuffer face = part.crop(trimTex, Face.SOUTH, false);
-                target.blitScaled(face, x, y, w, h);
-                stampMaskScaled(mask, face, x, y, w, h);
-            }));
+            .ifPresent(trimTex -> blit2D(target, mask, row, trimTex)));
+    }
+
+    /**
+     * Crops one sheet's south face for a layout row, blits it into that row's rectangle and stamps the
+     * same coverage into the glint mask. The armor sheet and the trim sheet are drawn this way in that
+     * order, and the two passes differ in nothing but the sheet.
+     */
+    private static void blit2D(
+        @NotNull PixelBuffer target, @Nullable PixelMask mask,
+        @NotNull PlayerOptions.Type.BodyPart2D row, @NotNull PixelBuffer sheet) {
+        PixelBuffer face = row.part().crop(sheet, Face.SOUTH, false);
+        target.blitScaled(face, row.x(), row.y(), row.w(), row.h());
+        stampMaskScaled(mask, face, row);
     }
 
     /**
@@ -207,17 +208,21 @@ public class ArmorKit {
      * trim coverage so the foil never lands on the bare skin underneath. No-op when {@code mask} is
      * {@code null}.
      */
-    private static void stampMaskScaled(@Nullable PixelMask mask, @NotNull PixelBuffer face, int x, int y, int w, int h) {
+    private static void stampMaskScaled(
+        @Nullable PixelMask mask, @NotNull PixelBuffer face,
+        @NotNull PlayerOptions.Type.BodyPart2D row) {
         if (mask == null) return;
         int fw = face.width();
         int fh = face.height();
+        int w = row.w();
+        int h = row.h();
         if (fw <= 0 || fh <= 0 || w <= 0 || h <= 0) return;
         for (int dy = 0; dy < h; dy++) {
             int sy = Math.min(fh - 1, dy * fh / h);
             for (int dx = 0; dx < w; dx++) {
                 int sx = Math.min(fw - 1, dx * fw / w);
                 if (ColorMath.alpha(face.getPixel(sx, sy)) != 0)
-                    mask.mark(x + dx, y + dy);
+                    mask.mark(row.x() + dx, row.y() + dy);
             }
         }
     }

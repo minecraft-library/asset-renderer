@@ -10,6 +10,7 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.equipment.ArmorForm;
+import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -32,6 +33,7 @@ import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.face.Unwrap;
+import lib.minecraft.renderer.option.PlayerOptions.Type.BodyPart2D;
 import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.slot.PlayerSlot2D;
 import lib.minecraft.renderer.option.slot.PlayerSlot3D;
@@ -49,10 +51,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Renders player models in three body scopes ({@link PlayerOptions.Type#SKULL SKULL},
@@ -362,49 +363,11 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * A body part plus its 2D layout rectangle, in canvas pixels, for a given {@link PlayerOptions.Type}.
-     *
-     * @param part the body part to crop and blit
-     * @param x left edge of the destination rectangle
-     * @param y top edge of the destination rectangle
-     * @param w destination width in pixels
-     * @param h destination height in pixels
+     * Blits one already-cropped face into the canvas rectangle its layout row names.
      */
-    private record BodyPart2D(@NotNull HumanoidPart part, int x, int y, int w, int h) {}
-
-    /**
-     * The 2D layout for the given scope at the given pixel scale and horizontal offset, derived from
-     * each part's own pixel box rather than tabulated per scope.
-     * <p>
-     * The front view lays the lattice out directly: a part's canvas X is how far its left edge sits
-     * from the scope's own left edge, and its canvas Y is how far its <em>top</em> edge sits below the
-     * scope's top - the one inversion, because the lattice counts Y upward and a canvas counts it
-     * down. The rectangle's extent is the part's own.
-     */
-    private static @NotNull BodyPart2D @NotNull [] layout2D(@NotNull PlayerOptions.Type type, int scale, int offsetX) {
-        HumanoidPart[] parts = type.parts();
-        BodyPart2D[] layout = new BodyPart2D[parts.length];
-
-        for (int i = 0; i < parts.length; i++) {
-            HumanoidPart part = parts[i];
-            layout[i] = new BodyPart2D(part,
-                offsetX + (part.minPixelX() - type.getMinPixelX()) * scale,
-                (type.getMaxPixelY() - part.maxPixelY()) * scale,
-                part.pixelWidth() * scale,
-                part.pixelHeight() * scale);
-        }
-
-        return layout;
-    }
-
-    /**
-     * Computes the pixel scale and horizontal offset for 2D rendering so the body fills the
-     * output canvas height with horizontal centering.
-     */
-    private static int @NotNull [] scaleAndOffset2D(@NotNull PlayerOptions.Type type, int canvasSize) {
-        int scale = canvasSize / type.getBodyHeight();
-        int offsetX = (canvasSize - type.getBodyWidth() * scale) / 2;
-        return new int[]{ scale, offsetX };
+    private static void blitPart(
+        @NotNull PixelBuffer frame, @NotNull BodyPart2D row, @NotNull PixelBuffer face) {
+        frame.blitScaled(face, row.x(), row.y(), row.w(), row.h());
     }
 
     /**
@@ -418,8 +381,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         RasterEngine engine = new RasterEngine(parent.context);
         int size = options.getOutput().getCanvasSize();
 
-        int[] so = scaleAndOffset2D(options.getType(), size);
-        BodyPart2D[] parts = layout2D(options.getType(), so[0], so[1]);
+        List<BodyPart2D> parts = options.getType().layout2D(size);
 
         boolean overlay = options.getSkin().isRenderOverlay();
         boolean enchanted = options.getArmor().hasEnchanted();
@@ -434,22 +396,20 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 (target, tick) -> {
                 LayerStack<ImageLayer> stack = new LayerStack<>();
                 stack.append(PlayerSlot2D.SKIN, frame -> {
-                    for (BodyPart2D bp : parts)
-                        frame.blitScaled(bp.part.crop(skin, Face.SOUTH, false), bp.x, bp.y, bp.w, bp.h);
+                    for (BodyPart2D row : parts)
+                        blitPart(frame, row, row.part().crop(skin, Face.SOUTH, false));
                 });
                 if (overlay)
                     stack.append(PlayerSlot2D.OVERLAY, frame -> {
-                        for (BodyPart2D bp : parts) {
-                            if (hasOverlay(skin))
-                                frame.blitScaled(bp.part.crop(skin, Face.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
-                            else if (bp.part == HumanoidPart.HEAD && hasHatOverlay(skin))
-                                frame.blitScaled(HumanoidPart.HEAD.crop(skin, Face.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
-                        }
+                        // The head's hat layer is the one overlay a legacy sheet still carries, and it
+                        // is drawn from the same rectangle at the same crop - so the wider test only
+                        // decides whether the head is reached, never what it draws.
+                        for (BodyPart2D row : parts)
+                            if (hasOverlay(skin)
+                                || (row.part() == HumanoidPart.HEAD && hasHatOverlay(skin)))
+                                blitPart(frame, row, row.part().crop(skin, Face.SOUTH, true));
                     });
-                stack.append(PlayerSlot2D.ARMOR, frame -> {
-                    for (BodyPart2D bp : parts)
-                        compositeArmor2D(frame, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine);
-                });
+                stack.append(PlayerSlot2D.ARMOR, frame -> compositeArmor2D(frame, parts, options, engine));
                 Layers.foldInto(stack, options.getLayerDecorator(), target);
             })
                 .withMask(enchanted)
@@ -457,27 +417,33 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     }
 
     /**
-     * Composites all armor slots that cover the given body part in {@link ArmorSlot} declaration
-     * order - layer-2 leggings first so the chestplate / boots win on overlapping parts (torso, legs).
+     * Composites the whole 2D armour pass - every equipped slot over every body part that slot covers,
+     * in {@link ArmorSlot} declaration order.
+     *
+     * <p><b>The slot is the outer loop, and that is what makes the composite order unconditional.</b>
+     * Iterating parts outermost also paints correctly, but only because the six part rectangles tile the
+     * canvas without overlap: all fifteen pairs are disjoint, the head sitting above the torso and arms
+     * on Y and the two legs beside each other on X. With the slot outermost a later slot paints over an
+     * earlier one whatever the rectangles do, which is the contract {@link ArmorSlot}'s declaration
+     * order states - layer-2 leggings first, so the chestplate wins on the torso and the boots on the
+     * lower legs.
+     *
+     * <p>{@code equipped()} holds only worn pieces and iterates its {@code EnumMap} in ordinal - so
+     * declaration - order, so no slot is tested for absence and none is drawn out of turn.
      */
     private static void compositeArmor2D(
         @NotNull PixelBuffer target,
-        @NotNull HumanoidPart part,
-        int x, int y, int w, int h,
+        @NotNull List<BodyPart2D> parts,
         @NotNull PlayerOptions options,
         @NotNull RasterEngine engine
     ) {
-        // equipped() holds only worn pieces and iterates its EnumMap in ordinal - so declaration -
-        // order, which is the same sequence the four-slot walk produced after skipping the empties.
-        // The covering set is the part's, not the slot's, so it is resolved once here rather than
-        // rebuilt on each of the four passes.
-        Set<ArmorSlot> covering = ArmorForm.playerSlots(part);
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : options.getArmor().equipped().entrySet()) {
             ArmorSlot slot = entry.getKey();
-            if (!covering.contains(slot)) continue;
+            Optional<ItemContext> item = Optional.ofNullable(options.getArmor().getItems().get(slot));
 
-            ArmorKit.compositeSlot2D(target, part, slot, entry.getValue(), x, y, w, h,
-                Optional.ofNullable(options.getArmor().getItems().get(slot)), engine.textures());
+            for (BodyPart2D row : parts)
+                if (ArmorForm.playerSlots(row.part()).contains(slot))
+                    ArmorKit.compositeSlot2D(target, row, slot, entry.getValue(), item, engine.textures());
         }
     }
 
@@ -657,23 +623,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     }
 
     /**
-     * The worn-armor body-part bounds map for a player scope - each part that scope draws, in the box
-     * that scope seats it in. Assembled here once rather than inline in each of the three 3D
-     * renderers.
-     *
-     * @param type the player render scope
-     * @return the body-part to box map the armor kit inflates around
-     */
-    private static @NotNull Map<HumanoidPart, Box> armorBoundsFor(@NotNull PlayerOptions.Type type) {
-        Map<HumanoidPart, Box> bounds = new EnumMap<>(HumanoidPart.class);
-        for (HumanoidPart part : type.parts()) bounds.put(part, type.boxOf(part));
-        return bounds;
-    }
-
-    /**
-     * Appends the worn-armor layer for a player scope: the scope's {@link #armorBoundsFor bounds map}
-     * handed to {@link ArmorKit#buildHumanoidArmor3D} with the four equipped slots. Shared by the
-     * SKULL / BUST / FULL 3D renderers so the append and armor call live here once.
+     * Appends the worn-armor layer for a player scope: the scope's own
+     * {@link PlayerOptions.Type#boxes() part boxes} handed to {@link ArmorKit#buildHumanoidArmor3D}
+     * with the four equipped slots. Shared by the SKULL / BUST / FULL 3D renderers so the append and
+     * armor call live here once.
      *
      * @param stack the geometry layer stack to append the armor layer to
      * @param type the player render scope
@@ -683,7 +636,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     private static void appendArmor(@NotNull LayerStack<GeometryLayer> stack, @NotNull PlayerOptions.Type type,
                                     @NotNull PlayerOptions options, @NotNull ModelEngine engine) {
         stack.append(PlayerSlot3D.ARMOR, sink -> sink.addAll(ArmorKit.buildHumanoidArmor3D(
-            armorBoundsFor(type), options.getArmor().equipped(),
+            type.boxes(), options.getArmor().equipped(),
             options.getArmor().getItems(), engine.textures())));
     }
 
