@@ -2498,8 +2498,14 @@ public final class GeometryParser {
          * Marker pushed onto {@link #refStack} when the bound reference parameter is loaded. A
          * sentinel distinct from any enum constant field name so the {@code IF_ACMP*} evaluator
          * can tell the parameter side from the constant side of the comparison.
+         * <p>
+         * <b>The leading NUL is spelled as an escape and must stay one.</b> A raw NUL byte in the
+         * source makes ripgrep classify this file as binary and drop it from every
+         * directory-scoped search while still finding it when it is named outright, so a symbol
+         * sweep over the package silently omits the largest file in it. The compiled constant is
+         * the same character either way.
          */
-        private static final @NotNull String REF_PARAM_SENTINEL = " REF_PARAM";
+        private static final @NotNull String REF_PARAM_SENTINEL = "\0REF_PARAM";
 
         final @NotNull AsmKit.LiteralStack numStack = new AsmKit.LiteralStack(NUM_STACK_CAPACITY);
 
