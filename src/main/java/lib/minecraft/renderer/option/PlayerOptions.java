@@ -178,7 +178,9 @@ public class PlayerOptions implements RenderOptions {
         private final @NotNull HumanoidPart @NotNull [] parts;
 
         private final int minPixelX;
+        @Getter(AccessLevel.NONE)
         private final int maxPixelX;
+        @Getter(AccessLevel.NONE)
         private final int minPixelY;
         private final int maxPixelY;
 

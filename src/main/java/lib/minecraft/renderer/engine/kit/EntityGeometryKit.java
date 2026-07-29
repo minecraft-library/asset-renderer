@@ -827,44 +827,14 @@ public class EntityGeometryKit {
      * Builds a Matrix4f that maps a vertex in the entity's working pixel-unit frame
      * (post-bone-chain, post-pivot-translation, pre-rasterizer) into the entity-fit space
      * shared with {@link #buildTriangles}'s output. The transform is
-     * {@code (v - center) * scale} on each axis, with the overlay-fit path's Y-flip on positions
-     * applied (vanilla Y-up {@literal ->} screen Y-down).
+     * {@code (v - modelCentre) * ndcScale} on each axis.
      *
-     * <p>Used by {@link EntityRenderer} to project block-model
-     * overlay triangles (mooshroom mushroom blocks, etc) into the same entity-fit frame the
-     * primary entity geometry has been baked into so they render at the correct scale and
-     * orientation alongside the entity body.
-     *
-     * @param bounds the model bounds whose centre and extent drive the auto-fit
-     * @return the model-to-entity-fit matrix
-     */
-    public static @NotNull Matrix4f buildEntityFitMatrix(@NotNull Box bounds) {
-        float extent = Math.max(bounds.maxExtent(), MIN_MODEL_EXTENT);
-        return buildEntityFitMatrix(bounds, ENTITY_MODEL_FIT_EXTENT / extent);
-    }
-
-    /**
-     * Native-resolution variant of {@link #buildEntityFitMatrix(Box)}: caller supplies the
-     * model-units-to-NDC scale so block overlays composed onto an entity's frame match the same
-     * scale the renderer used for the entity body (no auto-fit).
-     *
-     * @param bounds the model bounds whose centre is the fit anchor
-     * @param ndcScale the caller-supplied model-units-to-NDC scale
-     * @return the model-to-entity-fit matrix at the supplied scale
-     */
-    public static @NotNull Matrix4f buildEntityFitMatrix(@NotNull Box bounds, float ndcScale) {
-        float cx = (bounds.minX() + bounds.maxX()) * 0.5f;
-        float cy = (bounds.minY() + bounds.maxY()) * 0.5f;
-        float cz = (bounds.minZ() + bounds.maxZ()) * 0.5f;
-        return buildEntityFitMatrix(new Vector3f(cx, cy, cz), ndcScale);
-    }
-
-    /**
-     * Native-resolution variant taking an explicit model-space centre anchor. Used by
-     * {@link EntityRenderer} so block overlays composite at the
-     * same silhouette-centred frame the entity body uses (the
+     * <p>Caller-supplied scale rather than an auto-fit, so block overlays composed onto an entity's
+     * frame match the scale the renderer used for the entity body. Used by {@link EntityRenderer} to
+     * project block-model overlay triangles (mooshroom mushroom blocks, etc) at the same
+     * silhouette-centred frame the entity body uses (the
      * {@link #buildTriangles(EntityModelData, PixelBuffer, Vector3f, boolean, float, float, int)
-     * Vector3f overload} above).
+     * Vector3f overload} above), so they render at the correct scale and orientation alongside it.
      *
      * @param modelCentre the model-space point that maps to the canvas centre
      * @param ndcScale the caller-supplied model-units-to-NDC scale

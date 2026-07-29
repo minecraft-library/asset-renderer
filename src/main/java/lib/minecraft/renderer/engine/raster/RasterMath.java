@@ -52,38 +52,13 @@ public class RasterMath {
 
     /**
      * Computes the barycentric {@code (u, v, w)} coordinates of a 2D point relative to a triangle,
-     * where {@code u/v/w} weight vertices {@code a/b/c} respectively and sum to {@code 1}. Used to
-     * interpolate per-vertex attributes (UVs, depth) across the triangle's face.
+     * where {@code u/v/w} weight vertices {@code a/b/c} respectively and sum to {@code 1}, writing
+     * them into {@code out[0..2]}. Used to interpolate per-vertex attributes (UVs, depth) across the
+     * triangle's face.
      * <p>
-     * Allocates a fresh array; hot pixel loops should call
-     * {@link #barycentricInto(Vector2f, Vector2f, Vector2f, float, float, float[])} with a reused
-     * scratch buffer instead.
-     *
-     * @param a the first vertex
-     * @param b the second vertex
-     * @param c the third vertex
-     * @param point the query point
-     * @return a three-element float array {@code [u, v, w]}; all zeros for a degenerate triangle
-     */
-    public static float @NotNull [] barycentric(
-        @NotNull Vector2f a,
-        @NotNull Vector2f b,
-        @NotNull Vector2f c,
-        @NotNull Vector2f point
-    ) {
-        float[] out = new float[3];
-        barycentricInto(a, b, c, point.x(), point.y(), out);
-        return out;
-    }
-
-    /**
-     * Allocation-free variant of {@link #barycentric(Vector2f, Vector2f, Vector2f, Vector2f)}.
-     * Takes the query point as two floats (so callers inside tight pixel loops do not have to
-     * allocate a {@link Vector2f}) and writes the three barycentric coordinates into
-     * {@code out[0..2]}.
-     * <p>
-     * Math is bit-identical to the allocating variant: a degenerate triangle (zero denominator)
-     * writes zeros to all three output slots, matching {@link #barycentric}'s behaviour.
+     * Allocation-free: the query point arrives as two floats and the result lands in a
+     * caller-supplied scratch array, so a tight pixel loop allocates neither a {@link Vector2f} nor
+     * a return array. A degenerate triangle (zero denominator) writes zeros to all three slots.
      *
      * @param a the first vertex
      * @param b the second vertex
@@ -331,34 +306,12 @@ public class RasterMath {
     }
 
     /**
-     * Returns the integer bounding box of a triangle clamped to the canvas.
-     *
-     * @param a the first vertex
-     * @param b the second vertex
-     * @param c the third vertex
-     * @param canvasW the canvas width
-     * @param canvasH the canvas height
-     * @return {@code [minX, minY, maxX, maxY]} (inclusive)
-     */
-    public static int @NotNull [] triangleBounds(
-        @NotNull Vector2f a,
-        @NotNull Vector2f b,
-        @NotNull Vector2f c,
-        int canvasW,
-        int canvasH
-    ) {
-        int[] out = new int[4];
-        triangleBoundsInto(a, b, c, canvasW, canvasH, out);
-        return out;
-    }
-
-    /**
-     * Allocation-free variant of {@link #triangleBounds(Vector2f, Vector2f, Vector2f, int, int)}.
-     * Writes {@code [minX, minY, maxX, maxY]} into {@code out[0..3]} using a caller-supplied
-     * scratch array.
+     * Writes the integer bounding box of a triangle, clamped to the canvas, into {@code out[0..3]}
+     * as {@code [minX, minY, maxX, maxY]}.
      * <p>
-     * Math is bit-identical to the allocating variant. Bounds are clamped to
-     * {@code [0, canvasW-1]} x {@code [0, canvasH-1]} inclusive.
+     * Allocation-free: the result lands in a caller-supplied scratch array rather than a fresh one,
+     * so a per-triangle loop allocates nothing. Bounds are clamped to {@code [0, canvasW-1]} x
+     * {@code [0, canvasH-1]} inclusive.
      *
      * @param a the first vertex
      * @param b the second vertex

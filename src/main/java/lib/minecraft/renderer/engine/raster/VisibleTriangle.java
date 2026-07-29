@@ -61,15 +61,4 @@ public record VisibleTriangle(
              traits, null);
     }
 
-    /**
-     * Returns a copy of this triangle carrying {@code debugTag}, for a kit that emits its geometry
-     * through a shared box builder and can only name the result afterwards.
-     *
-     * @param debugTag the diagnostic identifier to carry
-     * @return the tagged copy
-     */
-    public @NotNull VisibleTriangle withDebugTag(@NotNull String debugTag) {
-        return new VisibleTriangle(position0, position1, position2, uv0, uv1, uv2, texture,
-            tintArgb, normal, shading, traits, debugTag);
-    }
 }

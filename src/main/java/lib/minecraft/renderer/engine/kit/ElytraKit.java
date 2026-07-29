@@ -21,7 +21,6 @@ import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
@@ -88,7 +87,7 @@ public class ElytraKit {
      * @param baby whether to return the half-scale baby mesh
      * @return the shared wing mesh
      */
-    public static @NotNull EntityModelData wingsMesh(boolean baby) {
+    static @NotNull EntityModelData wingsMesh(boolean baby) {
         return baby ? WINGS_BABY : WINGS;
     }
 

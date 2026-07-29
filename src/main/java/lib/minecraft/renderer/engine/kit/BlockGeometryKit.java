@@ -349,68 +349,21 @@ public class BlockGeometryKit {
     }
 
     /**
-     * Per-face-tint variant of {@link #buildFromElements(ConcurrentList, Map, int)}. Faces whose
+     * Per-face-tint, {@code force_translucent}-aware variant of
+     * {@link #buildFromElements(ConcurrentList, Map, int)}. Faces whose
      * {@link ModelFace#getTintIndex() tintindex} is {@code >= 0} receive {@code tintedArgb}; faces
      * with {@code tintindex = -1} (the default) receive {@code untintedArgb}. Callers that want
-     * uniform tinting pass the same value for both, which is what the single-argument overload
-     * does.
+     * uniform tinting pass the same value for both, which is what the single-tint overload does.
+     * Refs present in {@code forceTranslucentRefs} join the translucent pass regardless of texel
+     * alpha.
      * <p>
-     * Used by {@link BlockRenderer} to honour vanilla's
-     * {@code "tintindex": 0} on banner-flag faces: the flag receives the dye colour, the pole
-     * and bar stay wood-brown. Biome-tinted blocks (grass_block, leaves) continue to call the
-     * uniform overload so every face still picks up the biome colormap sample.
+     * The split tint is what honours vanilla's {@code "tintindex": 0} on banner-flag faces: the
+     * flag receives the dye colour, the pole and bar stay wood-brown. Biome-tinted blocks
+     * (grass_block, leaves) call the uniform overload instead, so every face still picks up the
+     * biome colormap sample.
      *
      * @param tintedArgb ARGB applied to faces with {@code tintindex >= 0}
      * @param untintedArgb ARGB applied to faces with {@code tintindex = -1}
-     */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
-        @NotNull ConcurrentList<ModelElement> elements,
-        @NotNull Map<String, PixelBuffer> faceTextures,
-        int tintedArgb,
-        int untintedArgb
-    ) {
-        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, Set.of(), FaceTextureResolver.NONE));
-    }
-
-    /**
-     * {@code uvlock}-aware variant of
-     * {@link #buildFromElements(ConcurrentList, Map, int, int)}. When {@code uvLock} is set, the
-     * UV of every face whose normal lies along the blockstate variant's Y-rotation axis (the
-     * {@code up} and {@code down} faces) is counter-rotated by the variant's Y angle so the
-     * texture stays aligned to the world grid rather than spinning with the rotated model -
-     * matching vanilla's per-face {@code uvlock} baking. The caller still applies the variant's
-     * position rotation separately (the UV lock is independent of where the vertices land), so
-     * passing {@code uvLock = false} reproduces the plain overload byte-for-byte.
-     * <p>
-     * Both rotation axes are handled. A Y rotation spins the {@code up}/{@code down} faces in
-     * place (stairs, walls, fence gates), so only those are counter-rotated. An X rotation tips
-     * every face onto a new world direction, so each takes its own per-face turn - half-turns on the
-     * up/down planes of the multipart {@code vine}/{@code sculk_vein}/{@code glow_lichen}/
-     * {@code resin_clump} blocks and the single-face {@code mushroom_block}/{@code mushroom_stem}
-     * skins, plus the quarter-turn {@code east}/{@code west} side corrections a thick box such as a
-     * wall button needs (see {@link #uvLockQuarterTurns} for the full per-face table).
-     *
-     * @param variantRotationX the variant's whole-model X rotation in degrees (0/90/180/270)
-     * @param variantRotationY the variant's whole-model Y rotation in degrees (0/90/180/270)
-     * @param uvLock whether the blockstate variant requested {@code uvlock}
-     */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
-        @NotNull ConcurrentList<ModelElement> elements,
-        @NotNull Map<String, PixelBuffer> faceTextures,
-        int tintedArgb,
-        int untintedArgb,
-        int variantRotationX,
-        int variantRotationY,
-        boolean uvLock
-    ) {
-        return buildFromElements(elements, faceTextures,
-            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, Set.of(), FaceTextureResolver.NONE));
-    }
-
-    /**
-     * {@code force_translucent}-aware variant of {@link #buildFromElements(ConcurrentList, Map, int, int)}.
-     * Refs present in {@code forceTranslucentRefs} join the translucent pass regardless of texel alpha.
-     *
      * @param forceTranslucentRefs raw face-texture refs flagged {@code force_translucent} by the model
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
@@ -425,32 +378,25 @@ public class BlockGeometryKit {
     }
 
     /**
-     * {@code force_translucent}-aware variant of
-     * {@link #buildFromElements(ConcurrentList, Map, int, int, int, int, boolean)}. Refs present in
-     * {@code forceTranslucentRefs} join the translucent pass regardless of texel alpha.
-     *
-     * @param forceTranslucentRefs raw face-texture refs flagged {@code force_translucent} by the model
-     */
-    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
-        @NotNull ConcurrentList<ModelElement> elements,
-        @NotNull Map<String, PixelBuffer> faceTextures,
-        int tintedArgb,
-        int untintedArgb,
-        int variantRotationX,
-        int variantRotationY,
-        boolean uvLock,
-        @NotNull Set<String> forceTranslucentRefs
-    ) {
-        return buildFromElements(elements, faceTextures,
-            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock, forceTranslucentRefs, FaceTextureResolver.NONE));
-    }
-
-    /**
      * Core build that converts a resolved element list into rasterizer-ready triangles from the
-     * supplied {@link ElementBuildParams}. The three positional overloads delegate here. See
+     * supplied {@link ElementBuildParams}. The two positional overloads delegate here. See
      * {@link #buildFromElements(ConcurrentList, Map, int)} for the element-to-triangle conversion
-     * details (bounds normalization, UV derivation, element rotation) and the {@code uvlock}
-     * overload for the variant-rotation UV handling.
+     * details (bounds normalization, UV derivation, element rotation).
+     * <p>
+     * When {@link ElementBuildParams#uvLock()} is set, the UV of every face whose normal lies along
+     * the blockstate variant's Y-rotation axis (the {@code up} and {@code down} faces) is
+     * counter-rotated by the variant's Y angle so the texture stays aligned to the world grid rather
+     * than spinning with the rotated model - matching vanilla's per-face {@code uvlock} baking. The
+     * caller still applies the variant's position rotation separately (the UV lock is independent of
+     * where the vertices land), so an unset flag reproduces the unrotated build byte-for-byte.
+     * <p>
+     * Both rotation axes are handled. A Y rotation spins the {@code up}/{@code down} faces in
+     * place (stairs, walls, fence gates), so only those are counter-rotated. An X rotation tips
+     * every face onto a new world direction, so each takes its own per-face turn - half-turns on the
+     * up/down planes of the multipart {@code vine}/{@code sculk_vein}/{@code glow_lichen}/
+     * {@code resin_clump} blocks and the single-face {@code mushroom_block}/{@code mushroom_stem}
+     * skins, plus the quarter-turn {@code east}/{@code west} side corrections a thick box such as a
+     * wall button needs (see {@link #uvLockQuarterTurns} for the full per-face table).
      *
      * @param elements the fully-resolved element list
      * @param faceTextures a map keyed by the exact {@link ModelFace#getTexture()} string to a

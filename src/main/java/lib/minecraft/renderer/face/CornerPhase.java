@@ -146,23 +146,6 @@ public enum CornerPhase {
     }
 
     /**
-     * Picks a face's four corners out of an arbitrary 8-corner array already indexed by the canonical
-     * bit-pattern layout, for a caller holding a transformed {@code float[8][3]} rather than a
-     * {@link Box}.
-     *
-     * @param face the face to walk
-     * @param eightCorners the eight cube corners in canonical bit-pattern order
-     * @return this face's four corners in emission order (the same array entries, not copies)
-     */
-    public float @NotNull [] @NotNull [] cornersOf(@NotNull Face face, float @NotNull [] @NotNull [] eightCorners) {
-        int[] indices = this.vertexIndices[face.ordinal()];
-        return new float[][]{
-            eightCorners[indices[0]], eightCorners[indices[1]],
-            eightCorners[indices[2]], eightCorners[indices[3]]
-        };
-    }
-
-    /**
      * Returns which UV corner this phase pairs with each of a face's four vertices - {@code slots[i]}
      * is the index into a {@code (TL, BL, BR, TR)} rectangle that vertex {@code i} reads.
      *

@@ -9,12 +9,9 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * The six boxes a vanilla humanoid player model is built from - each one's pixel extent, the bone
@@ -63,18 +60,6 @@ public enum HumanoidPart {
      */
     public static final HumanoidPart @NotNull [] CACHED_VALUES = values();
 
-    /** Index of {@link #boneName bone names} to parts, powering {@link #byBoneName}. */
-    private static final @NotNull Map<String, HumanoidPart> BY_BONE_NAME;
-
-    static {
-        Map<String, HumanoidPart> byName = new HashMap<>(CACHED_VALUES.length * 2);
-
-        for (HumanoidPart part : CACHED_VALUES)
-            byName.put(part.boneName, part);
-
-        BY_BONE_NAME = Map.copyOf(byName);
-    }
-
     /**
      * The armor-mesh bone this part is the player's counterpart of. The shell vanilla dresses a
      * humanoid in names its boxes with these, so a bone resolves to the body box it dresses.
@@ -92,8 +77,10 @@ public enum HumanoidPart {
     private final int minPixelY;
 
     /**
-     * Lower corner of this part's box on Z, in vanilla player-lattice pixels.
+     * Lower corner of this part's box on Z, in vanilla player-lattice pixels. Read by {@link #box}
+     * and {@link #centred} alone - the depth extent is never asked for on its own.
      */
+    @Getter(AccessLevel.NONE)
     private final int minPixelZ;
 
     /**
@@ -107,8 +94,10 @@ public enum HumanoidPart {
     private final int maxPixelY;
 
     /**
-     * Upper corner of this part's box on Z, in vanilla player-lattice pixels.
+     * Upper corner of this part's box on Z, in vanilla player-lattice pixels. Read by {@link #box}
+     * and {@link #centred} alone - the depth extent is never asked for on its own.
      */
+    @Getter(AccessLevel.NONE)
     private final int maxPixelZ;
 
     /**
@@ -143,20 +132,6 @@ public enum HumanoidPart {
             maxPixelX - minPixelX, maxPixelY - minPixelY, maxPixelZ - minPixelZ);
         this.baseRects = unwrap(new Vector2f(baseU, baseV), size);
         this.overlayRects = unwrap(new Vector2f(overlayU, overlayV), size);
-    }
-
-    /**
-     * The part a bone name belongs to, or {@code null} when that bone has no player counterpart.
-     * <p>
-     * Only six of the twelve bone names in the armor corpus have one - a baby shell's {@code waist}
-     * and its two feet have none, and the head's two overlay bones are drawn as this part's overlay
-     * layer rather than as parts of their own.
-     *
-     * @param boneName the shell bone name
-     * @return the matching part, or {@code null} when that bone dresses no player box
-     */
-    public static @Nullable HumanoidPart byBoneName(@NotNull String boneName) {
-        return BY_BONE_NAME.get(boneName);
     }
 
     /**

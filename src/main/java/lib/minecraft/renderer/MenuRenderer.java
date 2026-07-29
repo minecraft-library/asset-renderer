@@ -405,6 +405,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * via {@link NineSliceKit} (stretched to the rect). An empty sprite - the slot texture
      * unresolved - draws nothing, leaving the panel background showing (missing textures drop, no
      * procedural fallback).
+     * <p>
+     * Serves the regular grid and the layouts that place cells outside it alike, e.g. the vanilla
+     * anvil slot row below the rename textbox.
      *
      * @param chrome the chrome buffer to draw onto
      * @param x the slot rect x origin
@@ -521,22 +524,6 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         int offset = (size - thickness) / 2;
         chrome.fillRect(x, y + offset, size, thickness, argb);
         chrome.fillRect(x + offset, y, thickness, size, argb);
-    }
-
-    /**
-     * Draws a single slot cell (matching the {@link #drawVanillaChestChrome} slot style) at the given
-     * pixel position from the vanilla {@code container/slot} sprite. Used by layouts that place slot
-     * cells outside the regular grid, e.g. the vanilla anvil slot row below the rename textbox.
-     *
-     * @param chrome the chrome buffer to draw onto
-     * @param x the slot rect x origin
-     * @param y the slot rect y origin
-     * @param w the slot rect width
-     * @param h the slot rect height
-     * @param slotSprite the resolved slot sprite, or empty to draw nothing
-     */
-    static void drawSlotInset(@NotNull PixelBuffer chrome, int x, int y, int w, int h, @NotNull Optional<PixelBuffer> slotSprite) {
-        drawSlotCell(chrome, x, y, w, h, slotSprite);
     }
 
     /**
@@ -903,7 +890,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             int slotRowY = INSET + TITLE_HEIGHT + TEXTBOX_HEIGHT;
             for (int col : SLOT_COLS) {
                 int sx = INSET + col * SLOT_SIZE;
-                drawSlotInset(chrome, sx, slotRowY, SLOT_SIZE - 2, SLOT_SIZE - 2, slotSprite);
+                drawSlotCell(chrome, sx, slotRowY, SLOT_SIZE - 2, SLOT_SIZE - 2, slotSprite);
             }
 
             drawPlusInSlot(chrome, 1, slotRowY);
