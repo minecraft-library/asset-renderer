@@ -6,6 +6,9 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.option.PlayerOptions;
+import lib.minecraft.renderer.option.spec.ArmorMaterial;
+import lib.minecraft.renderer.option.spec.ArmorOptions;
+import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
@@ -41,6 +44,10 @@ import static org.hamcrest.Matchers.is;
  *     bake.</li>
  * <li><b>Perspective arm</b> - a SKULL under {@link Projection#PORTRAIT}
  *     ({@link Lens.Kind#PERSPECTIVE}), the 2D post-projection {@code Fit2D} path.</li>
+ * <li><b>The armoured skin path</b> - the same FULL body in a full iron set. The other two carry no
+ *     armour at all, so nothing pinned the player's <em>own</em> armour build: neither the boxes
+ *     {@code ArmorKit.buildHumanoidArmor3D} adds around each body part, nor the order it adds them in,
+ *     nor which of the shell's parts each slot reaches. It is the only byte gate on that path.</li>
  * </ul>
  * Each case asserts render-twice determinism (parallel Pass 1 + tiled Pass 2 must be stable) then
  * pins a CRC32 over the ARGB pixels. A future rasterization-math change that silently drifts the
@@ -104,6 +111,30 @@ class PlayerRasterizeFittedGoldenTest {
             .skin(SkinOptions.builder().skin(TextureOptions.builder().id(Optional.of(SKIN_ID)).build()).build())
             .build();
         assertDeterministicAndPinned(options, 0x88CDA794L);
+    }
+
+    @Test
+    @DisplayName("FULL body in a full iron set is deterministic and pinned - the armoured skin path")
+    void armoredFittedArmIsPinned() {
+        ArmorPiece iron = ArmorPiece.of(ArmorMaterial.IRON);
+        PlayerOptions options = PlayerOptions.builder()
+            .type(PlayerOptions.Type.FULL)
+            .dimension(PlayerOptions.Dimension.THREE_D)
+            .output(OutputOptions.builder()
+                .projection(Projection.VANILLA_ISO)
+                .canvasSize(256)
+                .supersample(1)
+                .antiAlias(false)
+                .build())
+            .skin(SkinOptions.builder().skin(TextureOptions.builder().id(Optional.of(SKIN_ID)).build()).build())
+            .armor(ArmorOptions.builder()
+                .helmet(Optional.of(iron))
+                .chestplate(Optional.of(iron))
+                .leggings(Optional.of(iron))
+                .boots(Optional.of(iron))
+                .build())
+            .build();
+        assertDeterministicAndPinned(options, 0x60CFB45AL);
     }
 
     private void assertDeterministicAndPinned(PlayerOptions options, long expectedCrc32) {

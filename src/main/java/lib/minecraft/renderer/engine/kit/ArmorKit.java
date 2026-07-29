@@ -47,8 +47,8 @@ import java.util.OptionalInt;
  * paletted-permutation trim overlays.
  * <p>
  * The armor texture is a 64x32 atlas whose UV layout matches the top half of the vanilla 64x64
- * player skin - the base layer plus the head's overlay, which the helmet's second box reads -
- * so {@link HumanoidPart#textures(PixelBuffer, boolean) textures} and
+ * player skin - the base layer plus the head's overlay, which the helmet's second box really does read
+ * on both paths - so {@link HumanoidPart#textures(PixelBuffer, boolean) textures} and
  * {@link HumanoidPart#crop(PixelBuffer, Face, boolean) crop} work directly on the armor
  * texture. Armor pieces whose texture region is transparent (e.g. the head area of a leggings
  * layer) produce invisible geometry that the depth buffer or alpha compositing discards
@@ -96,20 +96,6 @@ public class ArmorKit {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * The order the <em>player's own</em> armor is emitted in, which is deliberately not
-     * {@link ArmorSlot}'s declared composite order.
-     *
-     * <p>Every other consumer - the mesh path and the 2D compositor - walks the declared order, which
-     * paints the layer-2 leggings first so the layer-1 pieces composite over them. This path emits the
-     * helmet first and the leggings third. It is unobservable today because the two inflations separate
-     * every shared bone, so no equal-depth contest arises between them; the divergence is spelled out
-     * here rather than left implicit in the emission sequence.
-     */
-    private static final @NotNull ArmorSlot @NotNull [] SKIN_SLOT_ORDER = {
-        ArmorSlot.HELMET, ArmorSlot.CHESTPLATE, ArmorSlot.LEGGINGS, ArmorSlot.BOOTS
-    };
-
-    /**
      * Builds all armor and trim triangles for a humanoid body.
      *
      * @param bodyPositions map from body part to the box it is seated in
@@ -127,10 +113,9 @@ public class ArmorKit {
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
-        for (ArmorSlot slot : SKIN_SLOT_ORDER) {
-            ArmorPiece piece = equipped.get(slot);
-            if (piece == null) continue;
-            addSlot3D(triangles, bodyPositions, piece, slot,
+        for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
+            ArmorSlot slot = entry.getKey();
+            addSlot3D(triangles, bodyPositions, entry.getValue(), slot,
                 Optional.ofNullable(items.get(slot)), engine);
         }
 
@@ -517,7 +502,6 @@ public class ArmorKit {
         @NotNull Textures engine
     ) {
         HumanoidPart[] parts = ArmorForm.playerParts(slot);
-        float inflate = slot.skinInflate();
 
         Optional<PixelBuffer> armorTexture =
             resolveArmorTexture(engine, piece, ArmorForm.ADULT.layerType(slot), item);
@@ -526,7 +510,7 @@ public class ArmorKit {
         for (HumanoidPart part : parts) {
             Box bounds = bodyPositions.get(part);
             if (bounds == null) continue;
-            triangles.addAll(buildSkinBox3D(part, bounds, armorTexture.get(), inflate));
+            addSkinPart3D(triangles, part, bounds, armorTexture.get(), slot);
         }
 
         if (piece.trim().isEmpty()) return;
@@ -537,9 +521,33 @@ public class ArmorKit {
                 for (HumanoidPart part : parts) {
                     Box bounds = bodyPositions.get(part);
                     if (bounds == null) continue;
-                    triangles.addAll(buildSkinBox3D(part, bounds, trimTexture, inflate));
+                    addSkinPart3D(triangles, part, bounds, trimTexture, slot);
                 }
             });
+    }
+
+    /**
+     * Adds one body part's boxes for one slot - the layer box, and the second box the helmet draws over
+     * the head on top of it.
+     *
+     * <p>That second box is the shell's {@code hat} cube, which the mesh path has always drawn and this
+     * one used to drop: {@link ArmorSlot#keepsChildren()} says a helmet covers the parts it names
+     * <em>and their children</em>, and {@code hat} is the head's. It reads the part's overlay
+     * rectangle - the head's is at {@code uv (32, 0)}, which is that very cube's origin on vanilla's own
+     * sheet - and it sits at the slot's {@link ArmorSlot#skinOverlayInflate() second inflation}, the
+     * ratio the cube's own further deformation puts it at.
+     */
+    private static void addSkinPart3D(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull HumanoidPart part,
+        @NotNull Box bounds,
+        @NotNull PixelBuffer texture,
+        @NotNull ArmorSlot slot
+    ) {
+        triangles.addAll(buildSkinBox3D(part, bounds, texture, slot.skinInflate(), false));
+
+        if (slot.keepsChildren())
+            triangles.addAll(buildSkinBox3D(part, bounds, texture, slot.skinOverlayInflate(), true));
     }
 
     /**
@@ -575,22 +583,26 @@ public class ArmorKit {
 
     /**
      * Builds one box of the player's own armor, around bounds carried in the skin renderer's
-     * normalized frame and read through that body part's own skin rectangles.
+     * normalized frame and read through that body part's own skin rectangles, on the base layer or the
+     * overlay one.
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildSkinBox3D(
         @NotNull HumanoidPart part,
         @NotNull Box bounds,
         @NotNull PixelBuffer texture,
-        float inflate
+        float inflate,
+        boolean overlayLayer
     ) {
         Vector3f inflatedMin = new Vector3f(
             bounds.minX() - inflate, bounds.minY() - inflate, bounds.minZ() - inflate);
         Vector3f inflatedMax = new Vector3f(
             bounds.maxX() + inflate, bounds.maxY() + inflate, bounds.maxZ() + inflate);
         return BlockGeometryKit.buildBox(
-            inflatedMin, inflatedMax, part.textures(texture, false), ColorMath.WHITE,
+            inflatedMin, inflatedMax, part.textures(texture, overlayLayer), ColorMath.WHITE,
             SurfaceTraits.WORN_SHELL,
-            RendererDebug.tracingPixels() ? part.name().toLowerCase(Locale.ROOT) : null);
+            RendererDebug.tracingPixels()
+                ? part.name().toLowerCase(Locale.ROOT) + (overlayLayer ? "_overlay" : "")
+                : null);
     }
 
     /**

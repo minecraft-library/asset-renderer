@@ -34,11 +34,16 @@ public enum ArmorSlot {
             return LEGGINGS_INFLATE;
         }
     },
-    /** Helmet - armor layer 1. */
+    /** Helmet - armor layer 1, and the one slot that draws a second box over the part it names. */
     HELMET("helmet") {
         @Override
         public boolean keepsChildren() {
             return true;
+        }
+
+        @Override
+        public float skinOverlayInflate() {
+            return HELMET_OVERLAY_INFLATE;
         }
     },
     /** Chestplate - armor layer 1, painted over the leggings waist on the torso. */
@@ -61,6 +66,14 @@ public enum ArmorSlot {
      * leggings waist shows through the chestplate.
      */
     private static final float LEGGINGS_INFLATE = 0.008f;
+
+    /**
+     * Per-side inflation for the second box the helmet draws over the head - the shell's {@code hat}
+     * cube, which carries a further {@code +0.5} {@code CubeDeformation} of its own on top of the
+     * layer-1 deformation of {@code 1.0}. So the second box's total growth is one and a half times the
+     * first's, and this figure is {@link #ARMOR_INFLATE} in that ratio rather than a second calibration.
+     */
+    private static final float HELMET_OVERLAY_INFLATE = ARMOR_INFLATE * 1.5f;
 
     /**
      * The vanilla slot name ({@code leggings} / {@code helmet} / {@code chestplate} / {@code boots}),
@@ -100,6 +113,17 @@ public enum ArmorSlot {
      */
     public boolean keepsChildren() {
         return false;
+    }
+
+    /**
+     * The per-side inflation the second box this slot draws sits at, in the skin renderer's normalized
+     * frame. Read only when {@link #keepsChildren()} says the slot draws one, so the three that do not
+     * answer with their own single-box inflation.
+     *
+     * @return the second box's inflation in model units
+     */
+    public float skinOverlayInflate() {
+        return skinInflate();
     }
 
 }
