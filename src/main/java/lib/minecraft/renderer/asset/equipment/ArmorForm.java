@@ -136,7 +136,7 @@ public enum ArmorForm {
         for (HumanoidPart part : HumanoidPart.CACHED_VALUES) {
             EnumSet<ArmorSlot> slots = EnumSet.noneOf(ArmorSlot.class);
 
-            for (ArmorSlot slot : ArmorSlot.values())
+            for (ArmorSlot slot : ArmorSlot.CACHED_VALUES)
                 if (ADULT.parts(slot).contains(part.boneName())) slots.add(slot);
 
             PLAYER_SLOTS.put(part, Set.copyOf(slots));

@@ -73,13 +73,11 @@ public class ArmorKit {
      * against a different sheet.
      *
      * @param row the row the box was resolved from, which answers for its texture and its trace name
-     * @param min the box's lower corner
-     * @param max the box's upper corner
+     * @param bounds the box in the frame it is drawn in
      */
     private record SlotBox(
         @NotNull ShellPart row,
-        @NotNull Vector3f min,
-        @NotNull Vector3f max
+        @NotNull Box bounds
     ) {}
 
     /**
@@ -168,10 +166,7 @@ public class ArmorKit {
 
         for (ShellPart row : rows) {
             if (!row.coveredBy(slot)) continue;
-            Box box = row.boxFor(slot);
-            boxes.add(new SlotBox(row,
-                new Vector3f(box.minX(), box.minY(), box.minZ()),
-                new Vector3f(box.maxX(), box.maxY(), box.maxZ())));
+            boxes.add(new SlotBox(row, row.boxFor(slot)));
         }
 
         return boxes;
@@ -346,13 +341,7 @@ public class ArmorKit {
             if (sheet.isEmpty()) continue;
             Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(shell, slot), screenTransform,
                 modelScale * shell.meshScale(), sheet.get());
-            union = union == null ? slotBounds : new Box(
-                Math.min(union.minX(), slotBounds.minX()),
-                Math.min(union.minY(), slotBounds.minY()),
-                Math.min(union.minZ(), slotBounds.minZ()),
-                Math.max(union.maxX(), slotBounds.maxX()),
-                Math.max(union.maxY(), slotBounds.maxY()),
-                Math.max(union.maxZ(), slotBounds.maxZ()));
+            union = union == null ? slotBounds : union.union(slotBounds);
         }
         return Optional.ofNullable(union);
     }
@@ -441,7 +430,7 @@ public class ArmorKit {
                 toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.minX(), box.minY(), box.minZ()),
                 toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.maxX(), box.maxY(), box.maxZ())
             });
-            boxes.add(new SlotBox(row, corners[0], corners[1]));
+            boxes.add(new SlotBox(row, Box.of(corners[0], corners[1])));
         }
         return boxes;
     }
@@ -580,7 +569,7 @@ public class ArmorKit {
     private static @NotNull ConcurrentList<VisibleTriangle> buildBox3D(
         @NotNull SlotBox box, @NotNull PixelBuffer texture) {
         return BlockGeometryKit.buildBox(
-            box.min(), box.max(), box.row().textures(texture), ColorMath.WHITE,
+            box.bounds(), box.row().textures(texture), ColorMath.WHITE,
             SurfaceTraits.WORN_SHELL,
             RendererDebug.tracingPixels() ? box.row().trace() : null);
     }

@@ -38,6 +38,7 @@ import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.CopperWeathering;
 import lib.minecraft.renderer.option.EntityAppearance;
@@ -262,14 +263,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // canvas for a silhouette an order of magnitude larger than the render. Gated on the
             // equipment axis, so the default (unequipped) canvas is unchanged.
             for (EquippedOverlay equipment : equipped)
-                screenBounds = unionBoxes(screenBounds, EntityGeometryKit.computeScreenBounds(
+                screenBounds = screenBounds.union(EntityGeometryKit.computeScreenBounds(
                     equipment.overlay().model(), renderOrient, modelScale, equipment.texture()));
             // Measured through the wings' own texture, like the equipment overlays: the wing box is a
             // 10x20x2 slab whose texture is largely transparent, so its geometric AABB would size the
             // canvas well outside the drawn wing outline. Seated on the body first, so a baby's dropped
             // wings are measured where they draw rather than where they are authored.
             if (wingTexture.isPresent())
-                screenBounds = unionBoxes(screenBounds, EntityGeometryKit.computeScreenBounds(
+                screenBounds = screenBounds.union(EntityGeometryKit.computeScreenBounds(
                     ElytraKit.wingsMesh(options.getAppearance().isBaby(), bodyBoneBounds),
                     renderOrient, modelScale, wingTexture.get()));
             // And the worn-armor shell, for the same reason: it stands clear of the body on every
@@ -279,7 +280,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Optional<Box> armorBounds = resolved.humanoidArmor().flatMap(shell -> ArmorKit.screenBounds(shell,
                 options.getArmor().equipped(), options.getArmor().getItems(),
                 renderOrient, modelScale, this.textures));
-            if (armorBounds.isPresent()) screenBounds = unionBoxes(screenBounds, armorBounds.get());
+            if (armorBounds.isPresent()) screenBounds = screenBounds.union(armorBounds.get());
             RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
             canvasW = fit.canvasW();
@@ -306,7 +307,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Box modelBounds = EntityGeometryKit.computeBounds(model);
             for (Entity.OverlayLayer overlay : resolved.overlays()) {
                 if (overlay.model().getBones().isEmpty()) continue;
-                modelBounds = unionBoxes(modelBounds, EntityGeometryKit.computeBounds(overlay.model()));
+                modelBounds = modelBounds.union(EntityGeometryKit.computeBounds(overlay.model()));
             }
             // Fold a selected equipment overlay's mesh into the bounds union so an inflated / protruding
             // equipment mesh (horse/nautilus/wolf armor, the llama carpet's CubeDeformation) can't crop
@@ -315,11 +316,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // perspective / oblique fit this feeds re-measures the real triangle silhouette in the
             // engine, so a tighter pre-normalisation would buy nothing.
             for (EquippedOverlay equipment : equipped)
-                modelBounds = unionBoxes(modelBounds, EntityGeometryKit.computeBounds(equipment.overlay().model()));
+                modelBounds = modelBounds.union(EntityGeometryKit.computeBounds(equipment.overlay().model()));
             // Fold the elytra wings into the bounds union so the protruding wings can't crop at the
             // canvas edge. Gated on the elytra selection, so the default (no elytra) render is unchanged.
             if (wingTexture.isPresent())
-                modelBounds = unionBoxes(modelBounds, EntityGeometryKit.computeBounds(
+                modelBounds = modelBounds.union(EntityGeometryKit.computeBounds(
                     ElytraKit.wingsMesh(options.getAppearance().isBaby(), bodyBoneBounds)));
             EntityGeometryKit.UnitFit unit = EntityGeometryKit.unitFit(scaleBox(modelBounds, modelScale));
             kitAnchor = unit.centre();
@@ -1058,7 +1059,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // snow-golem carved_pumpkin top rendered at the 0.4 ambient floor instead of ~1.0.
             // Mushroom-cross overlays are unaffected: their plane normals are horizontal (y ~= 0), so
             // the flip is a no-op and mooshroom parity is unchanged.
-            Vector3f shadingNormal = new Vector3f(transformedNormal.x(), -transformedNormal.y(), transformedNormal.z());
+            Vector3f shadingNormal = Turn.MIRROR_Y.apply(transformedNormal);
             float shading = entityLighting.shade(shadingNormal, true);
             // Force back-face culling, matching vanilla's block render types (all bind GL culling)
             // exactly as Shading.relightForItems3d does for plain block models. The
@@ -1249,7 +1250,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             if (overlay.skipBounds()) continue;
             Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
             RendererDebug.overlayBounds(overlay.textureRef().orElse("<unset>"), overlayBounds);
-            bounds = unionBoxes(bounds, overlayBounds);
+            bounds = bounds.union(overlayBounds);
         }
         // Block-model overlays: build the same fit-neutral geometry the render produces (entity fit
         // = buildEntityFitMatrix(ZERO, modelScale), so the positions live in the entity-pixel frame
@@ -1260,7 +1261,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             for (Entity.BlockOverlayLayer blockOverlay : blockOverlays) {
                 ConcurrentList<VisibleTriangle> tris = buildBlockOverlayTriangles(this.context, blockOverlay, definition.model(), fitNeutral, tick);
                 Box boBounds = EntityGeometryKit.computeBlockOverlayScreenBounds(tris, transform);
-                bounds = unionBoxes(bounds, boBounds);
+                bounds = bounds.union(boBounds);
             }
         }
         return bounds;
@@ -1312,7 +1313,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             float memberScale = memberDef.rendererScale();
             Box memberBounds = computeUnionScreenBounds(memberDef, transform, memberScale, memberTexture.get(), tick,
                 memberDef.blockOverlays());
-            bounds = unionBoxes(bounds, memberBounds);
+            bounds = bounds.union(memberBounds);
             bounds = unionVariantSilhouettes(bounds, memberDef, transform, tick);
         }
         return bounds;
@@ -1334,7 +1335,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             if (coat.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> coatTexture = resolveGroupMemberTexture(coat);
             if (coatTexture.isEmpty()) continue;
-            bounds = unionBoxes(bounds, computeUnionScreenBounds(coat, transform, coat.rendererScale(),
+            bounds = bounds.union(computeUnionScreenBounds(coat, transform, coat.rendererScale(),
                 coatTexture.get(), tick, boundsBlockOverlays(coat, definition)));
         }
         return bounds;
@@ -1425,20 +1426,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull Entity.EquipmentOverlay overlay,
         @NotNull PixelBuffer texture
     ) {}
-
-    /**
-     * Returns the axis-aligned union of two boxes - the smallest {@link Box} containing both.
-     */
-    private static @NotNull Box unionBoxes(@NotNull Box a, @NotNull Box b) {
-        return new Box(
-            Math.min(a.minX(), b.minX()),
-            Math.min(a.minY(), b.minY()),
-            Math.min(a.minZ(), b.minZ()),
-            Math.max(a.maxX(), b.maxX()),
-            Math.max(a.maxY(), b.maxY()),
-            Math.max(a.maxZ(), b.maxZ())
-        );
-    }
 
     /**
      * Canvas size + NDC scale for one render. {@code canvasW × canvasH} are the dimensions of

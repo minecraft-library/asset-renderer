@@ -51,6 +51,13 @@ public enum ArmorSlot {
     BOOTS("boots");
 
     /**
+     * Cached snapshot of {@link #values()} reused by every compositor's walk to avoid the per-call
+     * defensive array clone the JLS mandates. Declaration order - and so the back-to-front composite
+     * order this type's contract rests on - is preserved exactly.
+     */
+    public static final ArmorSlot @NotNull [] CACHED_VALUES = values();
+
+    /**
      * Per-side inflation in the skin renderer's normalized frame for the layer-1 pieces, so armor sits
      * visibly above the skin geometry. It is not a Minecraft-pixel figure and does not convert into
      * one: the same constant is half a pixel in the full-body and bust scopes and a fifth of that in

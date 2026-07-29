@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -169,7 +170,7 @@ public class Shading {
             // (genuine cube faces, or plain block models under {@code forceCullBackFaces})
             // already present only their front side, so they are left untouched.
             if (!cull && renderNormal.z() < 0f)
-                renderNormal = new Vector3f(-renderNormal.x(), -renderNormal.y(), -renderNormal.z());
+                renderNormal = Turn.INVERT.apply(renderNormal);
             // Match vanilla's vertex-stream byte-packed normal: the shader receives the
             // normal after a signed-byte SNORM round-trip ({@code (int)(c * 127.0F) / 127.0F},
             // truncated toward zero). For the LEFT face of a default iso pose, this maps

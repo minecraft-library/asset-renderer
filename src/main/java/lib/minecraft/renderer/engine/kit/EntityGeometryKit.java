@@ -15,6 +15,7 @@ import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.CornerPhase;
 import lib.minecraft.renderer.face.Face;
+import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -73,6 +74,13 @@ public class EntityGeometryKit {
      * Lower bound on extent before scaling - guards against zero-cube models producing infinity.
      */
     private static final float MIN_MODEL_EXTENT = 0.001f;
+
+    /**
+     * The three faces the iso camera presents. The three it hides are exactly these turned to their
+     * {@link Face#opposite opposites}, so the hidden triple is derived at its one use rather than
+     * declared beside this one - two sets naming one fact.
+     */
+    private static final Face @NotNull [] ISO_VISIBLE = { Face.UP, Face.NORTH, Face.EAST };
 
     /**
      * The vanilla entity-preview iso lighting frame - the harness's {@code ISO_ROTATION} {@code [210,
@@ -330,7 +338,7 @@ public class EntityGeometryKit {
                     // copy of the normal while the stored normal stays Y-up. Lighting frame is a separate
                     // concern from the geometry Y-flip; only the geometry moves to the placement.
                     Vector3f normal = face.normal().transformNormal(fullTransform).normalize();
-                    Vector3f shadingNormal = new Vector3f(normal.x(), -normal.y(), normal.z());
+                    Vector3f shadingNormal = Turn.MIRROR_Y.apply(normal);
 
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
@@ -946,19 +954,16 @@ public class EntityGeometryKit {
         // outboard (WEST/SOUTH) faces, under the 20% threshold on the visible UP/NORTH/EAST, so
         // sampling only the visible triple would cull them and open two see-through holes where
         // vanilla's entityCutoutNoCull draws the opaque inner faces through the front cutout.
-        for (Face face : Face.values())
+        for (Face face : Face.CACHED_VALUES)
             if (uvNonOpaqueExceeds(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
                 return false;
-        boolean visibleHasContent =
-               uvHasContent(BoneKit.resolveFaceUv(Face.UP, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(Face.NORTH, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(Face.EAST, cube, size, texW, texH), texture);
-        if (visibleHasContent) return true;
-        boolean hiddenHasContent =
-               uvHasContent(BoneKit.resolveFaceUv(Face.DOWN, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(Face.SOUTH, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(Face.WEST, cube, size, texW, texH), texture);
-        return !hiddenHasContent;
+        for (Face face : ISO_VISIBLE)
+            if (uvHasContent(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
+                return true;
+        for (Face face : ISO_VISIBLE)
+            if (uvHasContent(BoneKit.resolveFaceUv(face.opposite(), cube, size, texW, texH), texture))
+                return false;
+        return true;
     }
 
     /**

@@ -356,9 +356,9 @@ public class BoneKit {
      *     full plane area
      */
     public static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull Face face) {
-        if (size.x() == 0f) return face != Face.WEST && face != Face.EAST;
-        if (size.y() == 0f) return face != Face.UP && face != Face.DOWN;
-        if (size.z() == 0f) return face != Face.NORTH && face != Face.SOUTH;
+        if (size.x() == 0f) return face.axis() != 0;
+        if (size.y() == 0f) return face.axis() != 1;
+        if (size.z() == 0f) return face.axis() != 2;
         return false;
     }
 

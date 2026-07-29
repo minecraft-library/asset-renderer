@@ -14,6 +14,7 @@ import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
@@ -188,7 +189,7 @@ public class ElytraKit {
 
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle t : wings) {
-            Vector3f normal = new Vector3f(t.normal().x(), -t.normal().y(), -t.normal().z()).normalize();
+            Vector3f normal = Turn.HALF_X.apply(t.normal()).normalize();
             float shade = Lighting.inventory(normal);
             out.add(new VisibleTriangle(
                 toPlayerFrame(t.position0(), scale, centreX, shoulderY, centreZ),

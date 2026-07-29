@@ -6,6 +6,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.FluidOptions;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -95,18 +96,18 @@ public class FluidGeometryKit {
         addNonPlanarTop(triangles, pNWt, pSWt, pSEt, pNEt, still, argbTint);
         addFlatQuad(triangles, pSWb, pNWb, pNEb, pSEb,
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            still, argbTint, new Vector3f(0f, -1f, 0f));
+            still, argbTint, Face.DOWN.normal());
 
         PixelBuffer sideTex = flowAngleRadians.isPresent() ? flow : still;
 
         addSide(triangles, pNEt, pNEb, pNWb, pNWt, top.ne(), top.nw(),
-            sideTex, argbTint, new Vector3f(0f, 0f, -1f), flowAngleRadians);
+            sideTex, argbTint, Face.NORTH.normal(), flowAngleRadians);
         addSide(triangles, pSWt, pSWb, pSEb, pSEt, top.sw(), top.se(),
-            sideTex, argbTint, new Vector3f(0f, 0f, +1f), flowAngleRadians);
+            sideTex, argbTint, Face.SOUTH.normal(), flowAngleRadians);
         addSide(triangles, pNWt, pNWb, pSWb, pSWt, top.nw(), top.sw(),
-            sideTex, argbTint, new Vector3f(-1f, 0f, 0f), flowAngleRadians);
+            sideTex, argbTint, Face.WEST.normal(), flowAngleRadians);
         addSide(triangles, pSEt, pSEb, pNEb, pNEt, top.se(), top.ne(),
-            sideTex, argbTint, new Vector3f(+1f, 0f, 0f), flowAngleRadians);
+            sideTex, argbTint, Face.EAST.normal(), flowAngleRadians);
 
         return triangles;
     }

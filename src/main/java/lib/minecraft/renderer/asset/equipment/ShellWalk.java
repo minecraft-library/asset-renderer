@@ -63,7 +63,7 @@ public record ShellWalk(
                                         @NotNull Vector3f innerGrow, @NotNull Vector3f outerGrow) {
         Map<ArmorSlot, Set<String>> covered = new EnumMap<>(ArmorSlot.class);
 
-        for (ArmorSlot slot : ArmorSlot.values()) {
+        for (ArmorSlot slot : ArmorSlot.CACHED_VALUES) {
             Set<String> bones = new HashSet<>();
 
             for (String bone : mesh.getBones().keySet())
@@ -78,7 +78,7 @@ public record ShellWalk(
             String bone = entry.getKey();
             EnumSet<ArmorSlot> slots = EnumSet.noneOf(ArmorSlot.class);
 
-            for (ArmorSlot slot : ArmorSlot.values())
+            for (ArmorSlot slot : ArmorSlot.CACHED_VALUES)
                 if (covered.get(slot).contains(bone)) slots.add(slot);
 
             Set<ArmorSlot> drawnBy = Set.copyOf(slots);

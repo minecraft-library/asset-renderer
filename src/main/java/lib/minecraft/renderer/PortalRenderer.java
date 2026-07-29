@@ -16,7 +16,7 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.FaceTextures;
 import lib.minecraft.renderer.option.PortalOptions;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
-import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.tensor.Box;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -633,8 +633,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             // Model space is [-0.5, +0.5] per axis (see GeometryKit.unitCube), so the slab's Y
             // offsets are measured from the cube's centre.
             return BlockGeometryKit.buildBox(
-                new Vector3f(-0.5f, END_PORTAL_SLAB_BOTTOM_Y - 0.5f, -0.5f),
-                new Vector3f(0.5f, END_PORTAL_SLAB_TOP_Y - 0.5f, 0.5f),
+                new Box(-0.5f, END_PORTAL_SLAB_BOTTOM_Y - 0.5f, -0.5f, 0.5f, END_PORTAL_SLAB_TOP_Y - 0.5f, 0.5f),
                 faces,
                 ColorMath.WHITE
             );

@@ -63,6 +63,12 @@ public class BlockGeometryKit {
      */
     private static final int FULL_LIGHT_EMISSION = 15;
 
+    /**
+     * The engine's normalized cube - the {@code [-0.5, +0.5]} span on every axis that every block
+     * element is converted into, and the box {@link #unitCube} builds.
+     */
+    private static final @NotNull Box UNIT_CUBE = new Box(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f);
+
 
     /**
      * Builds a list of 12 triangles (2 per face) describing a unit cube centered at the origin
@@ -78,31 +84,24 @@ public class BlockGeometryKit {
         @NotNull FaceTextures textures,
         int tintArgb
     ) {
-        return buildBox(
-            new Vector3f(-0.5f, -0.5f, -0.5f),
-            new Vector3f(0.5f, 0.5f, 0.5f),
-            textures,
-            tintArgb
-        );
+        return buildBox(UNIT_CUBE, textures, tintArgb);
     }
 
     /**
-     * Builds a list of 12 triangles describing an opaque, back-face-culled box defined by minimum and
-     * maximum corners, emitting untagged triangles.
+     * Builds a list of 12 triangles describing an opaque, back-face-culled box, emitting untagged
+     * triangles.
      *
-     * @param min the minimum corner in model space
-     * @param max the maximum corner in model space
+     * @param box the box in model space
      * @param textures the texture each face paints
      * @param tintArgb the ARGB tint applied to every face
      * @return the 12-triangle list
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildBox(
-        @NotNull Vector3f min,
-        @NotNull Vector3f max,
+        @NotNull Box box,
         @NotNull FaceTextures textures,
         int tintArgb
     ) {
-        return buildBox(min, max, textures, tintArgb, SurfaceTraits.OPAQUE_BODY, null);
+        return buildBox(box, textures, tintArgb, SurfaceTraits.OPAQUE_BODY, null);
     }
 
     /**
@@ -121,8 +120,7 @@ public class BlockGeometryKit {
      * {@link RendererDebug#tracingPixels()} reports the dump armed. The name reaches the triangle as an
      * argument rather than being recovered downstream from emission order.
      *
-     * @param min the minimum corner in model space
-     * @param max the maximum corner in model space
+     * @param box the box in model space
      * @param textures the texture each face paints
      * @param tintArgb the ARGB tint applied to every face
      * @param surface the surface character every triangle of the box carries
@@ -130,15 +128,13 @@ public class BlockGeometryKit {
      * @return the 12-triangle list
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildBox(
-        @NotNull Vector3f min,
-        @NotNull Vector3f max,
+        @NotNull Box box,
         @NotNull FaceTextures textures,
         int tintArgb,
         @NotNull SurfaceTraits surface,
         @Nullable String debugPart
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        Box box = Box.of(min, max);
 
         for (Face face : Face.CACHED_VALUES) {
             Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);

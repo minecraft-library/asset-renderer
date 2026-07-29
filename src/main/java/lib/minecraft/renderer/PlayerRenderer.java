@@ -86,9 +86,17 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         new Placement(Matrix4f.IDENTITY.scale(-1f, 1f, -1f));
 
     /**
-     * Overlay (hat / hood / second layer) outset over the base cube.
+     * Overlay (hat / hood / second layer) outset over the base cube, in the body scopes' frame.
      */
     private static final float OVERLAY_INFLATE = 0.01f;
+
+    /**
+     * Overlay outset over the head cube in the <b>skull</b> scope's frame, which is a different scale
+     * entirely - {@code 0.125} model units per skin pixel against the body lattice's {@code 0.03}.
+     * This is {@code 0.16} Minecraft pixels where {@link #OVERLAY_INFLATE} is {@code 0.67} of one, so
+     * the two are not one constant and must not be unified.
+     */
+    private static final float SKULL_OVERLAY_INFLATE = 0.02f;
 
     /**
      * Fraction of the canvas's smaller dimension the 3D silhouette spans after auto-fit. {@code 1.0}
@@ -343,10 +351,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         // block-icon pose presents to the camera.
         float capeBack = torsoMin.z();
 
-        Vector3f capeMin = new Vector3f(cx - capeW / 2f, capeTop - capeH, capeBack - capeD);
-        Vector3f capeMax = new Vector3f(cx + capeW / 2f, capeTop, capeBack);
+        Box cape = new Box(cx - capeW / 2f, capeTop - capeH, capeBack - capeD, cx + capeW / 2f, capeTop, capeBack);
 
-        triangles.addAll(BlockGeometryKit.buildBox(capeMin, capeMax, capeTextures(capeTexture), ColorMath.WHITE));
+        triangles.addAll(BlockGeometryKit.buildBox(cape, capeTextures(capeTexture), ColorMath.WHITE));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -459,7 +466,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull PlayerOptions options,
         @NotNull RasterEngine engine
     ) {
-        for (ArmorSlot slot : ArmorSlot.values()) {
+        for (ArmorSlot slot : ArmorSlot.CACHED_VALUES) {
             Optional<ArmorPiece> piece = switch (slot) {
                 case HELMET -> options.getArmor().getHelmet();
                 case CHESTPLATE -> options.getArmor().getChestplate();
@@ -501,12 +508,18 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
+            // The skull scope's head box IS the unit cube: HEAD is 8 px on every axis, so
+            // centred(0.125f) is 8 * 0.5f * 0.125f = exactly +-0.5f in binary32, and the overlay's
+            // 0.5f + 0.02f is exactly the 0.52f the two literals used to spell. Drawing both from the
+            // scope's own box is therefore bit-identical and says where the numbers come from.
+            // The gate stays hasHatOverlay, which accepts a legacy 64x32 skin that the body scopes'
+            // hasOverlay rejects; unifying the two would delete the hat layer on every such skin.
+            Box head = PlayerOptions.Type.SKULL.boxOf(HumanoidPart.HEAD);
             stack.append(PlayerSlot3D.BODY, sink -> {
-                sink.addAll(BlockGeometryKit.unitCube(HumanoidPart.HEAD.textures(skin, false), ColorMath.WHITE));
+                sink.addAll(BlockGeometryKit.buildBox(head, HumanoidPart.HEAD.textures(skin, false), ColorMath.WHITE));
                 if (options.getSkin().isRenderOverlay() && hasHatOverlay(skin))
                     sink.addAll(BlockGeometryKit.buildBox(
-                        new Vector3f(-0.52f, -0.52f, -0.52f),
-                        new Vector3f(0.52f, 0.52f, 0.52f),
+                        head.expand(SKULL_OVERLAY_INFLATE),
                         HumanoidPart.HEAD.textures(skin, true), ColorMath.WHITE));
             });
             appendArmor(stack, PlayerOptions.Type.SKULL, options, engine);
@@ -638,14 +651,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull Box box,
         @NotNull PlayerOptions options
     ) {
-        Vector3f min = new Vector3f(box.minX(), box.minY(), box.minZ());
-        Vector3f max = new Vector3f(box.maxX(), box.maxY(), box.maxZ());
-        triangles.addAll(BlockGeometryKit.buildBox(min, max, part.textures(skin, false), ColorMath.WHITE));
+        triangles.addAll(BlockGeometryKit.buildBox(box, part.textures(skin, false), ColorMath.WHITE));
         if (options.getSkin().isRenderOverlay() && hasOverlay(skin))
             triangles.addAll(BlockGeometryKit.buildBox(
-                new Vector3f(min.x() - OVERLAY_INFLATE, min.y() - OVERLAY_INFLATE, min.z() - OVERLAY_INFLATE),
-                new Vector3f(max.x() + OVERLAY_INFLATE, max.y() + OVERLAY_INFLATE, max.z() + OVERLAY_INFLATE),
-                part.textures(skin, true), ColorMath.WHITE));
+                box.expand(OVERLAY_INFLATE), part.textures(skin, true), ColorMath.WHITE));
     }
 
     /**

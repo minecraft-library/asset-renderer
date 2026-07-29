@@ -113,7 +113,7 @@ public sealed interface ShellPart {
             Vector3f growth = slot.grow(this.innerGrowth, this.outerGrowth);
             Vector3f min = this.origin.subtract(growth);
             Vector3f max = min.add(this.size).add(growth).add(growth);
-            return new Box(min.x(), min.y(), min.z(), max.x(), max.y(), max.z());
+            return Box.of(min, max);
         }
 
         /**
@@ -161,10 +161,7 @@ public sealed interface ShellPart {
         /** {@inheritDoc} */
         @Override
         public @NotNull Box boxFor(@NotNull ArmorSlot slot) {
-            float inflate = this.overlay ? slot.skinOverlayInflate() : slot.skinInflate();
-            return new Box(
-                this.bounds.minX() - inflate, this.bounds.minY() - inflate, this.bounds.minZ() - inflate,
-                this.bounds.maxX() + inflate, this.bounds.maxY() + inflate, this.bounds.maxZ() + inflate);
+            return this.bounds.expand(this.overlay ? slot.skinOverlayInflate() : slot.skinInflate());
         }
 
         /** {@inheritDoc} */

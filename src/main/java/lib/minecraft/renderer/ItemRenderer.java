@@ -50,6 +50,7 @@ import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.DyeColor;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -293,28 +294,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Model-space minimum bound (block units) for the wide, square face of the flat-sprite item
-     * slab. Reused for both the X and Y minimum corners so the sprite is a {@code 0.9}-block
-     * square.
+     * The flat-sprite item slab in model space (block units) - a {@code 0.9}-block square on X and Y,
+     * {@code 0.04} deep on Z. The square face is what carries the sprite; the depth is what stops it
+     * being a zero-thickness plane.
      */
-    private static final float FLAT_ITEM_SLAB_MIN_X = -0.45f;
-
-    /**
-     * Model-space maximum bound (block units) for the wide, square face of the flat-sprite item
-     * slab. Reused for both the X and Y maximum corners so the sprite is a {@code 0.9}-block
-     * square.
-     */
-    private static final float FLAT_ITEM_SLAB_MAX_X = 0.45f;
-
-    /**
-     * Model-space minimum-Z bound (block units) - the thin depth of the flat-sprite slab.
-     */
-    private static final float FLAT_ITEM_SLAB_MIN_Z = -0.02f;
-
-    /**
-     * Model-space maximum-Z bound (block units) - the thin depth of the flat-sprite slab.
-     */
-    private static final float FLAT_ITEM_SLAB_MAX_Z = 0.02f;
+    private static final @NotNull Box FLAT_ITEM_SLAB = new Box(-0.45f, -0.45f, -0.02f, 0.45f, 0.45f, 0.02f);
 
     /**
      * Prefix for multi-layer item texture keys ({@code layer0}, {@code layer1}, ...).
@@ -434,8 +418,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         PixelBuffer composite = BannerKit.composite2D(engine.textures(), baseDye.argb(), options.getDecoration().getBannerLayers(), variant);
 
         return BlockGeometryKit.buildBox(
-            new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
-            new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
+            FLAT_ITEM_SLAB,
             FaceTextures.uniform(composite),
             ColorMath.WHITE
         );
@@ -834,8 +817,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             }
             PixelBuffer texture = composeTintedLayers(this.context, engine, item, options, cit, tick);
             return BlockGeometryKit.buildBox(
-                new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
-                new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
+                FLAT_ITEM_SLAB,
                 FaceTextures.uniform(texture),
                 ColorMath.WHITE
             );

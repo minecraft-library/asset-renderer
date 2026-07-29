@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tensor;
 
-import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -94,6 +93,36 @@ public record Box(float minX, float minY, float minZ, float maxX, float maxY, fl
      */
     public float maxExtent() {
         return Math.max(maxX - minX, Math.max(maxY - minY, maxZ - minZ));
+    }
+
+    /**
+     * This box grown by the same amount on every side - each minimum moved down by {@code amount} and
+     * each maximum up by it, so the box gains {@code 2 * amount} of extent on each axis.
+     * <p>
+     * The one expansion primitive the renderer inflates a box through: a worn shell's layer growth, an
+     * armour piece's clearance over the player's own skin geometry, and the hat overlay's clearance
+     * over the head. Each caller keeps its own constant - the amounts are calibrated per frame and per
+     * scope and are not interchangeable - and shares only the arithmetic.
+     *
+     * @param amount the per-side growth, negative to shrink
+     * @return the grown box
+     */
+    public @NotNull Box expand(float amount) {
+        return new Box(
+            minX - amount, minY - amount, minZ - amount,
+            maxX + amount, maxY + amount, maxZ + amount);
+    }
+
+    /**
+     * The axis-aligned union of this box and another - the smallest box containing both.
+     *
+     * @param other the box to union with
+     * @return the smallest box containing both
+     */
+    public @NotNull Box union(@NotNull Box other) {
+        return new Box(
+            Math.min(minX, other.minX), Math.min(minY, other.minY), Math.min(minZ, other.minZ),
+            Math.max(maxX, other.maxX), Math.max(maxY, other.maxY), Math.max(maxZ, other.maxZ));
     }
 
 }
