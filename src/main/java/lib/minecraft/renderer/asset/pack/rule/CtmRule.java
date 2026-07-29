@@ -3,6 +3,7 @@ package lib.minecraft.renderer.asset.pack.rule;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
+import lib.minecraft.renderer.face.Face;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumSet;
@@ -19,7 +20,8 @@ import java.util.EnumSet;
  * @param target what the rule matches - tiles or blocks
  * @param method the CTM method
  * @param tiles the tile list, range-expanded and sentinel-resolved at parse
- * @param faces the target faces, {@code sides} / {@code all} expanded at parse
+ * @param faces the target faces, the OptiFine {@code top} / {@code bottom} spellings resolved and the
+ *     {@code sides} / {@code all} aliases expanded at parse
  * @param weight the sort weight; higher wins, ties broken by filename then pack priority
  * @param stored the parse-and-store tier
  */
@@ -29,7 +31,7 @@ public record CtmRule(
     @NotNull CtmTarget target,
     @NotNull CtmMethod method,
     @NotNull ConcurrentList<TileRef> tiles,
-    @NotNull EnumSet<CtmFace> faces,
+    @NotNull EnumSet<Face> faces,
     int weight,
     @NotNull CtmExtras stored
 ) {

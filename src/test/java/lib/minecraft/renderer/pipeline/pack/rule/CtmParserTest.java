@@ -3,11 +3,11 @@ package lib.minecraft.renderer.pipeline.pack.rule;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.rule.BlockMatch;
-import lib.minecraft.renderer.asset.pack.rule.CtmFace;
 import lib.minecraft.renderer.asset.pack.rule.CtmMethod;
 import lib.minecraft.renderer.asset.pack.rule.CtmRule;
 import lib.minecraft.renderer.asset.pack.rule.CtmTarget;
 import lib.minecraft.renderer.asset.pack.rule.TileRef;
+import lib.minecraft.renderer.face.Face;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,17 +43,28 @@ class CtmParserTest {
     @DisplayName("#4 faces=top maps to the TOP face only, never ALL")
     void facesTopIsNotAll() {
         CtmRule rule = parse("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", "top").orElseThrow();
-        assertThat(rule.faces(), equalTo(EnumSet.of(CtmFace.TOP)));
+        assertThat(rule.faces(), equalTo(EnumSet.of(Face.UP)));
+    }
+
+    @Test
+    @DisplayName("every OptiFine face token resolves to its renderer face, top/bottom included")
+    void faceTokenTable() {
+        assertThat(facesOf("top"), equalTo(EnumSet.of(Face.UP)));
+        assertThat(facesOf("bottom"), equalTo(EnumSet.of(Face.DOWN)));
+        assertThat(facesOf("north"), equalTo(EnumSet.of(Face.NORTH)));
+        assertThat(facesOf("south"), equalTo(EnumSet.of(Face.SOUTH)));
+        assertThat(facesOf("east"), equalTo(EnumSet.of(Face.EAST)));
+        assertThat(facesOf("west"), equalTo(EnumSet.of(Face.WEST)));
     }
 
     @Test
     @DisplayName("faces=sides expands to N/S/E/W; absent faces defaults to all six")
     void facesSidesAndDefault() {
         CtmRule sides = parse("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", "sides").orElseThrow();
-        assertThat(sides.faces(), equalTo(EnumSet.of(CtmFace.NORTH, CtmFace.SOUTH, CtmFace.EAST, CtmFace.WEST)));
+        assertThat(sides.faces(), equalTo(EnumSet.of(Face.NORTH, Face.SOUTH, Face.EAST, Face.WEST)));
 
         CtmRule all = parse("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom").orElseThrow();
-        assertThat(all.faces(), equalTo(EnumSet.allOf(CtmFace.class)));
+        assertThat(all.faces(), equalTo(EnumSet.allOf(Face.class)));
     }
 
     @Test
@@ -114,6 +125,13 @@ class CtmParserTest {
         assertThat(rule.tiles().get(0), instanceOf(TileRef.Skip.class));
         assertThat(rule.tiles().get(1), instanceOf(TileRef.Texture.class));
         assertThat(rule.tiles().get(2), instanceOf(TileRef.Default.class));
+    }
+
+    /** The face set one {@code faces=} token parses to, through a rule that is otherwise minimal. */
+    private static @NotNull EnumSet<Face> facesOf(@NotNull String token) {
+        return parse("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", token)
+            .orElseThrow()
+            .faces();
     }
 
     private static @NotNull Optional<CtmRule> parse(@NotNull String basename, @NotNull String... keyValues) {

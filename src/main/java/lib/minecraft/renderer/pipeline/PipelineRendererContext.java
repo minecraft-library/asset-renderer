@@ -25,7 +25,6 @@ import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.CitRule;
 import lib.minecraft.renderer.asset.pack.rule.CitType;
 import lib.minecraft.renderer.asset.pack.rule.CtmContext;
-import lib.minecraft.renderer.asset.pack.rule.CtmFace;
 import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
@@ -407,7 +406,7 @@ public final class PipelineRendererContext implements RendererContext {
         @NotNull String blockId, @NotNull Map<String, String> state,
         @NotNull String baseTextureId, @NotNull Face face) {
         return this.stack.rules().connectedTextureFor(
-            new CtmContext(blockId, state, baseTextureId, CtmFace.fromFace(face)));
+            new CtmContext(blockId, state, baseTextureId, face));
     }
 
     /**

@@ -7,11 +7,11 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.rule.BlockMatch;
 import lib.minecraft.renderer.asset.pack.rule.CtmExtras;
-import lib.minecraft.renderer.asset.pack.rule.CtmFace;
 import lib.minecraft.renderer.asset.pack.rule.CtmMethod;
 import lib.minecraft.renderer.asset.pack.rule.CtmRule;
 import lib.minecraft.renderer.asset.pack.rule.CtmTarget;
 import lib.minecraft.renderer.asset.pack.rule.TileRef;
+import lib.minecraft.renderer.face.Face;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -37,6 +37,10 @@ public class CtmParser {
 
     /** A purely numeric inclusive range token, e.g. {@code 0-46}. */
     private static final @NotNull Pattern NUMERIC_RANGE = Pattern.compile("\\d+-\\d+");
+
+    /** The four horizontal faces the {@code sides} alias expands to. */
+    private static final @NotNull EnumSet<Face> SIDES =
+        EnumSet.of(Face.NORTH, Face.SOUTH, Face.EAST, Face.WEST);
 
     /**
      * Parses one CTM file, returning empty (with a diagnostic) when the method is unknown, a face is
@@ -73,7 +77,7 @@ public class CtmParser {
         int width = parseInt(props, "width", 0);
         int height = parseInt(props, "height", 0);
 
-        EnumSet<CtmFace> faces = CtmFace.parseSet(props.getProperty("faces"))
+        EnumSet<Face> faces = parseFaceSet(props.getProperty("faces"))
             .orElseThrow(() -> new RuleRejection("faces", props.getProperty("faces"), "unknown face token"));
 
         CtmTarget target = parseTarget(props, basename);
@@ -82,6 +86,46 @@ public class CtmParser {
         CtmExtras extras = parseExtras(props, width, height);
 
         return new CtmRule(ruleId, pack, target, method, tiles, faces, weight, extras);
+    }
+
+    // --- faces --------------------------------------------------------------------------------
+
+    /**
+     * Parses a {@code faces=} value into the exact face set. An absent or blank value defaults to all
+     * six faces; {@code sides} expands to the four horizontals and {@code all} to all six; an unknown
+     * token returns empty so the caller can reject the rule fail-closed rather than falling back to
+     * every face.
+     *
+     * <p><b>The whole OptiFine dialect lives here and reaches no further.</b> The grammar spells two of
+     * the six differently - {@code top} and {@code bottom} where the renderer says {@link Face#UP} and
+     * {@link Face#DOWN} - and the other four happen to agree with vanilla's own model-JSON keys. The
+     * table is written out for all six rather than deferring the four to {@link Face#fromName}, so one
+     * method never quietly serves two grammars and a pack-format change touches this file alone.
+     *
+     * @param raw the raw {@code faces} value, or {@code null} when the key is absent
+     * @return the resolved face set, or empty when a token is unrecognised
+     */
+    private static @NotNull Optional<EnumSet<Face>> parseFaceSet(String raw) {
+        if (raw == null || raw.isBlank()) return Optional.of(EnumSet.allOf(Face.class));
+
+        EnumSet<Face> faces = EnumSet.noneOf(Face.class);
+        for (String token : raw.trim().toLowerCase().split("[,\\s]+")) {
+            if (token.isEmpty()) continue;
+            switch (token) {
+                case "sides" -> faces.addAll(SIDES);
+                case "all" -> faces.addAll(EnumSet.allOf(Face.class));
+                case "north" -> faces.add(Face.NORTH);
+                case "south" -> faces.add(Face.SOUTH);
+                case "east" -> faces.add(Face.EAST);
+                case "west" -> faces.add(Face.WEST);
+                case "top" -> faces.add(Face.UP);
+                case "bottom" -> faces.add(Face.DOWN);
+                default -> {
+                    return Optional.empty();
+                }
+            }
+        }
+        return faces.isEmpty() ? Optional.of(EnumSet.allOf(Face.class)) : Optional.of(faces);
     }
 
     // --- target -------------------------------------------------------------------------------

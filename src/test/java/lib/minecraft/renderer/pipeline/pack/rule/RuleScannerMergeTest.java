@@ -11,8 +11,8 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.rule.CitRule;
 import lib.minecraft.renderer.asset.pack.rule.CtmContext;
-import lib.minecraft.renderer.asset.pack.rule.CtmFace;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
+import lib.minecraft.renderer.face.Face;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -94,10 +94,10 @@ class RuleScannerMergeTest {
 
         RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))));
         ResourceId top = merged.connectedTextureFor(
-            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", CtmFace.TOP)).orElseThrow();
+            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.UP)).orElseThrow();
         assertThat(top.name(), equalTo("optifine/ctm/custom"));
         assertThat(merged.connectedTextureFor(
-            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", CtmFace.NORTH)).isPresent(), is(false));
+            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.NORTH)).isPresent(), is(false));
     }
 
     @Test

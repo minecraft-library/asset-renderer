@@ -50,13 +50,13 @@ class CtmResolverTest {
         RuleSet rules = ruleSet(rule);
         ResourceId expected = tileId(rule, Math.floorMod("minecraft:stone".hashCode(), 3));
 
-        ResourceId first = rules.connectedTextureFor(tileCtx(CtmFace.TOP)).orElseThrow();
-        ResourceId second = rules.connectedTextureFor(tileCtx(CtmFace.TOP)).orElseThrow();
+        ResourceId first = rules.connectedTextureFor(tileCtx(Face.UP)).orElseThrow();
+        ResourceId second = rules.connectedTextureFor(tileCtx(Face.UP)).orElseThrow();
         assertThat(first, equalTo(expected));
         assertThat(second, equalTo(first));
 
         // A second subject id folds to its own residue - still formula-deterministic.
-        ResourceId dirt = rules.connectedTextureFor(new CtmContext("minecraft:dirt", Map.of(), STONE_TEXTURE, CtmFace.TOP)).orElseThrow();
+        ResourceId dirt = rules.connectedTextureFor(new CtmContext("minecraft:dirt", Map.of(), STONE_TEXTURE, Face.UP)).orElseThrow();
         assertThat(dirt, equalTo(tileId(rule, Math.floorMod("minecraft:dirt".hashCode(), 3))));
     }
 
@@ -70,24 +70,24 @@ class CtmResolverTest {
             rule("ovrep", "method", "overlay_repeat", "matchTiles", "stone", "tiles", "0-3", "width", "2", "height", "2"),
             rule("ovfix", "method", "overlay_fixed", "matchTiles", "stone", "tiles", "custom"));
         for (CtmRule overlay : overlays)
-            assertThat(ruleSet(overlay).connectedTextureFor(tileCtx(CtmFace.TOP)).isPresent(), is(false));
+            assertThat(ruleSet(overlay).connectedTextureFor(tileCtx(Face.UP)).isPresent(), is(false));
 
         CtmRule fixed = rule("fx", "method", "fixed", "matchTiles", "stone", "tiles", "winner");
         CtmRule overlayFirst = rule("ov", "method", "overlay", "matchTiles", "stone", "tiles", "loser");
-        assertThat(ruleSet(overlayFirst, fixed).connectedTextureFor(tileCtx(CtmFace.TOP)).orElseThrow(), equalTo(tileId(fixed, 0)));
+        assertThat(ruleSet(overlayFirst, fixed).connectedTextureFor(tileCtx(Face.UP)).orElseThrow(), equalTo(tileId(fixed, 0)));
     }
 
     @Test
     @DisplayName("faces= targets only the listed faces on the icon")
     void facesTargeting() {
         CtmRule top = rule("t", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", "top");
-        assertThat(ruleSet(top).connectedTextureFor(tileCtx(CtmFace.TOP)).isPresent(), is(true));
-        assertThat(ruleSet(top).connectedTextureFor(tileCtx(CtmFace.NORTH)).isPresent(), is(false));
+        assertThat(ruleSet(top).connectedTextureFor(tileCtx(Face.UP)).isPresent(), is(true));
+        assertThat(ruleSet(top).connectedTextureFor(tileCtx(Face.NORTH)).isPresent(), is(false));
 
         CtmRule sides = rule("s", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", "sides");
-        assertThat(ruleSet(sides).connectedTextureFor(tileCtx(CtmFace.EAST)).isPresent(), is(true));
-        assertThat(ruleSet(sides).connectedTextureFor(tileCtx(CtmFace.TOP)).isPresent(), is(false));
-        assertThat(ruleSet(sides).connectedTextureFor(tileCtx(CtmFace.BOTTOM)).isPresent(), is(false));
+        assertThat(ruleSet(sides).connectedTextureFor(tileCtx(Face.EAST)).isPresent(), is(true));
+        assertThat(ruleSet(sides).connectedTextureFor(tileCtx(Face.UP)).isPresent(), is(false));
+        assertThat(ruleSet(sides).connectedTextureFor(tileCtx(Face.DOWN)).isPresent(), is(false));
     }
 
     @Test
@@ -95,14 +95,14 @@ class CtmResolverTest {
     void sentinels() {
         CtmRule def = rule("def", "method", "fixed", "matchTiles", "stone", "tiles", "<default>");
         CtmRule after = rule("after", "method", "fixed", "matchTiles", "stone", "tiles", "custom");
-        assertThat(ruleSet(def).connectedTextureFor(tileCtx(CtmFace.TOP)).isPresent(), is(false));
+        assertThat(ruleSet(def).connectedTextureFor(tileCtx(Face.UP)).isPresent(), is(false));
         // <default> matched and STOPS - the later concrete rule must not fire.
-        assertThat(ruleSet(def, after).connectedTextureFor(tileCtx(CtmFace.TOP)).isPresent(), is(false));
+        assertThat(ruleSet(def, after).connectedTextureFor(tileCtx(Face.UP)).isPresent(), is(false));
 
         CtmRule skip = rule("skip", "method", "fixed", "matchTiles", "stone", "tiles", "<skip>");
-        assertThat(ruleSet(skip).connectedTextureFor(tileCtx(CtmFace.TOP)).isPresent(), is(false));
+        assertThat(ruleSet(skip).connectedTextureFor(tileCtx(Face.UP)).isPresent(), is(false));
         // <skip> falls through - the later concrete rule DOES fire.
-        assertThat(ruleSet(skip, after).connectedTextureFor(tileCtx(CtmFace.TOP)).orElseThrow(), equalTo(tileId(after, 0)));
+        assertThat(ruleSet(skip, after).connectedTextureFor(tileCtx(Face.UP)).orElseThrow(), equalTo(tileId(after, 0)));
     }
 
     @Test
@@ -127,11 +127,11 @@ class CtmResolverTest {
         for (String token : List.of("glass", "block/glass", "minecraft:block/glass", "minecraft:glass")) {
             CtmRule rule = rule("g", "method", "fixed", "matchTiles", token, "tiles", "custom");
             assertThat("token " + token, ruleSet(rule).connectedTextureFor(
-                new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", CtmFace.TOP)).isPresent(), is(true));
+                new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.UP)).isPresent(), is(true));
         }
         CtmRule stone = rule("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom");
         assertThat(ruleSet(stone).connectedTextureFor(
-            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", CtmFace.TOP)).isPresent(), is(false));
+            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.UP)).isPresent(), is(false));
     }
 
     @Test
@@ -140,19 +140,8 @@ class CtmResolverTest {
         CtmRule tile = rule("tile", "method", "fixed", "matchTiles", "stone", "tiles", "tileTile");
         CtmRule block = rule("block_stone", "method", "fixed", "matchBlocks", "minecraft:stone", "tiles", "blockTile");
         RuleSet rules = ruleSet(tile, block);   // tiles precede blocks in the merged list
-        assertThat(rules.connectedTextureFor(new CtmContext("minecraft:stone", Map.of(), STONE_TEXTURE, CtmFace.TOP)).orElseThrow(),
+        assertThat(rules.connectedTextureFor(new CtmContext("minecraft:stone", Map.of(), STONE_TEXTURE, Face.UP)).orElseThrow(),
             equalTo(tileId(tile, 0)));
-    }
-
-    @Test
-    @DisplayName("CtmFace.fromFace maps UP/DOWN to TOP/BOTTOM and keeps horizontal names")
-    void fromFaceMapping() {
-        assertThat(CtmFace.fromFace(Face.UP), equalTo(CtmFace.TOP));
-        assertThat(CtmFace.fromFace(Face.DOWN), equalTo(CtmFace.BOTTOM));
-        assertThat(CtmFace.fromFace(Face.NORTH), equalTo(CtmFace.NORTH));
-        assertThat(CtmFace.fromFace(Face.SOUTH), equalTo(CtmFace.SOUTH));
-        assertThat(CtmFace.fromFace(Face.EAST), equalTo(CtmFace.EAST));
-        assertThat(CtmFace.fromFace(Face.WEST), equalTo(CtmFace.WEST));
     }
 
     @Test
@@ -160,19 +149,19 @@ class CtmResolverTest {
     void emptyRuleSetIsInert() {
         RuleSet empty = RuleSet.empty(PackId.VANILLA);
         for (Face face : Face.CACHED_VALUES)
-            assertThat(empty.connectedTextureFor(tileCtx(CtmFace.fromFace(face))).isPresent(), is(false));
+            assertThat(empty.connectedTextureFor(tileCtx(face)).isPresent(), is(false));
     }
 
     private void assertFirstTile(@NotNull CtmRule rule) {
-        assertThat(ruleSet(rule).connectedTextureFor(tileCtx(CtmFace.TOP)).orElseThrow(), equalTo(tileId(rule, 0)));
+        assertThat(ruleSet(rule).connectedTextureFor(tileCtx(Face.UP)).orElseThrow(), equalTo(tileId(rule, 0)));
     }
 
-    private static @NotNull CtmContext tileCtx(@NotNull CtmFace face) {
+    private static @NotNull CtmContext tileCtx(@NotNull Face face) {
         return new CtmContext("minecraft:stone", Map.of(), STONE_TEXTURE, face);
     }
 
     private static @NotNull CtmContext blockCtx(@NotNull String blockId, @NotNull Map<String, String> state) {
-        return new CtmContext(blockId, state, "minecraft:block/ignored", CtmFace.TOP);
+        return new CtmContext(blockId, state, "minecraft:block/ignored", Face.UP);
     }
 
     private static @NotNull ResourceId tileId(@NotNull CtmRule rule, int index) {
