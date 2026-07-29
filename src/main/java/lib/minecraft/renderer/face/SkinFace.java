@@ -1,32 +1,19 @@
 package lib.minecraft.renderer.face;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.tensor.Vector2f;
-import lib.minecraft.renderer.tensor.Vector3f;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
 import java.util.EnumMap;
 
 /**
- * Catalogs the six body parts on a vanilla 64x64 player skin and exposes everything a 3D
- * renderer needs to draw them: per-face skin rectangles for both base and overlay layers, the
- * eight local-space cube vertices, a per-face vertex slice, and a per-face UV layout.
+ * Catalogs the six body parts on a vanilla 64x64 player skin and crops each one's six faces out of a
+ * sheet.
  * <p>
  * Each constant declares its box dimensions (width, height, depth in skin pixels) and the
- * {@code [baseX, baseY, overlayX, overlayY]} skin coordinates for its six faces in
- * {@link BlockFace} declaration order. The constructor converts those coordinates into
- * {@link Rectangle} mappings sized from the body part's dimensions, and a static block
- * resolves the eight box corners and the per-face vertex slices using
- * {@link BlockFace#vertexIndices()}.
- * <p>
- * The local coordinate system is normalized so that one Minecraft pixel equals {@code 1/16}
- * model units: HEAD (8x8x8) spans {@code 0.5} on each axis, TORSO (8x12x4) spans
- * {@code 0.5 x 0.75 x 0.25}, and so on. Consumers translate and scale the body part into the
- * final composition themselves.
+ * {@code [baseX, baseY, overlayX, overlayY]} skin coordinates for its six faces in {@link BlockFace}
+ * declaration order. The constructor converts those coordinates into {@link Rectangle} mappings sized
+ * from the body part's dimensions.
  * <p>
  * Skin layout reference (vanilla 64x64):
  * <pre>
@@ -38,8 +25,6 @@ import java.util.EnumMap;
  * Left leg base   16..32, 48..64   Left leg overlay   0..16, 48..64
  * </pre>
  */
-@Getter
-@Accessors(fluent = true)
 public enum SkinFace {
 
     HEAD(8, 8, 8, new int[][]{
@@ -92,56 +77,20 @@ public enum SkinFace {
     });
 
     /**
-     * Box width in skin pixels (X extent), one Minecraft pixel per unit.
-     */
-    private final int width;
-
-    /**
-     * Box height in skin pixels (Y extent), one Minecraft pixel per unit.
-     */
-    private final int height;
-
-    /**
-     * Box depth in skin pixels (Z extent), one Minecraft pixel per unit.
-     */
-    private final int depth;
-
-    /**
      * Base-layer skin rectangle per {@link BlockFace}, sized from the box dimensions and offset by
-     * this body part's {@code baseX}/{@code baseY} coordinates. Read through {@link #mapping}.
+     * this body part's {@code baseX}/{@code baseY} coordinates.
      */
-    @Getter(AccessLevel.NONE)
     private final @NotNull EnumMap<BlockFace, Rectangle> baseMappings;
 
     /**
      * Overlay-layer (hat / jacket) skin rectangle per {@link BlockFace}, sized from the box
-     * dimensions and offset by this body part's {@code overlayX}/{@code overlayY} coordinates. Read
-     * through {@link #mapping}.
+     * dimensions and offset by this body part's {@code overlayX}/{@code overlayY} coordinates.
      */
-    @Getter(AccessLevel.NONE)
     private final @NotNull EnumMap<BlockFace, Rectangle> overlayMappings;
 
     /**
-     * The eight local-space box corners in canonical bit-pattern order (see the class javadoc),
-     * centred on the origin with each half-extent equal to {@code dimension / 32} so one skin
-     * pixel spans {@code 1/16} model units (an 8-pixel HEAD axis therefore spans {@code 0.5}).
-     */
-    @Getter(AccessLevel.NONE)
-    private final @NotNull Vector3f @NotNull [] cornerVertices;
-
-    /**
-     * Per-{@link BlockFace} slice of {@link #cornerVertices} in TL, BL, BR, TR winding, resolved
-     * from {@link BlockFace#vertexIndices()} in the static initializer. Read through
-     * {@link #vertices}.
-     */
-    @Getter(AccessLevel.NONE)
-    private final @NotNull EnumMap<BlockFace, Vector3f[]> faceVertices;
-
-    /**
      * Builds a body part from its box dimensions and the six per-face skin coordinates, populating
-     * the base and overlay rectangle maps (sized via {@link #faceSize}) and the eight normalized
-     * corner vertices. The per-face vertex slices are filled later by the static initializer once
-     * every constant exists.
+     * the base and overlay rectangle maps (sized via {@link #faceSize}).
      *
      * @param width the box width in skin pixels
      * @param height the box height in skin pixels
@@ -150,12 +99,8 @@ public enum SkinFace {
      *     {@link BlockFace} declaration order
      */
     SkinFace(int width, int height, int depth, int @NotNull [] @NotNull [] faceCoords) {
-        this.width = width;
-        this.height = height;
-        this.depth = depth;
         this.baseMappings = new EnumMap<>(BlockFace.class);
         this.overlayMappings = new EnumMap<>(BlockFace.class);
-        this.faceVertices = new EnumMap<>(BlockFace.class);
 
         for (int i = 0; i < BlockFace.CACHED_VALUES.length; i++) {
             BlockFace face = BlockFace.CACHED_VALUES[i];
@@ -164,92 +109,18 @@ public enum SkinFace {
             this.baseMappings.put(face, new Rectangle(xy[0], xy[1], size[0], size[1]));
             this.overlayMappings.put(face, new Rectangle(xy[2], xy[3], size[0], size[1]));
         }
-
-        float hx = width / 32f;
-        float hy = height / 32f;
-        float hz = depth / 32f;
-        this.cornerVertices = new Vector3f[]{
-            new Vector3f(-hx, -hy, -hz),
-            new Vector3f( hx, -hy, -hz),
-            new Vector3f( hx,  hy, -hz),
-            new Vector3f(-hx,  hy, -hz),
-            new Vector3f(-hx, -hy,  hz),
-            new Vector3f( hx, -hy,  hz),
-            new Vector3f( hx,  hy,  hz),
-            new Vector3f(-hx,  hy,  hz)
-        };
-    }
-
-    /**
-     * Per-face UV layout shared by every body part - the skin unwrap orientation is the same for
-     * every cube in the player model, only the box dimensions differ. NORTH picks {@link UvLayout#BACK},
-     * DOWN picks {@link UvLayout#BOTTOM}, and every other face picks {@link UvLayout#STANDARD}.
-     * Read through {@link #uvMap}.
-     */
-    private static final @NotNull EnumMap<BlockFace, Vector2f[]> UV_LAYOUTS;
-
-    static {
-        UV_LAYOUTS = new EnumMap<>(BlockFace.class);
-        UV_LAYOUTS.put(BlockFace.DOWN, UvLayout.BOTTOM.uvMap);
-        UV_LAYOUTS.put(BlockFace.UP, UvLayout.STANDARD.uvMap);
-        UV_LAYOUTS.put(BlockFace.NORTH, UvLayout.BACK.uvMap);
-        UV_LAYOUTS.put(BlockFace.SOUTH, UvLayout.STANDARD.uvMap);
-        UV_LAYOUTS.put(BlockFace.WEST, UvLayout.STANDARD.uvMap);
-        UV_LAYOUTS.put(BlockFace.EAST, UvLayout.STANDARD.uvMap);
-
-        for (SkinFace part : values()) {
-            for (BlockFace face : BlockFace.CACHED_VALUES) {
-                int[] indices = face.vertexIndices();
-                part.faceVertices.put(face, new Vector3f[]{
-                    part.cornerVertices[indices[0]],
-                    part.cornerVertices[indices[1]],
-                    part.cornerVertices[indices[2]],
-                    part.cornerVertices[indices[3]]
-                });
-            }
-        }
     }
 
     /**
      * Returns the skin texture rectangle for the given face on the base or overlay layer.
-     *
-     * @param face the cube face direction
-     * @param overlayLayer {@code true} for the overlay (hat/jacket) layer,
-     *     {@code false} for the base skin layer
-     * @return the rectangle on the 64x64 skin image
      */
-    public @NotNull Rectangle mapping(@NotNull BlockFace face, boolean overlayLayer) {
+    private @NotNull Rectangle mapping(@NotNull BlockFace face, boolean overlayLayer) {
         return overlayLayer ? this.overlayMappings.get(face) : this.baseMappings.get(face);
     }
 
     /**
-     * Returns the four local-space vertices for the given face on this body part's box, resolved
-     * through {@link BlockFace#vertexIndices()} so they carry the same TL, BL, BR, TR CCW winding
-     * (viewed from the outward normal) that {@link BlockFace#corners} produces and the block
-     * geometry kit's box-triangle builder expects.
-     *
-     * @param face the cube face direction
-     * @return the four face corner positions in local model space, ordered TL, BL, BR, TR
-     */
-    public @NotNull Vector3f @NotNull [] vertices(@NotNull BlockFace face) {
-        return this.faceVertices.get(face);
-    }
-
-    /**
-     * Returns the four UV corners for the given face, describing how the cropped texture maps
-     * onto the cube face. Shared across every body part because skin unwrap orientation is
-     * uniform across the vanilla player model.
-     *
-     * @param face the cube face direction
-     * @return the four UV corners in normalized {@code [0, 1]} space
-     */
-    public @NotNull Vector2f @NotNull [] uvMap(@NotNull BlockFace face) {
-        return UV_LAYOUTS.get(face);
-    }
-
-    /**
-     * Crops a single face out of the given skin image using the {@link #mapping base or overlay}
-     * rectangle for this body part's face.
+     * Crops a single face out of the given skin image using the base or overlay rectangle for this
+     * body part's face.
      * <p>
      * Legacy 64x32 skins and the 64x32 equipment atlases carry only the top half of the modern
      * layout - head, body, the <b>right</b> arm and the <b>right</b> leg - with no dedicated
@@ -357,47 +228,6 @@ public enum SkinFace {
             case NORTH, SOUTH -> new int[]{ width, height };
             case WEST, EAST -> new int[]{ depth, height };
         };
-    }
-
-    /**
-     * The three UV orientation patterns used by the vanilla player model skin unwrap. Every
-     * face of every body part picks one of these three layouts; most faces use
-     * {@link #STANDARD} but the back and bottom faces need mirrored or rotated samplings
-     * because of how Minecraft lays the skin out flat.
-     */
-    private enum UvLayout {
-
-        /**
-         * Default sampling for the top, front, and both side faces - U increases right, V increases
-         * down, TL corner at {@code (1, 0)}.
-         */
-        STANDARD(new Vector2f[]{
-            new Vector2f(1f, 0f), new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f)
-        }),
-        /**
-         * Back-face sampling - the STANDARD map rotated 180 degrees so the rear cropped strip reads
-         * upright once wound onto the back face.
-         */
-        BACK(new Vector2f[]{
-            new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f), new Vector2f(0f, 0f)
-        }),
-        /**
-         * Bottom-face sampling - V-flipped relative to STANDARD, matching how the skin lays the
-         * DOWN face out flat above its box.
-         */
-        BOTTOM(new Vector2f[]{
-            new Vector2f(1f, 1f), new Vector2f(0f, 1f), new Vector2f(0f, 0f), new Vector2f(1f, 0f)
-        });
-
-        /**
-         * The four normalized {@code [0, 1]} UV corners in TL, BL, BR, TR order for this layout.
-         */
-        final @NotNull Vector2f @NotNull [] uvMap;
-
-        UvLayout(@NotNull Vector2f @NotNull [] uvMap) {
-            this.uvMap = uvMap;
-        }
-
     }
 
 }
