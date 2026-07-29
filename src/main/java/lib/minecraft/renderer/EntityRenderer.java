@@ -9,6 +9,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -677,7 +678,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         ARMOR(EntitySlot.ARMOR) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                Optional<Entity.HumanoidArmor> armor = ctx.definition().humanoidArmor();
+                Optional<Shell> armor = ctx.definition().humanoidArmor();
                 if (armor.isEmpty()) return;
                 EntityOptions options = ctx.options();
                 stack.append(this.slot, sink ->

@@ -18,6 +18,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
+import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Age;
@@ -197,7 +198,7 @@ public final class EntityIndexBuilder {
         Optional<String> collarTexture = collarTextureOf(family);
         List<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId, diagnostics);
         boolean markings = markingsOf(family);
-        Optional<Entity.HumanoidArmor> humanoidArmor = humanoidArmorOf(family, geometries, familyId, diagnostics);
+        Optional<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId, diagnostics);
         String babyCoord = babyGeometryOf(family);
         Optional<EntityModelData> babyModel = babyCoord == null ? Optional.empty()
             : Optional.ofNullable(geometries.get(babyCoord)).map(baby -> shiftModel(baby, babyYShift));
@@ -282,7 +283,7 @@ public final class EntityIndexBuilder {
         @NotNull Optional<String> collarTexture,
         @NotNull List<EquipmentOverlay> equipment,
         boolean markings,
-        @NotNull Optional<Entity.HumanoidArmor> humanoidArmor,
+        @NotNull Optional<Shell> humanoidArmor,
         @NotNull Optional<String> stateDefault
     ) {}
 
@@ -658,7 +659,7 @@ public final class EntityIndexBuilder {
      * axis it names swaps to. A wearer without one dresses both its forms in the same shell, which
      * is what vanilla does when it hands its armor layer one set twice.
      */
-    private static @NotNull Optional<Entity.HumanoidArmor> humanoidArmorOf(
+    private static @NotNull Optional<Shell> humanoidArmorOf(
         @NotNull RawModel family,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String entityId,
@@ -672,7 +673,7 @@ public final class EntityIndexBuilder {
                 return Optional.empty();
             }
             RawArmorAlternate raw = overlay.alternate();
-            Optional<Entity.HumanoidArmor.AlternateShell> alternate = Optional.empty();
+            Optional<Shell.Alternate> alternate = Optional.empty();
             if (raw != null) {
                 alternate = alternateShellOf(raw, geometries, entityId, diagnostics);
                 if (alternate.isEmpty()) return Optional.empty();
@@ -688,7 +689,7 @@ public final class EntityIndexBuilder {
      * either the mesh or the selection is unreadable, which drops the whole wearer rather than
      * dressing one of its forms in the other's shell.
      */
-    private static @NotNull Optional<Entity.HumanoidArmor.AlternateShell> alternateShellOf(
+    private static @NotNull Optional<Shell.Alternate> alternateShellOf(
         @NotNull RawArmorAlternate raw,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String entityId,
@@ -702,7 +703,7 @@ public final class EntityIndexBuilder {
         ArmorForm form = ArmorForm.BABY.name().equalsIgnoreCase(raw.form()) ? ArmorForm.BABY : ArmorForm.ADULT;
         return shellOf(raw.geometry(), raw.grow(), raw.scaled(), form, Optional.empty(),
             geometries, entityId, diagnostics)
-            .map(shell -> new Entity.HumanoidArmor.AlternateShell(when.get(), shell));
+            .map(shell -> new Shell.Alternate(when.get(), shell));
     }
 
     /**
@@ -733,12 +734,12 @@ public final class EntityIndexBuilder {
      * being armored is carrying a resolved shell, so a shell whose mesh or deformations are missing
      * warns and drops the wearer rather than dressing it in a guess.
      */
-    private static @NotNull Optional<Entity.HumanoidArmor> shellOf(
+    private static @NotNull Optional<Shell> shellOf(
         @Nullable String geometry,
         @Nullable RawArmorGrow grow,
         @Nullable Float scaled,
         @NotNull ArmorForm form,
-        @NotNull Optional<Entity.HumanoidArmor.AlternateShell> alternate,
+        @NotNull Optional<Shell.Alternate> alternate,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String entityId,
         @NotNull Diagnostics diagnostics
@@ -754,7 +755,7 @@ public final class EntityIndexBuilder {
                 entityId, form.name().toLowerCase(Locale.ROOT), geometry);
             return Optional.empty();
         }
-        return Optional.of(new Entity.HumanoidArmor(mesh, grow.inner(), grow.outer(),
+        return Optional.of(new Shell(mesh, grow.inner(), grow.outer(),
             scaled == null ? 1f : scaled, form, alternate));
     }
 

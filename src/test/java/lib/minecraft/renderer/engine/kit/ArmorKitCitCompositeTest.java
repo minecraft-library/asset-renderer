@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
+import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
@@ -166,13 +167,13 @@ class ArmorKitCitCompositeTest {
      * The shell vanilla dresses an unremarkable humanoid in, read through the loaded index rather than
      * restated here, so these spans measure the shipped mesh and its shipped deformations.
      */
-    private static @NotNull Entity.HumanoidArmor genericShell() {
+    private static @NotNull Shell genericShell() {
         return EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null))
             .get("minecraft:zombie").humanoidArmor().orElseThrow();
     }
 
     /** The shell that same wearer's baby is dressed in. */
-    private static @NotNull Entity.HumanoidArmor babyShell() {
+    private static @NotNull Shell babyShell() {
         return genericShell().forAppearance(EntityAppearance.builder().age(Age.BABY).build());
     }
 
@@ -180,7 +181,7 @@ class ArmorKitCitCompositeTest {
      * The {@code [min, max]} y-extent of the iron-helmet triangles built for one shell at one render
      * scale.
      */
-    private static float[] helmetYSpan(@NotNull Entity.HumanoidArmor shell, float modelScale) {
+    private static float[] helmetYSpan(@NotNull Shell shell, float modelScale) {
         List<EquipmentModel.Layer> iron = List.of(
             new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);

@@ -3,10 +3,8 @@ package lib.minecraft.renderer.asset;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.EntityRenderer;
-import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
-import lib.minecraft.renderer.asset.equipment.ShellWalk;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.option.AppearanceGate;
@@ -15,10 +13,8 @@ import lib.minecraft.renderer.option.HorseMarking;
 import lib.minecraft.renderer.option.Size;
 import lib.minecraft.renderer.option.TintAxis;
 import lib.minecraft.renderer.option.TropicalFishPattern;
-import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.Builder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -126,7 +122,7 @@ public record Entity(
      *
      * @return the armor shell, or empty when this entity wears none
      */
-    public @NotNull Optional<HumanoidArmor> humanoidArmor() {
+    public @NotNull Optional<Shell> humanoidArmor() {
         return this.layers.humanoidArmor();
     }
 
@@ -169,7 +165,7 @@ public record Entity(
         // The worn shell resolves ahead of the age fork and outside it, because the axis that
         // selects a wearer's second shell is the wearer's own - six swap on age and the armor stand
         // on size - and vanilla picks the set off the flag alone rather than off the body mesh.
-        Optional<HumanoidArmor> armor = definition.layers().humanoidArmor()
+        Optional<Shell> armor = definition.layers().humanoidArmor()
             .map(shell -> shell.forAppearance(appearance));
         if (appearance.isBaby() && definition.axes().babyModel().isPresent()) {
             builder.model(definition.axes().babyModel().get())
@@ -366,135 +362,8 @@ public record Entity(
         @NotNull Optional<String> collar,
         @NotNull List<EquipmentOverlay> equipment,
         boolean markings,
-        @NotNull Optional<HumanoidArmor> humanoidArmor
+        @NotNull Optional<Shell> humanoidArmor
     ) {}
-
-    /**
-     * The worn-armor shell one humanoid is dressed in - the mesh plus the per-side growth each of the
-     * two armor layers applies to it.
-     *
-     * <p>Vanilla never derives worn armor from the wearer's own model. It builds a handful of armor sets
-     * and hands each renderer the one its subject wears, so a skeleton's narrow limbs and a giant's
-     * scaled-up body dress in the very same boxes. Each set fans one base mesh out over the four
-     * equipment slots at two deformations, which is the pair carried here: the leggings wear the inner
-     * one, the other three slots the outer. The mesh itself is stored ungrown, so a cube's own
-     * {@code CubeDeformation.extend} (a leg's {@code -0.1}, a helmet's second box) rides its
-     * {@code grow} and is summed onto the slot's deformation at render.
-     *
-     * <p>Three of the sets are registered through a whole-mesh {@code MeshTransformer.scaling} -
-     * giant {@code 6.0}, husk {@code 1.0625}, wither skeleton {@code 1.2} - and that factor is
-     * {@link #meshScale}. It rides the wearer here rather than the mesh so the sets that differ
-     * only by it still share one geometry entry, and it is what sizes and seats the shell in step
-     * with the body it dresses.
-     *
-     * <p>A wearer vanilla hands a second armor set is dressed in a shell of its own rather than in a
-     * smaller copy of this one - its own mesh, its own two deformations, sometimes its own sheet -
-     * and that shell rides {@link #alternate} together with the appearance selection that reaches
-     * it. Seven wearers carry one; the rest answer {@link #forAppearance} with themselves, which is
-     * vanilla's own way of saying a wearer has only the one shell.
-     *
-     * <p>The selection is carried rather than assumed because vanilla reaches both kinds through one
-     * flag and this pipeline through two axes: six wearers swap on {@code age}, and the armor stand
-     * on {@code size}, whose {@code isBaby} is literally {@code isSmall}.
-     *
-     * @param mesh the ungrown armor mesh, joined from the geometry store
-     * @param innerGrow the per-side growth the leggings layer applies
-     * @param outerGrow the per-side growth the helmet / chestplate / boots layer applies
-     * @param meshScale the whole-mesh uniform scale the set is registered through, {@code 1} for
-     *     the eleven wearers registered unscaled
-     * @param form which of the two shells this is - what says which parts each slot covers, which
-     *     equipment layer it draws through, and whether it is trimmed
-     * @param alternate the shell this wearer's other form is dressed in, empty when it has none
-     * @param walk what a walk of this shell resolves to - which bones each slot draws, and where each
-     *     bone sits - answered once here rather than once per render in each of the two consumers
-     */
-    public record HumanoidArmor(
-        @NotNull EntityModelData mesh,
-        @NotNull Vector3f innerGrow,
-        @NotNull Vector3f outerGrow,
-        float meshScale,
-        @NotNull ArmorForm form,
-        @NotNull Optional<AlternateShell> alternate,
-        @NotNull ShellWalk walk
-    ) implements Shell {
-
-        /**
-         * Constructs a shell, resolving its {@link #walk} from the mesh and the form it is built from -
-         * the only entry point, so the two cannot disagree.
-         *
-         * @param mesh the ungrown armor mesh, joined from the geometry store
-         * @param innerGrow the per-side growth the leggings layer applies
-         * @param outerGrow the per-side growth the helmet / chestplate / boots layer applies
-         * @param meshScale the whole-mesh uniform scale the set is registered through
-         * @param form which of the two shells this is
-         * @param alternate the shell this wearer's other form is dressed in, empty when it has none
-         */
-        public HumanoidArmor(
-            @NotNull EntityModelData mesh,
-            @NotNull Vector3f innerGrow,
-            @NotNull Vector3f outerGrow,
-            float meshScale,
-            @NotNull ArmorForm form,
-            @NotNull Optional<AlternateShell> alternate
-        ) {
-            this(mesh, innerGrow, outerGrow, meshScale, form, alternate, ShellWalk.of(mesh, form));
-        }
-
-        /**
-         * The entity feet anchor a whole-mesh scale is taken about, in model units - vanilla's
-         * {@code MeshTransformer.scaling} expands to
-         * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, and {@code 24.016} is
-         * {@code 1.501} blocks at 16 units a block, the living-entity render chain's own
-         * {@code translate(0, -1.501, 0)}.
-         */
-        private static final float FEET_ANCHOR = 24.016f;
-
-        /**
-         * {@inheritDoc}
-         *
-         * <p>Derived rather than carried: the same expression in the same precision the tooling
-         * baked the wearer's own bone pivots with, so the two agree bit for bit. A transcribed
-         * literal would not.
-         */
-        @Override
-        public @NotNull Vector3f meshOffset() {
-            return new Vector3f(0f, FEET_ANCHOR * (1f - this.meshScale), 0f);
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull LayerType sheet(@NotNull ArmorSlot slot) {
-            return this.form.layerType(slot);
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull Optional<String> trimLayer(@NotNull ArmorSlot slot) {
-            return this.form.trimLayer(slot);
-        }
-
-        /**
-         * The shell this wearer is dressed in for a given appearance - its second one when the
-         * appearance selects it, else this one.
-         *
-         * @param appearance the render-axis selections
-         * @return the shell to dress the wearer in
-         */
-        public @NotNull HumanoidArmor forAppearance(@NotNull EntityAppearance appearance) {
-            return this.alternate
-                .filter(shell -> shell.when().test(appearance))
-                .map(AlternateShell::shell)
-                .orElse(this);
-        }
-
-        /**
-         * The second shell a wearer is dressed in, and the appearance selection that reaches it.
-         *
-         * @param when the selection that swaps to this shell
-         * @param shell the shell itself
-         */
-        public record AlternateShell(@NotNull AppearanceGate when, @NotNull HumanoidArmor shell) {}
-    }
 
     /**
      * One block-model overlay attached to an entity: a vanilla block (e.g. red mushroom block) rendered

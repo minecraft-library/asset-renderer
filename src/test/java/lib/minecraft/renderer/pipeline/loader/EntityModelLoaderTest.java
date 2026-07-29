@@ -5,6 +5,7 @@ import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.LayerType;
+import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -122,7 +123,7 @@ class EntityModelLoaderTest {
 
         // The shell is the mesh vanilla hands the wearer, not the wearer's own: the boxes must be the
         // armor unwrap's 64x32 tree, and the two layer deformations must travel with it.
-        Entity.HumanoidArmor armor = defs.get("minecraft:zombie").humanoidArmor().orElseThrow();
+        Shell armor = defs.get("minecraft:zombie").humanoidArmor().orElseThrow();
         assertThat("the shell carries the armor atlas width", armor.mesh().getTextureWidth(), is(64));
         assertThat("the shell carries the armor atlas height", armor.mesh().getTextureHeight(), is(32));
         assertThat("the leggings deformation rides the row", armor.innerGrow(), equalTo(new Vector3f(0.5f, 0.5f, 0.5f)));
