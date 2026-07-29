@@ -73,7 +73,10 @@ class VanillaEntityTransformGoldenTest {
     @Test
     @DisplayName("golden: single-cube fixture corners, kit-built then camera-posed, match the baseline")
     void fixtureCorners_matchGolden() {
-        if (GOLDEN_CORNERS.length == 0) return; // placeholder not yet captured - skip until baked
+        // An emptied golden used to return rather than fail, so wiping the array turned the pin into a
+        // no-op that still reported green. Assert it is populated instead.
+        assertThat("GOLDEN_CORNERS must hold the 8 fixture corners; regenerate via writeSnapshot()",
+            GOLDEN_CORNERS.length, org.hamcrest.Matchers.is(24));
         Matrix4f pose = Projection.VANILLA_ISO.resolve().camera().pose();
         float[] actual = fixtureCornerSample(pose);
         for (int i = 0; i < GOLDEN_CORNERS.length; i++)
@@ -189,7 +192,9 @@ class VanillaEntityTransformGoldenTest {
     }
 
     private static void assertMatrix(float[] expected, Matrix4f actual) {
-        if (expected.length == 0) return; // placeholder not yet captured - skip until baked
+        // Same escape as the corner pin carried: an emptied golden returned rather than failed.
+        assertThat("the golden pose must hold all 16 floats; regenerate via writeSnapshot()",
+            expected.length, org.hamcrest.Matchers.is(16));
         int k = 0;
         for (int col = 1; col <= 4; col++)
             for (int row = 1; row <= 4; row++, k++)

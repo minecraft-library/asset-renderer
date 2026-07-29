@@ -332,7 +332,16 @@ class BlockGeometryKitTest {
         return list;
     }
 
-    /** Sets a private declared field by reflection, used to populate parser-only model fields. */
+    /**
+     * Sets a private declared field by reflection, used to populate parser-only model fields.
+     *
+     * <p><b>Renaming one of these fields breaks this suite at runtime, not at compile time.</b> The
+     * names are string literals, so a rename refactor across the production types reports clean and
+     * then every fixture here throws {@code NoSuchFieldException}. Seven names are reached this way -
+     * {@code from}, {@code to}, {@code shade} and {@code lightEmission} on the model element, and
+     * {@code texture}, {@code uv} and {@code rotation} on the model face. Rename any of them and the
+     * matching literal below has to move with it.
+     */
     private static void setField(Object target, String name, Object value) throws ReflectiveOperationException {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);

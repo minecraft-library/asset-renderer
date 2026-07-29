@@ -11,6 +11,14 @@ Headless renderer for Minecraft blocks/items/entities/fluids/portals. Outputs `I
 - `./gradlew test` - fast tests (excludes `@Tag("slow")`).
 - `./gradlew slowTest` - hits network / filesystem cache (client-jar downloads, integration, parallelism, block-entity parity). Not up-to-date-cached.
 
+### Which gate sees what - do not cite a gate blind to your change
+The suite is dense but its coverage is uneven in ways that do not follow from the file list, and each of these was measured rather than assumed.
+- **`BlockRenderer` never calls `buildBox`, and both item `buildBox` call sites are `SixFaces.uniform`.** So the block and item parity sums are *structurally blind* to a change in the box builder - a clean block sum is not evidence there. The gates that do see it are the 14 armoured entity rows, the player CRC pin, and a LOOK render. This is the converse of the depth immunity recorded under Parity: blocks are immune to *depth* and reachable by *coverage*, and blind to `buildBox` for a third reason again.
+- **`TestPlayerParityVanilla` asserts nothing.** It is a `main` that alpha-crops **and rescales both sides** to a common box before diffing, so it cannot detect a part-placement or fit change of any size. It renders `FULL` and `SKULL` only and `SkinOptions.renderCape` defaults false. **The player byte pin is `PlayerRasterizeFittedGoldenTest`** - two CRC32 constants, `FULL` and `SKULL`, **no cape and no armour**, and it is `@Tag("slow")` so `./gradlew test` never runs it.
+- **Still ungated: BUST, the cape, and every 2D player path.** A change reaching them lands on an announced LOOK gauge or carries a purpose-built pin.
+- **Now gated, and these three suites are the gate:** `FacePhaseTest` pins the corner phase, the winding and the position-to-UV pairing on both face enums (there was no `EntityFaceTest` and `BlockFaceTest` covered only lookups, normals and lighting); `SkinFaceCropTest` pins all 72 skin rectangles on both sheet formats including the legacy left-limb fallback; `FrameTurnTest` relates the three separate spellings of the armour frame turn.
+- **`BlockGeometryKitTest` builds every fixture by reflection into private parser-populated fields.** Renaming one fails at *runtime* with `NoSuchFieldException`, so a rename refactor looks clean and then breaks the gate. `FrameTurnTest` carries the same trap by construction, since the three members it relates are private.
+
 ## Tooling (re-run on Minecraft version bump)
 Rewrites JSON in `src/main/resources/lib/minecraft/renderer/`:
 - `blockTints` -> `block_tints.json` (ASM scan of `BlockColors`)
