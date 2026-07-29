@@ -685,9 +685,14 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * The second shell an armor row carries, paired with the selection that reaches it. Empty when
-     * either the mesh or the selection is unreadable, which drops the whole wearer rather than
-     * dressing one of its forms in the other's shell.
+     * The second shell an armor row carries, paired with the selection that reaches it. Empty when the
+     * mesh, the selection or the form is unreadable, which drops the whole wearer rather than dressing
+     * one of its forms in the other's shell.
+     *
+     * <p>An <em>absent</em> {@code form} is the adult one, which is what the shipped file omits it to
+     * mean; a {@code form} that names no shell is a defect and is reported as one. Reading an unknown
+     * token as adult instead would silently give a baby wearer the wrong part table, the wrong sheet
+     * and a trim vanilla never draws.
      */
     private static @NotNull Optional<Shell.Alternate> alternateShellOf(
         @NotNull RawArmorAlternate raw,
@@ -700,8 +705,15 @@ public final class EntityIndexBuilder {
             diagnostics.warn("entity '%s' alternate armor shell names no appearance selection - wearer dropped", entityId);
             return Optional.empty();
         }
-        ArmorForm form = ArmorForm.BABY.name().equalsIgnoreCase(raw.form()) ? ArmorForm.BABY : ArmorForm.ADULT;
-        return shellOf(raw.geometry(), raw.grow(), raw.scaled(), form, Optional.empty(),
+        Optional<ArmorForm> form = raw.form() == null
+            ? Optional.of(ArmorForm.ADULT)
+            : enumOf(ArmorForm.class, raw.form());
+        if (form.isEmpty()) {
+            diagnostics.warn("entity '%s' alternate armor shell names unknown form '%s' - wearer dropped",
+                entityId, raw.form());
+            return Optional.empty();
+        }
+        return shellOf(raw.geometry(), raw.grow(), raw.scaled(), form.get(), Optional.empty(),
             geometries, entityId, diagnostics)
             .map(shell -> new Shell.Alternate(when.get(), shell));
     }
