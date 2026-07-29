@@ -230,7 +230,7 @@ final class PackIdDeriver {
          * @return the candidate this rung yields, or empty
          */
         final @NotNull Optional<Candidate> derive(@NotNull Naming naming) {
-            return raw(naming).flatMap(raw -> PackId.normalize(raw).map(id -> new Candidate(id, this, raw)));
+            return raw(naming).flatMap(raw -> PackId.normalize(raw).map(id -> new Candidate(id, this)));
         }
     }
 
@@ -239,8 +239,7 @@ final class PackIdDeriver {
      *
      * @param id the normalized preferred id
      * @param rung the ladder rung that produced it
-     * @param rawName the raw string the rung normalized
      */
-    record Candidate(@NotNull PackId id, @NotNull Rung rung, @NotNull String rawName) {}
+    record Candidate(@NotNull PackId id, @NotNull Rung rung) {}
 
 }

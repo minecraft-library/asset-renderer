@@ -26,7 +26,6 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -268,15 +267,11 @@ public class EntityGeometryKit {
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        Map<String, Vector3f[]> boneBounds = new HashMap<>();
 
         for (Map.Entry<String, EntityModelData.Bone> boneEntry : model.getBones().entrySet()) {
             String boneName = boneEntry.getKey();
             EntityModelData.Bone bone = boneEntry.getValue();
             Matrix4f boneChain = chainTransforms.get(boneName);
-
-            float bMinX = Float.POSITIVE_INFINITY, bMinY = Float.POSITIVE_INFINITY, bMinZ = Float.POSITIVE_INFINITY;
-            float bMaxX = Float.NEGATIVE_INFINITY, bMaxY = Float.NEGATIVE_INFINITY, bMaxZ = Float.NEGATIVE_INFINITY;
 
             // Java's PartPose / ModelPart authoring stores cube origins LOCAL to the bone's
             // pivot (the literal addBox(x, y, z, w, h, d) args from createBodyLayer). The bone
@@ -324,20 +319,8 @@ public class EntityGeometryKit {
 
                 for (Face face : Face.CACHED_VALUES) {
                     Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
-                    for (int i = 0; i < 4; i++) {
-                        Vector3f transformed = corners[i].transform(perCubeChainFluent);
-                        float nx = transformed.x();
-                        float ny = transformed.y();
-                        float nz = transformed.z();
-                        corners[i] = new Vector3f(nx, ny, nz);
-
-                        bMinX = Math.min(bMinX, nx);
-                        bMinY = Math.min(bMinY, ny);
-                        bMinZ = Math.min(bMinZ, nz);
-                        bMaxX = Math.max(bMaxX, nx);
-                        bMaxY = Math.max(bMaxY, ny);
-                        bMaxZ = Math.max(bMaxZ, nz);
-                    }
+                    for (int i = 0; i < 4; i++)
+                        corners[i] = corners[i].transform(perCubeChainFluent);
 
                     // Positions and the STORED normal are both in the model's native Y-up frame now that
                     // the Y-flip lives on the placement (kit-internal geometry stays self-consistent).
@@ -380,15 +363,9 @@ public class EntityGeometryKit {
                     ));
                 }
             }
-
-            if (bMinX != Float.POSITIVE_INFINITY)
-                boneBounds.put(boneName, new Vector3f[]{
-                    new Vector3f(bMinX, bMinY, bMinZ),
-                    new Vector3f(bMaxX, bMaxY, bMaxZ)
-                });
         }
 
-        return new BuildResult(triangles, boneBounds);
+        return new BuildResult(triangles);
     }
 
     /**
@@ -403,10 +380,9 @@ public class EntityGeometryKit {
     }
 
     /**
-     * The model-space bounds of ONE bone's own cubes, or empty when the bone is absent or cube-less -
-     * the pre-build counterpart of a {@link BuildResult#boneBounds} entry, for callers that must seat
-     * geometry against a bone before any of it is built (the elytra's baby re-seat, which the canvas
-     * sizing needs before the build it would otherwise read the bone bounds from).
+     * The model-space bounds of ONE bone's own cubes, or empty when the bone is absent or cube-less,
+     * for callers that must seat geometry against a bone before any of it is built (the elytra's baby
+     * re-seat, which the canvas sizing needs before there is any geometry to measure).
      *
      * @param model the entity model definition (Java Y-down frame)
      * @param boneName the bone to measure
@@ -1082,15 +1058,12 @@ public class EntityGeometryKit {
     }
 
     /**
-     * The result of building triangles from an entity model, carrying the triangle list and
-     * per-bone bounding boxes used by the armor overlay system.
+     * The result of building triangles from an entity model.
      *
      * @param triangles the triangle list ready for rasterization
-     * @param boneBounds per-bone axis-aligned bounding boxes keyed by bone name
      */
     public record BuildResult(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull Map<String, Vector3f[]> boneBounds
+        @NotNull ConcurrentList<VisibleTriangle> triangles
     ) {}
 
 }

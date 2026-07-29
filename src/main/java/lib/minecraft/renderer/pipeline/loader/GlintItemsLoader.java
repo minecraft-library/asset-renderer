@@ -43,13 +43,13 @@ public class GlintItemsLoader {
 
     /**
      * Reads the always-glinted item set from {@code glint_items.json} natively through the shared
-     * read layer. Exposed for tests.
+     * read layer.
      *
      * @param diagnostics the scope envelope warnings are recorded to
      * @return the set of namespaced item ids
      * @throws PipelineException if the resource is missing or malformed
      */
-    static @NotNull Set<String> loadNative(@NotNull Diagnostics diagnostics) {
+    private static @NotNull Set<String> loadNative(@NotNull Diagnostics diagnostics) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         return document.as(GlintItemTable.class).items();
     }

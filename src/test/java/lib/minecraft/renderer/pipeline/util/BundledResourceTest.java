@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,8 +29,8 @@ class BundledResourceTest {
     void readsRequiredResource() {
         Optional<ResourceDocument> doc = BundledResource.read("potion_colors.json", MissingPolicy.REQUIRED, diagnostics());
 
-        assertTrue(doc.isPresent(), "the bundled potion_colors.json must be present");
-        assertEquals(2, doc.get().envelope().format());
+        // open() throws on any format other than 2, so a present document IS the envelope assertion.
+        assertTrue(doc.isPresent(), "the bundled potion_colors.json must be present and envelope-valid");
     }
 
     @Test

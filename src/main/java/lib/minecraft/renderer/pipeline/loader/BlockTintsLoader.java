@@ -51,13 +51,13 @@ public class BlockTintsLoader {
 
     /**
      * Reads the tint table from {@code block_tints.json} natively through the shared read layer, each
-     * value reflecting straight into a {@link Block.Tint}. Exposed for tests.
+     * value reflecting straight into a {@link Block.Tint}.
      *
      * @param diagnostics the scope envelope warnings are recorded to
      * @return a map keyed by namespaced block id
      * @throws PipelineException if the resource is missing or malformed
      */
-    static @NotNull Map<String, Block.Tint> loadNative(@NotNull Diagnostics diagnostics) {
+    private static @NotNull Map<String, Block.Tint> loadNative(@NotNull Diagnostics diagnostics) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         return document.as(TintTable.class).tints();
     }

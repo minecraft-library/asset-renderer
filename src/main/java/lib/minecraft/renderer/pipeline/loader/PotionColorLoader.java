@@ -44,13 +44,13 @@ public class PotionColorLoader {
 
     /**
      * Reads the effect colour table from {@code potion_colors.json} natively through the shared
-     * read layer, decoding each value through the {@link Color} codec. Exposed for tests.
+     * read layer, decoding each value through the {@link Color} codec.
      *
      * @param diagnostics the scope envelope warnings are recorded to
      * @return a map of namespaced effect id to ARGB colour
      * @throws PipelineException if the resource is missing or malformed
      */
-    static @NotNull Map<String, Color> loadNative(@NotNull Diagnostics diagnostics) {
+    private static @NotNull Map<String, Color> loadNative(@NotNull Diagnostics diagnostics) {
         ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
         return document.as(PotionColorTable.class).effects();
     }

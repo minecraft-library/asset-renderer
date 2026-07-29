@@ -181,38 +181,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (model.getBones().isEmpty())
             return Timeline.empty();
 
-        // Combined bounds across the base entity AND every overlay so the shared auto-fit
-        // window contains both. Slime's outer shell (8x8x8) extends beyond the inner body
-        // (6x6x6); without including the shell in the bounds the auto-fit normalizes to the
-        // inner body and the shell renders larger-than-window. Block-overlay rendering applies
-        // its own transform chain after entity-fit normalization, so its bounds aren't included
-        // here - only model-overlay (cube tree) geometries that share the entity's frame.
-        Box baseBounds = EntityGeometryKit.computeBounds(model);
-        for (Entity.OverlayLayer overlay : resolved.overlays()) {
-            if (overlay.model().getBones().isEmpty()) continue;
-            Box overlayBounds = EntityGeometryKit.computeBounds(overlay.model());
-            baseBounds = new Box(
-                Math.min(baseBounds.minX(), overlayBounds.minX()),
-                Math.min(baseBounds.minY(), overlayBounds.minY()),
-                Math.min(baseBounds.minZ(), overlayBounds.minZ()),
-                Math.max(baseBounds.maxX(), overlayBounds.maxX()),
-                Math.max(baseBounds.maxY(), overlayBounds.maxY()),
-                Math.max(baseBounds.maxZ(), overlayBounds.maxZ())
-            );
-        }
         // Resolve each selected equipment overlay's composited texture ONCE, up front: it decides both
         // whether the overlay bounds the canvas at all and, on the orthographic path below, the
         // alpha-tight silhouette it contributes. An overlay whose texture does not resolve draws
         // nothing, so it is absent here rather than bounding the canvas with a mesh that never appears.
         List<EquippedOverlay> equipped = resolveEquippedOverlays(resolved, options.getAppearance(), startTick);
-        // Fold a selected equipment overlay's mesh into the bounds union so an inflated / protruding
-        // equipment mesh (horse/nautilus/wolf armor, the llama carpet's CubeDeformation) can't crop at
-        // the canvas edge. Gated on the equipment axis, so the default (unequipped) render is
-        // unchanged, matching the EQUIPMENT feature's render gate. Measured geometrically: the
-        // perspective / oblique fit this feeds re-measures the real triangle silhouette in the engine,
-        // so a tighter pre-normalisation would buy nothing.
-        for (EquippedOverlay equipment : equipped)
-            baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(equipment.overlay().model()));
         // Resolve the wing texture on the same terms as the equipment overlays above: it decides whether
         // the wings bound the canvas at all, and the silhouette they contribute below. Wings the pack
         // ships no texture for render nothing, so they are empty here rather than bounding the canvas.
@@ -222,11 +195,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // The body bone the wings hang from, in model space - the same seat the render applies, resolved
         // here because the canvas is sized before any geometry is built.
         Optional<Box> bodyBoneBounds = EntityGeometryKit.computeBoneBounds(model, BODY_BONE);
-        // Fold the elytra wings into the bounds union so the protruding wings can't crop at the canvas
-        // edge. Gated on the elytra selection, so the default (no elytra) render is unchanged.
-        if (wingTexture.isPresent())
-            baseBounds = unionBoxes(baseBounds, EntityGeometryKit.computeBounds(
-                ElytraKit.wingsMesh(options.getAppearance().isBaby(), bodyBoneBounds)));
 
         EulerRotation user = options.getOutput().getRotation();
         EulerRotation effective = new EulerRotation(
@@ -243,7 +211,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // (slime / magma_cube non-default sizes), so a non-default size renders at that
         // size rather than byte-identically to the default.
         float modelScale = resolved.rendererScale();
-        Box scaledBounds = scaleBox(baseBounds, modelScale);
 
         // The entity is a normal projection subject: the camera is the caller's projection display pose
         // DIRECTLY (default VANILLA_ISO = the facing-neutral rotationXYZ(30,225,0)), and its model->world
@@ -325,7 +292,36 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             int padding = Math.max(0, options.getPadding());
             canvasW = canvasSize;
             canvasH = canvasSize;
-            EntityGeometryKit.UnitFit unit = EntityGeometryKit.unitFit(scaledBounds);
+            // Model-space bounds, combined across the base entity AND every overlay so the shared
+            // auto-fit window contains both. Slime's outer shell (8x8x8) extends beyond the inner body
+            // (6x6x6); without including the shell in the bounds the auto-fit normalizes to the inner
+            // body and the shell renders larger-than-window. Block-overlay rendering applies its own
+            // transform chain after entity-fit normalization, so its bounds aren't included here - only
+            // model-overlay (cube tree) geometries that share the entity's frame.
+            //
+            // Built inside this branch because ONLY this branch reads it. The orthographic path above
+            // measures an alpha-tight screen silhouette instead, so building this union before the fork
+            // was one to five whole chain-transform walks per render, computed and discarded on the
+            // default path and on every row of the parity sweep.
+            Box modelBounds = EntityGeometryKit.computeBounds(model);
+            for (Entity.OverlayLayer overlay : resolved.overlays()) {
+                if (overlay.model().getBones().isEmpty()) continue;
+                modelBounds = unionBoxes(modelBounds, EntityGeometryKit.computeBounds(overlay.model()));
+            }
+            // Fold a selected equipment overlay's mesh into the bounds union so an inflated / protruding
+            // equipment mesh (horse/nautilus/wolf armor, the llama carpet's CubeDeformation) can't crop
+            // at the canvas edge. Gated on the equipment axis, so the default (unequipped) render is
+            // unchanged, matching the EQUIPMENT feature's render gate. Measured geometrically: the
+            // perspective / oblique fit this feeds re-measures the real triangle silhouette in the
+            // engine, so a tighter pre-normalisation would buy nothing.
+            for (EquippedOverlay equipment : equipped)
+                modelBounds = unionBoxes(modelBounds, EntityGeometryKit.computeBounds(equipment.overlay().model()));
+            // Fold the elytra wings into the bounds union so the protruding wings can't crop at the
+            // canvas edge. Gated on the elytra selection, so the default (no elytra) render is unchanged.
+            if (wingTexture.isPresent())
+                modelBounds = unionBoxes(modelBounds, EntityGeometryKit.computeBounds(
+                    ElytraKit.wingsMesh(options.getAppearance().isBaby(), bodyBoneBounds)));
+            EntityGeometryKit.UnitFit unit = EntityGeometryKit.unitFit(scaleBox(modelBounds, modelScale));
             kitAnchor = unit.centre();
             kitNdcScale = unit.ndcScale();
             fitRequest = FitRequest.autoFill(Math.max(1e-3f, (canvasSize - 2f * padding) / (float) canvasSize));
@@ -348,12 +344,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         final float ndcScale = kitNdcScale;
         IntFunction<ConcurrentList<VisibleTriangle>> buildAtTick = tick -> {
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(texture.get());
-            EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
-                model, frameTexture, anchor, false, ndcScale, modelScale, resolved.baseTintArgb());
-            ConcurrentList<VisibleTriangle> triangles = buildResult.triangles();
+            ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(
+                model, frameTexture, anchor, false, ndcScale, modelScale, resolved.baseTintArgb()).triangles();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
             FeatureContext featureCtx = new FeatureContext(
-                resolved, options, model, buildResult,
+                resolved, options, model,
                 frameTexture, anchor, ndcScale, modelScale, this.textures, this.context, tick);
             for (EntityFeature feature : EntityFeature.values())
                 feature.contribute(featureCtx, stack);
@@ -706,16 +701,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * The per-render inputs an {@link EntityFeature} needs, bundling the feature-dispatch data with the
      * shared geometry-build frame the layers rasterize in: the age / carried-resolved
      * {@link Entity definition}, the {@link EntityOptions} (appearance +
-     * armor pieces), the primary {@link EntityModelData model} (adult or baby), and the base body build
-     * result whose bone bounds the armor feature consumes, plus the resolved base texture, model anchor,
-     * NDC + model scale, {@link Textures} service, and {@link RendererContext}. The scene-frame fields
-     * travel here because the static {@link EntityFeature} constants cannot capture them from the
-     * renderer instance.
+     * armor pieces), and the primary {@link EntityModelData model} (adult or baby), plus the resolved
+     * base texture, model anchor, NDC + model scale, {@link Textures} service, and
+     * {@link RendererContext}. The scene-frame fields travel here because the static
+     * {@link EntityFeature} constants cannot capture them from the renderer instance.
      *
      * @param definition the age / carried-resolved definition the features read
      * @param options the render options (appearance + armor pieces)
      * @param model the primary mesh being rendered (adult or baby)
-     * @param buildResult the base body build result (bone bounds for the armor feature)
      * @param baseTexture the resolved base entity texture the layers sample from
      * @param modelAnchor the model-space point the rasterizer maps to canvas centre
      * @param ndcScale the normalized-device scale from the auto-fit window
@@ -728,7 +721,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull Entity definition,
         @NotNull EntityOptions options,
         @NotNull EntityModelData model,
-        @NotNull EntityGeometryKit.BuildResult buildResult,
         @NotNull PixelBuffer baseTexture,
         @NotNull Vector3f modelAnchor,
         float ndcScale,

@@ -974,7 +974,7 @@ public class ModelEngine {
     }
 
     /**
-     * Transforms a triangle's vertices and normal into camera space, projects each vertex into
+     * Transforms a triangle's vertices into camera space, projects each vertex into
      * screen space (snapping to the {@link #snapToCoverageGrid coverage grid}), precomputes the
      * edge coefficients, and returns a {@link Projected} cache. Returns {@code null} when the
      * triangle opts into backface culling and the projected winding indicates a back face,
@@ -1001,14 +1001,14 @@ public class ModelEngine {
         @NotNull Lens perspective,
         @Nullable Fit2D fit
     ) {
-        // Per-vertex hot path: fires 4x per triangle (3 positions + 1 normal) on every rasterize
-        // call, so it dominates Pass 1 cost on high-triangle models. Vector3f.transform /
-        // transformNormal silently dispatch to a 4-lane SIMD implementation when the JDK Vector
-        // API module is loaded.
+        // Per-vertex hot path: fires 3x per triangle on every rasterize call, so it dominates Pass 1
+        // cost on high-triangle models. Vector3f.transform silently dispatches to a 4-lane SIMD
+        // implementation when the JDK Vector API module is loaded. The surface normal is deliberately
+        // not transformed alongside them: the cull below is the screen-space winding test this class
+        // documents, and the shade is already baked onto the triangle by the relight pass.
         Vector3f p0 = triangle.position0().transform(transform);
         Vector3f p1 = triangle.position1().transform(transform);
         Vector3f p2 = triangle.position2().transform(transform);
-        Vector3f normal = triangle.normal().transformNormal(transform).normalize();
 
         Vector2f r0 = project2D(perspective, p0, scale, offsetX, offsetY, fit);
         Vector2f r1 = project2D(perspective, p1, scale, offsetX, offsetY, fit);
@@ -1027,7 +1027,7 @@ public class ModelEngine {
         // parallel projections, where the perspectiveCorrect flag is false and the rasterizer keeps the
         // screen-linear no-divide path.
         boolean perspectiveCorrect = perspective.kind() == Lens.Kind.PERSPECTIVE;
-        return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal, edges,
+        return new Projected(triangle, p0, p1, p2, s0, s1, s2, edges,
             rasterDepth[0], rasterDepth[1], rasterDepth[2],
             perspective.depthScale(p0.z()), perspective.depthScale(p1.z()), perspective.depthScale(p2.z()),
             perspectiveCorrect);
@@ -1217,7 +1217,7 @@ public class ModelEngine {
 
     /**
      * A per-frame triangle view that caches the camera-space transformed vertices, their screen
-     * projections, the transformed normal, and the precomputed
+     * projections, and the precomputed
      * {@link RasterMath.EdgeCoefficients edge coefficients} for fast per-pixel coverage
      * testing. Not part of the public API - exists so the rasterization loop does not have to
      * recompute the transform or projection for every pixel and so the inside test reads
@@ -1230,7 +1230,6 @@ public class ModelEngine {
      * @param s0 the first vertex projected and coverage-snapped to screen space
      * @param s1 the second vertex projected and coverage-snapped to screen space
      * @param s2 the third vertex projected and coverage-snapped to screen space
-     * @param normal the camera-space transformed, normalized surface normal
      * @param edges the precomputed fixed-point edge coefficients for the incremental coverage walk
      * @param z0 the first vertex's raster depth - its plane's depth at its snapped position (see
      *     {@link #depthOnUnsnappedPlane}), which is what the per-pixel depth test interpolates;
@@ -1250,7 +1249,6 @@ public class ModelEngine {
         @NotNull Vector2f s0,
         @NotNull Vector2f s1,
         @NotNull Vector2f s2,
-        @NotNull Vector3f normal,
         @NotNull RasterMath.EdgeCoefficients edges,
         float z0,
         float z1,

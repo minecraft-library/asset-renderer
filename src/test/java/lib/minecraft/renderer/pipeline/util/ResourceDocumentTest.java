@@ -7,15 +7,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Pins for {@link ResourceDocument} envelope validation: {@code format == 2} accept, missing/wrong format
- * reject, the {@code source_version} mismatch warning path, {@code //} header parse, and the typed
- * DTO deserialisation surface.
+ * reject, the {@code source_version} mismatch warning path, and the typed DTO deserialisation surface.
+ * The envelope members are validated and not retained, so the throw and the warn are what the
+ * validation is observable through.
  */
 @DisplayName("ResourceDocument envelope validation + DTO surface")
 class ResourceDocumentTest {
@@ -29,15 +29,12 @@ class ResourceDocumentTest {
     }
 
     @Test
-    @DisplayName("accepts format 2 and parses the // header + source_version")
+    @DisplayName("accepts format 2 with a // header and a matching source_version, without warning")
     void acceptsFormatTwo() {
         Diagnostics diag = diagnostics();
-        ResourceDocument doc = ResourceDocument.open(
+        ResourceDocument.open(
             bytes("{\"//\":\"provenance\",\"format\":2,\"source_version\":\"26.1\",\"effects\":[]}"), diag);
 
-        assertEquals(2, doc.envelope().format());
-        assertEquals(Optional.of("provenance"), doc.envelope().header());
-        assertEquals(Optional.of("26.1"), doc.envelope().sourceVersion());
         assertEquals(0, diag.count(Diagnostics.Severity.WARN), "a matching source_version must not warn");
     }
 
@@ -66,9 +63,8 @@ class ResourceDocumentTest {
     @DisplayName("warns (not throws) on a source_version mismatch")
     void warnsOnVersionMismatch() {
         Diagnostics diag = diagnostics();
-        ResourceDocument doc = ResourceDocument.open(bytes("{\"format\":2,\"source_version\":\"99.9\"}"), diag);
+        ResourceDocument.open(bytes("{\"format\":2,\"source_version\":\"99.9\"}"), diag);
 
-        assertEquals(Optional.of("99.9"), doc.envelope().sourceVersion());
         assertEquals(1, diag.count(Diagnostics.Severity.WARN), "a mismatched source_version must warn once");
     }
 

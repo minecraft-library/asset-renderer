@@ -11,16 +11,16 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Optional;
-
 /**
  * Envelope-aware reader for a bundled {@code *.json} asset resource.
  *
  * <p>{@link #open(byte[], Diagnostics)} parses the payload, asserts the {@code format == 2}
  * discriminator, and surfaces a {@code source_version} mismatch against the expected
  * {@value #EXPECTED_SOURCE_VERSION} to the supplied {@link Diagnostics} as a warning rather than a
- * silent proceed. The parsed node is exposed through {@link #payload()} for structural reads and
- * {@link #as(Class)} for whole-document deserialisation into a typed DTO.
+ * silent proceed. The envelope members are validated and not retained - a caller learns a bad
+ * {@code format} from the throw and a stale {@code source_version} from the diagnostic. The parsed
+ * node is exposed through {@link #payload()} for structural reads and {@link #as(Class)} for
+ * whole-document deserialisation into a typed DTO.
  *
  * <p>Reading reuses the {@link JsonTree} read surface rather than a bespoke navigator.
  */
@@ -40,7 +40,6 @@ public final class ResourceDocument {
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     private final @NotNull JsonTree payload;
-    private final @NotNull ResourceEnvelope envelope;
 
     /**
      * Parses and envelope-validates a resource's UTF-8 bytes.
@@ -67,8 +66,7 @@ public final class ResourceDocument {
         if (!EXPECTED_SOURCE_VERSION.equals(sourceVersion))
             diagnostics.warn("Resource source_version '%s' does not match expected '%s'", sourceVersion, EXPECTED_SOURCE_VERSION);
 
-        return new ResourceDocument(payload,
-            new ResourceEnvelope(payload.findString("//"), format, Optional.ofNullable(sourceVersion)));
+        return new ResourceDocument(payload);
     }
 
     /**
@@ -86,10 +84,5 @@ public final class ResourceDocument {
     /** The validated payload node, carrying the tooling {@link JsonTree} read surface. */
     public @NotNull JsonTree payload() {
         return this.payload;
-    }
-
-    /** The parsed envelope - the {@code //} header, {@code format} discriminator, and {@code source_version} stamp. */
-    public @NotNull ResourceEnvelope envelope() {
-        return this.envelope;
     }
 }
