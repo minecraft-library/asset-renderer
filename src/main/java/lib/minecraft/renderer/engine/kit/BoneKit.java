@@ -235,11 +235,13 @@ public class BoneKit {
     }
 
     /**
-     * Computes a cube's axis-aligned bounds in bone-local pixel space: the cube origin and size
-     * scaled by the owning bone's uniform {@code scale} and expanded on every side by the scaled
-     * per-axis grow. Shared by both kits' per-cube emit loops (the block {@code /16 - 0.5}
-     * normalization and the entity fit / measure passes) so the scaled-grow arithmetic lives in one
-     * place. The grow expands the corner box only; the {@code size}-derived UV footprint is untouched
+     * Computes a cube's axis-aligned bounds in bone-local pixel space: the cube origin, size and grow
+     * each scaled by the owning bone's uniform {@code scale}, assembled by {@link Box#grown} in
+     * vanilla's own operand order. This method owns the <em>scaling</em> - per operand, so the identity
+     * scale cannot round - and {@link Box#grown} owns the growth, which is what keeps this walk and a
+     * worn shell's rows on one expression. Shared by both kits' per-cube emit loops (the block
+     * {@code /16 - 0.5} normalization and the entity fit / measure passes). The grow expands the corner
+     * box only; the {@code size}-derived UV footprint is untouched
      * ({@link EntityModelData.Cube#getGrow()}). A scalar {@code inflate} degenerates to an equal grow
      * on all three axes.
      *
@@ -249,18 +251,10 @@ public class BoneKit {
      * @return the scaled, grown cube bounds in bone-local coordinates
      */
     public static @NotNull Box scaledCubeBounds(float scale, @NotNull EntityModelData.Cube cube) {
-        Vector3f origin = cube.getOrigin();
-        Vector3f size = cube.getSize();
-        Vector3f grow = cube.getGrow();
-        float gx = scale * grow.x();
-        float gy = scale * grow.y();
-        float gz = scale * grow.z();
-        float ox = scale * origin.x();
-        float oy = scale * origin.y();
-        float oz = scale * origin.z();
-        return new Box(
-            ox - gx, oy - gy, oz - gz,
-            ox + scale * size.x() + gx, oy + scale * size.y() + gy, oz + scale * size.z() + gz);
+        return Box.grown(
+            cube.getOrigin().multiply(scale),
+            cube.getSize().multiply(scale),
+            cube.getGrow().multiply(scale));
     }
 
     /**
