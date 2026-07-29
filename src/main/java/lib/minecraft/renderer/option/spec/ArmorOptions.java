@@ -55,6 +55,28 @@ public class ArmorOptions {
     private final @NotNull Map<ArmorSlot, ItemContext> items = Map.of();
 
     /**
+     * The piece worn in one slot, or empty when that slot is unarmored.
+     *
+     * <p><b>The exhaustive switch is deliberate and belongs here.</b> This is the type that owns the
+     * four fields, so this is the one place a fifth {@link ArmorSlot} constant must be answered for -
+     * and an arrow switch over an enum with no {@code default} makes adding one a compile error rather
+     * than a slot that silently never equips in every consumer. It is not a guard a renderer should be
+     * carrying on this type's behalf. {@code ArmorOptionsTest} pins the same obligation from the
+     * outside, so the rule survives even if this body is ever rewritten.
+     *
+     * @param slot the armor slot
+     * @return the piece worn there, or empty
+     */
+    public @NotNull Optional<ArmorPiece> piece(@NotNull ArmorSlot slot) {
+        return switch (slot) {
+            case HELMET -> this.helmet;
+            case CHESTPLATE -> this.chestplate;
+            case LEGGINGS -> this.leggings;
+            case BOOTS -> this.boots;
+        };
+    }
+
+    /**
      * The equipped pieces keyed by slot, in {@link ArmorSlot} declaration order - the back-to-front
      * composite order every consumer iterates. An unequipped slot is absent rather than mapped to an
      * empty value, so a consumer walks only what is worn.
@@ -63,10 +85,8 @@ public class ArmorOptions {
      */
     public @NotNull Map<ArmorSlot, ArmorPiece> equipped() {
         Map<ArmorSlot, ArmorPiece> pieces = new EnumMap<>(ArmorSlot.class);
-        this.helmet.ifPresent(piece -> pieces.put(ArmorSlot.HELMET, piece));
-        this.chestplate.ifPresent(piece -> pieces.put(ArmorSlot.CHESTPLATE, piece));
-        this.leggings.ifPresent(piece -> pieces.put(ArmorSlot.LEGGINGS, piece));
-        this.boots.ifPresent(piece -> pieces.put(ArmorSlot.BOOTS, piece));
+        for (ArmorSlot slot : ArmorSlot.CACHED_VALUES)
+            piece(slot).ifPresent(worn -> pieces.put(slot, worn));
         return pieces;
     }
 

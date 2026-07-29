@@ -52,6 +52,7 @@ import java.io.InputStream;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Renders player models in three body scopes ({@link PlayerOptions.Type#SKULL SKULL},
@@ -466,18 +467,16 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull PlayerOptions options,
         @NotNull RasterEngine engine
     ) {
-        for (ArmorSlot slot : ArmorSlot.CACHED_VALUES) {
-            Optional<ArmorPiece> piece = switch (slot) {
-                case HELMET -> options.getArmor().getHelmet();
-                case CHESTPLATE -> options.getArmor().getChestplate();
-                case LEGGINGS -> options.getArmor().getLeggings();
-                case BOOTS -> options.getArmor().getBoots();
-            };
-            if (piece.isEmpty()) continue;
+        // equipped() holds only worn pieces and iterates its EnumMap in ordinal - so declaration -
+        // order, which is the same sequence the four-slot walk produced after skipping the empties.
+        // The covering set is the part's, not the slot's, so it is resolved once here rather than
+        // rebuilt on each of the four passes.
+        Set<ArmorSlot> covering = ArmorForm.playerSlots(part);
+        for (Map.Entry<ArmorSlot, ArmorPiece> entry : options.getArmor().equipped().entrySet()) {
+            ArmorSlot slot = entry.getKey();
+            if (!covering.contains(slot)) continue;
 
-            if (!ArmorForm.playerSlots(part).contains(slot)) continue;
-
-            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h,
+            ArmorKit.compositeSlot2D(target, part, slot, entry.getValue(), x, y, w, h,
                 Optional.ofNullable(options.getArmor().getItems().get(slot)), engine.textures());
         }
     }
