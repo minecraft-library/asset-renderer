@@ -1,13 +1,16 @@
 package lib.minecraft.renderer.asset.equipment;
 
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.HashMap;
+import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -15,11 +18,17 @@ import java.util.Set;
  * What a walk of one armour shell resolves to, answered once for the shell rather than once per render.
  * <p>
  * Both consumers of a shell - the one that builds its triangles and the one that measures its screen
- * bounds - ask the same two questions of every bone: does this slot's armour draw it, and where does it
+ * bounds - ask the same questions of every bone: does this slot's armour draw it, and where does it
  * sit. Neither question depends on the render, so both are resolved when the shell is indexed. The
  * coverage answer costs a parent walk per {@code (slot, bone)} pair and the anchor a walk per bone, and
  * an armoured render used to pay both four times over, once per equipped slot, in each of the two
  * consumers.
+ * <p>
+ * The two consumers want the answer in different shapes, which is why both are here. The triangle
+ * builder wants a flat row per cube and gets {@link #parts}; the bounds adapter rebuilds a bone tree
+ * and wants the coverage keyed the way it iterates, by bone name. They agree by construction - a bone
+ * with cubes has a row exactly when it is covered, and a bone without cubes contributes nothing to
+ * either.
  * <p>
  * <b>This shares the walk's inputs and nothing downstream of them.</b> The two consumers assemble a
  * corner from these values by different arithmetic in different frames and they must keep doing so - the
@@ -27,16 +36,18 @@ import java.util.Set;
  * measures the Y-down mesh. Sharing an assembled box would measure the shell in a frame reflected from
  * the one it is drawn in.
  * <p>
- * Both maps are lookup-only. Nothing iterates them, so neither the per-run salt of an immutable map nor
- * the insertion order of a mutable one can reach a render: the bone order that <em>is</em> load-bearing
- * is the mesh's own, and both consumers still take it from the mesh.
+ * {@link #parts} is a list because the order in it is load-bearing: it is the mesh's own bone order and
+ * then each bone's own cube order, which is what keeps a part and the overlay box parented to it
+ * adjacent, and a coplanar tie is decided by emission order. {@link #covered} is lookup-only, so
+ * neither the per-run salt of an immutable map nor the insertion order of a mutable one can reach a
+ * render.
  *
+ * @param parts one row per cube of the shell, in the mesh's own order
  * @param covered the bone names each slot's armour draws
- * @param anchors each bone's position in mesh space
  */
 public record ShellWalk(
-    @NotNull Map<ArmorSlot, Set<String>> covered,
-    @NotNull Map<String, Vector3f> anchors
+    @NotNull List<ShellPart> parts,
+    @NotNull Map<ArmorSlot, Set<String>> covered
 ) {
 
     /**
@@ -58,12 +69,27 @@ public record ShellWalk(
             covered.put(slot, Set.copyOf(bones));
         }
 
-        Map<String, Vector3f> anchors = new HashMap<>();
+        List<ShellPart> parts = new ArrayList<>();
 
-        for (Map.Entry<String, EntityModelData.Bone> entry : mesh.getBones().entrySet())
-            anchors.put(entry.getKey(), chainedPivot(mesh, entry.getValue()));
+        for (Map.Entry<String, EntityModelData.Bone> entry : mesh.getBones().entrySet()) {
+            String bone = entry.getKey();
+            EnumSet<ArmorSlot> slots = EnumSet.noneOf(ArmorSlot.class);
 
-        return new ShellWalk(Map.copyOf(covered), Map.copyOf(anchors));
+            for (ArmorSlot slot : ArmorSlot.values())
+                if (covered.get(slot).contains(bone)) slots.add(slot);
+
+            Set<ArmorSlot> drawnBy = Set.copyOf(slots);
+            Vector3f anchor = chainedPivot(mesh, entry.getValue());
+            float scale = entry.getValue().getScale();
+
+            for (EntityModelData.Cube cube : entry.getValue().getCubes())
+                parts.add(new ShellPart(bone,
+                    new Unwrap.Atlas(cube.getUv(), cube.getSize(), cube.isMirror()), drawnBy,
+                    anchor.add(cube.getOrigin().multiply(scale)), cube.getSize().multiply(scale),
+                    cube.getGrow(), scale));
+        }
+
+        return new ShellWalk(List.copyOf(parts), Map.copyOf(covered));
     }
 
     /**
@@ -75,16 +101,6 @@ public record ShellWalk(
      */
     public boolean covers(@NotNull ArmorSlot slot, @NotNull String bone) {
         return this.covered.get(slot).contains(bone);
-    }
-
-    /**
-     * A bone's anchor in mesh space.
-     *
-     * @param bone the bone name
-     * @return the anchor, or the origin when the shell has no such bone
-     */
-    public @NotNull Vector3f anchor(@NotNull String bone) {
-        return this.anchors.getOrDefault(bone, Vector3f.ZERO);
     }
 
     /**

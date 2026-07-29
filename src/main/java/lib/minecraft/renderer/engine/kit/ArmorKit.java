@@ -8,6 +8,7 @@ import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
+import lib.minecraft.renderer.asset.equipment.ShellPart;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
@@ -66,19 +67,19 @@ import java.util.OptionalInt;
 public class ArmorKit {
 
     /**
-     * One armor box ready to build: the shell bone and cube it comes from, and its corners in the
-     * render frame. The cube travels rather than a resolved crop because a slot's boxes are textured
-     * twice - once from the armor sheet and once from the trim - and each crop is a read of the cube's
-     * own unwrap against a different sheet.
+     * One armor box ready to build: the shell bone and unwrap it comes from, and its corners in the
+     * render frame. The unwrap travels rather than a resolved crop because a slot's boxes are textured
+     * twice - once from the armor sheet and once from the trim - and each crop is a read of the same
+     * unwrap against a different sheet.
      *
-     * @param bone the shell bone the cube belongs to, for the per-pixel trace
-     * @param cube the shell cube the box was built from
+     * @param bone the shell bone the box belongs to, for the per-pixel trace
+     * @param unwrap where the box reads its faces from on whichever sheet it is textured with
      * @param min the box's lower corner
      * @param max the box's upper corner
      */
     private record ArmorBox(
         @NotNull String bone,
-        @NotNull EntityModelData.Cube cube,
+        @NotNull Unwrap.Atlas unwrap,
         @NotNull Vector3f min,
         @NotNull Vector3f max
     ) {}
@@ -360,12 +361,13 @@ public class ArmorKit {
      * upright frame the armor unwrap is authored for.
      *
      * <p>The slot picks which of the shell's two deformations it wears - the leggings the inner one, the
-     * other three the outer - then keeps the parts vanilla keeps for that slot. Each cube is grown by
+     * other three the outer - then keeps the rows vanilla keeps for that slot. Each row is grown by
      * that deformation plus its own {@code CubeDeformation.extend} (a leg's {@code -0.1}, a helmet's
-     * second box), which is the sum vanilla's mesh builder performs in the same order. Bone order is the
-     * mesh's own, so a part and the overlay box parented to it stay adjacent.
+     * second box), which is the sum vanilla's mesh builder performs in the same order. Row order is the
+     * mesh's own bone order and then each bone's own cube order, so a part and the overlay box parented
+     * to it stay adjacent - which is what decides a coplanar tie.
      *
-     * <p>A part collapses to one axis-aligned box because the armor meshes are plain box tables - no
+     * <p>A row collapses to one axis-aligned box because the armor meshes are plain box tables - no
      * bone carries a rotation. A bone's uniform {@code scale} <em>is</em> honoured: every shell
      * vanilla registers untransformed leaves it at the identity, but the shell an aged-down
      * whole-mesh transformer builds carries one per bone, and drawing that shell unscaled would put a
@@ -376,22 +378,15 @@ public class ArmorKit {
     private static @NotNull List<ArmorBox> armorBoxes(
         @NotNull Shell shell, @NotNull ArmorSlot slot,
         @NotNull Vector3f modelAnchor, float ndcScale, float modelScale) {
-        Vector3f deformation = shell.grow(slot);
         List<ArmorBox> boxes = new ArrayList<>();
-        for (Map.Entry<String, EntityModelData.Bone> entry : shell.mesh().getBones().entrySet()) {
-            if (!shell.walk().covers(slot, entry.getKey())) continue;
-            Vector3f anchor = shell.walk().anchor(entry.getKey());
-            float scale = entry.getValue().getScale();
-            for (EntityModelData.Cube cube : entry.getValue().getCubes()) {
-                Vector3f grow = deformation.add(cube.getGrow()).multiply(scale);
-                Vector3f min = anchor.add(cube.getOrigin().multiply(scale)).subtract(grow);
-                Vector3f max = min.add(cube.getSize().multiply(scale)).add(grow).add(grow);
-                Vector3f[] corners = intoUprightFrameBounds(new Vector3f[]{
-                    toRenderFrame(shell, modelAnchor, ndcScale, modelScale, min.x(), min.y(), min.z()),
-                    toRenderFrame(shell, modelAnchor, ndcScale, modelScale, max.x(), max.y(), max.z())
-                });
-                boxes.add(new ArmorBox(entry.getKey(), cube, corners[0], corners[1]));
-            }
+        for (ShellPart part : shell.walk().parts()) {
+            if (!part.coveredBy(slot)) continue;
+            Box box = part.boxFor(slot, shell);
+            Vector3f[] corners = intoUprightFrameBounds(new Vector3f[]{
+                toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.minX(), box.minY(), box.minZ()),
+                toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.maxX(), box.maxY(), box.maxZ())
+            });
+            boxes.add(new ArmorBox(part.bone(), part.unwrap(), corners[0], corners[1]));
         }
         return boxes;
     }
@@ -617,11 +612,9 @@ public class ArmorKit {
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildMeshBox3D(
         @NotNull ArmorBox box, @NotNull PixelBuffer texture) {
-        EntityModelData.Cube cube = box.cube();
-        Unwrap.Atlas unwrap = new Unwrap.Atlas(cube.getUv(), cube.getSize(), cube.isMirror());
         return BlockGeometryKit.buildBox(
             box.min(), box.max(),
-            face -> unwrap.crop(texture, MODEL_FRAME.apply(face)), ColorMath.WHITE,
+            face -> box.unwrap().crop(texture, MODEL_FRAME.apply(face)), ColorMath.WHITE,
             SurfaceTraits.WORN_SHELL,
             RendererDebug.tracingPixels() ? box.bone() : null);
     }
