@@ -5,6 +5,7 @@ import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
+import lib.minecraft.renderer.asset.equipment.ShellWalk;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.option.AppearanceGate;
@@ -402,6 +403,8 @@ public record Entity(
      * @param form which of the two shells this is - what says which parts each slot covers, which
      *     equipment layer it draws through, and whether it is trimmed
      * @param alternate the shell this wearer's other form is dressed in, empty when it has none
+     * @param walk what a walk of this shell resolves to - which bones each slot draws, and where each
+     *     bone sits - answered once here rather than once per render in each of the two consumers
      */
     public record HumanoidArmor(
         @NotNull EntityModelData mesh,
@@ -409,8 +412,31 @@ public record Entity(
         @NotNull Vector3f outerGrow,
         float meshScale,
         @NotNull ArmorForm form,
-        @NotNull Optional<AlternateShell> alternate
+        @NotNull Optional<AlternateShell> alternate,
+        @NotNull ShellWalk walk
     ) {
+
+        /**
+         * Constructs a shell, resolving its {@link #walk} from the mesh and the form it is built from -
+         * the only entry point, so the two cannot disagree.
+         *
+         * @param mesh the ungrown armor mesh, joined from the geometry store
+         * @param innerGrow the per-side growth the leggings layer applies
+         * @param outerGrow the per-side growth the helmet / chestplate / boots layer applies
+         * @param meshScale the whole-mesh uniform scale the set is registered through
+         * @param form which of the two shells this is
+         * @param alternate the shell this wearer's other form is dressed in, empty when it has none
+         */
+        public HumanoidArmor(
+            @NotNull EntityModelData mesh,
+            @NotNull Vector3f innerGrow,
+            @NotNull Vector3f outerGrow,
+            float meshScale,
+            @NotNull ArmorForm form,
+            @NotNull Optional<AlternateShell> alternate
+        ) {
+            this(mesh, innerGrow, outerGrow, meshScale, form, alternate, ShellWalk.of(mesh, form));
+        }
 
         /**
          * The entity feet anchor a whole-mesh scale is taken about, in model units - vanilla's

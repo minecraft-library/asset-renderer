@@ -100,8 +100,7 @@ class ArmorKitCitCompositeTest {
     @Test
     @DisplayName("adult armor wears the generic humanoid mesh")
     void adultArmorUsesGenericMesh() {
-        float[] span = helmetYSpan(
-            new ArmorKit.EntityArmorFrame(genericShell(), Vector3f.ZERO, 1f, 1f));
+        float[] span = helmetYSpan(genericShell(), 1f);
 
         // The generic head box spans y [-8, 0] in model units; a helmet keeps that part AND its
         // children, so the outer span is the head's overlay box, grown a further half unit on top of
@@ -113,8 +112,7 @@ class ArmorKitCitCompositeTest {
     @Test
     @DisplayName("adult armor scales with the render frame")
     void adultArmorFollowsRenderFrame() {
-        float[] span = helmetYSpan(
-            new ArmorKit.EntityArmorFrame(genericShell(), Vector3f.ZERO, 1f, 2f));
+        float[] span = helmetYSpan(genericShell(), 2f);
 
         // Doubling the render's model scale doubles the shell with the body it dresses.
         assertThat((double) span[0], closeTo(-19d, 1e-4d));
@@ -124,8 +122,7 @@ class ArmorKitCitCompositeTest {
     @Test
     @DisplayName("a baby wears its own shell, not the adult one")
     void babyArmorWearsBabyShell() {
-        float[] span = helmetYSpan(
-            new ArmorKit.EntityArmorFrame(babyShell(), Vector3f.ZERO, 1f, 1f));
+        float[] span = helmetYSpan(babyShell(), 1f);
 
         // The baby shell's head is a nine-wide box hung off a pivot at y 15, spanning y [8, 16] in
         // model units, and its outer deformation grows half a unit on that axis. Nothing about that
@@ -141,7 +138,7 @@ class ArmorKitCitCompositeTest {
             new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
 
-        ArmorKit.buildEntityArmor3D(new ArmorKit.EntityArmorFrame(babyShell(), Vector3f.ZERO, 1f, 1f),
+        ArmorKit.buildEntityArmor3D(babyShell(), Vector3f.ZERO, 1f, 1f,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), new Textures(ctx));
 
         assertThat(ctx.resolved, equalTo(List.of("minecraft:entity/equipment/humanoid_baby/iron")));
@@ -154,7 +151,7 @@ class ArmorKitCitCompositeTest {
             new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
 
-        ArmorKit.buildEntityArmor3D(new ArmorKit.EntityArmorFrame(genericShell(), Vector3f.ZERO, 1f, 1f),
+        ArmorKit.buildEntityArmor3D(genericShell(), Vector3f.ZERO, 1f, 1f,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), new Textures(ctx));
 
         assertThat(ctx.resolved.contains("minecraft:trims/entity/humanoid/coast"), equalTo(true));
@@ -169,27 +166,27 @@ class ArmorKitCitCompositeTest {
      * The shell vanilla dresses an unremarkable humanoid in, read through the loaded index rather than
      * restated here, so these spans measure the shipped mesh and its shipped deformations.
      */
-    private static @NotNull Optional<Entity.HumanoidArmor> genericShell() {
+    private static @NotNull Entity.HumanoidArmor genericShell() {
         return EntityModelLoader.load(Diagnostics.root("test", Diagnostics.Output.NONE, null))
-            .get("minecraft:zombie").humanoidArmor();
+            .get("minecraft:zombie").humanoidArmor().orElseThrow();
     }
 
     /** The shell that same wearer's baby is dressed in. */
-    private static @NotNull Optional<Entity.HumanoidArmor> babyShell() {
-        return genericShell().map(shell -> shell.forAppearance(
-            EntityAppearance.builder().age(Age.BABY).build()));
+    private static @NotNull Entity.HumanoidArmor babyShell() {
+        return genericShell().forAppearance(EntityAppearance.builder().age(Age.BABY).build());
     }
 
     /**
-     * The {@code [min, max]} y-extent of the iron-helmet triangles built for one frame.
+     * The {@code [min, max]} y-extent of the iron-helmet triangles built for one shell at one render
+     * scale.
      */
-    private static float[] helmetYSpan(@NotNull ArmorKit.EntityArmorFrame frame) {
+    private static float[] helmetYSpan(@NotNull Entity.HumanoidArmor shell, float modelScale) {
         List<EquipmentModel.Layer> iron = List.of(
             new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
 
-        ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(frame,
-            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), new Textures(ctx));
+        ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(shell, Vector3f.ZERO, 1f,
+            modelScale, Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), new Textures(ctx));
 
         assertThat(armor.isEmpty(), equalTo(false));
         float minY = Float.MAX_VALUE;

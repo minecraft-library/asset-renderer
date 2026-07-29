@@ -91,34 +91,6 @@ public class ArmorKit {
      */
     private static final @NotNull Turn MODEL_FRAME = Turn.HALF_X;
 
-    /**
-     * Guard on the bone parent chain walked by {@link #chainedPivot} - the armor meshes are two deep,
-     * so anything beyond this is a cycle rather than a hierarchy.
-     */
-    private static final int MAX_BONE_DEPTH = 8;
-
-    /**
-     * The render frame an entity's armor is built into: the same anchor and scales the entity's own
-     * geometry was built with, so the armor mesh lands in step with the body it dresses.
-     *
-     * <p>The whole-mesh transform a scaled-up humanoid's shell is sized and seated by is not here -
-     * it belongs to the armor set, and {@link Entity.HumanoidArmor#meshScale()} carries it. Vanilla
-     * maps the very same transformer over the shared set rather than giving those wearers a distinct
-     * mesh, so the factor is a property of what is worn and not of who wears it. Reading it back off
-     * the wearer's torso bone is what this record used to do; that only ever worked because those
-     * three wearers' bodies happen to be built through the same transformer, and it was silently
-     * wrong for a baby, whose own body pivot is not one.
-     *
-     * @param armor the armor shell the wearer is dressed in, or empty when it wears none
-     * @param modelAnchor the model-space point mapped to the canvas centre
-     * @param ndcScale the model-units-to-NDC scale
-     * @param modelScale the per-render vertex pre-scale
-     */
-    public record EntityArmorFrame(
-        @NotNull Optional<Entity.HumanoidArmor> armor,
-        @NotNull Vector3f modelAnchor, float ndcScale, float modelScale
-    ) {}
-
     // ---------------------------------------------------------------------------------------
     // 3D armor (triangles for ModelEngine rasterization).
     // ---------------------------------------------------------------------------------------
@@ -260,7 +232,10 @@ public class ArmorKit {
      * the same way; the age fold picked which one before this was reached, so nothing here branches on
      * it.
      *
-     * @param frame the render frame the armor is built into
+     * @param armor the shell the wearer is dressed in
+     * @param modelAnchor the model-space point mapped to the canvas centre
+     * @param ndcScale the model-units-to-NDC scale
+     * @param modelScale the per-render vertex pre-scale
      * @param equipped the worn pieces keyed by slot; an unworn slot is absent
      * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override; empty
      *     leaves each slot on its equipment-model texture
@@ -268,7 +243,10 @@ public class ArmorKit {
      * @return the armor + trim triangles
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildEntityArmor3D(
-        @NotNull EntityArmorFrame frame,
+        @NotNull Entity.HumanoidArmor armor,
+        @NotNull Vector3f modelAnchor,
+        float ndcScale,
+        float modelScale,
         @NotNull Map<ArmorSlot, ArmorPiece> equipped,
         @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull Textures engine
@@ -280,12 +258,13 @@ public class ArmorKit {
         // player frame (bounds turned about X) and turning the result back into the entity frame lands
         // it correctly once ENTITY_FACING is applied, with the geometry, normals, and inventory shading
         // all resolved in the final frame.
-        ConcurrentList<VisibleTriangle> armor = buildGenericArmor3D(frame, equipped, items, engine);
+        ConcurrentList<VisibleTriangle> upright =
+            buildGenericArmor3D(armor, modelAnchor, ndcScale, modelScale, equipped, items, engine);
 
         Lighting.EntityLighting lighting =
             Lighting.resolveEntity(EntityGeometryKit.DEFAULT_ENTITY_LIGHTING);
         ConcurrentList<VisibleTriangle> entityArmor = Concurrent.newList();
-        for (VisibleTriangle triangle : armor)
+        for (VisibleTriangle triangle : upright)
             entityArmor.add(intoModelFrame(triangle, lighting));
         return entityArmor;
     }
@@ -356,7 +335,7 @@ public class ArmorKit {
         for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
             ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
-            if (armor.form().covers(tree, slot, entry.getKey()))
+            if (armor.walk().covers(slot, entry.getKey()))
                 for (EntityModelData.Cube cube : bone.getCubes())
                     cubes.add(grownBy(cube, deformation));
             Vector3f pivot = bone.getParent() == null ? bone.getPivot().add(seat) : bone.getPivot();
@@ -373,19 +352,20 @@ public class ArmorKit {
      * upright frame the armor unwrap is authored for.
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildGenericArmor3D(
-        @NotNull EntityArmorFrame frame,
+        @NotNull Entity.HumanoidArmor armor,
+        @NotNull Vector3f modelAnchor,
+        float ndcScale,
+        float modelScale,
         @NotNull Map<ArmorSlot, ArmorPiece> equipped,
         @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull Textures engine
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        Optional<Entity.HumanoidArmor> armor = frame.armor();
-        if (armor.isEmpty()) return triangles;
 
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : inCompositeOrder(equipped).entrySet()) {
             ArmorSlot slot = entry.getKey();
-            addMeshSlot3D(triangles, armorBoxes(frame, armor.get(), slot), armor.get().form(),
-                entry.getValue(), slot, Optional.ofNullable(items.get(slot)), engine);
+            addMeshSlot3D(triangles, armorBoxes(armor, slot, modelAnchor, ndcScale, modelScale),
+                armor.form(), entry.getValue(), slot, Optional.ofNullable(items.get(slot)), engine);
         }
         return triangles;
     }
@@ -409,21 +389,21 @@ public class ArmorKit {
      * same values and cannot round differently.
      */
     private static @NotNull List<ArmorBox> armorBoxes(
-        @NotNull EntityArmorFrame frame, @NotNull Entity.HumanoidArmor armor, @NotNull ArmorSlot slot) {
-        EntityModelData tree = armor.mesh();
+        @NotNull Entity.HumanoidArmor armor, @NotNull ArmorSlot slot,
+        @NotNull Vector3f modelAnchor, float ndcScale, float modelScale) {
         Vector3f deformation = slot.grow(armor);
         List<ArmorBox> boxes = new ArrayList<>();
-        for (Map.Entry<String, EntityModelData.Bone> entry : tree.getBones().entrySet()) {
-            if (!armor.form().covers(tree, slot, entry.getKey())) continue;
-            Vector3f anchor = chainedPivot(tree, entry.getValue());
+        for (Map.Entry<String, EntityModelData.Bone> entry : armor.mesh().getBones().entrySet()) {
+            if (!armor.walk().covers(slot, entry.getKey())) continue;
+            Vector3f anchor = armor.walk().anchor(entry.getKey());
             float scale = entry.getValue().getScale();
             for (EntityModelData.Cube cube : entry.getValue().getCubes()) {
                 Vector3f grow = deformation.add(cube.getGrow()).multiply(scale);
                 Vector3f min = anchor.add(cube.getOrigin().multiply(scale)).subtract(grow);
                 Vector3f max = min.add(cube.getSize().multiply(scale)).add(grow).add(grow);
                 Vector3f[] corners = intoUprightFrameBounds(new Vector3f[]{
-                    toRenderFrame(frame, armor, min.x(), min.y(), min.z()),
-                    toRenderFrame(frame, armor, max.x(), max.y(), max.z())
+                    toRenderFrame(armor, modelAnchor, ndcScale, modelScale, min.x(), min.y(), min.z()),
+                    toRenderFrame(armor, modelAnchor, ndcScale, modelScale, max.x(), max.y(), max.z())
                 });
                 boxes.add(new ArmorBox(entry.getKey(), cube, corners[0], corners[1]));
             }
@@ -443,27 +423,20 @@ public class ArmorKit {
     }
 
     /**
-     * A bone's anchor in mesh space - its own pivot plus every ancestor's, since a bone pivot is
-     * parent-relative.
-     */
-    private static @NotNull Vector3f chainedPivot(
-        @NotNull EntityModelData tree, @NotNull EntityModelData.Bone bone) {
-        Vector3f anchor = bone.getPivot();
-        EntityModelData.Bone cursor = bone;
-        for (int depth = 0; depth < MAX_BONE_DEPTH && cursor.getParent() != null; depth++) {
-            cursor = tree.getBones().get(cursor.getParent());
-            if (cursor == null) break;
-            anchor = anchor.add(cursor.getPivot());
-        }
-        return anchor;
-    }
-
-    /**
      * Maps a point from model units into the render frame, applying the same pre-scale, anchor and
      * NDC scale the entity's own geometry was built through.
+     *
+     * <p>The whole-mesh transform a scaled-up humanoid's shell is sized and seated by belongs to the
+     * armor set rather than to the render, and {@link Entity.HumanoidArmor#meshScale()} carries it.
+     * Vanilla maps the very same transformer over the shared set rather than giving those wearers a
+     * distinct mesh, so the factor is a property of what is worn and not of who wears it - reading it
+     * back off the wearer's torso bone only ever worked because those three wearers' bodies happen to be
+     * built through the same transformer, and it was silently wrong for a baby, whose own body pivot is
+     * not one.
      */
     private static @NotNull Vector3f toRenderFrame(
-        @NotNull EntityArmorFrame frame, @NotNull Entity.HumanoidArmor armor, float x, float y, float z) {
+        @NotNull Entity.HumanoidArmor armor, @NotNull Vector3f modelAnchor, float ndcScale,
+        float modelScale, float x, float y, float z) {
         // The set's own whole-mesh transform first, so the shell is sized and seated like the body it
         // dresses, then the render frame the body's own geometry was built through.
         Vector3f offset = armor.meshOffset();
@@ -472,13 +445,10 @@ public class ArmorKit {
         float my = mesh * y + offset.y();
         float mz = mesh * z + offset.z();
 
-        Vector3f anchor = frame.modelAnchor();
-        float scale = frame.modelScale();
-        float ndc = frame.ndcScale();
         return new Vector3f(
-            ndc * (scale * mx - anchor.x()),
-            ndc * (scale * my - anchor.y()),
-            ndc * (scale * mz - anchor.z()));
+            ndcScale * (modelScale * mx - modelAnchor.x()),
+            ndcScale * (modelScale * my - modelAnchor.y()),
+            ndcScale * (modelScale * mz - modelAnchor.z()));
     }
 
     /**
