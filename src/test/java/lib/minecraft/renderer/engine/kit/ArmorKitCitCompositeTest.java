@@ -17,7 +17,7 @@ import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.face.SkinFace;
+import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
@@ -25,6 +25,7 @@ import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
@@ -213,8 +214,8 @@ class ArmorKitCitCompositeTest {
             new EquipmentModel.Layer(new ResourceId("minecraft", "leather_overlay"), Optional.empty(), false));
     }
 
-    private static @NotNull Map<SkinFace, Vector3f[]> headBounds() {
-        return Map.of(SkinFace.HEAD, new Vector3f[]{ new Vector3f(0, 0, 0), new Vector3f(1, 1, 1) });
+    private static @NotNull Map<HumanoidPart, Box> headBounds() {
+        return Map.of(HumanoidPart.HEAD, new Box(0f, 0f, 0f, 1f, 1f, 1f));
     }
 
     /**

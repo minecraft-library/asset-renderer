@@ -18,8 +18,8 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.face.CubeUnwrap;
+import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.face.SixFaces;
-import lib.minecraft.renderer.face.SkinFace;
 import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
@@ -48,8 +48,8 @@ import java.util.OptionalInt;
  * <p>
  * The armor texture is a 64x32 atlas whose UV layout matches the top half of the vanilla 64x64
  * player skin - the base layer plus the head's overlay, which the helmet's second box reads -
- * so {@link SkinFace#cropAll(PixelBuffer, boolean) cropAll} and
- * {@link SkinFace#crop(PixelBuffer, BlockFace, boolean) crop} work directly on the armor
+ * so {@link HumanoidPart#cropAll(PixelBuffer, boolean) cropAll} and
+ * {@link HumanoidPart#crop(PixelBuffer, BlockFace, boolean) crop} work directly on the armor
  * texture. Armor pieces whose texture region is transparent (e.g. the head area of a leggings
  * layer) produce invisible geometry that the depth buffer or alpha compositing discards
  * naturally.
@@ -140,7 +140,7 @@ public class ArmorKit {
     /**
      * Builds all armor and trim triangles for a humanoid body.
      *
-     * @param bodyPositions map from body part to its {@code [min, max]} bounding box corners
+     * @param bodyPositions map from body part to the box it is seated in
      * @param equipped the worn pieces keyed by slot; an unworn slot is absent
      * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override; empty
      *     leaves each slot on its equipment-model texture
@@ -148,7 +148,7 @@ public class ArmorKit {
      * @return the armor + trim triangles, empty when no armor is equipped
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildHumanoidArmor3D(
-        @NotNull Map<SkinFace, Vector3f[]> bodyPositions,
+        @NotNull Map<HumanoidPart, Box> bodyPositions,
         @NotNull Map<ArmorSlot, ArmorPiece> equipped,
         @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull Textures engine
@@ -199,7 +199,7 @@ public class ArmorKit {
      */
     public static void compositeSlot2D(
         @NotNull PixelBuffer target,
-        @NotNull SkinFace part,
+        @NotNull HumanoidPart part,
         @NotNull ArmorSlot slot,
         @NotNull ArmorPiece piece,
         int x, int y, int w, int h,
@@ -250,7 +250,7 @@ public class ArmorKit {
     }
 
     // ---------------------------------------------------------------------------------------
-    // Entity armor (maps bone names to humanoid SkinFace parts).
+    // Entity armor (maps bone names to humanoid HumanoidPart parts).
     // ---------------------------------------------------------------------------------------
 
     /**
@@ -540,23 +540,23 @@ public class ArmorKit {
      */
     private static void addSlot3D(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull Map<SkinFace, Vector3f[]> bodyPositions,
+        @NotNull Map<HumanoidPart, Box> bodyPositions,
         @NotNull ArmorPiece piece,
         @NotNull ArmorSlot slot,
         @NotNull Optional<ItemContext> item,
         @NotNull Textures engine
     ) {
-        SkinFace[] parts = ArmorForm.playerParts(slot);
+        HumanoidPart[] parts = ArmorForm.playerParts(slot);
         float inflate = slot.skinInflate();
 
         Optional<PixelBuffer> armorTexture =
             resolveArmorTexture(engine, piece, ArmorForm.ADULT.layerType(slot), item);
         if (armorTexture.isEmpty()) return;
 
-        for (SkinFace part : parts) {
-            Vector3f[] bounds = bodyPositions.get(part);
+        for (HumanoidPart part : parts) {
+            Box bounds = bodyPositions.get(part);
             if (bounds == null) continue;
-            triangles.addAll(buildSkinBox3D(part, bounds[0], bounds[1], armorTexture.get(), inflate));
+            triangles.addAll(buildSkinBox3D(part, bounds, armorTexture.get(), inflate));
         }
 
         if (piece.trim().isEmpty()) return;
@@ -564,10 +564,10 @@ public class ArmorKit {
         ArmorForm.ADULT.trimLayer(slot)
             .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
             .ifPresent(trimTexture -> {
-                for (SkinFace part : parts) {
-                    Vector3f[] bounds = bodyPositions.get(part);
+                for (HumanoidPart part : parts) {
+                    Box bounds = bodyPositions.get(part);
                     if (bounds == null) continue;
-                    triangles.addAll(buildSkinBox3D(part, bounds[0], bounds[1], trimTexture, inflate));
+                    triangles.addAll(buildSkinBox3D(part, bounds, trimTexture, inflate));
                 }
             });
     }
@@ -605,17 +605,18 @@ public class ArmorKit {
 
     /**
      * Builds one box of the player's own armor, around bounds carried in the skin renderer's
-     * normalized frame and read through that body part's fixed skin rectangles.
+     * normalized frame and read through that body part's own skin rectangles.
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildSkinBox3D(
-        @NotNull SkinFace part,
-        @NotNull Vector3f min,
-        @NotNull Vector3f max,
+        @NotNull HumanoidPart part,
+        @NotNull Box bounds,
         @NotNull PixelBuffer texture,
         float inflate
     ) {
-        Vector3f inflatedMin = new Vector3f(min.x() - inflate, min.y() - inflate, min.z() - inflate);
-        Vector3f inflatedMax = new Vector3f(max.x() + inflate, max.y() + inflate, max.z() + inflate);
+        Vector3f inflatedMin = new Vector3f(
+            bounds.minX() - inflate, bounds.minY() - inflate, bounds.minZ() - inflate);
+        Vector3f inflatedMax = new Vector3f(
+            bounds.maxX() + inflate, bounds.maxY() + inflate, bounds.maxZ() + inflate);
         ConcurrentList<VisibleTriangle> box = BlockGeometryKit.buildArmorBoxTriangles(
             inflatedMin, inflatedMax, part.cropAll(texture, false), ColorMath.WHITE);
         return RendererDebug.tracingPixels()

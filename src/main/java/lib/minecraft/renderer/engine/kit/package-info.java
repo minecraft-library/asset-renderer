@@ -37,7 +37,7 @@
  * <ul>
  *   <li>{@link lib.minecraft.renderer.engine.kit.ArmorKit ArmorKit} - composites the four humanoid armor
  *       layers (helmet, chestplate, leggings, boots) for either 3D body-inflated cubes or 2D
- *       texture overlays. Pairs with the matching {@code SkinFace} UV layout so atlas crops
+ *       texture overlays. Pairs with the matching {@code HumanoidPart} UV layout so atlas crops
  *       work directly on the armor texture.</li>
  *   <li>{@link lib.minecraft.renderer.engine.kit.BannerKit BannerKit} - banner / shield pattern stack
  *       compositor. Matches vanilla's

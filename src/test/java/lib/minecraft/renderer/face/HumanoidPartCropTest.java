@@ -9,7 +9,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins every rectangle {@link SkinFace} reads out of a sheet - all six faces of all six body parts on
+ * Pins every rectangle {@link HumanoidPart} reads out of a sheet - all six faces of all six body parts on
  * both layers, on a 64x64 player skin and on the 64x32 sheet the armour atlases ship as.
  * <p>
  * The sheets are synthetic: each texel encodes its own coordinates, so a cropped face's texels name
@@ -24,8 +24,8 @@ import static org.hamcrest.Matchers.is;
  * and both are asserted here per face. The head's overlay half survives on that sheet where every
  * other overlay region falls off the bottom, so an overlay crop is asserted on both outcomes.
  */
-@DisplayName("SkinFace rectangles on a 64x64 skin and a 64x32 sheet")
-class SkinFaceCropTest {
+@DisplayName("HumanoidPart rectangles on a 64x64 skin and a 64x32 sheet")
+class HumanoidPartCropTest {
 
     /**
      * The declared base and overlay origins per part, in {@link BlockFace} declaration order, as
@@ -57,7 +57,7 @@ class SkinFaceCropTest {
     void baseRectanglesOn64x64() {
         PixelBuffer skin = sheet(64, 64);
 
-        for (SkinFace part : SkinFace.values()) {
+        for (HumanoidPart part : HumanoidPart.values()) {
             for (BlockFace face : BlockFace.CACHED_VALUES) {
                 int[] expected = origin(part, face, false);
                 assertRegion(part + "." + face + " base", part.crop(skin, face, false),
@@ -71,7 +71,7 @@ class SkinFaceCropTest {
     void overlayRectanglesOn64x64() {
         PixelBuffer skin = sheet(64, 64);
 
-        for (SkinFace part : SkinFace.values()) {
+        for (HumanoidPart part : HumanoidPart.values()) {
             for (BlockFace face : BlockFace.CACHED_VALUES) {
                 int[] expected = origin(part, face, true);
                 assertRegion(part + "." + face + " overlay", part.crop(skin, face, true),
@@ -85,7 +85,7 @@ class SkinFaceCropTest {
     void rightHandPartsOn64x32() {
         PixelBuffer atlas = sheet(64, 32);
 
-        for (SkinFace part : new SkinFace[]{ SkinFace.HEAD, SkinFace.TORSO, SkinFace.RIGHT_ARM, SkinFace.RIGHT_LEG }) {
+        for (HumanoidPart part : new HumanoidPart[]{ HumanoidPart.HEAD, HumanoidPart.TORSO, HumanoidPart.RIGHT_ARM, HumanoidPart.RIGHT_LEG }) {
             for (BlockFace face : BlockFace.CACHED_VALUES) {
                 int[] expected = origin(part, face, false);
                 assertRegion(part + "." + face + " on 64x32", part.crop(atlas, face, false),
@@ -97,13 +97,13 @@ class SkinFaceCropTest {
     @Test
     @DisplayName("64x32 sheet: the left arm mirrors the right arm's regions, face for face")
     void leftArmFallsBackOn64x32() {
-        assertMirroredLimb(SkinFace.LEFT_ARM, SkinFace.RIGHT_ARM);
+        assertMirroredLimb(HumanoidPart.LEFT_ARM, HumanoidPart.RIGHT_ARM);
     }
 
     @Test
     @DisplayName("64x32 sheet: the left leg mirrors the right leg's regions, face for face")
     void leftLegFallsBackOn64x32() {
-        assertMirroredLimb(SkinFace.LEFT_LEG, SkinFace.RIGHT_LEG);
+        assertMirroredLimb(HumanoidPart.LEFT_LEG, HumanoidPart.RIGHT_LEG);
     }
 
     @Test
@@ -112,14 +112,14 @@ class SkinFaceCropTest {
         PixelBuffer atlas = sheet(64, 32);
 
         for (BlockFace face : BlockFace.CACHED_VALUES) {
-            int[] expected = origin(SkinFace.HEAD, face, true);
-            assertRegion("HEAD." + face + " overlay on 64x32", SkinFace.HEAD.crop(atlas, face, true),
-                expected[0], expected[1], size(SkinFace.HEAD, face), false);
+            int[] expected = origin(HumanoidPart.HEAD, face, true);
+            assertRegion("HEAD." + face + " overlay on 64x32", HumanoidPart.HEAD.crop(atlas, face, true),
+                expected[0], expected[1], size(HumanoidPart.HEAD, face), false);
         }
 
         // The overlay layer never takes the fallback, so a region past the bottom edge reads as
         // transparent rather than as the mirrored right limb.
-        PixelBuffer torso = SkinFace.TORSO.crop(atlas, BlockFace.NORTH, true);
+        PixelBuffer torso = HumanoidPart.TORSO.crop(atlas, BlockFace.NORTH, true);
         assertThat("TORSO.NORTH overlay on 64x32 is empty", torso.getPixel(0, 0), is(0));
     }
 
@@ -131,9 +131,9 @@ class SkinFaceCropTest {
         // On a full skin the left limbs keep their own regions - the fallback is a property of the
         // sheet, not of the part.
         for (BlockFace face : BlockFace.CACHED_VALUES) {
-            int[] own = origin(SkinFace.LEFT_ARM, face, false);
-            assertRegion("LEFT_ARM." + face + " on 64x64", SkinFace.LEFT_ARM.crop(skin, face, false),
-                own[0], own[1], size(SkinFace.LEFT_ARM, face), false);
+            int[] own = origin(HumanoidPart.LEFT_ARM, face, false);
+            assertRegion("LEFT_ARM." + face + " on 64x64", HumanoidPart.LEFT_ARM.crop(skin, face, false),
+                own[0], own[1], size(HumanoidPart.LEFT_ARM, face), false);
         }
     }
 
@@ -145,7 +145,7 @@ class SkinFaceCropTest {
      * Asserts that a left limb on a 64x32 sheet reads its right-hand counterpart's rectangle, with
      * the two side faces swapped and the texels flipped left to right.
      */
-    private static void assertMirroredLimb(SkinFace left, SkinFace right) {
+    private static void assertMirroredLimb(HumanoidPart left, HumanoidPart right) {
         PixelBuffer atlas = sheet(64, 32);
 
         for (BlockFace face : BlockFace.CACHED_VALUES) {
@@ -184,13 +184,13 @@ class SkinFaceCropTest {
     }
 
     /** The declared {@code (x, y)} origin of one part's face on one layer. */
-    private static int[] origin(SkinFace part, BlockFace face, boolean overlay) {
+    private static int[] origin(HumanoidPart part, BlockFace face, boolean overlay) {
         int[] row = ORIGINS[part.ordinal()][face.ordinal()];
         return overlay ? new int[]{ row[2], row[3] } : new int[]{ row[0], row[1] };
     }
 
     /** The {@code (width, height)} a face's rectangle takes from the part's box dimensions. */
-    private static int[] size(SkinFace part, BlockFace face) {
+    private static int[] size(HumanoidPart part, BlockFace face) {
         int[] dims = DIMENSIONS[part.ordinal()];
         return switch (face) {
             case DOWN, UP -> new int[]{ dims[0], dims[2] };

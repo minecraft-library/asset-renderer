@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.asset.equipment;
 
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.face.SkinFace;
+import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
 import org.jetbrains.annotations.NotNull;
 
@@ -126,29 +126,17 @@ public enum ArmorForm {
     }
 
     /**
-     * The body part each armor-mesh bone of the <em>player's</em> shell is textured from - the skin
-     * path, which dresses the player's own normalized body boxes rather than a mesh.
+     * The player's own body parts each slot covers, resolved once from {@link #ADULT}'s part table by
+     * reading each bone name back to the body box it dresses.
      */
-    private static final @NotNull Map<String, SkinFace> SKIN_PARTS = Map.of(
-        "head", SkinFace.HEAD,
-        "body", SkinFace.TORSO,
-        "right_arm", SkinFace.RIGHT_ARM,
-        "left_arm", SkinFace.LEFT_ARM,
-        "right_leg", SkinFace.RIGHT_LEG,
-        "left_leg", SkinFace.LEFT_LEG
-    );
-
-    /**
-     * The player's own body parts each slot covers, resolved once from {@link #ADULT}'s part table.
-     */
-    private static final @NotNull Map<ArmorSlot, SkinFace[]> PLAYER_PARTS = new EnumMap<>(ArmorSlot.class);
+    private static final @NotNull Map<ArmorSlot, HumanoidPart[]> PLAYER_PARTS = new EnumMap<>(ArmorSlot.class);
 
     static {
         for (ArmorSlot slot : ArmorSlot.values())
             PLAYER_PARTS.put(slot, ADULT.parts(slot).stream()
-                .map(SKIN_PARTS::get)
+                .map(HumanoidPart::byBoneName)
                 .distinct()
-                .toArray(SkinFace[]::new));
+                .toArray(HumanoidPart[]::new));
     }
 
     /**
@@ -163,7 +151,7 @@ public enum ArmorForm {
      * @param slot the armor slot
      * @return the body parts that slot's armor covers
      */
-    public static @NotNull SkinFace @NotNull [] playerParts(@NotNull ArmorSlot slot) {
+    public static @NotNull HumanoidPart @NotNull [] playerParts(@NotNull ArmorSlot slot) {
         return PLAYER_PARTS.get(slot).clone();
     }
 

@@ -28,16 +28,20 @@ import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.CubeUnwrap;
+import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.face.SixFaces;
-import lib.minecraft.renderer.face.SkinFace;
+import lib.minecraft.renderer.face.Turn;
 import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.slot.PlayerSlot2D;
 import lib.minecraft.renderer.option.slot.PlayerSlot3D;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -80,48 +84,6 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static final @NotNull Placement PLAYER_FACING =
         new Placement(Matrix4f.IDENTITY.scale(-1f, 1f, -1f));
-
-    // ---------------------------------------------------------------------------------------
-    // 3D body-part bounding cubes per render type.
-    // ---------------------------------------------------------------------------------------
-
-    /**
-     * Skull: unit head cube.
-     */
-    private static final Vector3f SKULL_HEAD_MIN = new Vector3f(-0.5f, -0.5f, -0.5f);
-    private static final Vector3f SKULL_HEAD_MAX = new Vector3f(0.5f, 0.5f, 0.5f);
-
-    /**
-     * Bust: head + torso + arms at the same vanilla proportions as the {@link #FULL_HEAD_MIN full
-     * body}'s upper half (head 8x8x8, torso 8x12x4, arms 4x12x4 in MC pixels). The head is the same
-     * width as the torso - the earlier bust used an oversized 0.5 head cube against a 0.4-wide
-     * torso, which rendered "bobble-head" large. The auto-fit step centres + scales this group to
-     * the canvas, so only the relative proportions matter here.
-     */
-    private static final Vector3f BUST_HEAD_MIN = new Vector3f(-0.12f, 0.24f, -0.12f);
-    private static final Vector3f BUST_HEAD_MAX = new Vector3f(0.12f, 0.48f, 0.12f);
-    private static final Vector3f BUST_TORSO_MIN = new Vector3f(-0.12f, -0.12f, -0.06f);
-    private static final Vector3f BUST_TORSO_MAX = new Vector3f(0.12f, 0.24f, 0.06f);
-    private static final Vector3f BUST_R_ARM_MIN = new Vector3f(-0.24f, -0.12f, -0.06f);
-    private static final Vector3f BUST_R_ARM_MAX = new Vector3f(-0.12f, 0.24f, 0.06f);
-    private static final Vector3f BUST_L_ARM_MIN = new Vector3f(0.12f, -0.12f, -0.06f);
-    private static final Vector3f BUST_L_ARM_MAX = new Vector3f(0.24f, 0.24f, 0.06f);
-
-    /**
-     * Full body: 1 MC pixel = 1/32 model unit, centred vertically.
-     */
-    private static final Vector3f FULL_HEAD_MIN = new Vector3f(-0.12f, 0.24f, -0.12f);
-    private static final Vector3f FULL_HEAD_MAX = new Vector3f(0.12f, 0.48f, 0.12f);
-    private static final Vector3f FULL_TORSO_MIN = new Vector3f(-0.12f, -0.12f, -0.06f);
-    private static final Vector3f FULL_TORSO_MAX = new Vector3f(0.12f, 0.24f, 0.06f);
-    private static final Vector3f FULL_R_ARM_MIN = new Vector3f(-0.24f, -0.12f, -0.06f);
-    private static final Vector3f FULL_R_ARM_MAX = new Vector3f(-0.12f, 0.24f, 0.06f);
-    private static final Vector3f FULL_L_ARM_MIN = new Vector3f(0.12f, -0.12f, -0.06f);
-    private static final Vector3f FULL_L_ARM_MAX = new Vector3f(0.24f, 0.24f, 0.06f);
-    private static final Vector3f FULL_R_LEG_MIN = new Vector3f(-0.12f, -0.48f, -0.06f);
-    private static final Vector3f FULL_R_LEG_MAX = new Vector3f(0.0f, -0.12f, 0.06f);
-    private static final Vector3f FULL_L_LEG_MIN = new Vector3f(0.0f, -0.48f, -0.06f);
-    private static final Vector3f FULL_L_LEG_MAX = new Vector3f(0.12f, -0.12f, 0.06f);
 
     /**
      * Overlay (hat / hood / second layer) outset over the base cube.
@@ -303,8 +265,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static void appendBackLayer(
         @NotNull PlayerRenderer parent, @NotNull LayerStack<GeometryLayer> stack, @NotNull PlayerOptions options,
-        @NotNull ModelEngine engine, @NotNull Vector3f torsoMin, @NotNull Vector3f torsoMax
+        @NotNull ModelEngine engine, @NotNull Box torso
     ) {
+        Vector3f torsoMin = new Vector3f(torso.minX(), torso.minY(), torso.minZ());
+        Vector3f torsoMax = new Vector3f(torso.maxX(), torso.maxY(), torso.maxZ());
         if (options.getSkin().isRenderElytra()) {
             Optional<PixelBuffer> playerTexture = resolveCape(parent, options).or(() -> resolveElytraSource(parent, options));
             stack.append(PlayerSlot3D.CAPE, sink ->
@@ -319,51 +283,53 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     // Cape geometry - 10x16x1 pixel box on a 64x32 texture, standard cube UV unwrap at (0,0).
     // ---------------------------------------------------------------------------------------
 
+    /** The cape cube's atlas origin on a cape sheet. */
+    private static final @NotNull Vector2f CAPE_UV = Vector2f.ZERO;
+
+    /** The cape cube's extent in texture pixels. */
+    private static final @NotNull Vector3f CAPE_SIZE = new Vector3f(10f, 16f, 1f);
+
     /**
-     * Crops the 6 face textures for the cape cube from a 64x32 cape texture. The cape model
-     * is a 10x16x1 box with UV origin (0,0), following the standard Minecraft cube unwrap:
+     * The frame the cape's strips are read in, relative to the frame its box is built in.
+     *
+     * <p><b>This is a reflection, not a rotation, and it is preserved exactly rather than settled.</b>
+     * It is the vanilla cube unwrap with the {@code UP} and {@code DOWN} strips transposed and nothing
+     * else moved, which is what drops the determinant to {@code -1}. Whether that transposition is
+     * deliberate compensation or a latent defect is undecided and needs vanilla's own cape model or a
+     * reference render to settle; nothing here is a reason to change it, and the cost of guessing is
+     * asymmetric. Dropping the swap moves the two {@code 10x1} slivers - 20 of the cube's 372 texels -
+     * while adopting the armour and shield frame instead would move 320 of them and trade the outer
+     * design for the inner lining, rendering the cape lining-outward.
+     */
+    private static final @NotNull Turn CAPE_FRAME = Turn.MIRROR_Y;
+
+    /**
+     * Crops the 6 face textures for the cape cube out of a cape texture, through the cube's own atlas
+     * unwrap read in the {@link #CAPE_FRAME cape frame}. The cape model is a 10x16x1 box at UV origin
+     * (0,0), so the vanilla cube unwrap lays it out as:
      * <pre>
-     * y=0:  [1px pad][10px TOP][1px pad][10px BOTTOM]
-     * y=1:  [1px edge][10px OUTER][1px edge][10px INNER]  (16 rows)
+     * y=0:  [1px edge][10px BOTTOM][1px edge][10px TOP]
+     * y=1:  [1px WEST][10px NORTH ][1px EAST][10px SOUTH]  (16 rows)
      * </pre>
-     * The {@code OUTER} region ({@code x 1..10}) carries the visible cape design and the
-     * {@code INNER} region ({@code x 12..21}) the plain lining. The cape hangs on the player's back
-     * (its {@code -Z} / {@link BlockFace#NORTH NORTH} face points outward, away from the body), so
-     * the design is mapped to {@code NORTH} and the lining to the body-facing {@code SOUTH}. Vanilla
-     * achieves the same by rotating the cloak cuboid 180&deg; about Y; here the geometry stays
-     * axis-aligned and the two broad faces are assigned directly.
+     * The {@code NORTH} region ({@code x 1..10}) carries the visible cape design and the {@code SOUTH}
+     * region ({@code x 12..21}) the plain lining. The cape hangs on the player's back - its {@code -Z}
+     * / {@link BlockFace#NORTH NORTH} face points outward, away from the body - so the design lands
+     * outward and the lining against the back.
      */
     private static @NotNull SixFaces cropCapeFaces(@NotNull PixelBuffer cape) {
         return new SixFaces(
-            cropRect(cape, 11, 0, 10, 1),  // DOWN
-            cropRect(cape,  1, 0, 10, 1),  // UP
-            cropRect(cape,  1, 1, 10, 16), // NORTH - outer design (faces outward / rear camera)
-            cropRect(cape, 12, 1, 10, 16), // SOUTH - inner lining (against the back)
-            cropRect(cape,  0, 1,  1, 16), // WEST
-            cropRect(cape, 11, 1,  1, 16)  // EAST
+            capeFace(cape, BlockFace.DOWN),
+            capeFace(cape, BlockFace.UP),
+            capeFace(cape, BlockFace.NORTH),
+            capeFace(cape, BlockFace.SOUTH),
+            capeFace(cape, BlockFace.WEST),
+            capeFace(cape, BlockFace.EAST)
         );
     }
 
-    /**
-     * Crops a {@code w x h} rectangle from {@code source} at {@code (x, y)}, reading transparent
-     * (zero) for any pixel that falls outside the source bounds.
-     *
-     * @param source the source texture
-     * @param x left edge of the crop, in source pixels
-     * @param y top edge of the crop, in source pixels
-     * @param w crop width in pixels
-     * @param h crop height in pixels
-     * @return a freshly allocated {@code w x h} buffer holding the cropped region
-     */
-    private static @NotNull PixelBuffer cropRect(@NotNull PixelBuffer source, int x, int y, int w, int h) {
-        int[] pixels = new int[w * h];
-        for (int dy = 0; dy < h; dy++)
-            for (int dx = 0; dx < w; dx++) {
-                int sx = x + dx, sy = y + dy;
-                if (sx < source.width() && sy < source.height())
-                    pixels[dy * w + dx] = source.getPixel(sx, sy);
-            }
-        return PixelBuffer.of(pixels, w, h);
+    /** One face of the cape cube, read out of its own strip. */
+    private static @NotNull PixelBuffer capeFace(@NotNull PixelBuffer cape, @NotNull BlockFace face) {
+        return CubeUnwrap.crop(cape, CAPE_UV, CAPE_SIZE, false, CAPE_FRAME.entityFace(face));
     }
 
     /**
@@ -402,38 +368,37 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     /**
      * A body part plus its 2D layout rectangle, in canvas pixels, for a given {@link PlayerOptions.Type}.
      *
-     * @param part the skin face to crop and blit
+     * @param part the body part to crop and blit
      * @param x left edge of the destination rectangle
      * @param y top edge of the destination rectangle
      * @param w destination width in pixels
      * @param h destination height in pixels
      */
-    private record BodyPart2D(@NotNull SkinFace part, int x, int y, int w, int h) {}
+    private record BodyPart2D(@NotNull HumanoidPart part, int x, int y, int w, int h) {}
 
     /**
-     * Returns the 2D layout for the given type at the given pixel scale and horizontal offset.
-     * Coordinates are in pixels relative to the canvas origin.
+     * The 2D layout for the given scope at the given pixel scale and horizontal offset, derived from
+     * each part's own pixel box rather than tabulated per scope.
+     * <p>
+     * The front view lays the lattice out directly: a part's canvas X is how far its left edge sits
+     * from the scope's own left edge, and its canvas Y is how far its <em>top</em> edge sits below the
+     * scope's top - the one inversion, because the lattice counts Y upward and a canvas counts it
+     * down. The rectangle's extent is the part's own.
      */
     private static @NotNull BodyPart2D @NotNull [] layout2D(@NotNull PlayerOptions.Type type, int scale, int offsetX) {
-        return switch (type) {
-            case SKULL -> new BodyPart2D[]{
-                new BodyPart2D(SkinFace.HEAD, offsetX, 0, 8 * scale, 8 * scale)
-            };
-            case BUST -> new BodyPart2D[]{
-                new BodyPart2D(SkinFace.HEAD, offsetX + 4 * scale, 0, 8 * scale, 8 * scale),
-                new BodyPart2D(SkinFace.TORSO, offsetX + 4 * scale, 8 * scale, 8 * scale, 12 * scale),
-                new BodyPart2D(SkinFace.RIGHT_ARM, offsetX, 8 * scale, 4 * scale, 12 * scale),
-                new BodyPart2D(SkinFace.LEFT_ARM, offsetX + 12 * scale, 8 * scale, 4 * scale, 12 * scale)
-            };
-            case FULL -> new BodyPart2D[]{
-                new BodyPart2D(SkinFace.HEAD, offsetX + 4 * scale, 0, 8 * scale, 8 * scale),
-                new BodyPart2D(SkinFace.TORSO, offsetX + 4 * scale, 8 * scale, 8 * scale, 12 * scale),
-                new BodyPart2D(SkinFace.RIGHT_ARM, offsetX, 8 * scale, 4 * scale, 12 * scale),
-                new BodyPart2D(SkinFace.LEFT_ARM, offsetX + 12 * scale, 8 * scale, 4 * scale, 12 * scale),
-                new BodyPart2D(SkinFace.RIGHT_LEG, offsetX + 4 * scale, 20 * scale, 4 * scale, 12 * scale),
-                new BodyPart2D(SkinFace.LEFT_LEG, offsetX + 8 * scale, 20 * scale, 4 * scale, 12 * scale)
-            };
-        };
+        HumanoidPart[] parts = type.parts();
+        BodyPart2D[] layout = new BodyPart2D[parts.length];
+
+        for (int i = 0; i < parts.length; i++) {
+            HumanoidPart part = parts[i];
+            layout[i] = new BodyPart2D(part,
+                offsetX + (part.minPixelX() - type.getMinPixelX()) * scale,
+                (type.getMaxPixelY() - part.maxPixelY()) * scale,
+                part.pixelWidth() * scale,
+                part.pixelHeight() * scale);
+        }
+
+        return layout;
     }
 
     /**
@@ -481,8 +446,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                         for (BodyPart2D bp : parts) {
                             if (hasOverlay(skin))
                                 frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
-                            else if (bp.part == SkinFace.HEAD && hasHatOverlay(skin))
-                                frame.blitScaled(SkinFace.HEAD.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
+                            else if (bp.part == HumanoidPart.HEAD && hasHatOverlay(skin))
+                                frame.blitScaled(HumanoidPart.HEAD.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
                         }
                     });
                 stack.append(PlayerSlot2D.ARMOR, frame -> {
@@ -501,7 +466,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static void compositeArmor2D(
         @NotNull PixelBuffer target,
-        @NotNull SkinFace part,
+        @NotNull HumanoidPart part,
         int x, int y, int w, int h,
         @NotNull PlayerOptions options,
         @NotNull RasterEngine engine
@@ -516,7 +481,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             if (piece.isEmpty()) continue;
 
             boolean partInSlot = false;
-            for (SkinFace slotPart : ArmorForm.playerParts(slot))
+            for (HumanoidPart slotPart : ArmorForm.playerParts(slot))
                 if (slotPart == part) { partInSlot = true; break; }
             if (!partInSlot) continue;
 
@@ -552,12 +517,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
             stack.append(PlayerSlot3D.BODY, sink -> {
-                sink.addAll(BlockGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
+                sink.addAll(BlockGeometryKit.unitCube(HumanoidPart.HEAD.cropAll(skin, false), ColorMath.WHITE));
                 if (options.getSkin().isRenderOverlay() && hasHatOverlay(skin))
                     sink.addAll(BlockGeometryKit.buildBoxTriangles(
                         new Vector3f(-0.52f, -0.52f, -0.52f),
                         new Vector3f(0.52f, 0.52f, 0.52f),
-                        SkinFace.HEAD.cropAll(skin, true), ColorMath.WHITE));
+                        HumanoidPart.HEAD.cropAll(skin, true), ColorMath.WHITE));
             });
             appendArmor(stack, PlayerOptions.Type.SKULL, options, engine);
 
@@ -590,14 +555,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(PlayerSlot3D.BODY, sink -> {
-                addBodyPart(sink, skin, SkinFace.HEAD, BUST_HEAD_MIN, BUST_HEAD_MAX, options);
-                addBodyPart(sink, skin, SkinFace.TORSO, BUST_TORSO_MIN, BUST_TORSO_MAX, options);
-                addBodyPart(sink, skin, SkinFace.RIGHT_ARM, BUST_R_ARM_MIN, BUST_R_ARM_MAX, options);
-                addBodyPart(sink, skin, SkinFace.LEFT_ARM, BUST_L_ARM_MIN, BUST_L_ARM_MAX, options);
-            });
+            stack.append(PlayerSlot3D.BODY, sink -> addBody(sink, skin, PlayerOptions.Type.BUST, options));
             appendArmor(stack, PlayerOptions.Type.BUST, options, engine);
-            appendBackLayer(this.parent, stack, options, engine, BUST_TORSO_MIN, BUST_TORSO_MAX);
+            appendBackLayer(this.parent, stack, options, engine,
+                PlayerOptions.Type.BUST.boxOf(HumanoidPart.TORSO));
 
             Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
@@ -628,16 +589,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(PlayerSlot3D.BODY, sink -> {
-                addBodyPart(sink, skin, SkinFace.HEAD, FULL_HEAD_MIN, FULL_HEAD_MAX, options);
-                addBodyPart(sink, skin, SkinFace.TORSO, FULL_TORSO_MIN, FULL_TORSO_MAX, options);
-                addBodyPart(sink, skin, SkinFace.RIGHT_ARM, FULL_R_ARM_MIN, FULL_R_ARM_MAX, options);
-                addBodyPart(sink, skin, SkinFace.LEFT_ARM, FULL_L_ARM_MIN, FULL_L_ARM_MAX, options);
-                addBodyPart(sink, skin, SkinFace.RIGHT_LEG, FULL_R_LEG_MIN, FULL_R_LEG_MAX, options);
-                addBodyPart(sink, skin, SkinFace.LEFT_LEG, FULL_L_LEG_MIN, FULL_L_LEG_MAX, options);
-            });
+            stack.append(PlayerSlot3D.BODY, sink -> addBody(sink, skin, PlayerOptions.Type.FULL, options));
             appendArmor(stack, PlayerOptions.Type.FULL, options, engine);
-            appendBackLayer(this.parent, stack, options, engine, FULL_TORSO_MIN, FULL_TORSO_MAX);
+            appendBackLayer(this.parent, stack, options, engine,
+                PlayerOptions.Type.FULL.boxOf(HumanoidPart.TORSO));
 
             Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
@@ -672,16 +627,34 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     }
 
     /**
+     * Adds every part a scope draws, in that scope's own draw order.
+     * <p>
+     * The single-part {@link PlayerOptions.Type#SKULL} scope does not route through here: its head is
+     * a plain unit cube whose overlay carries its own hardcoded inflation and its own, wider
+     * sheet-format test, so folding the two together would change what a legacy skin draws.
+     */
+    private static void addBody(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer skin,
+        @NotNull PlayerOptions.Type type,
+        @NotNull PlayerOptions options
+    ) {
+        for (HumanoidPart part : type.parts())
+            addBodyPart(triangles, skin, part, type.boxOf(part), options);
+    }
+
+    /**
      * Adds a body part's base skin cube and optional overlay to the triangle list.
      */
     private static void addBodyPart(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer skin,
-        @NotNull SkinFace part,
-        @NotNull Vector3f min,
-        @NotNull Vector3f max,
+        @NotNull HumanoidPart part,
+        @NotNull Box box,
         @NotNull PlayerOptions options
     ) {
+        Vector3f min = new Vector3f(box.minX(), box.minY(), box.minZ());
+        Vector3f max = new Vector3f(box.maxX(), box.maxY(), box.maxZ());
         triangles.addAll(BlockGeometryKit.buildBoxTriangles(min, max, part.cropAll(skin, false), ColorMath.WHITE));
         if (options.getSkin().isRenderOverlay() && hasOverlay(skin))
             triangles.addAll(BlockGeometryKit.buildBoxTriangles(
@@ -691,33 +664,16 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     }
 
     /**
-     * The worn-armor body-part bounds map for a player scope - the head only ({@link
-     * PlayerOptions.Type#SKULL}), head + torso + arms ({@link PlayerOptions.Type#BUST}), or all six
-     * parts ({@link PlayerOptions.Type#FULL}), each from that scope's own bounds constants. Extracted
-     * so the three 3D renderers assemble the armor input once rather than inline per scope.
+     * The worn-armor body-part bounds map for a player scope - each part that scope draws, in the box
+     * that scope seats it in. Assembled here once rather than inline in each of the three 3D
+     * renderers.
      *
      * @param type the player render scope
-     * @return the body-part to {@code [min, max]} bounds map the armor kit inflates around
+     * @return the body-part to box map the armor kit inflates around
      */
-    private static @NotNull Map<SkinFace, Vector3f[]> armorBoundsFor(@NotNull PlayerOptions.Type type) {
-        Map<SkinFace, Vector3f[]> bounds = new EnumMap<>(SkinFace.class);
-        switch (type) {
-            case SKULL -> bounds.put(SkinFace.HEAD, new Vector3f[]{ SKULL_HEAD_MIN, SKULL_HEAD_MAX });
-            case BUST -> {
-                bounds.put(SkinFace.HEAD, new Vector3f[]{ BUST_HEAD_MIN, BUST_HEAD_MAX });
-                bounds.put(SkinFace.TORSO, new Vector3f[]{ BUST_TORSO_MIN, BUST_TORSO_MAX });
-                bounds.put(SkinFace.RIGHT_ARM, new Vector3f[]{ BUST_R_ARM_MIN, BUST_R_ARM_MAX });
-                bounds.put(SkinFace.LEFT_ARM, new Vector3f[]{ BUST_L_ARM_MIN, BUST_L_ARM_MAX });
-            }
-            case FULL -> {
-                bounds.put(SkinFace.HEAD, new Vector3f[]{ FULL_HEAD_MIN, FULL_HEAD_MAX });
-                bounds.put(SkinFace.TORSO, new Vector3f[]{ FULL_TORSO_MIN, FULL_TORSO_MAX });
-                bounds.put(SkinFace.RIGHT_ARM, new Vector3f[]{ FULL_R_ARM_MIN, FULL_R_ARM_MAX });
-                bounds.put(SkinFace.LEFT_ARM, new Vector3f[]{ FULL_L_ARM_MIN, FULL_L_ARM_MAX });
-                bounds.put(SkinFace.RIGHT_LEG, new Vector3f[]{ FULL_R_LEG_MIN, FULL_R_LEG_MAX });
-                bounds.put(SkinFace.LEFT_LEG, new Vector3f[]{ FULL_L_LEG_MIN, FULL_L_LEG_MAX });
-            }
-        }
+    private static @NotNull Map<HumanoidPart, Box> armorBoundsFor(@NotNull PlayerOptions.Type type) {
+        Map<HumanoidPart, Box> bounds = new EnumMap<>(HumanoidPart.class);
+        for (HumanoidPart part : type.parts()) bounds.put(part, type.boxOf(part));
         return bounds;
     }
 

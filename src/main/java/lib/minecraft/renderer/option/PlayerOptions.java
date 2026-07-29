@@ -7,6 +7,7 @@ import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
+import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.option.slot.PlayerSlot2D;
 import lib.minecraft.renderer.option.slot.PlayerSlot3D;
 import lib.minecraft.renderer.option.spec.ArmorOptions;
@@ -14,10 +15,10 @@ import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
+import lib.minecraft.renderer.tensor.Box;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.UnaryOperator;
@@ -127,36 +128,118 @@ public class PlayerOptions implements RenderOptions {
     }
 
     /**
-     * Which body parts to render.
+     * Which body parts to render, and the frame they are seated in.
+     * <p>
+     * A scope names its own parts, in the order they are drawn, and the scale one skin pixel spans in
+     * its frame. Its pixel extent is then the union of those parts' own boxes rather than a second
+     * statement of the same numbers - {@link #SKULL} is one 8x8 head, {@link #BUST} is 20 by 16 from
+     * the torso's floor to the head's ceiling, {@link #FULL} the 32 by 16 of the whole vanilla body.
+     * <p>
+     * {@link #SKULL} is the one scope that {@link HumanoidPart#centred centres} its part instead of
+     * seating it in the body lattice, which is why it also carries a different scale: an 8-pixel head
+     * spanning one unit is {@code 0.125} per pixel against the body's {@code 0.03}.
      */
     @Getter
-    @RequiredArgsConstructor
     public enum Type {
 
         /**
-         * Head only.
+         * Head only, centred on the origin.
          */
-        SKULL (8,  8),
+        SKULL(0.125f, true, HumanoidPart.HEAD),
 
         /**
          * Head, torso and arms.
          */
-        BUST  (20, 16),
+        BUST(0.03f, false,
+            HumanoidPart.HEAD, HumanoidPart.TORSO, HumanoidPart.RIGHT_ARM, HumanoidPart.LEFT_ARM),
 
         /**
          * Full body - head, torso, arms and legs.
          */
-        FULL  (32, 16);
+        FULL(0.03f, false,
+            HumanoidPart.HEAD, HumanoidPart.TORSO, HumanoidPart.RIGHT_ARM, HumanoidPart.LEFT_ARM,
+            HumanoidPart.RIGHT_LEG, HumanoidPart.LEFT_LEG);
 
         /**
-         * Pixel height of the 2D body composite, before output scaling.
+         * The model units one skin pixel spans in this scope's frame.
          */
-        private final int bodyHeight;
+        private final float unitsPerPixel;
+
+        /**
+         * Whether this scope centres its part on the origin rather than seating it in the body
+         * lattice.
+         */
+        private final boolean centred;
+
+        /**
+         * The parts this scope draws, in draw order.
+         */
+        @Getter(AccessLevel.NONE)
+        private final @NotNull HumanoidPart @NotNull [] parts;
+
+        private final int minPixelX;
+        private final int maxPixelX;
+        private final int minPixelY;
+        private final int maxPixelY;
+
+        Type(float unitsPerPixel, boolean centred, @NotNull HumanoidPart @NotNull ... parts) {
+            this.unitsPerPixel = unitsPerPixel;
+            this.centred = centred;
+            this.parts = parts;
+
+            int minX = Integer.MAX_VALUE;
+            int maxX = Integer.MIN_VALUE;
+            int minY = Integer.MAX_VALUE;
+            int maxY = Integer.MIN_VALUE;
+            for (HumanoidPart part : parts) {
+                minX = Math.min(minX, part.minPixelX());
+                maxX = Math.max(maxX, part.maxPixelX());
+                minY = Math.min(minY, part.minPixelY());
+                maxY = Math.max(maxY, part.maxPixelY());
+            }
+            this.minPixelX = minX;
+            this.maxPixelX = maxX;
+            this.minPixelY = minY;
+            this.maxPixelY = maxY;
+        }
+
+        /**
+         * The parts this scope draws, in draw order.
+         *
+         * @return this scope's parts
+         */
+        public @NotNull HumanoidPart @NotNull [] parts() {
+            return this.parts.clone();
+        }
+
+        /**
+         * This scope's box for one of its parts - centred on the origin for a scope that draws a part
+         * alone, seated in the body lattice otherwise.
+         *
+         * @param part the part to place
+         * @return the part's box in this scope's frame
+         */
+        public @NotNull Box boxOf(@NotNull HumanoidPart part) {
+            return this.centred ? part.centred(this.unitsPerPixel) : part.box(this.unitsPerPixel);
+        }
 
         /**
          * Pixel width of the 2D body composite, before output scaling.
+         *
+         * @return the union pixel width of this scope's parts
          */
-        private final int bodyWidth;
+        public int getBodyWidth() {
+            return this.maxPixelX - this.minPixelX;
+        }
+
+        /**
+         * Pixel height of the 2D body composite, before output scaling.
+         *
+         * @return the union pixel height of this scope's parts
+         */
+        public int getBodyHeight() {
+            return this.maxPixelY - this.minPixelY;
+        }
 
     }
 

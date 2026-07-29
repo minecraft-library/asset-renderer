@@ -11,11 +11,12 @@ import org.jetbrains.annotations.NotNull;
  * Reads one face of a cube out of the sheet its own atlas unwrap addresses, for the consumers that
  * paint a box from six cropped images rather than from interpolated UVs.
  *
- * <p>Where {@link SkinFace} carries a fixed table of rectangles for the six body parts of a player
- * skin, this derives the rectangle from the cube itself - its {@code uv} origin, its size and its
- * mirror flag - through {@link EntityFace#defaultUv}, which is the same unwrap the entity body path
- * resolves its UVs from. A cube whose strip happens to land where the skin table says is cropped
- * identically either way; one whose does not is cropped correctly rather than not at all.
+ * <p>Where {@link HumanoidPart} resolves the six body parts of a player skin from their own fixed
+ * pixel boxes, this takes the cube itself - its {@code uv} origin, its size and its mirror flag. Both
+ * reach the rectangle through {@link EntityFace#defaultUv}, the unwrap the entity body path resolves
+ * its UVs from, so the two agree by arithmetic wherever they describe the same cube. What differs is
+ * only where the cube comes from: a shell states its own, so a box the player model has no
+ * counterpart for is still cropped correctly rather than not at all.
  *
  * <p>The crop is a nearest-neighbour resample rather than a rectangle copy, because a vanilla cube's
  * size need not be a whole number of texels - the baby armor shell's waist is {@code 5.9 x 2 x 2.9}.
