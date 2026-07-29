@@ -12,7 +12,7 @@ import java.util.Map;
  * @param state the rendered block state (e.g. {@code facing=east, half=bottom}), for the property filters
  * @param baseTextureId the concrete resolved texture id of the face, e.g. {@code minecraft:block/glass},
  *     for {@code matchTiles} name equality
- * @param face the CTM grammar face being drawn, already mapped from the render's {@code BlockFace}
+ * @param face the CTM grammar face being drawn, already mapped from the render's {@code Face}
  */
 public record CtmContext(
     @NotNull String blockId,

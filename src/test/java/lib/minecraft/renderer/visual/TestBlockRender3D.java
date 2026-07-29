@@ -3,7 +3,7 @@ package lib.minecraft.renderer.visual;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
@@ -22,7 +22,7 @@ import java.nio.file.Path;
 /**
  * Diagnostic task that renders blocks to PNG files for visual inspection. For each block spec it
  * writes the isometric 3D render ({@link BlockOptions.Type#ISOMETRIC_3D}) plus one flat 2D render
- * per {@link BlockFace} ({@link BlockOptions.Type#BLOCK_FACE_2D}) so orientation and per-face UV
+ * per {@link Face} ({@link BlockOptions.Type#BLOCK_FACE_2D}) so orientation and per-face UV
  * issues can be compared side by side. All output lands under {@code cache/visual/block-render-3d/}.
  * <p>
  * With no {@code -PblockId} the task renders {@link #BLOCK_TEST_2} (a mix of non-full-cube shapes)
@@ -120,7 +120,7 @@ public final class TestBlockRender3D {
             }
 
             // Render each 2D face for comparison
-            for (BlockFace face : BlockFace.CACHED_VALUES) {
+            for (Face face : Face.CACHED_VALUES) {
                 try {
                     BlockOptions faceOpt = BlockOptions.builder()
                         .blockId(blockId)

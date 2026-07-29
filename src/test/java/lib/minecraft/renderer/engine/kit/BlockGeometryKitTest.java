@@ -12,7 +12,7 @@ import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -140,7 +140,7 @@ class BlockGeometryKitTest {
 
         // Swap only the UP face (the CTM per-face hook); every other face falls through to the base.
         BlockGeometryKit.FaceTextureResolver resolver = (blockFace, rawRef) ->
-            blockFace == BlockFace.UP ? Optional.of(substitute) : Optional.empty();
+            blockFace == Face.UP ? Optional.of(substitute) : Optional.empty();
         BlockGeometryKit.ElementBuildParams params = new BlockGeometryKit.ElementBuildParams(
             TINT_ARGB, TINT_ARGB, 0, 0, false, Set.of(), resolver);
 

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.asset.pack.rule;
 
-import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.Face;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumSet;
@@ -74,14 +74,14 @@ public enum CtmFace {
     }
 
     /**
-     * Maps a renderer {@link BlockFace} onto its CTM grammar face - {@code UP} to {@link #TOP},
+     * Maps a renderer {@link Face} onto its CTM grammar face - {@code UP} to {@link #TOP},
      * {@code DOWN} to {@link #BOTTOM}, every horizontal face to the same name. This is the load-bearing
      * translation that lets a {@code faces=top} rule paint only the icon's visible top face.
      *
      * @param face the renderer block face
      * @return the corresponding CTM grammar face
      */
-    public static @NotNull CtmFace fromBlockFace(@NotNull BlockFace face) {
+    public static @NotNull CtmFace fromFace(@NotNull Face face) {
         return switch (face) {
             case UP -> TOP;
             case DOWN -> BOTTOM;

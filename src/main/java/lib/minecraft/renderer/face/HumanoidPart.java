@@ -23,7 +23,7 @@ import java.util.Map;
  * Each constant declares an integer pixel box in the vanilla player lattice, where the body spans
  * {@code -16..+16} on Y - the 32-pixel vanilla player height - plus the two atlas origins its base
  * and overlay layers are unwrapped from. <b>Everything else is derived.</b> The six skin rectangles
- * per layer are {@link EntityFace#defaultUv} evaluated at that origin under the {@link Turn#HALF_X
+ * per layer are {@link Unwrap.Atlas#rect} evaluated at that origin under the {@link Turn#HALF_X
  * model frame turn}, which is the same unwrap the entity cube path resolves its UVs from - the player
  * skin unwrap and the entity cube unwrap are one function, and the overlay column is that same
  * function against a different shipped cube (the head's is vanilla's own {@code hat} cube, the
@@ -112,18 +112,18 @@ public enum HumanoidPart {
     private final int maxPixelZ;
 
     /**
-     * Base-layer skin rectangle per {@link BlockFace}, derived from the base atlas origin and this
+     * Base-layer skin rectangle per {@link Face}, derived from the base atlas origin and this
      * part's pixel extent.
      */
     @Getter(AccessLevel.NONE)
-    private final @NotNull EnumMap<BlockFace, Rectangle> baseRects;
+    private final @NotNull EnumMap<Face, Rectangle> baseRects;
 
     /**
-     * Overlay-layer (hat / jacket) skin rectangle per {@link BlockFace}, derived from the overlay
+     * Overlay-layer (hat / jacket) skin rectangle per {@link Face}, derived from the overlay
      * atlas origin and this part's pixel extent.
      */
     @Getter(AccessLevel.NONE)
-    private final @NotNull EnumMap<BlockFace, Rectangle> overlayRects;
+    private final @NotNull EnumMap<Face, Rectangle> overlayRects;
 
     HumanoidPart(
         @NotNull String boneName,
@@ -233,7 +233,7 @@ public enum HumanoidPart {
      */
     public @NotNull PixelBuffer crop(
         @NotNull PixelBuffer skin,
-        @NotNull BlockFace face,
+        @NotNull Face face,
         boolean overlayLayer
     ) {
         Rectangle rect = rect(face, overlayLayer);
@@ -254,23 +254,23 @@ public enum HumanoidPart {
      *
      * @param skin the source skin image
      * @param overlayLayer whether to crop the overlay layer instead of the base layer
-     * @return the six cropped faces keyed by {@link BlockFace} direction
+     * @return the six cropped faces keyed by {@link Face} direction
      */
     public @NotNull SixFaces cropAll(@NotNull PixelBuffer skin, boolean overlayLayer) {
         return new SixFaces(
-            crop(skin, BlockFace.DOWN, overlayLayer),
-            crop(skin, BlockFace.UP, overlayLayer),
-            crop(skin, BlockFace.NORTH, overlayLayer),
-            crop(skin, BlockFace.SOUTH, overlayLayer),
-            crop(skin, BlockFace.WEST, overlayLayer),
-            crop(skin, BlockFace.EAST, overlayLayer)
+            crop(skin, Face.DOWN, overlayLayer),
+            crop(skin, Face.UP, overlayLayer),
+            crop(skin, Face.NORTH, overlayLayer),
+            crop(skin, Face.SOUTH, overlayLayer),
+            crop(skin, Face.WEST, overlayLayer),
+            crop(skin, Face.EAST, overlayLayer)
         );
     }
 
     /**
      * The skin texture rectangle for the given face on the base or overlay layer.
      */
-    private @NotNull Rectangle rect(@NotNull BlockFace face, boolean overlayLayer) {
+    private @NotNull Rectangle rect(@NotNull Face face, boolean overlayLayer) {
         return overlayLayer ? this.overlayRects.get(face) : this.baseRects.get(face);
     }
 
@@ -278,12 +278,13 @@ public enum HumanoidPart {
      * Unwraps one cube onto a sheet, face by face, through the entity-atlas unwrap read in the model
      * frame - the same derivation every entity cube's UVs come from.
      */
-    private static @NotNull EnumMap<BlockFace, Rectangle> unwrap(
+    private static @NotNull EnumMap<Face, Rectangle> unwrap(
         @NotNull Vector2f origin, @NotNull Vector3f size) {
-        EnumMap<BlockFace, Rectangle> rects = new EnumMap<>(BlockFace.class);
+        EnumMap<Face, Rectangle> rects = new EnumMap<>(Face.class);
+        Unwrap.Atlas cube = new Unwrap.Atlas(origin, size, false);
 
-        for (BlockFace face : BlockFace.CACHED_VALUES) {
-            Vector4f strip = Turn.HALF_X.entityFace(face).defaultUv(origin, size);
+        for (Face face : Face.CACHED_VALUES) {
+            Vector4f strip = cube.rect(Turn.HALF_X.apply(face));
             rects.put(face, new Rectangle((int) strip.x(), (int) strip.y(),
                 (int) (strip.z() - strip.x()), (int) (strip.w() - strip.y())));
         }

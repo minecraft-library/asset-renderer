@@ -11,7 +11,7 @@ import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
-import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -273,7 +273,7 @@ public class EntityModelData {
         private @NotNull EulerRotation rotation = EulerRotation.NONE;
 
         /**
-         * Per-face UV overrides keyed by {@link BlockFace#direction()
+         * Per-face UV overrides keyed by {@link Face#direction()
          * face direction name} ({@code "down"}, {@code "up"}, {@code "north"}, {@code "south"},
          * {@code "west"}, {@code "east"}). When a face has an entry here, the explicit
          * {@link FaceUv#getUv() uv} origin and {@link FaceUv#getUvSize() uvSize} replace the

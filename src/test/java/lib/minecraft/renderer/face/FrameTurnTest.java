@@ -28,63 +28,57 @@ import static org.hamcrest.Matchers.is;
  * {@link Turn#reflects} agrees with the determinant. <b>Reflections are not excluded</b> - four of the
  * relations in use are reflections, so a rotation-only set would express none of them.
  * <p>
- * The face mapping reads a face's axis off its ordinal, so the two enums declaring their constants in
- * the same opposing-pair order is load-bearing and is asserted here rather than assumed.
+ * An opposite is one bit of the ordinal, so {@link Face} declaring its constants in opposing pairs is
+ * load-bearing and is asserted here rather than assumed.
  */
 @DisplayName("Turn - the frame relations, their group laws, and the half turn about X")
 class FrameTurnTest {
 
     @Test
-    @DisplayName("both face enums declare the same six names in the same opposing-pair order")
-    void faceEnumsShareTheirOrdinalLayout() {
-        assertThat("the two enums must agree constant for constant",
-            EntityFace.CACHED_VALUES.length, is(BlockFace.CACHED_VALUES.length));
-
-        for (int i = 0; i < BlockFace.CACHED_VALUES.length; i++)
-            assertThat("ordinal " + i, EntityFace.CACHED_VALUES[i].name(),
-                equalTo(BlockFace.CACHED_VALUES[i].name()));
+    @DisplayName("the six faces are declared in opposing pairs, which is what makes ordinal ^ 1 the opposite")
+    void facesAreDeclaredInOpposingPairs() {
+        assertThat("six cardinal directions", Face.CACHED_VALUES.length, is(6));
 
         // Pairs share an axis and differ only in sign, which is what makes ordinal ^ 1 the opposite.
-        for (int i = 0; i < BlockFace.CACHED_VALUES.length; i += 2) {
-            Vector3f low = BlockFace.CACHED_VALUES[i].normal();
-            Vector3f high = BlockFace.CACHED_VALUES[i + 1].normal();
-            assertThat(low + " and " + high + " are opposites",
-                high, equalTo(new Vector3f(-low.x() + 0f, -low.y() + 0f, -low.z() + 0f)));
+        for (int i = 0; i < Face.CACHED_VALUES.length; i += 2) {
+            Face low = Face.CACHED_VALUES[i];
+            Face high = Face.CACHED_VALUES[i + 1];
+            assertThat(low + " and " + high + " share an axis", high.axis(), is(low.axis()));
+            assertThat(low + " and " + high + " are opposites", high.normal(),
+                equalTo(new Vector3f(-low.normal().x() + 0f, -low.normal().y() + 0f, -low.normal().z() + 0f)));
+            assertThat(low + "'s opposite", low.opposite(), is(high));
+            assertThat(high + "'s opposite", high.opposite(), is(low));
         }
     }
 
     @Test
-    @DisplayName("HALF_X crosses to the entity frame exactly as the three deleted tables did")
+    @DisplayName("HALF_X crosses to the model frame exactly as the three deleted tables did")
     void halfTurnCrossesFramesAsTheTablesDid() {
-        assertThat(Turn.HALF_X.entityFace(BlockFace.DOWN), is(EntityFace.UP));
-        assertThat(Turn.HALF_X.entityFace(BlockFace.UP), is(EntityFace.DOWN));
-        assertThat(Turn.HALF_X.entityFace(BlockFace.NORTH), is(EntityFace.SOUTH));
-        assertThat(Turn.HALF_X.entityFace(BlockFace.SOUTH), is(EntityFace.NORTH));
-        assertThat(Turn.HALF_X.entityFace(BlockFace.WEST), is(EntityFace.WEST));
-        assertThat(Turn.HALF_X.entityFace(BlockFace.EAST), is(EntityFace.EAST));
+        assertThat(Turn.HALF_X.apply(Face.DOWN), is(Face.UP));
+        assertThat(Turn.HALF_X.apply(Face.UP), is(Face.DOWN));
+        assertThat(Turn.HALF_X.apply(Face.NORTH), is(Face.SOUTH));
+        assertThat(Turn.HALF_X.apply(Face.SOUTH), is(Face.NORTH));
+        assertThat(Turn.HALF_X.apply(Face.WEST), is(Face.WEST));
+        assertThat(Turn.HALF_X.apply(Face.EAST), is(Face.EAST));
     }
 
     @Test
     @DisplayName("the face map is the face-level shadow of the point turn, on every turn and face")
     void faceMapShadowsThePointTurn() {
         for (Turn turn : Turn.CACHED_VALUES)
-            for (BlockFace face : BlockFace.CACHED_VALUES) {
+            for (Face face : Face.CACHED_VALUES) {
                 assertThat(turn + " on " + face,
                     settled(turn.apply(face).normal()), equalTo(settled(turn.apply(face.normal()))));
-                assertThat(turn + " on " + face + " crossing frames",
-                    settled(turn.entityFace(face).normal()), equalTo(settled(turn.apply(face.normal()))));
             }
     }
 
     @Test
     @DisplayName("MIRROR_X swaps the two sides and leaves the other four faces alone")
     void sagittalMirrorSwapsTheSidesOnly() {
-        assertThat(Turn.MIRROR_X.apply(BlockFace.WEST), is(BlockFace.EAST));
-        assertThat(Turn.MIRROR_X.apply(BlockFace.EAST), is(BlockFace.WEST));
-        assertThat(Turn.MIRROR_X.apply(EntityFace.WEST), is(EntityFace.EAST));
-        assertThat(Turn.MIRROR_X.apply(EntityFace.EAST), is(EntityFace.WEST));
+        assertThat(Turn.MIRROR_X.apply(Face.WEST), is(Face.EAST));
+        assertThat(Turn.MIRROR_X.apply(Face.EAST), is(Face.WEST));
 
-        for (BlockFace face : new BlockFace[]{ BlockFace.DOWN, BlockFace.UP, BlockFace.NORTH, BlockFace.SOUTH })
+        for (Face face : new Face[]{ Face.DOWN, Face.UP, Face.NORTH, Face.SOUTH })
             assertThat(face + " keeps its slot under a sagittal mirror", Turn.MIRROR_X.apply(face), is(face));
     }
 
@@ -92,8 +86,8 @@ class FrameTurnTest {
     @DisplayName("every turn is axis-preserving - a face pairs with itself or its own opposite")
     void everyTurnIsAxisPreserving() {
         for (Turn turn : Turn.CACHED_VALUES)
-            for (BlockFace face : BlockFace.CACHED_VALUES) {
-                BlockFace turned = turn.apply(face);
+            for (Face face : Face.CACHED_VALUES) {
+                Face turned = turn.apply(face);
                 assertThat(turn + " keeps " + face + " on its own axis",
                     turned == face || turned.normal().equals(
                         new Vector3f(-face.normal().x() + 0f, -face.normal().y() + 0f, -face.normal().z() + 0f)),
@@ -126,8 +120,8 @@ class FrameTurnTest {
     @DisplayName("a mirrored shell cube is one composition, not a relation of its own")
     void mirroredShellCubeComposes() {
         assertThat(Turn.HALF_X.then(Turn.MIRROR_X), is(Turn.INVERT));
-        assertThat(Turn.HALF_X.then(Turn.MIRROR_X).entityFace(BlockFace.WEST), is(EntityFace.EAST));
-        assertThat(Turn.HALF_X.then(Turn.MIRROR_X).entityFace(BlockFace.DOWN), is(EntityFace.UP));
+        assertThat(Turn.HALF_X.then(Turn.MIRROR_X).apply(Face.WEST), is(Face.EAST));
+        assertThat(Turn.HALF_X.then(Turn.MIRROR_X).apply(Face.DOWN), is(Face.UP));
     }
 
     @Test

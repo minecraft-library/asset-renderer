@@ -3,8 +3,10 @@ package lib.minecraft.renderer.engine.kit;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.face.EntityFace;
+import lib.minecraft.renderer.face.CornerPhase;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.Turn;
+import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -264,7 +266,7 @@ public class BoneKit {
     /**
      * Resolves the raw four-corner UV rectangle for one cube face in atlas-position order
      * ({@code TL, BL, BR, TR}). Uses the cube's per-face UV override when present, otherwise
-     * derives the rectangle from the atlas layout via {@link EntityFace#defaultUv}. Forwards the
+     * derives the rectangle from the atlas layout via {@link Unwrap.Atlas#rect}. Forwards the
      * cube's {@code mirror} flag to {@link Vector4f#toUvCorners} for the U-flip.
      *
      * @param face the geometric face being resolved
@@ -276,7 +278,7 @@ public class BoneKit {
      *     top-right)
      */
     static @NotNull Vector2f @NotNull [] resolveFaceUv(
-        @NotNull EntityFace face,
+        @NotNull Face face,
         @NotNull EntityModelData.Cube cube,
         @NotNull Vector3f size,
         float texWidth,
@@ -285,7 +287,7 @@ public class BoneKit {
         EntityModelData.FaceUv override = cube.getFaceUv().get(face.direction());
         Vector4f rect;
         if (override == null) {
-            rect = face.defaultUv(cube.getUv(), size);
+            rect = new Unwrap.Atlas(cube.getUv(), size, cube.isMirror()).rect(face);
         } else {
             Vector2f uv = override.getUv();
             Vector2f uvSize = override.getUvSize();
@@ -297,7 +299,7 @@ public class BoneKit {
     /**
      * Resolves the per-vertex UV array for one polygon, including mirror handling and the
      * vanilla-spec slot permutation. The output is indexed in the kit's corner order
-     * ({@link EntityFace#vertexIndices}) so each {@code corners[i]} pairs with the UV vanilla's
+     * ({@link CornerPhase#POLYGON}) so each {@code corners[i]} pairs with the UV vanilla's
      * cube ctor assigns to the same world-space vertex.
      * <p>
      * For {@code cube.isMirror()} cubes, vanilla's {@code ModelPart.Cube} ctor swaps the cube's
@@ -305,15 +307,15 @@ public class BoneKit {
      * effect of swapping which UV strip is applied to the cube's +X vs -X face (vanilla's WEST
      * polygon UV ends up on the +X face, EAST polygon UV on the -X face). The polygon ctor also
      * reverses each polygon's vertex array, which U-flips every face's UV mapping. Both effects
-     * are replicated for {@code mirror=true} cubes via {@link EntityFace#mirror} and the
+     * are replicated for {@code mirror=true} cubes via {@link Turn#MIRROR_X} and the
      * {@link Vector4f#toUvCorners} mirror flag inside {@link #resolveFaceUv}.
      * <p>
      * The per-face slot permutation maps {@link #resolveFaceUv}'s {@code (TL, BL, BR, TR)}
      * output to the (max-u, top-v)-first ordering vanilla's {@code Polygon} ctor produces. For
      * non-UP faces, vanilla's vertex 0 lands in the TR slot; for UP, it lands in BR because the
      * polygon ctor's {@code f3 / f5} parameters are V-inverted on the atlas strip. The exact
-     * slot mapping per face lives on {@link EntityFace#polygonVertexSlots} and is applied via
-     * {@link EntityFace#permuteToPolygonOrder} so both kits share the same source of truth.
+     * slot mapping per face lives on {@link CornerPhase#uvSlots} and is applied via
+     * {@link CornerPhase#permuteUv} so both kits share the same source of truth.
      * <p>
      * Independent of the kit's permanent Y-flip on positions: that flip changes where vertices project to
      * screen, but each vertex's vanilla-spec UV is unchanged.
@@ -326,15 +328,15 @@ public class BoneKit {
      * @return the four per-vertex UVs in the kit's corner order
      */
     public static @NotNull Vector2f @NotNull [] resolvePolygonUv(
-        @NotNull EntityFace face,
+        @NotNull Face face,
         @NotNull EntityModelData.Cube cube,
         @NotNull Vector3f size,
         float texWidth,
         float texHeight
     ) {
-        EntityFace strip = cube.isMirror() ? Turn.MIRROR_X.apply(face) : face;
+        Face strip = cube.isMirror() ? Turn.MIRROR_X.apply(face) : face;
         Vector2f[] uv = resolveFaceUv(strip, cube, size, texWidth, texHeight);
-        return face.permuteToPolygonOrder(uv);
+        return CornerPhase.POLYGON.permuteUv(face, uv);
     }
 
     /**
@@ -353,10 +355,10 @@ public class BoneKit {
      * @return {@code true} if the polygon collapses to a line; {@code false} when the face has
      *     full plane area
      */
-    public static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull EntityFace face) {
-        if (size.x() == 0f) return face != EntityFace.WEST && face != EntityFace.EAST;
-        if (size.y() == 0f) return face != EntityFace.UP && face != EntityFace.DOWN;
-        if (size.z() == 0f) return face != EntityFace.NORTH && face != EntityFace.SOUTH;
+    public static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull Face face) {
+        if (size.x() == 0f) return face != Face.WEST && face != Face.EAST;
+        if (size.y() == 0f) return face != Face.UP && face != Face.DOWN;
+        if (size.z() == 0f) return face != Face.NORTH && face != Face.SOUTH;
         return false;
     }
 

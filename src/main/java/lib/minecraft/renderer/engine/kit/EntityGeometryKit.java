@@ -13,7 +13,8 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.face.EntityFace;
+import lib.minecraft.renderer.face.CornerPhase;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -321,8 +322,8 @@ public class EntityGeometryKit {
                 boolean cubeIsTranslucent = !cubeCullBackFaces
                     && uvPartialAlphaPresent(cube, size, texture, texW, texH);
 
-                for (EntityFace face : EntityFace.CACHED_VALUES) {
-                    Vector3f[] corners = face.corners(cubeBounds);
+                for (Face face : Face.CACHED_VALUES) {
+                    Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
                     for (int i = 0; i < 4; i++) {
                         Vector3f transformed = corners[i].transform(perCubeChainFluent);
                         float nx = transformed.x();
@@ -498,9 +499,9 @@ public class EntityGeometryKit {
                 }
 
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
-                for (EntityFace face : EntityFace.CACHED_VALUES) {
+                for (Face face : Face.CACHED_VALUES) {
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
-                    Vector3f[] corners3d = face.corners(cubeBounds);
+                    Vector3f[] corners3d = CornerPhase.POLYGON.corners(face, cubeBounds);
                     // Must match the renderer's UV resolver. {@link BoneKit#resolveFaceUv} alone
                     // pairs uvs[i] with corners3d[i] at DIAGONALLY OPPOSITE vertices of the
                     // face (kit corner order is cyclic-shifted by 1 from vanilla's polygon
@@ -999,18 +1000,18 @@ public class EntityGeometryKit {
         // outboard (WEST/SOUTH) faces, under the 20% threshold on the visible UP/NORTH/EAST, so
         // sampling only the visible triple would cull them and open two see-through holes where
         // vanilla's entityCutoutNoCull draws the opaque inner faces through the front cutout.
-        for (EntityFace face : EntityFace.values())
+        for (Face face : Face.values())
             if (uvNonOpaqueExceeds(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
                 return false;
         boolean visibleHasContent =
-               uvHasContent(BoneKit.resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture);
+               uvHasContent(BoneKit.resolveFaceUv(Face.UP, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(Face.NORTH, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(Face.EAST, cube, size, texW, texH), texture);
         if (visibleHasContent) return true;
         boolean hiddenHasContent =
-               uvHasContent(BoneKit.resolveFaceUv(EntityFace.DOWN, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.SOUTH, cube, size, texW, texH), texture)
-            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.WEST, cube, size, texW, texH), texture);
+               uvHasContent(BoneKit.resolveFaceUv(Face.DOWN, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(Face.SOUTH, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(Face.WEST, cube, size, texW, texH), texture);
         return !hiddenHasContent;
     }
 
@@ -1035,7 +1036,7 @@ public class EntityGeometryKit {
         float texW,
         float texH
     ) {
-        for (EntityFace face : EntityFace.CACHED_VALUES) {
+        for (Face face : Face.CACHED_VALUES) {
             if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
                 && BoneKit.isDegeneratePlaneFace(size, face)) continue;
             if (BoneKit.faceHasPartialAlpha(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))

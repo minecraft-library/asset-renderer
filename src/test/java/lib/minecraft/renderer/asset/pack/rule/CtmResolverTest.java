@@ -3,7 +3,7 @@ package lib.minecraft.renderer.asset.pack.rule;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.PackId;
-import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.pipeline.pack.rule.CtmParser;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -145,22 +145,22 @@ class CtmResolverTest {
     }
 
     @Test
-    @DisplayName("CtmFace.fromBlockFace maps UP/DOWN to TOP/BOTTOM and keeps horizontal names")
-    void fromBlockFaceMapping() {
-        assertThat(CtmFace.fromBlockFace(BlockFace.UP), equalTo(CtmFace.TOP));
-        assertThat(CtmFace.fromBlockFace(BlockFace.DOWN), equalTo(CtmFace.BOTTOM));
-        assertThat(CtmFace.fromBlockFace(BlockFace.NORTH), equalTo(CtmFace.NORTH));
-        assertThat(CtmFace.fromBlockFace(BlockFace.SOUTH), equalTo(CtmFace.SOUTH));
-        assertThat(CtmFace.fromBlockFace(BlockFace.EAST), equalTo(CtmFace.EAST));
-        assertThat(CtmFace.fromBlockFace(BlockFace.WEST), equalTo(CtmFace.WEST));
+    @DisplayName("CtmFace.fromFace maps UP/DOWN to TOP/BOTTOM and keeps horizontal names")
+    void fromFaceMapping() {
+        assertThat(CtmFace.fromFace(Face.UP), equalTo(CtmFace.TOP));
+        assertThat(CtmFace.fromFace(Face.DOWN), equalTo(CtmFace.BOTTOM));
+        assertThat(CtmFace.fromFace(Face.NORTH), equalTo(CtmFace.NORTH));
+        assertThat(CtmFace.fromFace(Face.SOUTH), equalTo(CtmFace.SOUTH));
+        assertThat(CtmFace.fromFace(Face.EAST), equalTo(CtmFace.EAST));
+        assertThat(CtmFace.fromFace(Face.WEST), equalTo(CtmFace.WEST));
     }
 
     @Test
     @DisplayName("an empty rule set substitutes nothing - the parity-neutral vanilla case")
     void emptyRuleSetIsInert() {
         RuleSet empty = RuleSet.empty(PackId.VANILLA);
-        for (BlockFace face : BlockFace.CACHED_VALUES)
-            assertThat(empty.connectedTextureFor(tileCtx(CtmFace.fromBlockFace(face))).isPresent(), is(false));
+        for (Face face : Face.CACHED_VALUES)
+            assertThat(empty.connectedTextureFor(tileCtx(CtmFace.fromFace(face))).isPresent(), is(false));
     }
 
     private void assertFirstTile(@NotNull CtmRule rule) {

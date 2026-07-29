@@ -21,7 +21,7 @@ import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.engine.kit.NineSliceKit;
-import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import org.jetbrains.annotations.NotNull;
@@ -295,7 +295,7 @@ public interface RendererContext {
      */
     default @NotNull Optional<ResourceId> resolveConnectedTexture(
         @NotNull String blockId, @NotNull Map<String, String> state,
-        @NotNull String baseTextureId, @NotNull BlockFace face) {
+        @NotNull String baseTextureId, @NotNull Face face) {
         return Optional.empty();
     }
 
@@ -438,7 +438,7 @@ public interface RendererContext {
         /** {@inheritDoc} */
         @Override default @NotNull Optional<ResourceId> resolveConnectedTexture(
             @NotNull String blockId, @NotNull Map<String, String> state,
-            @NotNull String baseTextureId, @NotNull BlockFace face) {
+            @NotNull String baseTextureId, @NotNull Face face) {
             return delegate().resolveConnectedTexture(blockId, state, baseTextureId, face);
         }
 

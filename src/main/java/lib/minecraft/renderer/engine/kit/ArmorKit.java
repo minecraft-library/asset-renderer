@@ -16,11 +16,11 @@ import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.face.BlockFace;
-import lib.minecraft.renderer.face.CubeUnwrap;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.face.Turn;
+import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.ArmorSlot;
 import lib.minecraft.renderer.option.spec.ArmorTrim;
@@ -49,7 +49,7 @@ import java.util.OptionalInt;
  * The armor texture is a 64x32 atlas whose UV layout matches the top half of the vanilla 64x64
  * player skin - the base layer plus the head's overlay, which the helmet's second box reads -
  * so {@link HumanoidPart#cropAll(PixelBuffer, boolean) cropAll} and
- * {@link HumanoidPart#crop(PixelBuffer, BlockFace, boolean) crop} work directly on the armor
+ * {@link HumanoidPart#crop(PixelBuffer, Face, boolean) crop} work directly on the armor
  * texture. Armor pieces whose texture region is transparent (e.g. the head area of a leggings
  * layer) produce invisible geometry that the depth buffer or alpha compositing discards
  * naturally.
@@ -213,7 +213,7 @@ public class ArmorKit {
         Optional<PixelBuffer> armorTexture =
             resolveArmorTexture(engine, piece, ArmorForm.ADULT.layerType(slot), item);
         armorTexture.ifPresent(tex -> {
-            PixelBuffer face = part.crop(tex, BlockFace.SOUTH, false);
+            PixelBuffer face = part.crop(tex, Face.SOUTH, false);
             target.blitScaled(face, x, y, w, h);
             stampMaskScaled(mask, face, x, y, w, h);
         });
@@ -221,7 +221,7 @@ public class ArmorKit {
         piece.trim().ifPresent(trim -> ArmorForm.ADULT.trimLayer(slot)
             .flatMap(layer -> resolveTrimTexture(engine, layer, trim.pattern(), trim.color()))
             .ifPresent(trimTex -> {
-                PixelBuffer face = part.crop(trimTex, BlockFace.SOUTH, false);
+                PixelBuffer face = part.crop(trimTex, Face.SOUTH, false);
                 target.blitScaled(face, x, y, w, h);
                 stampMaskScaled(mask, face, x, y, w, h);
             }));
@@ -646,25 +646,20 @@ public class ArmorKit {
      */
     private static @NotNull SixFaces cropCube(
         @NotNull PixelBuffer sheet, @NotNull EntityModelData.Cube cube) {
+        Unwrap.Atlas unwrap = new Unwrap.Atlas(cube.getUv(), cube.getSize(), cube.isMirror());
         return new SixFaces(
-            cropFace(sheet, cube, BlockFace.DOWN),
-            cropFace(sheet, cube, BlockFace.UP),
-            cropFace(sheet, cube, BlockFace.NORTH),
-            cropFace(sheet, cube, BlockFace.SOUTH),
-            cropFace(sheet, cube, BlockFace.WEST),
-            cropFace(sheet, cube, BlockFace.EAST));
-    }
-
-    /** One render-frame face of a shell cube, cropped through the model-frame face it pairs with. */
-    private static @NotNull PixelBuffer cropFace(
-        @NotNull PixelBuffer sheet, @NotNull EntityModelData.Cube cube, @NotNull BlockFace face) {
-        return CubeUnwrap.crop(sheet, cube.getUv(), cube.getSize(), cube.isMirror(), MODEL_FRAME.entityFace(face));
+            unwrap.crop(sheet, MODEL_FRAME.apply(Face.DOWN)),
+            unwrap.crop(sheet, MODEL_FRAME.apply(Face.UP)),
+            unwrap.crop(sheet, MODEL_FRAME.apply(Face.NORTH)),
+            unwrap.crop(sheet, MODEL_FRAME.apply(Face.SOUTH)),
+            unwrap.crop(sheet, MODEL_FRAME.apply(Face.WEST)),
+            unwrap.crop(sheet, MODEL_FRAME.apply(Face.EAST)));
     }
 
     /**
      * Names each triangle of one armor box for the per-pixel trace, so a dump reads
      * {@code right_leg:north} rather than {@code null} where two shell faces contest a pixel. The
-     * shared box builder emits two triangles per face in {@link BlockFace#CACHED_VALUES} order,
+     * shared box builder emits two triangles per face in {@link Face#CACHED_VALUES} order,
      * which is what lets the face be recovered from the position.
      *
      * @param box the box's twelve triangles as the builder emitted them
@@ -675,7 +670,7 @@ public class ArmorKit {
         @NotNull ConcurrentList<VisibleTriangle> box, @NotNull String name) {
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (int index = 0; index < box.size(); index++)
-            out.add(box.get(index).withDebugTag(name + ":" + BlockFace.CACHED_VALUES[index / 2].direction()));
+            out.add(box.get(index).withDebugTag(name + ":" + Face.CACHED_VALUES[index / 2].direction()));
         return out;
     }
 

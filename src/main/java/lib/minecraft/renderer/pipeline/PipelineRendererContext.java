@@ -31,7 +31,7 @@ import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
-import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder;
 import lib.minecraft.renderer.pipeline.index.ItemIndexBuilder;
@@ -399,15 +399,15 @@ public final class PipelineRendererContext implements RendererContext {
      * {@inheritDoc}
      * <p>
      * Delegates to {@link RuleSet#connectedTextureFor(CtmContext)} on the merged rules, mapping the
-     * renderer {@link BlockFace} onto its CTM grammar face. Empty on a vanilla-only stack (no
+     * renderer {@link Face} onto its CTM grammar face. Empty on a vanilla-only stack (no
      * {@code optifine/} tree, so no CTM rules), which keeps the block render byte-identical.
      */
     @Override
     public @NotNull Optional<ResourceId> resolveConnectedTexture(
         @NotNull String blockId, @NotNull Map<String, String> state,
-        @NotNull String baseTextureId, @NotNull BlockFace face) {
+        @NotNull String baseTextureId, @NotNull Face face) {
         return this.stack.rules().connectedTextureFor(
-            new CtmContext(blockId, state, baseTextureId, CtmFace.fromBlockFace(face)));
+            new CtmContext(blockId, state, baseTextureId, CtmFace.fromFace(face)));
     }
 
     /**

@@ -27,11 +27,11 @@ import lib.minecraft.renderer.engine.kit.ElytraKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.face.BlockFace;
-import lib.minecraft.renderer.face.CubeUnwrap;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.HumanoidPart;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.face.Turn;
+import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.slot.PlayerSlot2D;
 import lib.minecraft.renderer.option.slot.PlayerSlot3D;
@@ -313,23 +313,19 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * </pre>
      * The {@code NORTH} region ({@code x 1..10}) carries the visible cape design and the {@code SOUTH}
      * region ({@code x 12..21}) the plain lining. The cape hangs on the player's back - its {@code -Z}
-     * / {@link BlockFace#NORTH NORTH} face points outward, away from the body - so the design lands
+     * / {@link Face#NORTH NORTH} face points outward, away from the body - so the design lands
      * outward and the lining against the back.
      */
     private static @NotNull SixFaces cropCapeFaces(@NotNull PixelBuffer cape) {
+        Unwrap.Atlas unwrap = new Unwrap.Atlas(CAPE_UV, CAPE_SIZE, false);
         return new SixFaces(
-            capeFace(cape, BlockFace.DOWN),
-            capeFace(cape, BlockFace.UP),
-            capeFace(cape, BlockFace.NORTH),
-            capeFace(cape, BlockFace.SOUTH),
-            capeFace(cape, BlockFace.WEST),
-            capeFace(cape, BlockFace.EAST)
+            unwrap.crop(cape, CAPE_FRAME.apply(Face.DOWN)),
+            unwrap.crop(cape, CAPE_FRAME.apply(Face.UP)),
+            unwrap.crop(cape, CAPE_FRAME.apply(Face.NORTH)),
+            unwrap.crop(cape, CAPE_FRAME.apply(Face.SOUTH)),
+            unwrap.crop(cape, CAPE_FRAME.apply(Face.WEST)),
+            unwrap.crop(cape, CAPE_FRAME.apply(Face.EAST))
         );
-    }
-
-    /** One face of the cape cube, read out of its own strip. */
-    private static @NotNull PixelBuffer capeFace(@NotNull PixelBuffer cape, @NotNull BlockFace face) {
-        return CubeUnwrap.crop(cape, CAPE_UV, CAPE_SIZE, false, CAPE_FRAME.entityFace(face));
     }
 
     /**
@@ -439,15 +435,15 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 LayerStack<ImageLayer> stack = new LayerStack<>();
                 stack.append(PlayerSlot2D.SKIN, frame -> {
                     for (BodyPart2D bp : parts)
-                        frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, false), bp.x, bp.y, bp.w, bp.h);
+                        frame.blitScaled(bp.part.crop(skin, Face.SOUTH, false), bp.x, bp.y, bp.w, bp.h);
                 });
                 if (overlay)
                     stack.append(PlayerSlot2D.OVERLAY, frame -> {
                         for (BodyPart2D bp : parts) {
                             if (hasOverlay(skin))
-                                frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
+                                frame.blitScaled(bp.part.crop(skin, Face.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
                             else if (bp.part == HumanoidPart.HEAD && hasHatOverlay(skin))
-                                frame.blitScaled(HumanoidPart.HEAD.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
+                                frame.blitScaled(HumanoidPart.HEAD.crop(skin, Face.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
                         }
                     });
                 stack.append(PlayerSlot2D.ARMOR, frame -> {

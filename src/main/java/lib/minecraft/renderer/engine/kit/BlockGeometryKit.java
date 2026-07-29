@@ -12,9 +12,10 @@ import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.face.BlockFace;
-import lib.minecraft.renderer.face.EntityFace;
+import lib.minecraft.renderer.face.CornerPhase;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.SixFaces;
+import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -33,8 +34,9 @@ import java.util.Set;
  * The primary use case is constructing the six-face cube used by every isometric block and head
  * renderer. Each cube face is built as a pair of triangles with the correct CCW winding, UV
  * orientation, and surface normal so that back-face culling and inventory lighting produce the
- * expected result without caller-side fixups. All direction-aware logic - vertex winding, normals,
- * and default UV derivation - lives on {@link BlockFace}.
+ * expected result without caller-side fixups. All direction-aware logic lives in the face package:
+ * normals on {@link Face}, vertex winding on {@link CornerPhase}, default UV derivation on
+ * {@link Unwrap}.
  */
 @UtilityClass
 public class BlockGeometryKit {
@@ -44,7 +46,7 @@ public class BlockGeometryKit {
      * and {@code item/} model JSON authors coordinates against this grid - element
      * {@code from} / {@code to} values of {@code [0, 0, 0]} and {@code [16, 16, 16]} describe a
      * full unit cube, face UVs run from {@code 0} to {@code 16}, and {@code display.*.translation}
-     * values are in the same space. This kit and its consumers ({@link BlockFace#defaultUv},
+     * values are in the same space. This kit and its consumers ({@link Unwrap.Element#rect},
      * {@link BlockRenderer}, item renderer's display-transform path) divide by this constant to
      * normalise into the engine's {@code [-0.5, +0.5]} unit-cube space before projection.
      */
@@ -66,7 +68,7 @@ public class BlockGeometryKit {
      * <p>
      * Every face uses the full {@code [0, 1]} UV rectangle.
      *
-     * @param faces the six face textures, keyed by {@link BlockFace} direction
+     * @param faces the six face textures, keyed by {@link Face} direction
      * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
      * @return the 12-triangle list, ready for rasterization
      */
@@ -87,7 +89,7 @@ public class BlockGeometryKit {
      *
      * @param min the minimum corner in model space
      * @param max the maximum corner in model space
-     * @param faces the six face textures, keyed by {@link BlockFace} direction
+     * @param faces the six face textures, keyed by {@link Face} direction
      * @param tintArgb the ARGB tint applied to every face
      * @return the 12-triangle list
      */
@@ -115,12 +117,12 @@ public class BlockGeometryKit {
      * the front shades identically either way. A player's own armor is not turned back into the entity
      * frame, so it keeps the cull-blind {@link Lighting#inventory} shade baked here.
      * <p>
-     * The result is emitted two triangles per face in {@link BlockFace#CACHED_VALUES} order, which is
+     * The result is emitted two triangles per face in {@link Face#CACHED_VALUES} order, which is
      * how {@code ArmorKit} recovers each triangle's face to name it for the per-pixel trace.
      *
      * @param min the minimum corner in model space
      * @param max the maximum corner in model space
-     * @param faces the six face textures, keyed by {@link BlockFace} direction
+     * @param faces the six face textures, keyed by {@link Face} direction
      * @param tintArgb the ARGB tint applied to every face
      * @return the 12-triangle list
      */
@@ -144,8 +146,8 @@ public class BlockGeometryKit {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Box box = Box.of(min, max);
 
-        for (BlockFace face : BlockFace.CACHED_VALUES) {
-            Vector3f[] corners = face.corners(box);
+        for (Face face : Face.CACHED_VALUES) {
+            Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
             addQuad(
                 triangles,
                 corners[0], corners[1], corners[2], corners[3],
@@ -167,7 +169,7 @@ public class BlockGeometryKit {
      * pre-flattened block elements.
      * <p>
      * Each cube is walked with the same entity conventions the {@link EntityGeometryKit} uses -
-     * bone-local origins scaled by the bone's {@code scale}, {@link EntityFace} atlas-UV unwrap
+     * bone-local origins scaled by the bone's {@code scale}, {@link Face} atlas-UV unwrap
      * (via {@link BoneKit#resolvePolygonUv}), inflate, mirror, and per-cube / bind-pose
      * rotation (via {@link BoneKit#composeCubeTransform}) - then emitted in the block engine's
      * {@code [-0.5, +0.5]} frame by dividing the composed pixel-space position by
@@ -241,9 +243,9 @@ public class BlockGeometryKit {
                 Matrix4f cubeTransform = presentation.multiply(BoneKit.composeCubeTransform(cube, bone, boneChain));
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
 
-                for (EntityFace face : EntityFace.CACHED_VALUES) {
+                for (Face face : Face.CACHED_VALUES) {
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
-                    Vector3f[] corners = face.corners(cubeBounds);
+                    Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
                     for (int i = 0; i < corners.length; i++) {
                         Vector3f t = corners[i].transform(cubeTransform);
                         corners[i] = new Vector3f(
@@ -287,7 +289,7 @@ public class BlockGeometryKit {
          * @param rawRef the face's raw texture ref (the {@link ModelFace#getTexture()} key)
          * @return the substitute texture, or empty to fall through to the pre-loaded texture
          */
-        @NotNull Optional<PixelBuffer> resolve(@NotNull BlockFace face, @NotNull String rawRef);
+        @NotNull Optional<PixelBuffer> resolve(@NotNull Face face, @NotNull String rawRef);
 
     }
 
@@ -326,7 +328,7 @@ public class BlockGeometryKit {
      * the engine's normalized {@code [-0.5, +0.5]} cube space, matching the convention used by
      * {@link #unitCube}. Faces missing from an element's {@code faces} map - or carrying an
      * unrecognized direction name - are skipped. Face UV rectangles are converted from 0-16 to
-     * {@code [0, 1]} space when present, otherwise derived via {@link BlockFace#defaultUv}. Face
+     * {@code [0, 1]} space when present, otherwise derived via {@link Unwrap.Element#rect}. Face
      * {@code rotation} ({@code 0}/{@code 90}/{@code 180}/{@code 270} degrees) rotates the UV
      * corners clockwise.
      * <p>
@@ -532,7 +534,7 @@ public class BlockGeometryKit {
             boolean twoSided = x0 == x1 || y0 == y1 || z0 == z1;
 
             for (Map.Entry<String, ModelFace> entry : element.getFaces().entrySet()) {
-                BlockFace blockFace = BlockFace.fromName(entry.getKey());
+                Face blockFace = Face.fromName(entry.getKey());
                 if (blockFace == null) continue;
 
                 ModelFace face = entry.getValue();
@@ -542,7 +544,7 @@ public class BlockGeometryKit {
 
                 int uvLockTurns = uvLock ? uvLockQuarterTurns(blockFace, variantRotationX, variantRotationY) : 0;
                 Vector2f[] uv = resolveFaceUv(face, blockFace, element, uvLockTurns);
-                Vector3f[] corners = blockFace.corners(new Box(x0, y0, z0, x1, y1, z1));
+                Vector3f[] corners = CornerPhase.BAKERY.corners(blockFace, new Box(x0, y0, z0, x1, y1, z1));
                 Vector3f faceNormal = blockFace.normal();
 
                 if (elementTransform != null) {
@@ -583,7 +585,7 @@ public class BlockGeometryKit {
     /**
      * Resolves the four UV corners (TL, BL, BR, TR) for a face in normalized {@code [0, 1]}
      * space. When the face supplies an explicit UV rectangle in 0-16 space it is used directly;
-     * otherwise the rectangle is delegated to {@link BlockFace#defaultUv}. Face rotation of
+     * otherwise the rectangle is delegated to {@link Unwrap.Element#rect}. Face rotation of
      * {@code 90}/{@code 180}/{@code 270} is applied by
      * {@link Vector4f#toUvCorners(float, float, int, boolean)} via a forward cyclic shift
      * matching vanilla's {@code Quadrant}-based UV rotation.
@@ -598,19 +600,19 @@ public class BlockGeometryKit {
      */
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
         @NotNull ModelFace face,
-        @NotNull BlockFace blockFace,
+        @NotNull Face blockFace,
         @NotNull ModelElement element,
         int uvLockQuarterTurnsCw
     ) {
         Vector4f rect = face.getUv()
-            .orElseGet(() -> blockFace.defaultUv(Box.of(element.getFrom(), element.getTo())));
+            .orElseGet(() -> new Unwrap.Element(Box.of(element.getFrom(), element.getTo())).rect(blockFace));
         Vector2f[] corners = rect.toUvCorners(
             VANILLA_PIXEL_UNITS_PER_BLOCK,
             VANILLA_PIXEL_UNITS_PER_BLOCK,
             face.getRotation(),
             false
         );
-        return rotateUvAboutCenter(corners, uvLockQuarterTurnsCw);
+        return CornerPhase.BAKERY.permuteUv(blockFace, rotateUvAboutCenter(corners, uvLockQuarterTurnsCw));
     }
 
     /**
@@ -671,7 +673,7 @@ public class BlockGeometryKit {
      * opposite side so it takes the opposite sense. Side faces keep their vertical axis under Y and
      * need no correction.
      */
-    private static int uvLockQuarterTurns(@NotNull BlockFace face, int variantRotationX, int variantRotationY) {
+    private static int uvLockQuarterTurns(@NotNull Face face, int variantRotationX, int variantRotationY) {
         if (variantRotationX != 0)
             return switch (variantRotationX) {
                 case 90 -> switch (face) {
@@ -732,7 +734,7 @@ public class BlockGeometryKit {
      * <p>
      * {@link Lighting#inventory} resolves the dominant cardinal of the (post-element-rotation) face
      * normal and returns the matching vanilla {@code Lighting.ITEMS_3D} approximation -
-     * cardinal-aligned faces reproduce the per-face values on {@link BlockFace#lighting}
+     * cardinal-aligned faces reproduce the per-face values on {@link Face#lighting}
      * ({@code 1.0}/{@code 0.5}/{@code 0.6}/{@code 0.8}), and faces tipped by {@code element.rotation}
      * resolve to the closest cardinal's shade. When {@code directionalLight} is {@code false} (a face
      * of a {@code "shade": false} element) the shade is instead {@link Shading#DISABLED}, so the

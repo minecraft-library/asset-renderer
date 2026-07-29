@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.is;
 class HumanoidPartCropTest {
 
     /**
-     * The declared base and overlay origins per part, in {@link BlockFace} declaration order, as
+     * The declared base and overlay origins per part, in {@link Face} declaration order, as
      * {@code {baseX, baseY, overlayX, overlayY}} rows. Transcribed rather than derived, so a change to
      * the table has to be made twice on purpose.
      */
@@ -58,7 +58,7 @@ class HumanoidPartCropTest {
         PixelBuffer skin = sheet(64, 64);
 
         for (HumanoidPart part : HumanoidPart.values()) {
-            for (BlockFace face : BlockFace.CACHED_VALUES) {
+            for (Face face : Face.CACHED_VALUES) {
                 int[] expected = origin(part, face, false);
                 assertRegion(part + "." + face + " base", part.crop(skin, face, false),
                     expected[0], expected[1], size(part, face), false);
@@ -72,7 +72,7 @@ class HumanoidPartCropTest {
         PixelBuffer skin = sheet(64, 64);
 
         for (HumanoidPart part : HumanoidPart.values()) {
-            for (BlockFace face : BlockFace.CACHED_VALUES) {
+            for (Face face : Face.CACHED_VALUES) {
                 int[] expected = origin(part, face, true);
                 assertRegion(part + "." + face + " overlay", part.crop(skin, face, true),
                     expected[0], expected[1], size(part, face), false);
@@ -86,7 +86,7 @@ class HumanoidPartCropTest {
         PixelBuffer atlas = sheet(64, 32);
 
         for (HumanoidPart part : new HumanoidPart[]{ HumanoidPart.HEAD, HumanoidPart.TORSO, HumanoidPart.RIGHT_ARM, HumanoidPart.RIGHT_LEG }) {
-            for (BlockFace face : BlockFace.CACHED_VALUES) {
+            for (Face face : Face.CACHED_VALUES) {
                 int[] expected = origin(part, face, false);
                 assertRegion(part + "." + face + " on 64x32", part.crop(atlas, face, false),
                     expected[0], expected[1], size(part, face), false);
@@ -111,7 +111,7 @@ class HumanoidPartCropTest {
     void overlaysOn64x32() {
         PixelBuffer atlas = sheet(64, 32);
 
-        for (BlockFace face : BlockFace.CACHED_VALUES) {
+        for (Face face : Face.CACHED_VALUES) {
             int[] expected = origin(HumanoidPart.HEAD, face, true);
             assertRegion("HEAD." + face + " overlay on 64x32", HumanoidPart.HEAD.crop(atlas, face, true),
                 expected[0], expected[1], size(HumanoidPart.HEAD, face), false);
@@ -119,7 +119,7 @@ class HumanoidPartCropTest {
 
         // The overlay layer never takes the fallback, so a region past the bottom edge reads as
         // transparent rather than as the mirrored right limb.
-        PixelBuffer torso = HumanoidPart.TORSO.crop(atlas, BlockFace.NORTH, true);
+        PixelBuffer torso = HumanoidPart.TORSO.crop(atlas, Face.NORTH, true);
         assertThat("TORSO.NORTH overlay on 64x32 is empty", torso.getPixel(0, 0), is(0));
     }
 
@@ -130,7 +130,7 @@ class HumanoidPartCropTest {
 
         // On a full skin the left limbs keep their own regions - the fallback is a property of the
         // sheet, not of the part.
-        for (BlockFace face : BlockFace.CACHED_VALUES) {
+        for (Face face : Face.CACHED_VALUES) {
             int[] own = origin(HumanoidPart.LEFT_ARM, face, false);
             assertRegion("LEFT_ARM." + face + " on 64x64", HumanoidPart.LEFT_ARM.crop(skin, face, false),
                 own[0], own[1], size(HumanoidPart.LEFT_ARM, face), false);
@@ -148,7 +148,7 @@ class HumanoidPartCropTest {
     private static void assertMirroredLimb(HumanoidPart left, HumanoidPart right) {
         PixelBuffer atlas = sheet(64, 32);
 
-        for (BlockFace face : BlockFace.CACHED_VALUES) {
+        for (Face face : Face.CACHED_VALUES) {
             int[] source = origin(right, sagittal(face), false);
             assertRegion(left + "." + face + " on 64x32", left.crop(atlas, face, false),
                 source[0], source[1], size(left, face), true);
@@ -156,10 +156,10 @@ class HumanoidPartCropTest {
     }
 
     /** The face a sagittal-plane mirror reads through - the two sides trade, the other four stay. */
-    private static BlockFace sagittal(BlockFace face) {
+    private static Face sagittal(Face face) {
         return switch (face) {
-            case WEST -> BlockFace.EAST;
-            case EAST -> BlockFace.WEST;
+            case WEST -> Face.EAST;
+            case EAST -> Face.WEST;
             default -> face;
         };
     }
@@ -184,13 +184,13 @@ class HumanoidPartCropTest {
     }
 
     /** The declared {@code (x, y)} origin of one part's face on one layer. */
-    private static int[] origin(HumanoidPart part, BlockFace face, boolean overlay) {
+    private static int[] origin(HumanoidPart part, Face face, boolean overlay) {
         int[] row = ORIGINS[part.ordinal()][face.ordinal()];
         return overlay ? new int[]{ row[2], row[3] } : new int[]{ row[0], row[1] };
     }
 
     /** The {@code (width, height)} a face's rectangle takes from the part's box dimensions. */
-    private static int[] size(HumanoidPart part, BlockFace face) {
+    private static int[] size(HumanoidPart part, Face face) {
         int[] dims = DIMENSIONS[part.ordinal()];
         return switch (face) {
             case DOWN, UP -> new int[]{ dims[0], dims[2] };

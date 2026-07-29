@@ -13,13 +13,13 @@
  *   <li>{@link lib.minecraft.renderer.engine.kit.BlockGeometryKit BlockGeometryKit} - the {@code block/*.json}
  *       element list builder. Walks {@code from / to / faces} entries, applies element-level
  *       rotation, and emits the six cardinal cube faces with vanilla's
- *       {@link lib.minecraft.renderer.face.BlockFace BlockFace} UV unwrap and
+ *       {@link lib.minecraft.renderer.face.Unwrap.Element element} UV unwrap and
  *       {@code AmbientOcclusionFace} lighting scalar baked in.</li>
  *   <li>{@link lib.minecraft.renderer.engine.kit.EntityGeometryKit EntityGeometryKit} - the entity {@code ModelPart}
  *       chain builder. Consumes the
  *       {@link lib.minecraft.renderer.tooling.ToolingEntityModels ToolingEntityModels}-produced
  *       {@code entity_geometry.json} and walks bone hierarchies, cube inflations, pivot
- *       rotations, and {@link lib.minecraft.renderer.face.EntityFace EntityFace} UV
+ *       rotations, and {@link lib.minecraft.renderer.face.Unwrap.Atlas atlas} UV
  *       strips. Carries the per-face lighting frame {@code L_kit = FLIP_Y * M_view^T *
  *       L_camera} that drives the cardinal-shaded entity parity.</li>
  *   <li>{@link lib.minecraft.renderer.engine.kit.FluidGeometryKit FluidGeometryKit} - vanilla fluid cube (1x1x1 with

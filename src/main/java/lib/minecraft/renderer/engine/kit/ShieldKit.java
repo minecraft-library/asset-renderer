@@ -9,9 +9,10 @@ import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.face.BlockFace;
-import lib.minecraft.renderer.face.EntityFace;
+import lib.minecraft.renderer.face.CornerPhase;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.face.Turn;
+import lib.minecraft.renderer.face.Unwrap;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -34,12 +35,13 @@ import org.jetbrains.annotations.NotNull;
  * This kit bakes that special transform - which is a proper {@code 180}-degree rotation about X
  * ({@code det = +1}, so triangle winding is preserved) - directly into each box's axis-aligned
  * bounds, producing geometry in the same Y-up block-model frame {@link BlockGeometryKit} emits.
- * Per-face geometry winding and normals come from {@link BlockFace} (so the block-icon
+ * Per-face geometry winding comes from {@link CornerPhase#BAKERY} (so the block-icon
  * {@link Shading#relightForItems3d} pass and the shared rasterizer handle culling and
- * lighting unchanged), while per-face UV rectangles come from the vanilla entity-cube atlas
- * unwrap on {@link EntityFace} (so the single 64x64 texture maps onto the plate and handle the
- * way vanilla's {@code ModelPart.Cube} does). The caller supplies the {@code display.gui} pose,
- * scale, and translation as the rasterizer's model transform.
+ * lighting unchanged), while per-face UV rectangles come from the vanilla entity-cube
+ * {@link Unwrap.Atlas atlas unwrap} (so the single 64x64 texture maps onto the plate and handle the
+ * way vanilla's {@code ModelPart.Cube} does). Mixing the two is not an anomaly - a corner phase and
+ * an unwrap are independent choices, and this site needs one of each. The caller supplies the
+ * {@code display.gui} pose, scale, and translation as the rasterizer's model transform.
  */
 @UtilityClass
 public class ShieldKit {
@@ -169,10 +171,13 @@ public class ShieldKit {
         Vector2f texOffs = new Vector2f(texU, texV);
         Vector3f size = new Vector3f(sx, sy, sz);
 
-        for (BlockFace face : BlockFace.CACHED_VALUES) {
-            Vector4f rect = Turn.HALF_X.entityFace(face).defaultUv(texOffs, size);
-            Vector2f[] uv = rect.toUvCorners(SHIELD_TEXTURE_SIZE, SHIELD_TEXTURE_SIZE, 0, false);
-            Vector3f[] corners = face.corners(box);
+        Unwrap.Atlas unwrap = new Unwrap.Atlas(texOffs, size, false);
+
+        for (Face face : Face.CACHED_VALUES) {
+            Vector4f rect = unwrap.rect(Turn.HALF_X.apply(face));
+            Vector2f[] uv = CornerPhase.BAKERY.permuteUv(
+                face, rect.toUvCorners(SHIELD_TEXTURE_SIZE, SHIELD_TEXTURE_SIZE, 0, false));
+            Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
             Vector3f normal = face.normal();
             // Baked here for the rasterizer's contract; relightForItems3d recomputes it from the
             // ITEMS_3D lights, so the value only needs to be a valid placeholder.

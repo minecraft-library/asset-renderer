@@ -86,38 +86,13 @@ public enum Turn {
     }
 
     /**
-     * The face this turn maps a block-frame face onto.
+     * The face this turn maps a face onto.
      *
      * @param face the face to turn
      * @return the face on the same axis, swapped for its opposite when this turn negates that axis
      */
-    public @NotNull BlockFace apply(@NotNull BlockFace face) {
-        return BlockFace.CACHED_VALUES[turnedOrdinal(face.ordinal())];
-    }
-
-    /**
-     * The face this turn maps an entity-frame face onto.
-     *
-     * @param face the face to turn
-     * @return the face on the same axis, swapped for its opposite when this turn negates that axis
-     */
-    public @NotNull EntityFace apply(@NotNull EntityFace face) {
-        return EntityFace.CACHED_VALUES[turnedOrdinal(face.ordinal())];
-    }
-
-    /**
-     * The entity-frame face a block-frame face becomes under this turn.
-     * <p>
-     * The two face enums name the same six directions in the same declaration order, so one turn is
-     * one permutation read in either vocabulary. This crossing form exists because a site that builds
-     * its geometry with one enum's corner order and textures it through the other's unwrap has to
-     * move between them, and that pairing has no other name.
-     *
-     * @param face the block-frame face to turn
-     * @return the entity-frame face it lands on
-     */
-    public @NotNull EntityFace entityFace(@NotNull BlockFace face) {
-        return EntityFace.CACHED_VALUES[turnedOrdinal(face.ordinal())];
+    public @NotNull Face apply(@NotNull Face face) {
+        return negates(face.axis()) ? face.opposite() : face;
     }
 
     /**
@@ -141,18 +116,13 @@ public enum Turn {
         return Integer.bitCount(this.mask) % 2 == 1;
     }
 
-    /**
-     * The ordinal a face lands on. Both face enums declare their constants in opposing pairs -
-     * {@code DOWN, UP} on Y, {@code NORTH, SOUTH} on Z, {@code WEST, EAST} on X - so a face's axis is
-     * its ordinal halved and its opposite is that ordinal with the low bit flipped.
-     */
-    private int turnedOrdinal(int ordinal) {
-        boolean negated = switch (ordinal >> 1) {
-            case 0 -> this.negatesY;
-            case 1 -> this.negatesZ;
-            default -> this.negatesX;
+    /** Whether this turn negates the named axis ({@code 0=x}, {@code 1=y}, {@code 2=z}). */
+    private boolean negates(int axis) {
+        return switch (axis) {
+            case 0 -> this.negatesX;
+            case 1 -> this.negatesY;
+            default -> this.negatesZ;
         };
-        return negated ? ordinal ^ 1 : ordinal;
     }
 
 }

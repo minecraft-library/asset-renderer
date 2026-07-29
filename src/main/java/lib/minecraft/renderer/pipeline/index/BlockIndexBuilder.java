@@ -14,7 +14,7 @@ import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.item.ItemModelNode;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.ApplyDto;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.MultipartPart;
@@ -779,7 +779,7 @@ public class BlockIndexBuilder {
         if (model.getElements().isEmpty()) return;
         ModelElement element = model.getElements().getFirst();
 
-        for (BlockFace blockFace : BlockFace.CACHED_VALUES) {
+        for (Face blockFace : Face.CACHED_VALUES) {
             ModelFace face = element.getFaces().get(blockFace.direction());
             if (face == null) continue;
             String textureRef = face.getTexture();

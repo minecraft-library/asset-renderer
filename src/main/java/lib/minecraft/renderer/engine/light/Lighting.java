@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.light;
 
 import lib.minecraft.renderer.engine.camera.LightingFrame;
-import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -14,7 +14,7 @@ import org.jetbrains.annotations.NotNull;
  * per-vertex shade scalar at kit-build time. Three dual-light entries reproduce vanilla's
  * {@code Lighting.Entry} setups - {@code ITEMS_3D} (block-in-inventory icon), {@code ENTITY_IN_UI}
  * (mob portraits), and {@code ITEMS_FLAT} (3D special-model items) - alongside the four-cardinal-bucket
- * block / fluid approximation via {@link BlockFace} (a pre-baked scalar lookup rather than a real
+ * block / fluid approximation via {@link Face} (a pre-baked scalar lookup rather than a real
  * vanilla {@code Lighting.Entry}).
  * <p>
  * Each entry pairs two pre-rotated diffuse light directions (public {@code Vector3f} constants) with
@@ -102,9 +102,9 @@ public class Lighting {
 
     /**
      * Computes the per-face shade factor for a world-space surface normal under vanilla's
-     * standard {@code [30, 225, 0]} GUI pose. Delegates to {@link BlockFace#fromNormal} to pick
+     * standard {@code [30, 225, 0]} GUI pose. Delegates to {@link Face#fromNormal} to pick
      * the dominant cardinal face and returns that face's pre-baked
-     * {@link BlockFace#lighting() lighting} factor. See {@link BlockFace}'s class-level doc for
+     * {@link Face#lighting() lighting} factor. See {@link Face}'s class-level doc for
      * the rationale behind the reversed E/W vs N/S values (vanilla {@code Lighting.ITEMS_3D}
      * uses two directional lights offset in X, inverting world-block brightness).
      * <p>
@@ -118,7 +118,7 @@ public class Lighting {
      * @return the shade factor for the face that best matches the normal
      */
     public static float inventory(@NotNull Vector3f normal) {
-        return BlockFace.fromNormal(normal).lighting();
+        return Face.fromNormal(normal).lighting();
     }
 
     /**

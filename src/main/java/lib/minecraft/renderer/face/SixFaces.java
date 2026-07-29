@@ -4,21 +4,21 @@ import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The six face textures of a cube in canonical {@link BlockFace} declaration order. Replaces the
+ * The six face textures of a cube in canonical {@link Face} declaration order. Replaces the
  * implicit {@code PixelBuffer[6]} convention that several call sites - cube renderers, skin
  * croppers, cape composition, leather/banner item slabs - shared without a shape to lean on.
  * <p>
- * Field names match {@link BlockFace}'s direction names ({@code down}, {@code up}, {@code north},
+ * Field names match {@link Face}'s direction names ({@code down}, {@code up}, {@code north},
  * {@code south}, {@code west}, {@code east}) so callers that already think in those terms can
  * build instances positionally and consumers can route through {@link #byFace} when the lookup
  * is driven by a face enum rather than a hard-coded direction.
  *
- * @param down the texture sampled by the {@link BlockFace#DOWN} face
- * @param up the texture sampled by the {@link BlockFace#UP} face
- * @param north the texture sampled by the {@link BlockFace#NORTH} face
- * @param south the texture sampled by the {@link BlockFace#SOUTH} face
- * @param west the texture sampled by the {@link BlockFace#WEST} face
- * @param east the texture sampled by the {@link BlockFace#EAST} face
+ * @param down the texture sampled by the {@link Face#DOWN} face
+ * @param up the texture sampled by the {@link Face#UP} face
+ * @param north the texture sampled by the {@link Face#NORTH} face
+ * @param south the texture sampled by the {@link Face#SOUTH} face
+ * @param west the texture sampled by the {@link Face#WEST} face
+ * @param east the texture sampled by the {@link Face#EAST} face
  */
 public record SixFaces(
     @NotNull PixelBuffer down,
@@ -42,12 +42,12 @@ public record SixFaces(
     }
 
     /**
-     * Returns the face texture for the given {@link BlockFace} direction.
+     * Returns the face texture for the given {@link Face} direction.
      *
      * @param face the face direction
      * @return the texture assigned to that face
      */
-    public @NotNull PixelBuffer byFace(@NotNull BlockFace face) {
+    public @NotNull PixelBuffer byFace(@NotNull Face face) {
         return switch (face) {
             case DOWN -> this.down;
             case UP -> this.up;
