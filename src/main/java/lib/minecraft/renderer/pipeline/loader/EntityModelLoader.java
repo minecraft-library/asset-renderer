@@ -56,8 +56,8 @@ public final class EntityModelLoader {
      *     coordinate absent from the geometry file
      */
     public static @NotNull ConcurrentMap<String, Entity> load(@NotNull Diagnostics diagnostics) {
-        Optional<ResourceDocument> geometryDoc = BundledResource.read(GEOMETRY_RESOURCE, BundledResource.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
-        Optional<ResourceDocument> modelsDoc = BundledResource.read(MODELS_RESOURCE, BundledResource.MissingPolicy.GRACEFUL_EMPTY, diagnostics);
+        Optional<ResourceDocument> geometryDoc = BundledResource.read(GEOMETRY_RESOURCE, diagnostics);
+        Optional<ResourceDocument> modelsDoc = BundledResource.read(MODELS_RESOURCE, diagnostics);
         if (geometryDoc.isEmpty() || modelsDoc.isEmpty()) return Concurrent.newMap();
 
         Map<String, EntityModelData> geometries = parseGeometries(geometryDoc.get());

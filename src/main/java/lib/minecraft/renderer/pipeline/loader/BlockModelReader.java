@@ -38,7 +38,7 @@ public final class BlockModelReader {
      * @throws PipelineException if the resource is missing or malformed
      */
     static @NotNull Map<String, BlockModelEntry> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
-        ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument document = BundledResource.require(RESOURCE_NAME, diagnostics);
         Map<String, BlockModelEntry> models = new LinkedHashMap<>(document.as(BlockModelsFile.class).models());
         for (Map.Entry<String, JsonTree> override : overrides.models().members().toList())
             models.put(override.getKey(), override.getValue().as(BlockModelEntry.class));

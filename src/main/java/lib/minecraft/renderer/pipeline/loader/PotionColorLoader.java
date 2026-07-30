@@ -51,7 +51,7 @@ public class PotionColorLoader {
      * @throws PipelineException if the resource is missing or malformed
      */
     private static @NotNull Map<String, Color> loadNative(@NotNull Diagnostics diagnostics) {
-        ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument document = BundledResource.require(RESOURCE_NAME, diagnostics);
         return document.as(PotionColorTable.class).effects();
     }
 

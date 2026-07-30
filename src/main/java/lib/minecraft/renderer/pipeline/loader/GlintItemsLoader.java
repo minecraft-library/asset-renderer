@@ -50,7 +50,7 @@ public class GlintItemsLoader {
      * @throws PipelineException if the resource is missing or malformed
      */
     private static @NotNull Set<String> loadNative(@NotNull Diagnostics diagnostics) {
-        ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument document = BundledResource.require(RESOURCE_NAME, diagnostics);
         return document.as(GlintItemTable.class).items();
     }
 

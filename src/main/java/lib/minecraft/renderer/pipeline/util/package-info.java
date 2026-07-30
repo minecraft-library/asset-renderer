@@ -3,8 +3,9 @@
  * asset resources plus the Gson service wiring the whole pipeline reads through.
  *
  * <p>One read discipline behind every native loader: {@link lib.minecraft.renderer.pipeline.util.BundledResource}
- * is the sole classpath-read site (try-with-resources, per-file
- * {@link lib.minecraft.renderer.pipeline.util.BundledResource.MissingPolicy}),
+ * is the sole classpath-read site (try-with-resources, and a per-file choice between
+ * {@link lib.minecraft.renderer.pipeline.util.BundledResource#require(java.lang.String, lib.minecraft.renderer.tooling.kernel.Diagnostics) require}
+ * and {@link lib.minecraft.renderer.pipeline.util.BundledResource#read(java.lang.String, lib.minecraft.renderer.tooling.kernel.Diagnostics) read}),
  * {@link lib.minecraft.renderer.pipeline.util.ResourceDocument} is the envelope-aware reader (asserts
  * {@code format == 2}, warns on a {@code source_version} mismatch, deserialises into typed DTOs), and
  * {@link lib.minecraft.renderer.pipeline.util.ArgbHex} is the one ARGB hex parser with the one

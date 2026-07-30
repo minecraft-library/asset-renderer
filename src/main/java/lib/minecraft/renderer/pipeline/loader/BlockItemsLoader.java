@@ -33,7 +33,7 @@ public final class BlockItemsLoader {
      * @throws PipelineException if the resource is missing or has no {@code aliases} object
      */
     public static @NotNull Map<String, String> load(@NotNull Diagnostics diagnostics) {
-        ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument document = BundledResource.require(RESOURCE_NAME, diagnostics);
         AliasDoc doc = document.as(AliasDoc.class);
         if (doc.aliases() == null)
             throw new PipelineException("Block-items resource '%s' has no 'aliases' object", RESOURCE_NAME);

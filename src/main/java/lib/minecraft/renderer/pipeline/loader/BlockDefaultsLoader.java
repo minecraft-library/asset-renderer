@@ -62,7 +62,7 @@ public final class BlockDefaultsLoader {
      * @throws PipelineException if the resource is missing or has no {@code blocks} object
      */
     public static @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> load(@NotNull Diagnostics diagnostics, @NotNull BlockRendererOverrides overrides) {
-        ResourceDocument document = BundledResource.read(RESOURCE_NAME, BundledResource.MissingPolicy.REQUIRED, diagnostics).orElseThrow();
+        ResourceDocument document = BundledResource.require(RESOURCE_NAME, diagnostics);
         DefaultsDoc doc = document.as(DefaultsDoc.class);
         if (doc.blocks() == null)
             throw new PipelineException("Block-defaults resource '%s' has no 'blocks' object", RESOURCE_NAME);
