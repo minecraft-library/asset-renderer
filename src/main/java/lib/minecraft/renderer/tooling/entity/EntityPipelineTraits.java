@@ -397,8 +397,7 @@ final class EntityPipelineTraits {
     private @NotNull Map<String, Set<Trait>> pipelines() {
         if (this.pipelineTraits != null) return this.pipelineTraits;
         Map<String, Set<Trait>> out = new LinkedHashMap<>();
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.RENDER_PIPELINES);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.RENDER_PIPELINES);
         if (clinit == null) {
             this.pipelineTraits = out;
             return out;

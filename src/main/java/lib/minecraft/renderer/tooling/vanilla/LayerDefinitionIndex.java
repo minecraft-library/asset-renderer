@@ -390,8 +390,7 @@ public final class LayerDefinitionIndex {
         @NotNull String ownerInternalName,
         @NotNull String fieldName
     ) {
-        ClassNode owner = cache.load(ownerInternalName);
-        MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(cache, ownerInternalName);
         if (clinit == null) return null;
         boolean inAlloc = false;
         float[] literals = new float[3];
@@ -441,8 +440,7 @@ public final class LayerDefinitionIndex {
         @NotNull String ownerInternalName,
         @NotNull String fieldName
     ) {
-        ClassNode owner = cache.load(ownerInternalName);
-        MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(cache, ownerInternalName);
         if (clinit == null) return null;
         float[] literals = new float[3];
         int seen = 0;

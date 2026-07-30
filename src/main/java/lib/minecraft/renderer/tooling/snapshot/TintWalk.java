@@ -11,7 +11,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -59,17 +58,9 @@ public final class TintWalk {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("tints");
 
-        ClassNode blockColors = cache.load(VanillaSourceClasses.Types.BLOCK_COLORS);
-        if (blockColors == null) {
-            diagnostics.error("'%s' class missing - tint table unresolved", VanillaSourceClasses.Types.BLOCK_COLORS);
-            return;
-        }
-        MethodNode createDefault = AsmKit.findMethod(blockColors, VanillaSourceClasses.Methods.CREATE_DEFAULT);
-        if (createDefault == null) {
-            diagnostics.error("'%s.%s' missing - tint table unresolved",
-                VanillaSourceClasses.Types.BLOCK_COLORS, VanillaSourceClasses.Methods.CREATE_DEFAULT);
-            return;
-        }
+        MethodNode createDefault = AsmKit.findMethodOrError(cache, diagnostics,
+            VanillaSourceClasses.Types.BLOCK_COLORS, VanillaSourceClasses.Methods.CREATE_DEFAULT, "tint table");
+        if (createDefault == null) return;
 
         Map<String, JsonTree> tintRows = new LinkedHashMap<>();
         List<JsonTree> droppedRows = new ArrayList<>();

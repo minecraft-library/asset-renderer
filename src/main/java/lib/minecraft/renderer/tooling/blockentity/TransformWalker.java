@@ -432,8 +432,7 @@ final class TransformWalker {
 
     /** Resolves a static {@code Vector3f} field to its {@code (x, y, z)} via the owner's {@code <clinit>}. */
     private float @Nullable [] resolveStaticVector(@NotNull String owner, @NotNull String fieldName) {
-        ClassNode cn = this.cache.load(owner);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, owner);
         if (clinit == null) return null;
         List<Float> pending = new ArrayList<>();
         for (AbstractInsnNode in : clinit.instructions) {

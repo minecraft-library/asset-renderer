@@ -740,8 +740,7 @@ final class EntityTextureResolver {
      * {@code new SpriteMapper(sheet, LDC prefix)}. Returns {@code null} on any mismatch.
      */
     private @Nullable String findSheetsTextureFallback() {
-        ClassNode renderer = this.cache.load(this.subject.rendererClass());
-        MethodNode rendererClinit = renderer == null ? null : AsmKit.findMethod(renderer, AsmKit.CLINIT);
+        MethodNode rendererClinit = AsmKit.findClinit(this.cache, this.subject.rendererClass());
         if (rendererClinit == null) return null;
 
         String spriteIdDesc = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.SPRITE_ID);
@@ -762,8 +761,7 @@ final class EntityTextureResolver {
         }
         if (sheetsOwner == null) return null;
 
-        ClassNode sheetsCn = this.cache.load(sheetsOwner);
-        MethodNode sheetsClinit = sheetsCn == null ? null : AsmKit.findMethod(sheetsCn, AsmKit.CLINIT);
+        MethodNode sheetsClinit = AsmKit.findClinit(this.cache, sheetsOwner);
         if (sheetsClinit == null) return null;
 
         String mapperField = null;

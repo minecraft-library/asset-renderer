@@ -32,9 +32,7 @@ public record BlockEntitySubject(
      * family-split policies match against.
      */
     public @NotNull String localId() {
-        return this.beTypeId.startsWith(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE)
-            ? this.beTypeId.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length())
-            : this.beTypeId;
+        return VanillaSourceClasses.Paths.stripNamespace(this.beTypeId);
     }
 
 }

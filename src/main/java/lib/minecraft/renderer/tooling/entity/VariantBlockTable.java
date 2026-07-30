@@ -8,7 +8,6 @@ import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
@@ -52,8 +51,7 @@ record VariantBlockTable(@NotNull Map<String, String> byConstant, @Nullable Stri
         @NotNull String variantClass,
         @NotNull Diagnostics diagnostics
     ) {
-        ClassNode cn = cache.load(variantClass);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(cache, variantClass);
         if (clinit == null) return EMPTY;
 
         Map<String, String> byField = new LinkedHashMap<>();

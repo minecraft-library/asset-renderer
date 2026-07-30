@@ -203,10 +203,7 @@ final class VariantIndex {
 
     /** Converts a variant {@code asset_id} resource location into a {@code textures/.../X.png} path. */
     private static @NotNull String texturePath(@NotNull String assetId) {
-        String stripped = assetId.startsWith(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE)
-            ? assetId.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length())
-            : assetId;
-        return "textures/" + stripped + ".png";
+        return "textures/" + VanillaSourceClasses.Paths.stripNamespace(assetId) + ".png";
     }
 
     // ------------------------------------------------------------------------------------

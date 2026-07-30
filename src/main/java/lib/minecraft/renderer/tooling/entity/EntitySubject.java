@@ -49,9 +49,7 @@ public record EntitySubject(
      * texture / layer-pick heuristics match against.
      */
     public @NotNull String localId() {
-        return this.entityId.startsWith(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE)
-            ? this.entityId.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length())
-            : this.entityId;
+        return VanillaSourceClasses.Paths.stripNamespace(this.entityId);
     }
 
 }

@@ -31,7 +31,9 @@ import java.util.regex.Pattern;
  *   <li><b>Class / member loading</b> - jar entry to {@link ClassNode}, name and descriptor
  *       method / field lookups (including superclass-chain variants), throwing {@code require*}
  *       variants for callers that want a tooling-canonical "obfuscated or unsupported version"
- *       error instead of a null return, plus {@link #findEnumDefaultName findEnumDefaultName}
+ *       error instead of a null return, {@link #findClinit findClinit} and
+ *       {@link #findMethodOrError findMethodOrError} for the silent and the reporting arms of the
+ *       load-then-look-up pair, plus {@link #findEnumDefaultName findEnumDefaultName}
  *       for the {@code GETSTATIC value; PUTSTATIC <default>} enum-default idiom.</li>
  *   <li><b>Class-hierarchy walks</b> - {@link #walkConstructorChain walkConstructorChain},
  *       {@link #walkSuperChain walkSuperChain}, {@link #walkSuperChainUntil walkSuperChainUntil},
@@ -220,6 +222,58 @@ public final class AsmKit {
                 return m;
         }
         return null;
+    }
+
+    /**
+     * Returns the simple name of a JVM internal name - {@code a/b/Outer$Inner} yields
+     * {@code Outer$Inner}, so a nested class keeps its {@code $} form.
+     *
+     * @param internalName the JVM internal name
+     * @return the text after the last {@code /}
+     */
+    public static @NotNull String simpleName(@NotNull String internalName) {
+        return internalName.substring(internalName.lastIndexOf('/') + 1);
+    }
+
+    /**
+     * Returns a class's {@code <clinit>}, or {@code null} when the jar holds no such class or the
+     * class runs no static initialiser. The two misses answer alike, which is what every walk
+     * reading a static table off a class it may not find wants; a caller that has to tell them
+     * apart, or that reads the {@link ClassNode} itself, loads it and calls {@link #findMethod}.
+     *
+     * @param cache the per-session cache to consult / populate
+     * @param internalName the class's JVM internal name
+     * @return the static initialiser, or {@code null} when the class or the initialiser is absent
+     */
+    public static @Nullable MethodNode findClinit(@NotNull ClassNodeCache cache, @NotNull String internalName) {
+        ClassNode classNode = cache.load(internalName);
+        return classNode == null ? null : findMethod(classNode, CLINIT);
+    }
+
+    /**
+     * Returns a named method on a class, recording an ERROR and answering {@code null} when either
+     * the class or the method is missing - the report-and-continue arm beside
+     * {@link #requireClass}'s throwing one and {@link #findClinit}'s silent one.
+     *
+     * @param cache the per-session cache to consult / populate
+     * @param diagnostics the sink the miss is recorded to
+     * @param internalName the class's JVM internal name
+     * @param methodName the method name
+     * @param subject what goes unresolved when the lookup fails, named in the message
+     * @return the matching method, or {@code null} when the class or the method is missing
+     */
+    public static @Nullable MethodNode findMethodOrError(@NotNull ClassNodeCache cache,
+        @NotNull Diagnostics diagnostics, @NotNull String internalName, @NotNull String methodName,
+        @NotNull String subject) {
+        ClassNode classNode = cache.load(internalName);
+        if (classNode == null) {
+            diagnostics.error("'%s' class missing - %s unresolved", internalName, subject);
+            return null;
+        }
+        MethodNode method = findMethod(classNode, methodName);
+        if (method == null)
+            diagnostics.error("'%s.%s' missing - %s unresolved", internalName, methodName, subject);
+        return method;
     }
 
     /**

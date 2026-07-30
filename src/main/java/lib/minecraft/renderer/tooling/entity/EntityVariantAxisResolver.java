@@ -405,8 +405,7 @@ final class EntityVariantAxisResolver {
      * {@code "dark_brown"}).
      */
     private @NotNull Map<String, String> enumSerializedIds(@NotNull String enumInternal) {
-        ClassNode enumNode = this.cache.load(enumInternal);
-        MethodNode clinit = enumNode == null ? null : AsmKit.findMethod(enumNode, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, enumInternal);
         if (clinit == null) return Map.of();
 
         Map<String, String> out = new LinkedHashMap<>();

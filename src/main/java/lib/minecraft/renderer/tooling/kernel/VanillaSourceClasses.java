@@ -599,6 +599,16 @@ public final class VanillaSourceClasses {
         /** The vanilla resource namespace prefix. */
         public static final @NotNull String MINECRAFT_NAMESPACE = "minecraft:";
 
+        /**
+         * Drops the {@link #MINECRAFT_NAMESPACE} prefix from an id, leaving the bare path.
+         *
+         * @param id the id to strip
+         * @return the namespace-less id, or {@code id} itself when it carries another namespace
+         */
+        public static @NotNull String stripNamespace(@NotNull String id) {
+            return id.startsWith(MINECRAFT_NAMESPACE) ? id.substring(MINECRAFT_NAMESPACE.length()) : id;
+        }
+
         /** The data-driven variant-table directory suffix ({@code data/minecraft/<stem>_variant/}). */
         public static final @NotNull String VARIANT_DIR_SUFFIX = "_variant";
 

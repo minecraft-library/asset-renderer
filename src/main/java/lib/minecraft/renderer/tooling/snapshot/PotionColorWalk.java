@@ -9,7 +9,6 @@ import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
@@ -47,16 +46,9 @@ public final class PotionColorWalk {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("effects");
 
-        ClassNode mobEffects = cache.load(VanillaSourceClasses.Types.MOB_EFFECTS);
-        if (mobEffects == null) {
-            diagnostics.error("'%s' class missing - effect colour table unresolved", VanillaSourceClasses.Types.MOB_EFFECTS);
-            return;
-        }
-        MethodNode clinit = AsmKit.findMethod(mobEffects, AsmKit.CLINIT);
-        if (clinit == null) {
-            diagnostics.error("'%s.<clinit>' missing - effect colour table unresolved", VanillaSourceClasses.Types.MOB_EFFECTS);
-            return;
-        }
+        MethodNode clinit = AsmKit.findMethodOrError(cache, diagnostics,
+            VanillaSourceClasses.Types.MOB_EFFECTS, AsmKit.CLINIT, "effect colour table");
+        if (clinit == null) return;
 
         String colorCtorDesc = VanillaSourceClasses.Descs.of("V",
             VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MOB_EFFECT_CATEGORY), "I");

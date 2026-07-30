@@ -438,8 +438,7 @@ final class EntityRenderTraitsResolver {
      * convention. {@code NO_TINT} on any pattern miss.
      */
     static int whiteTextureDiffuseColor(@NotNull ClassNodeCache cache) {
-        ClassNode dyeColor = cache.load(VanillaSourceClasses.Types.DYE_COLOR);
-        MethodNode clinit = dyeColor == null ? null : AsmKit.findMethod(dyeColor, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(cache, VanillaSourceClasses.Types.DYE_COLOR);
         if (clinit == null) return NO_TINT;
 
         boolean inAlloc = false;

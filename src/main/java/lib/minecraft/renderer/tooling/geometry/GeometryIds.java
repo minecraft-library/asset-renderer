@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.geometry;
 
+import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -80,7 +81,7 @@ final class GeometryIds {
      * form: {@code a/b/Outer$Inner} yields {@code Outer$Inner}).
      */
     private static @NotNull String simpleClass(@NotNull String internalName) {
-        return internalName.substring(internalName.lastIndexOf('/') + 1);
+        return AsmKit.simpleName(internalName);
     }
 
 }

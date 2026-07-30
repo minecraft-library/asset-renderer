@@ -8,7 +8,6 @@ import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
@@ -42,16 +41,9 @@ public final class GlintItemsWalk {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("items");
 
-        ClassNode items = cache.load(VanillaSourceClasses.Types.ITEMS);
-        if (items == null) {
-            diagnostics.error("'%s' class missing - glint set unresolved", VanillaSourceClasses.Types.ITEMS);
-            return;
-        }
-        MethodNode clinit = AsmKit.findMethod(items, AsmKit.CLINIT);
-        if (clinit == null) {
-            diagnostics.error("'%s.<clinit>' missing - glint set unresolved", VanillaSourceClasses.Types.ITEMS);
-            return;
-        }
+        MethodNode clinit = AsmKit.findMethodOrError(cache, diagnostics,
+            VanillaSourceClasses.Types.ITEMS, AsmKit.CLINIT, "glint set");
+        if (clinit == null) return;
 
         String itemFieldDesc = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.ITEM);
         TreeSet<String> glintItems = new TreeSet<>();

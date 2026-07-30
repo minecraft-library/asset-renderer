@@ -101,9 +101,7 @@ final class EntityGroupLinker {
 
     /** The namespace-stripped local id of a model key. */
     private static @NotNull String localId(@NotNull String modelId) {
-        return modelId.startsWith(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE)
-            ? modelId.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length())
-            : modelId;
+        return VanillaSourceClasses.Paths.stripNamespace(modelId);
     }
 
 }

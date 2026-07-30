@@ -7,7 +7,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -150,8 +149,7 @@ public record BabyMeshTransform(
     public static @Nullable BabyMeshTransform resolve(
         @NotNull ClassNodeCache cache, @NotNull String owner, @NotNull String field
     ) {
-        ClassNode cls = cache.load(owner);
-        MethodNode clinit = cls == null ? null : AsmKit.findMethod(cls, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(cache, owner);
         if (clinit == null) return null;
 
         List<Integer> ints = new ArrayList<>();

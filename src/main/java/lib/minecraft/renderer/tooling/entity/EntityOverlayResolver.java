@@ -270,7 +270,7 @@ final class EntityOverlayResolver {
 
     /** The simple class name of a JVM internal name (nested classes keep their {@code $} form). */
     static @NotNull String simpleName(@NotNull String internalName) {
-        return internalName.substring(internalName.lastIndexOf('/') + 1);
+        return AsmKit.simpleName(internalName);
     }
 
     /**
@@ -1195,8 +1195,7 @@ final class EntityOverlayResolver {
                 candidates.add(mi.owner);
         List<String> stems = EntityOverlayPolicies.EYE_STEM_FIRST_LITERAL.strings();
         for (String candidate : candidates) {
-            ClassNode cn = this.cache.load(candidate);
-            MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+            MethodNode clinit = AsmKit.findClinit(this.cache, candidate);
             if (clinit == null) continue;
             for (AbstractInsnNode in : clinit.instructions) {
                 String literal = readEntityTextureLiteral(in);
@@ -1680,8 +1679,7 @@ final class EntityOverlayResolver {
 
     /** The last string literal an owner {@code <clinit>} pairs with {@code PUTSTATIC <field>}. */
     private @Nullable String clinitStringBinding(@NotNull String ownerInternalName, @NotNull String fieldName) {
-        ClassNode owner = this.cache.load(ownerInternalName);
-        MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, ownerInternalName);
         if (clinit == null) return null;
         String pending = null;
         for (AbstractInsnNode in : clinit.instructions) {
@@ -1932,8 +1930,7 @@ final class EntityOverlayResolver {
      * {@code Identifier} field via the {@code LDC; withDefaultNamespace; PUTSTATIC} chain.
      */
     private @Nullable String chaseTextureFieldOwner(@NotNull String ownerInternalName, @NotNull String fieldName) {
-        ClassNode owner = this.cache.load(ownerInternalName);
-        MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, ownerInternalName);
         if (clinit == null) return null;
         String pendingPath = null;
         boolean pendingIdentifier = false;

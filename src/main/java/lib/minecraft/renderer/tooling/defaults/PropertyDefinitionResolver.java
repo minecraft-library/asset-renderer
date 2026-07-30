@@ -326,8 +326,7 @@ final class PropertyDefinitionResolver {
      */
     private @NotNull Map<String, String> buildEnumNameMap(@NotNull String enumOwner) {
         Map<String, String> map = new LinkedHashMap<>();
-        ClassNode cn = this.cache.load(enumOwner);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, enumOwner);
         if (clinit == null) return map;
         boolean collecting = false;
         List<String> strings = new ArrayList<>();
@@ -391,7 +390,7 @@ final class PropertyDefinitionResolver {
     // ------------------------------------------------------------------------------------
 
     /** Reports whether a field descriptor references a block-state property (scalar or array). */
-    private static boolean isPropertyFieldRef(@NotNull String desc) {
+    static boolean isPropertyFieldRef(@NotNull String desc) {
         String internal = AsmKit.internalNameOfRef(desc);
         return internal != null && internal.startsWith(VanillaSourceClasses.Types.STATE_PROPERTIES_PACKAGE) && internal.endsWith("Property");
     }

@@ -247,8 +247,7 @@ final class EntityEquipmentResolver {
      * @return the id literal, or {@code null} when unresolved
      */
     static @Nullable String layerTypeSubdir(@NotNull ClassNodeCache cache, @NotNull String constant) {
-        ClassNode cn = cache.load(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(cache, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE);
         if (clinit == null) return null;
         String pending = null;
         for (AbstractInsnNode in : clinit.instructions) {

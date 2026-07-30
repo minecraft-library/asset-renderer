@@ -275,8 +275,7 @@ final class BlockCatalogResolver {
      */
     private @NotNull Map<String, String> chestVariantBases() {
         Map<String, String> out = new LinkedHashMap<>();
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER);
         if (clinit == null) return out;
         String pending = null;
         for (AbstractInsnNode in : clinit.instructions) {
@@ -296,8 +295,7 @@ final class BlockCatalogResolver {
     /** CopperGolemOxidationLevels field name -> stripped texture path (first path LDC after each NEW). */
     private @NotNull Map<String, String> copperGolemTextures() {
         Map<String, String> out = new LinkedHashMap<>();
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS);
         if (clinit == null) return out;
         String pending = null;
         for (AbstractInsnNode in : clinit.instructions) {
@@ -350,8 +348,7 @@ final class BlockCatalogResolver {
      * the {@code SHELL_TEXTURE} stem ({@code base}) -> {@code entity/conduit/base}.
      */
     private @NotNull String conduitTexture() {
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.CONDUIT_RENDERER);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.CONDUIT_RENDERER);
         if (clinit == null) return "";
         String base = null;
         String pendingStem = null;
@@ -369,8 +366,7 @@ final class BlockCatalogResolver {
 
     /** BellRenderer: the {@code BELL_TEXTURE} stem ({@code bell/bell_body}) under the block-entities {@code entity/} prefix. */
     private @NotNull String bellTexture() {
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.BELL_RENDERER);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.BELL_RENDERER);
         if (clinit == null) return "";
         String pendingStem = null;
         for (AbstractInsnNode in : clinit.instructions) {
@@ -393,8 +389,7 @@ final class BlockCatalogResolver {
      */
     private @NotNull List<String> dyeColorOrder() {
         List<String> order = new ArrayList<>();
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.DYE_COLOR);
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.DYE_COLOR);
         if (clinit == null) return order;
         String first = null;
         String second = null;
