@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.is;
  * id is named and pointed at the override channel, while the vanilla pack and non-block-entity ids stay
  * silent (byte-neutral - the pass emits only stderr).
  */
-@DisplayName("BlockEntityShadowDiagnostics shadowed-model warnings")
-class BlockEntityShadowDiagnosticsTest {
+@DisplayName("BlockModelLoader shadowed-model warnings")
+class BlockModelLoaderShadowWarningTest {
 
     @TempDir
     Path tmp;
@@ -86,7 +86,7 @@ class BlockEntityShadowDiagnosticsTest {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         try {
             System.setErr(new PrintStream(buffer, true, StandardCharsets.UTF_8));
-            BlockEntityShadowDiagnostics.report(stack, beIds);
+            BlockModelLoader.reportShadowedIds(stack, beIds);
         } finally {
             System.setErr(original);
         }

@@ -12,6 +12,8 @@ import lib.minecraft.renderer.asset.pack.rule.CitRule;
 import lib.minecraft.renderer.asset.pack.rule.ColorProperties;
 import lib.minecraft.renderer.asset.pack.rule.CtmRule;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
+import lib.minecraft.renderer.pipeline.pack.PackSubtree;
+import lib.minecraft.renderer.pipeline.pack.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -46,6 +48,31 @@ public class RuleScanner {
     private static final @NotNull String POTION_DIR = "/potion/";
 
     /**
+     * The six rule subtrees, at the fixed {@code minecraft} namespace the OptiFine convention always
+     * uses. A CIT root needs two of them because it holds two kinds of file - the {@code .properties}
+     * rules, and the {@code potion/} shortcut textures a rule is synthesised from - and a subtree
+     * matches one extension.
+     */
+    private static final @NotNull PackSubtree.Subtree[] RULE_SUBTREES = ruleSubtrees();
+
+    /**
+     * Builds {@link #RULE_SUBTREES} in the order the hand-rolled scan visited them: each CIT root's
+     * rules then its potion textures, then the CTM roots.
+     *
+     * @return the subtrees to walk per pack
+     */
+    private static @NotNull PackSubtree.Subtree[] ruleSubtrees() {
+        List<PackSubtree.Subtree> subtrees = new ArrayList<>();
+        for (String citRoot : CIT_ROOTS) {
+            subtrees.add(PackSubtree.Subtree.assets(VanillaSourcePaths.MINECRAFT_NAMESPACE_DIR, citRoot, ".properties"));
+            subtrees.add(PackSubtree.Subtree.assets(VanillaSourcePaths.MINECRAFT_NAMESPACE_DIR, citRoot, ".png"));
+        }
+        for (String ctmRoot : CTM_ROOTS)
+            subtrees.add(PackSubtree.Subtree.assets(VanillaSourcePaths.MINECRAFT_NAMESPACE_DIR, ctmRoot, ".properties"));
+        return subtrees.toArray(new PackSubtree.Subtree[0]);
+    }
+
+    /**
      * Scans a pack into its rule payload.
      *
      * @param pack the pack to scan
@@ -60,10 +87,13 @@ public class RuleScanner {
         LinkedHashMap<String, Integer> colors = new LinkedHashMap<>();
         Optional<Boolean> useGlint = Optional.empty();
 
+        for (PackSubtree.Entry entry : PackSubtree.walk(pack, RULE_SUBTREES))
+            scanRuleFile(entry, pack.id(), citRules, ctmRules);
+
+        // The colour and glint overrides are single named files rather than a subtree, so they stay a
+        // point read across the pack's roots - the walk enumerates, and there is nothing to enumerate.
         for (PackRoot root : pack.roots()) {
             String base = root.prefix() + ASSETS;
-            for (String citRoot : CIT_ROOTS) scanCit(container, base, citRoot, pack.id(), citRules);
-            for (String ctmRoot : CTM_ROOTS) scanCtm(container, base, ctmRoot, pack.id(), ctmRules);
             for (String colorFile : COLOR_FILES) container.bytes(base + colorFile).ifPresent(bytes ->
                 colors.putAll(ColorProperties.parse(new String(bytes, StandardCharsets.ISO_8859_1), new ResourceId("minecraft", colorFile), pack.id()).overrides()));
             for (String glintFile : GLINT_FILES) {
@@ -140,27 +170,36 @@ public class RuleScanner {
             .thenComparing(rule -> rule.id().name());
     }
 
-    private static void scanCit(@NotNull PackContainer container, @NotNull String base, @NotNull String citRoot, @NotNull PackId pack, @NotNull List<CitRule> out) {
-        String dir = base + citRoot;
-        container.entries(dir).forEach(entry -> {
-            if (entry.endsWith(".properties")) {
-                String rel = strip(entry, base);
-                readProperties(container, entry).ifPresent(props ->
-                    CitParser.parse(props, new ResourceId("minecraft", rel), pack, parentDir(rel), citRoot).ifPresent(out::add));
-            } else if (entry.endsWith(".png") && entry.contains(citRoot + POTION_DIR)) {
-                synthesisePotion(strip(entry, base), pack).ifPresent(out::add);
-            }
-        });
-    }
+    /**
+     * Parses one walked rule file into its rule list. A {@code .properties} file under a CIT root is a
+     * CIT rule and under a CTM root a CTM rule; a {@code .png} is only ever the {@code potion/}
+     * shortcut a rule is synthesised from, and any other texture in the tree is ignored.
+     *
+     * @param entry the rule file the subtree walk resolved
+     * @param pack the owning pack, carried onto each parsed rule
+     * @param citRules the running CIT rule list
+     * @param ctmRules the running CTM rule list
+     */
+    private static void scanRuleFile(
+        @NotNull PackSubtree.Entry entry,
+        @NotNull PackId pack,
+        @NotNull List<CitRule> citRules,
+        @NotNull List<CtmRule> ctmRules
+    ) {
+        String rel = entry.resourcePath();
+        String ruleRoot = entry.subtree().subdir();
 
-    private static void scanCtm(@NotNull PackContainer container, @NotNull String base, @NotNull String ctmRoot, @NotNull PackId pack, @NotNull List<CtmRule> out) {
-        container.entries(base + ctmRoot)
-            .filter(entry -> entry.endsWith(".properties"))
-            .forEach(entry -> {
-                String rel = strip(entry, base);
-                readProperties(container, entry).ifPresent(props ->
-                    CtmParser.parse(props, new ResourceId("minecraft", rel), pack, parentDir(rel), basename(rel)).ifPresent(out::add));
-            });
+        if (rel.endsWith(".png")) {
+            if (rel.contains(ruleRoot + POTION_DIR)) synthesisePotion(rel, pack).ifPresent(citRules::add);
+            return;
+        }
+
+        readProperties(entry.container(), entry.entryPath()).ifPresent(props -> {
+            if (ruleRoot.endsWith("/cit"))
+                CitParser.parse(props, new ResourceId("minecraft", rel), pack, parentDir(rel), ruleRoot).ifPresent(citRules::add);
+            else
+                CtmParser.parse(props, new ResourceId("minecraft", rel), pack, parentDir(rel), basename(rel)).ifPresent(ctmRules::add);
+        });
     }
 
     /** Synthesises a rule for an {@code optifine/cit/potion/<variant>/<effect>.png} shortcut texture. */

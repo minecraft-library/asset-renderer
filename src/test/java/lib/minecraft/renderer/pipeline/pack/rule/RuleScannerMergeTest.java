@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -72,6 +73,21 @@ class RuleScannerMergeTest {
         RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA), pack(USER))));
         assertThat(merged.colors().get("redstone.0").orElseThrow(), equalTo(0xFF222222));
         assertThat(merged.colors().get("grass.plains").orElseThrow(), equalTo(0xFF00FF00));
+    }
+
+    @Test
+    @DisplayName("a potion shortcut PNG under cit/potion synthesises a rule, and a stray PNG does not")
+    void potionShortcutTextureSynthesisesRule() throws IOException {
+        // The scanner reads two kinds of file from one CIT root - the .properties rules and these
+        // .png shortcuts - so this pins the discovery arm rather than the parse, which CitParserTest
+        // already covers. The stray sits in the same tree and must be ignored.
+        writeCit(PackId.VANILLA, "potion/splash/fire_resistance.png", "");
+        writeCit(PackId.VANILLA, "not_a_potion.png", "");
+
+        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))));
+        List<String> filenames = merged.citRules().stream().map(CitRule::filename).toList();
+        assertThat(filenames.size(), equalTo(1));
+        assertThat(filenames.getFirst(), containsString("fire_resistance"));
     }
 
     @Test

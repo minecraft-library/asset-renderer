@@ -95,6 +95,23 @@ public class PackSubtree {
         }
 
         /**
+         * An assets subtree at one named namespace - for a convention that only ever lives under a
+         * fixed one, such as the OptiFine rule trees under {@code assets/minecraft/optifine}.
+         *
+         * @param namespace the namespace directory to scan under {@code assets/}
+         * @param subdir the subtree under {@code assets/<namespace>/}
+         * @param extension the file extension to match, leading dot included
+         * @return the subtree
+         */
+        public static @NotNull Subtree assets(
+            @NotNull String namespace,
+            @NotNull String subdir,
+            @NotNull String extension
+        ) {
+            return new Subtree(VanillaSourcePaths.ASSETS_ROOT, subdir, extension, Optional.of(namespace), pack -> true);
+        }
+
+        /**
          * A data subtree at one named namespace.
          * <p>
          * The namespace is named rather than enumerated because {@code ResourcePack.namespaces()} is
@@ -177,20 +194,40 @@ public class PackSubtree {
         for (ResourcePack pack : stack.ascending()) {
             pack.meta().pack().ifPresent(section ->
                 surviving.removeIf(entry -> section.hidesFile(entry.namespace(), entry.resourcePath())));
-
-            for (Subtree subtree : subtrees) {
-                if (!subtree.appliesTo().test(pack)) continue;
-                Collection<String> namespaces = subtree.namespace()
-                    .<Collection<String>>map(List::of)
-                    .orElseGet(pack::namespaces);
-
-                for (PackRoot root : pack.roots())
-                    for (String namespace : namespaces)
-                        list(pack, subtree, root, namespace, surviving);
-            }
+            surviving.addAll(walk(pack, subtrees));
         }
 
         return surviving;
+    }
+
+    /**
+     * Walks one pack's own {@code (root x namespace)} grid, in the order its roots and the declared
+     * subtrees give.
+     * <p>
+     * No filter is applied here, and that is the client's rule rather than an omission: a pack's own
+     * files are never hidden by its own {@code filter.block}, which only erases what lower packs
+     * contributed. The erase therefore belongs to the stack form, which is the only level that has a
+     * lower pack to erase from.
+     *
+     * @param pack the pack to list
+     * @param subtrees the subtrees to walk, listed in this order
+     * @return that pack's files, in resolution order
+     */
+    public static @NotNull List<Entry> walk(@NotNull ResourcePack pack, @NotNull Subtree @NotNull ... subtrees) {
+        List<Entry> found = new ArrayList<>();
+
+        for (Subtree subtree : subtrees) {
+            if (!subtree.appliesTo().test(pack)) continue;
+            Collection<String> namespaces = subtree.namespace()
+                .<Collection<String>>map(List::of)
+                .orElseGet(pack::namespaces);
+
+            for (PackRoot root : pack.roots())
+                for (String namespace : namespaces)
+                    list(pack, subtree, root, namespace, found);
+        }
+
+        return found;
     }
 
     /**

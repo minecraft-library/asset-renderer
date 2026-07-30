@@ -10,7 +10,6 @@ import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.pipeline.loader.BlockEntityShadowDiagnostics;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
@@ -25,9 +24,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -67,15 +64,22 @@ class Phase7PackSmokeTest {
             .build();
         PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
 
-        // --- Override channel: conduit geometry entry swaps its texture through the reader. ---
-        BlockModelLoader.LoadResult be = BlockModelLoader.load(stack);
+        // --- Override channel: conduit geometry entry swaps its texture through the reader. The BE
+        // shadowed-model diagnostic rides the same call, so the load is captured to assert on it. ---
+        ByteArrayOutputStream shadowBuffer = new ByteArrayOutputStream();
+        PrintStream originalErr = System.err;
+        BlockModelLoader.LoadResult be;
+        try {
+            System.setErr(new PrintStream(shadowBuffer, true, StandardCharsets.UTF_8));
+            be = BlockModelLoader.load(stack);
+        } finally {
+            System.setErr(originalErr);
+        }
         assertThat("conduit texture overridden via renderer/block_models.json",
             be.models().get("minecraft:conduit").textureId(), is("minecraft:entity/conduit/phase7"));
 
         // --- BE shadowed-model diagnostic: the fixture's chest.json is named + shadowed. ---
-        Set<String> beIds = new HashSet<>(be.models().keySet());
-        beIds.addAll(be.variants().keySet());
-        String shadowErr = captureShadowReport(stack, beIds);
+        String shadowErr = shadowBuffer.toString(StandardCharsets.UTF_8);
         assertThat(shadowErr, containsString("phase7fixture"));
         assertThat(shadowErr, containsString("minecraft:chest"));
 
@@ -120,18 +124,6 @@ class Phase7PackSmokeTest {
                 + "\"overrides\":[{\"predicate\":{\"custom_model_data\":1},\"model\":\"item/diamond_sword_cmd1\"}]}");
         write(fixture.resolve("assets/minecraft/models/item/diamond_sword_cmd1.json"),
             "{\"parent\":\"item/handheld\",\"textures\":{\"layer0\":\"item/diamond_sword_cmd1\"}}");
-    }
-
-    private static String captureShadowReport(PackStack stack, Set<String> beIds) {
-        PrintStream original = System.err;
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        try {
-            System.setErr(new PrintStream(buffer, true, StandardCharsets.UTF_8));
-            BlockEntityShadowDiagnostics.report(stack, beIds);
-        } finally {
-            System.setErr(original);
-        }
-        return buffer.toString(StandardCharsets.UTF_8);
     }
 
     private static void write(Path path, String content) throws IOException {
