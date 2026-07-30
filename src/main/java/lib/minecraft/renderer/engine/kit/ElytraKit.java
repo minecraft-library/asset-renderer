@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
+import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
@@ -130,9 +131,7 @@ public class ElytraKit {
      * @param baby whether to render the half-scale baby wings
      * @param bodyBounds the body bone's model-space bounds, used to re-seat the baby wings on the
      *     actual shoulder height; empty leaves the wings at their authored position
-     * @param modelAnchor the model-space anchor that maps to the canvas centre (the body's fit anchor)
-     * @param ndcScale the model-units-to-NDC scale (the body's fit scale)
-     * @param modelScale the per-render vertex pre-scale (the body's renderer-scale chain)
+     * @param frame the render frame the body's own geometry was built through
      * @param item the equipped elytra item identity, for the pack-rule (CIT) {@code type=elytra} override;
      *     empty leaves the wings on the equipment-model texture
      * @param tick the current animation tick
@@ -140,13 +139,13 @@ public class ElytraKit {
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildWings3D(
         @NotNull Textures engine, boolean baby, @NotNull Optional<Box> bodyBounds,
-        @NotNull Vector3f modelAnchor, float ndcScale, float modelScale, @NotNull Optional<ItemContext> item, int tick
+        @NotNull RenderFrame frame, @NotNull Optional<ItemContext> item, int tick
     ) {
         Optional<PixelBuffer> texture = wingsTexture(engine, item, tick);
         if (texture.isEmpty()) return Concurrent.newList();
 
         return EntityGeometryKit.buildTriangles(wingsMesh(baby, bodyBounds), texture.get(),
-            modelAnchor, false, ndcScale, modelScale, ColorMath.WHITE).triangles();
+            new EntityGeometryKit.EntityBuildParams(frame, false, ColorMath.WHITE)).triangles();
     }
 
     /**
@@ -179,8 +178,8 @@ public class ElytraKit {
             .or(() -> resolveWingTexture(engine, tick));
         if (texture.isEmpty()) return Concurrent.newList();
 
-        ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(
-            WINGS, texture.get(), Vector3f.ZERO, false, 1f, 1f, ColorMath.WHITE).triangles();
+        ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(WINGS, texture.get(),
+            new EntityGeometryKit.EntityBuildParams(RenderFrame.IDENTITY, false, ColorMath.WHITE)).triangles();
 
         float scale = (torsoMax.x() - torsoMin.x()) / VANILLA_BODY_WIDTH;
         float centreX = (torsoMin.x() + torsoMax.x()) * 0.5f;

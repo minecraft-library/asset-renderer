@@ -14,6 +14,7 @@ import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
+import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -239,9 +240,7 @@ public class ArmorKit {
      * it.
      *
      * @param shell the shell the wearer is dressed in
-     * @param modelAnchor the model-space point mapped to the canvas centre
-     * @param ndcScale the model-units-to-NDC scale
-     * @param modelScale the per-render vertex pre-scale
+     * @param frame the render frame the wearer's own geometry was built through
      * @param equipped the worn pieces keyed by slot; an unworn slot is absent
      * @param items the equipped item identity per slot, for the pack-rule (CIT) texture override; empty
      *     leaves each slot on its equipment-model texture
@@ -250,9 +249,7 @@ public class ArmorKit {
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildEntityArmor3D(
         @NotNull Shell shell,
-        @NotNull Vector3f modelAnchor,
-        float ndcScale,
-        float modelScale,
+        @NotNull RenderFrame frame,
         @NotNull Map<ArmorSlot, ArmorPiece> equipped,
         @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull Textures engine
@@ -265,8 +262,7 @@ public class ArmorKit {
         // it correctly once ENTITY_FACING is applied, with the geometry, normals, and inventory shading
         // all resolved in the final frame.
         ConcurrentList<VisibleTriangle> upright = buildArmor3D(shell.walk().parts(),
-            box -> intoRenderFrame(shell, modelAnchor, ndcScale, modelScale, box), shell.form(),
-            equipped, items, engine);
+            box -> intoRenderFrame(shell, frame, box), shell.form(), equipped, items, engine);
 
         Lighting.EntityLighting lighting =
             Lighting.resolveEntity(EntityGeometryKit.DEFAULT_ENTITY_LIGHTING);
@@ -361,11 +357,10 @@ public class ArmorKit {
      * same values and cannot round differently.
      */
     private static @NotNull Box intoRenderFrame(
-        @NotNull Shell shell, @NotNull Vector3f modelAnchor, float ndcScale, float modelScale,
-        @NotNull Box box) {
+        @NotNull Shell shell, @NotNull RenderFrame frame, @NotNull Box box) {
         Vector3f[] corners = intoUprightFrameBounds(new Vector3f[]{
-            toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.minX(), box.minY(), box.minZ()),
-            toRenderFrame(shell, modelAnchor, ndcScale, modelScale, box.maxX(), box.maxY(), box.maxZ())
+            toRenderFrame(shell, frame, box.minX(), box.minY(), box.minZ()),
+            toRenderFrame(shell, frame, box.maxX(), box.maxY(), box.maxZ())
         });
         return Box.of(corners[0], corners[1]);
     }
@@ -394,8 +389,7 @@ public class ArmorKit {
      * not one.
      */
     private static @NotNull Vector3f toRenderFrame(
-        @NotNull Shell shell, @NotNull Vector3f modelAnchor, float ndcScale,
-        float modelScale, float x, float y, float z) {
+        @NotNull Shell shell, @NotNull RenderFrame frame, float x, float y, float z) {
         // The set's own whole-mesh transform first, so the shell is sized and seated like the body it
         // dresses, then the render frame the body's own geometry was built through.
         Vector3f offset = shell.meshOffset();
@@ -404,10 +398,13 @@ public class ArmorKit {
         float my = mesh * y + offset.y();
         float mz = mesh * z + offset.z();
 
+        Vector3f anchor = frame.anchor();
+        float ndcScale = frame.ndcScale();
+        float modelScale = frame.modelScale();
         return new Vector3f(
-            ndcScale * (modelScale * mx - modelAnchor.x()),
-            ndcScale * (modelScale * my - modelAnchor.y()),
-            ndcScale * (modelScale * mz - modelAnchor.z()));
+            ndcScale * (modelScale * mx - anchor.x()),
+            ndcScale * (modelScale * my - anchor.y()),
+            ndcScale * (modelScale * mz - anchor.z()));
     }
 
     /**

@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pack.rule.GlintPolicy;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.HumanoidPart;
@@ -139,7 +140,7 @@ class ArmorKitCitCompositeTest {
             new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
 
-        ArmorKit.buildEntityArmor3D(babyShell(), Vector3f.ZERO, 1f, 1f,
+        ArmorKit.buildEntityArmor3D(babyShell(), RenderFrame.IDENTITY,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), new Textures(ctx));
 
         assertThat(ctx.resolved, equalTo(List.of("minecraft:entity/equipment/humanoid_baby/iron")));
@@ -152,7 +153,7 @@ class ArmorKitCitCompositeTest {
             new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
 
-        ArmorKit.buildEntityArmor3D(genericShell(), Vector3f.ZERO, 1f, 1f,
+        ArmorKit.buildEntityArmor3D(genericShell(), RenderFrame.IDENTITY,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), new Textures(ctx));
 
         assertThat(ctx.resolved.contains("minecraft:trims/entity/humanoid/coast"), equalTo(true));
@@ -215,8 +216,9 @@ class ArmorKitCitCompositeTest {
             new EquipmentModel.Layer(new ResourceId("minecraft", "iron"), Optional.empty(), false));
         RecordingContext ctx = new RecordingContext(iron, CitResult.NONE);
 
-        ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(shell, Vector3f.ZERO, 1f,
-            modelScale, Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), new Textures(ctx));
+        ConcurrentList<VisibleTriangle> armor = ArmorKit.buildEntityArmor3D(shell,
+            new RenderFrame(Vector3f.ZERO, 1f, modelScale),
+            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), new Textures(ctx));
 
         assertThat(armor.isEmpty(), equalTo(false));
         float minY = Float.MAX_VALUE;

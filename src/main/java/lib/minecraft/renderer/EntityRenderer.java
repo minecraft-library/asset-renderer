@@ -22,6 +22,7 @@ import lib.minecraft.renderer.engine.camera.FitRequest;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.compose.RasterPass;
 import lib.minecraft.renderer.engine.compose.Timeline;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
@@ -246,8 +247,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // This is what lets long entities (cod) fit uncropped under PORTRAIT / cavalier / cabinet / military.
         int canvasW;
         int canvasH;
-        Vector3f kitAnchor;
-        float kitNdcScale;
+        final RenderFrame kitFrame;
         final FitRequest fitRequest;
         if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
             BoundsScope scope = boundsScopeFor(options.getFitMode());
@@ -285,8 +285,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
             canvasW = fit.canvasW();
             canvasH = fit.canvasH();
-            kitAnchor = Vector3f.ZERO;
-            kitNdcScale = 1f;
+            kitFrame = new RenderFrame(Vector3f.ZERO, 1f, modelScale);
             fitRequest = FitRequest.nativeScale(fit.ndcScale(), screenBounds);
         } else {
             int canvasSize = Math.max(1, options.getOutput().getCanvasSize());
@@ -323,8 +322,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 modelBounds = modelBounds.union(EntityGeometryKit.computeBounds(
                     ElytraKit.wingsMesh(options.getAppearance().isBaby(), bodyBoneBounds)));
             EntityGeometryKit.UnitFit unit = EntityGeometryKit.unitFit(scaleBox(modelBounds, modelScale));
-            kitAnchor = unit.centre();
-            kitNdcScale = unit.ndcScale();
+            kitFrame = new RenderFrame(unit.centre(), unit.ndcScale(), modelScale);
             fitRequest = FitRequest.autoFill(Math.max(1e-3f, (canvasSize - 2f * padding) / (float) canvasSize));
         }
 
@@ -340,17 +338,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // at every tick. The build MUST stay inside the callback (the fluid invariant) so an opted-in
         // animated texture is not frozen on frame 0; the ModelEngine is rebuilt per frame for
         // thread-safe parallel strip baking. FeatureContext carries the shared geometry-build frame
-        // (anchor, scales, textures, pack context, tick) the static feature constants cannot capture.
-        final Vector3f anchor = kitAnchor;
-        final float ndcScale = kitNdcScale;
+        // (the render frame, textures, pack context, tick) the static feature constants cannot capture.
         IntFunction<ConcurrentList<VisibleTriangle>> buildAtTick = tick -> {
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(texture.get());
-            ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(
-                model, frameTexture, anchor, false, ndcScale, modelScale, resolved.baseTintArgb()).triangles();
+            ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(model, frameTexture,
+                new EntityGeometryKit.EntityBuildParams(kitFrame, false, resolved.baseTintArgb())).triangles();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            FeatureContext featureCtx = new FeatureContext(
-                resolved, options, model,
-                frameTexture, anchor, ndcScale, modelScale, this.textures, this.context, tick);
+            FeatureContext featureCtx = new FeatureContext(resolved, options, model, frameTexture,
+                kitFrame, this.textures, this.context, tick);
             for (EntityFeature feature : EntityFeature.values())
                 feature.contribute(featureCtx, stack);
             Layers.foldInto(stack, options.getLayerDecorator(), triangles);
@@ -528,9 +523,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                         // the pass itself; every un-annotated overlay keeps the source-over full-opacity
                         // depth-writing default.
                         sink.addAll(EntityGeometryKit.buildTriangles(overlayMesh, overlayTex.get(),
-                            new EntityGeometryKit.EntityBuildParams(ctx.modelAnchor(), overlay.emissive(),
-                                ctx.ndcScale(), ctx.modelScale(), overlayTint, overlay.blend(), overlay.alpha(),
-                                overlay.writesDepth(), overlay.sorted())
+                            new EntityGeometryKit.EntityBuildParams(ctx.frame(), overlay.emissive(),
+                                overlayTint, overlay.blend(), overlay.alpha(), overlay.writesDepth(),
+                                overlay.sorted())
                         ).triangles());
                     });
                 }
@@ -558,9 +553,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 stack.append(this.slot, sink -> {
                     Optional<PixelBuffer> collarTex = ctx.textures().resolveEntityTextureAtTick(ref, ctx.tick());
                     if (collarTex.isEmpty()) return;
-                    sink.addAll(EntityGeometryKit.buildTriangles(
-                        model, collarTex.get(), ctx.modelAnchor(), false,
-                        ctx.ndcScale(), ctx.modelScale(), collarTint).triangles());
+                    sink.addAll(EntityGeometryKit.buildTriangles(model, collarTex.get(),
+                        new EntityGeometryKit.EntityBuildParams(ctx.frame(), false, collarTint)).triangles());
                 });
             }
         },
@@ -588,9 +582,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 stack.append(this.slot, sink -> {
                     Optional<PixelBuffer> markingTex = ctx.textures().resolveEntityTextureAtTick(ref, ctx.tick());
                     if (markingTex.isEmpty()) return;
-                    sink.addAll(EntityGeometryKit.buildTriangles(
-                        model, markingTex.get(), ctx.modelAnchor(), false,
-                        ctx.ndcScale(), ctx.modelScale(), ColorMath.WHITE).triangles());
+                    sink.addAll(EntityGeometryKit.buildTriangles(model, markingTex.get(),
+                        new EntityGeometryKit.EntityBuildParams(ctx.frame(), false, ColorMath.WHITE)).triangles());
                 });
             }
         },
@@ -622,9 +615,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                             ctx.textures(), assetId.get(), equipment.layerType(),
                             dye, CitResult.NONE, OptionalInt.of(ctx.tick()));
                         if (equipmentTex.isEmpty()) return;
-                        sink.addAll(EntityGeometryKit.buildTriangles(
-                            equipment.model(), equipmentTex.get(), ctx.modelAnchor(), false,
-                            ctx.ndcScale(), ctx.modelScale(), ColorMath.WHITE).triangles());
+                        sink.addAll(EntityGeometryKit.buildTriangles(equipment.model(), equipmentTex.get(),
+                            new EntityGeometryKit.EntityBuildParams(ctx.frame(), false, ColorMath.WHITE)).triangles());
                     });
                 }
             }
@@ -643,7 +635,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 Optional<Box> bodyBounds = EntityGeometryKit.computeBoneBounds(ctx.model(), BODY_BONE);
                 stack.append(this.slot, sink ->
                     sink.addAll(ElytraKit.buildWings3D(ctx.textures(), appearance.isBaby(), bodyBounds,
-                        ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale(), Optional.empty(), ctx.tick())));
+                        ctx.frame(), Optional.empty(), ctx.tick())));
             }
         },
 
@@ -658,8 +650,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 if (ctx.definition().blockOverlays().isEmpty()) return;
                 EntityModelData model = ctx.model();
+                RenderFrame frame = ctx.frame();
                 Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(
-                    ctx.modelAnchor(), ctx.ndcScale() * ctx.modelScale());
+                    frame.anchor(), frame.ndcScale() * frame.modelScale());
                 for (Entity.BlockOverlayLayer blockOverlay : ctx.definition().blockOverlays())
                     stack.append(this.slot, sink ->
                         sink.addAll(buildBlockOverlayTriangles(ctx.context(), blockOverlay, model, entityFit, ctx.tick())));
@@ -678,8 +671,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 if (armor.isEmpty()) return;
                 EntityOptions options = ctx.options();
                 stack.append(this.slot, sink ->
-                    sink.addAll(ArmorKit.buildEntityArmor3D(
-                        armor.get(), ctx.modelAnchor(), ctx.ndcScale(), ctx.modelScale(),
+                    sink.addAll(ArmorKit.buildEntityArmor3D(armor.get(), ctx.frame(),
                         options.getArmor().equipped(), options.getArmor().getItems(), ctx.textures())));
             }
         };
@@ -703,17 +695,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * shared geometry-build frame the layers rasterize in: the age / carried-resolved
      * {@link Entity definition}, the {@link EntityOptions} (appearance +
      * armor pieces), and the primary {@link EntityModelData model} (adult or baby), plus the resolved
-     * base texture, model anchor, NDC + model scale, {@link Textures} service, and
-     * {@link RendererContext}. The scene-frame fields travel here because the static
+     * base texture, the {@link RenderFrame} the body was built through, the {@link Textures} service,
+     * and the {@link RendererContext}. The scene-frame fields travel here because the static
      * {@link EntityFeature} constants cannot capture them from the renderer instance.
      *
      * @param definition the age / carried-resolved definition the features read
      * @param options the render options (appearance + armor pieces)
      * @param model the primary mesh being rendered (adult or baby)
      * @param baseTexture the resolved base entity texture the layers sample from
-     * @param modelAnchor the model-space point the rasterizer maps to canvas centre
-     * @param ndcScale the normalized-device scale from the auto-fit window
-     * @param modelScale the per-subject render scale (renderer scale combined with state scale)
+     * @param frame the render frame the base body was built through, which every feature building in the
+     *     body's own frame passes straight on
      * @param textures the texture-resolution service the layers sample overlay / armor textures through
      * @param context the renderer context for overlay-texture and block lookups
      * @param tick the animation tick every overlay / carried-block texture is sampled at
@@ -723,9 +714,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull EntityOptions options,
         @NotNull EntityModelData model,
         @NotNull PixelBuffer baseTexture,
-        @NotNull Vector3f modelAnchor,
-        float ndcScale,
-        float modelScale,
+        @NotNull RenderFrame frame,
         @NotNull Textures textures,
         @NotNull RendererContext context,
         int tick

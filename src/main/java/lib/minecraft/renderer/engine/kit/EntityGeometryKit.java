@@ -10,6 +10,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -95,15 +96,11 @@ public class EntityGeometryKit {
 
     /**
      * Parameters for a native-resolution entity triangle build. Bundles the values that vary
-     * per render so callers spell them at a named call boundary instead of through a telescoping
-     * positional overload cascade.
+     * per render so callers spell them at a named call boundary rather than positionally.
      *
-     * @param centreAnchor model-space point that maps to the canvas centre
+     * @param frame the {@link RenderFrame} this build is fitted through
      * @param emissive whether every emitted triangle renders full-bright and additive (eyes,
      *     glowing spots)
-     * @param ndcScale model-units-to-NDC scale applied after centring on {@code centreAnchor}
-     * @param modelScale per-render vertex pre-scale folded in before the NDC scale (vanilla's
-     *     combined renderer-scale + state-scale chain)
      * @param tintArgb ARGB tint multiplied into every sampled texel; {@link ColorMath#WHITE}
      *     ({@code 0xFFFFFFFF}) is a no-op tint
      * @param blend the colour-composition mode baked onto every emitted triangle -
@@ -119,10 +116,8 @@ public class EntityGeometryKit {
      *     re-light the subject
      */
     public record EntityBuildParams(
-        @NotNull Vector3f centreAnchor,
+        @NotNull RenderFrame frame,
         boolean emissive,
-        float ndcScale,
-        float modelScale,
         int tintArgb,
         @NotNull BlendMode blend,
         float alpha,
@@ -133,12 +128,10 @@ public class EntityGeometryKit {
         /**
          * Constructs build params compositing with an explicit pipeline declaration and the
          * {@link #DEFAULT_ENTITY_LIGHTING default entity lighting frame}. Only a caller substituting the
-         * lighting (a mirror, a borrowed angle) uses the canonical ten-argument constructor.
+         * lighting (a mirror, a borrowed angle) uses the canonical eight-argument constructor.
          *
-         * @param centreAnchor model-space point that maps to the canvas centre
+         * @param frame the {@link RenderFrame} this build is fitted through
          * @param emissive whether every emitted triangle renders full-bright
-         * @param ndcScale model-units-to-NDC scale applied after centring
-         * @param modelScale per-render vertex pre-scale folded in before the NDC scale
          * @param tintArgb ARGB tint multiplied into every sampled texel
          * @param blend the colour-composition mode baked onto every emitted triangle
          * @param alpha the per-fragment opacity multiplier baked onto every emitted triangle
@@ -146,11 +139,10 @@ public class EntityGeometryKit {
          * @param sorted whether the pass's quads are drawn back-to-front
          */
         public EntityBuildParams(
-            @NotNull Vector3f centreAnchor, boolean emissive, float ndcScale, float modelScale,
-            int tintArgb, @NotNull BlendMode blend, float alpha, boolean writesDepth, boolean sorted
+            @NotNull RenderFrame frame, boolean emissive, int tintArgb, @NotNull BlendMode blend,
+            float alpha, boolean writesDepth, boolean sorted
         ) {
-            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, blend, alpha, writesDepth, sorted,
-                 DEFAULT_ENTITY_LIGHTING);
+            this(frame, emissive, tintArgb, blend, alpha, writesDepth, sorted, DEFAULT_ENTITY_LIGHTING);
         }
 
         /**
@@ -158,16 +150,12 @@ public class EntityGeometryKit {
          * blend at full opacity and the {@link #DEFAULT_ENTITY_LIGHTING default entity lighting frame} -
          * the default for every base body and texture-alpha overlay.
          *
-         * @param centreAnchor model-space point that maps to the canvas centre
+         * @param frame the {@link RenderFrame} this build is fitted through
          * @param emissive whether every emitted triangle renders full-bright
-         * @param ndcScale model-units-to-NDC scale applied after centring
-         * @param modelScale per-render vertex pre-scale folded in before the NDC scale
          * @param tintArgb ARGB tint multiplied into every sampled texel
          */
-        public EntityBuildParams(
-            @NotNull Vector3f centreAnchor, boolean emissive, float ndcScale, float modelScale, int tintArgb
-        ) {
-            this(centreAnchor, emissive, ndcScale, modelScale, tintArgb, BlendMode.NORMAL, 1f, true, false);
+        public EntityBuildParams(@NotNull RenderFrame frame, boolean emissive, int tintArgb) {
+            this(frame, emissive, tintArgb, BlendMode.NORMAL, 1f, true, false);
         }
     }
 
@@ -177,7 +165,7 @@ public class EntityGeometryKit {
      *
      * @param model the entity model definition (Java Y-down frame)
      * @param texture the shared texture atlas
-     * @return the build result containing triangles and per-bone bounds
+     * @return the build result containing the triangle list
      */
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityModelData model,
@@ -189,60 +177,29 @@ public class EntityGeometryKit {
             (bounds.minX() + bounds.maxX()) * 0.5f,
             (bounds.minY() + bounds.maxY()) * 0.5f,
             (bounds.minZ() + bounds.maxZ()) * 0.5f);
-        return buildTriangles(model, texture,
-            new EntityBuildParams(centre, false, ENTITY_MODEL_FIT_EXTENT / extent, 1f, ColorMath.WHITE));
-    }
-
-    /**
-     * Native-resolution overload taking an explicit model-space centre anchor and per-render tint.
-     * Used by {@link EntityRenderer} to match the vanilla-reference-harness's fixed
-     * {@code pixelsPerBlock} convention and to centre the silhouette on the canvas via the
-     * model-space point whose iso projection equals the screen-space silhouette midpoint.
-     * Convenience wrapper over {@link #buildTriangles(EntityModelData, PixelBuffer, EntityBuildParams)}.
-     *
-     * @param model the entity model definition (Java Y-down frame)
-     * @param texture the shared texture atlas
-     * @param modelCentreAnchor model-space point that maps to the canvas centre
-     * @param emissive whether triangles render full-bright + additive
-     * @param ndcScale model-units-to-NDC scale pre-computed from the canvas dimensions and target
-     *     pixels-per-block
-     * @param modelScale per-render vertex pre-scale (vanilla renderer-scale + state-scale chain)
-     * @param tintArgb the ARGB tint applied to every triangle this call produces; use
-     *     {@code 0xFFFFFFFF} ({@link ColorMath#WHITE}) for no tint
-     * @return the build result containing triangles and per-bone bounds
-     */
-    public static @NotNull BuildResult buildTriangles(
-        @NotNull EntityModelData model,
-        @NotNull PixelBuffer texture,
-        @NotNull Vector3f modelCentreAnchor,
-        boolean emissive,
-        float ndcScale,
-        float modelScale,
-        int tintArgb
-    ) {
-        return buildTriangles(model, texture,
-            new EntityBuildParams(modelCentreAnchor, emissive, ndcScale, modelScale, tintArgb));
+        return buildTriangles(model, texture, new EntityBuildParams(
+            new RenderFrame(centre, ENTITY_MODEL_FIT_EXTENT / extent, 1f), false, ColorMath.WHITE));
     }
 
     /**
      * Builds rasterizer-ready triangles for an entity model at native resolution from the supplied
-     * build parameters. Both the auto-fit convenience overload and the renderer's native-scale
-     * overload delegate here.
+     * build parameters. The auto-fit convenience overload delegates here.
      *
      * @param model the entity model definition (Java Y-down frame)
      * @param texture the shared texture atlas
-     * @param params the centre anchor, emissive flag, scale factors, and tint for this build
-     * @return the build result containing triangles and per-bone bounds
+     * @param params the render frame, emissive flag, tint and pipeline declaration for this build
+     * @return the build result containing the triangle list
      */
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityModelData model,
         @NotNull PixelBuffer texture,
         @NotNull EntityBuildParams params
     ) {
-        Vector3f centre = params.centreAnchor();
+        RenderFrame frame = params.frame();
+        Vector3f centre = frame.anchor();
         boolean emissive = params.emissive();
-        float scale = params.ndcScale();
-        float modelScale = params.modelScale();
+        float scale = frame.ndcScale();
+        float modelScale = frame.modelScale();
         int tintArgb = params.tintArgb();
         BlendMode blend = params.blend();
         float alpha = params.alpha();
@@ -816,9 +773,10 @@ public class EntityGeometryKit {
      * <p>Caller-supplied scale rather than an auto-fit, so block overlays composed onto an entity's
      * frame match the scale the renderer used for the entity body. Used by {@link EntityRenderer} to
      * project block-model overlay triangles (mooshroom mushroom blocks, etc) at the same
-     * silhouette-centred frame the entity body uses (the
-     * {@link #buildTriangles(EntityModelData, PixelBuffer, Vector3f, boolean, float, float, int)
-     * Vector3f overload} above), so they render at the correct scale and orientation alongside it.
+     * silhouette-centred frame the entity body uses - the same {@link RenderFrame} the body was
+     * {@link #buildTriangles(EntityModelData, PixelBuffer, EntityBuildParams) built} through, with its
+     * two scales pre-multiplied by the caller - so they render at the correct scale and orientation
+     * alongside it.
      *
      * @param modelCentre the model-space point that maps to the canvas centre
      * @param ndcScale the caller-supplied model-units-to-NDC scale
