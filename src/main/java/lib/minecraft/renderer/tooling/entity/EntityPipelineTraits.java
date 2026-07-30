@@ -225,7 +225,7 @@ final class EntityPipelineTraits {
             for (MethodNode method : renderTypes.methods) {
                 if (!name.equals(method.name)) continue;
                 if (declaresSortOnUpload(method)) return true;
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : method.instructions) {
                     if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
                     if (!renderTypes.name.equals(fi.owner)) continue;
                     if (!FUNCTION_DESC.equals(fi.desc) && !BIFUNCTION_DESC.equals(fi.desc)) continue;
@@ -276,7 +276,7 @@ final class EntityPipelineTraits {
 
     /** Whether a method body invokes {@code RenderSetup$RenderSetupBuilder.sortOnUpload}. */
     private static boolean declaresSortOnUpload(@NotNull MethodNode method) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : method.instructions)
             if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDER_SETUP_BUILDER,
                                        VanillaSourceClasses.Defines.SORT_ON_UPLOAD))
                 return true;
@@ -320,7 +320,7 @@ final class EntityPipelineTraits {
      */
     private void collectFactoryCalls(@NotNull MethodNode method, @NotNull List<String> out,
                                      @NotNull Set<String> visited, int hops) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) continue;
             if (VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner)) {
                 out.add(mi.name);
@@ -341,7 +341,7 @@ final class EntityPipelineTraits {
         if (renderTypes == null) return null;
         for (MethodNode method : renderTypes.methods) {
             if (!factoryName.equals(method.name)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
                 if (VanillaSourceClasses.Types.RENDER_PIPELINES.equals(fi.owner)) return fi.name;
                 // Function/BiFunction-backed factory (entityTranslucent, outline): the field is
@@ -363,7 +363,7 @@ final class EntityPipelineTraits {
     private static @Nullable String chaseFunctionFieldPipeline(@NotNull ClassNode renderTypes, @NotNull String fieldName) {
         MethodNode lambda = chaseFunctionFieldLambda(renderTypes, fieldName);
         if (lambda == null) return null;
-        for (AbstractInsnNode li = lambda.instructions.getFirst(); li != null; li = li.getNext())
+        for (AbstractInsnNode li : lambda.instructions)
             if (AsmKit.isGetStatic(li, VanillaSourceClasses.Types.RENDER_PIPELINES))
                 return ((FieldInsnNode) li).name;
         return null;
@@ -378,7 +378,7 @@ final class EntityPipelineTraits {
         MethodNode clinit = AsmKit.findMethod(renderTypes, AsmKit.CLINIT);
         if (clinit == null) return null;
         Handle pendingLambda = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy) {
                 Handle handle = AsmKit.extractLambdaHandle(indy);
                 if (handle != null) pendingLambda = handle;
@@ -409,7 +409,7 @@ final class EntityPipelineTraits {
         Boolean blockDepthWrite = null;
         Boolean pendingBoolean = null;
         List<String> blockSnippets = new ArrayList<>();
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingDefine = literal;

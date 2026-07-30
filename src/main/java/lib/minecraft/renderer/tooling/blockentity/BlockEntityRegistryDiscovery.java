@@ -113,7 +113,7 @@ public final class BlockEntityRegistryDiscovery {
         Map<String, TypeRegistration> out = new LinkedHashMap<>();
         String pendingId = null;
         List<String> pendingBlocks = new ArrayList<>();
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingId = literal;
@@ -159,7 +159,7 @@ public final class BlockEntityRegistryDiscovery {
 
         Map<String, String> out = new LinkedHashMap<>();
         String pendingTypeField = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE)) {
                 pendingTypeField = ((FieldInsnNode) in).name;
                 continue;

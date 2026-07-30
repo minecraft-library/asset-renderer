@@ -141,7 +141,7 @@ public final class EntityRegistryDiscovery {
         String pendingId = null;
         String pendingCategory = null;
 
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) pendingId = literal;
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MOB_CATEGORY))
@@ -201,7 +201,7 @@ public final class EntityRegistryDiscovery {
 
         Map<String, RendererRegistration> out = new LinkedHashMap<>();
         String pendingEntityField = null;
-        for (AbstractInsnNode in = registryInit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : registryInit.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE)) {
                 pendingEntityField = ((FieldInsnNode) in).name;
                 continue;

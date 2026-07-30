@@ -280,7 +280,7 @@ final class BlockCatalogResolver {
         MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return out;
         String pending = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pending = literal;
@@ -301,7 +301,7 @@ final class BlockCatalogResolver {
         MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return out;
         String pending = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in.getOpcode() == Opcodes.NEW) {
                 pending = null;
                 continue;
@@ -332,7 +332,7 @@ final class BlockCatalogResolver {
             }
         if (lambda == null) return out;
         String pendingType = null;
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : lambda.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.SKULL_BLOCK_TYPES)) {
                 pendingType = ((FieldInsnNode) in).name;
                 continue;
@@ -356,7 +356,7 @@ final class BlockCatalogResolver {
         if (clinit == null) return "";
         String base = null;
         String pendingStem = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 if (literal.contains("/")) base = literal; else pendingStem = literal;
@@ -374,7 +374,7 @@ final class BlockCatalogResolver {
         MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return "";
         String pendingStem = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingStem = literal;
@@ -399,7 +399,7 @@ final class BlockCatalogResolver {
         if (clinit == null) return order;
         String first = null;
         String second = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in.getOpcode() == Opcodes.NEW && in instanceof TypeInsnNode type
                 && type.desc.equals(VanillaSourceClasses.Types.DYE_COLOR)) {
                 first = null;

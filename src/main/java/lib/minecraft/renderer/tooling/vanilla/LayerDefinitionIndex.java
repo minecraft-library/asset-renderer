@@ -173,7 +173,7 @@ public final class LayerDefinitionIndex {
         // never pay for the second walk.
         BabyMeshTransform pendingAppliedBaby = null;
 
-        for (AbstractInsnNode in = createRoots.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : createRoots.instructions) {
             int opcode = in.getOpcode();
 
             // Capture float literals that may end up as the `new CubeDeformation(F)` arg or a
@@ -404,7 +404,7 @@ public final class LayerDefinitionIndex {
         boolean inAlloc = false;
         float[] literals = new float[3];
         int seen = 0;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in.getOpcode() == Opcodes.NEW
                 && in instanceof TypeInsnNode alloc
                 && VanillaSourceClasses.Types.CUBE_DEFORMATION.equals(alloc.desc)) {
@@ -454,7 +454,7 @@ public final class LayerDefinitionIndex {
         if (clinit == null) return null;
         float[] literals = new float[3];
         int seen = 0;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             Float literal = AsmKit.readFloatLiteral(in);
             if (literal != null) {
                 if (seen < 3) literals[seen] = literal;
@@ -481,7 +481,7 @@ public final class LayerDefinitionIndex {
         MethodNode method = AsmKit.findMethod(cn, entry.factoryMethod(), entry.factoryDesc());
         if (method == null) return entry;
         MethodInsnNode delegate = null;
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             int op = in.getOpcode();
             if (op == -1) continue;
             if (op == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi) {

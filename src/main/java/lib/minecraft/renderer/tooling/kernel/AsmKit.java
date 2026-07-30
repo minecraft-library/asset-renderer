@@ -408,7 +408,7 @@ public final class AsmKit {
         MethodNode clinit = findMethod(cn, CLINIT);
         if (clinit == null) return null;
         String pendingFieldName = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
                 && enumInternalName.equals(fi.owner)) {
@@ -1317,7 +1317,7 @@ public final class AsmKit {
      * @return {@code true} when at least one matching invoke exists in the body
      */
     public static boolean containsInvoke(@NotNull MethodNode method, int opcode, @NotNull String owner, @NotNull String name) {
-        for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext())
+        for (AbstractInsnNode node : method.instructions)
             if (isInvoke(node, opcode, owner, name)) return true;
         return false;
     }
@@ -1339,7 +1339,7 @@ public final class AsmKit {
         @NotNull String name,
         @NotNull String descriptor
     ) {
-        for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext())
+        for (AbstractInsnNode node : method.instructions)
             if (isInvoke(node, opcode, owner, name, descriptor)) return true;
         return false;
     }
@@ -1357,7 +1357,7 @@ public final class AsmKit {
      * @return {@code true} when at least one matching field access exists in the body
      */
     public static boolean containsFieldOp(@NotNull MethodNode method, int opcode, @NotNull String owner, @NotNull String name) {
-        for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : method.instructions) {
             if (node.getOpcode() != opcode) continue;
             if (!(node instanceof FieldInsnNode fieldInsn)) continue;
             if (fieldInsn.owner.equals(owner) && fieldInsn.name.equals(name)) return true;
@@ -1401,7 +1401,7 @@ public final class AsmKit {
     ) {
         List<StaticBinding<V>> out = new ArrayList<>();
         V pending = null;
-        for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : method.instructions) {
             if (isPseudoNode(node)) continue;
             V value = pendingReader.apply(node);
             if (value != null) {
@@ -1447,7 +1447,7 @@ public final class AsmKit {
         MethodNode clinit = findMethod(cn, CLINIT);
         if (clinit == null) return out;
         String pendingKey = null;
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : clinit.instructions) {
             if (isPutStatic(node, owner, mapField)) break;
             if (node.getOpcode() == Opcodes.GETSTATIC
                 && node instanceof FieldInsnNode field
@@ -1530,7 +1530,7 @@ public final class AsmKit {
         String factoryDesc = "(F)" + fieldDesc;
         Float pendingFloat = null;
         Float pendingScaled = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             int op = in.getOpcode();
             if (op < 0) continue; // labels / line numbers / frames
             if (in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f) {
@@ -1818,7 +1818,7 @@ public final class AsmKit {
         if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
             MethodNode lambda = findMethod(ownerClass, handle.getName(), handle.getDesc());
             if (lambda == null) return null;
-            for (AbstractInsnNode node = lambda.instructions.getFirst(); node != null; node = node.getNext())
+            for (AbstractInsnNode node : lambda.instructions)
                 if (node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW)
                     return type.desc;
         }
@@ -1854,7 +1854,7 @@ public final class AsmKit {
             MethodNode lambda = findMethod(ownerClass, handle.getName(), handle.getDesc());
             if (lambda == null) return null;
             String found = null;
-            for (AbstractInsnNode node = lambda.instructions.getFirst(); node != null; node = node.getNext()) {
+            for (AbstractInsnNode node : lambda.instructions) {
                 visitor.accept(node);
                 if (found == null && node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW)
                     found = type.desc;
@@ -1931,7 +1931,7 @@ public final class AsmKit {
      * @return the recipe string, or {@code null} when no matching indy is present
      */
     public static @Nullable String findStringConcatRecipeIn(@NotNull MethodNode helper) {
-        for (AbstractInsnNode node = helper.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : helper.instructions) {
             if (node instanceof InvokeDynamicInsnNode indy) {
                 String recipe = resolveStringConcatRecipe(indy);
                 if (recipe != null) return recipe;

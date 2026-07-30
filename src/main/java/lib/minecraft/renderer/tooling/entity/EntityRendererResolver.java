@@ -141,7 +141,7 @@ final class EntityRendererResolver {
             List<LayerSite> level = new ArrayList<>();
             for (MethodNode ctor : cn.methods) {
                 if (!AsmKit.INIT.equals(ctor.name)) continue;
-                for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : ctor.instructions) {
                     // Owner-agnostic addLayer match - the renderer's super may be any of
                     // several LivingEntityRenderer subclasses; gate on the canonical
                     // descriptor shape (single Layer arg, boolean return).

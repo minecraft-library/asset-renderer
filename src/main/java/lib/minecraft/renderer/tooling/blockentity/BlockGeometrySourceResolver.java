@@ -175,7 +175,7 @@ final class BlockGeometrySourceResolver {
         Set<String> out = new LinkedHashSet<>();
         AsmKit.walkSuperChain(this.cache, rendererClass, cn -> {
             for (MethodNode method : cn.methods)
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+                for (AbstractInsnNode in : method.instructions)
                     if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS))
                         out.add(((FieldInsnNode) in).name);
         });
@@ -195,7 +195,7 @@ final class BlockGeometrySourceResolver {
 
         List<Float> floats = new ArrayList<>();
         float maxPivotY = Float.NEGATIVE_INFINITY;
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             Float literal = AsmKit.readFloatLiteral(in);
             if (literal != null) {
                 floats.add(literal);

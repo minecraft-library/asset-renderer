@@ -436,7 +436,7 @@ final class TransformWalker {
         MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         List<Float> pending = new ArrayList<>();
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in.getOpcode() == Opcodes.NEW && in instanceof TypeInsnNode type && type.desc.equals(VECTOR3F)) {
                 pending.clear();
                 continue;

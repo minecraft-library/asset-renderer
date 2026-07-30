@@ -255,7 +255,7 @@ public final class ArmorMeshIndex {
         Set pendingSet = null;
         String pendingSetField = null;
 
-        for (AbstractInsnNode in = createRoots.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : createRoots.instructions) {
             int opcode = in.getOpcode();
 
             Float asFloat = AsmKit.readFloatLiteral(in);
@@ -480,13 +480,13 @@ public final class ArmorMeshIndex {
         MethodNode node = AsmKit.findMethodInHierarchy(cache, owner, method, desc);
         if (node == null) return false;
 
-        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : node.instructions)
             if (in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
                 && fi.name.endsWith(VanillaSourceClasses.Fields.ARMOR_PARTS_PER_SLOT_SUFFIX))
                 return fi.name.startsWith(VanillaSourceClasses.Fields.BABY_ARMOR_PARTS_PREFIX);
 
-        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : node.instructions)
             if (in.getOpcode() == Opcodes.INVOKESTATIC
                 && in instanceof MethodInsnNode mi
                 && desc.equals(mi.desc)
@@ -504,7 +504,7 @@ public final class ArmorMeshIndex {
         @NotNull ClassNodeCache cache, @NotNull Handle lambda) {
         MethodNode node = AsmKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
         if (node == null) return null;
-        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : node.instructions)
             if (in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
                 && VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF.equals(fi.desc)) {
@@ -538,7 +538,7 @@ public final class ArmorMeshIndex {
         int[] direct = atlasIn(node);
         if (direct != null) return direct;
 
-        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : node.instructions) {
             if (!(in instanceof InvokeDynamicInsnNode indy)) continue;
             Handle handle = AsmKit.extractLambdaHandle(indy);
             if (handle == null) continue;
@@ -546,7 +546,7 @@ public final class ArmorMeshIndex {
             if (wrapped != null) return wrapped;
         }
 
-        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : node.instructions)
             if (in.getOpcode() == Opcodes.INVOKESTATIC
                 && in instanceof MethodInsnNode mi
                 && desc.equals(mi.desc)
@@ -569,7 +569,7 @@ public final class ArmorMeshIndex {
     private static int @Nullable [] atlasIn(@NotNull MethodNode node) {
         Integer prior = null;
         Integer latest = null;
-        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : node.instructions) {
             Integer literal = AsmKit.readIntLiteral(in);
             if (literal != null) {
                 prior = latest;
@@ -609,7 +609,7 @@ public final class ArmorMeshIndex {
         MethodNode node = AsmKit.findMethodInHierarchy(cache, owner, method, desc);
         if (node == null) return null;
 
-        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : node.instructions)
             if (in.getOpcode() == Opcodes.INVOKESTATIC
                 && in instanceof MethodInsnNode mi
                 && desc.equals(mi.desc)
@@ -617,7 +617,7 @@ public final class ArmorMeshIndex {
                 && !mi.owner.equals(owner))
                 return resolveBaseMeshFactory(cache, mi.owner, mi.name, desc, depth + 1);
 
-        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : node.instructions) {
             if (!(in instanceof InvokeDynamicInsnNode indy)) continue;
             Handle handle = AsmKit.extractLambdaHandle(indy);
             if (handle == null
@@ -638,7 +638,7 @@ public final class ArmorMeshIndex {
         @NotNull ClassNodeCache cache, @NotNull Handle lambda) {
         MethodNode node = AsmKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
         if (node == null) return null;
-        for (AbstractInsnNode in = node.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : node.instructions)
             if (in.getOpcode() == Opcodes.INVOKESTATIC
                 && in instanceof MethodInsnNode mi
                 && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION))

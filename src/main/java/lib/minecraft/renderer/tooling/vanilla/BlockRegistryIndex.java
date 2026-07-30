@@ -96,7 +96,7 @@ public final class BlockRegistryIndex {
         String pendingId = null;
         String ctorClass = null;
 
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingId = literal;
@@ -215,7 +215,7 @@ public final class BlockRegistryIndex {
         if (clinit == null) return out;
 
         String lastString = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 lastString = literal;
@@ -246,7 +246,7 @@ public final class BlockRegistryIndex {
         String resolved = null;
         MethodNode helper = AsmKit.findMethod(blocks, helperName);
         if (helper != null) {
-            for (AbstractInsnNode in = helper.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : helper.instructions) {
                 if (in instanceof InvokeDynamicInsnNode indy && indy.desc.endsWith(FUNCTION_RETURN_SUFFIX)) {
                     resolved = AsmKit.resolveLambdaTargetClass(indy, blocks);
                     if (resolved != null) break;

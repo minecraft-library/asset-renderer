@@ -75,7 +75,7 @@ final class PropertyDefinitionResolver {
         AsmKit.walkSuperChain(this.cache, blockClass, cn -> {
             MethodNode method = AsmKit.findMethod(cn, VanillaSourceClasses.Methods.CREATE_BLOCK_STATE_DEFINITION);
             if (method == null) return;
-            for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext())
+            for (AbstractInsnNode node : method.instructions)
                 scanDeclarationNode(blockClass, node, declared);
         });
         return declared;
@@ -150,7 +150,7 @@ final class PropertyDefinitionResolver {
         return bfsClassGraph(startClass, cn -> {
             MethodNode body = AsmKit.findMethod(cn, method, desc);
             if (body == null || body.instructions.size() == 0) return null;
-            for (AbstractInsnNode node = body.instructions.getFirst(); node != null; node = node.getNext())
+            for (AbstractInsnNode node : body.instructions)
                 if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode prop
                     && isPropertyFieldRef(prop.desc) && prop.desc.charAt(0) != '[')
                     return new FieldRef(prop.owner, prop.name);
@@ -181,7 +181,7 @@ final class PropertyDefinitionResolver {
         MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
         if (clinit == null) return out;
         Set<String> byName = new HashSet<>();
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext())
+        for (AbstractInsnNode node : clinit.instructions)
             if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode prop
                 && isPropertyFieldRef(prop.desc) && prop.desc.charAt(0) != '[') {
                 String name = resolvePropertyName(prop.owner, prop.name);
@@ -195,7 +195,7 @@ final class PropertyDefinitionResolver {
         return bfsClassGraph(startClass, cn -> {
             MethodNode body = AsmKit.findMethod(cn, method, desc);
             if (body == null || body.instructions.size() == 0) return null;
-            for (AbstractInsnNode node = body.instructions.getFirst(); node != null; node = node.getNext())
+            for (AbstractInsnNode node : body.instructions)
                 if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode map && MAP_REF.equals(map.desc))
                     return map;
             return null;
@@ -268,7 +268,7 @@ final class PropertyDefinitionResolver {
         return bfsClassGraph(owner, cn -> {
             MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
             if (clinit == null) return null;
-            for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext())
+            for (AbstractInsnNode node : clinit.instructions)
                 if (AsmKit.isPutStatic(node, cn.name, field)) return (FieldInsnNode) node;
             return null;
         });
@@ -332,7 +332,7 @@ final class PropertyDefinitionResolver {
         boolean collecting = false;
         List<String> strings = new ArrayList<>();
         List<String> pending = null;
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : clinit.instructions) {
             if (node.getOpcode() == Opcodes.NEW && node instanceof org.objectweb.asm.tree.TypeInsnNode type && type.desc.equals(enumOwner)) {
                 collecting = true;
                 strings = new ArrayList<>();

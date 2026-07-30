@@ -164,7 +164,7 @@ final class EntityShapeAxisResolver {
         if (clinit == null) return null;
         String wantedPrefix = option.toUpperCase(Locale.ROOT);
         String pendingPath = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) {
                 pendingPath = literal;

@@ -118,7 +118,7 @@ final class EntityBlockOverlayResolver {
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
         String stateClass = null;
         String blockField = null;
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : submit.instructions)
             if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi && stateRef.equals(fi.desc)) {
                 stateClass = fi.owner;
                 blockField = fi.name;
@@ -188,7 +188,7 @@ final class EntityBlockOverlayResolver {
      */
     private static @Nullable String findLiteralBlockUpdate(@NotNull MethodNode method, @NotNull String blockFieldName) {
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE)) continue;
             String blocksField = null;
             boolean targetMatched = false;
@@ -214,7 +214,7 @@ final class EntityBlockOverlayResolver {
         Type[] args = AsmKit.argTypes(method.desc);
         if (args.length == 0 || args[0].getSort() != Type.OBJECT) return false;
         String entityClass = args[0].getInternalName();
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : method.instructions)
             if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
                 && entityClass.equals(mi.owner) && mi.desc.endsWith(")Z"))
                 return true;
@@ -239,7 +239,7 @@ final class EntityBlockOverlayResolver {
         List<Float> floats = new ArrayList<>();
         int opCount = 0;
 
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             Float literal = AsmKit.readFloatLiteral(in);
             if (literal != null) {
                 floats.add(literal);
@@ -370,7 +370,7 @@ final class EntityBlockOverlayResolver {
         String returnDesc = "()" + VanillaSourceClasses.Descs.MODEL_PART_REF;
         for (MethodNode method : model.methods) {
             if (!accessorName.equals(method.name) || !returnDesc.equals(method.desc)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+            for (AbstractInsnNode in : method.instructions)
                 if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi
                     && VanillaSourceClasses.Descs.MODEL_PART_REF.equals(fi.desc))
                     return fi.name;
@@ -384,7 +384,7 @@ final class EntityBlockOverlayResolver {
         if (init == null) return null;
         String pendingLiteral = null;
         String lastGetChildArg = null;
-        for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : init.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingLiteral = literal;

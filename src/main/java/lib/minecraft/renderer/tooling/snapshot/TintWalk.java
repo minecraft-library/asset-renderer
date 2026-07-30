@@ -80,7 +80,7 @@ public final class TintWalk {
         List<String> pendingBlocks = new ArrayList<>();
         AsmKit.LiteralStack intStack = new AsmKit.LiteralStack(4);
 
-        for (AbstractInsnNode node = createDefault.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : createDefault.instructions) {
             Integer literal = AsmKit.readIntLiteral(node);
             if (literal != null) {
                 intStack.push(literal);

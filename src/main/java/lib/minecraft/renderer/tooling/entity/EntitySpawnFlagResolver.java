@@ -115,7 +115,7 @@ final class EntitySpawnFlagResolver {
 
     /** The accessor feeding one {@code PUTFIELD <state>.<flag>:Z} inside a single method. */
     private static @Nullable Accessor findAccessor(@NotNull MethodNode method, @NotNull String stateFlag) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (in.getOpcode() != Opcodes.PUTFIELD
                 || !(in instanceof FieldInsnNode put)
                 || !stateFlag.equals(put.name)
@@ -136,7 +136,7 @@ final class EntitySpawnFlagResolver {
      * assumed from its opcode, so a compiler that lays the arms out the other way still decodes.
      */
     private static @Nullable BitTest readBitTest(@NotNull MethodNode method) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (in.getOpcode() != Opcodes.IAND) continue;
             AbstractInsnNode maskInsn = AsmKit.previousReal(in);
             Integer mask = maskInsn == null ? null : AsmKit.readIntLiteral(maskInsn);
@@ -159,7 +159,7 @@ final class EntitySpawnFlagResolver {
 
     /** The {@code EntityDataAccessor} static field an accessor reads its packed value through. */
     private static @Nullable String readDataField(@NotNull MethodNode method) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode get
                 && VanillaSourceClasses.Descs.ENTITY_DATA_ACCESSOR_REF.equals(get.desc))
@@ -186,7 +186,7 @@ final class EntitySpawnFlagResolver {
 
     /** The literal registered against one {@code EntityDataAccessor} inside a single method. */
     private static @Nullable Integer readSynchedDefault(@NotNull MethodNode define, @NotNull String dataField) {
-        for (AbstractInsnNode in = define.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : define.instructions) {
             if (in.getOpcode() != Opcodes.GETSTATIC
                 || !(in instanceof FieldInsnNode get)
                 || !dataField.equals(get.name)) continue;

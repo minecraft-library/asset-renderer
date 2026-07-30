@@ -159,7 +159,7 @@ public record BabyMeshTransform(
         Set<String> strings = new LinkedHashSet<>();
         BabyMeshTransform pending = null;
 
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isPseudoNode(in)) continue;
 
             if (in instanceof TypeInsnNode type

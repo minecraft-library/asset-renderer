@@ -88,7 +88,7 @@ public final class BlockItemAliasWalk {
             return;
         }
 
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in instanceof InvokeDynamicInsnNode indy && indy.desc.endsWith(BIFUNCTION_RETURN_SUFFIX)) {
                 AbstractInsnNode primary = AsmKit.previousReal(indy);
                 if (primary instanceof FieldInsnNode field && AsmKit.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
@@ -124,7 +124,7 @@ public final class BlockItemAliasWalk {
             return;
         MethodNode lambda = AsmKit.findMethod(items, handle.getName(), handle.getDesc());
         if (lambda == null) return;
-        for (AbstractInsnNode node = lambda.instructions.getFirst(); node != null; node = node.getNext())
+        for (AbstractInsnNode node : lambda.instructions)
             if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS))
                 emit(((FieldInsnNode) node).name, primaryField, index, aliases, diagnostics);
     }

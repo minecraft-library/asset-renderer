@@ -59,7 +59,7 @@ public final class GlintItemsWalk {
         String pendingItemId = null;
         boolean pendingGlint = false;
 
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : clinit.instructions) {
             String string = AsmKit.readStringLiteral(node);
             if (string != null) {
                 if (pendingItemId == null) pendingItemId = string;

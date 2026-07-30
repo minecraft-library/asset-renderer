@@ -254,7 +254,7 @@ final class VariantIndex {
         Map<String, String> fieldToId = new LinkedHashMap<>();
         String pendingId = null;
         boolean pendingCreateKey = false;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null && !literal.contains(":") && !literal.contains("/")) {
                 pendingId = literal;
@@ -277,7 +277,7 @@ final class VariantIndex {
 
         // Second pass: which FIELD is bound to DEFAULT.
         String pendingField = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isGetStatic(in, holderInternal)) {
                 pendingField = ((FieldInsnNode) in).name;
                 continue;

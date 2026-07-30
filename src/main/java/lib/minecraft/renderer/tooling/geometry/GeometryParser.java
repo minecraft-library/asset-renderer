@@ -292,7 +292,7 @@ public final class GeometryParser {
         if (clinit == null) return null;
 
         InvokeDynamicInsnNode pendingIndy = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isPseudoNode(in)) continue;
             if (in instanceof InvokeDynamicInsnNode indy && AsmKit.isLambdaInvokeDynamic(indy)) {
                 pendingIndy = indy;
@@ -313,7 +313,7 @@ public final class GeometryParser {
                 // The lambda body is the canonical `mesh.getRoot(); modifyMesh(...);
                 // aload_0; areturn` pattern. Find the first INVOKESTATIC whose descriptor is
                 // (Lnet/.../PartDefinition;)V - that's the modifyMesh-style callback.
-                for (AbstractInsnNode body = lambda.instructions.getFirst(); body != null; body = body.getNext()) {
+                for (AbstractInsnNode body : lambda.instructions) {
                     if (AsmKit.isPseudoNode(body)) continue;
                     if (body instanceof MethodInsnNode mi
                         && mi.getOpcode() == Opcodes.INVOKESTATIC
@@ -3118,7 +3118,7 @@ public final class GeometryParser {
      * Returns {@code null} when no matching PUTSTATIC exists.
      */
     private static @Nullable FieldInsnNode findPutstatic(@NotNull MethodNode clinit, @NotNull String fieldName, @NotNull String desc) {
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+        for (AbstractInsnNode node : clinit.instructions) {
             if (!(node instanceof FieldInsnNode put) || put.getOpcode() != Opcodes.PUTSTATIC) continue;
             if (fieldName.equals(put.name) && desc.equals(put.desc)) return put;
         }

@@ -102,7 +102,7 @@ final class EntityRenderTraitsResolver {
         int scaleSlot = floatArgSlot(setupRotations.desc, 1);
         if (bodyRotSlot < 0 || scaleSlot < 0) return 0f;
 
-        for (AbstractInsnNode in = setupRotations.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : setupRotations.instructions) {
             if (in.getOpcode() != Opcodes.INVOKESPECIAL) continue;
             if (!(in instanceof MethodInsnNode mi) || !VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(mi.name)) continue;
 
@@ -179,7 +179,7 @@ final class EntityRenderTraitsResolver {
         boolean translates = false;
         for (MethodNode method : declaring.methods) {
             if (!VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK,
                     VanillaSourceClasses.Methods.TRANSLATE, TRANSLATE_DESC)) continue;
                 translates = true;
@@ -288,7 +288,7 @@ final class EntityRenderTraitsResolver {
      * @return whether a literal non-Y turn is applied
      */
     private static boolean hasNonYRotation(@NotNull MethodNode method) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode field)) continue;
             if (!VanillaSourceClasses.Types.MATH_AXIS.equals(field.owner) || field.name.startsWith("Y")) continue;
             AbstractInsnNode angle = AsmKit.nextReal(in);
@@ -338,7 +338,7 @@ final class EntityRenderTraitsResolver {
         if (scaleMethod == null) return null;
 
         Map<Integer, Float> slotLiterals = new HashMap<>();
-        for (AbstractInsnNode in = scaleMethod.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : scaleMethod.instructions) {
             if (AsmKit.isBranchInsn(in.getOpcode())) break;
             if (in.getOpcode() != Opcodes.FSTORE || !(in instanceof VarInsnNode store)) continue;
             AbstractInsnNode prev = AsmKit.previousReal(in);
@@ -349,7 +349,7 @@ final class EntityRenderTraitsResolver {
         String scaleDesc = "(FFF)V";
         float accum = 1f;
         boolean anyResolved = false;
-        for (AbstractInsnNode in = scaleMethod.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : scaleMethod.instructions) {
             if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE, scaleDesc)) continue;
             Float xyz = readUniformScaleArgs(in, slotLiterals);
             if (xyz == null) continue;
@@ -423,7 +423,7 @@ final class EntityRenderTraitsResolver {
      */
     private int resolveBaseTint(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+            for (AbstractInsnNode in : method.instructions)
                 if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR))
                     return whiteTextureDiffuseColor(this.cache);
         return NO_TINT;
@@ -445,7 +445,7 @@ final class EntityRenderTraitsResolver {
         boolean inAlloc = false;
         Integer lastInt = null;
         Integer diffuse = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (in.getOpcode() == Opcodes.NEW
                 && in instanceof TypeInsnNode alloc
                 && VanillaSourceClasses.Types.DYE_COLOR.equals(alloc.desc)) {

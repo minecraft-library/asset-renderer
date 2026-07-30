@@ -207,7 +207,7 @@ final class EntityAgeAxisResolver {
      * the scan window.
      */
     private static boolean readsIsBaby(@NotNull MethodNode method, @Nullable String dispatchOwner) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (in.getOpcode() != Opcodes.GETFIELD
                 || !(in instanceof FieldInsnNode fi)
                 || !VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)
@@ -315,7 +315,7 @@ final class EntityAgeAxisResolver {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pendingPath = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) {
                 pendingPath = literal;

@@ -60,7 +60,7 @@ record VariantBlockTable(@NotNull Map<String, String> byConstant, @Nullable Stri
         String pendingBlocksField = null;
         String pendingAlias = null;
         String defaultConstant = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.BLOCKS)) {
                 pendingBlocksField = ((FieldInsnNode) in).name;
                 continue;

@@ -240,7 +240,7 @@ final class EntityGeometryRefResolver {
         Type[] args = AsmKit.argTypes(ctor.desc);
         String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
         List<String> freshTriples = new ArrayList<>();
-        for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : ctor.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
                 && in instanceof FieldInsnNode push
                 && mllRef.equals(push.desc)) {
@@ -425,7 +425,7 @@ final class EntityGeometryRefResolver {
 
         Map<String, String> out = new LinkedHashMap<>();
         String pendingModelLayer = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
                 pendingModelLayer = ((FieldInsnNode) in).name;
                 continue;

@@ -190,7 +190,7 @@ final class EntityOverlayResolver {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return false;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             if (in.getOpcode() != Opcodes.GETFIELD || !(in instanceof FieldInsnNode fi)) continue;
             if (!dyeRef.equals(fi.desc)) continue;
             AbstractInsnNode cursor = in;
@@ -210,7 +210,7 @@ final class EntityOverlayResolver {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return false;
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : submit.instructions)
             if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi && stateRef.equals(fi.desc))
                 return true;
         return false;
@@ -219,7 +219,7 @@ final class EntityOverlayResolver {
     /** The bespoke-equipment discriminator: any method references the LayerType enum. */
     static boolean referencesEquipmentLayerType(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+            for (AbstractInsnNode in : method.instructions)
                 if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)) return true;
         return false;
     }
@@ -242,7 +242,7 @@ final class EntityOverlayResolver {
     static @Nullable EnumMapOverlay findEnumMapOverlay(@NotNull ClassNodeCache cache, @NotNull ClassNode cn) {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return null;
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             if (in.getOpcode() != Opcodes.INVOKEINTERFACE || !(in instanceof MethodInsnNode mi)) continue;
             if (!"java/util/Map".equals(mi.owner) || !"get".equals(mi.name)) continue;
             String stateField = null;
@@ -385,7 +385,7 @@ final class EntityOverlayResolver {
         if (clinit == null) return null;
         String renderTypeReturn = ")" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RENDER_TYPE);
         String pendingTexture = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = readEntityTextureLiteral(in);
             if (literal != null) {
                 pendingTexture = literal;
@@ -428,7 +428,7 @@ final class EntityOverlayResolver {
         if (clinit == null) return null;
         String renderTypeReturn = ")" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RENDER_TYPE);
         String pendingTexture = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = readEntityTextureLiteral(in);
             if (literal != null) {
                 pendingTexture = literal;
@@ -563,7 +563,7 @@ final class EntityOverlayResolver {
         for (MethodNode method : cn.methods) {
             if (!AsmKit.INIT.equals(method.name)) continue;
             String pending = null;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
                     pending = ((FieldInsnNode) in).name;
                     continue;
@@ -588,7 +588,7 @@ final class EntityOverlayResolver {
         for (MethodNode method : cn.methods) {
             if (!AsmKit.INIT.equals(method.name)) continue;
             String pending = null;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
                     pending = ((FieldInsnNode) in).name;
                     continue;
@@ -609,7 +609,7 @@ final class EntityOverlayResolver {
             if (accepted[0]) return;
             for (MethodNode method : level.methods) {
                 if ((method.access & Opcodes.ACC_STATIC) != 0 || AsmKit.INIT.equals(method.name)) continue;
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : method.instructions) {
                     if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) continue;
                     if (VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner)
                         || VanillaSourceClasses.Methods.COLORED_CUTOUT_HELPER.equals(mi.name)) {
@@ -635,7 +635,7 @@ final class EntityOverlayResolver {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return null;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR)) continue;
             AbstractInsnNode next = AsmKit.nextReal(in);
             if (next != null && (next.getOpcode() == Opcodes.IF_ACMPEQ || next.getOpcode() == Opcodes.IF_ACMPNE)) {
@@ -644,7 +644,7 @@ final class EntityOverlayResolver {
                     return JsonTree.object().put("tinted", true);
             }
         }
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             if (in.getOpcode() != Opcodes.GETFIELD || !(in instanceof FieldInsnNode fi)) continue;
             if (!"Z".equals(fi.desc) || !fi.name.startsWith("is")) continue;
             AbstractInsnNode branch = AsmKit.nextReal(in);
@@ -671,7 +671,7 @@ final class EntityOverlayResolver {
         boolean hasSwitch = false;
         int identifierReads = 0;
         String enumField = null;
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             int opcode = in.getOpcode();
             if (opcode == Opcodes.TABLESWITCH || opcode == Opcodes.LOOKUPSWITCH) hasSwitch = true;
             if (opcode == Opcodes.GETFIELD && in instanceof FieldInsnNode fi
@@ -724,7 +724,7 @@ final class EntityOverlayResolver {
     private @NotNull ColorSource extractCutoutTint(@NotNull ClassNode layerCn) {
         for (MethodNode method : layerCn.methods) {
             if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) continue;
                 if (!VanillaSourceClasses.Methods.COLORED_CUTOUT_HELPER.equals(mi.name)) continue;
                 for (AbstractInsnNode prev = in.getPrevious(); prev != null; prev = prev.getPrevious()) {
@@ -767,7 +767,7 @@ final class EntityOverlayResolver {
             if (argb[0] != NO_TINT) return;
             for (MethodNode method : level.methods) {
                 if ((method.access & Opcodes.ACC_STATIC) != 0 || AsmKit.INIT.equals(method.name)) continue;
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : method.instructions) {
                     if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.OVERLAY_TEXTURE)
                         || !VanillaSourceClasses.Fields.NO_OVERLAY.equals(((FieldInsnNode) in).name)) continue;
                     AbstractInsnNode color = AsmKit.nextReal(in);
@@ -802,7 +802,7 @@ final class EntityOverlayResolver {
             : AsmKit.findMethod(stateClass, stateColorCall.name, stateColorCall.desc);
         if (stateMethod == null) return NO_TINT;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
-        for (AbstractInsnNode in = stateMethod.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : stateMethod.instructions) {
             if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.COLOR_LERPER_TYPE, VanillaSourceClasses.Methods.GET_COLOR)) continue;
             String dyeField = null;
             for (AbstractInsnNode prev = in.getPrevious(); prev != null; prev = prev.getPrevious())
@@ -831,7 +831,7 @@ final class EntityOverlayResolver {
             for (MethodNode method : cn.methods) {
                 if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
                 boolean pendingDiffuse = false;
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : method.instructions) {
                     if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR,
                             VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)) {
                         pendingDiffuse = true;
@@ -856,7 +856,7 @@ final class EntityOverlayResolver {
         MethodNode init = AsmKit.findMethod(stateClass, AsmKit.INIT);
         if (init == null) return null;
         String pending = null;
-        for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : init.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR)) {
                 pending = ((FieldInsnNode) in).name;
                 continue;
@@ -881,7 +881,7 @@ final class EntityOverlayResolver {
             : AsmKit.findMethod(lerper, VanillaSourceClasses.Methods.GET_MODIFIED_COLOR);
         if (method == null) return null;
         boolean pastWhiteCompare = false;
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR, "WHITE")) {
                 AbstractInsnNode branch = AsmKit.nextReal(in);
                 if (branch != null && (branch.getOpcode() == Opcodes.IF_ACMPNE || branch.getOpcode() == Opcodes.IF_ACMPEQ))
@@ -913,7 +913,7 @@ final class EntityOverlayResolver {
         if (own != null) return own;
         for (MethodNode method : cn.methods) {
             if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
                 if (!VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)) continue;
                 String chased = chaseTextureFieldOwner(fi.owner, fi.name);
@@ -961,7 +961,7 @@ final class EntityOverlayResolver {
         if (clinit == null) return null;
         String pendingPath = null;
         boolean pendingIdentifier = false;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = readEntityTextureLiteral(in);
             if (literal != null) {
                 pendingPath = literal;
@@ -1121,7 +1121,7 @@ final class EntityOverlayResolver {
         ClassNode owner = this.cache.load(factoryCall.owner);
         MethodNode method = owner == null ? null : AsmKit.findMethod(owner, factoryCall.name, factoryCall.desc);
         if (method == null) return null;
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : method.instructions)
             if (AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy) {
                 Handle handle = AsmKit.extractLambdaHandle(indy);
                 if (handle != null) return handle;
@@ -1134,7 +1134,7 @@ final class EntityOverlayResolver {
         Map<Integer, String> out = new LinkedHashMap<>();
         String pendingField = null;
         boolean baked = false;
-        for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : ctor.instructions) {
             if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
                 pendingField = ((FieldInsnNode) in).name;
                 baked = false;
@@ -1170,7 +1170,7 @@ final class EntityOverlayResolver {
         if (lambda == null) return null;
         // Field-return shape: GETSTATIC <Identifier field> chased through the owner clinit.
         String stateField = null;
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : lambda.instructions) {
             if (in.getOpcode() == Opcodes.GETSTATIC && in instanceof FieldInsnNode fi
                 && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)) {
                 String chased = chaseTextureFieldOwner(fi.owner, fi.name);
@@ -1195,7 +1195,7 @@ final class EntityOverlayResolver {
     private @Nullable String firstEyeLiteral(@NotNull ClassNode lambdaOwner, @NotNull MethodNode lambda) {
         LinkedHashSet<String> candidates = new LinkedHashSet<>();
         candidates.add(lambdaOwner.name);
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : lambda.instructions)
             if (in instanceof MethodInsnNode mi
                 && (in.getOpcode() == Opcodes.INVOKESTATIC || in.getOpcode() == Opcodes.INVOKEVIRTUAL)
                 && mi.owner.startsWith(VanillaSourceClasses.Types.MINECRAFT_ROOT))
@@ -1205,7 +1205,7 @@ final class EntityOverlayResolver {
             ClassNode cn = this.cache.load(candidate);
             MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
             if (clinit == null) continue;
-            for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : clinit.instructions) {
                 String literal = readEntityTextureLiteral(in);
                 if (literal == null) continue;
                 String stem = literal.substring(0, literal.length() - ".png".length());
@@ -1224,7 +1224,7 @@ final class EntityOverlayResolver {
         MethodNode lambda = owner == null ? null
             : AsmKit.findMethod(owner, renderTypeProvider.getName(), renderTypeProvider.getDesc());
         if (lambda == null) return "";
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : lambda.instructions)
             if (in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi
                 && VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner))
                 return mi.name;
@@ -1242,7 +1242,7 @@ final class EntityOverlayResolver {
             : AsmKit.findMethod(factoryOwner, entry.factoryMethod(), entry.factoryDesc());
         if (factory == null) return null;
         Handle transformer = null;
-        for (AbstractInsnNode in = factory.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : factory.instructions)
             if (AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy) {
                 transformer = AsmKit.extractLambdaHandle(indy);
                 if (transformer != null) break;
@@ -1252,7 +1252,7 @@ final class EntityOverlayResolver {
         if (lambda == null) return null;
         List<String> retain = new ArrayList<>();
         boolean retained = false;
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : lambda.instructions) {
             if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
                 && VanillaSourceClasses.Methods.RETAIN_EXACT_PARTS.equals(mi.name)) {
                 retained = true;
@@ -1279,7 +1279,7 @@ final class EntityOverlayResolver {
         if (lambda == null) return 0f;
         float frozen = EntityOverlayPolicies.FROZEN_FRAME.floatValue();
         Deque<Double> stack = new ArrayDeque<>();
-        for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : lambda.instructions) {
             int op = in.getOpcode();
             Float constant = AsmKit.readFloatLiteral(in);
             if (constant != null) {
@@ -1505,7 +1505,7 @@ final class EntityOverlayResolver {
         LinkedHashSet<String> out = new LinkedHashSet<>();
         String babyCategory = null;
         String substituted = null;
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal == null || !isCategoryToken(literal)) continue;
             AbstractInsnNode branch = AsmKit.previousReal(in);
@@ -1571,7 +1571,7 @@ final class EntityOverlayResolver {
      * @return {@code true} when the model select precedes the first pass
      */
     private static boolean selectsModelBeforeFirstPass(@NotNull MethodNode submit) {
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             if (in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi
                 && VanillaSourceClasses.Methods.RENDER_COLORED_CUTOUT_MODEL.equals(mi.name))
                 return false;
@@ -1628,7 +1628,7 @@ final class EntityOverlayResolver {
         if (factory == null) return null;
         String direct = clearedChildInBody(factory);
         if (direct != null) return direct;
-        for (AbstractInsnNode in = factory.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : factory.instructions) {
             if (!AsmKit.isLambdaInvokeDynamic(in) || !(in instanceof InvokeDynamicInsnNode indy)) continue;
             Handle handle = AsmKit.extractLambdaHandle(indy);
             MethodNode lambda = handle == null || !handle.getOwner().equals(factoryOwner.name) ? null
@@ -1642,7 +1642,7 @@ final class EntityOverlayResolver {
     /** The name argument of the first {@code PartDefinition.clearChild} a body calls, or {@code null}. */
     private static @Nullable String clearedChildInBody(@NotNull MethodNode body) {
         String pending = null;
-        for (AbstractInsnNode in = body.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : body.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pending = literal;
@@ -1665,7 +1665,7 @@ final class EntityOverlayResolver {
     private @NotNull List<String> dataClassDefaultIds(@NotNull MethodNode submit) {
         LinkedHashSet<String> owners = new LinkedHashSet<>();
         String holderReturn = ")" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.HOLDER);
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext())
+        for (AbstractInsnNode in : submit.instructions)
             if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
                 && mi.desc.endsWith(holderReturn))
                 owners.add(mi.owner);
@@ -1675,7 +1675,7 @@ final class EntityOverlayResolver {
             ClassNode dataClass = this.cache.load(ownerName);
             if (dataClass == null) continue;
             for (MethodNode method : dataClass.methods)
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : method.instructions) {
                     if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
                     if (!keyRef.equals(fi.desc)) continue;
                     String id = clinitStringBinding(fi.owner, fi.name);
@@ -1691,7 +1691,7 @@ final class EntityOverlayResolver {
         MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pending = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pending = literal;
@@ -1767,7 +1767,7 @@ final class EntityOverlayResolver {
                 slot += arg.getSize();
             }
             if (locationSlot < 0 || !identifier) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER)) continue;
                 AbstractInsnNode prev = AsmKit.previousReal(in);
                 if (prev instanceof VarInsnNode load && prev.getOpcode() == Opcodes.ALOAD && load.var == locationSlot)
@@ -1799,7 +1799,7 @@ final class EntityOverlayResolver {
         String assetConstant = null;
         String babyAssetConstant = null;
         String gateField = null;
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : submit.instructions) {
             if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi && "Z".equals(fi.desc)
                 && assetConstant == null
                 && !VanillaSourceClasses.Fields.IS_BABY.equals(fi.name))
@@ -1879,7 +1879,7 @@ final class EntityOverlayResolver {
     /** The first {@code EquipmentClientInfo$LayerType} constant any method reads. */
     private static @Nullable String firstLayerTypeConstant(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+            for (AbstractInsnNode in : method.instructions)
                 if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
                     return ((FieldInsnNode) in).name;
         return null;
@@ -1898,7 +1898,7 @@ final class EntityOverlayResolver {
             for (MethodNode method : cn.methods) {
                 if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
                 String pendingCall = null;
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : method.instructions) {
                     if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
                         && mi.desc.endsWith(")Z")) {
                         pendingCall = mi.name;
@@ -1924,7 +1924,7 @@ final class EntityOverlayResolver {
     /** The constant of an {@code iconst_0/1; ireturn} body, or {@code null} for computed returns. */
     private static @Nullable Boolean constantBooleanReturn(@NotNull MethodNode method) {
         Boolean pending = null;
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             if (AsmKit.isPseudoNode(in)) continue;
             if (in.getOpcode() == Opcodes.ICONST_0) pending = Boolean.FALSE;
             else if (in.getOpcode() == Opcodes.ICONST_1) pending = Boolean.TRUE;
@@ -1944,7 +1944,7 @@ final class EntityOverlayResolver {
         if (clinit == null) return null;
         String pendingPath = null;
         boolean pendingIdentifier = false;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = readEntityTextureLiteral(in);
             if (literal != null) {
                 pendingPath = literal;

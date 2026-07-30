@@ -230,7 +230,7 @@ final class EntityBoneResolver {
      * a non-{@code this} load - detected by descriptor, not by name prefix.
      */
     private static void collectGates(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull HierarchyScan scan) {
-        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : method.instructions) {
             VisibleWrite write = matchVisibleWrite(in);
             if (write == null || !(write.value() instanceof AsmKit.FieldStore flag)) continue;
             FieldInsnNode flagGet = flag.field();
@@ -275,7 +275,7 @@ final class EntityBoneResolver {
      * {@code false} r-value whose target is a {@code GETFIELD} on {@code owner}.
      */
     private static void collectUnconditionalHidden(@NotNull ClassNode owner, @NotNull MethodNode ctor, @NotNull LinkedHashSet<String> out) {
-        for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : ctor.instructions) {
             VisibleWrite write = matchVisibleWrite(in);
             if (write == null || !(write.value() instanceof AsmKit.ConstantStore constant) || constant.value()) continue;
             if (!(write.targetInsn() instanceof FieldInsnNode get) || get.getOpcode() != Opcodes.GETFIELD || !owner.name.equals(get.owner)) continue;
@@ -291,7 +291,7 @@ final class EntityBoneResolver {
     private static void collectFieldToBoneNameMap(@NotNull ClassNode owner, @NotNull MethodNode ctor, @NotNull Map<String, String> out) {
         String pendingBoneName = null;
         boolean pendingChildCall = false;
-        for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : ctor.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingBoneName = literal;
@@ -330,7 +330,7 @@ final class EntityBoneResolver {
         ClassNode cn = this.cache.load(this.subject.rendererClass());
         MethodNode ctor = cn == null ? null : AsmKit.findMethod(cn, AsmKit.INIT);
         if (ctor == null) return out;
-        for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : ctor.instructions) {
             VisibleWrite write = matchVisibleWrite(in);
             if (write == null || !(write.value() instanceof AsmKit.ConstantStore constant) || !constant.value()) continue;
             String bone = extractBoneName(write.targetInsn());

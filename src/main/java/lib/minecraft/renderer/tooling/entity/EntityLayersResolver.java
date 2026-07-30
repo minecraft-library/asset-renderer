@@ -385,7 +385,7 @@ final class EntityLayersResolver {
             if (!named.isEmpty()) return;
             for (MethodNode ctor : cn.methods) {
                 if (!AsmKit.INIT.equals(ctor.name)) continue;
-                for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+                for (AbstractInsnNode in : ctor.instructions) {
                     if (in.getOpcode() != Opcodes.GETSTATIC) continue;
                     if (!(in instanceof FieldInsnNode field)) continue;
                     if (!VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc)) continue;

@@ -238,7 +238,7 @@ final class EntityVariantAxisResolver {
         Map<String, String> out = new LinkedHashMap<>();
         for (MethodNode method : cn.methods) {
             String pendingModelType = null;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
                 if (fi.owner.endsWith(modelTypeSuffix)) {
                     pendingModelType = fi.name;
@@ -344,7 +344,7 @@ final class EntityVariantAxisResolver {
 
         for (MethodNode body : bodies) {
             String pendingConstant = null;
-            for (AbstractInsnNode in = body.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : body.instructions) {
                 if (in.getOpcode() == Opcodes.GETSTATIC
                     && in instanceof FieldInsnNode fi
                     && enumInternal.equals(fi.owner)
@@ -420,7 +420,7 @@ final class EntityVariantAxisResolver {
 
         Map<String, String> out = new LinkedHashMap<>();
         List<String> pendingStrings = new ArrayList<>();
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingStrings.add(literal);

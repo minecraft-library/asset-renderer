@@ -144,7 +144,7 @@ final class EntityEquipmentResolver {
         String layerType = null;
         String meshField = null;
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            for (AbstractInsnNode in : method.instructions) {
                 if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
                 if (layerType == null && VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE.equals(fi.owner))
                     layerType = fi.name;
@@ -258,7 +258,7 @@ final class EntityEquipmentResolver {
         MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pending = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+        for (AbstractInsnNode in : clinit.instructions) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pending = literal;
