@@ -31,6 +31,7 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.spec.ArmorMaterial;
+import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder.BlockTables;
 import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder;
 import lib.minecraft.renderer.pipeline.index.ItemIndexBuilder;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
@@ -142,10 +143,10 @@ public final class PipelineRendererContext implements RendererContext {
         BlockModelLoader.LoadResult beResult = BlockModelLoader.load(stack);
         ConcurrentMap<String, Block.Entity> blockEntities = beResult.models();
 
-        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(
-            models.blocks(), blockTints, itemDefinitions, blockStates.variants(), blockStates.multiparts(),
-            blockTags, blockDefaultStates, blockItemAliases, blockEntities, beResult.variants(),
-            itemTrees, models.items());
+        BlockTables blockTables = new BlockTables(
+            models.blocks(), blockTints, itemDefinitions, blockDefaultStates, blockItemAliases,
+            blockEntities, beResult.variants(), itemTrees, models.items());
+        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(blockTables, blockStates, blockTags);
         ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(
             itemTints, glintItems, models.items(), itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();

@@ -17,6 +17,7 @@ import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.Face;
 import lib.minecraft.renderer.option.ItemModelContext;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.ApplyDto;
+import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.BlockStates;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.MultipartPart;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -71,39 +72,68 @@ public class BlockIndexBuilder {
     private static final long NO_POSITION_SEED = 42L;
 
     /**
-     * Builds and filters the renderer's block index.
+     * The loaded asset tables a block is materialised from - every table a build pass reads that the
+     * bake leaves untouched, carried whole so each one is described in one place rather than restated
+     * per pass.
+     * <p>
+     * Its counterpart {@link BakedTables} carries what the bake produces, and the split is the point
+     * rather than a size limit: a raw {@link ApplyDto} and a resolved {@link Block.Variant} are
+     * different types, so no pass downstream of the bake can reach an unbaked apply at all.
+     * {@link #attachOrphanBlockEntities} reads six of the nine - an orphan block entity has no model,
+     * no tint and no item-def override - and takes the record whole rather than naming a sixth of it
+     * in its own signature.
      *
      * @param blockModels the parsed block model data keyed by full model id
      * @param blockTints the block tint bindings keyed by stripped block id
      * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
-     * @param blockVariants the raw blockstate variant applies keyed by stripped block id, baked to
-     *     resolved variants here
-     * @param blockMultiparts the raw multipart parts keyed by stripped block id, baked to resolved
-     *     multiparts here
-     * @param blockTags the block-tag membership descriptors keyed by tag id
      * @param blockDefaultStates the default-state property maps keyed by namespaced block id
      * @param blockItemAliases the block-item alias map keyed by namespaced block id
-     * @param beEntries the block-entity geometry table from {@link BlockModelLoader}
-     * @param beVariants the block-entity state-conditional variants from {@link BlockModelLoader}
+     * @param blockEntities the block-entity geometry table
+     * @param beVariants the block-entity state-conditional variants
      * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
      * @param itemModels the parsed item models keyed by full model id, for baking {@code iconGui}
-     * @return the finished block index, keyed by stripped block id, unmodifiable
      */
-    public static @NotNull ConcurrentMap<String, Block> load(
+    public record BlockTables(
         @NotNull ConcurrentMap<String, ModelData> blockModels,
         @NotNull Map<String, Block.Tint> blockTints,
         @NotNull ConcurrentMap<String, String> itemDefinitions,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, ApplyDto>> blockVariants,
-        @NotNull ConcurrentMap<String, ConcurrentList<MultipartPart>> blockMultiparts,
-        @NotNull ConcurrentMap<String, BlockTag> blockTags,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
         @NotNull Map<String, String> blockItemAliases,
-        @NotNull ConcurrentMap<String, Block.Entity> beEntries,
+        @NotNull ConcurrentMap<String, Block.Entity> blockEntities,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, ModelData> itemModels
+    ) {}
+
+    /**
+     * What the bake produces at the top of {@link #buildUnfiltered}, and the only three values that
+     * differ either side of it: the blockstate applies resolved into {@link Block.Variant} and
+     * {@link Block.Multipart}, and the tag membership inverted by {@link #buildReverseTagIndex}.
+     *
+     * @param variants block id to its resolved {@code variantKey -> }{@link Block.Variant} map
+     * @param multiparts block id to its assembled {@link Block.Multipart}
+     * @param reverseTagIndex block id to the tag names that include it
+     */
+    private record BakedTables(
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants,
+        @NotNull ConcurrentMap<String, Block.Multipart> multiparts,
+        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
+    ) {}
+
+    /**
+     * Builds and filters the renderer's block index.
+     *
+     * @param tables the loaded asset tables
+     * @param blockStates the raw blockstate variant applies and multipart parts, baked here
+     * @param blockTags the block-tag membership descriptors keyed by tag id, inverted here
+     * @return the finished block index, keyed by stripped block id, unmodifiable
+     */
+    public static @NotNull ConcurrentMap<String, Block> load(
+        @NotNull BlockTables tables,
+        @NotNull BlockStates blockStates,
+        @NotNull ConcurrentMap<String, BlockTag> blockTags
     ) {
-        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockTags, blockDefaultStates, blockItemAliases, beEntries, beVariants, itemTrees, itemModels);
+        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(tables, blockStates, blockTags);
 
         int before = blockIndex.size();
         blockIndex.entrySet().removeIf(entry -> {
@@ -126,42 +156,25 @@ public class BlockIndexBuilder {
      * Runs the three build passes and returns the assembled index <b>before</b> the empty-model /
      * invisible filter. Exposed package-privately so the parity test can inspect the full built set.
      *
-     * @param blockModels the parsed block model data keyed by full model id
-     * @param blockTints the block tint bindings keyed by stripped block id
-     * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
-     * @param rawVariants the raw blockstate variant applies keyed by stripped block id
-     * @param rawMultiparts the raw multipart parts keyed by stripped block id
-     * @param blockTags the block-tag membership descriptors keyed by tag id
-     * @param blockDefaultStates the default-state property maps keyed by namespaced block id
-     * @param blockItemAliases the block-item alias map keyed by namespaced block id
-     * @param beEntries the block-entity geometry table
-     * @param beVariants the block-entity state-conditional variants
-     * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
-     * @param itemModels the parsed item models keyed by full model id, for baking {@code iconGui}
+     * @param tables the loaded asset tables
+     * @param blockStates the raw blockstate variant applies and multipart parts, baked here
+     * @param blockTags the block-tag membership descriptors keyed by tag id, inverted here
      * @return the unfiltered block index, mutable
      */
     static @NotNull ConcurrentMap<String, Block> buildUnfiltered(
-        @NotNull ConcurrentMap<String, ModelData> blockModels,
-        @NotNull Map<String, Block.Tint> blockTints,
-        @NotNull ConcurrentMap<String, String> itemDefinitions,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, ApplyDto>> rawVariants,
-        @NotNull ConcurrentMap<String, ConcurrentList<MultipartPart>> rawMultiparts,
-        @NotNull ConcurrentMap<String, BlockTag> blockTags,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
-        @NotNull Map<String, String> blockItemAliases,
-        @NotNull ConcurrentMap<String, Block.Entity> beEntries,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
-        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
-        @NotNull ConcurrentMap<String, ModelData> itemModels
+        @NotNull BlockTables tables,
+        @NotNull BlockStates blockStates,
+        @NotNull ConcurrentMap<String, BlockTag> blockTags
     ) {
         // Bake the raw blockstate applies into resolved Block.Variant / Block.Multipart here, where the
         // resolved model set (blockModels) lives, so BlockStateLoader stays a pure read plus pack merge.
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants = bakeVariants(rawVariants, blockModels);
-        ConcurrentMap<String, Block.Multipart> blockMultiparts = bakeMultiparts(rawMultiparts, blockModels);
-        ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = buildReverseTagIndex(blockTags);
-        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStates, blockItemAliases, beEntries, beVariants, reverseTagIndex, itemTrees, itemModels);
-        attachOrphanBlockEntities(blockIndex, beEntries, beVariants, blockVariants, blockMultiparts, blockDefaultStates, blockItemAliases, reverseTagIndex, itemTrees, itemModels);
-        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, beEntries, blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts, blockDefaultStates, blockItemAliases, reverseTagIndex, itemTrees, itemModels);
+        BakedTables baked = new BakedTables(
+            bakeVariants(blockStates.variants(), tables.blockModels()),
+            bakeMultiparts(blockStates.multiparts(), tables.blockModels()),
+            buildReverseTagIndex(blockTags));
+        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(tables, baked);
+        attachOrphanBlockEntities(blockIndex, tables, baked);
+        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, tables, baked);
         System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
         return blockIndex;
     }
@@ -397,41 +410,16 @@ public class BlockIndexBuilder {
      * primary block.json model in place and only attach the entity for the renderer to merge
      * on top; these stay {@link Block.Source#PRIMARY}.
      *
-     * @param blockModels the parsed block model data keyed by full model id
-     * @param blockTints the block tint bindings keyed by stripped block id
-     * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
-     * @param blockVariants the blockstate variant maps keyed by stripped block id
-     * @param blockMultiparts the multipart descriptors keyed by stripped block id
-     * @param blockDefaultStates the default-state property maps keyed by namespaced block id
-     * @param blockItemAliases the block-item alias map keyed by namespaced block id
-     * @param blockEntityEntries the block-entity geometry table from {@link BlockModelLoader}
-     * @param beVariants the block-entity state-conditional variants from {@link BlockModelLoader}
-     * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
-     * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
-     * @param itemModels the parsed item models keyed by full model id, for baking {@code iconGui}
+     * @param tables the loaded asset tables
+     * @param baked the blockstate applies and tag membership as baked by {@link #buildUnfiltered}
      * @return a fresh map keyed by stripped block id
      */
     private static @NotNull ConcurrentMap<String, Block> buildPrimaryBlockIndex(
-        @NotNull ConcurrentMap<String, ModelData> blockModels,
-        @NotNull Map<String, Block.Tint> blockTints,
-        @NotNull ConcurrentMap<String, String> itemDefinitions,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
-        @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
-        @NotNull Map<String, String> blockItemAliases,
-        @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
-        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex,
-        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
-        @NotNull ConcurrentMap<String, ModelData> itemModels
+        @NotNull BlockTables tables,
+        @NotNull BakedTables baked
     ) {
-        Map<String, Block.Tint> tints = blockTints;
-        ConcurrentMap<String, String> itemDefs = itemDefinitions;
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = blockVariants;
-        ConcurrentMap<String, Block.Multipart> multipartMap = blockMultiparts;
-
         HashMap<String, Block> blockIndex = new HashMap<>();
-        for (Map.Entry<String, ModelData> blockEntry : blockModels.entrySet()) {
+        for (Map.Entry<String, ModelData> blockEntry : tables.blockModels().entrySet()) {
             String modelId = blockEntry.getKey();
             ModelData model = blockEntry.getValue();
             ResourceId blockResource = ResourceId.ofModelId(modelId);
@@ -443,10 +431,10 @@ public class BlockIndexBuilder {
             // state. The flag rides along so the icon renderer knows when it is reproducing vanilla
             // rather than standing in for a sprite; it clears when the named model failed to load, in
             // which case modelToUse is not that model.
-            String itemModelRef = itemDefs.get(blockId);
+            String itemModelRef = tables.itemDefinitions().get(blockId);
             boolean modelIcon = itemModelRef != null;
             if (itemModelRef != null && !itemModelRef.equals(modelId)) {
-                ModelData override = blockModels.get(itemModelRef);
+                ModelData override = tables.blockModels().get(itemModelRef);
                 if (override != null)
                     modelToUse = override;
                 else
@@ -456,12 +444,12 @@ public class BlockIndexBuilder {
             HashMap<String, String> textures = spriteBindings(modelToUse);
             flattenElementFaces(modelToUse, textures);
 
-            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Block.TintTarget.NONE, Optional.empty()));
-            ConcurrentMap<String, Block.Variant> variants = mergeBlockEntityVariants(variantMap.getOrDefault(blockId, Concurrent.newMap()), beVariants.get(blockId));
-            Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
-            ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
+            Block.Tint tint = tables.blockTints().getOrDefault(blockId, new Block.Tint(Block.TintTarget.NONE, Optional.empty()));
+            ConcurrentMap<String, Block.Variant> variants = mergeBlockEntityVariants(baked.variants().getOrDefault(blockId, Concurrent.newMap()), tables.beVariants().get(blockId));
+            Optional<Block.Multipart> multipart = Optional.ofNullable(baked.multiparts().get(blockId));
+            ConcurrentList<String> tags = baked.reverseTagIndex().getOrDefault(blockId, Concurrent.newList());
 
-            Block.Entity entity = blockEntityEntries.get(blockId);
+            Block.Entity entity = tables.blockEntities().get(blockId);
             Block.Source source = Block.Source.PRIMARY;
             if (entity != null && !entity.additive()) {
                 // A block entity's geometry is its bone tree (entity.boneModel()); Block.model is an
@@ -476,7 +464,7 @@ public class BlockIndexBuilder {
                 modelIcon = false;
             }
 
-            ResourceId itemBlockId = itemBlockIdFor(blockItemAliases, blockId);
+            ResourceId itemBlockId = itemBlockIdFor(tables.blockItemAliases(), blockId);
             blockIndex.put(blockId, new Block(
                 blockResource,
                 modelToUse,
@@ -487,9 +475,9 @@ public class BlockIndexBuilder {
                 tint,
                 Optional.ofNullable(entity),
                 source,
-                defaultStateFor(blockDefaultStates, blockId),
+                defaultStateFor(tables.blockDefaultStates(), blockId),
                 itemBlockId,
-                iconGuiFor(itemBlockId, modelToUse, itemTrees, itemModels),
+                iconGuiFor(itemBlockId, modelToUse, tables.itemTrees(), tables.itemModels()),
                 modelIcon
             ));
         }
@@ -507,43 +495,26 @@ public class BlockIndexBuilder {
      * like {@code bell}).
      *
      * @param blockIndex the primary index produced by {@link #buildPrimaryBlockIndex}; mutated in place
-     * @param blockEntityEntries the block-entity geometry table from {@link BlockModelLoader}
-     * @param beVariants the block-entity state-conditional variants from {@link BlockModelLoader}
-     * @param blockVariants the blockstate variant maps keyed by stripped block id
-     * @param blockMultiparts the multipart descriptors keyed by stripped block id
-     * @param blockDefaultStates the default-state property maps keyed by namespaced block id
-     * @param blockItemAliases the block-item alias map keyed by namespaced block id
-     * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
-     * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
-     * @param itemModels the parsed item models keyed by full model id, for baking {@code iconGui}
+     * @param tables the loaded asset tables
+     * @param baked the blockstate applies and tag membership as baked by {@link #buildUnfiltered}
      */
     private static void attachOrphanBlockEntities(
         @NotNull ConcurrentMap<String, Block> blockIndex,
-        @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
-        @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
-        @NotNull Map<String, String> blockItemAliases,
-        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex,
-        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
-        @NotNull ConcurrentMap<String, ModelData> itemModels
+        @NotNull BlockTables tables,
+        @NotNull BakedTables baked
     ) {
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = blockVariants;
-        ConcurrentMap<String, Block.Multipart> multipartMap = blockMultiparts;
-
-        for (Map.Entry<String, Block.Entity> entry : blockEntityEntries.entrySet()) {
+        for (Map.Entry<String, Block.Entity> entry : tables.blockEntities().entrySet()) {
             String blockId = entry.getKey();
             if (blockIndex.containsKey(blockId)) continue;
             Block.Entity be = entry.getValue();
             if (be.additive()) continue;
-            ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
-            ConcurrentMap<String, Block.Variant> variants = mergeBlockEntityVariants(variantMap.getOrDefault(blockId, Concurrent.newMap()), beVariants.get(blockId));
-            Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
+            ConcurrentList<String> tags = baked.reverseTagIndex().getOrDefault(blockId, Concurrent.newList());
+            ConcurrentMap<String, Block.Variant> variants = mergeBlockEntityVariants(baked.variants().getOrDefault(blockId, Concurrent.newMap()), tables.beVariants().get(blockId));
+            Optional<Block.Multipart> multipart = Optional.ofNullable(baked.multiparts().get(blockId));
             HashMap<String, String> textures = new HashMap<>();
             textures.put("#entity", be.textureId());
             ModelData model = new ModelData();
-            ResourceId itemBlockId = itemBlockIdFor(blockItemAliases, blockId);
+            ResourceId itemBlockId = itemBlockIdFor(tables.blockItemAliases(), blockId);
             blockIndex.put(blockId, new Block(
                 ResourceId.parse(blockId),
                 model,
@@ -554,9 +525,9 @@ public class BlockIndexBuilder {
                 new Block.Tint(Block.TintTarget.NONE, Optional.empty()),
                 Optional.of(be),
                 Block.Source.TILE_ENTITY,
-                defaultStateFor(blockDefaultStates, blockId),
+                defaultStateFor(tables.blockDefaultStates(), blockId),
                 itemBlockId,
-                iconGuiFor(itemBlockId, model, itemTrees, itemModels),
+                iconGuiFor(itemBlockId, model, tables.itemTrees(), tables.itemModels()),
                 false
             ));
         }
@@ -598,47 +569,24 @@ public class BlockIndexBuilder {
      *
      * @param blockIndex the index from {@link #buildPrimaryBlockIndex} +
      *     {@link #attachOrphanBlockEntities}; mutated in place
-     * @param blockEntityEntries the block-entity geometry table from {@link BlockModelLoader}
-     * @param blockModels the parsed block model data keyed by full model id
-     * @param blockTints the block tint bindings keyed by stripped block id
-     * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
-     * @param blockVariants the blockstate variant maps keyed by stripped block id
-     * @param blockMultiparts the multipart descriptors keyed by stripped block id
-     * @param blockDefaultStates the default-state property maps keyed by namespaced block id
-     * @param blockItemAliases the block-item alias map keyed by namespaced block id
-     * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
-     * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
-     * @param itemModels the parsed item models keyed by full model id, for baking {@code iconGui}
+     * @param tables the loaded asset tables
+     * @param baked the blockstate applies and tag membership as baked by {@link #buildUnfiltered}
      * @return the set of ids registered through this fallback path (kept by the caller for the
      *     diagnostic count line)
      */
     private static @NotNull Set<String> attachBlockstateOnlyBlocks(
         @NotNull ConcurrentMap<String, Block> blockIndex,
-        @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
-        @NotNull ConcurrentMap<String, ModelData> blockModels,
-        @NotNull Map<String, Block.Tint> blockTints,
-        @NotNull ConcurrentMap<String, String> itemDefinitions,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants,
-        @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts,
-        @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
-        @NotNull Map<String, String> blockItemAliases,
-        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex,
-        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
-        @NotNull ConcurrentMap<String, ModelData> itemModels
+        @NotNull BlockTables tables,
+        @NotNull BakedTables baked
     ) {
-        Map<String, Block.Tint> tints = blockTints;
-        ConcurrentMap<String, String> itemDefs = itemDefinitions;
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = blockVariants;
-        ConcurrentMap<String, Block.Multipart> multipartMap = blockMultiparts;
-
         Set<String> blockstateOnlyIds = new HashSet<>();
         Set<String> candidateBlockstateIds = new LinkedHashSet<>();
-        candidateBlockstateIds.addAll(variantMap.keySet());
-        candidateBlockstateIds.addAll(multipartMap.keySet());
+        candidateBlockstateIds.addAll(baked.variants().keySet());
+        candidateBlockstateIds.addAll(baked.multiparts().keySet());
         for (String blockId : candidateBlockstateIds) {
             if (blockIndex.containsKey(blockId)) continue;
             if (isInvisible(blockId)) continue;
-            Optional<ResolvedBlockModel> resolved = resolveBlockStateModel(blockId, itemDefs, variantMap, blockModels);
+            Optional<ResolvedBlockModel> resolved = resolveBlockStateModel(blockId, tables.itemDefinitions(), baked.variants(), tables.blockModels());
             if (resolved.isEmpty()) continue;
             ResolvedBlockModel hit = resolved.get();
 
@@ -646,16 +594,16 @@ public class BlockIndexBuilder {
             HashMap<String, String> textures = spriteBindings(modelToUse);
             flattenElementFaces(modelToUse, textures);
 
-            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Block.TintTarget.NONE, Optional.empty()));
-            ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
-            Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
-            ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
+            Block.Tint tint = tables.blockTints().getOrDefault(blockId, new Block.Tint(Block.TintTarget.NONE, Optional.empty()));
+            ConcurrentMap<String, Block.Variant> variants = baked.variants().getOrDefault(blockId, Concurrent.newMap());
+            Optional<Block.Multipart> multipart = Optional.ofNullable(baked.multiparts().get(blockId));
+            ConcurrentList<String> tags = baked.reverseTagIndex().getOrDefault(blockId, Concurrent.newList());
 
-            Block.Entity additiveEntity = blockEntityEntries.get(blockId);
+            Block.Entity additiveEntity = tables.blockEntities().get(blockId);
             Optional<Block.Entity> attachedEntity = additiveEntity != null && additiveEntity.additive()
                 ? Optional.of(additiveEntity) : Optional.empty();
             Block.Source source = attachedEntity.isPresent() ? Block.Source.TILE_ENTITY : Block.Source.BLOCKSTATE_ONLY;
-            ResourceId itemBlockId = itemBlockIdFor(blockItemAliases, blockId);
+            ResourceId itemBlockId = itemBlockIdFor(tables.blockItemAliases(), blockId);
             blockIndex.put(blockId, new Block(
                 ResourceId.parse(blockId),
                 modelToUse,
@@ -666,12 +614,12 @@ public class BlockIndexBuilder {
                 tint,
                 attachedEntity,
                 source,
-                defaultStateFor(blockDefaultStates, blockId),
+                defaultStateFor(tables.blockDefaultStates(), blockId),
                 itemBlockId,
-                iconGuiFor(itemBlockId, modelToUse, itemTrees, itemModels),
+                iconGuiFor(itemBlockId, modelToUse, tables.itemTrees(), tables.itemModels()),
                 // The resolver tries the item def first, so the model is vanilla's icon exactly when
                 // that is where it came from; a first-variant fallback is this pipeline's stand-in.
-                hit.modelId().equals(itemDefs.get(blockId))));
+                hit.modelId().equals(tables.itemDefinitions().get(blockId))));
             blockstateOnlyIds.add(blockId);
         }
         return blockstateOnlyIds;
@@ -748,6 +696,19 @@ public class BlockIndexBuilder {
     }
 
     /**
+     * Flattens a model's texture bindings to a fresh mutable {@code slot -> sprite id} map, dropping
+     * the 26.1 object-form sampler flags the block index does not carry.
+     *
+     * @param model the model whose texture bindings to flatten
+     * @return a fresh mutable map from texture slot to sprite id
+     */
+    private static @NotNull HashMap<String, String> spriteBindings(@NotNull ModelData model) {
+        HashMap<String, String> sprites = new HashMap<>();
+        model.getTextures().forEach((slot, texture) -> sprites.put(slot, texture.sprite()));
+        return sprites;
+    }
+
+    /**
      * Walks the first element in a block model and writes the resolved direction-to-texture
      * mapping into the supplied textures map. Each face's {@code #variable} reference is
      * dereferenced against the model's texture variable map until it bottoms out at a concrete
@@ -762,19 +723,6 @@ public class BlockIndexBuilder {
      * @param model the block model whose first element's faces are flattened
      * @param textures the direction-to-texture map to write resolved bindings into, mutated in place
      */
-    /**
-     * Flattens a model's texture bindings to a fresh mutable {@code slot -> sprite id} map, dropping
-     * the 26.1 object-form sampler flags the block index does not carry.
-     *
-     * @param model the model whose texture bindings to flatten
-     * @return a fresh mutable map from texture slot to sprite id
-     */
-    private static @NotNull HashMap<String, String> spriteBindings(@NotNull ModelData model) {
-        HashMap<String, String> sprites = new HashMap<>();
-        model.getTextures().forEach((slot, texture) -> sprites.put(slot, texture.sprite()));
-        return sprites;
-    }
-
     private static void flattenElementFaces(@NotNull ModelData model, @NotNull Map<String, String> textures) {
         if (model.getElements().isEmpty()) return;
         ModelElement element = model.getElements().getFirst();

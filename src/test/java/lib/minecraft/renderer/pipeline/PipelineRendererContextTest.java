@@ -26,10 +26,12 @@ import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.engine.texture.TextureSynthesizer;
+import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder.BlockTables;
 import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder;
 import lib.minecraft.renderer.pipeline.index.ItemIndexBuilder;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.BlockStates;
 import lib.minecraft.renderer.pipeline.pack.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.pipeline.pack.TextureIndexer;
@@ -205,10 +207,11 @@ class PipelineRendererContextTest {
 
         BlockModelLoader.LoadResult beResult = BlockModelLoader.load(stack);
         ConcurrentMap<String, Block.Entity> blockEntities = beResult.models();
-        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(
+        BlockTables blockTables = new BlockTables(
             blockModels, blockTints, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
-            blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, beResult.variants(),
-            itemTrees, itemModels);
+            blockEntities, beResult.variants(), itemTrees, itemModels);
+        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(
+            blockTables, new BlockStates(Concurrent.newMap(), Concurrent.newMap()), blockTags);
         ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));

@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.pipeline.index;
 
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
@@ -11,13 +10,12 @@ import lib.minecraft.renderer.asset.pack.item.ItemModelTree;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
+import lib.minecraft.renderer.pipeline.index.BlockIndexBuilder.BlockTables;
 import lib.minecraft.renderer.pipeline.loader.BlockDefaultsLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockItemsLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
-import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.ApplyDto;
-import lib.minecraft.renderer.pipeline.pack.BlockStateLoader.MultipartPart;
 import lib.minecraft.renderer.pipeline.pack.BlockStateLoader;
 import lib.minecraft.renderer.pipeline.pack.BlockTagLoader;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
@@ -65,14 +63,9 @@ class TemplateFilterParityTest {
     private static BlockModelLoader.LoadResult be;
 
     // The explicit block-index loader inputs (the same set of() computes over the stack).
-    private static ConcurrentMap<String, ModelData> blockModels;
-    private static Map<String, Block.Tint> blockTints;
-    private static ConcurrentMap<String, String> itemDefinitions;
-    private static ConcurrentMap<String, ConcurrentMap<String, ApplyDto>> blockVariants;
-    private static ConcurrentMap<String, ConcurrentList<MultipartPart>> blockMultiparts;
+    private static BlockTables blockTables;
+    private static BlockStateLoader.BlockStates blockStates;
     private static ConcurrentMap<String, BlockTag> blockTags;
-    private static ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates;
-    private static Map<String, String> blockItemAliases;
 
     // The explicit item-index loader inputs.
     private static ConcurrentMap<String, List<LayerTint>> itemTints;
@@ -87,37 +80,32 @@ class TemplateFilterParityTest {
         PackStack stack = PackAcquisition.acquire(assets);
 
         ResolvedModels models = ResolvedModels.load(stack);
-        BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack);
-        blockModels = models.blocks();
+        blockStates = BlockStateLoader.load(stack);
         itemModels = models.items();
-        blockVariants = blockStates.variants();
-        blockMultiparts = blockStates.multiparts();
 
-        blockTints = BlockTintsLoader.load();
+        Map<String, Block.Tint> blockTints = BlockTintsLoader.load();
         itemTrees = ItemModelTreeLoader.load(stack);
-        itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
+        ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
         itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
         glintItems = GlintItemsLoader.load();
         blockTags = BlockTagLoader.load(stack);
 
         Diagnostics defaultsDiag = Diagnostics.root("blockDefaults", Diagnostics.Output.NONE, null);
-        blockDefaultStates = BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));
-        blockItemAliases = BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.NONE, null));
+        ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates =
+            BlockDefaultsLoader.load(defaultsDiag, BlockRendererOverrides.gather(stack, defaultsDiag));
+        Map<String, String> blockItemAliases = BlockItemsLoader.load(Diagnostics.root("blockItems", Diagnostics.Output.NONE, null));
 
         be = BlockModelLoader.load();
+
+        blockTables = new BlockTables(models.blocks(), blockTints, itemDefinitions, blockDefaultStates,
+            blockItemAliases, be.models(), be.variants(), itemTrees, itemModels);
     }
 
     @Test
     @DisplayName("block filter keeps renderable variants, drops only empty templates")
     void blockFilter() {
-        Set<String> built = new HashSet<>(BlockIndexBuilder.buildUnfiltered(
-            blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts,
-            blockTags, blockDefaultStates, blockItemAliases, be.models(), be.variants(),
-            itemTrees, itemModels).keySet());
-        Set<String> kept = new HashSet<>(BlockIndexBuilder.load(
-            blockModels, blockTints, itemDefinitions, blockVariants, blockMultiparts,
-            blockTags, blockDefaultStates, blockItemAliases, be.models(), be.variants(),
-            itemTrees, itemModels).keySet());
+        Set<String> built = new HashSet<>(BlockIndexBuilder.buildUnfiltered(blockTables, blockStates, blockTags).keySet());
+        Set<String> kept = new HashSet<>(BlockIndexBuilder.load(blockTables, blockStates, blockTags).keySet());
         System.out.printf("[block] built=%d kept=%d dropped=%d%n", built.size(), kept.size(), built.size() - kept.size());
 
         // Concrete variant renders - real geometry + resolvable texture - must survive.
