@@ -217,15 +217,50 @@ public record MCMeta(
     ) {
 
         /**
-         * Whether any of this pack's {@code filter.block} patterns hides a resource id - the shared
-         * predicate every pack-stack loader consults to erase lower-pack rows before merging its own.
-         * The vanilla synthesised mcmeta declares no filters, so a vanilla-only stack hides nothing.
+         * Whether this pack's {@code filter.block} section hides a file in a lower pack - the shared
+         * predicate every pack-stack subtree walk consults before merging its own entries. The
+         * vanilla synthesised mcmeta declares no filters, so a vanilla-only stack hides nothing.
+         * <p>
+         * The two halves are asked <b>separately</b>, each across the whole list, because that is
+         * what the client does: {@code ResourceFilterSection} exposes {@code isNamespaceFiltered} and
+         * {@code isPathFiltered} as two independent {@code anyMatch} passes, each testing only its
+         * own half of each entry, and an absent pattern compiles to a constant-true predicate. A
+         * per-entry conjunction exists in the client ({@code IdentifierPattern.locationPredicate})
+         * but pack filtering never calls it - its only reader is the {@code minecraft:filter} atlas
+         * sprite source. The difference is not academic: a section whose entries are
+         * {@code [{"namespace": "x"}, {"path": "y"}]} has a path-less entry, so the path half is
+         * constant-true and <b>every</b> file below is hidden.
          *
-         * @param id the resource id to test
-         * @return {@code true} when a filter hides the id
+         * @param namespace the namespace the file lives in
+         * @param resourcePath the file's path relative to {@code assets/<namespace>/}, subdirectory
+         *     and extension included ({@code blockstates/stone.json})
+         * @return {@code true} when this pack's filters hide that file
          */
-        public boolean hides(@NotNull ResourceId id) {
-            return this.filters.stream().anyMatch(filter -> filter.matches(id));
+        public boolean hidesFile(@NotNull String namespace, @NotNull String resourcePath) {
+            return hidesNamespace(namespace) && hidesPath(resourcePath);
+        }
+
+        /**
+         * Whether any filter's namespace half matches - the client's {@code isNamespaceFiltered},
+         * which decides whether the filter is installed for a namespace at all rather than which
+         * files it takes.
+         *
+         * @param namespace the namespace to test
+         * @return {@code true} when a filter covers that namespace
+         */
+        public boolean hidesNamespace(@NotNull String namespace) {
+            return this.filters.stream().anyMatch(filter -> filter.matchesNamespace(namespace));
+        }
+
+        /**
+         * Whether any filter's path half matches - the client's {@code isPathFiltered}, which selects
+         * files once the namespace is covered.
+         *
+         * @param resourcePath the file's path relative to {@code assets/<namespace>/}
+         * @return {@code true} when a filter takes that path
+         */
+        public boolean hidesPath(@NotNull String resourcePath) {
+            return this.filters.stream().anyMatch(filter -> filter.matchesPath(resourcePath));
         }
 
     }
@@ -247,24 +282,37 @@ public record MCMeta(
     public record Filter(@NotNull Optional<Pattern> namespace, @NotNull Optional<Pattern> path) {
 
         /**
-         * Whether this filter hides a resource id - every declared pattern matches (namespace regex
-         * against the id namespace, path regex against the id name). A filter that declares neither
-         * pattern hides nothing.
+         * Whether this entry's namespace half matches. An entry declaring no namespace pattern
+         * matches every namespace - the client compiles an absent pattern to a constant-true
+         * predicate rather than to a no-match.
+         *
+         * @param namespace the namespace to test
+         * @return {@code true} when this entry's namespace half matches
+         */
+        public boolean matchesNamespace(@NotNull String namespace) {
+            return this.namespace.map(pattern -> pattern.matcher(namespace).find()).orElse(true);
+        }
+
+        /**
+         * Whether this entry's path half matches. An entry declaring no path pattern matches every
+         * path, which is what makes a namespace-only entry hide a whole namespace.
          * <p>
          * Matching is unanchored substring ({@link java.util.regex.Matcher#find}), mirroring the
-         * vanilla client's {@code ResourceFilterSection}, whose {@code IdentifierPattern} builds its
-         * predicates through {@link java.util.regex.Pattern#asPredicate} (defined as
-         * {@code s -> matcher(s).find()}). An anchored full match would hide fewer resources than
-         * vanilla for the same authored pattern.
+         * client's {@code IdentifierPattern}, which builds its predicates through
+         * {@link java.util.regex.Pattern#asPredicate} (defined as {@code s -> matcher(s).find()}).
+         * An anchored full match would hide fewer resources than vanilla for the same pattern.
+         * <p>
+         * The string tested is the file's path relative to {@code assets/<namespace>/}, subdirectory
+         * and extension included, because that is what the client tests: its filter predicate is
+         * {@code id -> section.isPathFiltered(id.getPath())} and the identifier it receives is built
+         * by relativising the file against the namespace root, so a blockstate is
+         * {@code blockstates/stone.json} rather than {@code stone}.
          *
-         * @param id the resource id to test
-         * @return {@code true} when this filter hides the id
+         * @param resourcePath the file path relative to the namespace root
+         * @return {@code true} when this entry's path half matches
          */
-        public boolean matches(@NotNull ResourceId id) {
-            if (this.namespace.isEmpty() && this.path.isEmpty()) return false;
-            boolean namespaceOk = this.namespace.map(pattern -> pattern.matcher(id.namespace()).find()).orElse(true);
-            boolean pathOk = this.path.map(pattern -> pattern.matcher(id.name()).find()).orElse(true);
-            return namespaceOk && pathOk;
+        public boolean matchesPath(@NotNull String resourcePath) {
+            return this.path.map(pattern -> pattern.matcher(resourcePath).find()).orElse(true);
         }
 
     }

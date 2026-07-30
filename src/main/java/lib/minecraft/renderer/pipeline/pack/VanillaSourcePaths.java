@@ -48,6 +48,11 @@ public class VanillaSourcePaths {
     public static final @NotNull String BLOCKSTATES_SUBDIR = "blockstates";
 
     /**
+     * The {@code textures} subtree, holding every PNG a pack ships and its {@code .mcmeta} sidecars.
+     */
+    public static final @NotNull String TEXTURES_SUBDIR = "textures";
+
+    /**
      * Relative subpath (under {@code assets/<namespace>/}) of the item definition subtree
      * (vanilla 26.1+ {@code items/}).
      */

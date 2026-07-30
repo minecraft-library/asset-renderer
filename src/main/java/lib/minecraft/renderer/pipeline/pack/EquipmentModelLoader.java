@@ -8,9 +8,6 @@ import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.LayerType;
-import lib.minecraft.renderer.asset.pack.PackContainer;
-import lib.minecraft.renderer.asset.pack.PackRoot;
-import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -46,6 +43,10 @@ public class EquipmentModelLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
+    /** The equipment-asset subtree every pack in the stack contributes. */
+    private static final @NotNull PackSubtree.Subtree EQUIPMENT =
+        PackSubtree.Subtree.of(VanillaSourcePaths.EQUIPMENT_SUBDIR, ".json");
+
     /**
      * Loads the equipment-asset index across the whole pack stack, ascending (later packs replace
      * earlier per asset id).
@@ -55,32 +56,16 @@ public class EquipmentModelLoader {
      */
     public static @NotNull Map<ResourceId, EquipmentModel> load(@NotNull PackStack stack) {
         Map<ResourceId, EquipmentModel> models = new TreeMap<>(Comparator.comparing(ResourceId::id));
-        for (ResourcePack pack : stack.ascending()) {
-            PackContainer container = pack.container();
-            for (PackRoot root : pack.roots())
-                for (String namespace : pack.namespaces()) {
-                    String prefix = root.prefix() + VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.EQUIPMENT_SUBDIR);
-                    scanRoot(container, namespace, prefix, models);
-                }
-        }
+        for (PackSubtree.Entry entry : PackSubtree.walk(stack, EQUIPMENT))
+            parseFile(entry, models);
         return Collections.unmodifiableSortedMap((TreeMap<ResourceId, EquipmentModel>) models);
     }
 
-    /** Scans one {@code (root x namespace)} equipment subtree in sorted path order, replacing per asset id. */
-    private static void scanRoot(@NotNull PackContainer container, @NotNull String namespace,
-                                 @NotNull String prefix, @NotNull Map<ResourceId, EquipmentModel> out) {
-        List<String> files = container.entries(prefix)
-            .filter(p -> p.endsWith(".json"))
-            .sorted()
-            .toList();
-
-        for (String file : files) parseFile(container, namespace, file, out);
-    }
-
     /** Parses one equipment file, storing (replacing) its model under {@code <namespace>:<stem>}. */
-    private static void parseFile(@NotNull PackContainer container, @NotNull String namespace,
-                                  @NotNull String file, @NotNull Map<ResourceId, EquipmentModel> out) {
-        Optional<byte[]> bytes = container.bytes(file);
+    private static void parseFile(@NotNull PackSubtree.Entry entry, @NotNull Map<ResourceId, EquipmentModel> out) {
+        String namespace = entry.namespace();
+        String file = entry.entryPath();
+        Optional<byte[]> bytes = entry.container().bytes(file);
         if (bytes.isEmpty()) return;
         String stem = file.substring(file.lastIndexOf('/') + 1, file.length() - ".json".length());
         parse(new String(bytes.get(), StandardCharsets.UTF_8))

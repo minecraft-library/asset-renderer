@@ -6,8 +6,6 @@ import com.google.gson.annotations.SerializedName;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.pack.PackContainer;
-import lib.minecraft.renderer.asset.pack.PackRoot;
-import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.engine.texture.PalettedPermutationSource;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -40,6 +38,16 @@ public class PalettedPermutationLoader {
     private static final @NotNull String PALETTED_PERMUTATIONS_TYPE = "minecraft:paletted_permutations";
 
     /**
+     * The atlas subtree every pack in the stack contributes. Routing through the shared walk is what
+     * gives this loader the {@code filter.block} erase it never had - the client hides the whole
+     * atlas file before it is read, so a filtered atlas contributes no sources at all rather than
+     * having its sources filtered afterwards, which is the only level a list-shaped accumulator with
+     * no id keyspace can honour.
+     */
+    private static final @NotNull PackSubtree.Subtree ATLASES =
+        PackSubtree.Subtree.of(VanillaSourcePaths.ATLASES_SUBDIR, ".json");
+
+    /**
      * Loads and concatenates the paletted-permutation atlas sources across the whole pack stack,
      * ascending.
      *
@@ -48,25 +56,9 @@ public class PalettedPermutationLoader {
      */
     public static @NotNull List<PalettedPermutationSource> load(@NotNull PackStack stack) {
         List<PalettedPermutationSource> sources = new ArrayList<>();
-        for (ResourcePack pack : stack.ascending()) {
-            PackContainer container = pack.container();
-            for (PackRoot root : pack.roots())
-                for (String namespace : pack.namespaces()) {
-                    String atlasesPrefix = root.prefix() + VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.ATLASES_SUBDIR);
-                    scanRoot(container, atlasesPrefix, sources);
-                }
-        }
+        for (PackSubtree.Entry entry : PackSubtree.walk(stack, ATLASES))
+            parseAtlas(entry.container(), entry.entryPath(), sources);
         return List.copyOf(sources);
-    }
-
-    /** Scans one {@code (root x namespace)} atlases subtree in sorted path order, appending its permutation sources. */
-    private static void scanRoot(@NotNull PackContainer container, @NotNull String atlasesPrefix, @NotNull List<PalettedPermutationSource> out) {
-        List<String> files = container.entries(atlasesPrefix)
-            .filter(p -> p.endsWith(".json"))
-            .sorted()
-            .toList();
-
-        for (String file : files) parseAtlas(container, file, out);
     }
 
     /** Parses one atlas file, appending each {@code paletted_permutations} source it declares. */

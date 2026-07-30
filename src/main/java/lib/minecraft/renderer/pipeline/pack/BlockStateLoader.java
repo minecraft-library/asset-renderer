@@ -17,11 +17,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.PackStack;
-import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelTexture;
-import lib.minecraft.renderer.asset.pack.PackContainer;
-import lib.minecraft.renderer.asset.pack.PackRoot;
-import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -56,7 +52,7 @@ import java.util.Optional;
  * entry. Both array sites therefore share one deterministic rule, folded into {@link ApplyDto.Adapter}.
  * <p>
  * The merge runs over the {@link PackStack} effective file set: packs ascending, each pack's
- * {@code filter.block} erasing matching lower-pack ids before its own subtrees merge in, and a
+ * {@code filter.block} erasing matching lower-pack files before its own subtree is listed, and a
  * higher pack's blockstate fully replacing (variants&harr;multipart included) any lower pack's for
  * the same id - matching the vanilla client's per-file topmost-pack-wins semantics. A vanilla-only
  * stack scans exactly {@code assets/minecraft/blockstates}.
@@ -69,13 +65,15 @@ public class BlockStateLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
+    /** The blockstate subtree every pack in the stack contributes. */
+    private static final @NotNull PackSubtree.Subtree BLOCKSTATES =
+        PackSubtree.Subtree.of(VanillaSourcePaths.BLOCKSTATES_SUBDIR, ".json");
+
     /**
-     * Loads blockstate JSON files across the whole pack stack. Packs are visited ascending; before
-     * each pack's rows merge in, its {@code filter.block} patterns erase matching accumulated ids
-     * from both the variant and multipart maps, then every {@code (root x namespace)} blockstate
-     * subtree it owns is scanned. Per block id, a higher pack's blockstate fully replaces any lower
-     * pack's variants or multipart - matching Minecraft, which loads exactly one blockstate file per
-     * id from the topmost matching pack.
+     * Loads blockstate JSON files across the whole pack stack through the shared subtree walk, which
+     * owns the pack ordering and the {@code filter.block} erase. Per block id, a higher pack's
+     * blockstate fully replaces any lower pack's variants or multipart - matching Minecraft, which
+     * loads exactly one blockstate file per id from the topmost matching pack.
      * <p>
      * Each apply is returned as a raw {@link ApplyDto}: the {@code modelId -> }{@link Block.Variant}
      * geometry join runs in the block index builder, which holds the resolved model set, so this
@@ -88,53 +86,15 @@ public class BlockStateLoader {
         HashMap<String, ConcurrentMap<String, ApplyDto>> variants = new HashMap<>();
         HashMap<String, ConcurrentList<MultipartPart>> multiparts = new HashMap<>();
 
-        for (ResourcePack pack : stack.ascending()) {
-            pack.meta().pack().ifPresent(section -> {
-                variants.keySet().removeIf(id -> section.hides(ResourceId.parse(id)));
-                multiparts.keySet().removeIf(id -> section.hides(ResourceId.parse(id)));
-            });
-            PackContainer container = pack.container();
-
-            for (PackRoot root : pack.roots())
-                for (String namespace : pack.namespaces()) {
-                    String blockstatesPrefix = root.prefix() + VanillaSourcePaths.assetSubdir(namespace, VanillaSourcePaths.BLOCKSTATES_SUBDIR);
-                    mergeDir(container, blockstatesPrefix, namespace, variants, multiparts);
-                }
-        }
-
-        return new BlockStates(
-            Concurrent.adoptMap(variants).toUnmodifiable(),
-            Concurrent.adoptMap(multiparts).toUnmodifiable()
-        );
-    }
-
-    /**
-     * Scans one {@code (root x namespace)} blockstate directory and merges its parsed entries into
-     * the running per-id variant / multipart maps. A higher root's variant entry deletes any earlier
-     * multipart entry for the same id (and vice versa) - this preserves "exactly one blockstate file
-     * wins" even when packs convert a block from variants to multipart or back. No-op when the
-     * directory is absent (a pack simply lacks that namespace's blockstates).
-     */
-    private static void mergeDir(
-        @NotNull PackContainer container,
-        @NotNull String blockstatesPrefix,
-        @NotNull String namespace,
-        @NotNull HashMap<String, ConcurrentMap<String, ApplyDto>> variants,
-        @NotNull HashMap<String, ConcurrentList<MultipartPart>> multiparts
-    ) {
-        // Two-phase walk: serial path enumeration, then parallel JSON parse per file. Per-file
-        // work is CPU-bound (Gson parse of a small blockstate JSON) plus a tiny byte read; the
-        // parallel stream scales it across cores. Each file produces at most one Parsed record;
-        // the partition into variants/multiparts happens in a sequential pass over the gathered
-        // list so neither map pays per-element write-lock cost. Blockstate files are flat under
-        // blockstates/ - direct children only, matching the old one-level list.
-        List<String> files = container.entries(blockstatesPrefix)
-            .filter(p -> p.endsWith(".json"))
-            .filter(p -> p.indexOf('/', blockstatesPrefix.length() + 1) < 0)
-            .toList();
-
-        List<Parsed> parsedAll = files.parallelStream()
-            .map(file -> parseBlockstateFile(container, file, blockstatesPrefix, namespace))
+        // Two-phase walk: the shared subtree walk enumerates and filters, then the JSON parse runs
+        // in parallel per file. Per-file work is CPU-bound (Gson parse of a small blockstate JSON)
+        // plus a tiny byte read, and map() preserves encounter order, so the sequential partition
+        // below still sees the files in resolution order. Blockstate files are flat under
+        // blockstates/ - direct children only, matching the one-level list this has always done.
+        List<Parsed> parsedAll = PackSubtree.walk(stack, BLOCKSTATES)
+            .parallelStream()
+            .filter(PackSubtree.Entry::isDirectChild)
+            .map(BlockStateLoader::parseBlockstateFile)
             .flatMap(Optional::stream)
             .toList();
 
@@ -156,6 +116,11 @@ public class BlockStateLoader {
                 }
             }
         }
+
+        return new BlockStates(
+            Concurrent.adoptMap(variants).toUnmodifiable(),
+            Concurrent.adoptMap(multiparts).toUnmodifiable()
+        );
     }
 
     /**
@@ -169,17 +134,14 @@ public class BlockStateLoader {
      * pack's entry (vanilla topmost-file-wins). Only a non-object root or a read / parse failure
      * resolves to empty - falling back to a lower pack's copy, the deliberate malformed-file behaviour.
      *
-     * @param entry the blockstate JSON file entry path
-     * @param namespace the owning namespace, prepended to the derived block id
+     * @param entry the blockstate file the subtree walk resolved
      * @return the parsed variant / multipart / shadow record, or empty on a non-object or malformed file
      */
-    private static @NotNull Optional<Parsed> parseBlockstateFile(@NotNull PackContainer container, @NotNull String entry, @NotNull String blockstatesPrefix, @NotNull String namespace) {
-        String fileName = entry.substring(blockstatesPrefix.length() + 1);
-        String blockName = fileName.substring(0, fileName.length() - 5);
-        String blockId = VanillaSourcePaths.namespacePrefix(namespace) + blockName;
+    private static @NotNull Optional<Parsed> parseBlockstateFile(@NotNull PackSubtree.Entry entry) {
+        String blockId = VanillaSourcePaths.namespacePrefix(entry.namespace()) + entry.stem();
 
         try {
-            BlockStateFile file = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), BlockStateFile.class);
+            BlockStateFile file = GSON.fromJson(new String(entry.container().bytes(entry.entryPath()).orElseThrow(), StandardCharsets.UTF_8), BlockStateFile.class);
             // A non-object root (null literal, array, scalar) falls back to a lower pack's copy.
             if (file == null) return Optional.empty();
 

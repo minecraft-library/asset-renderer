@@ -8,13 +8,10 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.PackStack;
-import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
-import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import org.jetbrains.annotations.NotNull;
 
@@ -99,19 +96,18 @@ public record ResolvedModels(
     private static @NotNull LinkedHashMap<String, Attributed> mergeRawAcrossStack(
         @NotNull PackStack stack, @NotNull String subdir, @NotNull String kind
     ) {
-        LinkedHashMap<String, Attributed> merged = new LinkedHashMap<>();
-        for (ResourcePack pack : stack.ascending()) {
-            pack.meta().pack().ifPresent(section -> merged.keySet().removeIf(id -> section.hides(ResourceId.parse(id))));
-            PackContainer container = pack.container();
+        // The shared walk enumerates and filters serially (container walks do not split well), then
+        // the byte read + Gson parse parallelise across the FJP common pool. map() preserves
+        // encounter order, so the sequential merge below still sees resolution order - later roots
+        // and later packs last, and therefore winning.
+        List<Map.Entry<String, Attributed>> parsed = PackSubtree.walk(stack, PackSubtree.Subtree.of(subdir, ".json"))
+            .parallelStream()
+            .map(entry -> parseModelFile(entry, kind))
+            .flatMap(Optional::stream)
+            .toList();
 
-            for (PackRoot root : pack.roots()) {
-                for (String namespace : pack.namespaces()) {
-                    String modelsPrefix = root.prefix() + VanillaSourcePaths.assetSubdir(namespace, subdir);
-                    String idPrefix = VanillaSourcePaths.modelIdPrefix(namespace, kind);
-                    scanJsonFiles(container, modelsPrefix, idPrefix, pack.id()).forEach((id, json) -> merged.put(id, new Attributed(json, pack.id())));
-                }
-            }
-        }
+        LinkedHashMap<String, Attributed> merged = new LinkedHashMap<>();
+        for (Map.Entry<String, Attributed> row : parsed) merged.put(row.getKey(), row.getValue());
         return merged;
     }
 
@@ -138,44 +134,30 @@ public record ResolvedModels(
     }
 
     /**
-     * Scans one model subtree into a raw JSON map keyed by resolved model id. A missing subtree
-     * enumerates empty so a pack that omits a namespace's {@code models/item} (or the whole subtree)
-     * is tolerated rather than fatal.
+     * Parses a single model file into an attributed raw JSON entry keyed by resolved model id.
+     * Empty for an unreadable, empty-parse or malformed file so the caller can drop it and the merge
+     * falls back to a lower pack's copy; a malformed winning copy is reported with its owning pack so
+     * that fall-back is traceable.
+     *
+     * @param entry the model file the subtree walk resolved
+     * @param kind the model-id kind segment ({@code block} or {@code item})
+     * @return the id-to-attributed-JSON pair, or empty when the file yields nothing usable
      */
-    private static @NotNull ConcurrentMap<String, JsonObject> scanJsonFiles(@NotNull PackContainer container, @NotNull String modelsPrefix, @NotNull String idPrefix, @NotNull PackId packId) {
-        // Two-phase walk: enumerate entry paths serially (container walks don't split well for
-        // parallel work), then parallelise the byte read + Gson parse across the FJP common pool.
-        // Concurrent.toMap collects per-shard HashMaps lock-free and adopts the merged result.
-        List<String> files = container.entries(modelsPrefix).filter(p -> p.endsWith(".json")).toList();
-
-        return files.parallelStream()
-            .map(p -> parseModelFile(container, p, modelsPrefix, idPrefix, packId))
-            .flatMap(Optional::stream)
-            .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
-
-    /**
-     * Parses a single model file into a raw JSON entry keyed by resolved model id (the entry path
-     * relative to {@code modelsPrefix}, sans {@code .json}, under {@code idPrefix}). Empty for
-     * non-JSON, empty-parse, or malformed input so the caller can drop the entry; an I/O read failure
-     * (surfaced by the container) is fatal. A malformed winning copy is reported with its owning pack
-     * so the silent fall-back to a lower pack is traceable.
-     */
-    private static @NotNull Optional<Map.Entry<String, JsonObject>> parseModelFile(
-        @NotNull PackContainer container, @NotNull String entry, @NotNull String modelsPrefix, @NotNull String idPrefix, @NotNull PackId packId
+    private static @NotNull Optional<Map.Entry<String, Attributed>> parseModelFile(
+        @NotNull PackSubtree.Entry entry, @NotNull String kind
     ) {
-        String relative = entry.substring(modelsPrefix.length() + 1);
-        if (!relative.endsWith(".json")) return Optional.empty();
-        String id = idPrefix + relative.substring(0, relative.length() - ".json".length());
-        Optional<byte[]> bytes = container.bytes(entry);
+        String id = VanillaSourcePaths.modelIdPrefix(entry.namespace(), kind) + entry.stem();
+        Optional<byte[]> bytes = entry.container().bytes(entry.entryPath());
         if (bytes.isEmpty()) return Optional.empty();
+
         try {
             JsonObject json = GSON.fromJson(new String(bytes.get(), StandardCharsets.UTF_8), JsonObject.class);
-            return json == null ? Optional.empty() : Optional.of(Map.entry(id, json));
+            return json == null ? Optional.empty() : Optional.of(Map.entry(id, new Attributed(json, entry.pack().id())));
         } catch (JsonSyntaxException ex) {
             // Resource packs occasionally ship malformed or pathologically-nested model JSON. Skip
             // so the merge falls back to a lower-priority pack's version.
-            System.err.printf("Skipping malformed model '%s' from pack '%s': %s%n", entry, packId, ex.getMessage());
+            System.err.printf("Skipping malformed model '%s' from pack '%s': %s%n",
+                entry.entryPath(), entry.pack().id(), ex.getMessage());
             return Optional.empty();
         }
     }
