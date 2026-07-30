@@ -58,7 +58,15 @@ public final class BlockItemAliasWalk {
         VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK),
         "[" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK));
 
-    private BlockItemAliasWalk() {
+    private final @NotNull BlockRegistryIndex index;
+    private final @NotNull Diagnostics diagnostics;
+
+    /** Secondary block id to its standing block's id, sorted by secondary id for byte-stable output. */
+    private final @NotNull TreeMap<String, String> aliases = new TreeMap<>();
+
+    private BlockItemAliasWalk(@NotNull BlockRegistryIndex index, @NotNull Diagnostics diagnostics) {
+        this.index = index;
+        this.diagnostics = diagnostics;
     }
 
     /**
@@ -72,19 +80,21 @@ public final class BlockItemAliasWalk {
      * @param root the envelope root the {@code aliases} object is written into
      */
     public static void run(@NotNull ToolingSession session, @NotNull BlockRegistryIndex index, @NotNull JsonTree root) {
-        Diagnostics diagnostics = session.diagnostics().child("blockItems");
-        TreeMap<String, String> aliases = new TreeMap<>();
+        new BlockItemAliasWalk(index, session.diagnostics().child("blockItems")).walk(session, root);
+    }
 
+    /** One run's walk over {@code Items.<clinit>}, accumulating into {@link #aliases}. */
+    private void walk(@NotNull ToolingSession session, @NotNull JsonTree root) {
         ClassNode items = session.cache().load(VanillaSourceClasses.Types.ITEMS);
         if (items == null) {
-            diagnostics.error("'%s' class missing - block-item alias map unresolved", VanillaSourceClasses.Types.ITEMS);
-            writeAliases(root, aliases);
+            this.diagnostics.error("'%s' class missing - block-item alias map unresolved", VanillaSourceClasses.Types.ITEMS);
+            writeAliases(root);
             return;
         }
         MethodNode clinit = AsmKit.findMethod(items, AsmKit.CLINIT);
         if (clinit == null) {
-            diagnostics.error("'%s.<clinit>' missing - block-item alias map unresolved", VanillaSourceClasses.Types.ITEMS);
-            writeAliases(root, aliases);
+            this.diagnostics.error("'%s.<clinit>' missing - block-item alias map unresolved", VanillaSourceClasses.Types.ITEMS);
+            writeAliases(root);
             return;
         }
 
@@ -92,18 +102,18 @@ public final class BlockItemAliasWalk {
             if (in instanceof InvokeDynamicInsnNode indy && indy.desc.endsWith(BIFUNCTION_RETURN_SUFFIX)) {
                 AbstractInsnNode primary = AsmKit.previousReal(indy);
                 if (primary instanceof FieldInsnNode field && AsmKit.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
-                    collectLambdaSecondaries(items, indy, field.name, index, aliases, diagnostics);
+                    collectLambdaSecondaries(items, indy, field.name);
                 continue;
             }
 
             if (in.getOpcode() == Opcodes.ANEWARRAY
                 && in instanceof TypeInsnNode arrayType
                 && arrayType.desc.equals(VanillaSourceClasses.Types.BLOCK))
-                collectVarargsSecondaries(in, index, aliases, diagnostics);
+                collectVarargsSecondaries(in);
         }
 
-        writeAliases(root, aliases);
-        diagnostics.info("mapped %d secondary blocks to their standing-block item", aliases.size());
+        writeAliases(root);
+        this.diagnostics.info("mapped %d secondary blocks to their standing-block item", this.aliases.size());
     }
 
     /**
@@ -111,13 +121,10 @@ public final class BlockItemAliasWalk {
      * its body (the wall counterpart), keyed to {@code primaryField} (the standing block). A generic
      * single-block factory lambda has no such getstatic and emits nothing.
      */
-    private static void collectLambdaSecondaries(
+    private void collectLambdaSecondaries(
         @NotNull ClassNode items,
         @NotNull InvokeDynamicInsnNode indy,
-        @NotNull String primaryField,
-        @NotNull BlockRegistryIndex index,
-        @NotNull TreeMap<String, String> aliases,
-        @NotNull Diagnostics diagnostics
+        @NotNull String primaryField
     ) {
         Handle handle = AsmKit.extractLambdaHandle(indy);
         if (handle == null || handle.getTag() != Opcodes.H_INVOKESTATIC || !handle.getOwner().equals(items.name))
@@ -126,7 +133,7 @@ public final class BlockItemAliasWalk {
         if (lambda == null) return;
         for (AbstractInsnNode node : lambda.instructions)
             if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS))
-                emit(((FieldInsnNode) node).name, primaryField, index, aliases, diagnostics);
+                emit(((FieldInsnNode) node).name, primaryField);
     }
 
     /**
@@ -134,12 +141,7 @@ public final class BlockItemAliasWalk {
      * {@code registerBlock(Block, Block...)} call, keyed to the primary getstatic that precedes the
      * array's length push.
      */
-    private static void collectVarargsSecondaries(
-        @NotNull AbstractInsnNode anewarray,
-        @NotNull BlockRegistryIndex index,
-        @NotNull TreeMap<String, String> aliases,
-        @NotNull Diagnostics diagnostics
-    ) {
+    private void collectVarargsSecondaries(@NotNull AbstractInsnNode anewarray) {
         AbstractInsnNode lengthPush = AsmKit.previousReal(anewarray);
         AbstractInsnNode primary = AsmKit.previousReal(lengthPush);
         if (!(primary instanceof FieldInsnNode field) || !AsmKit.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
@@ -153,7 +155,7 @@ public final class BlockItemAliasWalk {
             }
             if (node instanceof MethodInsnNode call
                 && AsmKit.isInvokeStatic(call, VanillaSourceClasses.Types.ITEMS, REGISTER_BLOCK, REGISTER_BLOCK_VARARGS_DESC)) {
-                for (String secondary : secondaries) emit(secondary, field.name, index, aliases, diagnostics);
+                for (String secondary : secondaries) emit(secondary, field.name);
                 return;
             }
         }
@@ -164,26 +166,20 @@ public final class BlockItemAliasWalk {
      * block registry. A field the registry does not know records a WARN and is skipped; a
      * secondary that resolves to its own primary (never expected) is dropped.
      */
-    private static void emit(
-        @NotNull String secondaryField,
-        @NotNull String primaryField,
-        @NotNull BlockRegistryIndex index,
-        @NotNull TreeMap<String, String> aliases,
-        @NotNull Diagnostics diagnostics
-    ) {
-        BlockRegistryIndex.Entry secondary = index.byField(secondaryField);
-        BlockRegistryIndex.Entry primary = index.byField(primaryField);
+    private void emit(@NotNull String secondaryField, @NotNull String primaryField) {
+        BlockRegistryIndex.Entry secondary = this.index.byField(secondaryField);
+        BlockRegistryIndex.Entry primary = this.index.byField(primaryField);
         if (secondary == null || primary == null) {
-            diagnostics.warn("unresolved block-item alias '%s' -> '%s' - field absent from block registry", secondaryField, primaryField);
+            this.diagnostics.warn("unresolved block-item alias '%s' -> '%s' - field absent from block registry", secondaryField, primaryField);
             return;
         }
         if (secondary.id().equals(primary.id())) return;
-        aliases.put(secondary.id(), primary.id());
+        this.aliases.put(secondary.id(), primary.id());
     }
 
-    private static void writeAliases(@NotNull JsonTree root, @NotNull TreeMap<String, String> aliases) {
+    private void writeAliases(@NotNull JsonTree root) {
         JsonTree node = root.child("aliases");
-        for (Map.Entry<String, String> alias : aliases.entrySet())
+        for (Map.Entry<String, String> alias : this.aliases.entrySet())
             node.put(alias.getKey(), alias.getValue());
     }
 

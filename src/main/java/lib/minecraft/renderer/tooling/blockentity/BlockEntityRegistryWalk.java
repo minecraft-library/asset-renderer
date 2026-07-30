@@ -45,14 +45,13 @@ public final class BlockEntityRegistryWalk {
 
         JsonTree models = root.child("models");
         for (BlockEntitySubject subject : subjects) {
-            BlockGeometrySourceResolver geometry = new BlockGeometrySourceResolver(
-                session, subject, layerDefinitions, manifest, session.diagnostics().child(subject.beTypeId()));
+            BlockGeometrySourceResolver geometry =
+                new BlockGeometrySourceResolver(session, subject, layerDefinitions, manifest);
             List<BlockGeometrySourceResolver.Split> splits = geometry.resolveSplits();
 
             List<String> splitIds = new ArrayList<>();
             for (BlockGeometrySourceResolver.Split split : splits) splitIds.add(split.splitId());
-            BlockCatalogResolver catalog = new BlockCatalogResolver(session.cache(), blockRegistry, subject,
-                splitIds, session.diagnostics().child(subject.beTypeId()));
+            BlockCatalogResolver catalog = new BlockCatalogResolver(session, blockRegistry, subject, splitIds);
 
             for (BlockGeometrySourceResolver.Split split : splits)
                 models.put(split.splitId(), new BlockEntityRendererResolver(subject, split, tint, gui, catalog, transform).resolve());

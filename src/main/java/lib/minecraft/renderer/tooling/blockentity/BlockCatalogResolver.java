@@ -4,6 +4,7 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import org.jetbrains.annotations.NotNull;
@@ -49,17 +50,16 @@ final class BlockCatalogResolver {
     private @Nullable Map<String, JsonTree> bySplitId;
 
     BlockCatalogResolver(
-        @NotNull ClassNodeCache cache,
+        @NotNull ToolingSession session,
         @NotNull BlockRegistryIndex blockRegistry,
         @NotNull BlockEntitySubject subject,
-        @NotNull List<String> splitIds,
-        @NotNull Diagnostics diagnostics
+        @NotNull List<String> splitIds
     ) {
-        this.cache = cache;
+        this.cache = session.cache();
         this.blockRegistry = blockRegistry;
         this.subject = subject;
         this.splitIds = splitIds;
-        this.diagnostics = diagnostics;
+        this.diagnostics = session.diagnostics().child(subject.beTypeId());
     }
 
     /**

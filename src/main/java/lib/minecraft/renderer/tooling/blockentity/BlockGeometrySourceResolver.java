@@ -6,6 +6,7 @@ import lib.minecraft.renderer.tooling.geometry.YAxis;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
@@ -49,17 +50,16 @@ final class BlockGeometrySourceResolver {
     private final @NotNull Diagnostics diagnostics;
 
     BlockGeometrySourceResolver(
-        @NotNull lib.minecraft.renderer.tooling.kernel.ToolingSession session,
+        @NotNull ToolingSession session,
         @NotNull BlockEntitySubject subject,
         @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
+        @NotNull GeometryManifest manifest
     ) {
         this.cache = session.cache();
         this.subject = subject;
         this.layerDefinitions = layerDefinitions;
         this.manifest = manifest;
-        this.diagnostics = diagnostics;
+        this.diagnostics = session.diagnostics().child(subject.beTypeId());
     }
 
     /**
