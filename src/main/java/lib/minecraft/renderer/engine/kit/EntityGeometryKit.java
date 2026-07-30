@@ -308,7 +308,7 @@ public class EntityGeometryKit {
     public static @NotNull Optional<Box> computeBoneBounds(@NotNull EntityModelData model, @NotNull String boneName) {
         EntityModelData.Bone bone = model.getBones().get(boneName);
         if (bone == null || bone.getCubes().isEmpty()) return Optional.empty();
-        Matrix4f boneChain = BoneKit.buildChainTransforms(model.getBones()).get(boneName);
+        Matrix4f boneChain = BoneKit.buildChainTransform(model.getBones(), boneName);
         BoundsAccumulator acc = new BoundsAccumulator();
         float s = bone.getScale();
         for (EntityModelData.Cube cube : bone.getCubes()) {
@@ -762,7 +762,7 @@ public class EntityGeometryKit {
         @NotNull EntityModelData model,
         @NotNull String boneName
     ) {
-        return BoneKit.buildChainTransforms(model.getBones()).getOrDefault(boneName, Matrix4f.IDENTITY);
+        return BoneKit.buildChainTransform(model.getBones(), boneName);
     }
 
     /**

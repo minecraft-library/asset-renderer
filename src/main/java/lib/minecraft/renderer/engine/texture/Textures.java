@@ -20,7 +20,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.ByteBuffer;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -271,7 +270,7 @@ public class Textures {
         Optional<ColorMap> map = this.context.findColorMap(type);
         if (map.isEmpty()) return ColorMath.WHITE;
 
-        int sampled = sampleColormap(unpackColorMap(map.get()), biome.temperature(), biome.downfall());
+        int sampled = sampleColormap(map.get().pixels(), biome.temperature(), biome.downfall());
         return applyModifier(sampled, biome.grassColorModifier(), target);
     }
 
@@ -481,32 +480,32 @@ public class Textures {
      * }</pre>
      * Vanilla returns a magenta fallback ({@code 0xFFFF00FF}) when the index is out of bounds;
      * this helper clamps instead for defensive parity with malformed colormaps.
+     * <p>
+     * The pixel is read straight out of the {@link ColorMap}'s bytes at its own offset. A colormap
+     * is 256x256, so unpacking the whole thing first cost a 65,536-element {@code int[]} - 256 KiB -
+     * to hand back one element. The four-byte big-endian read here is the same value bit for bit:
+     * {@link ColorMap} stores what {@code ColorMapLoader} packed big-endian, which is also how the
+     * unpack read it back, since {@code ByteBuffer.wrap} is big-endian by default. Each byte must be
+     * masked to {@code 0xFF} - dropping the mask on any of the low three sign-extends and corrupts
+     * every pixel whose channel reaches {@code 0x80}.
      *
-     * @param colormap the 256x256 colormap pixels in row-major ARGB order
+     * @param colormap the 256x256 colormap's raw ARGB bytes, row-major and big-endian
      * @param temperature the biome temperature
      * @param downfall the biome downfall
      * @return the sampled ARGB pixel
      */
-    public static int sampleColormap(int @NotNull [] colormap, float temperature, float downfall) {
+    public static int sampleColormap(byte @NotNull [] colormap, float temperature, float downfall) {
         float adjTemp = Math.clamp(temperature, 0f, 1f);
         float adjRain = Math.clamp(downfall, 0f, 1f) * adjTemp;
 
         int x = Math.clamp((int) ((1.0f - adjTemp) * COLORMAP_COORD_MAX), 0, (int) COLORMAP_COORD_MAX);
         int y = Math.clamp((int) ((1.0f - adjRain) * COLORMAP_COORD_MAX), 0, (int) COLORMAP_COORD_MAX);
 
-        return colormap[y * COLORMAP_SIZE + x];
-    }
-
-    /**
-     * Unpacks the row-major ARGB bytes from a {@link ColorMap} entity into an {@code int[]}
-     * colormap suitable for {@link #sampleColormap(int[], float, float)}.
-     */
-    private int @NotNull [] unpackColorMap(@NotNull ColorMap map) {
-        byte[] bytes = map.pixels();
-        int[] pixels = new int[bytes.length / 4];
-        ByteBuffer buffer = ByteBuffer.wrap(bytes);
-        buffer.asIntBuffer().get(pixels);
-        return pixels;
+        int offset = (y * COLORMAP_SIZE + x) * Integer.BYTES;
+        return ((colormap[offset] & 0xFF) << 24)
+            | ((colormap[offset + 1] & 0xFF) << 16)
+            | ((colormap[offset + 2] & 0xFF) << 8)
+            | (colormap[offset + 3] & 0xFF);
     }
 
 }

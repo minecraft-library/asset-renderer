@@ -77,6 +77,27 @@ public class BoneKit {
     }
 
     /**
+     * Builds one named bone's ancestor-anchor chain matrix, for the callers that want a single bone
+     * rather than the whole map. Walks that bone's parent chain alone through the same recursion
+     * {@link #buildChainTransforms} drives every bone through, in the same operand order, so the two
+     * agree bit for bit on any bone forest - a chain is a function of its own ancestors, and the
+     * map's memoization only skips recomputation rather than changing a value. The one case they can
+     * part is a parent <b>cycle</b>, where the map's answer depends on which member the bone
+     * iteration reached first and this walk always breaks at the bone asked for; vanilla-derived
+     * geometry is a tree, so nothing shipped can tell them apart.
+     *
+     * @param bones the model's bones keyed by name
+     * @param name the bone whose chain to build
+     * @return the bone's ancestor-anchor chain matrix, or {@link Matrix4f#IDENTITY} when absent
+     */
+    public static @NotNull Matrix4f buildChainTransform(
+        @NotNull Map<String, EntityModelData.Bone> bones,
+        @NotNull String name
+    ) {
+        return resolveChainFrom(name, bones, new HashMap<>(), new LinkedHashSet<>(), Matrix4f.IDENTITY);
+    }
+
+    /**
      * Builds one bone's chain matrix starting from {@code root} via fluent {@link Matrix4f#translate}
      * / {@link Matrix4f#rotate} ops. Recurses into the parent chain first, then applies this bone's
      * pivot-centred rotation on top; memoizes into {@code cache}. Self-parenting, missing-parent,

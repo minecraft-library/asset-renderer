@@ -92,8 +92,10 @@ public record Block(
     /**
      * The canonical joined default-state key ({@code "prop=val,.."}, property-sorted; {@code ""} when
      * the block declares no properties) - the serialized projection of {@link #defaultState()} kept for
-     * the parity dump and back-compat callers. The renderer reads {@link #defaultState()} directly, so
-     * this join runs only off the hot path.
+     * the parity dump and back-compat callers. The renderer reads {@link #defaultState()} directly
+     * everywhere but the carried-block variant lookup, which keys {@link #variants()} by this string
+     * once per block-overlay row per frame; a default state carries at most one property, so the join
+     * it runs there is a single token.
      *
      * @return the joined default-state key
      */

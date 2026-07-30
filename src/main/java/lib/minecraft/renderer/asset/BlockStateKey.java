@@ -17,8 +17,13 @@ import java.util.StringJoiner;
  * <p>{@link #parse(String)} and {@link #join(Map)} are inverses for canonical inputs - sorted, with no
  * comma or equals inside a value - which is all the tooling and vanilla blockstates ever produce. Both
  * default states ({@code block_defaults.json}) and blockstate variant keys parse once at load through
- * {@link #parse}; {@link #join} runs only where a canonical string is still emitted (the parity dump and
- * {@link Block#defaultStateKey()}), never on the render hot path.
+ * {@link #parse}; {@link #join} runs only where a canonical string is still emitted - the parity dump,
+ * and {@link Block#defaultStateKey()}.
+ *
+ * <p>One of those emissions is on the render path after all: the carried-block variant lookup joins a
+ * default state per block-overlay row per frame. It stays a join rather than a precomputed component
+ * because of what it joins - four of the ninety entity models carry such a row, over default states of
+ * at most one property, so the sort has nothing to order and the joiner emits a single token.
  */
 @UtilityClass
 public final class BlockStateKey {
