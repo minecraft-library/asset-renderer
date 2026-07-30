@@ -118,13 +118,10 @@ record RawStateAxis(
 /**
  * The {@code axes.variant} axis.
  *
- * @param idEncoded whether each option is a first-class {@code minecraft:<id>_<opt>} pseudo-id (always
- *     {@code false} in 26.1 - the dead id-encoded branch)
  * @param defaultOption the option name carrying the model baseline
  * @param options the coat options keyed by option name
  */
 record RawVariantAxis(
-    @SerializedName("id_encoded") boolean idEncoded,
     @SerializedName("default") @Nullable String defaultOption,
     @NotNull Map<String, RawVariantOption> options
 ) {}

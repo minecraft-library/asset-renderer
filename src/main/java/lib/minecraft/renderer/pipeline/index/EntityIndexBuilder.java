@@ -48,9 +48,15 @@ import java.util.Set;
  * canvas-group membership. The leaf decodes (hex tint, {@code blend} token, texture strip, transform ops)
  * happen here too, where the {@link Diagnostics} handle is available - the raw records carry them verbatim.
  *
- * <p>Id-encoded variant expansion is retained faithfully but is a dead branch in 26.1 - the tooling hardcodes
- * {@code id_encoded: false}, so every family folds to one base row (option-encoded coats live on
- * {@code axes.variants}, measured by the group canvas union rather than as separate member rows).
+ * <p>Every family folds to one base row: option-encoded coats live on {@code axes.variants} and are
+ * measured by the group canvas union rather than expanded into member rows of their own. That is a
+ * <b>collision-safety</b> rule rather than a convenience. Expanding a coat into a row would have to
+ * synthesize its key by concatenation - {@code minecraft:wolf} plus {@code ashen} - into the same flat
+ * keyspace real entity ids occupy, and nothing would then distinguish the two: a future vanilla entity
+ * of that shape, or third-party {@code namespace:id} content, gives one key two claimants. The index
+ * keyspace <b>is</b> the vanilla entity registry, only Minecraft declares a top-level row in it, and a
+ * coat is therefore a selection over a row rather than a row. That makes the collision unrepresentable
+ * instead of merely unlikely, which is why it must not be reintroduced as a convenience.
  */
 public final class EntityIndexBuilder {
 
@@ -123,19 +129,9 @@ public final class EntityIndexBuilder {
             String familyId = entry.getKey();
             RawModel family = entry.getValue();
             RawVariantAxis variant = variantAxis(family);
-            boolean idEncoded = variant != null && variant.idEncoded();
-            if (variant != null && idEncoded) {
-                String defaultOption = variant.defaultOption();
-                String baseId = familyId + "_" + defaultOption;
-                for (String option : variant.options().keySet()) {
-                    String rowId = familyId + "_" + option;
-                    variantOf.put(rowId, option.equals(defaultOption) ? null : baseId);
-                }
-            } else {
-                // Non-variant OR option-encoded variant model: one base row. Option-encoded coats live on
-                // the base definition's axes.variants and are measured by the group canvas union.
-                variantOf.put(familyId, null);
-            }
+            // One base row per model, variant or not. Option-encoded coats live on the base
+            // definition's axes.variants and are measured by the group canvas union.
+            variantOf.put(familyId, null);
             // group_of groups a non-variant sub-species under its base (camel_husk -> camel). A variant
             // model's group_of (mooshroom -> cow) is inert at runtime, so it is guarded to non-variant
             // models to keep that inertness once option-encoding makes the base row a plain id.
@@ -163,8 +159,8 @@ public final class EntityIndexBuilder {
     // ------------------------------------------------------------------------------------
 
     /**
-     * Reads one model into one (plain) or many (id-encoded variant) {@link Entity} rows, adding each to
-     * {@code definitions}.
+     * Reads one model into its single {@link Entity} row and adds it to {@code definitions}. A variant
+     * model's coats are built into the row's option map rather than into rows of their own.
      */
     private static void readDefinition(
         @NotNull String familyId,
@@ -207,21 +203,12 @@ public final class EntityIndexBuilder {
 
         RawVariantAxis variant = variantAxis(family);
         if (variant != null) {
-            boolean idEncoded = variant.idEncoded();
             String defaultOption = variant.defaultOption();
             Map<String, RawVariantOption> options = variant.options();
             VariantContext ctx = new VariantContext(baseCoord, geometries, hiddenBones, boneToggleSpecs, familyOverlays,
                 blockOverlays, baseTint, setupYawAddend, rendererScale, babyModel, babyOverlays, collarTexture, equipment, markings, humanoidArmor,
                 stateDefaultOf(family));
-            if (idEncoded) {
-                // id-encoded: each coat is a first-class render pseudo-id minecraft:<id>_<opt>.
-                for (Map.Entry<String, RawVariantOption> option : options.entrySet()) {
-                    String rowId = familyId + "_" + option.getKey();
-                    definitions.put(rowId, buildVariantRow(rowId, option.getValue(), ctx, diagnostics));
-                }
-                return;
-            }
-            // option-encoded variant: one base row minecraft:<id>, the coat resolved at render. Every option
+            // one base row minecraft:<id>, the coat resolved at render. Every option
             // is built into a sub-definition; the base row IS the default coat carrying the full option map.
             LinkedHashMap<String, Entity> coats = new LinkedHashMap<>();
             for (Map.Entry<String, RawVariantOption> option : options.entrySet())
@@ -266,8 +253,8 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * The family-level render context shared by every variant option's build, so one coat build serves
-     * both the id-encoded pseudo-id expansion and the option-encoded sub-definition map.
+     * The family-level render context shared by every variant option's build, so one coat build fills
+     * the whole option map without restating what the coats have in common.
      */
     private record VariantContext(
         @NotNull String baseCoord,

@@ -27,10 +27,10 @@ import java.util.Map;
 import java.util.TreeSet;
 
 /**
- * Node {@code axes.variant} - the option-encoded variant axis (the axis is
- * {@code id_encoded: false}): each coat is a render-time {@code EntityAppearance.variant}
- * selection over one base id, not a first-class {@code <id>_<opt>} pseudo-id. Two source
- * arms, tried in order:
+ * Node {@code axes.variant} - the option-encoded variant axis: each coat is a render-time
+ * {@code EntityAppearance.variant} selection over one base id, never a first-class
+ * {@code <id>_<opt>} id of its own, so nothing is ever synthesized into the keyspace the vanilla
+ * entity registry owns. Two source arms, tried in order:
  *
  * <ul>
  *   <li><b>Data-driven tables</b> - the {@code data/minecraft/<stem>_variant/} JSONs already
@@ -106,7 +106,7 @@ final class EntityVariantAxisResolver {
         }
 
         Map<String, String> modelTypeLayers = modelTypeToModelLayerField();
-        JsonTree node = JsonTree.object().put("id_encoded", false).put("default", dflt);
+        JsonTree node = JsonTree.object().put("default", dflt);
         JsonTree options = node.child("options");
         for (VariantIndex.Variant variant : table) {
             JsonTree option = JsonTree.object()
@@ -265,7 +265,7 @@ final class EntityVariantAxisResolver {
                 this.diagnostics.info("variant default '%s' via first map key (enum has no DEFAULT)", dflt);
 
             VariantBlockTable table = VariantBlockTable.of(this.cache, this.blocks, enumInternal, this.diagnostics);
-            JsonTree node = JsonTree.object().put("id_encoded", false).put("default", dflt);
+            JsonTree node = JsonTree.object().put("default", dflt);
             JsonTree options = node.child("options");
             for (Map.Entry<String, List<String>> coat : coats.byConstant().entrySet()) {
                 String id = variantId(coat.getKey(), ids);

@@ -108,7 +108,6 @@
       "renderer": "net/minecraft/client/renderer/entity/AxolotlRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "lucy",
           "options": {
             "lucy": {
@@ -380,7 +379,6 @@
       "renderer": "net/minecraft/client/renderer/entity/CatRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "black",
           "options": {
             "all_black": {
@@ -577,7 +575,6 @@
       "renderer": "net/minecraft/client/renderer/entity/ChickenRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "temperate",
           "options": {
             "cold": {
@@ -683,7 +680,6 @@
       "renderer": "net/minecraft/client/renderer/entity/CowRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "temperate",
           "options": {
             "cold": {
@@ -1087,7 +1083,6 @@
       "renderer": "net/minecraft/client/renderer/entity/FrogRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "temperate",
           "options": {
             "cold": {
@@ -1321,7 +1316,6 @@
       "renderer": "net/minecraft/client/renderer/entity/HorseRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "white",
           "options": {
             "white": {
@@ -1589,7 +1583,6 @@
       },
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "creamy",
           "options": {
             "creamy": {
@@ -1695,7 +1688,6 @@
       "renderer": "net/minecraft/client/renderer/entity/MushroomCowRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "red",
           "options": {
             "brown": {
@@ -1956,7 +1948,6 @@
       "renderer": "net/minecraft/client/renderer/entity/PandaRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "normal",
           "options": {
             "normal": {
@@ -2089,7 +2080,6 @@
       "renderer": "net/minecraft/client/renderer/entity/PigRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "temperate",
           "options": {
             "cold": {
@@ -2305,7 +2295,6 @@
       "renderer": "net/minecraft/client/renderer/entity/RabbitRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "brown",
           "options": {
             "brown": {
@@ -2833,7 +2822,6 @@
       },
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "creamy",
           "options": {
             "creamy": {
@@ -3237,7 +3225,6 @@
       "renderer": "net/minecraft/client/renderer/entity/WolfRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "pale",
           "options": {
             "ashen": {
@@ -3573,7 +3560,6 @@
       "renderer": "net/minecraft/client/renderer/entity/ZombieNautilusRenderer",
       "axes": {
         "variant": {
-          "id_encoded": false,
           "default": "temperate",
           "options": {
             "temperate": {
