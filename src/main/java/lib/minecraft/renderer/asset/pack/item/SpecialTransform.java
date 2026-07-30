@@ -8,13 +8,20 @@ import java.util.Arrays;
 
 /**
  * A {@code special}-node {@code transformation} - vanilla's {@code com.mojang.math.Transformation}
- * decomposition ({@code items/player_head.json} et al.), applied
- * {@code T . Rleft . S . Rright} as a model-space pre-transform ahead of the render placement.
- * Identity when the node declares no transformation.
+ * decomposition ({@code items/player_head.json} et al.), a {@code T . Rleft . S . Rright} pose
+ * carried in model space. Identity when the node declares no transformation.
+ *
+ * <p>It is parsed and held rather than applied, and that is deliberate: this renderer already poses
+ * every subject the shipped non-identity transformations cover through a second, independent channel
+ * - the {@code inventory} node on {@code block_models.json}, which reaches the render as a block
+ * entity's presentation transform. The two carry the same pose in different units ({@code [0, 1]}
+ * block units here against the {@code [0, 16]} authoring frame there), so applying this one as well
+ * would pose every bed, banner, shulker box and head twice. Unifying the channels is a real change
+ * with a real gate - the block sum - not a hookup.
  *
  * <p>The quaternions carry no Tait-Bryan factory ambiguity (raw {@code [x, y, z, w]} components),
  * but the row-form matrix this decomposes to must be transposed to this codebase's {@code v_row x M}
- * convention (CLAUDE.md JOML section) - see the render-side conversion.
+ * convention (CLAUDE.md JOML section).
  *
  * @param leftRotation the left rotation quaternion, {@code [x, y, z, w]}
  * @param rightRotation the right rotation quaternion, {@code [x, y, z, w]}
@@ -37,8 +44,9 @@ public record SpecialTransform(
     );
 
     /**
-     * Whether this transform is the identity - the common case, letting the render path skip the
-     * pre-transform entirely.
+     * Whether this transform is the identity. Not the common case in shipped data: of the 123
+     * {@code special} nodes vanilla 26.1 ships, 73 declare a non-identity transformation and the
+     * other 50 declare none at all.
      *
      * @return whether every component equals {@link #IDENTITY}
      */
@@ -52,8 +60,8 @@ public record SpecialTransform(
      * {@code PoseStack} call order ({@code translate; mulPose(left); scale; mulPose(right)}) - the same
      * pattern the item {@code display} transform uses ({@code ItemRenderer.Held3D.resolveDisplayTransform}
      * builds {@code scale; rotate; translate}) - which is the transpose the {@code v_row x M} convention
-     * requires (CLAUDE.md JOML section). Applied as a model-space pre-transform ahead of the render
-     * placement in the special-kind path.
+     * requires (CLAUDE.md JOML section). Composes the decomposition for a caller that applies one;
+     * nothing on the render path does today, for the reason on the class doc.
      *
      * @return the composed model-space pre-transform matrix
      */
