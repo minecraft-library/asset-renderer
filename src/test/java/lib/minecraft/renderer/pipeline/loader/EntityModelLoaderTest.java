@@ -156,7 +156,7 @@ class EntityModelLoaderTest {
         // because the base already covers its silhouette. Keyed on the overlay inheriting the base mesh,
         // not on ref-equality of the model object.
         OverlayLayer eyes = defs.get("minecraft:enderman").overlays().getFirst();
-        assertThat("emissive eyes overlay", eyes.emissive(), is(true));
+        assertThat("emissive eyes overlay", eyes.pass().emissive(), is(true));
         assertThat("base-mesh-inheriting grow-less overlay skips bounds", eyes.skipBounds(), is(true));
 
         // The sheep wool layer uses a DISTINCT geometry (SheepFurModel) and carries no depth-clearance, so

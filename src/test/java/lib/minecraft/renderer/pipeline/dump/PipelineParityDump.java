@@ -1347,11 +1347,11 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject overlay(@NotNull Entity.OverlayLayer overlay) {
         JsonObject root = new JsonObject();
         root.add("model", entityModel(overlay.model()));
-        root.addProperty("emissive", overlay.emissive());
+        root.addProperty("emissive", overlay.pass().emissive());
         root.add("tint", CanonicalJson.argb(overlay.tintArgb()));
         root.addProperty("skip_bounds", overlay.skipBounds());
-        root.addProperty("blend", overlay.blend().name());
-        root.add("alpha", CanonicalJson.number(overlay.alpha()));
+        root.addProperty("blend", overlay.pass().blend().name());
+        root.add("alpha", CanonicalJson.number(overlay.pass().alpha()));
         CanonicalJson.put(root, "texture_ref", overlay.textureRef(), JsonPrimitive::new);
         CanonicalJson.put(root, "tint_by", overlay.tintBy(), JsonPrimitive::new);
         CanonicalJson.put(root, "texture_by", overlay.textureBy(), JsonPrimitive::new);

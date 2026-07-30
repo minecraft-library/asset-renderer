@@ -1,9 +1,9 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta.Villager.Hat;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.VillagerType;
@@ -113,8 +113,8 @@ class VillagerHatRuleTest {
      * @param textureRef the pass' baked texture ref
      */
     private static OverlayLayer pass(String textureBy, String textureRef) {
-        return new OverlayLayer(new EntityModelData(), Optional.of(textureRef), false, 0xFFFFFFFF, true,
-            Optional.empty(), Optional.of(textureBy), BlendMode.NORMAL, 1f, true, false,
+        return new OverlayLayer(new EntityModelData(), Optional.of(textureRef), PassDeclaration.DEFAULT,
+            0xFFFFFFFF, true, Optional.empty(), Optional.of(textureBy),
             Optional.empty(), Optional.empty());
     }
 

@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.asset;
 
 import dev.simplified.collection.Concurrent;
-import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.option.AppearanceGate;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.HorseMarking;
@@ -494,9 +494,10 @@ public record Entity(
      *     co-register under the renderer's shared auto-fit transform
      * @param textureRef the bundled texture sub-path (without {@code .png}), or empty when the overlay
      *     should reuse the base entity's texture
-     * @param emissive when {@code true} the overlay renders full-bright (unlit), mirroring vanilla Java's
-     *     {@code RenderType.eyes} pattern, instead of shaded src-over. Tagged onto every triangle the
-     *     overlay produces; the rasterizer keys off the per-triangle flag
+     * @param pass what vanilla declared about the pass this overlay is submitted through - full-bright
+     *     shading, colour composition, opacity multiplier, depth write and quad sort - parsed from the
+     *     overlay's optional {@code pipeline} node and tagged onto every triangle the overlay produces.
+     *     {@link PassDeclaration#DEFAULT} for an un-annotated overlay
      * @param tintArgb per-overlay multiplicative ARGB tint, mirroring vanilla's
      *     {@code coloredCutoutModelRender(..., color, ...)} colour argument (sheep wool colour,
      *     tropical-fish pattern colour). Defaults to {@code 0xFFFFFFFF} (white = no-op MULTIPLY)
@@ -511,23 +512,6 @@ public record Entity(
      *     (e.g. {@code "pattern"} for the tropical-fish pattern, sourced from
      *     {@code EntityAppearance.pattern}), or empty when the overlay texture is fixed at
      *     {@link #textureRef}
-     * @param blend the colour-composition mode the rasterizer composites this overlay with -
-     *     {@link BlendMode#NORMAL} source-over (the default; also what a {@code translucent} node maps
-     *     to, since the slime shell's translucency is in its texture alpha),
-     *     {@link BlendMode#ADD} for the energy-swirl glow ({@code blend: additive}) or
-     *     {@link BlendMode#REPLACE} for a pass vanilla draws through a pipeline declaring no blend
-     *     function ({@code blend: cutout}). Parsed from the overlay's optional {@code blend} node,
-     *     orthogonal to {@link #emissive}
-     * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} from the overlay's optional
-     *     {@code alpha} node, multiplied into the sampled texel's alpha before the {@link #blend}
-     *     composite. {@code 1.0} (no-op) except for an overlay carrying an explicit multiplier (the warden
-     *     pulsating-spots glow at {@code 0.25}) - a fractional layer opacity that cannot ride the tint's
-     *     alpha byte (the MULTIPLY tint blend preserves the texel alpha)
-     * @param writesDepth whether the pass writes the depth buffer, from its
-     *     {@code DepthStencilState.writeDepth}. Independent of {@link #emissive} - vanilla's eyes pass is
-     *     emissive and write-disabled, its energy swirl is emissive and writes - so a two-sided inflated
-     *     shell like the charged aura occludes its own far faces exactly where vanilla's does
-     * @param sorted whether the pass's quads are drawn back-to-front, from its {@code sortOnUpload}
      * @param gate the render condition parsed from the overlay's {@code when} object (the sheep wool
      *     {@code sheared} flag, the wool undercoat {@code tinted} axis, the creeper {@code charged} axis),
      *     or empty when the overlay renders unconditionally
@@ -538,15 +522,11 @@ public record Entity(
     public record OverlayLayer(
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef,
-        boolean emissive,
+        @NotNull PassDeclaration pass,
         int tintArgb,
         boolean skipBounds,
         @NotNull Optional<String> tintBy,
         @NotNull Optional<String> textureBy,
-        @NotNull BlendMode blend,
-        float alpha,
-        boolean writesDepth,
-        boolean sorted,
         @NotNull Optional<AppearanceGate> gate,
         @NotNull Optional<EntityModelData> noHatModel
     ) {}

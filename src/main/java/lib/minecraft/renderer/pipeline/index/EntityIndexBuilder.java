@@ -20,6 +20,7 @@ import lib.minecraft.renderer.asset.equipment.ArmorForm;
 import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.AppearanceGate;
@@ -413,8 +414,9 @@ public final class EntityIndexBuilder {
             // sameGeometry, the depth-clearance inflate and the derived skipBounds above all stand.
             Optional<EntityModelData> noHatModel = entry.noHatRoot() == null ? Optional.empty()
                 : clearSubtreeCubes(materialised, entry.noHatRoot(), entityId, diagnostics);
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, textureBy,
-                blend, alpha, writesDepth, sorted, gate, noHatModel));
+            PassDeclaration pass = new PassDeclaration(emissive, blend, alpha, writesDepth, sorted);
+            out.add(new OverlayLayer(materialised, overlayTexture, pass, overlayTint, skipBounds, tintBy,
+                textureBy, gate, noHatModel));
         }
         return out;
     }

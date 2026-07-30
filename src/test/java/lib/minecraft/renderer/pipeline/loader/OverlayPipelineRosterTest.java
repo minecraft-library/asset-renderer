@@ -51,8 +51,8 @@ class OverlayPipelineRosterTest {
         Set<String> emissiveWithoutWrite = new TreeSet<>();
         Set<String> emissiveWithWrite = new TreeSet<>();
         index().forEach((id, entity) -> entity.overlays().forEach(overlay -> {
-            if (!overlay.emissive()) return;
-            (overlay.writesDepth() ? emissiveWithWrite : emissiveWithoutWrite).add(id);
+            if (!overlay.pass().emissive()) return;
+            (overlay.pass().writesDepth() ? emissiveWithWrite : emissiveWithoutWrite).add(id);
         }));
         assertThat(emissiveWithoutWrite, is(new TreeSet<>(Set.of(
             "minecraft:cave_spider", "minecraft:copper_golem", "minecraft:ender_dragon",
@@ -66,7 +66,7 @@ class OverlayPipelineRosterTest {
     void noDepthWriteRosterMatches() {
         Set<String> flagged = new TreeSet<>();
         index().forEach((id, entity) -> entity.overlays().forEach(overlay -> {
-            if (!overlay.writesDepth()) flagged.add(id);
+            if (!overlay.pass().writesDepth()) flagged.add(id);
         }));
         assertThat(flagged, is(new TreeSet<>(NO_DEPTH_WRITE)));
     }
@@ -76,10 +76,10 @@ class OverlayPipelineRosterTest {
     void energySwirlsWriteAndSort() {
         Set<String> flagged = new TreeSet<>();
         index().forEach((id, entity) -> entity.overlays().forEach(overlay -> {
-            if (overlay.blend() != BlendMode.ADD) return;
+            if (overlay.pass().blend() != BlendMode.ADD) return;
             flagged.add(id);
-            assertThat(id + " writes depth", overlay.writesDepth(), is(true));
-            assertThat(id + " sorts", overlay.sorted(), is(true));
+            assertThat(id + " writes depth", overlay.pass().writesDepth(), is(true));
+            assertThat(id + " sorts", overlay.pass().sorted(), is(true));
         }));
         assertThat(flagged, is(new TreeSet<>(ADDITIVE)));
     }
@@ -89,7 +89,7 @@ class OverlayPipelineRosterTest {
     void sortedIsIndependentOfEmissive() {
         Set<String> sortedNonEmissive = new TreeSet<>();
         index().forEach((id, entity) -> entity.overlays().forEach(overlay -> {
-            if (overlay.sorted() && !overlay.emissive()) sortedNonEmissive.add(id);
+            if (overlay.pass().sorted() && !overlay.pass().emissive()) sortedNonEmissive.add(id);
         }));
         assertThat(sortedNonEmissive, is(new TreeSet<>(Set.of(
             "minecraft:breeze", "minecraft:slime", "minecraft:warden"))));

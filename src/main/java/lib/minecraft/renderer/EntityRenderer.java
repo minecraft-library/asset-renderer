@@ -525,9 +525,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                         // the pass itself; every un-annotated overlay keeps the source-over full-opacity
                         // depth-writing default.
                         sink.addAll(EntityGeometryKit.buildTriangles(overlayMesh, overlayTex.get(),
-                            new EntityGeometryKit.EntityBuildParams(ctx.frame(),
-                                new PassDeclaration(overlay.emissive(), overlay.blend(), overlay.alpha(),
-                                                    overlay.writesDepth(), overlay.sorted()), overlayTint)
+                            new EntityGeometryKit.EntityBuildParams(ctx.frame(), overlay.pass(), overlayTint)
                         ).triangles());
                     });
                 }
