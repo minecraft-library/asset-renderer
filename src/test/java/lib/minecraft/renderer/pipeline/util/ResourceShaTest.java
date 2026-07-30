@@ -23,9 +23,11 @@ import static org.hamcrest.Matchers.is;
 /**
  * Single golden-reference guard for every bundled JSON resource under
  * {@code src/main/resources/lib/minecraft/renderer/}: the block snapshots
- * ({@code block_models}, {@code block_geometry}, {@code block_defaults}, {@code block_tints}) plus the
- * colormap, entity, and potion / glint tables ({@code color_maps}, {@code entity_geometry},
- * {@code entity_models}, {@code potion_colors}, {@code glint_items}).
+ * ({@code block_models}, {@code block_geometry}, {@code block_defaults}, {@code block_tints},
+ * {@code block_items}) plus the colormap, entity, and potion / glint tables ({@code color_maps},
+ * {@code entity_geometry}, {@code entity_models}, {@code potion_colors}, {@code glint_items}).
+ * All ten are covered; the criterion is that a native reader consumes the file directly, which
+ * {@code BlockItemsLoader} does.
  * <p>
  * It guards the resources that the native readers consume directly. {@code block_geometry} carries
  * its own byte-lock, separate from {@code block_models}, since it holds the geometry rather than
@@ -51,7 +53,7 @@ class ResourceShaTest {
     static final @NotNull Path FIXTURES = Path.of("src/test/resources/lib/minecraft/renderer");
 
     static final @NotNull List<String> COVERED = List.of(
-        "block_models", "block_geometry", "block_defaults", "block_tints",
+        "block_models", "block_geometry", "block_defaults", "block_tints", "block_items",
         "color_maps", "entity_geometry", "entity_models", "potion_colors", "glint_items"
     );
 
