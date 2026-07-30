@@ -267,27 +267,17 @@ public class EntityGeometryKit {
                     Vector2f[] effUv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
                     float shading = lighting.shade(shadingNormal, cubeCullBackFaces);
 
-                    // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. The kit itself
+                    // Natural CCW emission - the shared {@code (0, 1, 2)} / {@code (0, 2, 3)} fan in
+                    // {@link BlockGeometryKit#addQuad}, so an entity cube's coplanar seams split on
+                    // the same diagonal every other quad in the renderer does. The kit itself
                     // is det=+1 (emit-order cross AGREES with the stored normal); the chirality
                     // reflection re-enters downstream via the renderer's Placement Y-flip. Total
                     // pipeline chirality: placement Y-flip (det -1) × engine_camera (det -1) ×
                     // projection's -y (det -1) = det -1. Model CCW → screen CW → rasterizer's
                     // {@code signedArea < 0} check correctly classifies these as front-facing.
                     String debugTag = boneName + ":" + face.direction();
-                    triangles.add(new VisibleTriangle(
-                        corners[0], corners[1], corners[2],
-                        effUv[0], effUv[1], effUv[2],
-                        texture, tintArgb,
-                        normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, pass), debugTag
-                    ));
-                    triangles.add(new VisibleTriangle(
-                        corners[0], corners[2], corners[3],
-                        effUv[0], effUv[2], effUv[3],
-                        texture, tintArgb,
-                        normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, pass), debugTag
-                    ));
+                    BlockGeometryKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, shading,
+                        new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, pass), debugTag);
                 }
             }
         }

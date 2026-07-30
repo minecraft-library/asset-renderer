@@ -94,9 +94,12 @@ public class FluidGeometryKit {
         Vector3f pSWb = new Vector3f(-CUBE_HALF, yBot, +CUBE_HALF);
 
         addNonPlanarTop(triangles, pNWt, pSWt, pSEt, pNEt, still, argbTint);
-        addFlatQuad(triangles, pSWb, pNWb, pNEb, pSEb,
-            new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            still, argbTint, Face.DOWN.normal());
+
+        Vector3f down = Face.DOWN.normal();
+        BlockGeometryKit.addQuad(triangles,
+            new Vector3f[] {pSWb, pNWb, pNEb, pSEb},
+            new Vector2f[] {new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f)},
+            still, argbTint, down, Lighting.inventory(down), SurfaceTraits.OPAQUE_BODY, null);
 
         PixelBuffer sideTex = flowAngleRadians.isPresent() ? flow : still;
 
@@ -113,8 +116,15 @@ public class FluidGeometryKit {
     }
 
     /**
-     * Emits the top face as two triangles split along the NW-SE diagonal. Per-triangle normals
-     * are computed from edge cross products so a sloped top shades correctly.
+     * Emits the top face as two triangles split along the NW-SE diagonal - the same corner-0 /
+     * corner-2 pair {@link BlockGeometryKit}'s shared quad emitter splits on - with per-triangle
+     * normals computed from edge cross products so a sloped top shades correctly.
+     * <p>
+     * <b>This is the renderer's one quad that does not route through that emitter, and the reason is
+     * the geometry rather than the history.</b> A sloped top's four corners are not coplanar, so its
+     * two halves face different ways: each carries its own normal and therefore its own shade, and
+     * there is no shared per-quad value for the emitter to take. Every other quad in the renderer has
+     * one normal and one shade for both triangles, which is exactly what the emitter's signature says.
      */
     private static void addNonPlanarTop(
         @NotNull ConcurrentList<VisibleTriangle> out,
@@ -148,37 +158,21 @@ public class FluidGeometryKit {
         @NotNull PixelBuffer texture, int argbTint, @NotNull Vector3f normal,
         @NotNull Optional<Float> flowAngleRadians
     ) {
-        Vector2f uvTL = new Vector2f(0f, 1f - topLeftHeight);
-        Vector2f uvBL = new Vector2f(0f, 1f);
-        Vector2f uvBR = new Vector2f(1f, 1f);
-        Vector2f uvTR = new Vector2f(1f, 1f - topRightHeight);
+        Vector2f[] uv = {
+            new Vector2f(0f, 1f - topLeftHeight),
+            new Vector2f(0f, 1f),
+            new Vector2f(1f, 1f),
+            new Vector2f(1f, 1f - topRightHeight)
+        };
 
         if (flowAngleRadians.isPresent()) {
             float angle = flowAngleRadians.get();
-            uvTL = rotateUvAround(uvTL, UV_CENTRE, UV_CENTRE, angle);
-            uvBL = rotateUvAround(uvBL, UV_CENTRE, UV_CENTRE, angle);
-            uvBR = rotateUvAround(uvBR, UV_CENTRE, UV_CENTRE, angle);
-            uvTR = rotateUvAround(uvTR, UV_CENTRE, UV_CENTRE, angle);
+            for (int i = 0; i < uv.length; i++)
+                uv[i] = rotateUvAround(uv[i], UV_CENTRE, UV_CENTRE, angle);
         }
 
-        addFlatQuad(out, pTL, pBL, pBR, pTR, uvTL, uvBL, uvBR, uvTR, texture, argbTint, normal);
-    }
-
-    /**
-     * Emits a planar quad as two triangles ({@code TL-BL-BR} and {@code TL-BR-TR}) sharing one
-     * surface normal and one flat {@link Lighting#inventory inventory} shading scalar. Vertex order
-     * matches {@link BlockGeometryKit}'s {@code addQuad} convention - top-left, bottom-left,
-     * bottom-right, top-right viewed from the positive-normal side.
-     */
-    private static void addFlatQuad(
-        @NotNull ConcurrentList<VisibleTriangle> out,
-        @NotNull Vector3f pTL, @NotNull Vector3f pBL, @NotNull Vector3f pBR, @NotNull Vector3f pTR,
-        @NotNull Vector2f uvTL, @NotNull Vector2f uvBL, @NotNull Vector2f uvBR, @NotNull Vector2f uvTR,
-        @NotNull PixelBuffer texture, int argbTint, @NotNull Vector3f normal
-    ) {
-        float shading = Lighting.inventory(normal);
-        out.add(new VisibleTriangle(pTL, pBL, pBR, uvTL, uvBL, uvBR, texture, argbTint, normal, shading, SurfaceTraits.OPAQUE_BODY));
-        out.add(new VisibleTriangle(pTL, pBR, pTR, uvTL, uvBR, uvTR, texture, argbTint, normal, shading, SurfaceTraits.OPAQUE_BODY));
+        BlockGeometryKit.addQuad(out, new Vector3f[] {pTL, pBL, pBR, pTR}, uv,
+            texture, argbTint, normal, Lighting.inventory(normal), SurfaceTraits.OPAQUE_BODY, null);
     }
 
     /**

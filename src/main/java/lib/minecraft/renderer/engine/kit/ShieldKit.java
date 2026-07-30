@@ -184,16 +184,8 @@ public class ShieldKit {
             // Baked here for the rasterizer's contract; relightForItems3d recomputes it from the
             // ITEMS_3D lights, so the value only needs to be a valid placeholder.
             float shading = Lighting.inventory(normal);
-            out.add(new VisibleTriangle(
-                corners[0], corners[1], corners[2],
-                uv[0], uv[1], uv[2],
-                texture, ColorMath.WHITE, normal, shading, SurfaceTraits.OPAQUE_BODY
-            ));
-            out.add(new VisibleTriangle(
-                corners[0], corners[2], corners[3],
-                uv[0], uv[2], uv[3],
-                texture, ColorMath.WHITE, normal, shading, SurfaceTraits.OPAQUE_BODY
-            ));
+            BlockGeometryKit.addQuad(out, corners, uv,
+                texture, ColorMath.WHITE, normal, shading, SurfaceTraits.OPAQUE_BODY, null);
         }
     }
 

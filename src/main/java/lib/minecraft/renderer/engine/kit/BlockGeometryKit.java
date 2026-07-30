@@ -136,14 +136,19 @@ public class BlockGeometryKit {
         @Nullable String debugPart
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        // The full [0, 1] rectangle - the UV every face of a box takes. One quartet serves all six
+        // faces because Vector2f is immutable, so the instances are shared rather than re-derived.
+        Vector2f[] uv = {
+            new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f)
+        };
 
         for (Face face : Face.CACHED_VALUES) {
             Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
+            Vector3f normal = face.normal();
             addQuad(
-                triangles,
-                corners[0], corners[1], corners[2], corners[3],
+                triangles, corners, uv,
                 textures.byFace(face), tintArgb,
-                face.normal(),
+                normal, Lighting.inventory(normal),
                 surface,
                 debugPart == null ? null : debugPart + ":" + face.direction()
             );
@@ -247,11 +252,9 @@ public class BlockGeometryKit {
                     Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
                     Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
                     boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
-                    addQuad(triangles,
-                        corners[0], corners[1], corners[2], corners[3],
-                        uv[0], uv[1], uv[2], uv[3],
-                        texture, tintArgb, normal,
-                        new SurfaceTraits(!isPlaneCube, translucent, false, PassDeclaration.DEFAULT), true, 0, null);
+                    addQuad(triangles, corners, uv,
+                        texture, tintArgb, normal, Lighting.inventory(normal),
+                        new SurfaceTraits(!isPlaneCube, translucent, false, PassDeclaration.DEFAULT), null);
                 }
             }
         }
@@ -502,14 +505,11 @@ public class BlockGeometryKit {
                 boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture)
                     || forceTranslucentRefs.contains(face.getTexture());
                 addQuad(
-                    triangles,
-                    corners[0], corners[1], corners[2], corners[3],
-                    uv[0], uv[1], uv[2], uv[3],
+                    triangles, corners, uv,
                     texture, faceTint,
                     faceNormal,
+                    elementShade(faceNormal, element.isShade(), element.getLightEmission()),
                     new SurfaceTraits(!twoSided, translucent, false, PassDeclaration.DEFAULT),
-                    element.isShade(),
-                    element.getLightEmission(),
                     null
                 );
             }
@@ -639,90 +639,94 @@ public class BlockGeometryKit {
     }
 
     /**
-     * Adds two triangles describing a quad defined by four CCW-ordered vertices to the given list.
-     * <p>
-     * Vertex order is top-left, bottom-left, bottom-right, top-right when viewed from the
-     * positive normal direction, matching vanilla's {@code FaceInfo} convention. UV mapping is
-     * fixed to the full {@code [0, 1]} rectangle.
-     */
-    private static void addQuad(
-        @NotNull ConcurrentList<VisibleTriangle> out,
-        @NotNull Vector3f topLeft,
-        @NotNull Vector3f bottomLeft,
-        @NotNull Vector3f bottomRight,
-        @NotNull Vector3f topRight,
-        @NotNull PixelBuffer texture,
-        int tintArgb,
-        @NotNull Vector3f normal,
-        @NotNull SurfaceTraits traits,
-        @Nullable String debugTag
-    ) {
-        addQuad(out,
-            topLeft, bottomLeft, bottomRight, topRight,
-            new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            texture, tintArgb, normal, traits, true, 0, debugTag);
-    }
-
-    /**
-     * Terminal quad emitter: splits a CCW quad into its two triangles and appends them to
-     * {@code out}, baking the inventory shade factor and {@link SurfaceTraits surface traits} into
-     * each so the rasterizer needs no per-triangle face lookup.
+     * Bakes the shade one face of a block element carries - the {@link Lighting#inventory} cardinal
+     * shade, {@link Shading#DISABLED} for a {@code "shade": false} element, or an emission-raised
+     * floor.
      * <p>
      * {@link Lighting#inventory} resolves the dominant cardinal of the (post-element-rotation) face
      * normal and returns the matching vanilla {@code Lighting.ITEMS_3D} approximation -
      * cardinal-aligned faces reproduce the per-face values on {@link Face#lighting}
      * ({@code 1.0}/{@code 0.5}/{@code 0.6}/{@code 0.8}), and faces tipped by {@code element.rotation}
-     * resolve to the closest cardinal's shade. When {@code directionalLight} is {@code false} (a face
-     * of a {@code "shade": false} element) the shade is instead {@link Shading#DISABLED}, so the
-     * relight pass renders it full-bright to match vanilla's in-world {@code getShade(dir, false) == 1.0}.
+     * resolve to the closest cardinal's shade. A {@code "shade": false} element takes
+     * {@link Shading#DISABLED} instead, so the relight pass renders it full-bright to match vanilla's
+     * in-world {@code getShade(dir, false) == 1.0}.
+     * <p>
+     * {@code light_emission} folds on top by raising the shade <b>floor</b> to {@code emission / 15},
+     * never by mapping to the {@link Shading#DISABLED} sentinel - which renders BLACK on the
+     * no-relight Held3D item path ({@code apply(-1)}). So an emissive {@code shade: true} face bakes a
+     * real {@code [0,1]} scalar that renders full-bright on Held3D and, on the block-icon path, is
+     * recomputed by {@link Shading#relightForItems3d}, where the floor is a documented Held3D-side
+     * effect. Vanilla's only emissive elements are {@code shade: false}, so they take the disabled
+     * branch unchanged and the fold is a no-op on vanilla content.
+     * <p>
+     * <b>Only the element path asks this.</b> A box, a bone cube, a fluid face and the shield have no
+     * element, no {@code shade} flag and no emission, so they bake {@link Lighting#inventory} directly
+     * rather than routing a {@code true, 0} pair through here - which is what those two literals used
+     * to hide.
      *
-     * @param traits the surface character both triangles carry, declared by the caller
+     * @param normal the face normal, after any {@code element.rotation}
      * @param directionalLight whether the face receives {@code ITEMS_3D} shading, or full-bright when
      *     {@code false} (a {@code "shade": false} element)
-     * @param lightEmission the element's {@code light_emission} level {@code 0-15}: raises the baked
-     *     shade floor to {@code emission / 15}, full-bright at {@code 15};
-     *     {@code 0} leaves the shade untouched. The floor is a real {@code [0,1]} scalar (not the
-     *     {@link Shading#DISABLED} sentinel, which renders black on the un-relit Held3D path)
+     * @param lightEmission the element's {@code light_emission} level {@code 0-15}; {@code 0} leaves
+     *     the shade untouched and {@code 15} raises the floor to full-bright
+     * @return the shade scalar every triangle of the face carries
+     */
+    private static float elementShade(@NotNull Vector3f normal, boolean directionalLight, int lightEmission) {
+        if (!directionalLight) return Shading.DISABLED;
+        if (lightEmission > 0) {
+            float emissionFloor = Math.min(lightEmission, FULL_LIGHT_EMISSION) / (float) FULL_LIGHT_EMISSION;
+            return Math.max(Lighting.inventory(normal), emissionFloor);
+        }
+        return Lighting.inventory(normal);
+    }
+
+    /**
+     * The renderer's one quad emitter: splits a planar quad into its two triangles and appends them to
+     * {@code out}.
+     * <p>
+     * <b>The fan diagonal is chosen here, and every planar quad the renderer draws is split by this
+     * one line.</b> The triangles are {@code (0, 1, 2)} and {@code (0, 2, 3)}, so they meet along the
+     * corner-0 / corner-2 pair - the diagonal {@link CornerPhase} pins. That is not a matter of taste:
+     * two coplanar quads split on opposite diagonals fight along the seam they share, an equal depth
+     * passes ({@code GL_LEQUAL}, last-drawn-wins), and the winner is then decided by emission order. A
+     * block element, a bone cube, a fluid side and the shield used to spell this split independently
+     * and agreed by luck.
+     * <p>
+     * Both triangles carry one {@code normal}, one {@code shading} and one {@code traits} instance -
+     * that sharing is what makes them one quad rather than two triangles. A caller whose halves need
+     * different values has no shared per-quad value to hand in and emits its own pair; the renderer's
+     * only such site is a fluid's sloped top, whose four corners are not coplanar.
+     * <p>
+     * The shade is the caller's, baked before the call: {@link Lighting#inventory} for a box, a bone
+     * cube, a fluid face or the shield, {@link #elementShade} where a block element declares
+     * {@code shade} or {@code light_emission}, and the entity light frame's own scalar for an entity
+     * cube. Baking it here instead would make the emitter answer a lighting question only some of its
+     * callers ask.
+     *
+     * @param out the list both triangles are appended to
+     * @param corners the quad's four vertices, in the order the caller's {@link CornerPhase} walks them
+     * @param uv the four UVs, {@code uv[i]} pairing with {@code corners[i]}
+     * @param texture the texture both triangles sample
+     * @param tintArgb the ARGB tint applied to each sampled pixel, or {@code 0xFFFFFFFF} for no tint
+     * @param normal the surface normal both triangles carry
+     * @param shading the shade scalar both triangles carry
+     * @param traits the surface character both triangles carry, declared by the caller
      * @param debugTag the {@code part:face} label for the per-pixel trace, or {@code null} when the
      *     dump is not armed
      */
-    private static void addQuad(
+    static void addQuad(
         @NotNull ConcurrentList<VisibleTriangle> out,
-        @NotNull Vector3f topLeft,
-        @NotNull Vector3f bottomLeft,
-        @NotNull Vector3f bottomRight,
-        @NotNull Vector3f topRight,
-        @NotNull Vector2f uvTL,
-        @NotNull Vector2f uvBL,
-        @NotNull Vector2f uvBR,
-        @NotNull Vector2f uvTR,
+        @NotNull Vector3f @NotNull [] corners,
+        @NotNull Vector2f @NotNull [] uv,
         @NotNull PixelBuffer texture,
         int tintArgb,
         @NotNull Vector3f normal,
+        float shading,
         @NotNull SurfaceTraits traits,
-        boolean directionalLight,
-        int lightEmission,
         @Nullable String debugTag
     ) {
-        // Shade baked per triangle (see the javadoc): inventory cardinal shade, or full-bright
-        // DISABLED for a "shade": false element. light_emission folds on top by
-        // raising the shade FLOOR to emission/15 (capped at 1.0 for the full 15) - NOT by mapping to
-        // the DISABLED sentinel, which renders BLACK on the no-relight Held3D item path (apply(-1)).
-        // So an emissive shade:true face bakes a real [0,1] scalar that renders full-bright on Held3D
-        // and, on the block-icon path, is recomputed by Shading.relightForItems3d (the floor is a
-        // documented Held3D-side effect there). Vanilla's only emissive elements are shade:false, so
-        // they take the DISABLED branch below unchanged - the fold is a no-op on vanilla.
-        float shading;
-        if (!directionalLight) {
-            shading = Shading.DISABLED;
-        } else if (lightEmission > 0) {
-            float emissionFloor = Math.min(lightEmission, FULL_LIGHT_EMISSION) / (float) FULL_LIGHT_EMISSION;
-            shading = Math.max(Lighting.inventory(normal), emissionFloor);
-        } else {
-            shading = Lighting.inventory(normal);
-        }
-        out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, traits, debugTag));
-        out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, traits, debugTag));
+        out.add(new VisibleTriangle(corners[0], corners[1], corners[2], uv[0], uv[1], uv[2], texture, tintArgb, normal, shading, traits, debugTag));
+        out.add(new VisibleTriangle(corners[0], corners[2], corners[3], uv[0], uv[2], uv[3], texture, tintArgb, normal, shading, traits, debugTag));
     }
 
 }
