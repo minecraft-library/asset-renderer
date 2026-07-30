@@ -38,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
 /**
@@ -672,7 +673,7 @@ public final class GeometryParser {
         // so legacy literal-stack walkers keep their literal-only walk. Branch-following
         // remains gated on {@code paramIntValues != null} - without a known parameter
         // value the parser falls through linearly. Decoupling the two gates means Java
-        // entities at the top-level Source (where {@code paramIntValues == null} but
+        // entities at the top-level request (where {@code paramIntValues == null} but
         // {@code EVALUATING}) still pop the comparison values, preventing
         // the leftover-literal warnings produced by for-loop {@code IF_ICMPGE} etc.
         if (node instanceof JumpInsnNode jumpInsn) {
@@ -1224,7 +1225,7 @@ public final class GeometryParser {
                     state.frame.pendingFreshArrayType = '\0';
                 } else if (state.frame.pendingRandomSource != null) {
                     // The previous {@code RandomSource.createThreadLocalInstance(J)}
-                    // captured a seeded {@link java.util.Random}; bind it to this slot so
+                    // captured a seeded {@link Random}; bind it to this slot so
                     // subsequent {@code aload <slot>; <bound>; invokeinterface nextInt}
                     // calls can step it. GhastModel's {@code ldc2_w 1660L;
                     // invokestatic createThreadLocalInstance; astore_2} hits this exactly.
@@ -1472,7 +1473,7 @@ public final class GeometryParser {
             && !state.numStack.isEmpty()) {
             float f = state.numStack.popNumber().floatValue();
             // Vanilla never calls {@code scaling(0)}; a captured 0 means the synthetic
-            // {@link Source}'s {@code paramFloatValues} didn't supply the {@code createBodyLayer}
+            // {@link GeometryRequest}'s {@code paramFloatValues} didn't supply the {@code createBodyLayer}
             // float parameter that this site references via {@code fload_0}. Donkey / mule hit
             // this: their {@code createBodyLayer(float)} reads the renderer's per-variant scale,
             // which our tooling-side source builder doesn't currently populate. Skip the capture
@@ -1538,12 +1539,12 @@ public final class GeometryParser {
         }
         // {@code RandomSource.createThreadLocalInstance(J)} - seeded factory. Mojang's
         // {@code SingleThreadedRandomSource} ctor calls {@code setSeed} with the same LCG
-        // as {@link java.util.Random#setSeed} (multiplier {@code 25214903917L}, increment
+        // as {@link Random#setSeed} (multiplier {@code 25214903917L}, increment
         // {@code 11L}, modulus mask {@code (1L << 48) - 1}). The subsequent
         // {@code BitRandomSource#nextInt(int)} default method is also identical to
-        // {@code java.util.Random#nextInt(int)} - same power-of-2 fast path, same
+        // {@code Random#nextInt(int)} - same power-of-2 fast path, same
         // rejection-sampling loop for non-power-of-2 bounds. So substituting
-        // {@code new java.util.Random(seed)} produces bit-identical results. Pops the
+        // {@code new Random(seed)} produces bit-identical results. Pops the
         // long seed from numStack, stashes a fresh Random on
         // {@link CallFrame#pendingRandomSource}; the next {@code ASTORE} binds it to a
         // local slot.
@@ -1562,13 +1563,13 @@ public final class GeometryParser {
             AbstractInsnNode seedNode = AsmKit.previousReal(methodInsn);
             Long seed = seedNode != null ? AsmKit.readLongLiteral(seedNode) : null;
             if (seed != null) {
-                state.frame.pendingRandomSource = new java.util.Random(seed);
+                state.frame.pendingRandomSource = new Random(seed);
             }
             return;
         }
         // {@code RandomSource.nextInt(I)I} via invokeinterface. Walks back over preceding
         // real instructions to find the {@code ALOAD <slot>} that pushed the random
-        // reference; when the slot has a tracked {@link java.util.Random} AND the bound
+        // reference; when the slot has a tracked {@link Random} AND the bound
         // operand is a real literal, steps the random and pushes the literal int result.
         // Otherwise pops the bound and pushes a non-literal marker so the JVM stack stays
         // aligned.
@@ -1583,7 +1584,7 @@ public final class GeometryParser {
                 AbstractInsnNode boundNode = AsmKit.previousReal(methodInsn);
                 AbstractInsnNode aloadNode = boundNode != null ? AsmKit.previousReal(boundNode) : null;
                 if (aloadNode instanceof VarInsnNode aload && aload.getOpcode() == Opcodes.ALOAD) {
-                    java.util.Random rng = state.frame.localRandomSources.get(aload.var);
+                    Random rng = state.frame.localRandomSources.get(aload.var);
                     if (rng != null && bound.intValue() > 0) {
                         state.numStack.push(rng.nextInt(bound.intValue()));
                         return;
@@ -2234,8 +2235,8 @@ public final class GeometryParser {
 
             // Cumulative model scale (ancestor scale times this bone's local scale). Only the scale
             // is folded here - the kit's ModelPart-style chain
-            // ({@link lib.minecraft.renderer.engine.kit.EntityGeometryKit} resolveChainFrom / the
-            // shared {@link lib.minecraft.renderer.engine.kit.BoneKit}) supplies each ancestor's
+            // (EntityGeometryKit resolveChainFrom / the
+            // shared BoneKit) supplies each ancestor's
             // rotation + translation at render. Children read the cumulative scale back via
             // {@link BoneMeta}.
             float worldScale = parentScale * state.frame.pendingScale;
@@ -2313,8 +2314,8 @@ public final class GeometryParser {
         /**
          * Float values to substitute for {@code FLOAD slot} parameter loads when
          * evaluating arithmetic. {@code null} disables float param substitution AND
-         * arithmetic evaluation entirely (the legacy behaviour). When non-null,
-         * see {@link Source#paramFloatValues()} for the substitution rules.
+         * arithmetic evaluation entirely (the literal-stack-only walk). When non-null,
+         * see {@link GeometryRequest#paramFloatValues()} for the substitution rules.
          */
         float @Nullable [] paramFloatValues;
 
@@ -2378,16 +2379,16 @@ public final class GeometryParser {
         @NotNull ConcurrentMap<Integer, float[]> localFloatArrays = Concurrent.newMap();
 
         /**
-         * JVM local-variable slot -> tracked {@link java.util.Random} created by a seeded
+         * JVM local-variable slot -> tracked {@link Random} created by a seeded
          * {@code RandomSource.createThreadLocalInstance(J)} factory + {@code ASTORE} pair.
          * Each subsequent {@code aload <slot>; <bound>; invokeinterface
          * RandomSource.nextInt(I)I} sequence steps the random and pushes the literal
          * result. Vanilla's {@code GhastModel.createBodyLayer} uses seed {@code 1660L} to
          * deterministically produce tentacle heights; the parser substitutes the same
-         * {@link java.util.Random} algorithm (Mojang's {@code BitRandomSource} matches the
+         * {@link Random} algorithm (Mojang's {@code BitRandomSource} matches the
          * standard LCG bit-for-bit). Starts empty in each child frame ({@link #inlineChild}).
          */
-        @NotNull ConcurrentMap<Integer, java.util.Random> localRandomSources = Concurrent.newMap();
+        @NotNull ConcurrentMap<Integer, Random> localRandomSources = Concurrent.newMap();
 
         /**
          * Random instance captured by a {@code RandomSource.createThreadLocalInstance(J)}
@@ -2395,7 +2396,7 @@ public final class GeometryParser {
          * {@code ASTORE}. Reset on consumption. Non-null only across that single
          * createThreadLocalInstance-then-ASTORE pair.
          */
-        @Nullable java.util.Random pendingRandomSource;
+        @Nullable Random pendingRandomSource;
 
         /**
          * Length captured by a {@code NEWARRAY <T>} instruction that hasn't yet been bound
@@ -2515,7 +2516,7 @@ public final class GeometryParser {
         final @NotNull ConcurrentList<Integer> branchStack = Concurrent.newList();
 
         /**
-         * Enum-reference branch evaluation (set from {@link Source#refParam()}). When
+         * Enum-reference branch evaluation (set from {@link GeometryRequest#refParam()}). When
          * {@link #refParamOwner} is non-null, {@code ALOAD <refParamSlot>} pushes the
          * {@link #REF_PARAM_SENTINEL} marker onto {@link #refStack}, {@code GETSTATIC
          * <refParamOwner>.<name>} pushes the constant field name, and {@code IF_ACMPEQ} /
@@ -2547,7 +2548,8 @@ public final class GeometryParser {
         final @NotNull ConcurrentList<String> refStack = Concurrent.newList();
 
         /**
-         * Flattened pivot + scale for each flushed bone, used to resolve child inheritance.
+         * Cumulative uniform scale for each flushed bone, used to resolve child inheritance. No
+         * pivot or rotation is folded here - the kit composes each ancestor's at render.
          */
         final @NotNull ConcurrentMap<String, BoneMeta> boneMeta = Concurrent.newMap();
 
@@ -2618,14 +2620,14 @@ public final class GeometryParser {
         float @NotNull [] pendingInflate = { 0f, 0f, 0f };
 
         /**
-         * The factory's default {@code CubeDeformation} inflate, captured at the call site
-         * in {@link EntityLayerDefinitionResolver} (e.g. {@code 0.25} for
-         * {@code DROWNED_OUTER_LAYER}'s {@code DrownedModel.createBodyLayer(new
+         * The factory's default {@code CubeDeformation} inflate, seeded from the requesting
+         * resolver's captured call-site value through {@link GeometryRequest#grow()} (e.g.
+         * {@code 0.25} for {@code DROWNED_OUTER_LAYER}'s {@code DrownedModel.createBodyLayer(new
          * CubeDeformation(0.25F))}). {@link #pendingInflate} resets to this value after every
          * {@code emitCube} so all cubes in the factory pick up the call-site-provided inflate
          * by default, while inline {@code new CubeDeformation(F)} / {@code .extend(F)}
-         * per-cube overrides still take precedence on the next addBox. Zero for normal entity
-         * sources whose factory takes no {@code CubeDeformation} arg.
+         * per-cube overrides still take precedence on the next addBox. Zero for a request whose
+         * factory takes no {@code CubeDeformation} arg.
          */
         float @NotNull [] defaultInflate = { 0f, 0f, 0f };
 
@@ -2807,9 +2809,9 @@ public final class GeometryParser {
      * entries, allocating a new array (and copying existing values) when {@code current}
      * is {@code null} or too small. Used by the for-loop unroller in
      * {@link #handleInstruction} to inject the iterator's per-iteration value into a slot
-     * that might not have been pre-sized by the {@link Source}'s {@code paramIntValues}
-     * (top-level Java entity sources don't set {@code paramIntValues} at all, so the slot
-     * is unallocated until the first loop fires).
+     * that might not have been pre-sized by the {@link GeometryRequest}'s {@code paramIntValues}
+     * (the entity recipes leave {@code paramIntValues} null, so the slot is unallocated
+     * until the first loop fires).
      *
      * @param current the existing {@code paramIntValues} array, or {@code null}
      * @param slot the slot index that must be addressable

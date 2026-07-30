@@ -139,8 +139,12 @@ public final class Diagnostics {
     }
 
     /**
-     * Returns whether this scope's subtree recorded at least one {@link Severity#ERROR} -
-     * the strict-gate read (an {@code ERROR} fails the flow).
+     * Returns whether this scope's subtree recorded at least one {@link Severity#ERROR}. This is
+     * a convenience read over {@link #count(Severity)} and is not the gate itself: the gate is
+     * {@link ToolingSession#failOnStrictGate()}, which counts {@code ERROR} and {@code WARN}
+     * separately because it names both figures in the exception it throws.
+     *
+     * @return {@code true} when the subtree recorded an {@code ERROR}
      */
     public boolean failed() {
         return count(Severity.ERROR) > 0;

@@ -9,10 +9,11 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>The class coordinate is a JVM internal name, never a zip entry path; the inflate
  * pre-seed is the 3-component {@code grow} (a lossy scalar average would lose per-axis
- * detail); {@code subjectId} is provenance (the first requesting subject, powering
- * diagnostics + the {@code source} twin), not an output key - keys are minted by the
- * manifest. Texture-dimension overrides ride as components so the skull-wrapper unwrap can
- * stamp {@code texture_size} through them.
+ * detail); {@code subjectId} is provenance alone - the first requesting subject, named in
+ * every parse diagnostic so a failure points at a subject rather than at a bare factory - and
+ * it reaches neither the minted key nor the emitted {@code source} twin, both of which are
+ * built from the factory coordinate and the discriminators. Texture-dimension overrides ride
+ * as components so the skull-wrapper unwrap can stamp {@code texture_size} through them.
  *
  * @param factoryClass the factory class's JVM internal name
  * @param factoryMethod the factory method to parse

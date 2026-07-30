@@ -91,13 +91,24 @@ import java.util.regex.Pattern;
  *       extractGenericTypeParameter} pulls the single concrete type parameter out of an
  *       {@code Outer<LInner;>} field signature.</li>
  *   <li><b>Diagnostic formatters</b> - {@code diagMissingClass} / {@code diagMissingMethod} /
- *       {@code diagMissingField} / {@code diagUnexpectedPattern} emit canonical {@code WARN}
- *       entries to a {@link Diagnostics} sink so degraded-parse warnings share one phrasing.</li>
+ *       {@code diagMissingField} / {@code diagUnexpectedPattern} offer canonical {@code WARN}
+ *       phrasings for a {@link Diagnostics} sink. Nothing calls them: a tooling walk that
+ *       loses a class or a member reports it at {@code ERROR} and bails, so these four are an
+ *       available phrasing rather than the one in force.</li>
  *   <li><b>Retention / state classes</b> - {@link LiteralStack} accumulates recent literal
  *       pushes so a builder-dispatch instruction can pop them in LIFO order, and
  *       {@link SlotTracker} models the {@code ASTORE n} / {@code ALOAD n} local-variable dance
  *       for parsers that must remember a slot's value across intervening instructions.</li>
  * </ul>
+ *
+ * <p>That inventory is capability, not a call graph. Fourteen of the names it lists have no
+ * production caller and are kept deliberately, a bytecode primitive being cheaper to carry
+ * than to re-derive on a Minecraft version bump: both {@code requireMethod} forms,
+ * {@link #requireClinit}, {@link #requireField}, {@link #findFieldInHierarchy},
+ * {@link #readAnyLiteral}, {@link #argSlotCount}, both {@code isInvokeInterface} forms,
+ * {@link #isGetField}, both {@code containsInvoke} forms, {@link #containsFieldOp}, and all
+ * four {@code diag*} formatters. Of those, only {@code requireClinit} and
+ * {@code findFieldInHierarchy} are reached at all, by this kit's own unit test.
  *
  * <p>None of the helpers here know about the vanilla semantic patterns the callers are
  * hunting for (tint sources, effect colours, cube literals, layer dispatch, lambda targets).
@@ -1470,28 +1481,35 @@ public final class AsmKit {
     // ----------------------------------------------------------------------------------------
 
     /**
+     * Per-cache-instance memo for {@link #resolveStaticScalingFactor} (must permit
+     * {@code null} values - "resolved to null" is distinct from "not yet walked").
+     * Single-threaded per session by tooling convention.
+     */
+    private static final @NotNull Map<ClassNodeCache, Map<String, Float>> SCALING_MEMO = new WeakHashMap<>();
+
+    /**
      * Resolves a {@code static final} field whose {@code <clinit>} initialiser is a literal
      * single-float factory call - {@code LDC F; INVOKESTATIC <factoryOwner>.<factoryMethod>(F)...;
      * PUTSTATIC <owner>.<field>:<fieldDesc>} - to that {@code F}. Walks the owning class's
-     * {@code <clinit>} once and binds <b>every</b> canonical field it encounters into
-     * {@code cache} (keyed {@code owner + "." + field}), so sibling fields on the same class
-     * resolve without a re-walk; a non-canonical initialiser (indy-backed, arithmetic on {@code F},
-     * compound) binds {@code null}. {@code cache.containsKey} distinguishes "resolved to null"
-     * from "not yet walked", and short-circuits before {@code classLoader} is consulted so a cache
-     * hit never touches the jar.
+     * {@code <clinit>} once and memoises <b>every</b> canonical field it encounters, keyed
+     * {@code owner + "." + field}, so sibling fields on the same class resolve without a re-walk;
+     * a non-canonical initialiser (indy-backed, arithmetic on {@code F}, compound) memoises
+     * {@code null}. The memo's own {@code containsKey} distinguishes "resolved to null" from "not
+     * yet walked" and short-circuits before {@link ClassNodeCache#load}, so a hit never touches
+     * the jar.
      *
      * <p>Kept vanilla-agnostic: the caller supplies the factory owner / method and the field
-     * descriptor (for the vanilla mesh-transformer walkers these are {@code MeshTransformer} /
+     * descriptor (for the mesh-transformer walkers these are {@code MeshTransformer} /
      * {@code "scaling"} / {@code L...MeshTransformer;}). The factory is matched as
      * {@code "(F)" + fieldDesc} - a single {@code float} argument returning the field type.
-     * The memo is keyed per {@link ClassNodeCache} INSTANCE and lives here in the kit so the
-     * cache stays storage-only; it is weakly keyed so a closed session's entries
-     * vanish with its cache.
+     * {@link #SCALING_MEMO} is keyed per {@link ClassNodeCache} instance and lives here in the kit
+     * so the cache stays storage-only; it is weakly keyed so a closed session's entries vanish
+     * with its cache.
      *
      * <p>An intervening {@code LDC F} between a {@code scaling(F)} call and its {@code PUTSTATIC}
      * clears the pending scaled value, so a stale factor never binds to a later field. This is a
-     * defensive stance: a looser reset would also satisfy every vanilla 26.1 {@code <clinit>}
-     * (see {@code AsmKitTest}), so the stricter reset is adopted unconditionally.
+     * defensive stance: a looser reset would satisfy every shipped {@code <clinit>} equally well,
+     * so the stricter reset is adopted unconditionally rather than tuned to the corpus.
      *
      * @param cache the per-session cache to consult / populate (also the memo key)
      * @param owner the field's owning class internal name (memo key + {@code PUTSTATIC} owner match)
@@ -1501,13 +1519,6 @@ public final class AsmKit {
      * @param fieldDesc the field's JVM descriptor (also the factory's return type)
      * @return the resolved factor, or {@code null} for a non-canonical / missing initialiser
      */
-    /**
-     * Per-cache-instance memo for {@link #resolveStaticScalingFactor} (must permit
-     * {@code null} values - "resolved to null" is distinct from "not yet walked").
-     * Single-threaded per session by tooling convention.
-     */
-    private static final @NotNull Map<ClassNodeCache, Map<String, Float>> SCALING_MEMO = new WeakHashMap<>();
-
     public static @Nullable Float resolveStaticScalingFactor(
         @NotNull ClassNodeCache cache,
         @NotNull String owner,
@@ -1971,9 +1982,16 @@ public final class AsmKit {
     // ----------------------------------------------------------------------------------------
 
     /**
-     * Emits a canonical {@code WARN} entry of the form
-     * {@code "'%s' class missing from jar - %s"}. Use after a {@link ClassNodeCache#load}
-     * returned {@code null} when the caller wants to continue with a degraded result.
+     * Emits a canonical {@link Diagnostics.Severity#WARN} entry of the form
+     * {@code "'%s' class missing from jar - %s"} for a walk that has lost a class and can
+     * still finish without it.
+     *
+     * <p>The severity is the whole of the choice, so this is not the guard for a class a walk
+     * cannot continue without. {@link ToolingSession#failOnStrictGate()} fails a run on an
+     * {@link Diagnostics.Severity#ERROR} unconditionally but on a {@code WARN} only under
+     * {@code -Dasset.tooling.strict=warn}, so a guard that bails records the class it could not
+     * load at {@code ERROR} in a message of its own. Every missing-class guard in the tooling
+     * bails, which is why nothing calls this.
      *
      * @param diagnostics the diagnostic sink
      * @param internalName the missing class's JVM internal name
@@ -2377,9 +2395,11 @@ public final class AsmKit {
      * instructions. The caller drives it explicitly via {@link #store(int, Object)} on
      * {@code ASTORE}-like events and {@link #load(int)} on {@code ALOAD}-like events.
      *
-     * <p>Used today by {@code GeometryParser} (cube-deformation tracking),
-     * {@code EntityLayerDefinitionResolver} (layer-definition tracking through fluent
-     * apply chains), and {@code InventoryTransformDecomposer} (matrix / vector tracking).
+     * <p>It serves the walk whose operand has to survive an intervening call: a value is
+     * produced, parked in a slot, and read back several instructions later once the argument it
+     * belongs to is finally pushed. A walk that can read its operand from the instruction just
+     * before it wants {@link AsmKit#previousReal previousReal}; one that needs the last few
+     * literals in LIFO order wants {@link LiteralStack}.
      *
      * @param <T> the tracked value type
      */

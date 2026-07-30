@@ -3,11 +3,9 @@ package lib.minecraft.renderer.tooling.atlas;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The atlas diagnose flow's complete policy roster, minus the mis-homed
- * {@code 0.999f} alpha epsilon, which is entity-overlay knowledge. One
- * empirically-tuned threshold, its tuning history carried as provenance. Not a
- * {@code NavigationPolicy}: a render/diagnose job consults a threshold, it does not navigate
- * bytecode.
+ * The atlas diagnose flow's complete policy roster - one empirically-tuned threshold, its
+ * tuning history carried as provenance. Not a {@code NavigationPolicy}: a render / diagnose
+ * job consults a threshold, it does not navigate bytecode.
  */
 enum AtlasPolicies {
 

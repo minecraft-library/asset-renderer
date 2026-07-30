@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -25,7 +26,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
             + " GeometryIds factory-coordinate keys (decision 15); no runtime consumer"),
 
     /**
-     * The entity {@link lib.minecraft.renderer.tooling.geometry.GeometryRequest} coordinate
+     * The entity {@link GeometryRequest} coordinate
      * convention: {@code YAxis.DOWN}, no inventory rotation, {@code null} refParam. A vanilla
      * authoring convention, not per-class bytecode - baked into the entity request factories
      * ({@code GeometryRequest.body} / {@code shape} / {@code overlay} / {@code equipment}),

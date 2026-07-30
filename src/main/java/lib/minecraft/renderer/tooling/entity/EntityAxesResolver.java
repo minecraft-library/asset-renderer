@@ -10,9 +10,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Node {@code axes} - the five-axis dispatcher: runs the sub-resolvers in the fixed order
- * {@code variant}, {@code state}, {@code age}, {@code size}, {@code shape}, appends only
- * non-empty sub-nodes, and returns {@code null} when all five decline.
+ * Node {@code axes} - the five-axis dispatcher: appends the {@code variant}, {@code state},
+ * {@code age}, {@code size} and {@code shape} sub-nodes in that fixed order, omitting the ones
+ * that decline. The node itself is always emitted, since {@code age} is mandatory - it carries
+ * the family baseline in {@code options.adult} - so at most four of the five can be absent.
  *
  * <p>The variant axis resolves FIRST and separately ({@link #resolveVariant()}) because the
  * family's {@code texture} member depends on it: variant-axis families carry per-option

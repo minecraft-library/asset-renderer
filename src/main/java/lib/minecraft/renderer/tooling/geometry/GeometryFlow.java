@@ -62,8 +62,12 @@ public final class GeometryFlow {
     }
 
     /**
-     * The structured {@code source} twin of the factory-coordinate key: the full class
-     * coordinate plus the same discriminators the key encodes, machine-readable.
+     * Returns the machine-readable {@code source} twin of the factory-coordinate key: the full
+     * class coordinate plus the key's discriminators apart from the bound {@code PartPose}
+     * offset, which only the key carries.
+     *
+     * @param request the deduped request
+     * @return the {@code source} object stamped onto the geometry entry
      */
     private static @NotNull JsonTree sourceTwin(@NotNull GeometryRequest request) {
         JsonTree source = JsonTree.object()

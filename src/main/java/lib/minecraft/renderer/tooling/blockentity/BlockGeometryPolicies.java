@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
+import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
@@ -10,7 +11,7 @@ import java.util.Set;
 /**
  * The block-geometry escape hatches: the "which layer factory is THE whole-block geometry vs a
  * decorative sub-layer" allow-list the generic ModelLayers x
- * {@link lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex} join can not settle on
+ * {@link LayerDefinitionIndex} join can not settle on
  * its own (conduit eye/wind/cage, copper-golem poses all resolve to real factories). Declared
  * here with provenance; never fetches ({@code PolicyPurityTest}).
  *

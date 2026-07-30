@@ -22,7 +22,12 @@ final class InventoryTransformResolver {
 
     private final @NotNull TransformWalker walker;
 
-    /** (renderer + '|' + attachment) -> decomposed tuple (absent = not yet computed; null = no transform). */
+    /**
+     * (renderer + '|' + attachment) -> decomposed tuple, filled by {@link Map#computeIfAbsent},
+     * which records no mapping when the walk yields nothing - so an absent key means "not yet
+     * computed" and never "no transform", and a renderer the walker declines re-runs the whole
+     * symbolic execution once per split that asks.
+     */
     private final @NotNull Map<String, float[]> memo = new HashMap<>();
 
     InventoryTransformResolver(@NotNull ClassNodeCache cache) {
