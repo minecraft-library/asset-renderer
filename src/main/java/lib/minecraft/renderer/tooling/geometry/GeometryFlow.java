@@ -63,8 +63,7 @@ public final class GeometryFlow {
 
     /**
      * Returns the machine-readable {@code source} twin of the factory-coordinate key: the full
-     * class coordinate plus the key's discriminators apart from the bound {@code PartPose}
-     * offset, which only the key carries.
+     * class coordinate plus the same discriminators the key encodes, in the same canonical order.
      *
      * @param request the deduped request
      * @return the {@code source} object stamped onto the geometry entry
@@ -85,6 +84,9 @@ public final class GeometryFlow {
             source.put("scaled", request.appliedMeshTransformerScale());
         BabyMeshTransform baby = request.babyTransform();
         if (baby != null) source.put("baby", baby.discriminator());
+        GeometryRequest.PoseParam pose = request.poseParam();
+        if (pose != null && (pose.offset()[0] != 0f || pose.offset()[1] != 0f || pose.offset()[2] != 0f))
+            source.putFloats("pose", pose.offset()[0], pose.offset()[1], pose.offset()[2]);
         int[] intParams = request.paramIntValues();
         if (intParams != null) {
             JsonTree bound = source.childArray("iparam");

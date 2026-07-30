@@ -77,6 +77,12 @@ public record ToolingSession(
      * declared ordering source), {@code format: 2}, and {@code source_version} derived from the
      * session's jar options.
      *
+     * <p>The flow name and this argument are the only two literals a flow's main owns that reach
+     * shipped bytes - the flow twice, as {@code tooling.<flow>} and as the regen task, and the
+     * ordering source once. Renaming a flow or editing an ordering string therefore rewrites the
+     * header of every table that flow emits, and has to be diffed; the strict gate's message, the
+     * resource directory and the {@code wrote %s} line are console output only.
+     *
      * @param orderingSource the declared ordering source stamped into the header
      * @return the envelope root, ready for its payload member
      */

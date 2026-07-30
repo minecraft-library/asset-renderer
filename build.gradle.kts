@@ -169,8 +169,8 @@ tasks {
         exclude("**/*.upstream.json")
     }
 
-    // tooling - the rewrite flows (decision 30 naming); outputs land under
-    // src/main/resources/lib/minecraft/renderer/, never the legacy top-level JSONs.
+    // tooling - the generator flows; every output lands under
+    // src/main/resources/lib/minecraft/renderer/.
 
     register<JavaExec>("entityModels") {
         description = "tooling: walks the client jar and generates src/main/resources/lib/minecraft/renderer/entity_models.json + entity_geometry.json."
@@ -228,8 +228,9 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
-    // atlas render job (decision 35: not an extraction flow); output stays scratch build/atlas/.
-    // Diagnose task names per doc-12 F9 (diagnoseAtlas2 + diagnoseAtlas2Task10).
+    // atlas render job - a render over the texture pack, not a client-jar extraction; output stays
+    // scratch build/atlas/. diagnoseAtlas and diagnoseAtlasTask10 share one main class,
+    // ToolingAtlasDiagnose, split by the --source-filter arg.
 
     register<JavaExec>("atlas") {
         description = "tooling: renders a block/item atlas PNG + typed AtlasSidecar JSON to build/atlas/."

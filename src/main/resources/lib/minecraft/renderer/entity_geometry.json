@@ -30667,7 +30667,12 @@
     "HumanoidModel#createBabyArmorMesh@pose=0.5,-0.5,0.0": {
       "source": {
         "class": "net/minecraft/client/model/HumanoidModel",
-        "method": "createBabyArmorMesh"
+        "method": "createBabyArmorMesh",
+        "pose": [
+          0.5,
+          -0.5,
+          0.0
+        ]
       },
       "texture_size": [
         64,

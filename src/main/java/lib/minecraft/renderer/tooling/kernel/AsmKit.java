@@ -92,7 +92,11 @@ import java.util.regex.Pattern;
  *       {@code diagMissingField} / {@code diagUnexpectedPattern} offer canonical {@code WARN}
  *       phrasings for a {@link Diagnostics} sink. Nothing calls them: a tooling walk that
  *       loses a class or a member reports it at {@code ERROR} and bails, so these four are an
- *       available phrasing rather than the one in force.</li>
+ *       available phrasing rather than the one in force. <b>Do not adopt them to collapse those
+ *       hand-rolled arms</b>: the strict gate fails on an {@code ERROR} always and on a
+ *       {@code WARN} only under {@code -Dasset.tooling.strict=warn}, so swapping the severity
+ *       moves every one of those failures out of the default gate. {@link #findMethodOrError} is
+ *       the reporting arm that keeps it.</li>
  *   <li><b>Retention / state classes</b> - {@link LiteralStack} accumulates recent literal
  *       pushes so a builder-dispatch instruction can pop them in LIFO order, and
  *       {@link SlotTracker} models the {@code ASTORE n} / {@code ALOAD n} local-variable dance
