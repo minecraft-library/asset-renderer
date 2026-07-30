@@ -77,7 +77,7 @@ final class BlockGuiResolver {
     /** The {@code display.gui} roll of the split's item icon, or {@code null} when unresolved. */
     private @Nullable Float displayGuiRoll(@NotNull String splitId) {
         if (this.rollBySplitId.containsKey(splitId)) return this.rollBySplitId.get(splitId);
-        Float roll = resolveRoll(localId(splitId));
+        Float roll = resolveRoll(stripNamespace(splitId));
         this.rollBySplitId.put(splitId, roll);
         return roll;
     }
@@ -127,11 +127,6 @@ final class BlockGuiResolver {
         }
 
         return null;
-    }
-
-    /** The split's namespace-less id ({@code chest} for {@code minecraft:chest}) - the item-def basename. */
-    private static @NotNull String localId(@NotNull String splitId) {
-        return stripNamespace(splitId);
     }
 
     /** Strips any {@code namespace:} prefix. */

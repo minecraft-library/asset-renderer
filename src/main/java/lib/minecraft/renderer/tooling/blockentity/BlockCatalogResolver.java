@@ -271,8 +271,7 @@ final class BlockCatalogResolver {
     /**
      * ChestSpecialRenderer field name -> texture base ({@code REGULAR->normal},
      * {@code COPPER_EXPOSED->copper_exposed}). Each field binds {@code LDC <base>; INVOKESTATIC
-     * <sprite factory>; PUTSTATIC <field>}, so the base is the last string LDC before the store
-     * (the intervening factory call rules out {@code scanPendingBindings}).
+     * <sprite factory>; PUTSTATIC <field>}, so the base is the last string LDC before the store.
      */
     private @NotNull Map<String, String> chestVariantBases() {
         Map<String, String> out = new LinkedHashMap<>();
@@ -390,7 +389,7 @@ final class BlockCatalogResolver {
      * The DyeColor serialized names in declaration order ({@code white, orange, magenta, ...}) -
      * the shulker / bed / banner colour ordering. Each enum constant binds its serialized name as
      * the SECOND string LDC between its {@code NEW} and closing {@code PUTSTATIC} (the first is the
-     * constant name); the {@code <init>} rules out {@code scanPendingBindings}.
+     * constant name).
      */
     private @NotNull List<String> dyeColorOrder() {
         List<String> order = new ArrayList<>();

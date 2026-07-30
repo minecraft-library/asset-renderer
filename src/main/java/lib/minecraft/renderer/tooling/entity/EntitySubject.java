@@ -12,9 +12,7 @@ import java.util.List;
  *
  * @param entityId the namespaced registry id, e.g. {@code minecraft:wolf} - the on-disk
  *     family key
- * @param typeField the {@code EntityType} static field name, e.g. {@code WOLF}
  * @param entityClass the concrete entity class's JVM internal name
- * @param mobCategory the {@code MobCategory} enum constant name from the registration
  * @param rendererClass the renderer class's JVM internal name
  * @param lambdaLayerFields {@code GETSTATIC ModelLayers.X} field names observed in the
  *     renderer-factory lambda body (empty for direct constructor references) - lets the
@@ -30,9 +28,7 @@ import java.util.List;
  */
 public record EntitySubject(
     @NotNull String entityId,
-    @NotNull String typeField,
     @NotNull String entityClass,
-    @NotNull String mobCategory,
     @NotNull String rendererClass,
     @NotNull List<String> lambdaLayerFields,
     @NotNull List<TypeFieldRef> lambdaTypeArgs,

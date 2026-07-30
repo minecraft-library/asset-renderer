@@ -179,14 +179,6 @@ public final class ClassNodeCache implements AutoCloseable {
         }
     }
 
-    /**
-     * The number of distinct internal names looked up since open (including misses).
-     * Diagnostics only.
-     */
-    public int size() {
-        return this.nodes.size();
-    }
-
     @Override
     public void close() {
         try {

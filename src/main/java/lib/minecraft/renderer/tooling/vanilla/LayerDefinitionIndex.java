@@ -17,7 +17,6 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -368,13 +367,6 @@ public final class LayerDefinitionIndex {
      */
     public @Nullable Entry get(@NotNull String layerField) {
         return this.entries.get(layerField);
-    }
-
-    /**
-     * The full index, field to entry, in {@code createRoots} registration order (unmodifiable).
-     */
-    public @NotNull Map<String, Entry> entries() {
-        return Collections.unmodifiableMap(this.entries);
     }
 
     /** The 3-component grow of a pending deformation ({@code null} = no grow). */

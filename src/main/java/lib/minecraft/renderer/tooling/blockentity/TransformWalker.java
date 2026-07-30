@@ -447,7 +447,7 @@ final class TransformWalker {
                 continue;
             }
             if (AsmKit.isPutStatic(in, owner, fieldName) && pending.size() >= 3)
-                return new float[]{pending.get(0), pending.get(1), pending.get(2)};
+                return new float[]{pending.getFirst(), pending.get(1), pending.get(2)};
         }
         return null;
     }

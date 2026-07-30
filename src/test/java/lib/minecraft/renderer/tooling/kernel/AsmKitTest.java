@@ -37,7 +37,6 @@ class AsmKitTest {
     private static final @NotNull String BASE = "test/Base";
     private static final @NotNull String MID = "test/Mid";
     private static final @NotNull String LEAF = "test/Leaf";
-    private static final @NotNull String BINDINGS = "test/Bindings";
     private static final @NotNull String COAT = "test/Coat";
     private static final @NotNull String COAT_MAP = "test/CoatMap";
     private static final @NotNull String TRANSFORMER = "test/MeshTransformer";
@@ -57,7 +56,6 @@ class AsmKitTest {
             write(zip, BASE, baseClass());
             write(zip, MID, midClass());
             write(zip, LEAF, leafClass());
-            write(zip, BINDINGS, bindingsClass());
             write(zip, COAT_MAP, coatMapClass());
             write(zip, SCALES, scalesClass());
             write(zip, VARIANT, variantClass());
@@ -134,22 +132,6 @@ class AsmKitTest {
     // ------------------------------------------------------------------------------------
 
     @Test
-    @DisplayName("scanPendingBindings pairs pending literals with putstatics; unmatched insn clears")
-    void pendingBindings() {
-        ClassNode bindings = cache.require(BINDINGS, "unit");
-        MethodNode clinit = AsmKit.requireClinit(bindings, "unit");
-        List<AsmKit.StaticBinding<String>> found = AsmKit.scanPendingBindings(
-            clinit, AsmKit::readStringLiteral, field -> BINDINGS.equals(field.owner));
-        // A binds "texture_a"; B's pending literal was cleared by the intervening ICONST_0
-        // (the strict reset model); C binds "texture_c".
-        assertEquals(2, found.size());
-        assertEquals("A", found.getFirst().field());
-        assertEquals("texture_a", found.getFirst().value());
-        assertEquals("C", found.getLast().field());
-        assertEquals("texture_c", found.getLast().value());
-    }
-
-    @Test
     @DisplayName("readStaticEnumMap pairs enum keys with first decoded values, committing at the map store")
     void enumMap() {
         Map<String, String> map = AsmKit.readStaticEnumMap(
@@ -209,29 +191,6 @@ class AsmKitTest {
 
     private static byte @NotNull [] leafClass() {
         ClassWriter writer = classHeader(LEAF, MID);
-        writer.visitEnd();
-        return writer.toByteArray();
-    }
-
-    /** {@code A = "texture_a"; B = <cleared>; C = "texture_c"} - the strict-reset fixture. */
-    private static byte @NotNull [] bindingsClass() {
-        ClassWriter writer = classHeader(BINDINGS, "java/lang/Object");
-        writer.visitField(Opcodes.ACC_STATIC, "A", "Ljava/lang/String;", null, null).visitEnd();
-        writer.visitField(Opcodes.ACC_STATIC, "B", "Ljava/lang/String;", null, null).visitEnd();
-        writer.visitField(Opcodes.ACC_STATIC, "C", "Ljava/lang/String;", null, null).visitEnd();
-        MethodVisitor clinit = writer.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
-        clinit.visitCode();
-        clinit.visitLdcInsn("texture_a");
-        clinit.visitFieldInsn(Opcodes.PUTSTATIC, BINDINGS, "A", "Ljava/lang/String;");
-        clinit.visitLdcInsn("texture_b");
-        clinit.visitInsn(Opcodes.ICONST_0);              // unmatched real insn - clears pending
-        clinit.visitInsn(Opcodes.POP);
-        clinit.visitFieldInsn(Opcodes.PUTSTATIC, BINDINGS, "B", "Ljava/lang/String;");
-        clinit.visitLdcInsn("texture_c");
-        clinit.visitFieldInsn(Opcodes.PUTSTATIC, BINDINGS, "C", "Ljava/lang/String;");
-        clinit.visitInsn(Opcodes.RETURN);
-        clinit.visitMaxs(0, 0);
-        clinit.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }

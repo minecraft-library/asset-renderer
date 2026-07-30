@@ -89,12 +89,6 @@ public final class VanillaSourceClasses {
         /** {@code ArmorModelSet} - the set of armor meshes a renderer dresses its subject in. */
         public static final @NotNull String ARMOR_MODEL_SET = "net/minecraft/client/renderer/entity/ArmorModelSet";
 
-        /** {@code HumanoidModel} - the base every humanoid model extends, and the generic armor mesh's factory owner. */
-        public static final @NotNull String HUMANOID_MODEL = CLIENT_MODEL_ROOT + "HumanoidModel";
-
-        /** {@code SimpleEquipmentLayer} - the generic saddle / body-armor layer (roster row 15). */
-        public static final @NotNull String SIMPLE_EQUIPMENT_LAYER = "net/minecraft/client/renderer/entity/layers/SimpleEquipmentLayer";
-
         /** {@code EntityModelSet} - the per-renderer registry of baked layers ({@code bakeLayer} owner on layer ctors). */
         public static final @NotNull String ENTITY_MODEL_SET = CLIENT_MODEL_GEOM_ROOT + "EntityModelSet";
 
@@ -221,9 +215,6 @@ public final class VanillaSourceClasses {
 
         /** The block-state property package prefix - the tightened "is this field a Property" gate. */
         public static final @NotNull String STATE_PROPERTIES_PACKAGE = "net/minecraft/world/level/block/state/properties/";
-
-        /** {@code BlockStateProperties} - the shared property-constant holder ({@code FACING} etc.). */
-        public static final @NotNull String BLOCK_STATE_PROPERTIES = STATE_PROPERTIES_PACKAGE + "BlockStateProperties";
 
         /** {@code IntegerProperty} - the {@code create(name, min, max)} default reads the min. */
         public static final @NotNull String INTEGER_PROPERTY = STATE_PROPERTIES_PACKAGE + "IntegerProperty";
@@ -716,9 +707,6 @@ public final class VanillaSourceClasses {
 
         /** {@code DepthStencilState.DEFAULT} - the {@code LESS_THAN_OR_EQUAL}, depth-writing state. */
         public static final @NotNull String DEPTH_STENCIL_DEFAULT = "DEFAULT";
-
-        /** {@code RenderPipeline$Builder.withDepthStencilState} - the depth-state builder call. */
-        public static final @NotNull String WITH_DEPTH_STENCIL_STATE = "withDepthStencilState";
 
         /** {@code RenderSetup$RenderSetupBuilder.sortOnUpload} - the back-to-front quad-sort declaration. */
         public static final @NotNull String SORT_ON_UPLOAD = "sortOnUpload";

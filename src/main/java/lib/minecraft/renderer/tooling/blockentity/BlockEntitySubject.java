@@ -15,8 +15,6 @@ import java.util.List;
  *
  * @param beTypeId the namespaced block-entity type id, e.g. {@code minecraft:chest} - the
  *     {@code LDC} in {@code BlockEntityType.<clinit>}
- * @param beTypeField the {@code BlockEntityType} static field name, e.g. {@code CHEST} - the
- *     {@code PUTSTATIC} target and the join key
  * @param rendererClass the renderer class's JVM internal name, resolved from the
  *     {@code BlockEntityRenderers.<clinit>} registration lambda
  * @param blockFields the ordered {@code Blocks} static-field names this type's
@@ -25,7 +23,6 @@ import java.util.List;
  */
 public record BlockEntitySubject(
     @NotNull String beTypeId,
-    @NotNull String beTypeField,
     @NotNull String rendererClass,
     @NotNull List<String> blockFields
 ) {

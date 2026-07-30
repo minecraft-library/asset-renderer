@@ -220,10 +220,10 @@ public record BabyMeshTransform(
         Set<String> headParts = Set.copyOf(parts);
         return switch (desc) {
             case FULL_DESC -> ints.isEmpty() || floats.size() < 5 ? null : new BabyMeshTransform(
-                owner, field, ints.getFirst() != 0, floats.get(0), floats.get(1),
+                owner, field, ints.getFirst() != 0, floats.getFirst(), floats.get(1),
                 floats.get(2), floats.get(3), floats.get(4), headParts);
             case SHORT_DESC -> ints.isEmpty() || floats.size() < 2 ? null : new BabyMeshTransform(
-                owner, field, ints.getFirst() != 0, floats.get(0), floats.get(1),
+                owner, field, ints.getFirst() != 0, floats.getFirst(), floats.get(1),
                 DEFAULT_SCALE, DEFAULT_SCALE, DEFAULT_BODY_Y_OFFSET, headParts);
             case BARE_DESC -> new BabyMeshTransform(owner, field, false,
                 DEFAULT_HEAD_Y_OFFSET, DEFAULT_HEAD_Z_OFFSET,

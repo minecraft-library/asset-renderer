@@ -16,7 +16,6 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -130,11 +129,6 @@ final class VariantIndex {
      */
     @Nullable String holderDefault(@NotNull String stem) {
         return this.holderDefaults.get(stem);
-    }
-
-    /** The indexed stems, in zip directory order (unmodifiable). */
-    @NotNull Map<String, List<Variant>> tables() {
-        return Collections.unmodifiableMap(this.tables);
     }
 
     // ------------------------------------------------------------------------------------

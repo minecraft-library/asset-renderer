@@ -65,14 +65,14 @@ public final class EntityRegistryDiscovery {
 
         ClassNode entityType = AsmKit.requireClass(cache, VanillaSourceClasses.Types.ENTITY_TYPE, "EntityType discovery");
         Map<String, String> fieldToClass = collectEntityTypeFieldClasses(entityType);
-        Map<String, MobRegistration> mobRegistrations = collectMobRegistrations(entityType, diagnostics);
+        Map<String, String> mobRegistrations = collectMobRegistrations(entityType, diagnostics);
         Map<String, RendererRegistration> rendererRegistrations = collectRendererRegistrations(cache, diagnostics);
 
         List<EntitySubject> subjects = new ArrayList<>();
         int totalMobs = 0;
-        for (Map.Entry<String, MobRegistration> mobEntry : mobRegistrations.entrySet()) {
+        for (Map.Entry<String, String> mobEntry : mobRegistrations.entrySet()) {
             String fieldName = mobEntry.getKey();
-            MobRegistration mob = mobEntry.getValue();
+            String entityId = mobEntry.getValue();
 
             String entityClass = fieldToClass.get(fieldName);
             if (entityClass == null) {
@@ -86,15 +86,13 @@ public final class EntityRegistryDiscovery {
             RendererRegistration renderer = rendererRegistrations.get(fieldName);
             if (renderer == null) {
                 diagnostics.warn("mob '%s%s' has no resolvable renderer registration - no family emitted",
-                    VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE, mob.entityId());
+                    VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE, entityId);
                 continue;
             }
 
             subjects.add(new EntitySubject(
-                VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + mob.entityId(),
-                fieldName,
+                VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + entityId,
                 entityClass,
-                mob.mobCategory(),
                 renderer.rendererClass(),
                 List.copyOf(renderer.lambdaLayerFields()),
                 List.copyOf(renderer.lambdaTypeArgs()),
@@ -127,7 +125,7 @@ public final class EntityRegistryDiscovery {
      * metadata (entity id + {@code MobCategory}), preserving static-initializer (vanilla
      * alphabetical) order.
      */
-    private static @NotNull Map<String, MobRegistration> collectMobRegistrations(
+    private static @NotNull Map<String, String> collectMobRegistrations(
         @NotNull ClassNode entityType,
         @NotNull Diagnostics diagnostics
     ) {
@@ -137,7 +135,7 @@ public final class EntityRegistryDiscovery {
             return Map.of();
         }
 
-        Map<String, MobRegistration> out = new LinkedHashMap<>();
+        Map<String, String> out = new LinkedHashMap<>();
         String pendingId = null;
         String pendingCategory = null;
 
@@ -159,7 +157,7 @@ public final class EntityRegistryDiscovery {
             if (fieldName == null) {
                 diagnostics.warn("EntityType registration for id '%s' has no PUTSTATIC field", pendingId);
             } else {
-                out.put(fieldName, new MobRegistration(pendingId, pendingCategory));
+                out.put(fieldName, pendingId);
             }
             pendingId = null;
             pendingCategory = null;
@@ -254,14 +252,6 @@ public final class EntityRegistryDiscovery {
         }
         return null;
     }
-
-    /**
-     * {@code <clinit>}-derived registration metadata paired with each {@code EntityType} field.
-     *
-     * @param entityId the namespace-less registry id
-     * @param mobCategory the {@code MobCategory} enum constant name
-     */
-    private record MobRegistration(@NotNull String entityId, @NotNull String mobCategory) {}
 
     /**
      * Resolved renderer registration paired with each {@code EntityType} field.

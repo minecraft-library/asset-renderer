@@ -9,10 +9,8 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -64,9 +62,7 @@ import java.util.regex.Pattern;
  *       {@link #findFollowingPutStatic findFollowingPutStatic},
  *       {@link #containsInvoke(MethodNode, int, String, String) containsInvoke}, and
  *       {@link #containsFieldOp containsFieldOp}.</li>
- *   <li><b>Dissolvers</b> - {@link #scanPendingBindings scanPendingBindings} (the
- *       LDC-to-PUTSTATIC scanner shape behind nine-plus legacy clones) and
- *       {@link #readStaticEnumMap readStaticEnumMap} (enum-keyed map construction: coat /
+ *   <li><b>Dissolvers</b> - {@link #readStaticEnumMap readStaticEnumMap} (enum-keyed map construction: coat /
  *       crackiness / markings / oxidation) absorb the duplicated walkers.</li>
  *   <li><b>Integer for-loop detection</b> - {@link #detectIntForLoop detectIntForLoop} matches
  *       the canonical javac {@code for (int i = INIT; i < BOUND; i += STEP)} scaffold into an
@@ -1379,55 +1375,6 @@ public final class AsmKit {
     // ----------------------------------------------------------------------------------------
     // Dissolvers - shared walk shapes that absorbed N duplicated scanners
     // ----------------------------------------------------------------------------------------
-
-    /**
-     * One {@code <value>; PUTSTATIC} binding recovered by {@link #scanPendingBindings}.
-     *
-     * @param owner the {@code PUTSTATIC} owner's JVM internal name
-     * @param field the bound static field's name
-     * @param value the decoded pending value
-     * @param site the {@code PUTSTATIC} instruction node
-     */
-    public record StaticBinding<V>(@NotNull String owner, @NotNull String field, @NotNull V value, @NotNull AbstractInsnNode site) {}
-
-    /**
-     * Scans {@code method} for {@code <pending value>; PUTSTATIC} pairs - the shape behind
-     * the nine-plus legacy LDC-to-PUTSTATIC scanner clones. {@code pendingReader} decodes a
-     * candidate value from each instruction (typically one of the {@code readXLiteral}
-     * helpers); a following {@code PUTSTATIC} accepted by {@code putStaticFilter} commits the
-     * pending value to that field. Reset semantics follow
-     * {@link #resolveStaticScalingFactor}'s strict model: any other real instruction clears
-     * the pending value so a stale literal never binds to a later store; pseudo-nodes are
-     * skipped transparently.
-     *
-     * @param method the method to scan (typically a {@code <clinit>})
-     * @param pendingReader decodes a candidate pending value from an instruction, or {@code null}
-     * @param putStaticFilter accepts the {@code PUTSTATIC} instructions that commit a binding
-     * @return the bindings in encounter order
-     */
-    public static <V> @NotNull List<StaticBinding<V>> scanPendingBindings(
-        @NotNull MethodNode method,
-        @NotNull Function<AbstractInsnNode, @Nullable V> pendingReader,
-        @NotNull Predicate<FieldInsnNode> putStaticFilter
-    ) {
-        List<StaticBinding<V>> out = new ArrayList<>();
-        V pending = null;
-        for (AbstractInsnNode node : method.instructions) {
-            if (isPseudoNode(node)) continue;
-            V value = pendingReader.apply(node);
-            if (value != null) {
-                pending = value;
-                continue;
-            }
-            if (node.getOpcode() == Opcodes.PUTSTATIC && node instanceof FieldInsnNode field && putStaticFilter.test(field)) {
-                if (pending != null) out.add(new StaticBinding<>(field.owner, field.name, pending, field));
-                pending = null;
-                continue;
-            }
-            pending = null;
-        }
-        return out;
-    }
 
     /**
      * Reads a static enum-keyed map's {@code <clinit>} construction into a

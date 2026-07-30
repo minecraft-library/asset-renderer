@@ -56,11 +56,9 @@ public final class BlockRegistryIndex {
     public record Entry(@NotNull String field, @NotNull String id, @Nullable String blockClass) {}
 
     private final @NotNull Map<String, Entry> byField;
-    private final @NotNull Map<String, Entry> byId;
 
-    private BlockRegistryIndex(@NotNull Map<String, Entry> byField, @NotNull Map<String, Entry> byId) {
+    private BlockRegistryIndex(@NotNull Map<String, Entry> byField) {
         this.byField = byField;
-        this.byId = byId;
     }
 
     /**
@@ -77,19 +75,18 @@ public final class BlockRegistryIndex {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("blockRegistry");
         Map<String, Entry> byField = new LinkedHashMap<>();
-        Map<String, Entry> byId = new LinkedHashMap<>();
 
         Map<String, String> blockIdsNames = buildBlockIdsMap(cache);
 
         ClassNode blocks = cache.load(VanillaSourceClasses.Types.BLOCKS);
         if (blocks == null) {
             diagnostics.error("'%s' class missing - block registry index unresolved", VanillaSourceClasses.Types.BLOCKS);
-            return new BlockRegistryIndex(byField, byId);
+            return new BlockRegistryIndex(byField);
         }
         MethodNode clinit = AsmKit.findMethod(blocks, AsmKit.CLINIT);
         if (clinit == null) {
             diagnostics.error("'%s.<clinit>' missing - block registry index unresolved", VanillaSourceClasses.Types.BLOCKS);
-            return new BlockRegistryIndex(byField, byId);
+            return new BlockRegistryIndex(byField);
         }
 
         Map<String, String> helperClassCache = new LinkedHashMap<>();
@@ -144,7 +141,6 @@ public final class BlockRegistryIndex {
                     if (fieldName != null) {
                         Entry entry = new Entry(fieldName, VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + pendingId, blockClass);
                         byField.put(fieldName, entry);
-                        byId.put(entry.id(), entry);
                     }
                 }
                 pendingId = null;
@@ -153,7 +149,7 @@ public final class BlockRegistryIndex {
         }
 
         diagnostics.info("indexed %d block registrations from Blocks.<clinit>", byField.size());
-        return new BlockRegistryIndex(byField, byId);
+        return new BlockRegistryIndex(byField);
     }
 
     /**
@@ -165,16 +161,6 @@ public final class BlockRegistryIndex {
      */
     public @Nullable Entry byField(@NotNull String blocksField) {
         return this.byField.get(blocksField);
-    }
-
-    /**
-     * The entry registered under a namespaced block id, or {@code null} when unknown.
-     *
-     * @param blockId the namespaced block id
-     * @return the entry, or {@code null}
-     */
-    public @Nullable Entry byId(@NotNull String blockId) {
-        return this.byId.get(blockId);
     }
 
     /**
