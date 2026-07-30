@@ -127,10 +127,7 @@ final class EntityLayersResolver {
             JsonTree callSite = this.equipment.resolveCallSite(site, windowStart);
             if (callSite != null) rows.add(callSite);
         }
-        if (rows.isEmpty()) return null;
-        JsonTree out = JsonTree.array();
-        for (JsonTree row : rows) out.add(row);
-        return out;
+        return rows.isEmpty() ? null : JsonTree.arrayOf(rows);
     }
 
     /** Whether an enum-map axis token rides a {@code layers[]} row instead of an overlay. */

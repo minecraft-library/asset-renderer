@@ -128,10 +128,7 @@ final class EntityOverlayResolver {
             JsonTree tail = resolveRendererTailEyes();
             if (tail != null) rows.add(tail);
         }
-        if (rows.isEmpty()) return null;
-        JsonTree out = JsonTree.array();
-        for (JsonTree row : rows) out.add(row);
-        return out;
+        return rows.isEmpty() ? null : JsonTree.arrayOf(rows);
     }
 
     /** Dispatches one roster site through the structural arms; first claim wins. */

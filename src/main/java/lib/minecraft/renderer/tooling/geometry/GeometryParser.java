@@ -17,6 +17,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -1738,40 +1739,13 @@ public final class GeometryParser {
      * off {@link WalkState#numStack}.
      *
      * @param descriptor the JVM method descriptor
-     * @return the arg-type characters in source order, or an empty array on a malformed
-     *     descriptor
+     * @return the arg-type characters in source order
      */
     private static char @NotNull [] parseArgTypes(@NotNull String descriptor) {
-        int paren = descriptor.indexOf('(');
-        int close = descriptor.indexOf(')');
-        if (paren < 0 || close < 0) return new char[0];
-        java.util.List<Character> out = new java.util.ArrayList<>();
-        int i = paren + 1;
-        while (i < close) {
-            char c = descriptor.charAt(i);
-            if (c == 'L') {
-                out.add('L');
-                int end = descriptor.indexOf(';', i);
-                if (end < 0) return new char[0];
-                i = end + 1;
-            } else if (c == '[') {
-                out.add('[');
-                while (i < close && descriptor.charAt(i) == '[') i++;
-                if (i < close && descriptor.charAt(i) == 'L') {
-                    int end = descriptor.indexOf(';', i);
-                    if (end < 0) return new char[0];
-                    i = end + 1;
-                } else {
-                    i++;
-                }
-            } else {
-                out.add(c);
-                i++;
-            }
-        }
-        char[] arr = new char[out.size()];
-        for (int j = 0; j < out.size(); j++) arr[j] = out.get(j);
-        return arr;
+        Type[] args = AsmKit.argTypes(descriptor);
+        char[] chars = new char[args.length];
+        for (int i = 0; i < args.length; i++) chars[i] = args[i].getDescriptor().charAt(0);
+        return chars;
     }
 
     /**

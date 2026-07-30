@@ -137,9 +137,8 @@ final class PropertyDefinitionResolver {
         for (AbstractInsnNode node = anewarray; node != null && node != put; node = node.getNext()) {
             Integer literal = AsmKit.readIntLiteral(node);
             if (literal != null) lastInt = literal;
-            if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode prop
-                && isPropertyFieldRef(prop.desc) && prop.desc.charAt(0) != '['
-                && lastInt != null && lastInt == index)
+            FieldInsnNode prop = scalarPropertyRef(node);
+            if (prop != null && lastInt != null && lastInt == index)
                 return new FieldRef(prop.owner, prop.name);
         }
         return null;
@@ -150,10 +149,10 @@ final class PropertyDefinitionResolver {
         return bfsClassGraph(startClass, cn -> {
             MethodNode body = AsmKit.findMethod(cn, method, desc);
             if (body == null || body.instructions.size() == 0) return null;
-            for (AbstractInsnNode node : body.instructions)
-                if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode prop
-                    && isPropertyFieldRef(prop.desc) && prop.desc.charAt(0) != '[')
-                    return new FieldRef(prop.owner, prop.name);
+            for (AbstractInsnNode node : body.instructions) {
+                FieldInsnNode prop = scalarPropertyRef(node);
+                if (prop != null) return new FieldRef(prop.owner, prop.name);
+            }
             return null;
         });
     }
@@ -181,12 +180,12 @@ final class PropertyDefinitionResolver {
         MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
         if (clinit == null) return out;
         Set<String> byName = new HashSet<>();
-        for (AbstractInsnNode node : clinit.instructions)
-            if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode prop
-                && isPropertyFieldRef(prop.desc) && prop.desc.charAt(0) != '[') {
-                String name = resolvePropertyName(prop.owner, prop.name);
-                if (name != null && byName.add(name)) out.add(new FieldRef(prop.owner, prop.name));
-            }
+        for (AbstractInsnNode node : clinit.instructions) {
+            FieldInsnNode prop = scalarPropertyRef(node);
+            if (prop == null) continue;
+            String name = resolvePropertyName(prop.owner, prop.name);
+            if (name != null && byName.add(name)) out.add(new FieldRef(prop.owner, prop.name));
+        }
         return out;
     }
 
@@ -216,9 +215,8 @@ final class PropertyDefinitionResolver {
         Deque<FieldRef> ordered = new ArrayDeque<>();
         for (AbstractInsnNode node = AsmKit.previousReal(of); node != null; node = AsmKit.previousReal(node)) {
             if (node.getOpcode() == Opcodes.PUTSTATIC) break;
-            if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode prop
-                && isPropertyFieldRef(prop.desc) && prop.desc.charAt(0) != '[')
-                ordered.push(new FieldRef(prop.owner, prop.name));
+            FieldInsnNode prop = scalarPropertyRef(node);
+            if (prop != null) ordered.push(new FieldRef(prop.owner, prop.name));
         }
         out.addAll(ordered);
         return out;
@@ -393,6 +391,17 @@ final class PropertyDefinitionResolver {
     static boolean isPropertyFieldRef(@NotNull String desc) {
         String internal = AsmKit.internalNameOfRef(desc);
         return internal != null && internal.startsWith(VanillaSourceClasses.Types.STATE_PROPERTIES_PACKAGE) && internal.endsWith("Property");
+    }
+
+    /**
+     * Returns the field reference a scalar (non-array) property {@code GETSTATIC} names.
+     *
+     * @param node the instruction to test
+     * @return the field instruction, or {@code null} when the node is not a scalar property read
+     */
+    private static @Nullable FieldInsnNode scalarPropertyRef(@NotNull AbstractInsnNode node) {
+        if (node.getOpcode() != Opcodes.GETSTATIC || !(node instanceof FieldInsnNode prop)) return null;
+        return isPropertyFieldRef(prop.desc) && prop.desc.charAt(0) != '[' ? prop : null;
     }
 
     /** Reports whether a method descriptor returns a (non-array) block-state property. */

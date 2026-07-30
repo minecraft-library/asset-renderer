@@ -64,10 +64,7 @@ final class EntityBlockOverlayResolver {
             if (!EntityOverlayResolver.readsBlockModelRenderState(cn)) continue;
             resolveLayer(site, cn, rows);
         }
-        if (rows.isEmpty()) return null;
-        JsonTree out = JsonTree.array();
-        for (JsonTree row : rows) out.add(row);
-        return out;
+        return rows.isEmpty() ? null : JsonTree.arrayOf(rows);
     }
 
     private void resolveLayer(
