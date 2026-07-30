@@ -35,6 +35,7 @@ import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.engine.kit.EquipmentKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Biome;
@@ -342,7 +343,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         IntFunction<ConcurrentList<VisibleTriangle>> buildAtTick = tick -> {
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(texture.get());
             ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(model, frameTexture,
-                new EntityGeometryKit.EntityBuildParams(kitFrame, false, resolved.baseTintArgb())).triangles();
+                new EntityGeometryKit.EntityBuildParams(
+                    kitFrame, PassDeclaration.DEFAULT, resolved.baseTintArgb())).triangles();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
             FeatureContext featureCtx = new FeatureContext(resolved, options, model, frameTexture,
                 kitFrame, this.textures, this.context, tick);
@@ -523,9 +525,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                         // the pass itself; every un-annotated overlay keeps the source-over full-opacity
                         // depth-writing default.
                         sink.addAll(EntityGeometryKit.buildTriangles(overlayMesh, overlayTex.get(),
-                            new EntityGeometryKit.EntityBuildParams(ctx.frame(), overlay.emissive(),
-                                overlayTint, overlay.blend(), overlay.alpha(), overlay.writesDepth(),
-                                overlay.sorted())
+                            new EntityGeometryKit.EntityBuildParams(ctx.frame(),
+                                new PassDeclaration(overlay.emissive(), overlay.blend(), overlay.alpha(),
+                                                    overlay.writesDepth(), overlay.sorted()), overlayTint)
                         ).triangles());
                     });
                 }
@@ -554,7 +556,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     Optional<PixelBuffer> collarTex = ctx.textures().resolveEntityTextureAtTick(ref, ctx.tick());
                     if (collarTex.isEmpty()) return;
                     sink.addAll(EntityGeometryKit.buildTriangles(model, collarTex.get(),
-                        new EntityGeometryKit.EntityBuildParams(ctx.frame(), false, collarTint)).triangles());
+                        new EntityGeometryKit.EntityBuildParams(ctx.frame(), PassDeclaration.DEFAULT, collarTint)).triangles());
                 });
             }
         },
@@ -583,7 +585,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     Optional<PixelBuffer> markingTex = ctx.textures().resolveEntityTextureAtTick(ref, ctx.tick());
                     if (markingTex.isEmpty()) return;
                     sink.addAll(EntityGeometryKit.buildTriangles(model, markingTex.get(),
-                        new EntityGeometryKit.EntityBuildParams(ctx.frame(), false, ColorMath.WHITE)).triangles());
+                        new EntityGeometryKit.EntityBuildParams(
+                            ctx.frame(), PassDeclaration.DEFAULT, ColorMath.WHITE)).triangles());
                 });
             }
         },
@@ -616,7 +619,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                             dye, CitResult.NONE, OptionalInt.of(ctx.tick()));
                         if (equipmentTex.isEmpty()) return;
                         sink.addAll(EntityGeometryKit.buildTriangles(equipment.model(), equipmentTex.get(),
-                            new EntityGeometryKit.EntityBuildParams(ctx.frame(), false, ColorMath.WHITE)).triangles());
+                            new EntityGeometryKit.EntityBuildParams(
+                            ctx.frame(), PassDeclaration.DEFAULT, ColorMath.WHITE)).triangles());
                     });
                 }
             }
@@ -1067,7 +1071,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 tri.uv0(), tri.uv1(), tri.uv2(),
                 tri.texture(), tri.tintArgb(),
                 transformedNormal,
-                shading, new SurfaceTraits(true, tri.traits().emissive(), false, false)
+                shading, new SurfaceTraits(true, false, false,
+                    PassDeclaration.DEFAULT.withEmissive(tri.traits().pass().emissive()))
             ));
         }
         return out;

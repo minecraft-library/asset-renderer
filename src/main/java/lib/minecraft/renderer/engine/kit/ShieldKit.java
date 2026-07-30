@@ -7,6 +7,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.CornerPhase;
@@ -113,7 +114,8 @@ public class ShieldKit {
                 t.position0(), t.position1(), t.position2(),
                 t.uv0(), t.uv1(), t.uv2(),
                 t.texture(), t.tintArgb(), t.normal(), shading,
-                new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
+                new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }
         return out;

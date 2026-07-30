@@ -11,6 +11,7 @@ import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Shading;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.RasterMath;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -593,7 +594,7 @@ public class ModelEngine {
      * @return whether this triangle sorts rather than keeping emission order
      */
     private static boolean sortsBackToFront(@NotNull Projected t) {
-        return t.source().traits().translucent() || t.source().traits().sorted();
+        return t.source().traits().translucent() || t.source().traits().pass().sorted();
     }
 
     /**
@@ -692,10 +693,12 @@ public class ModelEngine {
             // (Lighting.inventory for blocks/fluids, Lighting.EntityLighting#shade
             // for entities); the rasterizer just multiplies it in.
             float shading = t.source.shading();
-            // Hoist the surface traits once per triangle; the per-pixel loop below reads
-            // emissive/glinted/blend/alpha off this local so the deref stays out of the hot path.
+            // Hoist the surface traits and the pass declaration once per triangle; the per-pixel loop
+            // below reads glinted off the one and emissive/blend/alpha/writesDepth off the other, so
+            // neither deref lands in the hot path.
             SurfaceTraits tr = t.source.traits();
-            BlendMode blendMode = tr.blend();
+            PassDeclaration pass = tr.pass();
+            BlendMode blendMode = pass.blend();
             // Depth comes off a plane solved once per triangle from the snapped screen positions, the
             // way graphics hardware sets one up, rather than blended per pixel from barycentric weights.
             // The two forms describe the same plane and differ only in where they round: solving once
@@ -721,7 +724,7 @@ public class ModelEngine {
                     dzdy = (ax * bz - bx * az) / det;
                 }
             }
-            float alphaScale = tr.alpha();
+            float alphaScale = pass.alpha();
 
             // Last texel of the face's own rectangle on each axis, hoisted once per triangle. A
             // quad's two triangles each carry the diagonal's opposite corners, so the max over
@@ -797,7 +800,7 @@ public class ModelEngine {
                         ? ColorMath.blend(t.source.tintArgb(), rawTexel, BlendMode.MULTIPLY)
                         : rawTexel;
 
-                    int afterShade = tr.emissive()
+                    int afterShade = pass.emissive()
                         ? afterTint
                         : Shading.apply(afterTint, shading);
                     // Per-overlay opacity multiplier: scale the fragment's alpha before compositing.
@@ -844,7 +847,7 @@ public class ModelEngine {
                     // meant to be visible behind them. The slime outer-shell extra_bone is appended
                     // last for exactly this reason. {@link #sortNoCullBackToFront} additionally
                     // draws a pass vanilla sorts back-to-front, so the closer face writes LAST.
-                    if (tr.writesDepth())
+                    if (pass.writesDepth())
                         depth[idx] = depthVal;
                 }
             }

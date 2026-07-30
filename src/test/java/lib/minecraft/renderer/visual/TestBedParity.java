@@ -19,6 +19,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.option.BlockOptions;
@@ -158,7 +159,8 @@ public final class TestBedParity {
                 t.texture(), t.tintArgb(),
                 Vector3f.normalize(
                     Vector3f.transformNormal(t.normal(), rotY)),
-                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
+                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }
 
@@ -210,7 +212,8 @@ public final class TestBedParity {
                 t.texture(), t.tintArgb(),
                 Vector3f.normalize(
                     Vector3f.transformNormal(t.normal(), rotY)),
-                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
+                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }
 
@@ -305,7 +308,8 @@ public final class TestBedParity {
                 scaleV(t.position1(), cx, cy, cz, scale),
                 scaleV(t.position2(), cx, cy, cz, scale),
                 t.uv0(), t.uv1(), t.uv2(),
-                t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
+                t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
             ));
         }
         return out;

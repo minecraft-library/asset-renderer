@@ -2,7 +2,6 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
@@ -12,6 +11,7 @@ import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.CornerPhase;
@@ -99,63 +99,30 @@ public class EntityGeometryKit {
      * per render so callers spell them at a named call boundary rather than positionally.
      *
      * @param frame the {@link RenderFrame} this build is fitted through
-     * @param emissive whether every emitted triangle renders full-bright and additive (eyes,
-     *     glowing spots)
+     * @param pass the {@link PassDeclaration} baked onto every triangle this build emits
      * @param tintArgb ARGB tint multiplied into every sampled texel; {@link ColorMath#WHITE}
      *     ({@code 0xFFFFFFFF}) is a no-op tint
-     * @param blend the colour-composition mode baked onto every emitted triangle -
-     *     {@link BlendMode#NORMAL} source-over (the default for bodies and texture-alpha overlays),
-     *     {@link BlendMode#ADD} for an additive-glow overlay (creeper / wither energy swirl
-     *     declaring {@code blend: additive}) or {@link BlendMode#REPLACE} for a cutout pass
-     *     (declaring {@code blend: cutout})
-     * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} baked onto every emitted
-     *     triangle - {@code 1.0} (no-op) except for an overlay declaring an explicit {@code alpha}
-     *     node (the warden pulsating-spots glow at {@code 0.25})
      * @param lighting the frame the per-face shade resolves through ({@link Lighting#resolveEntity});
      *     the {@link #DEFAULT_ENTITY_LIGHTING default} for every render, a mirror / borrowed frame to
      *     re-light the subject
      */
     public record EntityBuildParams(
         @NotNull RenderFrame frame,
-        boolean emissive,
+        @NotNull PassDeclaration pass,
         int tintArgb,
-        @NotNull BlendMode blend,
-        float alpha,
-        boolean writesDepth,
-        boolean sorted,
         @NotNull LightingFrame lighting
     ) {
         /**
-         * Constructs build params compositing with an explicit pipeline declaration and the
-         * {@link #DEFAULT_ENTITY_LIGHTING default entity lighting frame}. Only a caller substituting the
-         * lighting (a mirror, a borrowed angle) uses the canonical eight-argument constructor.
+         * Constructs build params lit by the {@link #DEFAULT_ENTITY_LIGHTING default entity lighting
+         * frame}. Only a caller substituting the lighting (a mirror, a borrowed angle) uses the canonical
+         * four-argument constructor.
          *
          * @param frame the {@link RenderFrame} this build is fitted through
-         * @param emissive whether every emitted triangle renders full-bright
-         * @param tintArgb ARGB tint multiplied into every sampled texel
-         * @param blend the colour-composition mode baked onto every emitted triangle
-         * @param alpha the per-fragment opacity multiplier baked onto every emitted triangle
-         * @param writesDepth whether a surviving fragment writes its depth
-         * @param sorted whether the pass's quads are drawn back-to-front
-         */
-        public EntityBuildParams(
-            @NotNull RenderFrame frame, boolean emissive, int tintArgb, @NotNull BlendMode blend,
-            float alpha, boolean writesDepth, boolean sorted
-        ) {
-            this(frame, emissive, tintArgb, blend, alpha, writesDepth, sorted, DEFAULT_ENTITY_LIGHTING);
-        }
-
-        /**
-         * Constructs build params compositing with the standard {@link BlendMode#NORMAL source-over}
-         * blend at full opacity and the {@link #DEFAULT_ENTITY_LIGHTING default entity lighting frame} -
-         * the default for every base body and texture-alpha overlay.
-         *
-         * @param frame the {@link RenderFrame} this build is fitted through
-         * @param emissive whether every emitted triangle renders full-bright
+         * @param pass the {@link PassDeclaration} baked onto every triangle this build emits
          * @param tintArgb ARGB tint multiplied into every sampled texel
          */
-        public EntityBuildParams(@NotNull RenderFrame frame, boolean emissive, int tintArgb) {
-            this(frame, emissive, tintArgb, BlendMode.NORMAL, 1f, true, false);
+        public EntityBuildParams(@NotNull RenderFrame frame, @NotNull PassDeclaration pass, int tintArgb) {
+            this(frame, pass, tintArgb, DEFAULT_ENTITY_LIGHTING);
         }
     }
 
@@ -178,7 +145,8 @@ public class EntityGeometryKit {
             (bounds.minY() + bounds.maxY()) * 0.5f,
             (bounds.minZ() + bounds.maxZ()) * 0.5f);
         return buildTriangles(model, texture, new EntityBuildParams(
-            new RenderFrame(centre, ENTITY_MODEL_FIT_EXTENT / extent, 1f), false, ColorMath.WHITE));
+            new RenderFrame(centre, ENTITY_MODEL_FIT_EXTENT / extent, 1f),
+            PassDeclaration.DEFAULT, ColorMath.WHITE));
     }
 
     /**
@@ -187,7 +155,7 @@ public class EntityGeometryKit {
      *
      * @param model the entity model definition (Java Y-down frame)
      * @param texture the shared texture atlas
-     * @param params the render frame, emissive flag, tint and pipeline declaration for this build
+     * @param params the render frame, pass declaration, tint and lighting frame for this build
      * @return the build result containing the triangle list
      */
     public static @NotNull BuildResult buildTriangles(
@@ -197,14 +165,10 @@ public class EntityGeometryKit {
     ) {
         RenderFrame frame = params.frame();
         Vector3f centre = frame.anchor();
-        boolean emissive = params.emissive();
         float scale = frame.ndcScale();
         float modelScale = frame.modelScale();
+        PassDeclaration pass = params.pass();
         int tintArgb = params.tintArgb();
-        BlendMode blend = params.blend();
-        float alpha = params.alpha();
-        boolean writesDepth = params.writesDepth();
-        boolean sorted = params.sorted();
         Lighting.EntityLighting lighting = Lighting.resolveEntity(params.lighting());
 
         Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
@@ -315,16 +279,14 @@ public class EntityGeometryKit {
                         effUv[0], effUv[1], effUv[2],
                         texture, tintArgb,
                         normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha,
-                                          writesDepth, sorted), debugTag
+                        new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, pass), debugTag
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[2], corners[3],
                         effUv[0], effUv[2], effUv[3],
                         texture, tintArgb,
                         normal, shading,
-                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false, blend, alpha,
-                                          writesDepth, sorted), debugTag
+                        new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, pass), debugTag
                     ));
                 }
             }

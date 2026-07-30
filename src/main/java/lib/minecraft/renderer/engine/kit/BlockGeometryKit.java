@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.Shading;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.CornerPhase;
@@ -250,7 +251,7 @@ public class BlockGeometryKit {
                         corners[0], corners[1], corners[2], corners[3],
                         uv[0], uv[1], uv[2], uv[3],
                         texture, tintArgb, normal,
-                        new SurfaceTraits(!isPlaneCube, false, translucent, false), true, 0, null);
+                        new SurfaceTraits(!isPlaneCube, translucent, false, PassDeclaration.DEFAULT), true, 0, null);
                 }
             }
         }
@@ -506,7 +507,7 @@ public class BlockGeometryKit {
                     uv[0], uv[1], uv[2], uv[3],
                     texture, faceTint,
                     faceNormal,
-                    new SurfaceTraits(!twoSided, false, translucent, false),
+                    new SurfaceTraits(!twoSided, translucent, false, PassDeclaration.DEFAULT),
                     element.isShade(),
                     element.getLightEmission(),
                     null

@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.asset.pack.rule.ItemContext;
 import lib.minecraft.renderer.engine.camera.RenderFrame;
 import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.raster.PassDeclaration;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.face.Turn;
@@ -145,7 +146,7 @@ public class ElytraKit {
         if (texture.isEmpty()) return Concurrent.newList();
 
         return EntityGeometryKit.buildTriangles(wingsMesh(baby, bodyBounds), texture.get(),
-            new EntityGeometryKit.EntityBuildParams(frame, false, ColorMath.WHITE)).triangles();
+            new EntityGeometryKit.EntityBuildParams(frame, PassDeclaration.DEFAULT, ColorMath.WHITE)).triangles();
     }
 
     /**
@@ -179,7 +180,8 @@ public class ElytraKit {
         if (texture.isEmpty()) return Concurrent.newList();
 
         ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(WINGS, texture.get(),
-            new EntityGeometryKit.EntityBuildParams(RenderFrame.IDENTITY, false, ColorMath.WHITE)).triangles();
+            new EntityGeometryKit.EntityBuildParams(
+                RenderFrame.IDENTITY, PassDeclaration.DEFAULT, ColorMath.WHITE)).triangles();
 
         float scale = (torsoMax.x() - torsoMin.x()) / VANILLA_BODY_WIDTH;
         float centreX = (torsoMin.x() + torsoMax.x()) * 0.5f;
