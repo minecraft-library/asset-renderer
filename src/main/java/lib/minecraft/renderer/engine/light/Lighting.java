@@ -63,26 +63,62 @@ public class Lighting {
     // --- entity inventory lighting calibration (vanilla Lighting.ENTITY_IN_UI parity) ---
 
     /**
-     * Applies a small empirical GPU-calibration offset (plus any {@code -Dasset.entity.L<idx>d{x,y,z}}
-     * sweep override) to a derived kit-frame light direction, then re-normalises.
+     * The empirical GPU-calibration offset applied to the first derived entity light, summed with
+     * any {@code -Dasset.entity.L0d{x,y,z}} sweep override.
      * <p>
      * The lighting GLSL formula and the raw {@code INVENTORY_DIFFUSE_LIGHT} directions are
      * bit-matched to vanilla, and {@link EntityLighting#shade} reproduces the ideal Lambertian
      * shade exactly. But vanilla rasterises on the GPU and we on the CPU, so the per-face shade still
      * drifts ~0.003 from the harness - invisible on dark textures, but {@code +/-1} channel across
      * near-white entities (goat 0.63, copper_golem, husk, illager family, pig). A fleet sweep
-     * (tunable via the {@code -Dasset.entity.L<idx>d{x,y,z}} knobs this method reads, forwarded to the
-     * parity fork) found that nudging {@code L0.y} by {@code +0.0015} and {@code L1.z} by
-     * {@code +0.005} in kit frame pulls the per-face shades toward the GPU output: 58 entities
-     * improved, 5 within-bucket regressions, goat {@code 0.63 -> 0.48}, entity buckets
-     * {@code 88/98/99/100 -> 88/99/99/100}. Block lighting uses its own
-     * {@link #BLOCK_ITEMS_3D_LIGHT_0 ITEMS_3D} directions and is unaffected. The knobs default to 0
-     * so the production lights are the baked calibration; pass overrides to re-sweep.
+     * (tunable via the {@code -Dasset.entity.L<idx>d{x,y,z}} knobs, forwarded to the parity fork)
+     * found that nudging {@code L0.y} by {@code +0.0015} and {@code L1.z} by {@code +0.005} in kit
+     * frame pulls the per-face shades toward the GPU output: 58 entities improved, 5 within-bucket
+     * regressions, goat {@code 0.63 -> 0.48}, entity buckets {@code 88/98/99/100 -> 88/99/99/100}.
+     * Block lighting uses its own {@link #BLOCK_ITEMS_3D_LIGHT_0 ITEMS_3D} directions and is
+     * unaffected. The knobs default to 0 so the production offsets are the baked calibration; pass
+     * overrides to re-sweep.
      */
-    private static @NotNull Vector3f calibrateEntityLight(@NotNull Vector3f light, int idx, float baseDx, float baseDy, float baseDz) {
-        float dx = baseDx + Float.parseFloat(System.getProperty("asset.entity.L" + idx + "dx", "0"));
-        float dy = baseDy + Float.parseFloat(System.getProperty("asset.entity.L" + idx + "dy", "0"));
-        float dz = baseDz + Float.parseFloat(System.getProperty("asset.entity.L" + idx + "dz", "0"));
+    private static final @NotNull Vector3f ENTITY_LIGHT_0_OFFSET = calibrationOffset(0, 0f, 0.0015f, 0f);
+
+    /**
+     * The empirical GPU-calibration offset applied to the second derived entity light, summed with
+     * any {@code -Dasset.entity.L1d{x,y,z}} sweep override. See {@link #ENTITY_LIGHT_0_OFFSET} for
+     * the sweep that produced the baked figures.
+     */
+    private static final @NotNull Vector3f ENTITY_LIGHT_1_OFFSET = calibrationOffset(1, 0f, 0f, 0.005f);
+
+    /**
+     * Sums a light's baked calibration with its sweep overrides, read once at class load like every
+     * other {@code asset.*} flag in the engine - the properties arrive on the fork's command line
+     * before any class initialises, so nothing can change them afterwards.
+     *
+     * @param idx the light index the {@code asset.entity.L<idx>d{x,y,z}} keys are composed from
+     * @param baseDx the baked x calibration
+     * @param baseDy the baked y calibration
+     * @param baseDz the baked z calibration
+     * @return the total offset applied to that light's derived direction
+     */
+    private static @NotNull Vector3f calibrationOffset(int idx, float baseDx, float baseDy, float baseDz) {
+        return new Vector3f(
+            baseDx + Float.parseFloat(System.getProperty("asset.entity.L" + idx + "dx", "0")),
+            baseDy + Float.parseFloat(System.getProperty("asset.entity.L" + idx + "dy", "0")),
+            baseDz + Float.parseFloat(System.getProperty("asset.entity.L" + idx + "dz", "0")));
+    }
+
+    /**
+     * Applies a light's {@link #ENTITY_LIGHT_0_OFFSET calibration offset} to a derived kit-frame
+     * direction, then re-normalises. A zero offset returns the direction untouched, so a run with
+     * every knob cleared carries no extra rounding.
+     *
+     * @param light the derived kit-frame light direction
+     * @param offset the calibration offset to apply
+     * @return the calibrated direction
+     */
+    private static @NotNull Vector3f calibrateEntityLight(@NotNull Vector3f light, @NotNull Vector3f offset) {
+        float dx = offset.x();
+        float dy = offset.y();
+        float dz = offset.z();
         if (dx == 0f && dy == 0f && dz == 0f) return light;
         return new Vector3f(light.x() + dx, light.y() + dy, light.z() + dz).normalize();
     }
@@ -198,8 +234,8 @@ public class Lighting {
             .rotateY(-rotation.yawRadians())
             .rotateX(-rotation.pitchRadians())
             .scale(mirrorX, 1f, -1f);
-        Vector3f light0 = calibrateEntityLight(deriveKitLight(0.2f, -1f, 1f, lightToKit), 0, 0f, 0.0015f, 0f);
-        Vector3f light1 = calibrateEntityLight(deriveKitLight(-0.2f, -1f, 0f, lightToKit), 1, 0f, 0f, 0.005f);
+        Vector3f light0 = calibrateEntityLight(deriveKitLight(0.2f, -1f, 1f, lightToKit), ENTITY_LIGHT_0_OFFSET);
+        Vector3f light1 = calibrateEntityLight(deriveKitLight(-0.2f, -1f, 0f, lightToKit), ENTITY_LIGHT_1_OFFSET);
         return new EntityLighting(viewDirection, light0, light1);
     }
 

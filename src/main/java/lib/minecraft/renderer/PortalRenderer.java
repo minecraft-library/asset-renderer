@@ -548,47 +548,90 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             int ssaa = options.getOutput().getSupersample();
+            Scene scene = Scene.of(this.context, options);
             return renderAnimated(options, ssaa, options.getOutput().isAntiAlias(),
-                (target, tick, age) -> rasterizeFrame(options, age, target));
+                (target, tick, age) -> rasterizeFrame(options, scene, age, target));
         }
 
         /**
-         * Draws one 3D isometric portal frame at the given game tick into {@code target}: resolves the
-         * projection, bakes the parallax shader once at the target (raster) resolution as a screen-space
-         * canvas, rasterizes the cube / slab with a white sampler to capture per-face shading, then
-         * composes shader &times; shading into {@code target}. The shared {@link RasterPass} tail owns the
+         * The half of a portal render that does not vary between its frames: the engine posed for the
+         * whole animation, the two parallax source textures and the cube / slab geometry. Each is a
+         * function of the render options alone, so one scene is resolved in {@link #render} and
+         * captured by the per-frame callback, leaving that callback holding only the parallax bake -
+         * the sole reader of the tick.
+         *
+         * @param engine the engine posed by the caller's projection
+         * @param endSky {@code Sampler0} - {@code environment/end_sky}
+         * @param endPortalNoise {@code Sampler1} - {@code entity/end_portal/end_portal}
+         * @param triangles the cube or slab geometry, sampled from a uniform-white texture
+         */
+        private record Scene(
+            @NotNull ModelEngine engine,
+            @NotNull PixelBuffer endSky,
+            @NotNull PixelBuffer endPortalNoise,
+            @NotNull ConcurrentList<VisibleTriangle> triangles
+        ) {
+
+            /**
+             * Resolves the scene every frame of one render draws from. The projection resolve composes
+             * the caller's rotation onto the base pose, so it poses the camera directly and the
+             * rasterize call applies no separate model-spin; default renders pass
+             * {@code EulerRotation.NONE}, leaving the base block-icon pose. The white sampler is
+             * written once here and only read afterwards, so one instance serves every frame.
+             *
+             * @param context the renderer context textures resolve through
+             * @param options the render options
+             * @return the scene the render's frames share
+             */
+            static @NotNull Scene of(@NotNull RendererContext context, @NotNull PortalOptions options) {
+                var resolved = options.getOutput().getProjection().resolve(
+                    options.getOutput().getRotation(), options.getOutput().getFacing());
+                ModelEngine engine = new ModelEngine(context, resolved.camera());
+
+                PixelBuffer white = PixelBuffer.create(1, 1);
+                white.setPixel(0, 0, ColorMath.WHITE);
+
+                return new Scene(
+                    engine,
+                    engine.textures().resolveTexture(END_SKY_TEXTURE_ID),
+                    engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID),
+                    buildGeometry(options.getPortal(), FaceTextures.uniform(white)));
+            }
+
+        }
+
+        /**
+         * Draws one 3D isometric portal frame at the given game tick into {@code target}: bakes the
+         * parallax shader at the target (raster) resolution as a screen-space canvas, rasterizes the
+         * scene's cube / slab with its white sampler to capture per-face shading, then composes
+         * shader &times; shading into {@code target}. The shared {@link RasterPass} tail owns the
          * supersample / FXAA / downscale around this draw, so {@code target} is the hi-res buffer when
          * supersampling.
          *
          * @param options the render options
+         * @param scene the frame-invariant state resolved once per render
          * @param tick the vanilla game tick driving the shader's {@code GameTime}
          * @param target the buffer to draw the frame into
          */
-        private void rasterizeFrame(@NotNull PortalOptions options, float tick, @NotNull PixelBuffer target) {
-            // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
-            // poses the camera directly and the rasterize call applies no separate model-spin. Default
-            // renders pass EulerRotation.NONE, leaving the base block-icon pose.
-            var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
-            ModelEngine engine = new ModelEngine(this.context, resolved.camera());
-            PixelBuffer endSky = engine.textures().resolveTexture(END_SKY_TEXTURE_ID);
-            PixelBuffer endPortalNoise = engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
-
+        private static void rasterizeFrame(
+            @NotNull PortalOptions options,
+            @NotNull Scene scene,
+            float tick,
+            @NotNull PixelBuffer target
+        ) {
             // Pass 1: bake the parallax shader once at the target (raster) resolution. This is the
             // "screen-space canvas" - every output pixel that lands on the cube samples this single
             // buffer at its own screen position, not a per-face UV, so adjacent cube edges converge
             // on identical shader output and the starfield is seamless across faces.
             PixelBuffer shaderCanvas = applyTintIfNeeded(
-                bakeFace(options.getPortal(), tick, endSky, endPortalNoise, target.width()), resolveTint(options));
+                bakeFace(options.getPortal(), tick, scene.endSky(), scene.endPortalNoise(), target.width()), resolveTint(options));
 
             // Pass 2: rasterize the cube with a uniform-white sampler so each pixel's red channel is
             // the per-face shading coefficient * 255, then compose shader * mask into the target. The
             // shading mask is scope-local pooled scratch.
-            PixelBuffer white = PixelBuffer.create(1, 1);
-            white.setPixel(0, 0, ColorMath.WHITE);
-            ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), FaceTextures.uniform(white));
             try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(target.width(), target.height())) {
                 PixelBuffer shadingMask = maskLease.buffer();
-                engine.rasterize(triangles, shadingMask);
+                scene.engine().rasterize(scene.triangles(), shadingMask);
                 composeShaderMask(target, shadingMask, shaderCanvas, target.width());
             }
         }
@@ -655,8 +698,34 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             // Flat 2D bake: no supersample / FXAA (ssaa = 1, antiAlias = false), matching FluidFace2D.
+            Scene scene = Scene.of(this.context);
             return renderAnimated(options, 1, false,
-                (target, tick, age) -> rasterizeFrame(options, age, target));
+                (target, tick, age) -> rasterizeFrame(options, scene, age, target));
+        }
+
+        /**
+         * The half of a flat portal render that does not vary between its frames: the two parallax
+         * source textures, neither a function of the tick. Resolved once in {@link #render} and
+         * captured by the per-frame callback, leaving that callback holding only the parallax bake.
+         *
+         * @param endSky {@code Sampler0} - {@code environment/end_sky}
+         * @param endPortalNoise {@code Sampler1} - {@code entity/end_portal/end_portal}
+         */
+        private record Scene(@NotNull PixelBuffer endSky, @NotNull PixelBuffer endPortalNoise) {
+
+            /**
+             * Resolves the scene every frame of one render draws from.
+             *
+             * @param context the renderer context textures resolve through
+             * @return the scene the render's frames share
+             */
+            static @NotNull Scene of(@NotNull RendererContext context) {
+                RasterEngine engine = new RasterEngine(context);
+                return new Scene(
+                    engine.textures().resolveTexture(END_SKY_TEXTURE_ID),
+                    engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID));
+            }
+
         }
 
         /**
@@ -665,16 +734,18 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
          * {@code target}.
          *
          * @param options the render options
+         * @param scene the frame-invariant state resolved once per render
          * @param tick the vanilla game tick driving the shader's {@code GameTime}
          * @param target the buffer to draw the frame into
          */
-        private void rasterizeFrame(@NotNull PortalOptions options, float tick, @NotNull PixelBuffer target) {
-            RasterEngine engine = new RasterEngine(this.context);
-            PixelBuffer endSky = engine.textures().resolveTexture(END_SKY_TEXTURE_ID);
-            PixelBuffer endPortalNoise = engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
-
+        private static void rasterizeFrame(
+            @NotNull PortalOptions options,
+            @NotNull Scene scene,
+            float tick,
+            @NotNull PixelBuffer target
+        ) {
             PixelBuffer baked = applyTintIfNeeded(
-                bakeFace(options.getPortal(), tick, endSky, endPortalNoise, target.width()), resolveTint(options));
+                bakeFace(options.getPortal(), tick, scene.endSky(), scene.endPortalNoise(), target.width()), resolveTint(options));
             target.blitScaled(baked, 0, 0, target.width(), target.height());
         }
 

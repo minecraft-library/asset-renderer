@@ -356,6 +356,26 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     private static final @NotNull Lens SHIELD_PERSPECTIVE = Lens.orthographic(SHIELD_GUI_DISPLAY_SCALE);
 
     /**
+     * The GUI shield's camera - {@link #SHIELD_GUI_ROTATION} through {@link #SHIELD_PERSPECTIVE}.
+     * Built once rather than per render: {@link Camera#fromPose} runs six trig evaluations to
+     * assemble the pose quaternion, and both of its inputs are constants.
+     */
+    private static final @NotNull Camera SHIELD_CAMERA = Camera.fromPose(SHIELD_GUI_ROTATION, SHIELD_PERSPECTIVE);
+
+    /**
+     * The GUI shield's lighting frame, tracking its own {@code display.gui} rotation so the plate is
+     * lit from the direction it is viewed from.
+     */
+    private static final @NotNull LightingFrame SHIELD_LIGHTING = LightingFrame.tracking(SHIELD_GUI_ROTATION);
+
+    /**
+     * The GUI shield's model transform - {@link #SHIELD_ALIGN_OFFSET} as a pure translation, which
+     * the camera then turns into the measured post-rotation screen shift.
+     */
+    private static final @NotNull Matrix4f SHIELD_MODEL_TRANSFORM = Matrix4f.IDENTITY.translate(
+        SHIELD_ALIGN_OFFSET.x(), SHIELD_ALIGN_OFFSET.y(), SHIELD_ALIGN_OFFSET.z());
+
+    /**
      * Returns {@code true} when the item id is a banner or shield, which get composited through
      * {@link BannerKit} rather than the standard layered-sprite or overlay paths.
      */
@@ -445,14 +465,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull ItemOptions options,
         int tick
     ) {
-        ModelEngine engine = new ModelEngine(context, Camera.fromPose(SHIELD_GUI_ROTATION, SHIELD_PERSPECTIVE));
+        ModelEngine engine = new ModelEngine(context, SHIELD_CAMERA);
         PixelBuffer texture = engine.textures().resolveTextureAtTick(SHIELD_NOPATTERN_TEXTURE_ID, tick);
         ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture);
-        triangles = ShieldKit.relightShield(triangles, LightingFrame.tracking(SHIELD_GUI_ROTATION));
+        triangles = ShieldKit.relightShield(triangles, SHIELD_LIGHTING);
 
-        Matrix4f modelTransform = Matrix4f.IDENTITY.translate(
-            SHIELD_ALIGN_OFFSET.x(), SHIELD_ALIGN_OFFSET.y(), SHIELD_ALIGN_OFFSET.z());
-        engine.rasterize(triangles, buffer, modelTransform);
+        engine.rasterize(triangles, buffer, SHIELD_MODEL_TRANSFORM);
     }
 
     /**

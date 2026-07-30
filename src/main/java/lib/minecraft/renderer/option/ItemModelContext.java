@@ -64,13 +64,23 @@ public record ItemModelContext(
     public static final @NotNull String DIMENSION_OVERWORLD = "minecraft:overworld";
 
     /**
+     * The neutral GUI context, held as one instance. Every component is immutable here - the one
+     * component whose type is not, {@link #components}, is {@code null} on this context - so a
+     * shared instance carries no state a caller could reach. Nothing compares a context by identity
+     * either (the fast path at {@link #isNeutral()} and the render memo both go through the record's
+     * equals), so sharing changes no answer.
+     */
+    private static final @NotNull ItemModelContext GUI =
+        new ItemModelContext(DISPLAY_CONTEXT_GUI, false, false, null, null, 0f, 0f, null, null);
+
+    /**
      * The neutral GUI context: {@code display_context = gui} and every caller override left at its
      * default so each vanilla tree resolves to its fallback branch.
      *
      * @return the neutral GUI evaluation context
      */
     public static @NotNull ItemModelContext gui() {
-        return new ItemModelContext(DISPLAY_CONTEXT_GUI, false, false, null, null, 0f, 0f, null, null);
+        return GUI;
     }
 
     /**
