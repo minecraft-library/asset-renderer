@@ -7,9 +7,6 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.asset.PackStack;
-import lib.minecraft.renderer.asset.pack.PackContainer;
-import lib.minecraft.renderer.asset.pack.PackRoot;
-import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -43,6 +40,14 @@ public class BannerPatternLoader {
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
+     * The banner-pattern registry subtree. A {@code data} subtree rather than an {@code assets} one,
+     * and scanned at the vanilla namespace alone - the registry ships in the client jar and no
+     * resource pack in this stack carries a {@code data} root.
+     */
+    private static final @NotNull PackSubtree.Subtree BANNER_PATTERNS = PackSubtree.Subtree.data(
+        VanillaSourcePaths.MINECRAFT_NAMESPACE_DIR, "banner_pattern", ".json");
+
+    /**
      * Loads banner pattern definitions across the whole pack stack. Packs are visited ascending,
      * each over its base and overlay roots; per pattern id, a higher root replaces lower roots'
      * definition. A vanilla-only stack scans exactly the vanilla root.
@@ -52,29 +57,9 @@ public class BannerPatternLoader {
      */
     public static @NotNull ConcurrentMap<String, BannerPattern> load(@NotNull PackStack stack) {
         HashMap<String, BannerPattern> merged = new HashMap<>();
-        for (ResourcePack pack : stack.ascending()) {
-            PackContainer container = pack.container();
-            for (PackRoot root : pack.roots())
-                scanRoot(container, root.prefix(), merged);
-        }
+        for (PackSubtree.Entry entry : PackSubtree.walk(stack, BANNER_PATTERNS))
+            parsePattern(entry, merged);
         return Concurrent.adoptMap(merged).toUnmodifiable();
-    }
-
-    /**
-     * Scans one root's {@code data/minecraft/banner_pattern/} subtree and merges its pattern entries
-     * into the running map. Caller provides the map so multiple roots can layer later-wins without
-     * intermediate copies. No-op when the subtree is absent.
-     *
-     * @param container the pack container to read through
-     * @param prefix the container root prefix ({@code ""} for base, {@code "<overlay>/"} for an overlay)
-     * @param result the running map that accumulates parsed patterns across roots
-     * @throws RuntimeException if the pattern directory cannot be walked
-     */
-    private static void scanRoot(@NotNull PackContainer container, @NotNull String prefix, @NotNull HashMap<String, BannerPattern> result) {
-        String patternPrefix = prefix + "data/minecraft/banner_pattern";
-        container.entries(patternPrefix)
-            .filter(p -> p.endsWith(".json"))
-            .forEach(entry -> parsePattern(container, patternPrefix, entry, result));
     }
 
     /**
@@ -90,15 +75,9 @@ public class BannerPatternLoader {
      * @param result the running map that receives the parsed entry
      * @throws RuntimeException if the file cannot be read
      */
-    private static void parsePattern(
-        @NotNull PackContainer container,
-        @NotNull String patternPrefix,
-        @NotNull String entry,
-        @NotNull HashMap<String, BannerPattern> result
-    ) {
-        String relative = entry.substring(patternPrefix.length() + 1);
-        String patternId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
-        PatternDoc doc = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), PatternDoc.class);
+    private static void parsePattern(@NotNull PackSubtree.Entry entry, @NotNull HashMap<String, BannerPattern> result) {
+        String patternId = VanillaSourcePaths.namespacePrefix(entry.namespace()) + entry.stem();
+        PatternDoc doc = GSON.fromJson(new String(entry.container().bytes(entry.entryPath()).orElseThrow(), StandardCharsets.UTF_8), PatternDoc.class);
         if (doc == null || doc.assetId() == null) return;
 
         String translationKey = doc.translationKey() == null ? "" : doc.translationKey();

@@ -22,6 +22,25 @@ public class VanillaSourcePaths {
     public static final @NotNull String MINECRAFT_NAMESPACE = "minecraft:";
 
     /**
+     * The vanilla namespace as a <em>directory</em> name - {@link #MINECRAFT_NAMESPACE} without the
+     * {@code :} that separates an id's namespace from its path.
+     */
+    public static final @NotNull String MINECRAFT_NAMESPACE_DIR = "minecraft";
+
+    /**
+     * The pack-relative root every client resource sits under. Vanilla names this on its
+     * {@code PackType}, where the enum constant's payload <em>is</em> this directory string.
+     */
+    public static final @NotNull String ASSETS_ROOT = "assets";
+
+    /**
+     * The pack-relative root every registry file sits under - tags, banner patterns, recipes,
+     * world-gen. Vanilla's other {@code PackType}, read by a separate resource manager from
+     * {@link #ASSETS_ROOT}.
+     */
+    public static final @NotNull String DATA_ROOT = "data";
+
+    /**
      * Common jar subtree root every asset loader descends into, and the extraction prefix filter
      * for the asset subtree (models, blockstates, textures).
      */
@@ -88,7 +107,20 @@ public class VanillaSourcePaths {
      * @return the namespaced assets directory path
      */
     public static @NotNull String assetSubdir(@NotNull String namespace, @NotNull String subdir) {
-        return "assets/" + namespace + "/" + subdir;
+        return subtreeDir(ASSETS_ROOT, namespace, subdir);
+    }
+
+    /**
+     * The {@code <root>/<namespace>/<subdir>} directory for a pack namespace, under either
+     * {@link #ASSETS_ROOT} or {@link #DATA_ROOT}.
+     *
+     * @param root the pack-relative root ({@link #ASSETS_ROOT} or {@link #DATA_ROOT})
+     * @param namespace the pack namespace (e.g. {@code minecraft}, {@code hypixel_skyblock})
+     * @param subdir the relative subtree (e.g. {@link #MODELS_BLOCK_SUBDIR})
+     * @return the namespaced directory path
+     */
+    public static @NotNull String subtreeDir(@NotNull String root, @NotNull String namespace, @NotNull String subdir) {
+        return root + "/" + namespace + "/" + subdir;
     }
 
     /**

@@ -8,12 +8,14 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 /**
- * The one {@code (pack x root x namespace)} walk of an assets subtree across a pack stack, and the
- * one place a pack's {@code filter.block} section is honoured.
+ * The one {@code (pack x root x namespace)} walk of a pack subtree, under either the {@code assets}
+ * root or the {@code data} one, and the one place a pack's {@code filter.block} section is honoured.
  *
  * <p>Both halves of that sentence are the point. The walk was written out seven times, and the
  * copies had drifted into three different behaviours: four applied the filter, three did not, and
@@ -46,32 +48,38 @@ import java.util.function.Predicate;
 public class PackSubtree {
 
     /**
-     * One assets subtree to walk.
+     * One subtree to walk.
      *
-     * @param subdir the subtree under {@code assets/<namespace>/} ({@code blockstates}, {@code models/block})
+     * @param root the pack-relative root the subtree lives under - {@link VanillaSourcePaths#ASSETS_ROOT}
+     *     for a client resource, {@link VanillaSourcePaths#DATA_ROOT} for a registry file. Vanilla names
+     *     the pair on its {@code PackType}, where the constant's payload <em>is</em> the directory
+     * @param subdir the subtree under {@code <root>/<namespace>/} ({@code blockstates}, {@code tags/block})
      * @param extension the file extension to match, leading dot included ({@code .json})
+     * @param namespace the single namespace to scan, or empty to scan every namespace the pack declares
      * @param appliesTo which packs contribute this subtree - all of them, unless a caller narrows it
      */
     public record Subtree(
+        @NotNull String root,
         @NotNull String subdir,
         @NotNull String extension,
+        @NotNull Optional<String> namespace,
         @NotNull Predicate<ResourcePack> appliesTo
     ) {
 
         /**
-         * A subtree every pack contributes.
+         * An assets subtree every pack contributes, scanned across every namespace the pack declares.
          *
          * @param subdir the subtree under {@code assets/<namespace>/}
          * @param extension the file extension to match, leading dot included
          * @return the subtree
          */
         public static @NotNull Subtree of(@NotNull String subdir, @NotNull String extension) {
-            return new Subtree(subdir, extension, pack -> true);
+            return new Subtree(VanillaSourcePaths.ASSETS_ROOT, subdir, extension, Optional.empty(), pack -> true);
         }
 
         /**
-         * A subtree only some packs contribute - the legacy {@code models/item} overrides, which
-         * only a pre-format-46 pack carries.
+         * An assets subtree only some packs contribute - the legacy {@code models/item} overrides,
+         * which only a pre-format-46 pack carries.
          *
          * @param subdir the subtree under {@code assets/<namespace>/}
          * @param extension the file extension to match, leading dot included
@@ -83,7 +91,28 @@ public class PackSubtree {
             @NotNull String extension,
             @NotNull Predicate<ResourcePack> appliesTo
         ) {
-            return new Subtree(subdir, extension, appliesTo);
+            return new Subtree(VanillaSourcePaths.ASSETS_ROOT, subdir, extension, Optional.empty(), appliesTo);
+        }
+
+        /**
+         * A data subtree at one named namespace.
+         * <p>
+         * The namespace is named rather than enumerated because {@code ResourcePack.namespaces()} is
+         * discovered from the directories under {@code assets/} alone - it is the wrong set for a data
+         * walk in both directions, and a loader that derives its ids under a fixed namespace would key
+         * a foreign one's files wrongly if it were handed that set.
+         *
+         * @param namespace the namespace directory to scan under {@code data/}
+         * @param subdir the subtree under {@code data/<namespace>/}
+         * @param extension the file extension to match, leading dot included
+         * @return the subtree
+         */
+        public static @NotNull Subtree data(
+            @NotNull String namespace,
+            @NotNull String subdir,
+            @NotNull String extension
+        ) {
+            return new Subtree(VanillaSourcePaths.DATA_ROOT, subdir, extension, Optional.of(namespace), pack -> true);
         }
 
     }
@@ -95,7 +124,7 @@ public class PackSubtree {
      * @param subtree the subtree it was listed under
      * @param namespace the namespace it lives in
      * @param entryPath the container-relative path to hand {@link PackContainer#bytes}
-     * @param resourcePath the path relative to {@code assets/<namespace>/}, extension included
+     * @param resourcePath the path relative to {@code <root>/<namespace>/}, extension included
      */
     public record Entry(
         @NotNull ResourcePack pack,
@@ -151,9 +180,12 @@ public class PackSubtree {
 
             for (Subtree subtree : subtrees) {
                 if (!subtree.appliesTo().test(pack)) continue;
+                Collection<String> namespaces = subtree.namespace()
+                    .<Collection<String>>map(List::of)
+                    .orElseGet(pack::namespaces);
 
                 for (PackRoot root : pack.roots())
-                    for (String namespace : pack.namespaces())
+                    for (String namespace : namespaces)
                         list(pack, subtree, root, namespace, surviving);
             }
         }
@@ -172,8 +204,8 @@ public class PackSubtree {
         @NotNull String namespace,
         @NotNull List<Entry> out
     ) {
-        String namespaceRoot = root.prefix() + VanillaSourcePaths.assetSubdir(namespace, "");
-        String prefix = root.prefix() + VanillaSourcePaths.assetSubdir(namespace, subtree.subdir());
+        String namespaceRoot = root.prefix() + VanillaSourcePaths.subtreeDir(subtree.root(), namespace, "");
+        String prefix = root.prefix() + VanillaSourcePaths.subtreeDir(subtree.root(), namespace, subtree.subdir());
 
         List<String> files = pack.container().entries(prefix)
             .filter(path -> path.endsWith(subtree.extension()))

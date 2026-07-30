@@ -8,9 +8,6 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.PackStack;
 import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.pack.PackContainer;
-import lib.minecraft.renderer.asset.pack.PackRoot;
-import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -19,7 +16,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -39,6 +35,14 @@ public class BlockTagLoader {
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
+     * The block-tag registry subtree. A {@code data} subtree rather than an {@code assets} one, and
+     * scanned at the vanilla namespace alone - the registry ships in the client jar and no resource
+     * pack in this stack carries a {@code data} root.
+     */
+    private static final @NotNull PackSubtree.Subtree BLOCK_TAGS = PackSubtree.Subtree.data(
+        VanillaSourcePaths.MINECRAFT_NAMESPACE_DIR, "tags/block", ".json");
+
+    /**
      * Loads and resolves block tags across the whole pack stack. Packs are visited ascending, each
      * over its base and overlay roots; raw {@code data/minecraft/tags/block} values merge later-wins
      * per tag id, and the recursive resolution pass runs once on the merged map so a tag definition
@@ -50,12 +54,8 @@ public class BlockTagLoader {
      */
     public static @NotNull ConcurrentMap<String, BlockTag> load(@NotNull PackStack stack) {
         HashMap<String, List<String>> merged = new HashMap<>();
-        for (ResourcePack pack : stack.ascending()) {
-            PackContainer container = pack.container();
-            for (PackRoot root : pack.roots())
-                for (Map.Entry<String, List<String>> entry : scanRawTags(container, root.prefix()).entrySet())
-                    merged.put(entry.getKey(), entry.getValue());
-        }
+        for (PackSubtree.Entry entry : PackSubtree.walk(stack, BLOCK_TAGS))
+            parseRawTag(entry, merged);
 
         HashMap<String, BlockTag> result = new HashMap<>(merged.size());
         for (String tagId : merged.keySet()) {
@@ -67,37 +67,25 @@ public class BlockTagLoader {
     }
 
     /**
-     * Scans one asset root's {@code data/minecraft/tags/block/} subtree and returns the raw
-     * (unresolved) value lists keyed by namespaced tag id. The tag id is the file path relative to
-     * the {@code block} tag dir with the {@code .json} suffix stripped and the
-     * {@link VanillaSourcePaths#MINECRAFT_NAMESPACE} prefix prepended (backslashes normalised to
-     * forward slashes for nested tag folders). Files missing a {@code "values"} array and malformed
-     * files are skipped silently; a missing tag dir returns an empty map. Walks tag files into plain
-     * HashMap / ArrayList to skip per-element write-locks - callers wrap with
-     * {@link Concurrent#adoptMap} at the end.
+     * Parses one tag file's raw (unresolved) {@code "values"} list into {@code raw}, keyed by
+     * namespaced tag id - the file's stem under its owning namespace, so a nested tag folder keeps
+     * its path segments. A file missing a {@code "values"} array, and a malformed one, are skipped
+     * silently. Writes into a plain {@code HashMap} / {@code ArrayList} to skip per-element
+     * write-locks; the caller wraps with {@link Concurrent#adoptMap} at the end.
      *
-     * @param container the pack container to read through
-     * @param prefix the container root prefix ({@code ""} for base, {@code "<overlay>/"} for an overlay)
-     * @return raw {@code "values"} lists keyed by namespaced tag id, references still {@code #}-prefixed
+     * @param entry the tag file the subtree walk resolved
+     * @param raw the running raw map, mutated in place
      */
-    private static @NotNull HashMap<String, List<String>> scanRawTags(@NotNull PackContainer container, @NotNull String prefix) {
-        String tagsPrefix = prefix + "data/minecraft/tags/block";
-        HashMap<String, List<String>> raw = new HashMap<>();
+    private static void parseRawTag(@NotNull PackSubtree.Entry entry, @NotNull HashMap<String, List<String>> raw) {
+        String tagId = VanillaSourcePaths.namespacePrefix(entry.namespace()) + entry.stem();
 
-        container.entries(tagsPrefix)
-            .filter(p -> p.endsWith(".json"))
-            .forEach(entry -> {
-                String relative = entry.substring(tagsPrefix.length() + 1);
-                String tagId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - 5);
-                try {
-                    TagDoc doc = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), TagDoc.class);
-                    if (doc == null || doc.values() == null) return;
-                    raw.put(tagId, new ArrayList<>(doc.values()));
-                } catch (JsonSyntaxException ex) {
-                    // Skip malformed tag files
-                }
-            });
-        return raw;
+        try {
+            TagDoc doc = GSON.fromJson(new String(entry.container().bytes(entry.entryPath()).orElseThrow(), StandardCharsets.UTF_8), TagDoc.class);
+            if (doc == null || doc.values() == null) return;
+            raw.put(tagId, new ArrayList<>(doc.values()));
+        } catch (JsonSyntaxException ex) {
+            // Skip malformed tag files
+        }
     }
 
     /**
