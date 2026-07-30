@@ -164,7 +164,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // context is the only shared reference and it is read-only, so the timeline bakes every frame
             // in parallel. The per-tick build MUST stay inside the rasterizer callback (capturing it
             // once would freeze the animation on frame 0's textures).
-            int ssaa = Math.max(1, options.getOutput().getSupersample());
+            int ssaa = options.getOutput().getSupersample();
             return Timeline.schedule(options.getAnimation()).bake(
                 RasterPass.of(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias(),
                     (target, tick) -> rasterizeFrame(options, tick, target)));

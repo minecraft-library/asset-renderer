@@ -218,7 +218,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // the timeline directly, so a caller need not know the flipbook cadence.
             AnimationOptions anim = options.getAnimation();
             int size = options.getOutput().getCanvasSize();
-            int ssaa = Math.max(1, options.getOutput().getSupersample());
+            int ssaa = options.getOutput().getSupersample();
             Timeline.TickTimeline timeline = anim.isDeriveTimeline()
                 ? Timeline.deriveTickStrip(collectAnimatedSources(block), anim.getStartTick())
                 : Timeline.schedule(anim);

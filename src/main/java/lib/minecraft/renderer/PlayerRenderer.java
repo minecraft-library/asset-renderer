@@ -469,7 +469,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()).camera(), PLAYER_FACING);
+            ModelEngine engine = playerEngine(this.parent, options);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -513,19 +513,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
-            PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()).camera(), PLAYER_FACING);
-            ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-
-            LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(PlayerSlot3D.BODY, sink -> addBody(sink, skin, PlayerOptions.Type.BUST, options));
-            appendArmor(stack, PlayerOptions.Type.BUST, options, engine);
-            appendBackLayer(this.parent, stack, options, engine,
-                PlayerOptions.Type.BUST.boxOf(HumanoidPart.TORSO));
-
-            Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
-
-            return rasterize3D(engine, triangles, options);
+            return renderScope3D(this.parent, options, PlayerOptions.Type.BUST);
         }
 
     }
@@ -547,21 +535,45 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
-            PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()).camera(), PLAYER_FACING);
-            ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-
-            LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(PlayerSlot3D.BODY, sink -> addBody(sink, skin, PlayerOptions.Type.FULL, options));
-            appendArmor(stack, PlayerOptions.Type.FULL, options, engine);
-            appendBackLayer(this.parent, stack, options, engine,
-                PlayerOptions.Type.FULL.boxOf(HumanoidPart.TORSO));
-
-            Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
-
-            return rasterize3D(engine, triangles, options);
+            return renderScope3D(this.parent, options, PlayerOptions.Type.FULL);
         }
 
+    }
+
+    /**
+     * Builds the engine every 3D player scope rasterizes through - the caller's projection resolved
+     * against their model rotation and view facing, placed by {@link #PLAYER_FACING}.
+     */
+    private static @NotNull ModelEngine playerEngine(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
+        return new ModelEngine(parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()).camera(), PLAYER_FACING);
+    }
+
+    /**
+     * Renders the body-plus-armour form of a multi-part scope - the scope's own body parts, its armour,
+     * and the back layer seated on its torso box.
+     * <p>
+     * {@link PlayerOptions.Type#BUST} and {@link PlayerOptions.Type#FULL} differ in nothing but the scope
+     * token, which is why it is a parameter here rather than two bodies that have to be kept in step.
+     * {@link PlayerOptions.Type#SKULL} deliberately does not route through this: it draws one box with its
+     * own wider-gated hat overlay rather than {@link #addBody}, and it seats no back layer.
+     */
+    private static @NotNull ImageData renderScope3D(
+        @NotNull PlayerRenderer parent,
+        @NotNull PlayerOptions options,
+        @NotNull PlayerOptions.Type type
+    ) {
+        PixelBuffer skin = resolveSkin(parent, options);
+        ModelEngine engine = playerEngine(parent, options);
+        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+
+        LayerStack<GeometryLayer> stack = new LayerStack<>();
+        stack.append(PlayerSlot3D.BODY, sink -> addBody(sink, skin, type, options));
+        appendArmor(stack, type, options, engine);
+        appendBackLayer(parent, stack, options, engine, type.boxOf(HumanoidPart.TORSO));
+
+        Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
+
+        return rasterize3D(engine, triangles, options);
     }
 
     /**
@@ -576,7 +588,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     ) {
         int size = options.getOutput().getCanvasSize();
         boolean enchanted = options.getArmor().hasEnchanted();
-        int ssaa = Math.max(1, options.getOutput().getSupersample());
+        int ssaa = options.getOutput().getSupersample();
         // The glint mask is recorded at the raster size, then box-downsampled to the output so the
         // foil is confined to the armor (not the bare body) after the SSAA blit.
         // The caller's rotation is composed into the engine's camera pose at construction (above),

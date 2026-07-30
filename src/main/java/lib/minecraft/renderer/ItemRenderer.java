@@ -781,7 +781,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // frame sampled at anim.getStartTick() (staticFrame would hardcode tick 0). Default
             // (startTick=0, frameCount=1) is byte-identical.
             int size = options.getOutput().getCanvasSize();
-            int ssaa = Math.max(1, options.getOutput().getSupersample());
+            int ssaa = options.getOutput().getSupersample();
             return Timeline.schedule(anim).bake(
                 RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) -> {
                     // The display pose is read off the frame's own model: a tree that swaps models

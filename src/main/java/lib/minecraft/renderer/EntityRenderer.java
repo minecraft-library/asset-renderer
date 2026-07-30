@@ -384,7 +384,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // frame-invariant, so this only bites texture-alpha-driven silhouette growth; vanilla never
         // triggers it (no animated entity texture). Callers needing an uncropped fat-later-frame render
         // can pad via canvasSize/padding or the perspective path (which auto-fills per frame).
-        int ssaa = Math.max(1, options.getOutput().getSupersample());
+        int ssaa = options.getOutput().getSupersample();
         return timeline.bake(
             RasterPass.of(canvasW, canvasH, ssaa, options.getOutput().isAntiAlias(), (target, tick) ->
                     new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT).rasterizeFitted(

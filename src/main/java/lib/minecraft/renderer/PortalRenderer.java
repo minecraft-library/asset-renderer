@@ -547,7 +547,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
-            int ssaa = Math.max(1, options.getOutput().getSupersample());
+            int ssaa = options.getOutput().getSupersample();
             return renderAnimated(options, ssaa, options.getOutput().isAntiAlias(),
                 (target, tick, age) -> rasterizeFrame(options, age, target));
         }

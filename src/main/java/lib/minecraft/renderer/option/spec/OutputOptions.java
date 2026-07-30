@@ -55,6 +55,11 @@ public class OutputOptions {
     /**
      * Supersample scale factor - the subject is rasterized at {@code canvasSize * supersample} then
      * downsampled for sharper edges (SSAA). A value of {@code 1} (default) disables supersampling.
+     * <p>
+     * A sub-1 factor cannot be honoured, since {@code 0} asks for a zero-pixel raster, so
+     * {@link #getSupersample()} answers {@code 1} for anything below it. The clamp belongs to the field
+     * rather than to any one renderer - every reader used to spell {@code Math.max(1, ...)} around this
+     * accessor for itself, which put one rule in six places and left a seventh reader without it.
      */
     @lombok.Builder.Default
     private final int supersample = 1;
@@ -65,6 +70,14 @@ public class OutputOptions {
      */
     @lombok.Builder.Default
     private final boolean antiAlias = false;
+
+    /**
+     * Answers {@code 1} for any stored factor below it, since a sub-1 supersample asks for a zero-pixel
+     * raster. Hand-written rather than generated so the clamp sits with the field it guards.
+     */
+    public int getSupersample() {
+        return Math.max(1, this.supersample);
+    }
 
     /**
      * Whether this frame is a neutral inventory-icon render - the default {@link Projection#VANILLA_ISO}
