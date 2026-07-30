@@ -178,7 +178,7 @@ final class EntityLayersResolver {
                 EntityOverlayResolver.simpleName(site.layerClass()));
             return null;
         }
-        this.diagnostics.info("collar row via null-gated DyeColor read [P6, D42]");
+        this.diagnostics.info("collar row via null-gated DyeColor read");
         return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())

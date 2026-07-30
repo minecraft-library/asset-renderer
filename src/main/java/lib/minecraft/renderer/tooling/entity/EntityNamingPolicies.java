@@ -22,8 +22,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     SYNTHETIC_SOURCE_IDS(
         "retired-by-key-grammar",
-        "P2: legacy tooling-own id vocabulary (ToolingEntityModels:376,425,444) - dissolved by"
-            + " GeometryIds factory-coordinate keys (decision 15); no runtime consumer"),
+        "legacy tooling-own id vocabulary - dissolved by GeometryIds factory-coordinate keys; no runtime consumer"),
 
     /**
      * The entity {@link GeometryRequest} coordinate
@@ -34,7 +33,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     ENTITY_REQUEST_CONVENTION(
         "YAxis.DOWN, inventoryYRotation=0, refParam=null",
-        "P3: vanilla entity models author Y-down with no GUI facts (legacy EntitySourceFactory:96-97)"),
+        "vanilla entity models author Y-down with no GUI facts"),
 
     /**
      * The uniform-scale tolerance for {@code poseStack.scale(F,F,F)} triples: vanilla
@@ -43,7 +42,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     UNIFORM_SCALE_TOLERANCE(
         1e-5f,
-        "P4: heuristic epsilon (legacy EntityRendererOverrides:72)"),
+        "heuristic epsilon"),
 
     /**
      * The baby naming fallbacks: the {@code _BABY} {@code ModelLayers} field-name suffix
@@ -52,8 +51,8 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     BABY_NAMING_FALLBACK(
         "_BABY / _baby",
-        "P10: vanilla baby naming convention, demoted to fallback behind D26/D36"
-            + " (legacy EntityLayerDefinitionResolver:252, EntityFamilyJsonWriter:176)"),
+        "vanilla baby naming convention, demoted to a fallback behind the isBaby dataflow and the"
+            + " texture-sibling existence probe"),
 
     /**
      * The {@code $Variant;} descriptor suffix + {@code DEFAULT} constant selection the
@@ -61,7 +60,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     VARIANT_DESCRIPTOR_SUFFIX(
         "$Variant;",
-        "P13: stable Mojang naming convention (legacy EntityBlockOverlayResolver:234,665)"),
+        "stable Mojang naming convention"),
 
     /**
      * The {@code XP} / {@code XN} / {@code YP} / {@code YN} axis field-name parsing on
@@ -69,7 +68,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     AXIS_FIELD_NAMES(
         List.of("XP", "XN", "YP", "YN"),
-        "P14: vanilla direction-constant naming (legacy EntityBlockOverlayResolver:447-453)"),
+        "vanilla direction-constant naming"),
 
     /**
      * The {@code "DEFAULT"} enum-field anchor: variant holder classes
@@ -79,14 +78,14 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     ENUM_DEFAULT_FIELD(
         "DEFAULT",
-        "P15: Mojang naming convention baked into a kit parameter (legacy AsmKit:473)"),
+        "Mojang naming convention baked into a kit parameter"),
 
     /**
      * The getter-name / snake_case bone-name fallbacks when the {@code getChild} trace fails.
      */
     BONE_NAME_FALLBACKS(
         "get<Bone>() / snake_case",
-        "P16: declared fallback behind the getChild trace (legacy EntityBlockOverlayResolver:518-520,550)"),
+        "declared fallback behind the getChild trace"),
 
     /**
      * The data-driven-variant detection suffix policy: the state field's owner class ends
@@ -96,7 +95,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     DATA_VARIANT_SUFFIXES(
         List.of("Variant", "modelAndTexture", "Texture"),
-        "P18: declared suffix policy (legacy EntityTextureResolver:351-353)"),
+        "declared suffix policy"),
 
     /**
      * The derived non-base-suffix audit threshold: a texture suffix qualifies when a base +
@@ -105,8 +104,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     SUFFIX_MIN_RECURRENCE(
         2,
-        "P19: tuning parameter (legacy EntityTextureResolver:816); the derivation proved"
-            + " set-equal to the hand-maintained 14-entry list on 26.1 [D27]"),
+        "tuning parameter; the derivation proved set-equal to the hand-maintained 14-entry list on 26.1"),
 
     /**
      * The variant-enum naming-convention family: the {@code <X>Variants.class} holder stem,
@@ -116,8 +114,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     VARIANT_ENUM_CONVENTIONS(
         List.of("Variants", "$ModelType", "Variant"),
-        "P20: naming-convention family (legacy EntityTextureResolver:1135;"
-            + " EntityVariantResolver:253,371,523-533)"),
+        "naming-convention family"),
 
     /**
      * The entityId-basename texture match for shared renderers: a {@code <clinit>} texture
@@ -126,7 +123,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     ENTITY_ID_BASENAME_MATCH(
         "/<entityId>.png",
-        "P21: id-to-texture naming convention (legacy EntityTextureResolver:1229)"),
+        "id-to-texture naming convention"),
 
     /**
      * The enum-default stem texture convention: {@code <entity>/<entity>_<default_lowercase>}
@@ -135,7 +132,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     ENUM_DEFAULT_STEM(
         "<entity>/<entity>_<default>",
-        "P24: naming convention, self-limiting via the jar existence gate (legacy EntitySessionWalk:100-104)"),
+        "naming convention, self-limiting via the jar existence gate"),
 
     /**
      * The {@code left_} / {@code right_} toggle-stem grouping: vanilla names symmetric bones
@@ -144,7 +141,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      */
     LEFT_RIGHT_STEMS(
         List.of("left_", "right_"),
-        "P25: vanilla symmetric-bone naming (legacy EntityBoneResolver:404-406)");
+        "vanilla symmetric-bone naming");
 
     private final @NotNull Object value;
     private final @NotNull String provenance;

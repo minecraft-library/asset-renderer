@@ -148,9 +148,9 @@ final class BlockCatalogResolver {
 
     /**
      * Chest: 11 blocks under the sole split; texture base from ChestSpecialRenderer. The regular +
-     * copper chests keep their validBlocks order, then trapped, then ender (the legacy Chest.discover
-     * concatenation CHEST + TRAPPED_CHEST + ENDER_CHEST; the shared-renderer union arrives in a
-     * different order).
+     * copper chests keep their validBlocks order, then trapped, then ender - the
+     * {@code CHEST + TRAPPED_CHEST + ENDER_CHEST} concatenation, which is emitted row order and is
+     * not the order the shared-renderer union arrives in.
      */
     private void chest(@NotNull Map<String, List<Row>> rows) {
         Map<String, String> bases = chestVariantBases();

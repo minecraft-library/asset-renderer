@@ -62,7 +62,7 @@ final class EntityStateAxisResolver {
         options.put(dflt, JsonTree.object());
         for (String state : stateKeys)
             if (!state.equals(dflt)) options.put(state, JsonTree.object());
-        this.diagnostics.info("state axis: %s, default '%s' [P22]", stateKeys, dflt);
+        this.diagnostics.info("state axis: %s, default '%s'", stateKeys, dflt);
         return node;
     }
 

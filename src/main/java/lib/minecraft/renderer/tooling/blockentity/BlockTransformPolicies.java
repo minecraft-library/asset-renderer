@@ -42,10 +42,9 @@ enum BlockTransformPolicies implements NavigationPolicy {
             Map.entry("net/minecraft/client/renderer/blockentity/StandingSignRenderer", "bodyTransformation"),
             Map.entry("net/minecraft/client/renderer/blockentity/HangingSignRenderer", "bodyTransformation"),
             Map.entry("net/minecraft/client/renderer/blockentity/BannerRenderer", "modelTransformation")),
-        "P41: the GUI-Transformation entry coordinate per renderer - legacy"
-            + " InventoryTransformDecomposer.buildRendererEntryMethods:100-113; each renderer has >=2"
-            + " Transformation-returning members so a return-type scan is ambiguous (the sole hand-curated"
-            + " map, ITD:82-86). FIELD: = walk <clinit> for the static Transformation field's PUTSTATIC"),
+        "the GUI-Transformation entry coordinate per renderer: each renderer has >= 2 Transformation-returning"
+            + " members, so a return-type scan is ambiguous and this stays the sole hand-curated map. FIELD: means"
+            + " walk <clinit> for the static Transformation field's PUTSTATIC"),
 
     /**
      * The nine split ids whose inventory icon faces the GUI camera at yaw 180. NOT derivable
@@ -57,10 +56,9 @@ enum BlockTransformPolicies implements NavigationPolicy {
             "minecraft:chest",
             "minecraft:banner", "minecraft:wall_banner", "minecraft:banner_flag", "minecraft:wall_banner_flag",
             "minecraft:skull_head", "minecraft:skull_humanoid_head", "minecraft:skull_dragon_head", "minecraft:skull_piglin_head"),
-        "the split ids whose GUI icon renders at inventory yaw 180 - legacy"
-            + " SourceDiscovery.ID_TO_INVENTORY_Y_ROTATION:104-114. NOT a display.gui derivation: skull and"
-            + " conduit share gui-yaw 45 yet map to 180 vs 0 - a camera-facing convention, not the raw gui"
-            + " yaw [D58 hypothesis refuted]. Every other split defaults to 0"),
+        "the split ids whose GUI icon renders at inventory yaw 180. NOT a display.gui derivation: skull and"
+            + " conduit share gui-yaw 45 yet map to 180 against 0 - a camera-facing convention, not the raw gui"
+            + " yaw. Every other split defaults to 0"),
 
     /**
      * The split ids the entity flip is suppressed on. Only {@code bell_body}:
@@ -70,10 +68,10 @@ enum BlockTransformPolicies implements NavigationPolicy {
      */
     FLIP_SUPPRESSED(
         Set.of("minecraft:bell_body"),
-        "P36 / [D48]: the bell hangs un-flipped - BellRenderer.submit applies no scale(-1,-1,1) and the"
-            + " block-space body (pivot (8,12,8), cube x=5..11) would leave the block under the cx=-cx flip;"
-            + " its flat item/generated icon carries no display.gui so the roll derivation cannot see it -"
-            + " legacy ToolingBlockModels:161-167. Every other unresolved icon defaults to flip=true"),
+        "the bell hangs un-flipped - BellRenderer.submit applies no scale(-1,-1,1), and the block-space body"
+            + " (pivot (8,12,8), cube x=5..11) would leave the block under the cx=-cx flip; its flat item/generated"
+            + " icon carries no display.gui, so the roll derivation cannot see it. Every other unresolved icon"
+            + " defaults to flip=true"),
 
     /**
      * The standing-sign attachment constant seeded into {@code bodyTransformation}'s enum param
@@ -92,8 +90,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
      */
     ICON_ROTATION(
         Map.of("minecraft:bed_head", 90),
-        "P36: the bed inventory icon renders rotated 90 degrees - legacy"
-            + " ToolingBlockModels.applyPerBlockFamilyFields:423-425; GUI presentation policy, not bytecode"),
+        "the bed inventory icon renders rotated 90 degrees - a GUI presentation policy, not bytecode"),
 
     /**
      * The split ids whose icon draws additively. Only {@code bell_body}: the bell body is drawn
@@ -102,14 +99,13 @@ enum BlockTransformPolicies implements NavigationPolicy {
      */
     ICON_ADDITIVE(
         Set.of("minecraft:bell_body"),
-        "[D50]: the bell body draws additively over the block's real (non builtin/entity) blockstate"
-            + " model - legacy ToolingBlockModels.applyPerBlockFamilyFields:427-429"),
+        "the bell body draws additively over the block's real (non builtin/entity) blockstate model"),
 
     /**
      * The sub-model composition roster: which base split renders a sub-model part, its
      * split id, the render offset, and any per-part texture override. Vanilla composes these in
-     * the renderer's {@code submit}; the offsets and the pot-side texture are declared (the
-     * legacy walk hard-codes them as constants). The four part-only splits (bed_foot,
+     * the renderer's {@code submit}; the offsets and the pot-side texture are declared constants
+     * rather than walked. The four part-only splits (bed_foot,
      * decorated_pot_sides, banner_flag, wall_banner_flag) exist only as reference targets and
      * carry no parts of their own.
      */
@@ -120,12 +116,10 @@ enum BlockTransformPolicies implements NavigationPolicy {
             "minecraft:wall_banner", List.of(new PartSpec("minecraft:wall_banner_flag", null, null)),
             "minecraft:decorated_pot", List.of(new PartSpec("minecraft:decorated_pot_sides", new int[]{0, 0, 0},
                 "minecraft:textures/entity/decorated_pot/decorated_pot_side.png"))),
-        "P32: the sub-model parts roster - legacy BlockListDiscovery BED_FOOT_OFFSET={0,0,16}:171 (icon-"
-            + " composition policy; BedRenderer at 26.1 has no submit translate - the {0,0,16} matches"
-            + " BedBlock's one-block foot placement), DECORATED_POT_SIDES_OFFSET={0,0,0}:164 (no PoseStack"
-            + " .translate between the base and sides submits) + SIDE_TEXTURE:1794 (= Sheets.DECORATED_POT_SIDE,"
-            + " carried in the decision-21 full asset grammar);"
-            + " banner/wall_banner compose their flag sub-model with no offset - :1629-1630, :1810-1811"),
+        "the sub-model parts roster, an icon-composition policy: BedRenderer at 26.1 has no submit translate, so"
+            + " the bed_foot {0,0,16} matches BedBlock's own one-block foot placement; decorated_pot's {0,0,0}"
+            + " reflects no PoseStack .translate between the base and sides submits, and its side texture is"
+            + " Sheets.DECORATED_POT_SIDE; banner / wall_banner compose their flag sub-model with no offset"),
 
     /**
      * The flip default for splits whose icon roll is unreadable (a flat sprite with no
@@ -134,9 +128,8 @@ enum BlockTransformPolicies implements NavigationPolicy {
      */
     ENTITY_FLIP_DEFAULT(
         Boolean.TRUE,
-        "P36: unresolved flat-sprite icons default to flip=true - legacy ToolingBlockModels entity_flip"
-            + " default (07 3 rows 9, 10); consulted only when the item model carries no display.gui"
-            + " roll and the split is not FLIP_SUPPRESSED"),
+        "unresolved flat-sprite icons default to flip=true; consulted only when the item model carries no"
+            + " display.gui roll and the split is not FLIP_SUPPRESSED"),
 
     /**
      * The pivot-Y half-block band {@code [8, 16)} marking a block-space-authored factory
@@ -146,10 +139,9 @@ enum BlockTransformPolicies implements NavigationPolicy {
      */
     Y_AXIS_BAND(
         new float[]{8f, 16f},
-        "P40: the [8,16) half-block pivot-Y band - legacy SourceDiscovery.inferYAxisFromMethod:877-911"
-            + " (the code applies the band, not the javadoc's bare >= 8; band check :910); counter-examples:"
-            + " ChestModel (0,9,1) / BellModel (8,12,8) block-space UP, ShulkerModel y=24 mob-root DOWN,"
-            + " offsetAndRotation users (decorated pot) DOWN (YAxis.java:3-15, 08 3 row 11)"),
+        "the [8,16) half-block pivot-Y band, applied as a band rather than a bare >= 8; counter-examples:"
+            + " ChestModel (0,9,1) / BellModel (8,12,8) block-space UP, ShulkerModel y=24 mob-root DOWN, and"
+            + " offsetAndRotation users (decorated pot) DOWN"),
 
     /**
      * The canonicalisation tolerance {@code UNIT_EPS = 1e-3}: the band that snaps the
@@ -158,10 +150,9 @@ enum BlockTransformPolicies implements NavigationPolicy {
      */
     CANONICALISE(
         1e-3f,
-        "P42: UNIT_EPS 1e-3 - the shulker 0.9995 z-fight-fudge snap band (legacy ITD :67-69) plus the"
-            + " sign-fold axis preference (scale(1,-1,-1)=Rx180, (-s,-s,+s)->Rx180 by Y-symmetry, ITD"
-            + " :821-824) and the block-centred rotateAround-180 = camera-facing flip already carried by"
-            + " the y_rotation (ITD :881-901)");
+        "UNIT_EPS 1e-3 - the shulker 0.9995 z-fight-fudge snap band, the sign-fold axis preference"
+            + " (scale(1,-1,-1)=Rx180, and (-s,-s,+s)->Rx180 by Y-symmetry), and the block-centred"
+            + " rotateAround-180 = the camera-facing flip already carried by the y_rotation");
 
     /** The {@code FIELD:} prefix on an entry marking a static {@code Transformation} field. */
     static final @NotNull String FIELD_ENTRY_PREFIX = "FIELD:";

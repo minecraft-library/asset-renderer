@@ -34,10 +34,9 @@ enum BlockGeometryPolicies implements NavigationPolicy {
             "createShellMesh", "createBaseLayer", "createSidesLayer", "createHeadLayer",
             "createFootLayer", "createHeadModel", "createFlagLayer", "createSignLayer",
             "createHangingSignLayer", "createMobHeadLayer", "createHumanoidHeadLayer"),
-        "P38: the primary-vs-decorative layer allow-list - legacy SourceDiscovery.PRIMARY_METHOD_NAMES"
-            + " :162-178; its own :156-160 javadoc sketches a validBlocks-derived alternative but calls"
-            + " it brittle (conduit eye/wind/cage, copper-golem poses would misclassify), so it stays a"
-            + " declared escape hatch with a diag-WARN on any layer matched by neither path");
+        "the primary-vs-decorative layer allow-list: the validBlocks-derived alternative is brittle - conduit"
+            + " eye / wind / cage and the copper-golem poses would misclassify - so this stays a declared escape"
+            + " hatch, with a diag-WARN on any layer matched by neither path");
 
     private final @NotNull Object value;
     private final @NotNull String provenance;
