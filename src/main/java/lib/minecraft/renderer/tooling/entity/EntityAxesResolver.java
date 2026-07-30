@@ -1,11 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,25 +25,12 @@ final class EntityAxesResolver {
     /** The variant node held between the two resolve steps. */
     private @Nullable JsonTree variantNode;
 
-    EntityAxesResolver(
-        @NotNull ToolingSession session,
-        @NotNull EntitySubject subject,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull VariantIndex variants,
-        @NotNull EntityGeometryRefResolver geometryRef,
-        @NotNull GeometryManifest manifest,
-        @NotNull BlockRegistryIndex blocks,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.variant = new EntityVariantAxisResolver(session.cache(), subject, variants, layerDefinitions,
-            geometryRef, manifest, blocks, diagnostics.child("variant"));
-        this.state = new EntityStateAxisResolver(subject, variants, diagnostics.child("state"));
-        this.age = new EntityAgeAxisResolver(session.cache(), subject, layerDefinitions, geometryRef,
-            manifest, diagnostics.child("age"));
-        this.size = new EntitySizeAxisResolver(subject, layerDefinitions, geometryRef,
-            manifest, diagnostics.child("size"));
-        this.shape = new EntityShapeAxisResolver(session.cache(), subject, layerDefinitions, geometryRef,
-            manifest, diagnostics.child("shape"));
+    EntityAxesResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
+        this.variant = new EntityVariantAxisResolver(context.scope("variant"), geometryRef);
+        this.state = new EntityStateAxisResolver(context.scope("state"));
+        this.age = new EntityAgeAxisResolver(context.scope("age"), geometryRef);
+        this.size = new EntitySizeAxisResolver(context.scope("size"), geometryRef);
+        this.shape = new EntityShapeAxisResolver(context.scope("shape"), geometryRef);
     }
 
     /**

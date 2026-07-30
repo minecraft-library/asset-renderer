@@ -50,17 +50,12 @@ final class EntityBoneResolver {
     private final @NotNull Diagnostics diagnostics;
     private final @NotNull EntitySpawnFlagResolver spawnFlags;
 
-    EntityBoneResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull EntityGeometryRefResolver geometryRef,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
+    EntityBoneResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
+        this.cache = context.cache();
+        this.subject = context.subject();
         this.geometryRef = geometryRef;
-        this.diagnostics = diagnostics;
-        this.spawnFlags = new EntitySpawnFlagResolver(cache, subject, diagnostics);
+        this.diagnostics = context.diagnostics();
+        this.spawnFlags = new EntitySpawnFlagResolver(context);
     }
 
     /**

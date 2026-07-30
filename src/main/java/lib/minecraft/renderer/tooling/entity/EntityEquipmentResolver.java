@@ -43,20 +43,13 @@ final class EntityEquipmentResolver {
     private final @NotNull GeometryManifest manifest;
     private final @NotNull Diagnostics diagnostics;
 
-    EntityEquipmentResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull EquipmentAssetIndex equipmentAssets,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
-        this.layerDefinitions = layerDefinitions;
-        this.equipmentAssets = equipmentAssets;
-        this.manifest = manifest;
-        this.diagnostics = diagnostics;
+    EntityEquipmentResolver(@NotNull EntityContext context) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.layerDefinitions = context.indexes().layerDefinitions();
+        this.equipmentAssets = context.indexes().equipmentAssets();
+        this.manifest = context.indexes().manifest();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

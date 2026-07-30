@@ -6,10 +6,8 @@ import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -74,25 +72,18 @@ final class EntityLayersResolver {
     private final @NotNull Diagnostics diagnostics;
 
     EntityLayersResolver(
-        @NotNull ToolingSession session,
-        @NotNull EntitySubject subject,
-        @NotNull List<EntityRendererResolver.LayerSite> roster,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull EquipmentAssetIndex equipmentAssets,
-        @NotNull ArmorMeshIndex armorMeshes,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
+        @NotNull EntityContext context,
+        @NotNull List<EntityRendererResolver.LayerSite> roster
     ) {
-        this.cache = session.cache();
-        this.entityId = subject.entityId();
-        this.rendererClass = subject.rendererClass();
-        this.registrationLayerFields = subject.lambdaLayerFields();
+        this.cache = context.cache();
+        this.entityId = context.subject().entityId();
+        this.rendererClass = context.subject().rendererClass();
+        this.registrationLayerFields = context.subject().lambdaLayerFields();
         this.roster = roster;
-        this.equipment = new EntityEquipmentResolver(session.cache(), subject, layerDefinitions, equipmentAssets,
-            manifest, diagnostics.child("equipment"));
-        this.armorMeshes = armorMeshes;
-        this.manifest = manifest;
-        this.diagnostics = diagnostics;
+        this.equipment = new EntityEquipmentResolver(context.scope("equipment"));
+        this.armorMeshes = context.indexes().armorMeshes();
+        this.manifest = context.indexes().manifest();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

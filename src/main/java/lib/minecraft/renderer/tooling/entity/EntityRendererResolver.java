@@ -1,14 +1,10 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
-import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -20,7 +16,6 @@ import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Resolves one entity in one pass - the {@link #resolve()} put-chain IS the on-disk key
@@ -45,40 +40,23 @@ final class EntityRendererResolver {
     private final @NotNull EntityLayersResolver layers;
     private final @NotNull List<LayerSite> layerRoster;
 
-    EntityRendererResolver(
-        @NotNull ToolingSession session,
-        @NotNull EntitySubject subject,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull VariantIndex variants,
-        @NotNull Set<String> nonBaseSuffixes,
-        @NotNull BlockRegistryIndex blocks,
-        @NotNull EntityPipelineTraits pipelineTraits,
-        @NotNull EquipmentAssetIndex equipmentAssets,
-        @NotNull ArmorMeshIndex armorMeshes,
-        @NotNull GeometryManifest manifest
-    ) {
-        this.subject = subject;
-        this.diagnostics = session.diagnostics().child(subject.entityId());
+    EntityRendererResolver(@NotNull EntityContext context) {
+        this.subject = context.subject();
+        this.diagnostics = context.diagnostics();
         // ONE renderer-ctor-chain scan produces the ordered addLayer roster every
         // layer-consuming node reads (overlays, block_overlays, layers - the latter also
         // carries the worn-armor row); a row's layer_index is its position here.
         // Same-class duplicates are kept - deduping by class would force the warden's
         // five-pass re-walk.
-        this.layerRoster = scanLayerRoster(session);
-        this.geometryRef = new EntityGeometryRefResolver(session.cache(), subject, layerDefinitions, manifest,
-            this.diagnostics.child("geometry"));
-        this.texture = new EntityTextureResolver(session.cache(), subject, variants, nonBaseSuffixes,
-            this.diagnostics.child("texture"));
-        this.renderTraits = new EntityRenderTraitsResolver(session.cache(), subject, this.diagnostics.child("render"));
-        this.bones = new EntityBoneResolver(session.cache(), subject, this.geometryRef, this.diagnostics.child("bones"));
-        this.axes = new EntityAxesResolver(session, subject, layerDefinitions, variants, this.geometryRef,
-            manifest, blocks, this.diagnostics.child("axes"));
-        this.overlays = new EntityOverlayResolver(session.cache(), subject, this.layerRoster, layerDefinitions,
-            this.geometryRef, pipelineTraits, manifest, this.diagnostics.child("overlays"));
-        this.blockOverlays = new EntityBlockOverlayResolver(session.cache(), subject, this.layerRoster, blocks,
-            this.diagnostics.child("blockOverlays"));
-        this.layers = new EntityLayersResolver(session, subject, this.layerRoster, layerDefinitions,
-            equipmentAssets, armorMeshes, manifest, this.diagnostics.child("layers"));
+        this.layerRoster = scanLayerRoster(context.session());
+        this.geometryRef = new EntityGeometryRefResolver(context.scope("geometry"));
+        this.texture = new EntityTextureResolver(context.scope("texture"));
+        this.renderTraits = new EntityRenderTraitsResolver(context.scope("render"));
+        this.bones = new EntityBoneResolver(context.scope("bones"), this.geometryRef);
+        this.axes = new EntityAxesResolver(context.scope("axes"), this.geometryRef);
+        this.overlays = new EntityOverlayResolver(context.scope("overlays"), this.layerRoster, this.geometryRef);
+        this.blockOverlays = new EntityBlockOverlayResolver(context.scope("blockOverlays"), this.layerRoster);
+        this.layers = new EntityLayersResolver(context.scope("layers"), this.layerRoster);
     }
 
     /**

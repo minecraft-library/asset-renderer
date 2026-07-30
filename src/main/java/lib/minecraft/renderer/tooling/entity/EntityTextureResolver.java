@@ -66,18 +66,12 @@ final class EntityTextureResolver {
     private final @NotNull Set<String> nonBaseSuffixes;
     private final @NotNull Diagnostics diagnostics;
 
-    EntityTextureResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull VariantIndex variants,
-        @NotNull Set<String> nonBaseSuffixes,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
-        this.variants = variants;
-        this.nonBaseSuffixes = nonBaseSuffixes;
-        this.diagnostics = diagnostics;
+    EntityTextureResolver(@NotNull EntityContext context) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.variants = context.indexes().variants();
+        this.nonBaseSuffixes = context.indexes().nonBaseSuffixes();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

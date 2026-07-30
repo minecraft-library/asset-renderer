@@ -46,20 +46,13 @@ final class EntityShapeAxisResolver {
     private final @NotNull GeometryManifest manifest;
     private final @NotNull Diagnostics diagnostics;
 
-    EntityShapeAxisResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull EntityGeometryRefResolver geometryRef,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
-        this.layerDefinitions = layerDefinitions;
+    EntityShapeAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
-        this.manifest = manifest;
-        this.diagnostics = diagnostics;
+        this.manifest = context.indexes().manifest();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

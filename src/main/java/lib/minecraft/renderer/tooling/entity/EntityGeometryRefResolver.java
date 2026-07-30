@@ -80,18 +80,12 @@ final class EntityGeometryRefResolver {
      */
     record ModelConsumer(@NotNull String owner, @NotNull List<String> tripleFields) {}
 
-    EntityGeometryRefResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
-        this.layerDefinitions = layerDefinitions;
-        this.manifest = manifest;
-        this.diagnostics = diagnostics;
+    EntityGeometryRefResolver(@NotNull EntityContext context) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.layerDefinitions = context.indexes().layerDefinitions();
+        this.manifest = context.indexes().manifest();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

@@ -25,10 +25,10 @@ final class EntityStateAxisResolver {
     private final @NotNull VariantIndex variants;
     private final @NotNull Diagnostics diagnostics;
 
-    EntityStateAxisResolver(@NotNull EntitySubject subject, @NotNull VariantIndex variants, @NotNull Diagnostics diagnostics) {
-        this.subject = subject;
-        this.variants = variants;
-        this.diagnostics = diagnostics;
+    EntityStateAxisResolver(@NotNull EntityContext context) {
+        this.subject = context.subject();
+        this.variants = context.indexes().variants();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

@@ -65,24 +65,15 @@ final class EntityVariantAxisResolver {
     private final @NotNull BlockRegistryIndex blocks;
     private final @NotNull Diagnostics diagnostics;
 
-    EntityVariantAxisResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull VariantIndex variants,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull EntityGeometryRefResolver geometryRef,
-        @NotNull GeometryManifest manifest,
-        @NotNull BlockRegistryIndex blocks,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
-        this.variants = variants;
-        this.layerDefinitions = layerDefinitions;
+    EntityVariantAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.variants = context.indexes().variants();
+        this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
-        this.manifest = manifest;
-        this.blocks = blocks;
-        this.diagnostics = diagnostics;
+        this.manifest = context.indexes().manifest();
+        this.blocks = context.indexes().blocks();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

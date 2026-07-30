@@ -19,7 +19,6 @@ import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Resolves the {@code block_overlays[]} array - block-model composites on entity bodies
@@ -41,17 +40,14 @@ final class EntityBlockOverlayResolver {
     private final @NotNull Diagnostics diagnostics;
 
     EntityBlockOverlayResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull List<EntityRendererResolver.LayerSite> roster,
-        @NotNull BlockRegistryIndex blocks,
-        @NotNull Diagnostics diagnostics
+        @NotNull EntityContext context,
+        @NotNull List<EntityRendererResolver.LayerSite> roster
     ) {
-        this.cache = cache;
-        this.subject = subject;
+        this.cache = context.cache();
+        this.subject = context.subject();
         this.roster = roster;
-        this.blocks = blocks;
-        this.diagnostics = diagnostics;
+        this.blocks = context.indexes().blocks();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

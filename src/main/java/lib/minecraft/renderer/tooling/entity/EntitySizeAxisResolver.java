@@ -45,18 +45,12 @@ final class EntitySizeAxisResolver {
     private final @NotNull GeometryManifest manifest;
     private final @NotNull Diagnostics diagnostics;
 
-    EntitySizeAxisResolver(
-        @NotNull EntitySubject subject,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull EntityGeometryRefResolver geometryRef,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.subject = subject;
-        this.layerDefinitions = layerDefinitions;
+    EntitySizeAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
+        this.subject = context.subject();
+        this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
-        this.manifest = manifest;
-        this.diagnostics = diagnostics;
+        this.manifest = context.indexes().manifest();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

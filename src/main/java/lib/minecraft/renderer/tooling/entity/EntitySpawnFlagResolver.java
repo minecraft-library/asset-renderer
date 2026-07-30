@@ -8,7 +8,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -36,14 +35,10 @@ final class EntitySpawnFlagResolver {
     private final @NotNull EntitySubject subject;
     private final @NotNull Diagnostics diagnostics;
 
-    EntitySpawnFlagResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
-        @NotNull Diagnostics diagnostics
-    ) {
-        this.cache = cache;
-        this.subject = subject;
-        this.diagnostics = diagnostics;
+    EntitySpawnFlagResolver(@NotNull EntityContext context) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

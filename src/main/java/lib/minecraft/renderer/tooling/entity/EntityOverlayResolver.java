@@ -17,10 +17,8 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
-import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayDeque;
@@ -75,23 +73,18 @@ final class EntityOverlayResolver {
     private final @NotNull Diagnostics diagnostics;
 
     EntityOverlayResolver(
-        @NotNull ClassNodeCache cache,
-        @NotNull EntitySubject subject,
+        @NotNull EntityContext context,
         @NotNull List<EntityRendererResolver.LayerSite> roster,
-        @NotNull LayerDefinitionIndex layerDefinitions,
-        @NotNull EntityGeometryRefResolver geometryRef,
-        @NotNull EntityPipelineTraits traits,
-        @NotNull GeometryManifest manifest,
-        @NotNull Diagnostics diagnostics
+        @NotNull EntityGeometryRefResolver geometryRef
     ) {
-        this.cache = cache;
-        this.subject = subject;
+        this.cache = context.cache();
+        this.subject = context.subject();
         this.roster = roster;
-        this.layerDefinitions = layerDefinitions;
+        this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
-        this.traits = traits;
-        this.manifest = manifest;
-        this.diagnostics = diagnostics;
+        this.traits = context.indexes().pipelineTraits();
+        this.manifest = context.indexes().manifest();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

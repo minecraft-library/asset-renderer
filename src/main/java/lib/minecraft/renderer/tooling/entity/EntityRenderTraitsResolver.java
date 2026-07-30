@@ -48,10 +48,10 @@ final class EntityRenderTraitsResolver {
     private final @NotNull EntitySubject subject;
     private final @NotNull Diagnostics diagnostics;
 
-    EntityRenderTraitsResolver(@NotNull ClassNodeCache cache, @NotNull EntitySubject subject, @NotNull Diagnostics diagnostics) {
-        this.cache = cache;
-        this.subject = subject;
-        this.diagnostics = diagnostics;
+    EntityRenderTraitsResolver(@NotNull EntityContext context) {
+        this.cache = context.cache();
+        this.subject = context.subject();
+        this.diagnostics = context.diagnostics();
     }
 
     /**

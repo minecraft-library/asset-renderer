@@ -3,13 +3,9 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
-import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * The registry walk - the ONLY stage that touches the output tree.
@@ -36,21 +32,15 @@ public final class EntityRegistryWalk {
         @NotNull GeometryManifest manifest,
         @NotNull JsonTree root
     ) {
-        LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
-        VariantIndex variants = VariantIndex.build(session);
-        BlockRegistryIndex blocks = BlockRegistryIndex.build(session);
-        EquipmentAssetIndex equipmentAssets = EquipmentAssetIndex.build(session);
-        ArmorMeshIndex armorMeshes = ArmorMeshIndex.build(session);
-        EntityPipelineTraits pipelineTraits = new EntityPipelineTraits(session.cache());
-        Set<String> nonBaseSuffixes = EntityTextureResolver.deriveNonBaseSuffixes(session);
+        EntityIndexes indexes = EntityIndexes.build(session, manifest);
 
         JsonTree models = root.child("models");
         for (EntitySubject subject : subjects)
-            models.put(subject.entityId(),
-                new EntityRendererResolver(session, subject, layerDefinitions, variants, nonBaseSuffixes,
-                    blocks, pipelineTraits, equipmentAssets, armorMeshes, manifest).resolve());
+            models.put(subject.entityId(), new EntityRendererResolver(
+                new EntityContext(session, indexes, subject, session.diagnostics().child(subject.entityId()))
+            ).resolve());
         // The group_of post-pass needs all rows.
-        EntityGroupLinker.link(root, variants, session.diagnostics().child("groupOf"));
+        EntityGroupLinker.link(root, indexes.variants(), session.diagnostics().child("groupOf"));
     }
 
 }
