@@ -30,10 +30,9 @@ enum SnapshotShapePolicies implements NavigationPolicy {
      */
     TINT_DYNAMIC_SOURCE_DROPS(
         Set.of("water", "waterParticles", "redstone"),
-        "renderer cannot sample per-state / biome-dynamic tints at static render time; the GUI"
-            + " icon shows the default state (ToolingBlockTints.java:155-158). water / waterParticles"
-            + " resolve BiomeColors.getAverageWaterColor - no WATER colormap target exists; redstone"
-            + " resolves RedStoneWireBlock.getColorForPower - power-driven, no colormap"),
+        "renderer cannot sample per-state / biome-dynamic tints at static render time; the GUI icon shows the"
+            + " default state. water / waterParticles resolve BiomeColors.getAverageWaterColor - no WATER colormap"
+            + " target exists; redstone resolves RedStoneWireBlock.getColorForPower - power-driven, no colormap"),
 
     /**
      * A {@code List.of(a, b, ...)} tint registration composes multiple sources
@@ -43,8 +42,8 @@ enum SnapshotShapePolicies implements NavigationPolicy {
      */
     TINT_MULTI_SOURCE_DROP(
         "multi_source",
-        "composed List.of registrations are unsupported: the renderer tints one source per block"
-            + " (pink_petals [BLANK_LAYER, grass()]) - ToolingBlockTints.java:254-256"),
+        "composed List.of registrations are unsupported: the renderer tints one source per block (pink_petals"
+            + " [BLANK_LAYER, grass()])"),
 
     /**
      * {@code constant(colorInHand, colorInWorld)}: the GUI block icon uses vanilla's
@@ -53,8 +52,7 @@ enum SnapshotShapePolicies implements NavigationPolicy {
      */
     TINT_CONSTANT_IN_HAND(
         0,
-        "constant(colorInHand, colorInWorld): the GUI icon uses vanilla's no-context in-hand"
-            + " colour = the first arg (ToolingBlockTints.java:244-248)"),
+        "constant(colorInHand, colorInWorld): the GUI icon uses vanilla's no-context in-hand colour = the first arg"),
 
     // bytecode-shape knowledge (declared shapes with their hard-won comments)
 
@@ -64,8 +62,8 @@ enum SnapshotShapePolicies implements NavigationPolicy {
      */
     POTION_EFFECT_ID_FIRST_LDC(
         Boolean.TRUE,
-        "the first LDC string since the last register is the effect id; later strings are"
-            + " attribute-modifier ids ('effect.speed') - ToolingPotionColors.java:168-171"),
+        "the first LDC string since the last register is the effect id; later strings are attribute-modifier ids"
+            + " ('effect.speed')"),
 
     /**
      * Only int literals between {@code NEW net/minecraft/world/effect/*} and its
@@ -74,8 +72,8 @@ enum SnapshotShapePolicies implements NavigationPolicy {
      */
     POTION_NEW_RESETS_STACK(
         Boolean.TRUE,
-        "only int literals between NEW net/minecraft/world/effect/* and its <init> are colour"
-            + " candidates; a fresh NEW resets the int stack - ToolingPotionColors.java:176-181"),
+        "only int literals between NEW net/minecraft/world/effect/* and its <init> are colour candidates; a fresh"
+            + " NEW resets the int stack"),
 
     /**
      * The colour-carrying effect constructor is {@code (MobEffectCategory, int)V}; the
@@ -84,8 +82,8 @@ enum SnapshotShapePolicies implements NavigationPolicy {
      */
     POTION_COLOR_CTOR(
         Boolean.TRUE,
-        "the colour-carrying MobEffect ctor is (MobEffectCategory, int)V; the trailing int is the"
-            + " ARGB colour, prefix-owner matched for subclasses - ToolingPotionColors.java:185-195"),
+        "the colour-carrying MobEffect ctor is (MobEffectCategory, int)V; the trailing int is the ARGB colour,"
+            + " prefix-owner matched for subclasses"),
 
     /**
      * {@code GETSTATIC DataComponents.ENCHANTMENT_GLINT_OVERRIDE} immediately followed by
@@ -94,8 +92,7 @@ enum SnapshotShapePolicies implements NavigationPolicy {
      */
     GLINT_TRUE_ADJACENCY(
         Boolean.TRUE,
-        "GETSTATIC ENCHANTMENT_GLINT_OVERRIDE followed by iconst_1 == component(.., true)"
-            + " - ToolingGlintItems.java:161-166"),
+        "GETSTATIC ENCHANTMENT_GLINT_OVERRIDE followed by iconst_1 == component(.., true)"),
 
     /**
      * {@code PUTSTATIC Items.<field>:LItem;} terminates one registration and resets the
@@ -104,8 +101,8 @@ enum SnapshotShapePolicies implements NavigationPolicy {
      */
     GLINT_ITEM_FIELD_RESET(
         Boolean.TRUE,
-        "PUTSTATIC Items.<field>:LItem; terminates a registration; the reset prevents glint"
-            + " bleeding across registrations - ToolingGlintItems.java:171-177, :102-105");
+        "PUTSTATIC Items.<field>:LItem; terminates a registration; the reset prevents glint bleeding across"
+            + " registrations");
 
     /** The reason recorded for {@link #TINT_DYNAMIC_SOURCE_DROPS} rows. */
     static final @NotNull String REASON_DYNAMIC_SOURCE = "dynamic_source";

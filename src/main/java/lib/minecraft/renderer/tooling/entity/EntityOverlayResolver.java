@@ -408,7 +408,7 @@ final class EntityOverlayResolver {
                     factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
                     this.traits.blendTokenOf(mi.name), 1f,
                     this.traits.factoryWritesDepth(mi.name), this.traits.factorySortsQuads(mi.name)));
-                this.diagnostics.info("eyes overlay '%s' via clinit RenderTypes.%s [D20]", simpleName(sourceClass), mi.name);
+                this.diagnostics.info("eyes overlay '%s' via clinit RenderTypes.%s", simpleName(sourceClass), mi.name);
                 return node;
             }
         }
@@ -478,7 +478,7 @@ final class EntityOverlayResolver {
             byValue.put(entry.getKey().toLowerCase(Locale.ROOT), namespaced(entry.getValue()));
         node.put("textures_by_value", byValue);
         node.put("skip_bounds", true);
-        this.diagnostics.info("enum-map overlay: texture_by '%s', %d values [D11]",
+        this.diagnostics.info("enum-map overlay: texture_by '%s', %d values",
             enumMap.token(), enumMap.textures().size());
         return node;
     }
@@ -1187,7 +1187,7 @@ final class EntityOverlayResolver {
         if (zeroState == null) return null;
         String token = axisToken(stateField);
         boolean vocab = EntityAxisPolicies.AXIS_NAME_VOCABULARY.strings().contains(token);
-        this.diagnostics.info("provider texture via state dispatch: texture_by '%s' [D23]", token);
+        this.diagnostics.info("provider texture via state dispatch: texture_by '%s'", token);
         return new ProviderTexture(namespaced(zeroState), vocab ? token : null);
     }
 
@@ -1412,7 +1412,7 @@ final class EntityOverlayResolver {
             if (texture == null) node.put("skip_bounds", true);
             rows.add(node);
         }
-        this.diagnostics.info("category passes: %s, prefix '%s' [D17]", categories, prefix);
+        this.diagnostics.info("category passes: %s, prefix '%s'", categories, prefix);
         if (babyCategory != null) {
             this.diagnostics.info("category pass '%s' substitutes directory '%s' on its age arm -> %s",
                 tokens.substituted(), babyCategory, babyTexture);

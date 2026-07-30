@@ -20,10 +20,9 @@ enum BlockStatePolicies implements NavigationPolicy {
      */
     BOOLEAN_DEFAULT(
         "false",
-        "P44: any()-default for declared-but-unset booleans = false, harness-verified"
-            + " (legacy ToolingBlockDefaults.java:936-940). BooleanProperty.VALUES = List.of(true, false)"
-            + " is TRUE-first (javap); the false comes from loop-driven setValue(..,false) shapes"
-            + " (MultifaceBlock.getDefaultMultifaceState) a static bytewalk cannot decode");
+        "any()-default for declared-but-unset booleans = false, harness-verified. BooleanProperty.VALUES ="
+            + " List.of(true, false) is TRUE-first (javap); the false comes from loop-driven setValue(..,false)"
+            + " shapes (MultifaceBlock.getDefaultMultifaceState) a static bytewalk cannot decode");
 
     private final @NotNull String value;
     private final @NotNull String provenance;

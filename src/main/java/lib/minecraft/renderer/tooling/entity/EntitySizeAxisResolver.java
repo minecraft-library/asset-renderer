@@ -86,7 +86,7 @@ final class EntitySizeAxisResolver {
         int base = naturalSizes.getFirst();
         for (int index = 1; index < naturalSizes.size(); index++)
             options.put(domain.get(index), JsonTree.object().put("scale", (float) naturalSizes.get(index) / base));
-        this.diagnostics.info("size axis via P1 natural sizes %s (scale-per-size proportional [D5])", naturalSizes);
+        this.diagnostics.info("size axis via P1 natural sizes %s (scale-per-size proportional)", naturalSizes);
         return sizeNode(domain, options);
     }
 

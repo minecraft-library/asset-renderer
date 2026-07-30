@@ -18,18 +18,15 @@ enum ColorMapPolicies implements NavigationPolicy {
 
     /** The grass biome colormap. */
     GRASS("grass.png", ColorMap.Type.GRASS,
-        "vanilla asset layout, not bytecode; the grass.png -> ColorMap.Type.GRASS mapping is"
-            + " convention (ToolingColorMaps.java:117-121)"),
+        "vanilla asset layout, not bytecode; the grass.png -> ColorMap.Type.GRASS mapping is convention"),
 
     /** The foliage biome colormap. */
     FOLIAGE("foliage.png", ColorMap.Type.FOLIAGE,
-        "vanilla asset layout, not bytecode; the foliage.png -> ColorMap.Type.FOLIAGE mapping is"
-            + " convention (ToolingColorMaps.java:117-121)"),
+        "vanilla asset layout, not bytecode; the foliage.png -> ColorMap.Type.FOLIAGE mapping is convention"),
 
     /** The dry-foliage biome colormap. */
     DRY_FOLIAGE("dry_foliage.png", ColorMap.Type.DRY_FOLIAGE,
-        "vanilla asset layout, not bytecode; the dry_foliage.png -> ColorMap.Type.DRY_FOLIAGE"
-            + " mapping is convention (ToolingColorMaps.java:117-121)");
+        "vanilla asset layout, not bytecode; the dry_foliage.png -> ColorMap.Type.DRY_FOLIAGE mapping is convention");
 
     private final @NotNull String entryPath;
     private final @NotNull ColorMap.Type type;

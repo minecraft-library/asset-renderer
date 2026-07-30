@@ -23,8 +23,8 @@ enum EntityOverlayPolicies implements NavigationPolicy {
      */
     COLLAR_ROUTING(
         Boolean.TRUE,
-        "P6: CatCollarLayer bakes ModelLayers.CAT_COLLAR; state.collarColor == null draws none in"
-            + " vanilla, so the collar rides the option-gated layers row (legacy EntityOverlayResolver:356-360)"),
+        "CatCollarLayer bakes ModelLayers.CAT_COLLAR; state.collarColor == null draws none in vanilla, so the"
+            + " collar rides the option-gated layers row"),
 
     /**
      * The warden full-mesh-reuse judgment plus its frozen-alpha epsilon: an
@@ -34,9 +34,8 @@ enum EntityOverlayPolicies implements NavigationPolicy {
      */
     FULL_MESH_REUSE_ALPHA_EPSILON(
         0.999f,
-        "P7: warden bioluminescent full-mesh reuse is exact because the glow texture is transparent"
-            + " outside the retained parts (texture content, not bytecode); epsilon relocated from"
-            + " P47b per doc-12 P1/09 T1 (legacy EntityOverlayResolver:1908)"),
+        "warden bioluminescent full-mesh reuse is exact because the glow texture is transparent outside the"
+            + " retained parts (texture content, not bytecode); epsilon relocated from P47b per doc-12 P1/09 T1"),
 
     /**
      * The equipment default-decor bounds exclusion: the trader-llama carpet overlay is
@@ -45,8 +44,7 @@ enum EntityOverlayPolicies implements NavigationPolicy {
      */
     DECOR_SKIP_BOUNDS(
         Boolean.TRUE,
-        "P8: harness NO_RENDER_LAYER_SUFFIXES contract for LlamaDecorLayer - a harness-side fact,"
-            + " not vanilla bytecode (legacy EntityOverlayResolver:463)"),
+        "harness NO_RENDER_LAYER_SUFFIXES contract for LlamaDecorLayer - a harness-side fact, not vanilla bytecode"),
 
     /**
      * The eye-texture stem suffixes plus the first-literal default: a state-driven
@@ -56,8 +54,7 @@ enum EntityOverlayPolicies implements NavigationPolicy {
      */
     EYE_STEM_FIRST_LITERAL(
         List.of("_eyes", "_eye"),
-        "P11: naming convention + enum-decl-order default-first assumption for the copper-golem"
-            + " zero-state pick (legacy EntityOverlayResolver:2225-2243)"),
+        "naming convention + enum-decl-order default-first assumption for the copper-golem zero-state pick"),
 
     /**
      * The frozen-frame contract the alpha evaluation runs at: {@code ageInTicks == 0}
@@ -66,8 +63,7 @@ enum EntityOverlayPolicies implements NavigationPolicy {
      */
     FROZEN_FRAME(
         0f,
-        "P12: harness FreezeAnimationStateMixin contract - alpha lambdas evaluate at ageInTicks=0,"
-            + " state fields 0 (legacy EntityOverlayResolver:2070-2083)"),
+        "harness FreezeAnimationStateMixin contract - alpha lambdas evaluate at ageInTicks=0, state fields 0"),
 
     /**
      * The presence-gate fixed-vs-selectable semantics: a literal block bind gated on
@@ -78,8 +74,7 @@ enum EntityOverlayPolicies implements NavigationPolicy {
      */
     PRESENCE_GATE_FIXED_WHEN_GUARDED(
         Boolean.TRUE,
-        "P17: hasPumpkin()-default-true vs offerFlowerTick>0-default-off vanilla semantics"
-            + " (legacy EntityBlockOverlayResolver:239-263)"),
+        "hasPumpkin()-default-true vs offerFlowerTick>0-default-off vanilla semantics"),
 
     /**
      * The multi-material equipment default picks - the material a render gets when it selects

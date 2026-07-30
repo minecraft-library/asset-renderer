@@ -107,7 +107,7 @@ final class EntityVariantAxisResolver {
         if (dflt == null) {
             dflt = alphaFirstUnconditional(table);
             if (dflt != null)
-                this.diagnostics.info("variant default '%s' via alpha-first-unconditional derivation [D30/P27]", dflt);
+                this.diagnostics.info("variant default '%s' via alpha-first-unconditional derivation", dflt);
         }
         if (dflt == null) {
             dflt = table.getFirst().variantId();
@@ -271,7 +271,7 @@ final class EntityVariantAxisResolver {
             String firstConstant = coats.byConstant().keySet().iterator().next();
             String dflt = variantId(defaultConstant != null ? defaultConstant : firstConstant, ids);
             if (defaultConstant == null)
-                this.diagnostics.info("variant default '%s' via first map key [D1] (enum has no DEFAULT)", dflt);
+                this.diagnostics.info("variant default '%s' via first map key (enum has no DEFAULT)", dflt);
 
             VariantBlockTable table = VariantBlockTable.of(this.cache, this.blocks, enumInternal, this.diagnostics);
             JsonTree node = JsonTree.object().put("id_encoded", false).put("default", dflt);
@@ -283,7 +283,7 @@ final class EntityVariantAxisResolver {
                     .putIf("baby_texture", fullPath(coat.getValue().size() > 1 ? coat.getValue().get(1) : null))
                     .putIf("block", coatBlock(table, coat.getKey())));
             }
-            this.diagnostics.info("variant axis (enum-map '%s'): %d options, default '%s' [D1]",
+            this.diagnostics.info("variant axis (enum-map '%s'): %d options, default '%s'",
                 enumInternal, coats.byConstant().size(), dflt);
             return node;
         }
@@ -393,7 +393,7 @@ final class EntityVariantAxisResolver {
             String id = variantId(field.name, ids);
             String adult = adultTemplate.replace("%s", id);
             if (!this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + adult)) {
-                this.diagnostics.info("template variant '%s' dropped - '%s' not shipped [D28]", id, adult);
+                this.diagnostics.info("template variant '%s' dropped - '%s' not shipped", id, adult);
                 continue;
             }
             List<String> paths = new ArrayList<>();

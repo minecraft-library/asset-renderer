@@ -198,7 +198,7 @@ final class EntityLayersResolver {
         for (Map.Entry<String, String> entry : enumMap.textures().entrySet())
             byValue.put(entry.getKey().toLowerCase(Locale.ROOT),
                 VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + entry.getValue());
-        this.diagnostics.info("markings row: %d values [D43]", enumMap.textures().size());
+        this.diagnostics.info("markings row: %d values", enumMap.textures().size());
         return JsonTree.object()
             .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
             .putInt("layer_index", site.layerIndex())

@@ -92,7 +92,7 @@ final class EntityShapeAxisResolver {
             body.putIf("overlays", cloneOverlays(overlays, key, adultTexture, optionTexture));
             if (options == null) options = JsonTree.object();
             options.put(option, body);
-            this.diagnostics.info("shape axis: option '%s' mesh ModelLayers.%s -> %s [D2]", option, field, key);
+            this.diagnostics.info("shape axis: option '%s' mesh ModelLayers.%s -> %s", option, field, key);
         }
         if (options == null) {
             this.diagnostics.warn("P37 declares a shape axis but no second body mesh resolved");

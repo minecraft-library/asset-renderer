@@ -241,7 +241,7 @@ final class EntityAgeAxisResolver {
         String prefixed = adultTexture.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length());
         String candidate = prefixed.substring(0, prefixed.length() - ".png".length()) + "_baby.png";
         if (!this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + candidate)) return null;
-        this.diagnostics.info("baby texture via _baby sibling probe [D26/P10]");
+        this.diagnostics.info("baby texture via _baby sibling probe");
         return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + candidate;
     }
 

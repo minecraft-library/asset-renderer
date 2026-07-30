@@ -15,9 +15,9 @@ enum AtlasPolicies {
      */
     SPARSE_CONTENT_THRESHOLD(
         0.02,
-        "empirically tuned: at 5% normal thin blocks (torches, candles, buttons) false-flag; at 2%"
-            + " the bucket is template submodels that should be filtered at registration (tripwire"
-            + " sub-models, glass_pane sub-posts, stem_stage growth) - ToolingAtlasDiagnose.java:71-77");
+        "empirically tuned: at 5% normal thin blocks (torches, candles, buttons) false-flag; at 2% the bucket is"
+            + " template submodels that should be filtered at registration (tripwire sub-models, glass_pane"
+            + " sub-posts, stem_stage growth)");
 
     private final double value;
     private final @NotNull String provenance;

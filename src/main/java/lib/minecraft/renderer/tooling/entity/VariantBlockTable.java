@@ -84,7 +84,7 @@ record VariantBlockTable(@NotNull Map<String, String> byConstant, @Nullable Stri
         for (Map.Entry<String, String> entry : byField.entrySet()) {
             BlockRegistryIndex.Entry registered = blocks.byField(entry.getValue());
             if (registered == null) {
-                diagnostics.warn("Blocks.%s has no registration entry [D25]", entry.getValue());
+                diagnostics.warn("Blocks.%s has no registration entry", entry.getValue());
                 continue;
             }
             byConstant.put(entry.getKey(), registered.id());
