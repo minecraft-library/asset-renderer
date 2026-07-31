@@ -104,7 +104,7 @@ Live in `scripts/` (not bundled into the JAR):
 
 ## Parity / vanilla-reference-harness
 
-The sibling [vanilla-reference-harness] drives the actual MC client to render every block + every entity (with variants) at a locked iso pose. Those PNGs are the byte-stable ground truth that `TestEntityParityVanilla` diffs the Java pipeline against. **Harness internals (mixins, bounds walker, state-extraction patterns) live in [vanilla-reference-harness/CLAUDE.md].** This section is the asset-renderer-side knowledge.
+The [vanilla-reference-harness] - which lives in this repo at `harness/` and stays its own Gradle build, driven through its own `gradlew` - runs the actual MC client to render every block + every entity (with variants) at a locked iso pose. Those PNGs are the byte-stable ground truth that `TestEntityParityVanilla` diffs the Java pipeline against. **Harness internals (mixins, bounds walker, state-extraction patterns) live in [vanilla-reference-harness/CLAUDE.md].** This section is the asset-renderer-side knowledge.
 
 ### Two pipelines
 1. **Java** (vanilla model classes via ASM bytecode walk) - `entity_models.json` + `entity_geometry.json` from the `entityModels` task, consumed at runtime by `EntityRenderer` via `pipeline/loader/EntityModelLoader`.
@@ -326,5 +326,5 @@ When porting a new entity, ALWAYS check if its renderer overrides `setupRotation
 4. Pixel-level debug: `-Dasset.entity.pixel.dump=x0,y0,x1,y1` and `-Dasset.entity.bounds.dump=true` system properties on the parity task. Walk back from the WRITE log to the texel + shade + blend that produced the mismatch. (All custom asset JVM flags live under `asset.*` and auto-forward to every JavaExec/Test fork via the global forwarder in `build.gradle.kts` - new flags need no per-task wiring.)
 5. For vanilla source lookups, `javap` the relevant class in `cache/dragon-extract/` (recipe above).
 
-[vanilla-reference-harness]: ../vanilla-reference-harness
-[vanilla-reference-harness/CLAUDE.md]: ../vanilla-reference-harness/CLAUDE.md
+[vanilla-reference-harness]: harness
+[vanilla-reference-harness/CLAUDE.md]: harness/CLAUDE.md

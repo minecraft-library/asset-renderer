@@ -1,6 +1,6 @@
 # vanilla-reference-harness
 
-Single-purpose headless Fabric mod that drives the real MC client to produce the byte-stable ground-truth PNGs sibling [asset-renderer]'s parity tests diff against. Four sweeps: **blocks** (true 3D, not item icons), **entities**, **non-block items** (GUI icons), and **animated glint**. **README is the user-facing reference** (architecture, mixin catalog, family map, configuration); this file is the session-refresh / contributor's quick reference.
+Single-purpose headless Fabric mod that drives the real MC client to produce the byte-stable ground-truth PNGs [asset-renderer]'s parity tests diff against - this mod lives inside that repo, at `harness/`, and stays its own Gradle build. Four sweeps: **blocks** (true 3D, not item icons), **entities**, **non-block items** (GUI icons), and **animated glint**. **README is the user-facing reference** (architecture, mixin catalog, family map, configuration); this file is the session-refresh / contributor's quick reference.
 
 ## Build / run
 - JDK 25 (Loom toolchain; `JAVA_25` mixin compat), Gradle 9.4.1, Fabric Loom 1.16-SNAPSHOT, Fabric Loader 0.19.2, Fabric API 0.147.0+26.1.2, MC 26.1.2.
@@ -160,11 +160,11 @@ Pre-pass measures every (entity, variant) pair, groups by family root via `Entit
 
 ## Session-refresh checklist
 
-1. Confirm baseline exists: `cd ../asset-renderer && ls cache/asset-renderer/vanilla/26.1/references/{blocks,entities,items,glint} | head`.
+1. Confirm baseline exists: `cd .. && ls cache/asset-renderer/vanilla/26.1/references/{blocks,entities,items,glint} | head`.
 2. Re-render one target to check for regressions: `./gradlew :asset-renderer:renderVanillaReferences -PrefharnessTargets=minecraft:cow` (entity) or `minecraft:chest` (BE block).
 3. Glint iteration: `./gradlew :asset-renderer:renderVanillaGlintReferences [-PrefharnessTargets=minecraft:nether_star]`.
 4. Pose / chirality questions: the empirical answer is the pitch-roll sweep `-PrefharnessPitchRollSweep=true` (first filtered target rendered 576× over a 15° pitch × roll grid).
 5. Asset-renderer-side parity work, kit invariants, and JOML factory conventions: see [asset-renderer/CLAUDE.md].
 
-[asset-renderer]: ../asset-renderer
-[asset-renderer/CLAUDE.md]: ../asset-renderer/CLAUDE.md
+[asset-renderer]: ..
+[asset-renderer/CLAUDE.md]: ../CLAUDE.md
