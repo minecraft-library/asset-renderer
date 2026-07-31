@@ -17,8 +17,11 @@ from pathlib import Path
 from typing import Any, Callable
 
 from parity import VERSION
+from parity import capture as capture_mod
 from parity import compare as compare_mod
 from parity import ids as ids_mod
+from parity import promote as promote_mod
+from parity import provenance as provenance_mod
 from parity import jsondiff as jsondiff_mod
 from parity import manifest as manifest_mod
 from parity import render as render_mod
@@ -317,6 +320,10 @@ def _cmd_render_bytes(args: argparse.Namespace) -> int:
 
 def _cmd_compare(args: argparse.Namespace) -> int:
     root = store_mod.working(args.root, _bases(args))
+    # Refuse a root that never finished: a stale tree reported as agreement is the recorded
+    # `&& diff` trap, and COMPLETE being written last is what makes it detectable.
+    capture_mod.require_complete(root.root)
+
     wanted = [name.strip() for name in args.artifacts.split(",")] if args.artifacts else None
     if not wanted:
         wanted = sorted(_artifacts_in(root.root))
@@ -326,16 +333,137 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     expected = compare_mod.load_expected(
         Path(args.expected) if args.expected else root.root / store_mod.RUN_DIR / "expected-diff.json")
     results = []
+    missing = []
     for artifact in wanted:
-        results.append(compare_mod.compare(_load(args, artifact, args.base), root.read(artifact),
-                                           expected))
+        try:
+            base_payload = _load(args, artifact, args.base)
+        except MissingInput:
+            missing.append(artifact)
+            continue
+        results.append(compare_mod.compare(base_payload, root.read(artifact), expected))
+
     payload = compare_mod.to_report(results)
+    payload["missing_baseline"] = missing
+    if args.bootstrap:
+        payload["bootstrap"] = True
+    if args.include_stale:
+        payload["include_stale"] = True
     run = root.root / store_mod.RUN_DIR
     write_json(run / "compare.json", payload)
     write_text(run / "compare.md", report_mod.render_diff(payload))
-    _emit(args, report_mod.render_diff(payload), payload)
+    write_json(run / "last-verdict.json", {
+        "artifacts": [result.artifact for result in results],
+        "missing_baseline": missing,
+        "unexpected": payload["totals"]["unexpected"],
+    })
+    text = report_mod.render_diff(payload)
+    if missing:
+        text += f"\n\n**MISSING_BASELINE**: {', '.join(missing)}"
+    _emit(args, text, payload)
+
+    if missing and not args.bootstrap:
+        raise ComparisonFailed(
+            f"MISSING_BASELINE for {', '.join(missing)}: nothing to compare against. "
+            "The first capture of an artifact is compared with --bootstrap")
     compare_mod.raise_on(results)
     return OK
+
+
+def _cmd_capture_normalize(args: argparse.Namespace) -> int:
+    repo = _bases(args)
+    root = store_mod.working(args.root, repo).root
+    sources = args.source
+    if len(sources) not in (1, len(args.artifact)):
+        raise Refused(f"give one --source, or one per --artifact ({len(args.artifact)})")
+    capture_mod.wipe(root)
+    written = []
+    for position, artifact in enumerate(args.artifact):
+        source = Path(sources[0] if len(sources) == 1 else sources[position])
+        target = capture_mod.normalize(artifact, source, root, repo, producer=args.producer or "",
+                                       mode=args.mode, flags=args.flag or (), runs=args.runs)
+        written.append({"artifact": artifact, "path": str(target)})
+    _emit(args, "\n".join(f"captured {row['artifact']} -> {row['path']}" for row in written),
+          {"captured": written})
+    return OK
+
+
+def _cmd_capture_index(args: argparse.Namespace) -> int:
+    root = store_mod.working(args.root, _bases(args)).root
+    marker = capture_mod.index(root, producers=(args.producer or "").split(",") if args.producer else (),
+                               flags=args.flag or (), runs=args.runs)
+    _emit(args, f"capture complete: {marker}", {"complete": str(marker)})
+    return OK
+
+
+def _cmd_expect(args: argparse.Namespace) -> int:
+    root = store_mod.working(args.root, _bases(args)).root
+    target = root / store_mod.RUN_DIR / "expected-diff.json"
+    payload = compare_mod.load_expected(target) or compare_mod.empty_expected() \
+        if not args.empty else compare_mod.empty_expected()
+    if not args.empty:
+        if not (args.artifact and args.key and args.to and args.reason):
+            raise Refused("expect needs --artifact, --key, --to and --reason, or --empty")
+        payload["movers"].append({"artifact": args.artifact, "key": args.key,
+                                  "reason": args.reason, "to": args.to})
+    write_json(target, payload)
+    _emit(args, f"{len(payload['movers'])} mover(s) registered -> {target}", payload)
+    return OK
+
+
+def _cmd_provenance(args: argparse.Namespace) -> int:
+    record = provenance_mod.gather(args.artifact, _bases(args), producer=args.producer,
+                                   mode=args.mode, flags=args.flag or (), runs=args.runs,
+                                   reason=args.reason or "")
+    _emit(args, canonical_json(record), record)
+    return OK
+
+
+def _cmd_promote_plan(args: argparse.Namespace) -> int:
+    root = store_mod.working(args.root, _bases(args)).root
+    base = store_mod.production(args.store, _bases(args))
+    entries = promote_mod.plan(root, base, _wanted(args))
+    payload = promote_mod.to_report(entries)
+    run = root / store_mod.RUN_DIR
+    write_json(run / "promote.json", payload)
+    write_text(run / "promote.md", report_mod.render(payload, "promotion-plan"))
+    _emit(args, _plan_text(payload), payload)
+    return OK
+
+
+def _cmd_promote_apply(args: argparse.Namespace) -> int:
+    repo = _bases(args)
+    root = store_mod.working(args.root, repo).root
+    target = store_mod.WritableStore(store_mod.resolve_store(args.store, repo))
+    entries = promote_mod.plan(root, target, _wanted(args))
+
+    # Re-run the plan and re-write the report BEFORE applying, so the human report exists whether
+    # or not promote-plan was run separately.
+    payload = promote_mod.to_report(entries)
+    run = root / store_mod.RUN_DIR
+    write_json(run / "promote.json", payload)
+    write_text(run / "promote.md", report_mod.render(payload, "promotion-plan"))
+
+    promote_mod.check(root, entries, args.reason or "", args.allow_partial, args.bootstrap)
+    result = promote_mod.apply(root, target, entries, args.reason,
+                               parity_class=args.parity_class,
+                               allow_partial=args.allow_partial,
+                               population_changed=args.population_changed)
+    _emit(args, f"promoted {len(result['promoted'])}: {', '.join(result['promoted']) or 'nothing'}",
+          {**payload, "applied": result})
+    return OK
+
+
+def _wanted(args: argparse.Namespace) -> list[str] | None:
+    return [name.strip() for name in args.artifacts.split(",")] if args.artifacts else None
+
+
+def _plan_text(payload: dict) -> str:
+    totals = payload["totals"]
+    lines = [f"new {totals['new']}  replace {totals['replace']}  unchanged {totals['unchanged']}"]
+    for entry in payload["entries"]:
+        note = f"  ({entry['movers']} movers)" if entry["action"] == "replace" else ""
+        lines.append(f"  {entry['action']:<10} {entry['artifact']}{note}")
+    return "\n".join(lines)
 
 
 def _artifacts_in(root: Path) -> list[str]:
@@ -452,6 +580,57 @@ def _register(subparsers: Any) -> dict[str, Command]:
     rep_render.add_argument("--in", dest="input", required=True, metavar="FILE")
     rep_render.add_argument("--kind", default=None)
     table["report"] = _cmd_report
+
+    cap = subparsers.add_parser("capture-normalize",
+                                help="read a producer's raw output into the working root as canonical JSON")
+    cap.add_argument("--artifact", action="append", required=True)
+    cap.add_argument("--source", action="append", required=True, metavar="PATH")
+    cap.add_argument("--producer", default=None, help="one comma list of producing task names")
+    cap.add_argument("--flag", action="append", default=None, metavar="k=v")
+    cap.add_argument("--runs", type=int, default=0, help="how many runs AGREED, a measurement")
+    cap.add_argument("--mode", default=None)
+    table["capture-normalize"] = _cmd_capture_normalize
+
+    idx = subparsers.add_parser("capture-index", help="write _run/_capture.json then COMPLETE last")
+    idx.add_argument("--producer", default=None)
+    idx.add_argument("--flag", action="append", default=None, metavar="k=v")
+    idx.add_argument("--runs", type=int, default=0)
+    table["capture-index"] = _cmd_capture_index
+
+    exp = subparsers.add_parser("expect", help="register the movers a phase intends (I-15)")
+    exp.add_argument("--empty", action="store_true")
+    exp.add_argument("--artifact", default=None)
+    exp.add_argument("--key", default=None, help="keyed the way that artifact's envelope key names")
+    exp.add_argument("--to", default=None)
+    exp.add_argument("--reason", default=None)
+    table["expect"] = _cmd_expect
+
+    prov = subparsers.add_parser("provenance", help="gather a run-provenance record")
+    prov_sub = prov.add_subparsers(dest="provenance_command", required=True)
+    prov_gather = prov_sub.add_parser("gather")
+    prov_gather.add_argument("--artifact", required=True)
+    prov_gather.add_argument("--producer", required=True)
+    prov_gather.add_argument("--mode", default=None)
+    prov_gather.add_argument("--flag", action="append", default=None, metavar="k=v")
+    prov_gather.add_argument("--runs", type=int, default=0)
+    prov_gather.add_argument("--reason", default=None)
+    table["provenance"] = _cmd_provenance
+
+    pplan = subparsers.add_parser("promote-plan", help="read-only: what promoting would change")
+    pplan.add_argument("--artifacts", default=None)
+    pplan.add_argument("--base", default=None, metavar="DIR")
+    table["promote-plan"] = _cmd_promote_plan
+
+    papply = subparsers.add_parser("promote-apply",
+                                   help="THE only writer of production; requires --reason")
+    papply.add_argument("--reason", default=None, required=False)
+    papply.add_argument("--artifacts", default=None)
+    papply.add_argument("--class", dest="parity_class", default="moving", choices=promote_mod.CLASSES,
+                        help="defaults to moving, because forgetting it cannot then understate a change")
+    papply.add_argument("--population-changed", action="store_true")
+    papply.add_argument("--allow-partial", action="store_true")
+    papply.add_argument("--bootstrap", action="store_true")
+    table["promote-apply"] = _cmd_promote_apply
 
     return table
 
