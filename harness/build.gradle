@@ -31,6 +31,10 @@ loom {
         renderReferences {
             client()
             configName = 'Render References'
+            // The Minecraft game directory. Loom defaults it to run/ inside this project;
+            // pointing it at asset-renderer's cache/ keeps every untracked runtime artifact
+            // this build produces under the one cache root, covered by the root .gitignore.
+            runDir = '../cache/run'
             property 'refharness.headless', 'true'
             property 'refharness.outputDir', project.hasProperty('refharnessOutputDir')
                 ? project.property('refharnessOutputDir').toString()
@@ -114,12 +118,13 @@ java {
     targetCompatibility = JavaVersion.VERSION_25
 }
 
-// Wipe run/saves/refharness_world/ before each renderReferences run so the mod can
-// always createFreshLevel(...) without colliding with stale state.
+// Wipe the render world before each renderReferences run so the mod can always
+// createFreshLevel(...) without colliding with stale state. The path tracks the run
+// config's runDir above; the two are the same directory and must move together.
 def resetRefharnessWorld = tasks.register('resetRefharnessWorld', Delete) {
     group = 'refharness'
-    description = 'Removes run/saves/refharness_world/ so the next renderReferences starts clean.'
-    delete layout.projectDirectory.dir('run/saves/refharness_world')
+    description = 'Removes the refharness_world save so the next renderReferences starts clean.'
+    delete layout.projectDirectory.dir('../cache/run/saves/refharness_world')
 }
 
 tasks.matching { it.name == 'runRenderReferences' }.configureEach {
