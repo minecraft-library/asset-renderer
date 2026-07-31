@@ -1,3 +1,6 @@
+import java.io.FileOutputStream
+import java.io.OutputStream
+
 plugins {
     id("java-library")
     id("me.champeau.jmh") version "0.7.2"
@@ -27,6 +30,37 @@ java {
 // JVM that runs without the module.
 val addVectorModuleArg = "--add-modules=jdk.incubator.vector"
 
+/**
+ * Writes every byte to two sinks, so a producer's stdout reaches the console and a log file in one
+ * pass. The harness prints its `failed=` line and one fit line per cohort to stdout and nothing
+ * else records either, so a gate reading only the exit code cannot tell a partial sweep from a whole
+ * one. The log is scratch under `build/`, never a store file.
+ *
+ * @param console the sink written first, flushed but never closed - normally `System.out`
+ * @param log the sink written second, and closed with this stream
+ */
+class TeeStream(private val console: OutputStream, private val log: OutputStream) : OutputStream() {
+    override fun write(byte: Int) {
+        console.write(byte)
+        log.write(byte)
+    }
+
+    override fun write(bytes: ByteArray, offset: Int, length: Int) {
+        console.write(bytes, offset, length)
+        log.write(bytes, offset, length)
+    }
+
+    override fun flush() {
+        console.flush()
+        log.flush()
+    }
+
+    override fun close() {
+        console.flush()
+        log.close()
+    }
+}
+
 // Forward every -Dasset.* system property to every forked Test + JavaExec JVM, in ONE place, so any
 // future asset.* debug flag (e.g. -Dasset.snap.grid, -Dasset.entity.pixel.dump, -Dasset.glint.itemScale)
 // auto-propagates to every task without per-task wiring. The CLI -D lands in the gradle daemon's
@@ -43,16 +77,339 @@ fun org.gradle.process.JavaForkOptions.forwardAssetProperties() =
 // place the path is written and the only thing a future relocation has to edit.
 val harnessDir = layout.projectDirectory.dir("harness")
 
+// ---- parity roots -------------------------------------------------------------------------------
+// The working root is SINGLE-SLOT and self-overwriting: one root, one capture in it, and the next
+// capture replaces the previous. An A/B before-side is a REDIRECTED ROOT
+// (-PparityRoot=cache/parity/base), never a second slot name a plan could keep alive.
+//
+// Precedence: -PparityRoot (a task-level choice) beats the forwarded -Dasset.parity.* root (which
+// forwardAssetProperties may already have put on a fork) beats the default, and the resolved value is
+// then set on every fork so the two can never disagree.
+//
+// Configuration-cache note: the System.getProperty read is a mutable global read at configuration
+// time - the same class as forwardAssetProperties()' own System.getProperties() walk above, and one
+// key rather than a whole table. It adds no new class of exposure.
+val parityWorkingRoot: String =
+    (project.findProperty("parityRoot") as String?)
+        ?: System.getProperty("asset.parity.root")
+        ?: "cache/parity/current"
+
+// The tracked production store - the last known value of every artifact. It lives inside the test
+// source set's resources, so moving it is this one line on the Gradle side, one constant on the Java
+// side and one on the Python side.
+val parityProductionStore: String = "src/test/resources/lib/minecraft/renderer/parity"
+
+/**
+ * Refuses a working root a `cache/` clean would not reach.
+ *
+ * A redirected root must stay relative and under `cache/`, so a temporary capture can never be
+ * written into a tracked directory and always dies with a cache clean. That is what makes long-lived
+ * temp output unrepresentable rather than merely discouraged.
+ *
+ * It is a pure string test on purpose - nothing here resolves a path, so nothing here can resolve one
+ * against the JVM's working directory - and it is called from each parity task's configuration block
+ * rather than at the top level, so a malformed -PparityRoot fails the parity tasks and not
+ * `./gradlew test`.
+ */
+fun requireParityRootUnderCache() {
+    val normalized = parityWorkingRoot.replace('\\', '/')
+    val absolute = normalized.startsWith("/") || normalized.matches(Regex("^[A-Za-z]:/.*"))
+    require(!absolute && normalized.startsWith("cache/")) {
+        "-PparityRoot must be a relative path under cache/ (got '$parityWorkingRoot')"
+    }
+}
+
+// -Plabel keeps its meaning and its blank-check: a valueless -Plabel arrives as "" rather than null,
+// which would write the dump to cache/parity-dump//.
+val parityDumpLabel: String =
+    (project.findProperty("label") as String?)?.takeIf { it.isNotBlank() } ?: "head"
+
+// ---- the Minecraft version, and the reference tree it names -------------------------------------
+// ONE owner for the version segment of the reference tree path, which this file used to hardcode
+// five times over. The harness's gradle.properties is the authority, and the tree path takes its
+// major.minor, which is the existing convention and is preserved. providers.fileContents is a
+// DECLARED input where a raw File.readText would be a new undeclared configuration-time read, and the
+// fallback is what lets a checkout without the harness still configure.
+val minecraftVersion: String = providers
+    .fileContents(harnessDir.file("gradle.properties"))
+    .asText.orNull
+    ?.lineSequence()
+    ?.firstOrNull { it.startsWith("minecraft_version") }
+    ?.substringAfter('=')?.trim()
+    ?: "26.1.2"
+
+val parityReferenceRoot: String =
+    "cache/asset-renderer/vanilla/${minecraftVersion.split(".").take(2).joinToString(".")}/references"
+
+// ---- the parity toolkit invocation --------------------------------------------------------------
+val parityPythonExe: String = (project.findProperty("pythonExe") as String?)
+    ?: System.getenv("PARITY_PYTHON")
+    ?: if (org.gradle.internal.os.OperatingSystem.current().isWindows) "python" else "python3"
+
+/**
+ * Points an Exec task at the parity toolkit. Nothing in this build file computes a sum, a bucket, a
+ * join or a digest - that is the toolkit's job and there is one of it.
+ *
+ * `PYTHONUTF8=1` forces UTF-8 on a Windows host whose default codepage is 1252. There is deliberately
+ * no `PYTHONPATH`: the directory form `python scripts/parity <command>` needs none, and one
+ * invocation form is what the build, the skill and a human all type.
+ *
+ * @receiver the Exec task being pointed at the toolkit
+ * @param argv the toolkit command and its arguments, after `scripts/parity`
+ */
+fun org.gradle.process.ExecSpec.parityToolkit(vararg argv: String) {
+    executable = parityPythonExe
+    args(listOf("scripts/parity") + argv)
+    environment("PYTHONUTF8", "1")
+}
+
+// ---- the artifact roster ------------------------------------------------------------------------
+/**
+ * One parity artifact and the task that produces it.
+ *
+ * @param artifact the artifact id, which is also the capture step's name suffix
+ * @param producers every task whose run can produce this artifact
+ * @param source the producer's own output directory, relative to the project directory; the working
+ *   root itself for a row whose producer self-captures from inside the test JVM
+ * @param scopedBy project properties that narrow the producer - any one present suppresses the
+ *   capture, because a scoped run is a hole rather than a sample
+ */
+data class ParityArtifact(
+    val artifact: String,
+    val producers: List<String>,
+    val source: String,
+    val scopedBy: List<String> = emptyList()
+)
+
+// Rows 16 to 23 carry the WORKING ROOT as their source: those producers self-capture from inside the
+// test JVM, so the capture step validates and stamps the already-canonical file rather than reading a
+// producer directory. Row 15 is `test` and row 16 is `slowTest` because ResourceShaTest runs in the
+// fast suite while PipelineIntegrationTest is @Tag("slow") - naming `test` for the latter would let a
+// fast-suite run credit itself with a value it never computed.
+//
+// manifest.references names ONE producer where five tasks write into that tree: the four narrow runs
+// leave sub-trees stale, and a whole-tree manifest taken after one of them hashes a mix of fresh and
+// stale that is indistinguishable from a whole-tree run. manifest.tooling-tables names eight
+// producers and one source directory, so any single flow's run captures the whole ten-file table
+// state - a per-flow manifest would be four files here and six there and the two would not compare.
+val parityArtifacts = listOf(
+    ParityArtifact("sweep.entity", listOf("entityParityVanilla"), "cache/visual/entity-parity-vanilla", listOf("entityId")),
+    ParityArtifact("sweep.block", listOf("blockParityVanilla"), "cache/visual/block-parity-vanilla", listOf("blockId")),
+    ParityArtifact("sweep.item", listOf("itemParityVanilla"), "cache/visual/item-parity-vanilla", listOf("itemId")),
+    ParityArtifact("sweep.player", listOf("playerParityVanilla"), "cache/visual/player-parity-vanilla"),
+    ParityArtifact("sweep.armor", listOf("armorParityVanilla"), "cache/visual/armor-parity-vanilla"),
+    ParityArtifact("sweep.glint", listOf("glintParityVanilla"), "cache/visual/glint-parity-vanilla", listOf("itemId")),
+    ParityArtifact("manifest.references", listOf("renderVanillaAllReferences"), parityReferenceRoot, listOf("refharnessTargets")),
+    ParityArtifact("manifest.visual", listOf("visualSweepSet"), "cache/visual"),
+    ParityArtifact("manifest.dump.vanilla", listOf("parityDump"), "cache/parity-dump/$parityDumpLabel/vanilla"),
+    ParityArtifact("manifest.dump.packs", listOf("parityDump"), "cache/parity-dump/$parityDumpLabel/packs"),
+    ParityArtifact("manifest.player-sheets", listOf("playerRender"), "cache/visual/player-render",
+        listOf("sheets", "account", "renderSize", "pack")),
+    ParityArtifact("manifest.fluid", listOf("fluidRenderer"), "cache/visual/fluid-renderer"),
+    ParityArtifact("manifest.portal", listOf("portalRenderer"), "cache/visual/portal-renderer"),
+    ParityArtifact("manifest.tooling-tables",
+        listOf("entityModels", "blockModels", "blockDefaults", "blockItems", "blockTints", "potionColors", "glintItems", "colorMaps"),
+        "src/main/resources/lib/minecraft/renderer"),
+    ParityArtifact("digest.shipped-tables", listOf("test"), "src/main/resources/lib/minecraft/renderer"),
+    ParityArtifact("digest.colormap-lut", listOf("slowTest"), "$parityWorkingRoot/digests"),
+    ParityArtifact("pin.vanilla-iso-pose", listOf("test"), "$parityWorkingRoot/pins"),
+    ParityArtifact("pin.kit-corners", listOf("test"), "$parityWorkingRoot/pins"),
+    ParityArtifact("pin.corpus-count", listOf("test"), "$parityWorkingRoot/pins"),
+    ParityArtifact("pin.player-crc", listOf("slowTest"), "$parityWorkingRoot/pins"),
+    ParityArtifact("pin.block-crc", listOf("slowTest"), "$parityWorkingRoot/pins"),
+    ParityArtifact("pin.portal-crc", listOf("slowTest"), "$parityWorkingRoot/pins"),
+    ParityArtifact("pin.fluid-crc", listOf("slowTest"), "$parityWorkingRoot/pins")
+)
+
+/** Every task the artifact table names, so a producer's stdout is captured wherever it runs. */
+val parityProducerNames: Set<String> = parityArtifacts.flatMap { it.producers }.toSet()
+
+// Every alias that can be derived from the table is derived from it, so a new row joins its alias
+// without a second edit. `renders`, `dump` and `tables` name their members because those three are
+// groupings rather than kinds. manifest.references is deliberately in `all`: naming it means booting
+// the Minecraft client for 152 seconds, which is correct, because the alternative is a reference
+// manifest captured against whatever happened to be on disk.
+val parityArtifactAliases: Map<String, List<String>> = mapOf(
+    "all" to parityArtifacts.map { it.artifact },
+    "sweeps" to parityArtifacts.map { it.artifact }.filter { it.startsWith("sweep.") },
+    "renders" to listOf("manifest.player-sheets", "manifest.fluid", "manifest.portal"),
+    "dump" to listOf("manifest.dump.vanilla", "manifest.dump.packs"),
+    "tables" to listOf("manifest.tooling-tables"),
+    "pins" to parityArtifacts.map { it.artifact }.filter { it.startsWith("pin.") },
+    "digests" to parityArtifacts.map { it.artifact }.filter { it.startsWith("digest.") }
+)
+
+/**
+ * The artifact ids a plan resolved the changed paths to, or null when no plan has been written.
+ *
+ * Read through `providers.fileContents` so an absent plan is an absent value rather than an
+ * exception, and so the read is a declared input.
+ *
+ * @return the plan's SEES set, or null when the working root holds no plan
+ */
+fun parityPlannedArtifacts(): List<String>? {
+    val text = providers
+        .fileContents(layout.projectDirectory.file("$parityWorkingRoot/_run/plan.json"))
+        .asText.orNull ?: return null
+    val plan = groovy.json.JsonSlurper().parseText(text) as Map<*, *>
+    return (plan["sees"] as List<*>?)?.map { it.toString() }
+}
+
+/**
+ * Expands `-Partifacts` into the rows to capture.
+ *
+ * Three branches in order: an explicit comma list of ids and aliases; absent with a plan, which
+ * resolves to the plan's SEES set so a human never has to know the ids; absent with no plan, which
+ * throws carrying the full id list.
+ *
+ * @param spec the -Partifacts value, or null when it was not given
+ * @return the named rows, in table order and without duplicates
+ */
+fun resolveParityArtifacts(spec: String?): List<ParityArtifact> {
+    val known = parityArtifacts.associateBy { it.artifact }
+    val roster = "known artifacts: ${known.keys.joinToString(", ")}\n" +
+        "known aliases: ${parityArtifactAliases.keys.joinToString(", ")}"
+    val requested = spec?.split(",")?.map(String::trim)?.filter(String::isNotEmpty)
+        ?: parityPlannedArtifacts()
+        ?: throw GradleException(
+            "-Partifacts is required when no plan has been written: run parityPlan first, or name " +
+                "the artifacts.\n$roster")
+    val ids = requested.flatMap { token -> parityArtifactAliases[token] ?: listOf(token) }.distinct()
+    ids.firstOrNull { it !in known }?.let {
+        throw GradleException("unknown artifact id '$it'.\n$roster")
+    }
+    return parityArtifacts.filter { it.artifact in ids }
+}
+
+// ---- the harness runs, and the capture steps ----------------------------------------------------
+/** Composable harness diagnostics: stdout only, so a run carrying one still produces the same bytes. */
+val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDump")
+
+/** Every sub-tree the reference tree holds, so a partial run can name what it did NOT refresh. */
+val referenceSubTrees = listOf("blocks", "items", "entities", "players", "glint", "armor")
+
+/**
+ * Registers one harness run. A mode is a task, never a pass-through property: a mode flag changes
+ * what the run produces, and a task named `renderVanillaReferences` that renders no reference is the
+ * recorded trap.
+ *
+ * @receiver the task container the run joins
+ * @param name the task name
+ * @param modeFlag the harness -P selecting the mode, or null for the harness's full mode
+ * @param forwardsTargets whether -PrefharnessTargets is honoured by the sweeps this mode runs
+ * @param refreshes the reference sub-trees this run rewrites; empty means it writes outside the tree
+ * @param describe the task description
+ * @return the registered task
+ */
+fun TaskContainer.registerHarnessRun(
+    name: String,
+    modeFlag: String?,
+    forwardsTargets: Boolean,
+    refreshes: List<String>,
+    describe: String
+) = register<Exec>(name) {
+    description = describe
+    group = "tooling"
+    workingDir = harnessDir.asFile
+    val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+    val gradlew = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
+    // layout.projectDirectory, never File(relative): a bare File resolves against the JVM's working
+    // directory, which in a long-lived daemon is usually but not guaranteed the project directory -
+    // and this value is what the harness writes its whole reference tree into.
+    val referenceDir = layout.projectDirectory.dir(parityReferenceRoot).asFile
+    val argv = mutableListOf<String>()
+    if (isWindows) {
+        argv += "cmd"
+        argv += "/c"
+    }
+    argv += gradlew
+    argv += "runRenderReferences"
+    argv += "--no-daemon"
+    // -P propagates through the harness's build.gradle to its Loom run config, which sets the system
+    // property the mod reads. -D would only reach the wrapper's JVM, never the forked client.
+    argv += "-PrefharnessOutputDir=${referenceDir.absolutePath}"
+    if (modeFlag != null) argv += "-P$modeFlag=true"
+    if (forwardsTargets && project.hasProperty("refharnessTargets"))
+        argv += "-PrefharnessTargets=${project.property("refharnessTargets")}"
+    harnessDiagnosticProperties.filter { project.hasProperty(it) }
+        .forEach { argv += "-P$it=${project.property(it)}" }
+    commandLine = argv
+    val log = layout.buildDirectory.file("parity/harness-$name.log").get().asFile
+    val stale = referenceSubTrees - refreshes.toSet()
+    doFirst {
+        log.parentFile.mkdirs()
+        // The harness prints "<sweep>: done. rendered= skipped= failed= total=" and one fit line per
+        // cohort, and both are discarded with its gitignored logs. failed= is the only signal a
+        // partially failed sweep leaves, so the stream is tee'd rather than swallowed.
+        standardOutput = TeeStream(System.out, FileOutputStream(log))
+        referenceDir.mkdirs()
+        println("$name -> $parityReferenceRoot")
+        if (refreshes.isNotEmpty() && stale.isNotEmpty())
+            println("$name does NOT refresh ${stale.joinToString()} - those sub-trees keep whatever " +
+                "produced them. After any harness render change run renderVanillaAllReferences.")
+    }
+}
+
+/**
+ * Registers one capture step and finalizes every producer of its artifact with it.
+ *
+ * @receiver the task container the capture step joins
+ * @param spec the artifact this step captures
+ */
+fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
+    val suffix = spec.artifact.split('.')
+        .joinToString("") { it.replaceFirstChar(Char::titlecase) }
+        .replace("-", "")
+    val scoped = spec.scopedBy.filter { project.hasProperty(it) }
+    val runs = project.findProperty("runs") as String?
+    val step = register<Exec>("parityCapture$suffix") {
+        // No group: these are finalizers, not an entry point. The group = "parity" tasks are.
+        description = "Captures ${spec.artifact} from ${spec.source} into the parity working root."
+        parityToolkit(*buildList {
+            add("capture-normalize")
+            add("--artifact"); add(spec.artifact)
+            add("--source"); add(spec.source)
+            add("--root"); add(parityWorkingRoot)
+            add("--producer"); add(spec.producers.joinToString(","))
+            // -Pruns is the ONLY spelling of the determinism-run count, and it is forwarded here
+            // rather than registered and dropped. Absent means the artifact's declared floor, which
+            // the toolkit owns because the floor is a property of the artifact, not of the build.
+            runs?.let { add("--runs"); add(it) }
+        }.toTypedArray())
+        // Never up to date, for the reason parityDump's own comment gives: a capture reported
+        // UP-TO-DATE is a stale capture served as fresh evidence.
+        outputs.upToDateWhen { false }
+        onlyIf {
+            if (scoped.isNotEmpty()) {
+                logger.lifecycle("parity: NOT capturing ${spec.artifact} - scoped by " +
+                    "${scoped.joinToString { "-P$it" }}. A scoped run is a hole, not a sample; " +
+                    "re-run without it to capture.")
+            }
+            scoped.isEmpty()
+        }
+    }
+    spec.producers.forEach { producer -> named(producer) { finalizedBy(step) } }
+}
+
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add(addVectorModuleArg)
 }
+// The two parity roots go AFTER forwardAssetProperties() so the resolved value wins whether or not
+// one was also forwarded from the command line. The working root on the Test hook is what lets the
+// self-capturing pin and digest rows write their observed value into it from inside the test JVM; the
+// references path is the single owner of the reference tree, which the Java side reads instead of
+// holding one VANILLA_DIR literal per sweep main.
 tasks.withType<Test>().configureEach {
     jvmArgs(addVectorModuleArg)
     forwardAssetProperties()
+    systemProperty("asset.parity.root", parityWorkingRoot)
+    systemProperty("asset.parity.references", parityReferenceRoot)
 }
 tasks.withType<JavaExec>().configureEach {
     jvmArgs(addVectorModuleArg)
     forwardAssetProperties()
+    systemProperty("asset.parity.root", parityWorkingRoot)
+    systemProperty("asset.parity.references", parityReferenceRoot)
 }
 
 repositories {
@@ -116,7 +473,8 @@ dependencies {
 
     // ASM - used by VanillaTintsLoader to parse net.minecraft.client.color.block.BlockColors
     // straight from the extracted client jar, replacing the previously hand-curated tint table.
-    // 9.8 added support for Java 25 class files (major version 69) which 26.1 emits.
+    // 9.8 added support for Java 25 class files (major version 69), which the Minecraft version
+    // named by the harness's gradle.properties emits.
     implementation("org.ow2.asm:asm:9.8")
     implementation("org.ow2.asm:asm-tree:9.8")
 
@@ -480,11 +838,38 @@ tasks {
         args = listOf(renderSize)
     }
 
+    // manifest.visual's producer, and the reason it exists: that artifact had a store file and no
+    // producer, so nothing could capture it.
+    //
+    // The membership is an ALLOWLIST of six producer directories rather than a denylist of
+    // everything else. A denylist would have to be extended every time someone runs an A/B and
+    // leaves a directory behind under cache/visual, and forgetting to extend it silently bakes
+    // scratch into a baseline - there are nine such session-leftover directories on disk today.
+    //
+    // Three producers writing into cache/visual are deliberately NOT members because each already
+    // IS an artifact of its own (playerRender, fluidRenderer, portalRenderer), and the six
+    // *-parity-vanilla trees are not members because they are per-subject diff panels keyed by a
+    // sweep table rather than a byte-gate population. `atlas` is not a member either: it writes
+    // build/atlas/, outside the root entirely, and its parallel tile dispatch makes its output
+    // permanently unhashable.
+    register("visualSweepSet") {
+        description = "Runs the visual renders whose output cache/visual sub-tree no other parity artifact covers - the producer of manifest.visual."
+        group = "visual"
+        dependsOn(
+            "blockRender3D",    // block-render-3d
+            "entityRender3D",   // entity-render-3d
+            "itemDayCycle",     // item-day-cycle
+            "itemRender2D",     // item-render-2d
+            "loreTooltip",      // lore-tooltip
+            "menuRender"        // menu-render
+        )
+    }
+
     // Delegates to the vanilla-reference-harness Fabric mod in harness/, which boots a
-    // headless Minecraft 26.1.2 client, renders every block + living entity to PNG
-    // via the in-game vanilla pipeline, then exits. Output lands under
-    // cache/asset-renderer/vanilla/<version>/references/{blocks,entities}/ so
-    // parity tests can diff against ground truth.
+    // headless Minecraft client, renders every block + living entity to PNG via the
+    // in-game vanilla pipeline, then exits. Output lands under parityReferenceRoot,
+    // whose version segment comes from the harness's own gradle.properties, so parity
+    // tests can diff against ground truth.
     //
     // Run on a Minecraft version bump (~5 minutes total). Regenerated PNGs are
     // gitignored via the cache/ exclusion.
@@ -498,7 +883,7 @@ tasks {
         // The harness build's renderReferences run-config writes PNGs into its own
         // build/refharness-output/. We point it at asset-renderer's vanilla cache
         // directly via -Drefharness.outputDir, no copy step needed.
-        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val outputDir = layout.projectDirectory.dir(parityReferenceRoot)
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
         val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         val baseArgs = mutableListOf<String>()
@@ -534,7 +919,7 @@ tasks {
         description = "Runs the vanilla-reference-harness mod in harness/ in glint-only mode, writing animated glint references to asset-renderer's vanilla cache (references/glint/). Then run glintParityVanilla."
         group = "tooling"
         workingDir = harnessDir.asFile
-        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val outputDir = layout.projectDirectory.dir(parityReferenceRoot)
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
         val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         val baseArgs = mutableListOf<String>()
@@ -565,7 +950,7 @@ tasks {
         description = "Runs the vanilla-reference-harness mod in harness/ in players-only mode, writing vanilla player references to asset-renderer's vanilla cache (references/players/). Then run playerParityVanilla."
         group = "tooling"
         workingDir = harnessDir.asFile
-        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val outputDir = layout.projectDirectory.dir(parityReferenceRoot)
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
         val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         val baseArgs = mutableListOf<String>()
@@ -593,7 +978,7 @@ tasks {
         description = "Runs the vanilla-reference-harness mod in harness/ in armor-only mode, writing armored-mob references (adult + baby, iron + dyed leather) to asset-renderer's vanilla cache (references/armor/). Then run armorParityVanilla."
         group = "tooling"
         workingDir = harnessDir.asFile
-        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val outputDir = layout.projectDirectory.dir(parityReferenceRoot)
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
         val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         val baseArgs = mutableListOf<String>()
@@ -623,7 +1008,7 @@ tasks {
         description = "Runs the vanilla-reference-harness mod in harness/ over EVERY sweep in one boot - blocks, items, entities, player, glint and armor - writing the whole reference tree to asset-renderer's vanilla cache. The one to run after a harness render change; renderVanillaReferences skips glint/ and armor/."
         group = "tooling"
         workingDir = harnessDir.asFile
-        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val outputDir = layout.projectDirectory.dir(parityReferenceRoot)
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
         val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         val baseArgs = mutableListOf<String>()
