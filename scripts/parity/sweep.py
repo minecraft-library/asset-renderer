@@ -1,0 +1,190 @@
+"""The sweep-table reader, and the one implementation of the fleet sum and the buckets.
+
+Three column shapes, one reader. The delta is resolved **by header name** rather than by position,
+which is the whole point: ``mean_argb_delta`` is column 3 in ``sweep.glint`` because column 2 is
+``frames``, so the corpus's canonical ``awk '{s+=$2}'`` returns ``330.0000`` there - 30 frames times
+11 subjects - and 67 recorded uses never caught it.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Iterable
+
+from parity import ids as ids_mod
+from parity.norm import MissingInput, fsum, read_lines
+
+#: Spine 4.3. These and only these.
+SWEEPS = ("entity", "block", "item", "player", "armor", "glint")
+
+DELTA = "mean_argb_delta"
+
+#: The canvas quartet, whose movement is its own comparison class because it re-samples every pixel.
+CANVAS = ("java_w", "java_h", "vanilla_w", "vanilla_h")
+
+#: Cumulative, not histogram bins: each count includes every lower one.
+BUCKET_EDGES = (0.25, 0.5, 0.75, 1.0)
+
+#: I-27. A crashed subject is not a bad subject - it fails every bucket test identically - so it is
+#: carried as an explicit status rather than as an out-of-band magic value.
+OK = "ok"
+FAILED = "failed"
+
+_SENTINEL_TEXTS = {"infinity", "-infinity", "nan"}
+
+
+@dataclass(frozen=True)
+class Row:
+    """One subject. Values stay as their **stored text**, which is what the mover join compares."""
+
+    key: str
+    values: dict[str, str]
+    status: str = OK
+
+    def delta(self) -> float | None:
+        text = self.values.get(DELTA, "")
+        if self.status == FAILED:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+
+
+@dataclass
+class Table:
+    sweep: str
+    key_field: str
+    columns: tuple[str, ...]
+    rows: list[Row] = field(default_factory=list)
+
+    def failed(self) -> int:
+        return sum(1 for row in self.rows if row.status == FAILED)
+
+
+def read_table(path: Path, sweep: str | None = None) -> Table:
+    """Read any of the three column shapes.
+
+    ``read_lines`` folds the mixed LF-header/CRLF-body form every sweep writes today, so the reader
+    is indifferent to it and nothing downstream has to strip a stray CR.
+    """
+    if not path.is_file():
+        raise MissingInput(f"no sweep table at {path}")
+    lines = read_lines(path)
+    if not lines:
+        raise MissingInput(f"empty sweep table at {path}")
+    columns = tuple(lines[0].split("\t"))
+    if DELTA not in columns:
+        raise MissingInput(f"{path} has no {DELTA} column; found {columns}")
+    key_field = columns[0]
+    resolved = sweep or _sweep_of(path, key_field)
+
+    rows: list[Row] = []
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        cells = line.split("\t")
+        values = dict(zip(columns, cells))
+        rows.append(Row(key=cells[0], values=values, status=_status(values)))
+    return Table(sweep=resolved, key_field=key_field, columns=columns, rows=rows)
+
+
+def _status(values: dict[str, str]) -> str:
+    if values.get(DELTA, "").strip().lower() in _SENTINEL_TEXTS:
+        return FAILED
+    if values.get("differing_pixels", "").strip() == "-1":
+        return FAILED
+    return OK
+
+
+def _sweep_of(path: Path, key_field: str) -> str:
+    """Name the sweep from the path when it can, else from the key column's own spelling."""
+    stem = path.stem
+    for name in SWEEPS:
+        if stem == f"sweep-{name}" or path.parent.name == f"{name}-parity-vanilla":
+            return name
+    return {"scope": "player", "subject": "armor", "entity_id": "entity",
+            "block_id": "block", "item_id": "item"}.get(key_field, "unknown")
+
+
+def discover(source: Path) -> dict[str, Path]:
+    """Find sweep tables under either layout a producer or a capture leaves behind.
+
+    ``cache/visual/<sweep>-parity-vanilla/parity-report.tsv`` is what the six sweeps write;
+    ``cache/p0/sweep-<sweep>.tsv`` is what a capture of them looks like. Accepting both is what lets
+    ``--from`` name either without a second flag.
+    """
+    if source.is_file():
+        table = read_table(source)
+        return {table.sweep: source}
+    found: dict[str, Path] = {}
+    for name in SWEEPS:
+        for candidate in (source / f"sweep-{name}.tsv",
+                          source / f"{name}-parity-vanilla" / "parity-report.tsv",
+                          source / f"{name}.tsv"):
+            if candidate.is_file():
+                found[name] = candidate
+                break
+    if not found:
+        raise MissingInput(f"no sweep tables under {source}")
+    return found
+
+
+def total(table: Table) -> float:
+    """``math.fsum``: exactly rounded and order-independent, so a re-sorted table sums the same.
+
+    A sequential ``+=`` is not, and the sweeps sort by delta - so one row moving past another can
+    change the last digit of a sum that is supposed to have held.
+    """
+    return fsum(row.delta() or 0.0 for row in table.rows if row.status == OK)
+
+
+def buckets(table: Table) -> dict[str, int]:
+    counts = {f"<{edge:.2f}": 0 for edge in BUCKET_EDGES}
+    for row in table.rows:
+        delta = row.delta()
+        if delta is None:
+            continue
+        for edge in BUCKET_EDGES:
+            if delta < edge:
+                counts[f"<{edge:.2f}"] += 1
+    counts["total"] = len(table.rows)
+    counts["failed"] = table.failed()
+    return counts
+
+
+def canonical_key(row: Row, sweep: str) -> str:
+    """Every row joins on the canonical reference stem, whatever spelling its own table prints.
+
+    That is what lets two sweeps' rows be joined to each other, which nothing in the repo can do.
+    """
+    if sweep == "player":
+        return row.key
+    try:
+        return ids_mod.format_ref_stem(ids_mod.parse_as(row.key, _spelling(sweep)))
+    except ids_mod.IdError:
+        return row.key
+
+
+def _spelling(sweep: str) -> ids_mod.Spelling:
+    return ids_mod.Spelling.COLON if sweep in ("block", "item", "glint") else ids_mod.Spelling.REF_STEM
+
+
+def to_rows(table: Table) -> list[dict]:
+    """The stored payload: one object per subject, keyed by the canonical stem under ``subject``."""
+    out = []
+    for row in table.rows:
+        payload = {"subject": canonical_key(row, table.sweep), "status": row.status}
+        payload.update({name: value for name, value in row.values.items() if name != table.key_field})
+        out.append(payload)
+    out.sort(key=lambda item: item["subject"])
+    return out
+
+
+def summarise(tables: Iterable[tuple[str, Table]]) -> list[dict]:
+    return [
+        {"buckets": buckets(table), "failed": table.failed(), "rows": len(table.rows),
+         "sum": total(table), "sweep": name}
+        for name, table in tables
+    ]

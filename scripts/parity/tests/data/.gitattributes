@@ -1,0 +1,8 @@
+# The sweep fixtures carry the six writers' real mixed form on purpose: an LF header followed by
+# CRLF data rows, which is what `String.format("%n")` rows against a literal "\n" header produce on
+# Windows. The repo's own `* text=auto eol=lf` would normalize them to pure LF on the next checkout,
+# which would quietly delete the thing they exist to pin - test_sweep asserts the CRLF is there.
+#
+# `-text` stores and checks out their bytes verbatim. Do not remove this without also deciding that
+# the reader no longer has to prove it tolerates the mixed form.
+sweep-*.tsv -text

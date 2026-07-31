@@ -1,0 +1,4 @@
+item_id	frames	mean_argb_delta	worst_frame	vanilla_present	diagnostic
+minecraft:leather_helmet	30	120.0313	25	true	true
+minecraft:nether_star	30	10.5000	3	true	false
+minecraft:golden_apple	30	1.2500	7	true	false

@@ -1,0 +1,161 @@
+"""The five ordered classes, the mover definition, and the absence of any tolerance."""
+
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+
+from parity import compare, sweep
+from parity.norm import ComparisonFailed
+
+DATA = Path(__file__).resolve().parent / "data"
+
+
+def artifact(rows: list[dict], artifact_id: str = "sweep.entity") -> dict:
+    return {"artifact": artifact_id, "format": 1, "key": "subject", "kind": "sweep-table",
+            "rows": rows}
+
+
+def from_fixture(name: str) -> dict:
+    table = sweep.read_table(DATA / name, "entity")
+    return artifact(sweep.to_rows(table))
+
+
+class Classification(unittest.TestCase):
+    """Every difference lands in exactly one class, and a row matching several takes the first."""
+
+    def test_the_five_classes_partition(self):
+        left = from_fixture("sweep-entity-a.tsv")
+        right = from_fixture("sweep-entity-b.tsv")
+        result = compare.compare(left, right)
+        totals = result.totals()
+        self.assertEqual(totals["added"], 1)
+        self.assertEqual(totals["dropped"], 1)
+        self.assertEqual(totals["moved"], totals["canvas"] + totals["metric"] + totals["status"])
+
+    def test_the_added_and_dropped_keys(self):
+        result = compare.compare(from_fixture("sweep-entity-a.tsv"),
+                                 from_fixture("sweep-entity-b.tsv"))
+        self.assertEqual(result.added, ["minecraft__warden"])
+        self.assertEqual(result.dropped, ["minecraft__cod"])
+
+    def test_a_canvas_move_outranks_the_metric_and_keeps_it_in_also(self):
+        """A canvas move re-samples every pixel on that row, so it is what a reader must know first."""
+        left = artifact([{"subject": "x", "mean_argb_delta": "1.0000", "java_w": "100"}])
+        right = artifact([{"subject": "x", "mean_argb_delta": "2.0000", "java_w": "101"}])
+        mover = compare.compare(left, right).movers[0]
+        self.assertEqual(mover["class"], "canvas")
+        self.assertEqual(mover["also"], ["metric"])
+
+    def test_a_status_change_outranks_everything(self):
+        left = artifact([{"subject": "x", "status": "ok", "mean_argb_delta": "1.0000"}])
+        right = artifact([{"subject": "x", "status": "failed", "mean_argb_delta": "2.0000"}])
+        self.assertEqual(compare.compare(left, right).movers[0]["class"], "status")
+
+
+class MoverDefinition(unittest.TestCase):
+
+    def test_a_held_metric_with_a_moved_canvas_is_still_a_mover(self):
+        """Calling this unchanged is how a canvas change hides."""
+        left = artifact([{"subject": "x", "mean_argb_delta": "1.0000", "java_w": "317"}])
+        right = artifact([{"subject": "x", "mean_argb_delta": "1.0000", "java_w": "318"}])
+        result = compare.compare(left, right)
+        self.assertEqual(result.totals()["moved"], 1)
+        self.assertEqual(result.movers[0]["class"], "canvas")
+
+    def test_a_held_sum_with_cancelling_rows_still_reports_movers(self):
+        """The accept criterion is zero movers, never 'the sum held'."""
+        left = artifact([{"subject": "a", "mean_argb_delta": "1.0000"},
+                         {"subject": "b", "mean_argb_delta": "3.0000"}])
+        right = artifact([{"subject": "a", "mean_argb_delta": "2.0000"},
+                          {"subject": "b", "mean_argb_delta": "2.0000"}])
+        result = compare.compare(left, right)
+        self.assertEqual(result.left.sum(), result.right.sum())
+        self.assertEqual(result.totals()["moved"], 2)
+        self.assertFalse(result.clean())
+
+    def test_a_one_row_table_against_a_full_one_reports_drops_not_a_held_sum(self):
+        """A scoped -PentityId run once overwrote a full report and was frozen as a 1-row baseline."""
+        left = from_fixture("sweep-entity-a.tsv")
+        right = artifact([left["rows"][0]])
+        result = compare.compare(left, right)
+        self.assertEqual(len(result.dropped), 11)
+        self.assertFalse(result.clean())
+
+    def test_identical_artifacts_are_clean(self):
+        left = from_fixture("sweep-entity-a.tsv")
+        self.assertTrue(compare.compare(left, left).clean())
+        compare.raise_on([compare.compare(left, left)])
+
+
+class NoTolerance(unittest.TestCase):
+    """No epsilon, no relative tolerance, no rounding before compare, on any artifact."""
+
+    def test_a_last_digit_move_is_a_mover(self):
+        left = artifact([{"subject": "x", "mean_argb_delta": "1.0000"}])
+        right = artifact([{"subject": "x", "mean_argb_delta": "1.0001"}])
+        self.assertEqual(compare.compare(left, right).totals()["moved"], 1)
+
+    def test_no_tolerance_flag_exists_anywhere(self):
+        """If it does not exist it cannot be reached for at 2am."""
+        self.assertFalse(any("toler" in name.lower() for name in dir(compare)))
+
+
+class ExpectedDiff(unittest.TestCase):
+    """The device that replaces a tolerance: diff == manifest, not diff == empty."""
+
+    LEFT = artifact([{"subject": "x", "mean_argb_delta": "1.0000"},
+                     {"subject": "y", "mean_argb_delta": "1.0000"}])
+    RIGHT = artifact([{"subject": "x", "mean_argb_delta": "2.0000"},
+                      {"subject": "y", "mean_argb_delta": "1.0000"}])
+
+    def test_a_registered_mover_passes(self):
+        expected = {"movers": [{"artifact": "sweep.entity", "key": "x", "reason": "priced"}]}
+        result = compare.compare(self.LEFT, self.RIGHT, expected)
+        self.assertTrue(result.movers[0]["expected"])
+        self.assertTrue(result.clean())
+        compare.raise_on([result])
+
+    def test_an_unregistered_mover_fails(self):
+        result = compare.compare(self.LEFT, self.RIGHT, compare.empty_expected())
+        self.assertFalse(result.movers[0]["expected"])
+        with self.assertRaises(ComparisonFailed):
+            compare.raise_on([result])
+
+    def test_a_registration_for_another_artifact_does_not_count(self):
+        expected = {"movers": [{"artifact": "sweep.block", "key": "x"}]}
+        self.assertFalse(compare.compare(self.LEFT, self.RIGHT, expected).movers[0]["expected"])
+
+    def test_an_empty_manifest_still_gates(self):
+        self.assertEqual(compare.empty_expected()["movers"], [])
+
+
+class Envelope(unittest.TestCase):
+
+    def test_the_join_key_comes_from_the_artifact_never_from_the_kind(self):
+        """One caller once keyed the armour report entity_id while its header is subject."""
+        left = {"artifact": "sweep.armor", "key": "subject", "kind": "sweep-table",
+                "rows": [{"subject": "minecraft__zombie_iron", "mean_argb_delta": "2.4299"}]}
+        right = {"artifact": "sweep.armor", "key": "subject", "kind": "sweep-table",
+                 "rows": [{"subject": "minecraft__zombie_iron", "mean_argb_delta": "2.4906"}]}
+        self.assertEqual(compare.compare(left, right).movers[0]["key"], "minecraft__zombie_iron")
+
+    def test_an_artifact_without_a_key_is_refused(self):
+        with self.assertRaises(ComparisonFailed):
+            compare.compare({"artifact": "x", "kind": "sweep-table", "rows": []},
+                            {"artifact": "x", "kind": "sweep-table", "rows": []})
+
+    def test_two_different_artifacts_cannot_be_joined(self):
+        with self.assertRaises(ComparisonFailed):
+            compare.compare(artifact([], "sweep.entity"), artifact([], "sweep.block"))
+
+    def test_a_manifest_joins_on_path(self):
+        left = {"artifact": "manifest.visual", "key": "path", "kind": "manifest",
+                "files": [{"path": "a.png", "sha256": "1"}]}
+        right = {"artifact": "manifest.visual", "key": "path", "kind": "manifest",
+                 "files": [{"path": "a.png", "sha256": "2"}]}
+        self.assertEqual(compare.compare(left, right).movers[0]["key"], "a.png")
+
+
+if __name__ == "__main__":
+    unittest.main()

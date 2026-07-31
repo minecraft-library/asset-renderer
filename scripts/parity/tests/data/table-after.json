@@ -1,0 +1,9 @@
+{
+  "//": "envelope",
+  "format": 1,
+  "rows": {
+    "alpha": {"v": 1.0},
+    "gamma": {"v": 3},
+    "beta": {"v": 2}
+  }
+}
