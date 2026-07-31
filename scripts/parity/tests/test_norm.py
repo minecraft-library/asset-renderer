@@ -33,7 +33,19 @@ class SoleWriter(unittest.TestCase):
                 continue  # the writer itself, necessarily
             source = norm.read_text(path)
             for token in FORBIDDEN:
+                # pixels.py is exempt for `open(` ALONE, and only because Pillow's decoder is
+                # spelled `Image.open`. It is a read; the exemption is as narrow as cli.py's for
+                # print, and the next test proves pixels still writes through norm's one door.
+                if path.name == "pixels.py" and token == "open" + "(":
+                    continue
                 self.assertNotIn(token, source, f"{path.name} bypasses norm: {token}")
+
+    def test_pixels_writes_only_through_norms_binary_door(self):
+        """The exemption above must not become a general one."""
+        source = norm.read_text(PKG / "pixels.py")
+        self.assertIn("write_bytes_raw", source)
+        for token in (".write_text" + "(", ".write_bytes" + "(", "json.dump" + "("):
+            self.assertNotIn(token, source, f"pixels.py bypasses norm: {token}")
 
     def test_only_cli_prints(self):
         """cli.py is exempt for print alone - stdout framing is its job - and for nothing else."""

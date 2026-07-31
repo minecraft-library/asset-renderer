@@ -453,6 +453,96 @@ def _cmd_promote_apply(args: argparse.Namespace) -> int:
     return OK
 
 
+def _cmd_panel(args: argparse.Namespace) -> int:
+    from parity import panel as panel_mod
+    rows = panel_mod.walk(Path(args.source), args.subject, columns=args.columns, bbox=args.bbox)
+    payload = {"format": 1, "kind": "panel-stats", "subjects": rows}
+    if not args.out:
+        # A probe writes under _run/probes/, which is never promoted.
+        target = store_mod.working(args.root, _bases(args)).root / store_mod.RUN_DIR / "probes" / "panel-stats.json"
+        write_json(target, payload)
+    lines = []
+    for row in rows:
+        attribution = row["attribution"]
+        lines.append(
+            f"{row['subject']}\n"
+            f"  mean_over_white     {row['mean_over_white']:.4f}   (0..765, comparable to mean_argb_delta)\n"
+            f"  mean_abs_argb_1020  {row['mean_abs_argb_1020']:.4f}   (0..1020, comparable to nothing else)\n"
+            f"  mean_signed_luma    {row['mean_signed_luma']:+.4f}\n"
+            f"  differing px        {row['differing_pixels']}\n"
+            f"  coverage            v {row['coverage']['vanilla']}  j {row['coverage']['java']}  "
+            f"both {row['coverage']['both']}  v-only {row['coverage']['vanilla_only']}  "
+            f"j-only {row['coverage']['java_only']}\n"
+            f"  silhouette          iou {row['silhouette']['iou']:.4f}  "
+            f"imbalance {row['silhouette']['coverage_imbalance']:.4f}\n"
+            f"  attribution         vanilla-only {attribution['vanilla_only']:.1f}%  "
+            f"java-only {attribution['java_only']:.1f}%  both {attribution['both_colour']:.1f}% "
+            f"(big>{panel_mod.BIG}: {attribution['big_pixels']}px {attribution['big_mass']:.0f}%)")
+        if row.get("columns"):
+            column = row["columns"]
+            lines.append(f"  centre column       {column['centre_column']} "
+                         f"share {column['centre_share']:.4f} ({column['width_parity']} width)")
+        if row.get("bbox"):
+            lines.append(f"  content bbox        vanilla {row['bbox']['vanilla']}  "
+                         f"java {row['bbox']['java']}")
+    _emit(args, "\n".join(lines), payload)
+    return OK
+
+
+def _cmd_lab(args: argparse.Namespace) -> int:
+    from parity import panel  # noqa: F401  - proves the optional pair is importable before use
+    from parity.lab import census as census_mod
+    from parity.lab import crop as crop_mod
+    from parity.lab import explain as explain_mod
+    from parity.lab import predict as predict_mod
+    from parity.lab import px as px_mod
+
+    probes = store_mod.working(args.root, _bases(args)).root / store_mod.RUN_DIR / "probes"
+    if args.lab_command == "census":
+        payload = census_mod.census(Path(args.allpass), Path(args.raw), Path(args.landed),
+                                    Path(args.vanilla), Path(args.java))
+        write_json(Path(args.out) if args.out else probes / "contests.json", payload)
+        _emit(args, f"aligned {payload['totals']['aligned_px']} px, "
+                    f"{payload['totals']['contests']} contests, "
+                    f"misaligned {payload['misaligned_px']}; classes {payload['classes']}", payload)
+        return OK
+    if args.lab_command == "explain":
+        region = tuple(int(part) for part in args.region.split(","))
+        payload = explain_mod.explain(Path(args.dump), Path(args.vanilla), Path(args.java),
+                                      region, args.threshold, args.tol)
+        lines = [f"region {payload['region']}  differing {payload['totals']['differing']}"]
+        for row in payload["classes"]:
+            lines.append(f"  {row['class']:22s} {row['count']:6d} ({row['share']:5.1f}%)  "
+                         f"eg {row['examples']}")
+        _emit(args, "\n".join(lines), payload)
+        return OK
+    if args.lab_command == "predict":
+        payload = predict_mod.compare(Path(args.contests))
+        lines = ["predicting vanilla's verdict on these contests:"]
+        for name, value in sorted(payload["predictors"].items()):
+            shown = value if not isinstance(value, dict) else value["accuracy"]
+            lines.append(f"  {name:30s} {shown:5.1f}%")
+        _emit(args, "\n".join(lines), payload)
+        return OK
+    if args.lab_command == "px":
+        coordinates = [tuple(int(part) for part in pair.split(",")) for pair in args.pixel]
+        payload = px_mod.inspect(Path(args.dump), Path(args.vanilla), Path(args.java), coordinates)
+        lines = []
+        for row in payload:
+            lines.append(f"=== {row['pixel']}  vanilla={row['vanilla']}  java={row['java']}  "
+                         f"d={row['delta']}")
+            for entry in row["fragments"]:
+                lines.append(f"   [{entry['index']}] {entry['tag']:26s} d={entry['depth']:+.8f} "
+                             f"{entry['blend']:8s} -> {entry['running']}")
+        _emit(args, "\n".join(lines), {"pixels": payload})
+        return OK
+    region = tuple(int(part) for part in args.region.split(","))
+    out = crop_mod.crop(Path(args.vanilla), Path(args.java), region,
+                        Path(args.out or "crop.png"), args.zoom)
+    print(f"wrote {out}  vanilla | java | |delta|x4")
+    return OK
+
+
 def _wanted(args: argparse.Namespace) -> list[str] | None:
     return [name.strip() for name in args.artifacts.split(",")] if args.artifacts else None
 
@@ -631,6 +721,52 @@ def _register(subparsers: Any) -> dict[str, Command]:
     papply.add_argument("--allow-partial", action="store_true")
     papply.add_argument("--bootstrap", action="store_true")
     table["promote-apply"] = _cmd_promote_apply
+
+    # panel stats is always registered and exits 4 when the optional pair is absent, because a
+    # command that vanishes is indistinguishable from one that was never spelled right.
+    pan = subparsers.add_parser("panel", help="re-derive the panel statistics (a PROBE, never a gate)")
+    pan_sub = pan.add_subparsers(dest="panel_command", required=True)
+    pan_stats = pan_sub.add_parser("stats")
+    pan_stats.add_argument("--source", required=True, metavar="DIR")
+    pan_stats.add_argument("--subject", action="append", default=None, metavar="ID")
+    pan_stats.add_argument("--columns", action="store_true", help="per-column profile + centre share")
+    pan_stats.add_argument("--bbox", action="store_true", help="canvas-vs-content back-solve")
+    table["panel"] = _cmd_panel
+
+    # The lab group is registered ONLY when the optional pair is importable, so `lab --help` on a
+    # bare interpreter says what is missing rather than offering commands that cannot run.
+    from parity import pixels as pixels_mod
+    if pixels_mod.available():
+        lab = subparsers.add_parser("lab", help="the [PX] fragment family (probes, never a gate)")
+        lab_sub = lab.add_subparsers(dest="lab_command", required=True)
+
+        lab_census = lab_sub.add_parser("census", help="the three-dump join and contest harvest")
+        for name in ("allpass", "raw", "landed", "vanilla", "java"):
+            lab_census.add_argument(f"--{name}", required=True)
+
+        lab_explain = lab_sub.add_parser("explain", help="smallest fragment set to drop")
+        lab_explain.add_argument("--dump", required=True)
+        lab_explain.add_argument("--vanilla", required=True)
+        lab_explain.add_argument("--java", required=True)
+        lab_explain.add_argument("--region", required=True, metavar="x0,y0,x1,y1")
+        lab_explain.add_argument("--threshold", type=int, default=8)
+        lab_explain.add_argument("--tol", type=int, default=1)
+
+        lab_predict = lab_sub.add_parser("predict", help="predictor comparison over a contest table")
+        lab_predict.add_argument("--contests", required=True, metavar="FILE")
+
+        lab_px = lab_sub.add_parser("px", help="the full composite chain at one pixel")
+        lab_px.add_argument("--dump", required=True)
+        lab_px.add_argument("--vanilla", required=True)
+        lab_px.add_argument("--java", required=True)
+        lab_px.add_argument("--pixel", action="append", required=True, metavar="x,y")
+
+        lab_crop = lab_sub.add_parser("crop", help="the zoomed side-by-side LOOK image")
+        lab_crop.add_argument("--vanilla", required=True)
+        lab_crop.add_argument("--java", required=True)
+        lab_crop.add_argument("--region", required=True, metavar="x0,y0,x1,y1")
+        lab_crop.add_argument("--zoom", type=int, default=8)
+        table["lab"] = _cmd_lab
 
     return table
 
