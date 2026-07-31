@@ -284,9 +284,8 @@ The parity sweeps are diagnostic reports (mean ARGB delta + per-subject vanilla/
 ./gradlew :asset-renderer:renderVanillaReferences                              # full sweep ~1m25s warm
 ./gradlew :asset-renderer:renderVanillaReferences \
   -PrefharnessTargets=minecraft:cow,minecraft:zombie                           # subset
-./gradlew :asset-renderer:renderVanillaReferences \
-  -Drefharness.pixelsPerBlock=512 -Drefharness.maxCanvasSize=2048              # override harness defaults
 ```
+The entity texel resolution and the canvas cap are **frozen constants on both sides** (`HarnessConfig.PIXELS_PER_BLOCK` / `MAX_CANVAS_SIZE` and `EntityOptions`' two defaults). They used to read one system-property name in both repositories with nothing forwarding it, so the override this block used to document was inert - and a working one-sided override would have measured every reference at one scale and compared it against renders taken at another. Changing either is an edit to both constants in one commit.
 Re-rendering refreshes ground truth; it doesn't fix asset-renderer regressions. Re-render only on MC version bumps OR when a harness fix changes the canonical pose.
 
 **`renderVanillaReferences` is not a full sweep - use `renderVanillaAllReferences` after any harness render change.** It runs blocks / items / entities / players, which is 1974 of the tree's 2311 references; `glint/` (330) and `armor/` (7) are separate tasks and both draw through `EntityFrameRenderer` like the entity sweep does. A harness change to that renderer therefore leaves them holding ground truth recorded by the old code, and that happened twice - 120 armour-glint frames once, and the four `armor/minecraft__zombie_*` rows left behind when the entity references were re-rendered at vanilla's depth range. `renderVanillaAllReferences` drives every sweep in **one** client boot, which is what closes the gap: measured at **152s** against 125s for the incomplete sweep, and 43s *cheaper* than the three narrower tasks run separately (125 + 43 + 27), since it pays the client boot once. The narrow tasks stay for scoped iteration.

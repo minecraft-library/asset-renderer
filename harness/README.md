@@ -194,9 +194,9 @@ Set automatically by the Loom run config; override with `-Drefharness.xxx=` for 
 | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
 | `refharness.headless`        | `true`  | Hides the GLFW window via mixin; gates every refharness mixin so non-harness consumers of the jar get vanilla behaviour |
 | `refharness.size`            | `512`   | Block canvas square edge (pixels)                                                                                    |
-| `refharness.pixelsPerBlock`  | `256`   | Entity texel resolution; family canvases sized to `bound × this`                                                     |
-| `refharness.maxCanvasSize`   | `1024`  | Cap on entity canvas longer side; entities exceeding shrink uniformly                                                |
 | `refharness.glintOnly`       | `false` | Run only `GlintSweep` (animated-glint references), skipping the block / item / entity sweeps                       |
+
+**Entity texel resolution and the canvas cap are frozen constants, not properties.** `HarnessConfig.PIXELS_PER_BLOCK` (`256`) and `HarnessConfig.MAX_CANVAS_SIZE` (`1024`) used to read `-Drefharness.pixelsPerBlock` / `-Drefharness.maxCanvasSize`, and asset-renderer's `EntityOptions` read the same two property names on its own JVM. No task on either side forwarded either, so the documented override was inert - and had it worked on one side only, every entity reference would have been measured at one scale and compared against renders taken at another, which reports framing rather than the render. A literal on each side makes that unrepresentable. Changing either means editing both constants in one commit.
 
 ---
 

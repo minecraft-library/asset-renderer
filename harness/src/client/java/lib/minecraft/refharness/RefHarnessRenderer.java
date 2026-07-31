@@ -110,6 +110,20 @@ public final class RefHarnessRenderer {
         return !runners.isEmpty() && runners.stream().allMatch(SweepRunner::isDone);
     }
 
+    /**
+     * Total subjects whose render or write threw, across every sweep this run drove.
+     *
+     * <p>A failed subject writes no PNG and leaves the previous run's file standing, so a partial
+     * sweep produces a tree that hashes cleanly minus the files it did not refresh - which is
+     * indistinguishable, in a manifest, from a whole one. The count was reachable only by reading
+     * {@code failed=} out of a log nobody kept; it is the run's exit status now.
+     *
+     * @return the summed failure tally
+     */
+    static int failedSubjects() {
+        return runners.stream().mapToInt(runner -> runner.tally().failed()).sum();
+    }
+
     static void tick(Minecraft client) {
         SweepContext ctx = new SweepContext(client, HarnessConfig.OUTPUT_DIR, TARGETS);
         for (SweepRunner<?> runner : runners) {

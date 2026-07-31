@@ -163,7 +163,7 @@ Pre-pass measures every (entity, variant) pair, groups by family root via `Entit
 1. Confirm baseline exists: `cd .. && ls cache/asset-renderer/vanilla/26.1/references/{blocks,entities,items,glint} | head`.
 2. Re-render one target to check for regressions: `./gradlew :asset-renderer:renderVanillaReferences -PrefharnessTargets=minecraft:cow` (entity) or `minecraft:chest` (BE block).
 3. Glint iteration: `./gradlew :asset-renderer:renderVanillaGlintReferences [-PrefharnessTargets=minecraft:nether_star]`.
-4. Pose / chirality questions: the empirical answer is the pitch-roll sweep `-PrefharnessPitchRollSweep=true` (first filtered target rendered 576× over a 15° pitch × roll grid).
+4. Pose / chirality questions: the empirical answer is the pitch-roll sweep - `./gradlew :asset-renderer:renderVanillaPitchRollProbe -PrefharnessTargets=ns:id`, or `-PrefharnessPitchRollSweep=true` from this directory (first filtered target rendered 576× over a 15° pitch × roll grid). It is its own task on the asset side now: riding `renderVanillaReferences` made a task named for references render none.
 5. Asset-renderer-side parity work, kit invariants, and JOML factory conventions: see [asset-renderer/CLAUDE.md].
 
 [asset-renderer]: ..

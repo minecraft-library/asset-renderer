@@ -12,7 +12,9 @@ import java.nio.file.Paths;
  *
  * <p>Read once at JVM start; the values mirror Loom-run-config properties
  * declared in {@code build.gradle}. Pass overrides on the command line as
- * {@code -Drefharness.<key>=<value>}.
+ * {@code -Drefharness.<key>=<value>}. The two canvas-sizing constants are the
+ * exception - they are frozen literals rather than properties, for the reason
+ * given on each.
  */
 public final class HarnessConfig {
 
@@ -38,10 +40,19 @@ public final class HarnessConfig {
      * a family render at the same scale and shared geometry is pixel-identical across variants
      * (cow body in {@code cow.png} is byte-for-byte the same as cow body region in
      * {@code mooshroom.png}). Different families produce different canvas sizes - cow's family
-     * canvas is bigger than chicken's, which is bigger than silverfish's. Choose for HD output;
-     * 256 keeps a 16×16 vanilla texel mapped to a 16×16 image region.
+     * canvas is bigger than chicken's, which is bigger than silverfish's. 256 keeps a 16×16
+     * vanilla texel mapped to a 16×16 image region.
+     *
+     * <p><b>Frozen, and deliberately not a system property.</b> asset-renderer's
+     * {@code EntityOptions} holds the same number and the two size the same canvas from opposite
+     * sides, so a value read independently on each JVM is a canvas that can decouple silently -
+     * every entity reference would be measured at one scale and compared against renders taken at
+     * another, and the comparison would report framing rather than the render. Nothing forwarded
+     * either property, so the documented {@code -Drefharness.pixelsPerBlock=512} override was inert
+     * in both repositories; a literal on each side makes the decoupled state unrepresentable rather
+     * than merely undetected. Changing it means editing both constants in one commit.
      */
-    public static final int PIXELS_PER_BLOCK = Integer.getInteger("refharness.pixelsPerBlock", 256);
+    public static final int PIXELS_PER_BLOCK = 256;
 
     /**
      * Hard cap (pixels) on either side of an entity-family canvas. Entities whose family-max
@@ -53,8 +64,14 @@ public final class HarnessConfig {
      * pixel-comparable; above the cap, large families lose the constant-scale property
      * relative to small ones (a hard but acceptable trade since cross-family parity was
      * already only approximate).
+     *
+     * <p><b>Frozen for the same reason as {@link #PIXELS_PER_BLOCK}</b>, and more sharply: above the
+     * cap an over-measure stops being padding and becomes a uniform resize, so two sides holding
+     * different caps would render the large families at different sizes rather than in different
+     * frames. Changing it means editing this constant and asset-renderer's {@code EntityOptions} in
+     * one commit.
      */
-    public static final int MAX_CANVAS_SIZE = Integer.getInteger("refharness.maxCanvasSize", 1024);
+    public static final int MAX_CANVAS_SIZE = 1024;
 
     /**
      * Optional comma-separated allowlist of {@code <namespace>:<id>} targets. When present,

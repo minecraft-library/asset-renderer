@@ -1,3 +1,6 @@
+import org.gradle.api.file.FileSystemOperations
+import org.gradle.kotlin.dsl.support.serviceOf
+
 import java.io.FileOutputStream
 import java.io.OutputStream
 
@@ -514,12 +517,24 @@ tasks {
         group = "verification"
         mainClass.set("lib.minecraft.renderer.pipeline.dump.PipelineParityDump")
         classpath = sourceSets["test"].runtimeClasspath
-        // A valueless -Plabel arrives as "" rather than null, which would write the dump to
-        // cache/parity-dump// - blank-check rather than null-check.
-        args = listOf((project.findProperty("label") as String?)?.takeIf { it.isNotBlank() } ?: "head")
+        // parityDumpLabel carries the blank-check a valueless -Plabel needs: it arrives as ""
+        // rather than null, which would write the dump to cache/parity-dump//.
+        args = listOf(parityDumpLabel)
         // Deliberately declares no outputs: the dump must re-run every invocation. Declaring
         // outputs without also declaring the label AND the forwarded asset.* set as inputs would let
         // Gradle report UP-TO-DATE and serve a stale dump as if it were fresh evidence.
+        //
+        // The label directory is wiped first, which is the other half of the same rule. A dump that
+        // failed on load used to leave the previous run's tree standing under the same label, and the
+        // `&& diff` that followed then reported it byte-identical - a stale tree served as agreement.
+        // An empty directory cannot do that. FileSystemOperations rather than Project.delete, which
+        // Gradle 9 removed from the execution phase; the service and the directory are resolved into
+        // locals here so the action captures neither the project nor the layout.
+        val fsOps = project.serviceOf<FileSystemOperations>()
+        val labelDir = layout.projectDirectory.dir("cache/parity-dump/$parityDumpLabel").asFile
+        doFirst {
+            fsOps.delete { delete(labelDir) }
+        }
     }
 
     withType<JavaExec>().configureEach {
@@ -593,7 +608,7 @@ tasks {
     }
 
     // atlas render job - a render over the texture pack, not a client-jar extraction; output stays
-    // scratch build/atlas/. diagnoseAtlas and diagnoseAtlasTask10 share one main class,
+    // scratch build/atlas/. diagnoseAtlas and diagnoseAtlasBlockstates share one main class,
     // ToolingAtlasDiagnose, split by the --source-filter arg.
 
     register<JavaExec>("atlas") {
@@ -612,7 +627,7 @@ tasks {
         args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
     }
 
-    register<JavaExec>("diagnoseAtlasTask10") {
+    register<JavaExec>("diagnoseAtlasBlockstates") {
         description = "tooling: writes a mini atlas containing only blockstate additions to build/atlas/blockstate_only/."
         group = "tooling"
         mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlasDiagnose")
@@ -644,7 +659,7 @@ tasks {
     }
 
     register<JavaExec>("itemDayCycle") {
-        description = "Bakes a whole in-game day for the time-driven item icons (clock, plus the bearing-driven compass and a plain sword as controls) to cache/visual/item-day-cycle/ as GIFs + quarter-day stills - the animated-clock LOOK gate. -PrenderSize=256 -PdayFrames=64"
+        description = "Bakes a whole in-game day for the time-driven item icons (clock, plus the bearing-driven compass and a plain sword as controls) to cache/visual/item-day-cycle/ as GIFs + quarter-day stills - the animated-clock LOOK gate. -PrenderSize=256 -PdayFrames=<n> overrides the frame count; the default is 0, which derives it per item from the item's own dispatch table and is the more faithful path."
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestItemDayCycle")
         classpath = sourceSets["test"].runtimeClasspath
@@ -689,7 +704,7 @@ tasks {
         args = argv
     }
 
-    register<JavaExec>("bedParity") {
+    register<JavaExec>("bedCompare") {
         description = "Renders beds and chest via pipeline vs mc-assets ground truth side-by-side at cache/visual/bed-parity/. -PrenderSize=1024"
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestBedParity")
@@ -865,169 +880,59 @@ tasks {
         )
     }
 
-    // Delegates to the vanilla-reference-harness Fabric mod in harness/, which boots a
-    // headless Minecraft client, renders every block + living entity to PNG via the
-    // in-game vanilla pipeline, then exits. Output lands under parityReferenceRoot,
-    // whose version segment comes from the harness's own gradle.properties, so parity
-    // tests can diff against ground truth.
+    // The harness runs. Seven rows over one helper, where there used to be five 30-line Exec bodies
+    // re-declaring workingDir, the wrapper path, the OS test and the argv prologue verbatim and
+    // differing only by a mode flag, whether they forward -PrefharnessTargets, and which sub-trees
+    // they refresh. Those are three columns, so they are rows. The argument for keeping clones is
+    // that one can diverge; the recorded history is that divergence IS the defect - one of the five
+    // forwarded a MODE flag as if it were a filter, and two accepted no properties at all with no
+    // stated reason.
     //
-    // Run on a Minecraft version bump (~5 minutes total). Regenerated PNGs are
-    // gitignored via the cache/ exclusion.
-    //
-    // Filter to a subset for iteration:
-    //   ./gradlew :asset-renderer:renderVanillaReferences -PrefharnessTargets=minecraft:cow,minecraft:stone
-    register<Exec>("renderVanillaReferences") {
-        description = "Runs the vanilla-reference-harness mod in harness/ and copies its PNG output into asset-renderer's vanilla cache. Re-run on Minecraft version bump."
-        group = "tooling"
-        workingDir = harnessDir.asFile
-        // The harness build's renderReferences run-config writes PNGs into its own
-        // build/refharness-output/. We point it at asset-renderer's vanilla cache
-        // directly via -Drefharness.outputDir, no copy step needed.
-        val outputDir = layout.projectDirectory.dir(parityReferenceRoot)
-        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-        val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
-        val baseArgs = mutableListOf<String>()
-        if (isWindows) {
-            baseArgs.add("cmd")
-            baseArgs.add("/c")
-        }
-        baseArgs.add(gradlewPath)
-        baseArgs.add("runRenderReferences")
-        baseArgs.add("--no-daemon")
-        // -P (project property) propagates through the harness's build.gradle to its
-        // Loom run config, which sets the system property the mod actually reads.
-        // -D would only affect the wrapper's JVM, not the forked Minecraft process.
-        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
-        if (project.hasProperty("refharnessTargets")) {
-            baseArgs.add("-PrefharnessTargets=${project.property("refharnessTargets")}")
-        }
-        if (project.hasProperty("refharnessPitchRollSweep")) {
-            baseArgs.add("-PrefharnessPitchRollSweep=${project.property("refharnessPitchRollSweep")}")
-        }
-        commandLine = baseArgs
-        doFirst {
-            println("renderVanillaReferences: writing to ${outputDir.asFile.absolutePath}")
-            outputDir.asFile.mkdirs()
-        }
-    }
+    // A mode is a task, never a pass-through. -PrefharnessPitchRollSweep used to ride
+    // renderVanillaReferences, where it made the task render no reference at all - under a name
+    // claiming otherwise, and exiting 0. It has its own task now, and so does the depth-quantum
+    // probe, which was previously reachable only by cd-ing into the harness.
+    registerHarnessRun("renderVanillaReferences", null, true,
+        listOf("blocks", "items", "entities", "players"),
+        "Runs the harness in FULL mode: blocks, items, entities and the player. Does NOT refresh glint/ or " +
+        "armor/ - use renderVanillaAllReferences after any harness render change. ~125 s warm.")
 
-    // Glint-only variant: drives the harness with -PrefharnessGlintOnly=true so it renders ONLY the
-    // animated-glint references (7 GUI items + 4 worn leather-armor diagnostics) under
-    // references/glint/<id>/frame_NNN.png, skipping the ~5-minute full sweep. Then run glintParityVanilla.
-    //   ./gradlew :asset-renderer:renderVanillaGlintReferences [-PrefharnessTargets=minecraft:nether_star]
-    register<Exec>("renderVanillaGlintReferences") {
-        description = "Runs the vanilla-reference-harness mod in harness/ in glint-only mode, writing animated glint references to asset-renderer's vanilla cache (references/glint/). Then run glintParityVanilla."
-        group = "tooling"
-        workingDir = harnessDir.asFile
-        val outputDir = layout.projectDirectory.dir(parityReferenceRoot)
-        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-        val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
-        val baseArgs = mutableListOf<String>()
-        if (isWindows) {
-            baseArgs.add("cmd")
-            baseArgs.add("/c")
-        }
-        baseArgs.add(gradlewPath)
-        baseArgs.add("runRenderReferences")
-        baseArgs.add("--no-daemon")
-        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
-        baseArgs.add("-PrefharnessGlintOnly=true")
-        if (project.hasProperty("refharnessTargets")) {
-            baseArgs.add("-PrefharnessTargets=${project.property("refharnessTargets")}")
-        }
-        commandLine = baseArgs
-        doFirst {
-            println("renderVanillaGlintReferences: writing glint refs to ${outputDir.asFile.absolutePath}/glint")
-            outputDir.asFile.mkdirs()
-        }
-    }
+    registerHarnessRun("renderVanillaGlintReferences", "refharnessGlintOnly", true, listOf("glint"),
+        "Runs the harness in GLINT mode: references/glint/ only. ~43 s. Then run glintParityVanilla.")
 
-    // Players-only variant: drives the harness with -PrefharnessPlayersOnly=true so it renders ONLY the
-    // vanilla player references (FULL + SKULL steve, ENTITY_IN_UI lighting) under references/players/,
-    // skipping the ~5-minute full sweep. Then run playerParityVanilla.
-    //   ./gradlew :asset-renderer:renderVanillaPlayerReferences
-    register<Exec>("renderVanillaPlayerReferences") {
-        description = "Runs the vanilla-reference-harness mod in harness/ in players-only mode, writing vanilla player references to asset-renderer's vanilla cache (references/players/). Then run playerParityVanilla."
-        group = "tooling"
-        workingDir = harnessDir.asFile
-        val outputDir = layout.projectDirectory.dir(parityReferenceRoot)
-        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-        val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
-        val baseArgs = mutableListOf<String>()
-        if (isWindows) {
-            baseArgs.add("cmd")
-            baseArgs.add("/c")
-        }
-        baseArgs.add(gradlewPath)
-        baseArgs.add("runRenderReferences")
-        baseArgs.add("--no-daemon")
-        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
-        baseArgs.add("-PrefharnessPlayersOnly=true")
-        commandLine = baseArgs
-        doFirst {
-            println("renderVanillaPlayerReferences: writing player refs to ${outputDir.asFile.absolutePath}/players")
-            outputDir.asFile.mkdirs()
-        }
-    }
+    // forwardsTargets = false on the next two, and the reason is in the sweep rather than in the task:
+    // PlayerSweep.honoursTargetFilter() and ArmorSweep.honoursTargetFilter() both return false because
+    // neither sweep's subjects have a registry id, so a filter would match nothing and the run would
+    // write no reference at all.
+    registerHarnessRun("renderVanillaPlayerReferences", "refharnessPlayersOnly", false, listOf("players"),
+        "Runs the harness in PLAYERS mode: references/players/ only. Then run playerParityVanilla.")
 
-    // Armor-only variant: drives the harness with -PrefharnessArmorOnly=true so it renders ONLY the
-    // armored-mob diagnostics (adult + baby zombie / piglin in iron and dyed leather) under
-    // references/armor/, skipping the ~5-minute full sweep. Then run armorParityVanilla.
-    //   ./gradlew :asset-renderer:renderVanillaArmorReferences
-    register<Exec>("renderVanillaArmorReferences") {
-        description = "Runs the vanilla-reference-harness mod in harness/ in armor-only mode, writing armored-mob references (adult + baby, iron + dyed leather) to asset-renderer's vanilla cache (references/armor/). Then run armorParityVanilla."
-        group = "tooling"
-        workingDir = harnessDir.asFile
-        val outputDir = layout.projectDirectory.dir(parityReferenceRoot)
-        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-        val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
-        val baseArgs = mutableListOf<String>()
-        if (isWindows) {
-            baseArgs.add("cmd")
-            baseArgs.add("/c")
-        }
-        baseArgs.add(gradlewPath)
-        baseArgs.add("runRenderReferences")
-        baseArgs.add("--no-daemon")
-        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
-        baseArgs.add("-PrefharnessArmorOnly=true")
-        commandLine = baseArgs
-        doFirst {
-            println("renderVanillaArmorReferences: writing armor refs to ${outputDir.asFile.absolutePath}/armor")
-            outputDir.asFile.mkdirs()
-        }
-    }
+    registerHarnessRun("renderVanillaArmorReferences", "refharnessArmorOnly", false, listOf("armor"),
+        "Runs the harness in ARMOR mode: references/armor/ only. ~27 s. Then run armorParityVanilla.")
 
-    // Whole-tree variant: drives the harness with -PrefharnessEverySweep=true so ONE client boot
-    // renders every reference the tree holds - blocks, items, entities, the player, glint AND armor.
-    // renderVanillaReferences covers only the first four, so a harness change to a frame renderer
-    // two sweeps share leaves the others holding ground truth recorded by the old code. Use this
-    // after any harness render change; the narrower tasks stay for scoped iteration.
-    //   ./gradlew :asset-renderer:renderVanillaAllReferences
-    register<Exec>("renderVanillaAllReferences") {
-        description = "Runs the vanilla-reference-harness mod in harness/ over EVERY sweep in one boot - blocks, items, entities, player, glint and armor - writing the whole reference tree to asset-renderer's vanilla cache. The one to run after a harness render change; renderVanillaReferences skips glint/ and armor/."
-        group = "tooling"
-        workingDir = harnessDir.asFile
-        val outputDir = layout.projectDirectory.dir(parityReferenceRoot)
-        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-        val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
-        val baseArgs = mutableListOf<String>()
-        if (isWindows) {
-            baseArgs.add("cmd")
-            baseArgs.add("/c")
-        }
-        baseArgs.add(gradlewPath)
-        baseArgs.add("runRenderReferences")
-        baseArgs.add("--no-daemon")
-        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
-        baseArgs.add("-PrefharnessEverySweep=true")
-        if (project.hasProperty("refharnessTargets")) {
-            baseArgs.add("-PrefharnessTargets=${project.property("refharnessTargets")}")
-        }
-        commandLine = baseArgs
-        doFirst {
-            println("renderVanillaAllReferences: writing the whole reference tree to ${outputDir.asFile.absolutePath}")
-            outputDir.asFile.mkdirs()
+    registerHarnessRun("renderVanillaAllReferences", "refharnessEverySweep", true, referenceSubTrees,
+        "Runs every sweep in ONE client boot and writes the whole reference tree. ~152 s, which is 43 s " +
+        "cheaper than the three narrower tasks run separately. The only task that can leave no sub-tree stale.")
+
+    registerHarnessRun("renderVanillaPitchRollProbe", "refharnessPitchRollSweep", true, emptyList(),
+        "Harness PITCH_ROLL probe: renders the first -PrefharnessTargets subject over a 24x24 pitch/roll " +
+        "grid into entities-pitch-roll-sweep/, OUTSIDE the reference tree. Refreshes no reference. " +
+        "Requires -PrefharnessTargets.")
+
+    registerHarnessRun("renderVanillaDepthQuantumProbe", "refharnessDepthQuantumProbe", false, emptyList(),
+        "Harness DEPTH_QUANTUM probe: writes its frames into depth-quantum-probe/, OUTSIDE the reference " +
+        "tree. This is the probe that measured the 2^-23 depth quantum. Refreshes no reference.")
+
+    // All eight tooling flows write through one constant into src/main/resources/lib/minecraft/renderer/
+    // and therefore dirty tracked files on every run. That is the signal, not a problem, so nothing
+    // auto-restores - but the command to undo it is printed rather than remembered. Driven off the
+    // artifact table's producer list, so it is one rule rather than eight copies.
+    parityArtifacts.single { it.artifact == "manifest.tooling-tables" }.producers.forEach { flow ->
+        named(flow) {
+            doLast {
+                logger.lifecycle("parity: $name rewrote tracked tables under src/main/resources/lib/minecraft/renderer/.")
+                logger.lifecycle("  restore with: git restore ':(glob)src/main/resources/lib/minecraft/renderer/*.json'")
+            }
         }
     }
 

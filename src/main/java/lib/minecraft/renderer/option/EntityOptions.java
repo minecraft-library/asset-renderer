@@ -98,20 +98,19 @@ public class EntityOptions implements RenderOptions {
      * Texel resolution in image-pixels per Minecraft block-unit, consumed by the two
      * {@code BOUNDS} {@link FitMode}s to size the canvas (the per-axis ratio is
      * {@code pixelsPerBlock / 16} since vanilla authors cubes in entity-pixels). Ignored by
-     * {@link FitMode#OUTPUT_SIZE}. Defaults to the {@code -Drefharness.pixelsPerBlock} system
-     * property, or {@code 256} when unset, matching the vanilla-reference-harness scale.
+     * {@link FitMode#OUTPUT_SIZE}. Defaults to {@code 256}.
      */
     @lombok.Builder.Default
-    private final int pixelsPerBlock = Integer.getInteger("refharness.pixelsPerBlock", 256);
+    private final int pixelsPerBlock = 256;
 
     /**
      * Hard cap in pixels on the longer canvas axis for the two {@code BOUNDS} {@link FitMode}s.
      * An entity whose bounds would exceed this (ender_dragon, giant) is scaled down uniformly so
-     * the longer side equals the cap. Ignored by {@link FitMode#OUTPUT_SIZE}. Defaults to the
-     * {@code -Drefharness.maxCanvasSize} system property, or {@code 1024} when unset.
+     * the longer side equals the cap. Ignored by {@link FitMode#OUTPUT_SIZE}. Defaults to
+     * {@code 1024}.
      */
     @lombok.Builder.Default
-    private final int maxCanvasSize = Integer.getInteger("refharness.maxCanvasSize", 1024);
+    private final int maxCanvasSize = 1024;
 
     /**
      * The default output frame for an entity icon - neutral output size, {@code VANILLA_ISO}
