@@ -37,6 +37,12 @@ fun org.gradle.process.JavaForkOptions.forwardAssetProperties() =
         if (key.startsWith("asset.")) systemProperty(key, v.toString())
     }
 
+// The vanilla-reference-harness Fabric mod, which lives inside this repo at harness/ and stays its
+// own Gradle build - its own gradlew, its own JDK 25 toolchain, and no Loom in settings.gradle.kts.
+// The five reference-render tasks below drive it externally through that wrapper, so this is the one
+// place the path is written and the only thing a future relocation has to edit.
+val harnessDir = layout.projectDirectory.dir("harness")
+
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add(addVectorModuleArg)
 }
@@ -474,7 +480,7 @@ tasks {
         args = listOf(renderSize)
     }
 
-    // Delegates to the sibling vanilla-reference-harness Fabric mod, which boots a
+    // Delegates to the vanilla-reference-harness Fabric mod in harness/, which boots a
     // headless Minecraft 26.1.2 client, renders every block + living entity to PNG
     // via the in-game vanilla pipeline, then exits. Output lands under
     // cache/asset-renderer/vanilla/<version>/references/{blocks,entities}/ so
@@ -486,15 +492,15 @@ tasks {
     // Filter to a subset for iteration:
     //   ./gradlew :asset-renderer:renderVanillaReferences -PrefharnessTargets=minecraft:cow,minecraft:stone
     register<Exec>("renderVanillaReferences") {
-        description = "Runs the sibling vanilla-reference-harness mod and copies its PNG output into asset-renderer's vanilla cache. Re-run on Minecraft version bump."
+        description = "Runs the vanilla-reference-harness mod in harness/ and copies its PNG output into asset-renderer's vanilla cache. Re-run on Minecraft version bump."
         group = "tooling"
-        workingDir = file("../vanilla-reference-harness")
-        // The sibling project's renderReferences run-config writes PNGs into its own
+        workingDir = harnessDir.asFile
+        // The harness build's renderReferences run-config writes PNGs into its own
         // build/refharness-output/. We point it at asset-renderer's vanilla cache
         // directly via -Drefharness.outputDir, no copy step needed.
         val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         val baseArgs = mutableListOf<String>()
         if (isWindows) {
             baseArgs.add("cmd")
@@ -503,7 +509,7 @@ tasks {
         baseArgs.add(gradlewPath)
         baseArgs.add("runRenderReferences")
         baseArgs.add("--no-daemon")
-        // -P (project property) propagates through the sibling's build.gradle to its
+        // -P (project property) propagates through the harness's build.gradle to its
         // Loom run config, which sets the system property the mod actually reads.
         // -D would only affect the wrapper's JVM, not the forked Minecraft process.
         baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
@@ -525,12 +531,12 @@ tasks {
     // references/glint/<id>/frame_NNN.png, skipping the ~5-minute full sweep. Then run glintParityVanilla.
     //   ./gradlew :asset-renderer:renderVanillaGlintReferences [-PrefharnessTargets=minecraft:nether_star]
     register<Exec>("renderVanillaGlintReferences") {
-        description = "Runs the sibling vanilla-reference-harness mod in glint-only mode, writing animated glint references to asset-renderer's vanilla cache (references/glint/). Then run glintParityVanilla."
+        description = "Runs the vanilla-reference-harness mod in harness/ in glint-only mode, writing animated glint references to asset-renderer's vanilla cache (references/glint/). Then run glintParityVanilla."
         group = "tooling"
-        workingDir = file("../vanilla-reference-harness")
+        workingDir = harnessDir.asFile
         val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         val baseArgs = mutableListOf<String>()
         if (isWindows) {
             baseArgs.add("cmd")
@@ -556,12 +562,12 @@ tasks {
     // skipping the ~5-minute full sweep. Then run playerParityVanilla.
     //   ./gradlew :asset-renderer:renderVanillaPlayerReferences
     register<Exec>("renderVanillaPlayerReferences") {
-        description = "Runs the sibling vanilla-reference-harness mod in players-only mode, writing vanilla player references to asset-renderer's vanilla cache (references/players/). Then run playerParityVanilla."
+        description = "Runs the vanilla-reference-harness mod in harness/ in players-only mode, writing vanilla player references to asset-renderer's vanilla cache (references/players/). Then run playerParityVanilla."
         group = "tooling"
-        workingDir = file("../vanilla-reference-harness")
+        workingDir = harnessDir.asFile
         val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         val baseArgs = mutableListOf<String>()
         if (isWindows) {
             baseArgs.add("cmd")
@@ -584,12 +590,12 @@ tasks {
     // references/armor/, skipping the ~5-minute full sweep. Then run armorParityVanilla.
     //   ./gradlew :asset-renderer:renderVanillaArmorReferences
     register<Exec>("renderVanillaArmorReferences") {
-        description = "Runs the sibling vanilla-reference-harness mod in armor-only mode, writing armored-mob references (adult + baby, iron + dyed leather) to asset-renderer's vanilla cache (references/armor/). Then run armorParityVanilla."
+        description = "Runs the vanilla-reference-harness mod in harness/ in armor-only mode, writing armored-mob references (adult + baby, iron + dyed leather) to asset-renderer's vanilla cache (references/armor/). Then run armorParityVanilla."
         group = "tooling"
-        workingDir = file("../vanilla-reference-harness")
+        workingDir = harnessDir.asFile
         val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         val baseArgs = mutableListOf<String>()
         if (isWindows) {
             baseArgs.add("cmd")
@@ -614,12 +620,12 @@ tasks {
     // after any harness render change; the narrower tasks stay for scoped iteration.
     //   ./gradlew :asset-renderer:renderVanillaAllReferences
     register<Exec>("renderVanillaAllReferences") {
-        description = "Runs the sibling vanilla-reference-harness mod over EVERY sweep in one boot - blocks, items, entities, player, glint and armor - writing the whole reference tree to asset-renderer's vanilla cache. The one to run after a harness render change; renderVanillaReferences skips glint/ and armor/."
+        description = "Runs the vanilla-reference-harness mod in harness/ over EVERY sweep in one boot - blocks, items, entities, player, glint and armor - writing the whole reference tree to asset-renderer's vanilla cache. The one to run after a harness render change; renderVanillaReferences skips glint/ and armor/."
         group = "tooling"
-        workingDir = file("../vanilla-reference-harness")
+        workingDir = harnessDir.asFile
         val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val gradlewPath = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         val baseArgs = mutableListOf<String>()
         if (isWindows) {
             baseArgs.add("cmd")
