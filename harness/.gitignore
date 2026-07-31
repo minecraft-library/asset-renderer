@@ -22,8 +22,9 @@ classes/
 # macOS
 *.DS_Store
 
-# Fabric
-run/
+# Fabric's run directory is not here: the renderReferences run config sets runDir to
+# ../cache/run, which the repo root's own `cache/` rule already covers. A run/ appearing
+# beside this file means that setting was lost, so it is deliberately NOT ignored.
 
 # Java crash + flight recorder
 hs_err_*.log
