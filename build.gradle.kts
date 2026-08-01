@@ -281,7 +281,16 @@ data class ParityArtifact(
     val source: String,
     val scopedBy: List<String> = emptyList(),
     val logSource: String? = null
-)
+) {
+    /**
+     * Whether this row's producer writes it from inside the test JVM.
+     *
+     * <p>Read off the source column rather than kept as a second list, because naming the working
+     * root IS what the toolkit reads as self-captured - a row that says so here and not there would
+     * be refused at capture time with the two spellings disagreeing.
+     */
+    val selfCaptured: Boolean get() = source == parityWorkingRoot
+}
 
 // Rows 15 to 23 carry the WORKING ROOT ITSELF as their source, with no sub-directory: those producers
 // self-capture from inside the test JVM, so the capture step validates and stamps the already-canonical
@@ -547,6 +556,12 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
             // both tasks are in the graph, so a hand-run producer is unaffected by this edge.
             mustRunAfter(parityCaptureBeginTask)
             if (producer !in paritySuiteProducers) finalizedBy(step)
+            // A self-capturing producer's real output is a file in the root the erase just emptied,
+            // and Gradle cannot see that: on an unchanged tree `test` is UP-TO-DATE, does not run,
+            // and the capture step then fails on a file the erase deleted and nothing rewrote. So a
+            // suite that feeds a capture is never up to date - only while a capture is being run,
+            // because an ordinary `./gradlew test` has no erase in front of it and keeps its cache.
+            if (spec.selfCaptured && parityTaskRequested("parityCapture")) outputs.upToDateWhen { false }
         }
     }
 }
