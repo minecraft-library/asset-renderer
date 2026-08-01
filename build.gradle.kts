@@ -616,6 +616,13 @@ tasks.withType<Test>().configureEach {
     forwardAssetProperties()
     systemProperty("asset.parity.root", parityWorkingRoot)
     systemProperty("asset.parity.references", parityReferenceRoot)
+    // The store is read by filesystem path and excluded from processTestResources, so it reaches the
+    // suite by a route Gradle cannot see. Declared here it is an input like any other: without this a
+    // promotion leaves `test` UP-TO-DATE and the verification run reports the PRE-promotion answer -
+    // measured, on this phase's own promotion. It is the same decision as the classpath exclude
+    // rather than a second one: a value the suite reads and the build does not know about is exactly
+    // what that exclude makes unrepresentable on the classpath side.
+    inputs.dir(parityProductionStore).withPropertyName("parityStore").optional()
 }
 tasks.withType<JavaExec>().configureEach {
     jvmArgs(addVectorModuleArg)
