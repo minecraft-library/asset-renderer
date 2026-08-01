@@ -182,11 +182,15 @@ public final class TestGlintParityVanilla {
         }
 
         rows.sort((a, b) -> Double.compare(b.meanDelta(), a.meanDelta()));
-        StringBuilder report = new StringBuilder("item_id\tframes\tmean_argb_delta\tworst_frame\tvanilla_present\tdiagnostic\n");
+        List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)
-            report.append(String.format("%s\t%d\t%.4f\t%d\t%s\t%s%n",
-                r.itemId(), r.frames(), r.meanDelta(), r.worstFrame(), r.vanillaPresent(), r.diagnostic()));
-        Files.writeString(REPORT_FILE, report.toString());
+            lines.add(String.join("\t",
+                r.itemId(), SweepReport.delta(r.meanDelta()), SweepReport.status(r.meanDelta()),
+                Integer.toString(r.frames()), Integer.toString(r.worstFrame()),
+                Boolean.toString(r.vanillaPresent()), Boolean.toString(r.diagnostic())));
+        SweepReport.write(REPORT_FILE, SweepReport.KEY_COLUMN
+            + "\tmean_argb_delta\tstatus\tframes\tworst_frame\tvanilla_present\tdiagnostic", lines);
+        SweepReport.printBuckets(rows.stream().mapToDouble(Row::meanDelta).toArray());
 
         System.out.printf("%nWrote %s (%d subjects)%n", REPORT_FILE, rows.size());
         System.out.println("Mean per-frame ARGB delta (worst first; armor rows are diagnostic, not parity):");

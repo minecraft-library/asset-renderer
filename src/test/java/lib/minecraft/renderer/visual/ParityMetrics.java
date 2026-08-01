@@ -116,6 +116,51 @@ public final class ParityMetrics {
     }
 
     /**
+     * Alpha-tight-crops {@code src} to its opaque silhouette, scales it (nearest-neighbour,
+     * aspect-preserving) to {@code fill} of a {@code box x box} canvas, and centres it - so two
+     * differently-framed / differently-proportioned renders line up by silhouette for a
+     * lighting-focused diff.
+     * <p>
+     * The resampling sibling of {@link #padToCanvas}, and the difference is what each is for:
+     * padding reconciles two canvas sizes without touching a pixel, where this one deliberately
+     * rescales both sides so the comparison is about shading rather than about fit. A sweep that
+     * uses it is reporting a lighting delta and cannot report a byte gate.
+     *
+     * @param src the source render
+     * @param box the square canvas edge
+     * @param fill the fraction of the canvas the silhouette fills
+     * @return the aligned render
+     */
+    public static @NotNull BufferedImage alignToBox(@NotNull BufferedImage src, int box, float fill) {
+        int minX = src.getWidth(), minY = src.getHeight(), maxX = -1, maxY = -1;
+        for (int y = 0; y < src.getHeight(); y++)
+            for (int x = 0; x < src.getWidth(); x++)
+                if (ColorMath.alpha(src.getRGB(x, y)) > 8) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+        if (maxX < minX) return new BufferedImage(box, box, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage cropped = src.getSubimage(minX, minY, maxX - minX + 1, maxY - minY + 1);
+
+        float target = box * fill;
+        float scale = Math.min(target / cropped.getWidth(), target / cropped.getHeight());
+        int sw = Math.max(1, Math.round(cropped.getWidth() * scale));
+        int sh = Math.max(1, Math.round(cropped.getHeight() * scale));
+
+        BufferedImage out = new BufferedImage(box, box, BufferedImage.TYPE_INT_ARGB);
+        var g = out.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            g.drawImage(cropped, (box - sw) / 2, (box - sh) / 2, sw, sh, null);
+        } finally {
+            g.dispose();
+        }
+        return out;
+    }
+
+    /**
      * Supersample factor applied to every panel dimension (cell size, gaps, fonts). Rendering
      * the whole panel at this multiple of natural pixel size produces text that's crisp at any
      * zoom level - the cell images get scaled up with nearest-neighbor (preserves the pixel-art

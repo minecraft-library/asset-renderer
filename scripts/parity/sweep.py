@@ -91,6 +91,15 @@ def read_table(path: Path, sweep: str | None = None) -> Table:
 
 
 def _status(values: dict[str, str]) -> str:
+    """An explicit column when the table has one, else the two magic values it replaced.
+
+    The writers state the status outright now. The sentinel arms stay because an older capture is
+    still a valid operand - a frozen table, a `cache/` tree from before the reshape - and a reader
+    that could not parse one would make every such comparison unavailable rather than merely old.
+    """
+    declared = values.get("status", "").strip().lower()
+    if declared in (OK, FAILED):
+        return declared
     if values.get(DELTA, "").strip().lower() in _SENTINEL_TEXTS:
         return FAILED
     if values.get("differing_pixels", "").strip() == "-1":
@@ -99,12 +108,19 @@ def _status(values: dict[str, str]) -> str:
 
 
 def _sweep_of(path: Path, key_field: str) -> str:
-    """Name the sweep from the path when it can, else from the key column's own spelling."""
+    """Name the sweep from the path when it can, else from the key column's own spelling.
+
+    The key-column fallback answers for the four spellings that were unique to one sweep before the
+    writers were given a shared shape. **`subject` is deliberately not among them**: all six write it
+    now, so it identifies nothing, and answering `armor` for any of them would silently apply the
+    wrong id spelling in `canonical_key`. `unknown` degrades safely - the stem parse fails and the
+    row keeps its own key.
+    """
     stem = path.stem
     for name in SWEEPS:
         if stem == f"sweep-{name}" or path.parent.name == f"{name}-parity-vanilla":
             return name
-    return {"scope": "player", "subject": "armor", "entity_id": "entity",
+    return {"scope": "player", "entity_id": "entity",
             "block_id": "block", "item_id": "item"}.get(key_field, "unknown")
 
 

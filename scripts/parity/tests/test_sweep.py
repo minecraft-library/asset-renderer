@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -75,6 +76,57 @@ class Sentinel(unittest.TestCase):
     def test_it_is_not_counted_in_any_bucket(self):
         counts = sweep.buckets(self.table)
         self.assertEqual(counts["<1.00"], 1)  # the ok row only
+
+
+class ExplicitStatusColumn(unittest.TestCase):
+    """The writers state the status outright now; the sentinel arms stay for older captures."""
+
+    @staticmethod
+    def _table(tmp: Path, header: str, *rows: str) -> sweep.Table:
+        path = tmp / "parity-report.tsv"
+        path.write_text("\n".join((header,) + rows) + "\n", encoding="utf-8")
+        return sweep.read_table(path, "entity")
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def test_an_explicit_failed_is_read_without_any_magic_value(self):
+        """The reshaped row carries neither `Infinity` nor `-1`, so only the column can say so."""
+        table = self._table(self.tmp, "subject\tmean_argb_delta\tstatus\tdiffering_pixels",
+                            "minecraft__ok\t0.5000\tok\t7",
+                            "minecraft__crashed\t\tfailed\t")
+        self.assertEqual({row.key: row.status for row in table.rows},
+                         {"minecraft__ok": sweep.OK, "minecraft__crashed": sweep.FAILED})
+        self.assertEqual(sweep.total(table), 0.5)
+        self.assertEqual(sweep.buckets(table)["failed"], 1)
+
+    def test_the_declared_status_wins_over_the_sentinel_arms(self):
+        table = self._table(self.tmp, "subject\tmean_argb_delta\tstatus\tdiffering_pixels",
+                            "minecraft__x\tInfinity\tok\t-1")
+        self.assertEqual(table.rows[0].status, sweep.OK)
+
+    def test_an_unreadable_status_falls_back_rather_than_being_trusted(self):
+        table = self._table(self.tmp, "subject\tmean_argb_delta\tstatus\tdiffering_pixels",
+                            "minecraft__x\tInfinity\t?\t-1")
+        self.assertEqual(table.rows[0].status, sweep.FAILED)
+
+
+class SweepAttribution(unittest.TestCase):
+
+    def test_subject_no_longer_names_a_sweep_because_all_six_write_it(self):
+        """Answering `armor` for any of the six would apply the wrong id spelling silently."""
+        home = Path(tempfile.mkdtemp())
+        path = home / "somewhere.tsv"
+        path.write_text("subject\tmean_argb_delta\nminecraft__cow\t0.5000\n", encoding="utf-8")
+        self.assertEqual(sweep.read_table(path).sweep, "unknown")
+
+    def test_the_four_spellings_unique_to_one_sweep_still_answer(self):
+        home = Path(tempfile.mkdtemp())
+        for key, name in (("scope", "player"), ("entity_id", "entity"),
+                          ("block_id", "block"), ("item_id", "item")):
+            path = home / f"{key}.tsv"
+            path.write_text(f"{key}\tmean_argb_delta\nx\t0.5000\n", encoding="utf-8")
+            self.assertEqual(sweep.read_table(path).sweep, name, key)
 
 
 class Buckets(unittest.TestCase):

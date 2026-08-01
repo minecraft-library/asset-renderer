@@ -2,7 +2,6 @@ package lib.minecraft.renderer.visual;
 
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
@@ -26,7 +25,6 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -165,11 +163,15 @@ public final class TestArmorParityVanilla {
         for (Subject subject : SUBJECTS)
             rows.add(renderAndCompare(subject, javaRenderer));
 
-        StringBuilder report = new StringBuilder("subject\tmean_argb_delta\tdiffering_pixels\tjava_coverage\tvanilla_coverage\n");
+        List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)
-            report.append(String.format(Locale.ROOT, "%s\t%.4f\t%d\t%.4f\t%.4f%n",
-                r.subject(), r.meanDelta(), r.differingPixels(), r.javaCoverage(), r.vanillaCoverage()));
-        Files.writeString(REPORT_FILE, report.toString());
+            lines.add(String.join("\t",
+                r.subject(), SweepReport.delta(r.meanDelta()), SweepReport.status(r.meanDelta()),
+                SweepReport.pixels(r.meanDelta(), r.differingPixels()),
+                SweepReport.ratio(r.javaCoverage()), SweepReport.ratio(r.vanillaCoverage())));
+        SweepReport.write(REPORT_FILE, SweepReport.KEY_COLUMN
+            + "\tmean_argb_delta\tstatus\tdiffering_pixels\tjava_coverage\tvanilla_coverage", lines);
+        SweepReport.printBuckets(rows.stream().mapToDouble(Row::meanDelta).toArray());
         System.out.printf("Wrote %s (%d rows)%n", REPORT_FILE, rows.size());
         System.out.println("Note: bbox-aligned diff - read each baby row against its adult twin, not in isolation. LOOK at diff_panel.png.");
     }
@@ -177,7 +179,7 @@ public final class TestArmorParityVanilla {
     /**
      * Renders one subject through the Java pipeline, alpha-aligns it against the vanilla reference,
      * writes the per-subject {@code vanilla/java/diff/diff_panel} PNGs, and returns the comparison
-     * {@link Row}. Any failure is captured as a {@code POSITIVE_INFINITY} sentinel rather than
+     * {@link Row}. Any failure marks the row {@code POSITIVE_INFINITY} rather than
      * aborting the sweep.
      */
     private static @NotNull Row renderAndCompare(@NotNull Subject subject, @NotNull EntityRenderer javaRenderer) {
@@ -217,8 +219,8 @@ public final class TestArmorParityVanilla {
 
             // Alpha-tight-crop + scale-to-common-box both sides so appearance compares free of the
             // framing gap between the two pipelines' independent canvas fits for these subjects.
-            BufferedImage vanillaImg = alignToBox(vanillaRaw, RENDER_SIZE, ALIGN_FILL);
-            BufferedImage javaImg = alignToBox(java.toBufferedImage(), RENDER_SIZE, ALIGN_FILL);
+            BufferedImage vanillaImg = ParityMetrics.alignToBox(vanillaRaw, RENDER_SIZE, ALIGN_FILL);
+            BufferedImage javaImg = ParityMetrics.alignToBox(java.toBufferedImage(), RENDER_SIZE, ALIGN_FILL);
 
             ImageIO.write(vanillaImg, "PNG", new File(subjectDir.toFile(), "vanilla.png"));
             ImageIO.write(javaImg, "PNG", new File(subjectDir.toFile(), "java.png"));
@@ -238,40 +240,6 @@ public final class TestArmorParityVanilla {
             System.err.printf("       %-44s FAILED: %s%n", stem, ex.getMessage());
             return new Row(stem, Double.POSITIVE_INFINITY, -1, 0, 0);
         }
-    }
-
-    /**
-     * Alpha-tight-crops {@code src} to its opaque silhouette, scales it (nearest-neighbour,
-     * aspect-preserving) to {@link #ALIGN_FILL} of a {@code box × box} canvas, and centres it - so
-     * two differently-framed renders line up by silhouette for an appearance-focused diff.
-     */
-    private static @NotNull BufferedImage alignToBox(@NotNull BufferedImage src, int box, float fill) {
-        int minX = src.getWidth(), minY = src.getHeight(), maxX = -1, maxY = -1;
-        for (int y = 0; y < src.getHeight(); y++)
-            for (int x = 0; x < src.getWidth(); x++)
-                if (ColorMath.alpha(src.getRGB(x, y)) > 8) {
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
-                }
-        if (maxX < minX) return new BufferedImage(box, box, BufferedImage.TYPE_INT_ARGB);
-        BufferedImage cropped = src.getSubimage(minX, minY, maxX - minX + 1, maxY - minY + 1);
-
-        float target = box * fill;
-        float scale = Math.min(target / cropped.getWidth(), target / cropped.getHeight());
-        int sw = Math.max(1, Math.round(cropped.getWidth() * scale));
-        int sh = Math.max(1, Math.round(cropped.getHeight() * scale));
-
-        BufferedImage out = new BufferedImage(box, box, BufferedImage.TYPE_INT_ARGB);
-        var g = out.createGraphics();
-        try {
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-            g.drawImage(cropped, (box - sw) / 2, (box - sh) / 2, sw, sh, null);
-        } finally {
-            g.dispose();
-        }
-        return out;
     }
 
     /**

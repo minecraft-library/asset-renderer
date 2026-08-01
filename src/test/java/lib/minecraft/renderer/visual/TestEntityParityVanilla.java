@@ -156,21 +156,20 @@ public final class TestEntityParityVanilla {
 
         rows.sort((a, b) -> Double.compare(a.meanDelta(), b.meanDelta()));
 
-        StringBuilder report = new StringBuilder();
-        report.append("entity_id\tmean_argb_delta\tdiffering_pixels\tjava_coverage\tvanilla_coverage\tjava_w\tjava_h\tvanilla_w\tvanilla_h\n");
+        List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)
-            report.append(String.format("%s\t%.4f\t%d\t%.4f\t%.4f\t%d\t%d\t%d\t%d%n",
-                r.entityId(), r.meanDelta(), r.differingPixels(), r.javaCoverage(), r.vanillaCoverage(),
-                r.javaW(), r.javaH(), r.vanillaW(), r.vanillaH()));
-        Files.writeString(REPORT_FILE, report.toString());
+            lines.add(String.join("\t",
+                r.entityId(), SweepReport.delta(r.meanDelta()), SweepReport.status(r.meanDelta()),
+                SweepReport.pixels(r.meanDelta(), r.differingPixels()),
+                SweepReport.ratio(r.javaCoverage()), SweepReport.ratio(r.vanillaCoverage()),
+                Integer.toString(r.javaW()), Integer.toString(r.javaH()),
+                Integer.toString(r.vanillaW()), Integer.toString(r.vanillaH())));
+        SweepReport.write(REPORT_FILE, SweepReport.KEY_COLUMN
+            + "\tmean_argb_delta\tstatus\tdiffering_pixels\tjava_coverage\tvanilla_coverage"
+            + "\tjava_w\tjava_h\tvanilla_w\tvanilla_h", lines);
         System.out.printf("Wrote %s (%d rows, %d ms total)%n", REPORT_FILE, rows.size(), totalMs);
 
-        long below025 = rows.stream().filter(r -> r.meanDelta() < 0.25).count();
-        long below05 = rows.stream().filter(r -> r.meanDelta() < 0.5).count();
-        long below075 = rows.stream().filter(r -> r.meanDelta() < 0.75).count();
-        long below1 = rows.stream().filter(r -> r.meanDelta() < 1.0).count();
-        System.out.printf("Parity buckets: <0.25: %d / <0.5: %d / <0.75: %d / <1: %d / total: %d%n",
-            below025, below05, below075, below1, rows.size());
+        SweepReport.printBuckets(rows.stream().mapToDouble(Row::meanDelta).toArray());
         List<Row> worst = rows.stream()
             .sorted((a, b) -> Double.compare(b.meanDelta(), a.meanDelta()))
             .toList();
@@ -185,13 +184,13 @@ public final class TestEntityParityVanilla {
      * {@link Row}. Self-contained (no shared mutable state) so it can run concurrently across
      * entities via {@code parallelStream}; the shared {@code javaRenderer} reads only the immutable
      * {@link PipelineRendererContext} + entity-definition map. Any failure (missing/unreadable
-     * reference, render error) is captured as a {@code POSITIVE_INFINITY} sentinel row rather than
-     * aborting the sweep.
+     * reference, render error) marks the row {@code POSITIVE_INFINITY} rather than aborting the
+     * sweep - which is what sorts it last, and what {@link SweepReport} emits as {@code failed}.
      *
      * @param subject the parity subject (its ref id names the vanilla PNG + output folder; its entity id
      *     and variant drive the Java render)
      * @param javaRenderer the shared read-only Java entity renderer
-     * @return the comparison row, or a {@code POSITIVE_INFINITY} sentinel on failure
+     * @return the comparison row, its delta {@code POSITIVE_INFINITY} on failure
      */
     private static @NotNull Row renderAndCompare(@NotNull Subject subject, @NotNull EntityRenderer javaRenderer) {
         String refId = subject.refStem();
