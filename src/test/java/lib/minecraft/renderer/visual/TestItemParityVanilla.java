@@ -7,6 +7,7 @@ import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
@@ -28,7 +29,7 @@ import java.util.stream.Stream;
 /**
  * Per-item parity report comparing the Java pipeline output (via {@link ItemRenderer} in
  * {@link ItemOptions.Type#GUI_2D GUI_2D} mode) against the vanilla-reference-harness ground
- * truth PNGs in {@code cache/asset-renderer/vanilla/26.1/references/items/}. The harness drives
+ * truth PNGs in the harness reference tree's {@code items/}. The harness drives
  * a real Minecraft client to render each item through vanilla's GUI inventory pipeline
  * ({@code ItemDisplayContext.GUI} + {@code ITEMS_FLAT} / {@code ITEMS_3D} lighting + feature
  * dispatcher to an offscreen RGBA8 texture), so its output is the canonical baseline.
@@ -56,7 +57,7 @@ public final class TestItemParityVanilla {
     private static final Path REPORT_FILE = OUTPUT_DIR.resolve("parity-report.tsv");
 
     /** Source of the harness-produced reference PNGs. */
-    private static final Path VANILLA_DIR = Path.of("cache/asset-renderer/vanilla/26.1/references/items");
+    private static final Path VANILLA_DIR = ParityPaths.references("items");
 
     /** Filename prefix the harness writes (item id with {@code :} replaced by {@code __}). */
     private static final @NotNull String VANILLA_PREFIX = "minecraft__";

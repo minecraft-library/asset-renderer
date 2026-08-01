@@ -11,6 +11,7 @@ import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
+import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
@@ -32,7 +33,7 @@ import java.util.Optional;
 
 /**
  * Per-scope player parity report comparing the Java pipeline's 3D {@link PlayerRenderer} output against
- * the vanilla-reference-harness ground truth in {@code cache/asset-renderer/vanilla/26.1/references/players/}.
+ * the vanilla-reference-harness ground truth in the reference tree's {@code players/}.
  * The harness renders the vanilla {@link net.minecraft.client.model.player.PlayerModel} (default steve skin)
  * under vanilla's inventory {@code ENTITY_IN_UI} lighting, so its output is the canonical baseline the Java
  * player aims to match - specifically the parity gate for R7 (player lit like a humanoid entity, not like a
@@ -64,7 +65,7 @@ public final class TestPlayerParityVanilla {
     private static final Path REPORT_FILE = OUTPUT_DIR.resolve("parity-report.tsv");
 
     /** Source of the harness-produced player reference PNGs. */
-    private static final Path VANILLA_DIR = Path.of("cache/asset-renderer/vanilla/26.1/references/players");
+    private static final Path VANILLA_DIR = ParityPaths.references("players");
 
     /** Offline, pack-resolvable default skin texture id (matches the harness's {@code DefaultPlayerSkin} steve). */
     private static final String SKIN_ID = "minecraft:entity/player/wide/steve";

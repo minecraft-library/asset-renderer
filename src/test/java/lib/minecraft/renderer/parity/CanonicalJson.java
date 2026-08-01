@@ -1,7 +1,5 @@
-package lib.minecraft.renderer.pipeline.dump;
+package lib.minecraft.renderer.parity;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -13,8 +11,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Locale;
@@ -23,19 +19,24 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Canonical-form JSON writer for the pipeline-cleanup parity dump.
+ * Value shaping for the pipeline parity dump.
  * <p>
  * The dump's whole value rests on one property: two runs that loaded the same pipeline state must
  * produce byte-identical files. The loaded object graph does not offer that for free - it is spread
  * across hash-ordered maps, per-JVM-salted immutable collections, machine-absolute paths, and
  * megabyte pixel blobs. Every method here exists to kill one of those.
  * <p>
- * <b>Ordering.</b> {@link #write} recursively sorts every object's keys by {@link String#compareTo},
- * so a caller can build objects in whatever order reads best and still get canonical output. Arrays
- * are NEVER reordered: an array in this dump means the order is semantic (pack priority, CIT
- * first-match-wins, model elements, animation frames), and sorting one would hide a real regression
- * exactly as surely as leaving a map hash-ordered would manufacture a fake one. Callers turn
- * unordered sets into sorted arrays explicitly via {@link #strings}.
+ * <b>The canonical form itself lives in {@link ParityJson}</b>, which is the one writer the parity
+ * store and this dump share. What stays here is the shaping a dump does before it writes: narrowing
+ * numbers, hex-formatting colours, digesting blobs, relativizing paths, and turning collections into
+ * arrays whose order is stated rather than inherited.
+ * <p>
+ * <b>Ordering.</b> {@link ParityJson#write} recursively sorts every object's keys, so a caller can
+ * build objects in whatever order reads best. Arrays are NEVER reordered: an array in this dump means
+ * the order is semantic (pack priority, CIT first-match-wins, model elements, animation frames), and
+ * sorting one would hide a real regression exactly as surely as leaving a map hash-ordered would
+ * manufacture a fake one. Callers turn unordered sets into sorted arrays explicitly via
+ * {@link #strings}.
  * <p>
  * <b>Numbers.</b> Every float and double is printed through {@code (double)(float) value}, so a
  * field migrating between {@code float} and {@code double} - or a DTO re-parsing the same literal -
@@ -45,15 +46,7 @@ import java.util.function.Function;
  * putting a quarter-megabyte colormap into a diff.
  */
 @UtilityClass
-class CanonicalJson {
-
-    private static final @NotNull Gson GSON = new GsonBuilder()
-        .setPrettyPrinting()
-        .serializeSpecialFloatingPointValues()
-        .disableHtmlEscaping()
-        .create();
-
-    private static final char @NotNull [] HEX = "0123456789abcdef".toCharArray();
+public class CanonicalJson {
 
     /**
      * Returns a number in canonical form, narrowed through {@code float} so that float-vs-double
@@ -62,7 +55,7 @@ class CanonicalJson {
      * @param value the number to emit
      * @return the canonical primitive
      */
-    static @NotNull JsonPrimitive number(double value) {
+    public static @NotNull JsonPrimitive number(double value) {
         return new JsonPrimitive((double) (float) value);
     }
 
@@ -74,7 +67,7 @@ class CanonicalJson {
      * @param value the signed ARGB int
      * @return the canonical hex primitive
      */
-    static @NotNull JsonPrimitive argb(int value) {
+    public static @NotNull JsonPrimitive argb(int value) {
         return new JsonPrimitive(String.format(Locale.ROOT, "0x%08X", value));
     }
 
@@ -85,9 +78,9 @@ class CanonicalJson {
      * @param value the bytes to digest
      * @return the digest object
      */
-    static @NotNull JsonObject bytes(byte @NotNull [] value) {
+    public static @NotNull JsonObject bytes(byte @NotNull [] value) {
         JsonObject digest = new JsonObject();
-        digest.addProperty("sha256", sha256(value));
+        digest.addProperty("sha256", ParityJson.sha256(value));
         digest.addProperty("length", value.length);
         return digest;
     }
@@ -102,7 +95,7 @@ class CanonicalJson {
      * @param base the directory to relativize against
      * @return the canonical path primitive
      */
-    static @NotNull JsonPrimitive path(@NotNull Path value, @NotNull Path base) {
+    public static @NotNull JsonPrimitive path(@NotNull Path value, @NotNull Path base) {
         Path absolute = value.toAbsolutePath().normalize();
         Path root = base.toAbsolutePath().normalize();
         try {
@@ -113,16 +106,16 @@ class CanonicalJson {
     }
 
     /**
-     * Returns a string-keyed map as an object. Key order is irrelevant here because {@link #write}
-     * sorts on the way out; this overload exists so callers never hand a raw hash-ordered map to the
-     * writer by reflex.
+     * Returns a string-keyed map as an object. Key order is irrelevant here because the writer sorts
+     * on the way out; this overload exists so callers never hand a raw hash-ordered map to the writer
+     * by reflex.
      *
      * @param values the map to emit
      * @param mapper the per-value serializer
      * @param <V> the map's value type
      * @return the object
      */
-    static <V> @NotNull JsonObject map(@NotNull Map<String, V> values, @NotNull Function<? super V, ? extends JsonElement> mapper) {
+    public static <V> @NotNull JsonObject map(@NotNull Map<String, V> values, @NotNull Function<? super V, ? extends JsonElement> mapper) {
         return map(values, Function.identity(), mapper);
     }
 
@@ -136,7 +129,7 @@ class CanonicalJson {
      * @param <V> the map's value type
      * @return the object
      */
-    static <K, V> @NotNull JsonObject map(
+    public static <K, V> @NotNull JsonObject map(
         @NotNull Map<K, V> values,
         @NotNull Function<? super K, String> key,
         @NotNull Function<? super V, ? extends JsonElement> mapper
@@ -150,11 +143,11 @@ class CanonicalJson {
      * Returns a map whose ITERATION ORDER IS SEMANTIC as an array of entries, each carrying its own key
      * under {@code keyName}.
      * <p>
-     * Such a map cannot be emitted as a JSON object at all: {@link #write} sorts every object's keys on
-     * the way out, so an object would silently destroy the very order that has to be pinned. An array is
-     * the only shape in this writer that survives with its order intact. Reach for this ONLY where the
-     * order is load-bearing - a bone map whose sequence decides which face wins at tied depth - never as
-     * a way to keep a map "looking like" its runtime iteration.
+     * Such a map cannot be emitted as a JSON object at all: the writer sorts every object's keys on the
+     * way out, so an object would silently destroy the very order that has to be pinned. An array is the
+     * only shape in this writer that survives with its order intact. Reach for this ONLY where the order
+     * is load-bearing - a bone map whose sequence decides which face wins at tied depth - never as a way
+     * to keep a map "looking like" its runtime iteration.
      *
      * @param values the order-semantic map
      * @param keyName the key under which each entry's own key is emitted
@@ -162,7 +155,7 @@ class CanonicalJson {
      * @param <V> the map's value type
      * @return the entry array in iteration order
      */
-    static <V> @NotNull JsonArray orderedMap(
+    public static <V> @NotNull JsonArray orderedMap(
         @NotNull Map<String, V> values,
         @NotNull String keyName,
         @NotNull Function<? super V, ? extends JsonObject> mapper
@@ -183,7 +176,7 @@ class CanonicalJson {
      * @param values the strings to emit
      * @return the sorted array
      */
-    static @NotNull JsonArray strings(@NotNull Collection<String> values) {
+    public static @NotNull JsonArray strings(@NotNull Collection<String> values) {
         JsonArray array = new JsonArray(values.size());
         values.stream().sorted().forEach(array::add);
         return array;
@@ -198,7 +191,7 @@ class CanonicalJson {
      * @param <T> the element type
      * @return the array in iteration order
      */
-    static <T> @NotNull JsonArray ordered(@NotNull Collection<T> values, @NotNull Function<? super T, ? extends JsonElement> mapper) {
+    public static <T> @NotNull JsonArray ordered(@NotNull Collection<T> values, @NotNull Function<? super T, ? extends JsonElement> mapper) {
         JsonArray array = new JsonArray(values.size());
         values.forEach(value -> array.add(mapper.apply(value)));
         return array;
@@ -215,27 +208,13 @@ class CanonicalJson {
      * @param mapper the serializer applied when present
      * @param <T> the value type
      */
-    static <T> void put(
+    public static <T> void put(
         @NotNull JsonObject object,
         @NotNull String key,
         @NotNull Optional<T> value,
         @NotNull Function<? super T, ? extends JsonElement> mapper
     ) {
         value.ifPresent(present -> object.add(key, mapper.apply(present)));
-    }
-
-    /**
-     * Writes the dump section: keys recursively sorted, pretty-printed, UTF-8, {@code \n} line
-     * endings, trailing newline. Creates the parent directory when absent.
-     *
-     * @param file the file to write
-     * @param root the section root
-     * @throws IOException if the file cannot be written
-     */
-    static void write(@NotNull Path file, @NotNull JsonObject root) throws IOException {
-        Files.createDirectories(file.getParent());
-        String json = GSON.toJson(sortDeep(root)).replace("\r\n", "\n") + "\n";
-        Files.writeString(file, json, StandardCharsets.UTF_8);
     }
 
     /**
@@ -249,8 +228,8 @@ class CanonicalJson {
      * @param element the element to digest
      * @return the lowercase hex digest of its canonical form
      */
-    static @NotNull String digest(@NotNull JsonElement element) {
-        return sha256(text(element).getBytes(StandardCharsets.UTF_8));
+    public static @NotNull String digest(@NotNull JsonElement element) {
+        return ParityJson.sha256(ParityJson.text(element).getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -267,84 +246,29 @@ class CanonicalJson {
      * @param <T> the element type
      * @return the content-sorted array
      */
-    static <T> @NotNull JsonArray sortedByContent(
+    public static <T> @NotNull JsonArray sortedByContent(
         @NotNull Collection<T> values,
         @NotNull Function<? super T, ? extends JsonElement> mapper
     ) {
         JsonArray array = new JsonArray(values.size());
-        values.stream().map(mapper).sorted(Comparator.comparing(CanonicalJson::text)).forEach(array::add);
+        values.stream().map(mapper).sorted(Comparator.comparing(ParityJson::text)).forEach(array::add);
         return array;
     }
 
     /**
-     * Returns an element's canonical text - the exact bytes {@link #write} would emit for it.
-     *
-     * @param element the element to render
-     * @return the canonical text
-     */
-    private static @NotNull String text(@NotNull JsonElement element) {
-        return GSON.toJson(sortDeep(element)).replace("\r\n", "\n");
-    }
-
-    /**
-     * Returns the lowercase hex SHA-256 of the given bytes.
-     *
-     * @param value the bytes to digest
-     * @return the lowercase hex digest
-     */
-    static @NotNull String sha256(byte @NotNull [] value) {
-        MessageDigest digest;
-        try {
-            digest = MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 is required by every JDK but is unavailable", ex);
-        }
-
-        byte[] hash = digest.digest(value);
-        StringBuilder hex = new StringBuilder(hash.length * 2);
-        for (byte b : hash) {
-            hex.append(HEX[(b >> 4) & 0xf]);
-            hex.append(HEX[b & 0xf]);
-        }
-        return hex.toString();
-    }
-
-    /**
-     * Returns the lowercase hex SHA-256 of a file's bytes.
+     * Returns the lowercase hex SHA-256 of a file's RAW bytes.
+     * <p>
+     * Raw rather than normalized, and correct here for a reason that does not generalise: the dump
+     * digests section files it wrote itself, seconds earlier, in this same JVM. A store file is read
+     * back after git checked it out and must be normalized first - {@link ParityJson#sha256Normalized}
+     * is the one for that.
      *
      * @param file the file to digest
      * @return the lowercase hex digest
      * @throws IOException if the file cannot be read
      */
-    static @NotNull String sha256(@NotNull Path file) throws IOException {
-        return sha256(Files.readAllBytes(file));
-    }
-
-    /**
-     * Recursively rebuilds the tree with every object's keys in {@link String#compareTo} order,
-     * leaving array order untouched.
-     *
-     * @param element the element to canonicalize
-     * @return the key-sorted copy
-     */
-    private static @NotNull JsonElement sortDeep(@NotNull JsonElement element) {
-        if (element.isJsonObject()) {
-            JsonObject sorted = new JsonObject();
-            element.getAsJsonObject().entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> sorted.add(entry.getKey(), sortDeep(entry.getValue())));
-            return sorted;
-        }
-
-        if (element.isJsonArray()) {
-            JsonArray source = element.getAsJsonArray();
-            JsonArray mapped = new JsonArray(source.size());
-            for (JsonElement child : source)
-                mapped.add(sortDeep(child));
-            return mapped;
-        }
-
-        return element;
+    public static @NotNull String sha256(@NotNull Path file) throws IOException {
+        return ParityJson.sha256(Files.readAllBytes(file));
     }
 
 }

@@ -42,6 +42,8 @@ import lib.minecraft.renderer.asset.pack.rule.NbtRule;
 import lib.minecraft.renderer.asset.pack.rule.RuleSet;
 import lib.minecraft.renderer.asset.pack.rule.TileRef;
 import lib.minecraft.renderer.option.AppearanceGate;
+import lib.minecraft.renderer.parity.CanonicalJson;
+import lib.minecraft.renderer.parity.ParityJson;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
@@ -214,7 +216,7 @@ public final class PipelineParityDump {
         }));
 
         for (Map.Entry<String, JsonObject> section : sections.entrySet())
-            CanonicalJson.write(directory.resolve(section.getKey() + ".json"), section.getValue());
+            ParityJson.write(directory.resolve(section.getKey() + ".json"), section.getValue());
 
         manifest(directory, sections.keySet());
     }

@@ -8,6 +8,7 @@ import lib.minecraft.renderer.engine.texture.Biome;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
@@ -30,7 +31,7 @@ import java.util.stream.Stream;
 /**
  * Per-block parity report comparing the Java pipeline output (via {@link BlockRenderer} in
  * {@link BlockOptions.Type#ISOMETRIC_3D ISOMETRIC_3D} mode) against the vanilla-reference-harness
- * ground truth PNGs in {@code cache/asset-renderer/vanilla/26.1/references/blocks/}. The harness
+ * ground truth PNGs in the harness reference tree's {@code blocks/}. The harness
  * drives a real Minecraft client to render each block-as-item through vanilla's actual GUI
  * inventory pipeline ({@code ItemDisplayContext.GUI} display transform + {@code ITEMS_3D}
  * lighting + feature dispatcher to an offscreen RGBA8 texture), so its output is the canonical
@@ -60,7 +61,7 @@ public final class TestBlockParityVanilla {
     private static final Path REPORT_FILE = OUTPUT_DIR.resolve("parity-report.tsv");
 
     /** Source of the harness-produced reference PNGs. */
-    private static final Path VANILLA_DIR = Path.of("cache/asset-renderer/vanilla/26.1/references/blocks");
+    private static final Path VANILLA_DIR = ParityPaths.references("blocks");
 
     /** Filename prefix the harness writes (block id with {@code :} replaced by {@code __}). */
     private static final @NotNull String VANILLA_PREFIX = "minecraft__";

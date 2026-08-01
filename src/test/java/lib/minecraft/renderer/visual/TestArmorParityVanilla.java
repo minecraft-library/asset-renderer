@@ -16,6 +16,7 @@ import lib.minecraft.renderer.option.spec.ArmorMaterial;
 import lib.minecraft.renderer.option.spec.ArmorOptions;
 import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
@@ -39,7 +40,7 @@ import java.util.Optional;
 /**
  * Per-subject worn-armor parity report comparing the Java pipeline's armored entity renders against
  * the vanilla-reference-harness ground truth in
- * {@code cache/asset-renderer/vanilla/26.1/references/armor/}. The 90-entity parity sweep equips
+ * the harness reference tree's {@code armor/}. The 90-entity parity sweep equips
  * nothing and renders no babies, so worn armor - and above all the baby form, which vanilla draws
  * with a <b>separate baby armor model</b> while this pipeline stretches the adult {@code humanoid}
  * sheet over the baby body - has no ground truth anywhere else.
@@ -79,7 +80,7 @@ public final class TestArmorParityVanilla {
     /**
      * Source of the harness-produced armored-mob reference PNGs.
      */
-    private static final Path VANILLA_DIR = Path.of("cache/asset-renderer/vanilla/26.1/references/armor");
+    private static final Path VANILLA_DIR = ParityPaths.references("armor");
 
     /**
      * Square render size, matching the harness {@code refharness.size} default.

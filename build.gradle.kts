@@ -548,6 +548,14 @@ tasks {
         exclude("**/*.upstream.json")
     }
 
+    // The parity store is read by filesystem path, never off a classpath, so a copy under
+    // build/resources/test would only ever be a second answer - and a stale one, since a value
+    // promoted seconds ago would not be in it. Excluding it also keeps roughly half a megabyte of
+    // baselines out of anything this build packages.
+    processTestResources {
+        exclude("lib/minecraft/renderer/parity/**")
+    }
+
     // tooling - the generator flows; every output lands under
     // src/main/resources/lib/minecraft/renderer/.
 

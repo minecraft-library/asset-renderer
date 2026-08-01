@@ -2,6 +2,7 @@ package lib.minecraft.renderer.visual;
 
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 final class ReferenceKeyRoundTripTest {
 
     /** The harness's entity reference directory. */
-    private static final Path REFERENCES = Path.of("cache/asset-renderer/vanilla/26.1/references/entities");
+    private static final Path REFERENCES = ParityPaths.references("entities");
 
     private static List<String> referenceNames() throws IOException {
         try (Stream<Path> files = Files.list(REFERENCES)) {

@@ -23,6 +23,7 @@ import lib.minecraft.renderer.option.spec.ArmorPiece;
 import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
+import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
@@ -58,7 +59,7 @@ import java.util.stream.Stream;
  *
  * <p>The harness references are produced by {@code renderVanillaGlintReferences} (the
  * {@code GlintSweeper} glint-only sweep) into
- * {@code cache/asset-renderer/vanilla/26.1/references/glint/<id>/frame_NNN.png}, with the harness's
+ * the harness reference tree's {@code glint/<id>/frame_NNN.png}, with the harness's
  * {@code GlintTexturingMixin} forcing the same {@code t_N} per frame. This side renders the base item
  * icon with the glint suppressed ({@link ItemOptions#getGlintOverride()} = {@code false}), then
  * composites {@link GlintKit#applyGlintAtTimes} at the same schedule.
@@ -85,7 +86,7 @@ public final class TestGlintParityVanilla {
     private static final Path REPORT_FILE = OUTPUT_DIR.resolve("parity-report.tsv");
 
     /** Source of the harness-produced animated glint references. */
-    private static final Path VANILLA_DIR = Path.of("cache/asset-renderer/vanilla/26.1/references/glint");
+    private static final Path VANILLA_DIR = ParityPaths.references("glint");
 
     /** Square render size - matches the harness {@code refharness.size} default. */
     private static final int RENDER_SIZE = 512;

@@ -1,0 +1,291 @@
+{
+  "//": "parity.report.oracle-index · regen: ./gradlew parityPromote (rewritten on every promotion)",
+  "artifact": "report.oracle-index",
+  "artifacts": {
+    "digest.colormap-lut": {
+      "baselined": false,
+      "file": "digests/colormap-lut.json",
+      "kind": "digest-set"
+    },
+    "digest.shipped-tables": {
+      "baselined": false,
+      "file": "digests/shipped-tables.json",
+      "kind": "digest-set"
+    },
+    "manifest.dump.packs": {
+      "baselined": false,
+      "file": "manifests/dump-packs.json",
+      "kind": "manifest"
+    },
+    "manifest.dump.vanilla": {
+      "baselined": false,
+      "file": "manifests/dump-vanilla.json",
+      "kind": "manifest"
+    },
+    "manifest.fluid": {
+      "baselined": false,
+      "file": "manifests/fluid.json",
+      "kind": "manifest"
+    },
+    "manifest.player-sheets": {
+      "baselined": false,
+      "file": "manifests/player-sheets.json",
+      "kind": "manifest"
+    },
+    "manifest.portal": {
+      "baselined": false,
+      "file": "manifests/portal.json",
+      "kind": "manifest"
+    },
+    "manifest.references": {
+      "baselined": false,
+      "file": "manifests/references.json",
+      "kind": "manifest"
+    },
+    "manifest.tooling-tables": {
+      "baselined": false,
+      "file": "manifests/tooling-tables.json",
+      "kind": "manifest"
+    },
+    "manifest.visual": {
+      "baselined": false,
+      "file": "manifests/visual.json",
+      "kind": "manifest"
+    },
+    "pin.block-crc": {
+      "baselined": false,
+      "file": "pins/block-crc.json",
+      "kind": "pin-set"
+    },
+    "pin.corpus-count": {
+      "baselined": false,
+      "file": "pins/corpus-count.json",
+      "kind": "pin-set"
+    },
+    "pin.fluid-crc": {
+      "baselined": false,
+      "file": "pins/fluid-crc.json",
+      "kind": "pin-set"
+    },
+    "pin.kit-corners": {
+      "baselined": false,
+      "file": "pins/kit-corners.json",
+      "kind": "pin-set"
+    },
+    "pin.player-crc": {
+      "baselined": false,
+      "file": "pins/player-crc.json",
+      "kind": "pin-set"
+    },
+    "pin.portal-crc": {
+      "baselined": false,
+      "file": "pins/portal-crc.json",
+      "kind": "pin-set"
+    },
+    "pin.vanilla-iso-pose": {
+      "baselined": false,
+      "file": "pins/vanilla-iso-pose.json",
+      "kind": "pin-set"
+    },
+    "report.oracle-index": {
+      "baselined": false,
+      "file": "index.json",
+      "kind": "index"
+    },
+    "roster.blindness-rules": {
+      "baselined": false,
+      "file": "blindness.json",
+      "kind": "blindness-roster"
+    },
+    "sweep.armor": {
+      "baselined": false,
+      "file": "sweeps/armor.json",
+      "kind": "sweep-table"
+    },
+    "sweep.block": {
+      "baselined": false,
+      "file": "sweeps/block.json",
+      "kind": "sweep-table"
+    },
+    "sweep.entity": {
+      "baselined": false,
+      "file": "sweeps/entity.json",
+      "kind": "sweep-table"
+    },
+    "sweep.glint": {
+      "baselined": false,
+      "file": "sweeps/glint.json",
+      "kind": "sweep-table"
+    },
+    "sweep.item": {
+      "baselined": false,
+      "file": "sweeps/item.json",
+      "kind": "sweep-table"
+    },
+    "sweep.player": {
+      "baselined": false,
+      "file": "sweeps/player.json",
+      "kind": "sweep-table"
+    }
+  },
+  "external": {
+    "digest.dump-sections": {
+      "home": "cache/parity-dump/<label>/{vanilla,packs}/",
+      "reason": "the same 28 values manifest.dump.vanilla and manifest.dump.packs already carry, one per section file; a third copy of one number",
+      "stored": false
+    },
+    "pin.tick-lattice": {
+      "home": "lib.minecraft.renderer.option.TimelineTest",
+      "reason": "an identity (millisAt(f) == tickAt(f) * 50.0), not a captured value - re-baselining is not a concept for it",
+      "stored": false
+    },
+    "probe.depth-quantum": {
+      "home": "cache/asset-renderer/vanilla/<version>/depth-quantum-probe/",
+      "reason": "written deliberately outside the reference tree by renderVanillaDepthQuantumProbe",
+      "stored": false
+    },
+    "probe.pixel": {
+      "home": "notes/refharness-unify/probes/",
+      "reason": "instrumented-build evidence; not reproducible by re-running a gate, so it can be neither captured, compared nor promoted",
+      "stored": false
+    },
+    "report.capture-note": {
+      "home": "commit messages",
+      "reason": "its one non-duplicated field is the promotion reason, which is a provenance key; its restore recipe is parityCompare, which is code rather than prose",
+      "stored": false
+    },
+    "report.expected-diff": {
+      "home": "<working root>/_run/expected-diff.json",
+      "reason": "a pre-registered input to one gate, written before the capture it gates",
+      "stored": false
+    },
+    "report.harness-fit-log": {
+      "home": "build/parity/harness-<task>.log",
+      "reason": "the harness prints one fit line per cohort to stdout; the tee under build/ is where it is persisted, and it is scratch rather than a promoted value",
+      "stored": false
+    },
+    "report.movers": {
+      "home": "<working root>/_run/compare.json",
+      "reason": "a statement about a comparison rather than a value a run produces, so it is never promoted",
+      "stored": false
+    },
+    "report.plan": {
+      "home": "<working root>/_run/plan.json",
+      "reason": "what a changed path sees and is blind to; capture-only, never promoted",
+      "stored": false
+    }
+  },
+  "format": 1,
+  "key": "artifact",
+  "kind": "index",
+  "pointers": {
+    "report.buckets": {
+      "pointer": "sweeps/<sweep>.json#/summary/buckets"
+    },
+    "report.canvas-mismatch": {
+      "pointer": "sweeps/<sweep>.json#/rows/<n>/canvas_mismatch"
+    },
+    "report.coverage-gaps": {
+      "pointer": "sweeps/<sweep>.json#/summary/gaps"
+    },
+    "report.diagnostics-log": {
+      "pointer": "manifests/tooling-tables.json#/logs"
+    },
+    "report.failure-rows": {
+      "pointer": "sweeps/<sweep>.json#/rows/<n>/status"
+    },
+    "report.glint-frames": {
+      "pointer": "sweeps/glint.json#/rows/<n>/frames_delta"
+    },
+    "report.harness-sweep-counts": {
+      "pointer": "<artifact>#/provenance/counts"
+    },
+    "report.panel-stats": {
+      "pointer": "sweeps/<sweep>.json#/rows/<n>/panel"
+    },
+    "report.run-provenance": {
+      "pointer": "<artifact>#/provenance"
+    },
+    "report.sum": {
+      "pointer": "sweeps/<sweep>.json#/summary/sum"
+    },
+    "report.wall-time": {
+      "pointer": "<artifact>#/provenance/wall_time_ms"
+    },
+    "report.worst-list": {
+      "pointer": "sweeps/<sweep>.json#/summary/worst"
+    }
+  },
+  "sources": {
+    "pin.armor-span": {
+      "cross_repo": false,
+      "re_derive": "inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation",
+      "test_class": "lib.minecraft.renderer.engine.kit.ArmorKitCitCompositeTest"
+    },
+    "roster.appearance-axes": {
+      "cross_repo": true,
+      "re_derive": "AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset",
+      "test_class": "lib.minecraft.renderer.visual.AppearanceKey"
+    },
+    "roster.armor-subjects": {
+      "cross_repo": true,
+      "lines": "127-134",
+      "re_derive": "must match the harness ArmorSweep roster byte for byte or the sweep finds no reference",
+      "test_class": "lib.minecraft.renderer.visual.TestArmorParityVanilla"
+    },
+    "roster.dump-sections": {
+      "cross_repo": false,
+      "re_derive": "PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated",
+      "test_class": "lib.minecraft.renderer.pipeline.dump.PipelineParityDump"
+    },
+    "roster.face-phase": {
+      "cross_repo": false,
+      "re_derive": "vanilla's own corner order per face, read off the bakery and the polygon paths",
+      "test_class": "lib.minecraft.renderer.face.FacePhaseTest"
+    },
+    "roster.frame-turn": {
+      "cross_repo": false,
+      "re_derive": "the order-8 diagonal group; each constant is which axes it negates",
+      "test_class": "lib.minecraft.renderer.face.FrameTurnTest"
+    },
+    "roster.glint-subjects": {
+      "cross_repo": true,
+      "lines": "106-114, 124-129",
+      "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
+      "test_class": "lib.minecraft.renderer.visual.TestGlintParityVanilla"
+    },
+    "roster.humanoid-armor": {
+      "cross_repo": false,
+      "lines": "30-34",
+      "re_derive": "EntityModelLoader.load() filtered on humanoidArmor().isPresent()",
+      "test_class": "lib.minecraft.renderer.pipeline.loader.HumanoidArmorRosterTest"
+    },
+    "roster.humanoid-part-crop": {
+      "cross_repo": false,
+      "lines": "35-48",
+      "re_derive": "Unwrap.Atlas.rect at each part's atlas origin under Turn.HALF_X",
+      "test_class": "lib.minecraft.renderer.face.HumanoidPartCropTest"
+    },
+    "roster.overlay-pipeline": {
+      "cross_repo": false,
+      "re_derive": "EntityPipelineTraits over the extracted client jar's layer classes",
+      "test_class": "lib.minecraft.renderer.pipeline.loader.OverlayPipelineRosterTest"
+    },
+    "roster.pack-fixtures": {
+      "cross_repo": false,
+      "re_derive": "PipelineParityDump's PACK_FIXTURES, also a provenance field on the two dump manifests",
+      "test_class": "lib.minecraft.renderer.pipeline.dump.PipelineParityDump"
+    },
+    "roster.player-scopes": {
+      "cross_repo": false,
+      "lines": "100",
+      "re_derive": "the scopes the harness PlayerSweep renders",
+      "test_class": "lib.minecraft.renderer.visual.TestPlayerParityVanilla"
+    },
+    "roster.sheet-groups": {
+      "cross_repo": false,
+      "re_derive": "the -Psheets groups TestPlayerRender accepts; ten offline plus the network-only account group",
+      "test_class": "lib.minecraft.renderer.visual.TestPlayerRender"
+    }
+  }
+}

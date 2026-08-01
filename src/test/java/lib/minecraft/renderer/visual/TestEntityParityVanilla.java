@@ -8,6 +8,7 @@ import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.EntityOptions;
+import lib.minecraft.renderer.parity.ParityPaths;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
@@ -33,7 +34,7 @@ import java.util.stream.Stream;
  * Per-entity parity report comparing the Java pipeline output (via {@link EntityRenderer} +
  * {@code entity_models.json} / {@code entity_geometry.json}) against the
  * vanilla-reference-harness ground truth PNGs in
- * {@code cache/asset-renderer/vanilla/26.1/references/entities/}. The harness drives a real
+ * the harness reference tree's {@code entities/}. The harness drives a real
  * Minecraft client to render each entity through vanilla's actual render path, so its output is
  * the canonical baseline; the Java pipeline aims to match it.
  *
@@ -61,7 +62,7 @@ public final class TestEntityParityVanilla {
     private static final Path REPORT_FILE = OUTPUT_DIR.resolve("parity-report.tsv");
 
     /** Source of the harness-produced reference PNGs. */
-    private static final Path VANILLA_DIR = Path.of("cache/asset-renderer/vanilla/26.1/references/entities");
+    private static final Path VANILLA_DIR = ParityPaths.references("entities");
 
     /** Filename prefix the harness writes (entity id with {@code :} replaced by {@code __}). */
     private static final @NotNull String VANILLA_PREFIX = "minecraft__";
