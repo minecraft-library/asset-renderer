@@ -1,6 +1,15 @@
+import org.gradle.api.DefaultTask
 import org.gradle.api.file.FileSystemOperations
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.support.serviceOf
+import org.gradle.process.ExecOperations
 
+import javax.inject.Inject
+
+import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
 
@@ -80,6 +89,49 @@ fun org.gradle.process.JavaForkOptions.forwardAssetProperties() =
 // place the path is written and the only thing a future relocation has to edit.
 val harnessDir = layout.projectDirectory.dir("harness")
 
+// ---- reading a -P without hitting a Project bean property ----------------------------------------
+// Project.findProperty resolves a project's BEAN properties as well as its project properties, and
+// three of the names the parity tasks need are taken: `artifacts` answers with the ArtifactHandler,
+// `base` with the base plugin's extension and `class` with java.lang.Class. The first is a
+// ClassCastException at task creation; the other two would be silently wrong, which is worse. Reading
+// the start parameter answers with exactly what was typed on the command line and nothing else.
+//
+// The producers' own properties (-PblockId, -PrenderSize, ...) keep findProperty: none of them
+// collides, and rewriting 40 task bodies to fix a problem they do not have would be its own risk.
+
+/**
+ * Returns a command-line project property, or null when it was not given or was given blank.
+ *
+ * @param name the -P name
+ * @return its value
+ */
+fun parityProperty(name: String): String? =
+    gradle.startParameter.projectProperties[name]?.takeIf { it.isNotBlank() }
+
+/**
+ * Returns whether a command-line project property was given at all, valueless or not.
+ *
+ * @param name the -P name
+ * @return whether it was given
+ */
+fun parityFlag(name: String): Boolean = gradle.startParameter.projectProperties.containsKey(name)
+
+/**
+ * Returns whether this invocation actually asked for the named task.
+ *
+ * <p>A parity task refuses a missing `-Partifacts` or `-Preason` at CONFIGURATION time, which is
+ * where a refusal belongs: it fails before a producer runs rather than after one has. But
+ * `gradle tasks` and `gradle help` realize every registered task to read its description, so an
+ * unconditional throw makes the task report unrunnable and the parity group uncountable - measured,
+ * not anticipated. Gating on the requested names keeps the refusal exactly where it was protecting
+ * something and nowhere else.
+ *
+ * @param name the task name
+ * @return whether the command line asked for it
+ */
+fun parityTaskRequested(name: String): Boolean =
+    gradle.startParameter.taskNames.any { it == name || it.endsWith(":$name") }
+
 // ---- parity roots -------------------------------------------------------------------------------
 // The working root is SINGLE-SLOT and self-overwriting: one root, one capture in it, and the next
 // capture replaces the previous. An A/B before-side is a REDIRECTED ROOT
@@ -93,7 +145,7 @@ val harnessDir = layout.projectDirectory.dir("harness")
 // time - the same class as forwardAssetProperties()' own System.getProperties() walk above, and one
 // key rather than a whole table. It adds no new class of exposure.
 val parityWorkingRoot: String =
-    (project.findProperty("parityRoot") as String?)
+    parityProperty("parityRoot")
         ?: System.getProperty("asset.parity.root")
         ?: "cache/parity/current"
 
@@ -145,9 +197,25 @@ val parityReferenceRoot: String =
     "cache/asset-renderer/vanilla/${minecraftVersion.split(".").take(2).joinToString(".")}/references"
 
 // ---- the parity toolkit invocation --------------------------------------------------------------
-val parityPythonExe: String = (project.findProperty("pythonExe") as String?)
+// The default is RESOLVED against PATH rather than left as the bare name, because a bare name is not
+// startable here. Windows puts a Microsoft Store app-execution alias at
+// %LOCALAPPDATA%\Microsoft\WindowsApps\python.exe and it usually comes first on PATH; it is a reparse
+// stub the shell can launch and ProcessBuilder cannot, so Gradle's Exec fails with the uninformative
+// "A problem occurred starting process 'command 'python''" while `python` works in every terminal.
+// Skipping that one directory finds the real interpreter sitting behind it. -PpythonExe and
+// PARITY_PYTHON remain the escape for anything this does not resolve.
+val parityPythonExe: String = parityProperty("pythonExe")
     ?: System.getenv("PARITY_PYTHON")
-    ?: if (org.gradle.internal.os.OperatingSystem.current().isWindows) "python" else "python3"
+    ?: run {
+        val windows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val names = if (windows) listOf("python.exe", "python3.exe") else listOf("python3", "python")
+        (System.getenv("PATH") ?: "").split(File.pathSeparatorChar)
+            .filter { it.isNotBlank() && !it.replace('\\', '/').contains("/WindowsApps") }
+            .firstNotNullOfOrNull { dir ->
+                names.map { File(dir, it) }.firstOrNull { it.isFile }?.absolutePath
+            }
+            ?: if (windows) "python" else "python3"
+    }
 
 /**
  * Points an Exec task at the parity toolkit. Nothing in this build file computes a sum, a bucket, a
@@ -291,6 +359,9 @@ val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDum
 /** Every sub-tree the reference tree holds, so a partial run can name what it did NOT refresh. */
 val referenceSubTrees = listOf("blocks", "items", "entities", "players", "glint", "armor")
 
+/** The whole-suite producers, which order a capture step but are never finalized by one. */
+val paritySuiteProducers = setOf("test", "slowTest")
+
 /**
  * Registers one harness run. A mode is a task, never a pass-through property: a mode flag changes
  * what the run produces, and a task named `renderVanillaReferences` that renders no reference is the
@@ -354,18 +425,31 @@ fun TaskContainer.registerHarnessRun(
 }
 
 /**
+ * Returns the capture step's task name for an artifact.
+ *
+ * <p>Shared by the registration and by `parityCapture`'s own `dependsOn`, because the umbrella has to
+ * name the steps: a finalizer is only guaranteed to run after the task it finalizes, not before a
+ * third task that depends on that same producer. Without the explicit edge, `capture-index` could
+ * write its COMPLETE marker before the artifacts it is meant to be marking complete.
+ *
+ * @param artifact the artifact id
+ * @return the capture step's task name
+ */
+fun parityCaptureTaskName(artifact: String): String =
+    "parityCapture" + artifact.split('.')
+        .joinToString("") { it.replaceFirstChar(Char::titlecase) }
+        .replace("-", "")
+
+/**
  * Registers one capture step and finalizes every producer of its artifact with it.
  *
  * @receiver the task container the capture step joins
  * @param spec the artifact this step captures
  */
 fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
-    val suffix = spec.artifact.split('.')
-        .joinToString("") { it.replaceFirstChar(Char::titlecase) }
-        .replace("-", "")
     val scoped = spec.scopedBy.filter { project.hasProperty(it) }
-    val runs = project.findProperty("runs") as String?
-    val step = register<Exec>("parityCapture$suffix") {
+    val runs = parityProperty("runs")
+    val step = register<Exec>(parityCaptureTaskName(spec.artifact)) {
         // No group: these are finalizers, not an entry point. The group = "parity" tasks are.
         description = "Captures ${spec.artifact} from ${spec.source} into the parity working root."
         parityToolkit(*buildList {
@@ -391,7 +475,57 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
             scoped.isEmpty()
         }
     }
-    spec.producers.forEach { producer -> named(producer) { finalizedBy(step) } }
+    // Ordering first, and it holds for every producer: a capture reads what a producer wrote, so it
+    // runs after one whenever both are in the graph. That is what a finalizer edge was implicitly
+    // giving, and the two suites below do not get one.
+    step.configure { mustRunAfter(spec.producers) }
+
+    // A hand-run producer captures without anyone remembering a flag - EXCEPT the two whole-suite
+    // producers. `test` and `slowTest` produce their nine rows from inside the test JVM, and a
+    // finalizer on them would make every ordinary `./gradlew test` write into the parity working root,
+    // wiping whatever capture was sitting there waiting to be compared. It would also fail the repo's
+    // primary gate outright until those rows have a writer, which was measured rather than foreseen.
+    // Their rows are still rows: parityCapture -Partifacts=pins runs the suite and then the step, and
+    // the step still fails on an absent file, which is the backstop a --tests-filtered run needs.
+    spec.producers.filter { it !in paritySuiteProducers }
+        .forEach { producer -> named(producer) { finalizedBy(step) } }
+}
+
+/**
+ * Runs one parity toolkit command at execution time.
+ *
+ * <p>Gradle 9 removed `Project.exec` and `Project.delete` from the execution phase, so both arrive as
+ * injected services rather than off the project. That is not only a compatibility fix: an injected
+ * service is a declared dependency of the task where a project reference is the classic
+ * configuration-cache violation, so this shape is strictly better than the one it replaces.
+ */
+abstract class ParityToolkitTask @Inject constructor(
+    private val execOps: ExecOperations,
+    private val fsOps: FileSystemOperations
+) : DefaultTask() {
+
+    /** The interpreter to run the toolkit with. */
+    @get:Input
+    abstract val pythonExe: Property<String>
+
+    /** The toolkit command and its arguments, after `scripts/parity`. */
+    @get:Input
+    abstract val argv: ListProperty<String>
+
+    /** Directories to delete before the command runs; empty for every task that does not wipe. */
+    @get:Input
+    abstract val wipe: ListProperty<String>
+
+    @TaskAction
+    fun run() {
+        val doomed = wipe.get()
+        if (doomed.isNotEmpty()) fsOps.delete { delete(*doomed.toTypedArray()) }
+        execOps.exec {
+            executable = pythonExe.get()
+            args(listOf("scripts/parity") + argv.get())
+            environment("PYTHONUTF8", "1")
+        }
+    }
 }
 
 tasks.withType<JavaCompile>().configureEach {
@@ -947,6 +1081,115 @@ tasks {
     // `./gradlew fonts` now lives in the minecraft-text build at
     // W:/Workspace/Java/Minecraft-Library/minecraft-text. Run it from there when a
     // Minecraft version bump requires regenerating the OTF files.
+
+    // ---- parity: the entry points, and the capture step behind every producer --------------------
+    // Group `parity` is deliberately small and countable. The 23 capture steps below carry NO group,
+    // because they are finalizers rather than something to run: a human runs a producer, and the
+    // capture happens. That is the whole of "route through the same store without remembering a flag".
+
+    register<Exec>("paritySelfTest") {
+        description = "Runs the parity toolkit's own unit suite. Every parity task depends on it, because a gate a broken toolkit computed is worse than no gate at all."
+        group = "verification"
+        parityToolkit("selftest")
+        outputs.upToDateWhen { false }
+    }
+
+    register<ParityToolkitTask>("parityCapture") {
+        description = "Runs the producers of -Partifacts and writes their captures into the parity working root. " +
+            "-Partifacts=sweep.entity,manifest.fluid | all | sweeps | renders | dump | tables | pins | digests. " +
+            "Absent, it reads the plan's SEES set. -Pruns=<n> -PparityRoot=<dir>"
+        group = "parity"
+        dependsOn("paritySelfTest")
+        requireParityRootUnderCache()
+        pythonExe.set(parityPythonExe)
+        val runs = parityProperty("runs")
+        argv.set(buildList {
+            add("capture-index")
+            add("--root"); add(parityWorkingRoot)
+            runs?.let { add("--runs"); add(it) }
+        })
+        // Both edges are load-bearing. The producer edge is what runs the measurement; the capture-step
+        // edge is what orders THIS task's own action - capture-index writes _run/COMPLETE last, and a
+        // finalizer is only guaranteed to run after the task it finalizes, not before a third task
+        // that depends on that same producer.
+        if (parityTaskRequested("parityCapture"))
+            resolveParityArtifacts(parityProperty("artifacts")).forEach { spec ->
+                spec.producers.forEach { dependsOn(it) }
+                dependsOn(parityCaptureTaskName(spec.artifact))
+            }
+        outputs.upToDateWhen { false }
+    }
+
+    register<Exec>("parityCompare") {
+        description = "Compares the parity working root against the production store (or -Pbase=<dir>) and fails " +
+            "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= -Pstale=include"
+        group = "parity"
+        dependsOn("paritySelfTest")
+        requireParityRootUnderCache()
+        // -Partifacts absent is not an error here, and this is the one task where that is true: it has
+        // a root to walk where capture and promote have nothing to run. So a bare `parityCompare`
+        // compares everything the root holds, which is what lets a human never learn the artifact ids.
+        val artifacts = parityProperty("artifacts")
+        val base = parityProperty("base") ?: "production"
+        val expected = parityProperty("expected")
+        val stale = parityProperty("stale") == "include"
+        parityToolkit(*buildList {
+            add("compare")
+            add("--root"); add(parityWorkingRoot)
+            add("--base"); add(if (base == "production") parityProductionStore else base)
+            artifacts?.let { add("--artifacts"); add(it) }
+            expected?.let { add("--expected"); add(it) }
+            if (stale) add("--include-stale")
+        }.toTypedArray())
+        outputs.upToDateWhen { false }
+    }
+
+    register<Exec>("parityPromote") {
+        description = "Promotes the parity working root into the production store as the new baseline and writes the " +
+            "diff analysis report. Runs no producer. Requires -Preason=<text>. -Partifacts= -Ppopulation=changed -Pclass= -Pbootstrap"
+        group = "parity"
+        dependsOn("paritySelfTest")
+        requireParityRootUnderCache()
+        // -Preason has no default and no prompt: a baseline replaced for a reason nobody wrote down is
+        // the failure this whole store is built against.
+        val reason = parityProperty("reason")
+            ?: if (parityTaskRequested("parityPromote"))
+                throw GradleException("parityPromote requires -Preason=<why this value is being replaced>")
+            else ""
+        val artifacts = parityProperty("artifacts")
+        val population = parityProperty("population") == "changed"
+        // Defaults to `moving` because forgetting it cannot then understate a change.
+        val parityClass = parityProperty("class") ?: "moving"
+        val bootstrap = parityFlag("bootstrap")
+        parityToolkit(*buildList {
+            add("promote-apply")
+            add("--root"); add(parityWorkingRoot)
+            add("--store"); add(parityProductionStore)
+            add("--reason"); add(reason)
+            add("--class"); add(parityClass)
+            artifacts?.let { add("--artifacts"); add(it) }
+            if (population) add("--population-changed")
+            if (bootstrap) add("--bootstrap")
+        }.toTypedArray())
+        outputs.upToDateWhen { false }
+    }
+
+    // One capture step per artifact row, attached to every task that can produce it. Registered last,
+    // so every producer name the table references is already registered.
+    parityArtifacts.forEach { registerParityCapture(it) }
+
+    // A producer's stdout is the only source of its row counts and its wall time, and nothing
+    // redirected it: ten of the file-producing artifacts are JavaExec, whose stream Gradle discards.
+    // Driven off the artifact table so a new row needs no second edit. `test` and `slowTest` are Test
+    // rather than JavaExec and are deliberately not reached - their rows self-capture a value instead
+    // of printing a count to be parsed.
+    withType<JavaExec>().matching { it.name in parityProducerNames }.configureEach {
+        val log = layout.buildDirectory.file("parity/producer-$name.log").get().asFile
+        doFirst {
+            log.parentFile.mkdirs()
+            standardOutput = TeeStream(System.out, FileOutputStream(log))
+        }
+    }
 }
 
 // JMH benchmark harness. Benchmarks live in src/jmh/java and are run with
