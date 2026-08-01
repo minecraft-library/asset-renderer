@@ -11,12 +11,14 @@ through ``norm``.
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 import unittest
 from pathlib import Path
 from typing import Any, Callable
 
 from parity import VERSION
+from parity import blindness as blindness_mod
 from parity import capture as capture_mod
 from parity import compare as compare_mod
 from parity import ids as ids_mod
@@ -395,6 +397,68 @@ def _cmd_capture_index(args: argparse.Namespace) -> int:
     return OK
 
 
+def _cmd_plan(args: argparse.Namespace) -> int:
+    """Resolve what the working tree's change can be seen by. Measures nothing.
+
+    It fails on exactly three things: an unreadable map, a usage error, and a changed path no rule
+    covers. It never fails on reach - a wide reach is a big plan, and refusing one would be refusing
+    to answer the question it was asked.
+    """
+    base = _bases(args)
+    root = store_mod.working(args.root, base).root
+    rules, no_reach = blindness_mod.load(store_mod.resolve_store(args.store, base))
+
+    changed = list(args.changed or [])
+    if not changed or args.changed_from_git:
+        changed = sorted(set(changed) | set(_changed_from_git(base)))
+    reach = blindness_mod.resolve(changed, rules, no_reach)
+    if reach.unknown:
+        raise Refused(str(blindness_mod.UnknownReach(reach.unknown)))
+
+    index = store_mod.production(args.store, base).index().get("artifacts", {})
+    budget = sum(int(index.get(artifact, {}).get("last_duration_ms", 0)) for artifact in reach.sees)
+    payload = {
+        "//": "parity.report.plan · regen: ./gradlew parityPlan",
+        "artifact": "report.plan",
+        "blind": reach.blind,
+        "budget_ms": budget,
+        "changed": sorted(changed),
+        "format": 1,
+        "kind": "plan",
+        # `sees` is what the map resolves the changed paths to; `plan` is what a capture would
+        # actually run after any narrowing. They are the same here and are kept apart because the
+        # moment they are not, a reader has to be able to tell which one they are looking at.
+        "plan": reach.sees,
+        "rules_fired": reach.fired,
+        "sees": reach.sees,
+    }
+    write_json(root / store_mod.RUN_DIR / "plan.json", payload)
+
+    lines = [f"SEES   ({len(reach.sees)}): " + (", ".join(reach.sees) or "(none)")]
+    for entry in reach.blind:
+        lines.append(f"BLIND  {entry['artifact']} [{entry['rule']}] {entry['reason']}")
+    if reach.no_reach:
+        lines.append("NO REACH: " + ", ".join(reach.no_reach))
+    lines.append(f"PLAN   ({len(reach.sees)}): " + (", ".join(reach.sees) or "(none)"))
+    lines.append(f"BUDGET {budget} ms"
+                 + ("" if budget else "  (nothing promoted yet, so no artifact has a duration)"))
+    _emit(args, "\n".join(lines), payload)
+    return OK
+
+
+def _changed_from_git(base: Path) -> list[str]:
+    """The working tree's changed set: tracked modifications plus untracked, unignored files."""
+    changed: list[str] = []
+    for command in (["git", "diff", "--name-only", "HEAD"],
+                    ["git", "ls-files", "--others", "--exclude-standard"]):
+        result = subprocess.run(command, cwd=base, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            raise MissingInput(f"{' '.join(command)} failed: {result.stderr.strip()}")
+        changed.extend(line.strip().replace("\\", "/") for line in result.stdout.splitlines()
+                       if line.strip())
+    return changed
+
+
 def _cmd_expect(args: argparse.Namespace) -> int:
     root = store_mod.working(args.root, _bases(args)).root
     target = root / store_mod.RUN_DIR / "expected-diff.json"
@@ -686,6 +750,11 @@ def _register(subparsers: Any) -> dict[str, Command]:
     idx.add_argument("--flag", action="append", default=None, metavar="k=v")
     idx.add_argument("--runs", type=int, default=0)
     table["capture-index"] = _cmd_capture_index
+
+    pln = subparsers.add_parser("plan", help="resolve which artifacts can SEE the working tree's change")
+    pln.add_argument("--changed-from-git", action="store_true", dest="changed_from_git")
+    pln.add_argument("--changed", action="append", default=None, metavar="PATH")
+    table["plan"] = _cmd_plan
 
     exp = subparsers.add_parser("expect", help="register the movers a phase intends (I-15)")
     exp.add_argument("--empty", action="store_true")

@@ -1,0 +1,683 @@
+{
+  "//": "parity.roster.blindness-rules · regen: hand-authored; render the human view with python scripts/parity report render",
+  "artifact": "roster.blindness-rules",
+  "format": 1,
+  "key": "id",
+  "kind": "blindness-roster",
+  "no_reach": [
+    "**/package-info.java",
+    "**/*.md",
+    "notes/**",
+    ".claude/**",
+    ".gitattributes",
+    ".gitignore",
+    "scripts/euler_reference_svg.py",
+    "scripts/parity_analysis/**"
+  ],
+  "rules": [
+    {
+      "blind": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "claim": "CIT and CTM rules are dark in both parityDump configurations",
+      "id": "B2",
+      "mode": "select",
+      "probe": "read rules.json in either dump config and confirm both counts are 0",
+      "reason": "No pack fixture ships a cit/ or ctm/ tree, so rules.json reports cit_rules: 0 and ctm_rules: 0 on both configs. An empty dump diff proves nothing about them; RuleScannerMergeTest and CtmParserTest are the gate and both run inside ./gradlew test.",
+      "sees": [
+        "digest.shipped-tables"
+      ],
+      "source": "07/blindness#2; CLAUDE.md 'The pack filter'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/asset/pack/rule/**",
+        "src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/**/Ctm*.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/**/Cit*.java"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The multipart when-OR branch is never exercised, because no shipped block produces one",
+      "id": "B3",
+      "mode": "select",
+      "probe": "grep the shipped blockstate JSON for a when containing an OR key; zero hits means the branch is still unreached and the rule holds",
+      "reason": "The vanilla blockstate corpus contains no multipart apply whose when carries an OR list, so the branch is present, compiled and unreached. A dump diff over blocks.json cannot distinguish a correct OR implementation from a broken one.",
+      "sees": [
+        "sweep.block",
+        "manifest.dump.vanilla"
+      ],
+      "source": "07/blindness#3",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/**/BlockState*.java",
+        "src/main/java/lib/minecraft/renderer/pipeline/**/Multipart*.java"
+      ]
+    },
+    {
+      "blind": [
+        "manifest.dump.vanilla"
+      ],
+      "claim": "A vanilla-only dump leaves the pack-rule code dark, so the packs configuration is not optional",
+      "id": "B4",
+      "mode": "select",
+      "probe": "run parityDump and compare rules.json between the two configs: the vanilla one is empty and the packs one is not",
+      "reason": "With no pack loaded the RuleSet is empty and most PackIdDeriver rungs never execute, so the vanilla dump section for rules is a fixed empty shape whatever the code does. Only the packs configuration puts a rule through the deriver at all.",
+      "sees": [
+        "manifest.dump.packs",
+        "sweep.block",
+        "sweep.item"
+      ],
+      "source": "07/blindness#4",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "A Pipeline.Result-level dump would clear a broken index loader, so the dump's altitude must be the renderer context",
+      "id": "B5",
+      "mode": "select",
+      "probe": "PipelineParityDump builds a PipelineRendererContext before dumping; check the dump entry point resolves the index rather than the LoadResult",
+      "reason": "BlockIndexBuilder, ItemIndexBuilder and EntityIndexBuilder run between the loaders and the renderer context, so a dump taken before them serialises inputs that are identical whatever the builders did with them. The dump is taken after, which is what makes an index change visible.",
+      "sees": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs",
+        "sweep.block",
+        "sweep.item",
+        "sweep.entity"
+      ],
+      "source": "07/blindness#5",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/index/**",
+        "src/main/java/lib/minecraft/renderer/pipeline/loader/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The dump sees data rather than behaviour, so a resolution-logic change is not pinned by index identity",
+      "id": "B6",
+      "mode": "select",
+      "probe": "perturb a resolver on a branch no shipped id takes and confirm the dump is byte-identical while probes.json is not",
+      "reason": "A resolver that answers the same for every shipped input and differently for an unshipped one leaves every dumped byte identical. The dump's probes.json exists for exactly this: it samples resolution outcomes rather than the table they were resolved from.",
+      "sees": [
+        "sweep.block",
+        "sweep.item",
+        "sweep.entity",
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "source": "07/blindness#6",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java",
+        "src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "Intermediates are deliberately not dumped, so a LoadResult-shaped rework is dump-invisible whenever its outputs match",
+      "id": "B7",
+      "mode": "select",
+      "probe": "reshape LoadResult without changing what the builder emits and confirm all 30 dump files are byte-identical",
+      "reason": "BlockStateLoader.LoadResult is consumed by BlockIndexBuilder and never serialised, so a rework that changes its shape while producing the same index moves no dumped byte. That is the intended altitude and the reason the block sum stays in SEES for this path.",
+      "sees": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs",
+        "sweep.block"
+      ],
+      "source": "07/blindness#7",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/BlockStateLoader.java"
+      ]
+    },
+    {
+      "blind": [
+        "sweep.player"
+      ],
+      "claim": "sweep.player asserts nothing, so it can never fail",
+      "id": "B8",
+      "mode": "select",
+      "probe": "read TestPlayerParityVanilla for an assert of any kind; there is none, and the id is kept separate from B9 so the citation survives",
+      "reason": "TestPlayerParityVanilla is a main that alpha-crops AND rescales both sides to a common box before diffing, so it cannot detect a part-placement or fit change of any size. Its number is a LOOK gauge; the byte gate is the CRC pin and the contact-sheet manifest.",
+      "sees": [
+        "pin.player-crc",
+        "manifest.player-sheets"
+      ],
+      "source": "07/blindness#8; CLAUDE.md 'Which gate sees what'",
+      "trigger_paths": [
+        "src/test/java/lib/minecraft/renderer/visual/TestPlayerParityVanilla.java"
+      ]
+    },
+    {
+      "blind": [
+        "sweep.player"
+      ],
+      "claim": "No artifact renders BUST, the cape, or any 2D player path",
+      "id": "B9",
+      "mode": "select",
+      "probe": "perturb the wing build's fit frame and re-render -Psheets=toggles: elytra_only_3_4_ and elytra_cape_3_4_ move and none of the other eleven cells do",
+      "reason": "The player byte pin is PlayerRasterizeFittedGoldenTest's two CRC32 constants, which cover FULL and SKULL with no cape and no armour. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.",
+      "sees": [
+        "pin.player-crc",
+        "manifest.player-sheets"
+      ],
+      "source": "07/blindness#8,#9,#12; CLAUDE.md 'Which gate sees what'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/PlayerRenderer.java",
+        "src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java",
+        "src/main/java/lib/minecraft/renderer/option/*Player*.java",
+        "src/main/java/lib/minecraft/renderer/face/HumanoidPart.java"
+      ]
+    },
+    {
+      "blind": [
+        "sweep.block",
+        "sweep.item"
+      ],
+      "claim": "BlockRenderer never calls buildBox, and both item buildBox call sites are FaceTextures.uniform",
+      "id": "B10",
+      "mode": "select",
+      "probe": "./gradlew playerRender -Psheets=core-matrix,toggles,armor-per-slot and hash either side with git stash push -- src between the two renders",
+      "reason": "The block and item parity sums are structurally blind to the box BUILDER, so a clean block sum is not evidence about buildBox. The gates that see it are the 14 armoured entity rows, the player CRC pin and the player contact sheets. The blindness is to that one method: the same file also holds the block element path and the single fan emitter, which BlockRenderer does reach, so B19 correctly keeps the block and item sums in SEES for a change anywhere else in it and this rule's blind list surfaces only when nothing else selects them.",
+      "sees": [
+        "sweep.entity",
+        "sweep.armor",
+        "pin.player-crc",
+        "manifest.player-sheets",
+        "manifest.portal"
+      ],
+      "source": "07/blindness#10; CLAUDE.md 'Which gate sees what'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java"
+      ]
+    },
+    {
+      "blind": [
+        "sweep.block",
+        "sweep.item"
+      ],
+      "claim": "Blocks and items are structurally immune to a DEPTH change: 0 of 1055 and 0 of 479 rows move",
+      "id": "B11a",
+      "mode": "select",
+      "probe": "-Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved",
+      "reason": "Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.",
+      "sees": [],
+      "source": "07/blindness#11; CLAUDE.md depth section",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The block and item immunity is to DEPTH only and does not generalise",
+      "id": "B11b",
+      "mode": "select",
+      "probe": "-Dasset.snap.grid=N and a texel-fetch perturbation both move block rows where -Dasset.depth.range=N does not",
+      "reason": "A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.",
+      "sees": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "pin.player-crc"
+      ],
+      "source": "07/blindness#11; audit 09/G7; CLAUDE.md depth section",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "A short -Psheets= list is a hole rather than a sample",
+      "id": "B12",
+      "mode": "select",
+      "probe": "render with -Psheets=armor-3d,trims and confirm the resulting file set is a strict subset of the 104 the full run produces",
+      "reason": "The ten offline sheet groups hash as 104 files and the elytra and both cape views appear in toggles alone, so a list naming the armour and trim groups but not toggles is blind to the wing build and to both cape views and reads as a clean pass. The capture is suppressed on -Psheets for exactly this reason.",
+      "sees": [
+        "manifest.player-sheets"
+      ],
+      "source": "07/blindness#12; CLAUDE.md 'Which gate sees what'",
+      "trigger_paths": [
+        "src/test/java/lib/minecraft/renderer/visual/TestPlayerRender.java"
+      ]
+    },
+    {
+      "blind": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.player",
+        "sweep.armor",
+        "sweep.glint",
+        "manifest.dump.vanilla",
+        "manifest.dump.packs",
+        "digest.shipped-tables",
+        "pin.player-crc",
+        "pin.block-crc",
+        "pin.portal-crc"
+      ],
+      "claim": "Every test and sweep in the repo is structurally blind to a tooling/ change",
+      "id": "B13",
+      "mode": "demote",
+      "probe": "run the flow, diff the emitted table against a capture taken at the clean tree (never git diff, which conflates a byte this change moved with one that was going to move regardless), and diff the flow's INFO log",
+      "reason": "They all read the SHIPPED JSON that a generator refactor does not regenerate, so a green test plus five green sums says nothing either way. The only gate is re-running the flow and comparing emitted bytes and the diagnostics log.",
+      "sees": [
+        "manifest.tooling-tables",
+        "report.diagnostics-log"
+      ],
+      "source": "07/blindness#13,#14; CLAUDE.md 'The gate for a tooling change'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/tooling/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "A byte-identical emitted table is not the same claim as an unchanged run",
+      "id": "B14",
+      "mode": "select",
+      "probe": "reorder two index builds and confirm the tables are byte-identical while the log is not",
+      "reason": "Each index build records its own INFO entries, so reordering two of them is invisible in every emitted table and plainly visible in the log. That is what caught an accidental reordering in the entityModels flow: the JSON matched byte for byte while one line moved from position 9 to 6.",
+      "sees": [
+        "report.diagnostics-log",
+        "manifest.tooling-tables"
+      ],
+      "source": "07/blindness#14; CLAUDE.md 'The gate for a tooling change'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/tooling/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "atlas.png can never be a byte gate",
+      "id": "B15",
+      "mode": "suppress",
+      "probe": "run atlas twice with --rerun-tasks and hash build/atlas/atlas.png; the two differ",
+      "reason": "AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it.",
+      "sees": [],
+      "source": "07/blindness#15; CLAUDE.md 'atlas parallel non-deterministic'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/tooling/atlas/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The probes.json resolveIn sample is itself guarded against a salt-randomized findFirst",
+      "id": "B16",
+      "mode": "select",
+      "probe": "run parityDump over five JVMs and confirm probes.json is byte-identical in all five",
+      "reason": "PackAcquisition.namespaces builds a per-run-salted set, so a findFirst over it flaps between runs. The dump emits a count always and a sample only when the count is at most one, which is the only shape that is both informative and reproducible.",
+      "sees": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "source": "07/blindness#16",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/PackAcquisition.java"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "synthesis.json dumps the SOURCES rather than the synthesizer's registry",
+      "id": "B17",
+      "mode": "select",
+      "probe": "read synthesis.json and confirm every key is an input texture id rather than a synthesized one",
+      "reason": "Dumping the registry would be a second copy of a production rule, and a dump that restates the rule it is checking cannot catch that rule being wrong. The sources are inputs, so they move only when something upstream does.",
+      "sees": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs",
+        "sweep.item"
+      ],
+      "source": "07/blindness#17",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer*.java"
+      ]
+    },
+    {
+      "blind": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "claim": "CatharsisConfig is not dumped at all",
+      "id": "B18",
+      "mode": "select",
+      "probe": "grep the 14 dump sections for any catharsis or overlay key; there is none",
+      "reason": "The fabric:overlays plus catharsis:pack half of pack resolution has no dump section, so an identical dump is silent about it. What sees a change there is a render against a fixture that carries an overlay.",
+      "sees": [
+        "sweep.block",
+        "sweep.item"
+      ],
+      "source": "07/blindness#18",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java",
+        "src/main/java/lib/minecraft/renderer/asset/pack/cats/**"
+      ]
+    },
+    {
+      "blind": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "claim": "parityDump is blind to everything downstream of the load, so an engine or renderer change is demoted regardless of the dump verdict",
+      "id": "B19",
+      "mode": "demote",
+      "probe": "PipelineParityDump serialises loaded data and never calls BlockRenderer.resolveVariant; grep the dump for any renderer entry point",
+      "reason": "An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders.",
+      "sees": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "pin.player-crc",
+        "manifest.fluid",
+        "manifest.portal",
+        "manifest.player-sheets"
+      ],
+      "source": "07/blindness#1,#19",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/**",
+        "src/main/java/lib/minecraft/renderer/*Renderer.java"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The dump is blind to the Diagnostics scope tree",
+      "id": "B20",
+      "mode": "select",
+      "probe": "drop a child(name) call in a loader and confirm all 30 dump files are byte-identical while the flow log's scope prefixes change",
+      "reason": "A read layer that lost its child(name) scoping would move no dumped byte, because the scope tree is a property of how the diagnostics were recorded rather than of the data that was read.",
+      "sees": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs",
+        "report.diagnostics-log"
+      ],
+      "source": "07/blindness#20; CLAUDE.md 'The gate for a tooling change'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/**",
+        "src/main/java/lib/minecraft/renderer/tooling/kernel/Diagnostics.java"
+      ]
+    },
+    {
+      "blind": [
+        "sweep.item"
+      ],
+      "claim": "sweep.item is blind to the whole of BlockIndexBuilder, by two independent hops",
+      "id": "B21",
+      "mode": "select",
+      "probe": "read ItemIndexBuilder.load's parameter list for any block-index type, and grep ItemRenderer for findBlock outside GuiIcon; both come back empty",
+      "reason": "ItemIndexBuilder.load takes its beEntries from BlockModelLoader directly, a sibling of the block index rather than its output, so no product of BlockIndexBuilder is an input. And ItemRenderer's only findBlock sits inside its GuiIcon sub-renderer, which the item sweep does not render.",
+      "sees": [
+        "sweep.block",
+        "sweep.entity"
+      ],
+      "source": "CLAUDE.md 'The item sum is structurally blind to BlockIndexBuilder'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java"
+      ]
+    },
+    {
+      "blind": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "claim": "Block#modelIcon has no key in any dump section, and Block.Variant.noPosition has none either",
+      "id": "B22",
+      "mode": "select",
+      "probe": "grep the 14 dump sections for modelIcon and for noPosition; both come back empty",
+      "reason": "blocks.json carries every block row's id, digest, textures, variants, tags, tint and source and no modelIcon, so a change flipping it on hundreds of blocks leaves all 30 dump files identical and its only gate is the block sum. noPosition's only reader is EntityRenderer's carried-block path, so its only gate is enderman~carried=grass_block in the entity sweep.",
+      "sees": [
+        "sweep.block",
+        "sweep.entity"
+      ],
+      "source": "CLAUDE.md 'PipelineParityDump is the right gate for an index or decode change'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java"
+      ]
+    },
+    {
+      "blind": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.player",
+        "sweep.armor",
+        "sweep.glint"
+      ],
+      "claim": "No parity sweep reaches the paletted trim permutation",
+      "id": "B23",
+      "mode": "select",
+      "probe": "throw from TrimKit.permuteFrom and run all five sweeps; none of them fires it",
+      "reason": "A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the item sweep renders untrimmed icons and its 18 trim-named rows are flat smithing-template sprites that permute nothing, and the armour sweep's seven subjects carry no trim. The gates are ArmorKitCitCompositeTest and the trims sheet group's 11 cells.",
+      "sees": [
+        "manifest.player-sheets",
+        "pin.armor-span"
+      ],
+      "source": "CLAUDE.md 'No parity sweep reaches the paletted trim permutation'",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/engine/kit/TrimKit.java"
+      ]
+    },
+    {
+      "blind": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "claim": "The option surface reaches every renderer that takes options, and nothing else",
+      "id": "R1",
+      "mode": "select",
+      "probe": "change a default on an option record and confirm the five sweeps move while all 30 dump files are byte-identical",
+      "reason": "Every renderer entry point takes a RenderOptions, so a default or a resolution rule here reaches whatever that renderer draws. The dump is blind to all of it for B19's reason: it serialises loaded pipeline data and never constructs an options record.",
+      "sees": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "pin.player-crc",
+        "manifest.player-sheets",
+        "manifest.fluid",
+        "manifest.portal"
+      ],
+      "source": "reach baseline; coverage gap measured at P9 (109 of 356 files uncovered by the 23)",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/option/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The asset DTO layer is what every renderer reads and what the dump serialises, so it reaches both",
+      "id": "R2",
+      "mode": "select",
+      "probe": "add a field to a dumped record and confirm both the dump and a sweep move",
+      "reason": "asset.** holds the records the pipeline builds and the renderers consume, and the dump's 14 sections are a projection of exactly those records. A change here is visible on both sides, which is why it is the one package family with no blindness to claim.",
+      "sees": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "sweep.glint",
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "source": "reach baseline; coverage gap measured at P9",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/asset/**"
+      ]
+    },
+    {
+      "blind": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "claim": "The tensor math is under every projected vertex, so it reaches every render and is pinned by two golden float vectors",
+      "id": "R3",
+      "mode": "select",
+      "probe": "perturb a Matrix4f multiply and confirm pin.vanilla-iso-pose fails while the dump is byte-identical",
+      "reason": "Matrix4f and Vector3f are on the path of every vertex the engine projects, and the two golden pins hold 16 and 24 exact floats through that math - so an arithmetic change fails them before any sum moves. The dump never projects a vertex.",
+      "sees": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "pin.player-crc",
+        "pin.vanilla-iso-pose",
+        "pin.kit-corners",
+        "manifest.fluid",
+        "manifest.portal"
+      ],
+      "source": "reach baseline; coverage gap measured at P9",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/tensor/**"
+      ]
+    },
+    {
+      "blind": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "claim": "The face vocabulary decides winding, UV pairing and per-face shade, so it reaches every 3D render",
+      "id": "R4",
+      "mode": "select",
+      "probe": "flip one CornerPhase index array and confirm FacePhaseTest fails while all 30 dump files are byte-identical",
+      "reason": "CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. FacePhaseTest and HumanoidPartCropTest pin the tables themselves.",
+      "sees": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "pin.player-crc",
+        "manifest.player-sheets",
+        "manifest.fluid",
+        "manifest.portal"
+      ],
+      "source": "reach baseline; coverage gap measured at P9",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/face/**"
+      ]
+    },
+    {
+      "blind": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.player",
+        "sweep.armor",
+        "sweep.glint"
+      ],
+      "claim": "The exception types carry no behaviour a parity artifact can observe",
+      "id": "R5",
+      "mode": "select",
+      "probe": "change a detail message and confirm no sweep row moves; change a supertype and confirm the sweep fails to run at all",
+      "reason": "These are message and constructor shapes on throwables. Nothing renders differently because a detail message changed, and no stored artifact records a message - so the gate is ./gradlew test compiling and passing, which is not an artifact this store holds. A rewiring of the hierarchy that changed which catch block runs would show up as a sweep failing outright rather than as a moved row.",
+      "sees": [],
+      "source": "reach baseline; coverage gap measured at P9",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/exception/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "A harness render change rewrites the ground truth every sweep diffs against",
+      "id": "R6",
+      "mode": "select",
+      "probe": "re-render with the change stashed: a reference that moves was stale, and one that does not was not reached",
+      "reason": "The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix.",
+      "sees": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.player",
+        "sweep.armor",
+        "sweep.glint",
+        "manifest.references"
+      ],
+      "source": "reach baseline; CLAUDE.md 'renderVanillaReferences is not a full sweep'",
+      "trigger_paths": [
+        "harness/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "A toolkit change alters how every artifact is COMPUTED and how none of them is produced",
+      "id": "R7",
+      "mode": "select",
+      "probe": "run the selftest, then capture one artifact either side of the change and diff the two canonical files",
+      "reason": "The toolkit reads a producer's output and writes the canonical form; it renders nothing, so no artifact's producer bytes move. What can move is the captured form itself, and the gate for that is paritySelfTest, which every parity task depends on. A capture taken across a toolkit change is compared with the OLD store, so a form change surfaces as movers on every artifact at once, which is the signature to look for.",
+      "sees": [],
+      "source": "reach baseline; the toolkit is the one producer of every stored byte",
+      "trigger_paths": [
+        "scripts/parity/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The build wiring decides what runs, and renders nothing itself",
+      "id": "R8",
+      "mode": "select",
+      "probe": "read back the resolved commandLine of every task the change touches and compare it to the one it replaced",
+      "reason": "A task registration, a finalizer edge or a property read moves no rendered byte: what it changes is which producer runs and what argv it runs with. The gate is running the tasks and reading their argv, which is why the Gradle phases of this effort gate on task lists and resolved command lines rather than on a sum.",
+      "sees": [],
+      "source": "reach baseline; P5 and P6 gated exactly this way",
+      "trigger_paths": [
+        "build.gradle.kts",
+        "settings.gradle.kts",
+        "gradle/**",
+        "gradle.properties",
+        "gradlew",
+        "gradlew.bat",
+        "src/jmh/**"
+      ]
+    },
+    {
+      "blind": [
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "claim": "The visual mains are the producers, so a change to one changes what its artifact holds",
+      "id": "R9",
+      "mode": "select",
+      "probe": "re-run the sweep and diff the captured table: a measurement change moves every row and a render change moves some",
+      "reason": "Each sweep and render main is the entry point its Gradle task runs, so its own code decides the rows a table carries and the files a manifest hashes. A change to how a sweep MEASURES moves every row of its table without a single rendered pixel moving, which is why a writer reshape is registered as its own parity-risk cluster rather than folded into a render change.",
+      "sees": [
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.player",
+        "sweep.armor",
+        "sweep.glint",
+        "manifest.visual",
+        "manifest.player-sheets",
+        "manifest.fluid",
+        "manifest.portal"
+      ],
+      "source": "reach baseline; P13's writer reshape is exactly this path",
+      "trigger_paths": [
+        "src/test/java/lib/minecraft/renderer/visual/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The rest of the test suite asserts rather than emits, so no stored artifact sees it",
+      "id": "R10",
+      "mode": "select",
+      "probe": "run ./gradlew test, then capture any artifact and confirm it is byte-identical",
+      "reason": "A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can.",
+      "sees": [],
+      "source": "reach baseline",
+      "trigger_paths": [
+        "src/test/java/**",
+        "src/test/resources/**"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The parity store's own files are the baseline a comparison reads, never something a run produces",
+      "id": "R11",
+      "mode": "select",
+      "probe": "compare after a hand-edit: the digest in index.json no longer matches the file",
+      "reason": "Editing a stored artifact by hand does not change what a producer emits; it changes what the emitted bytes are compared against, which is the one thing a capture cannot detect. index.json carries each file's digest over its normalized bytes for exactly this, so a hand-edit surfaces as the compare reporting the file as edited rather than as a mover.",
+      "sees": [],
+      "source": "reach baseline; the store is the oracle rather than an output",
+      "trigger_paths": [
+        "src/test/resources/lib/minecraft/renderer/parity/**"
+      ]
+    }
+  ]
+}

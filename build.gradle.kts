@@ -1174,6 +1174,29 @@ tasks {
         outputs.upToDateWhen { false }
     }
 
+    register<Exec>("parityPlan") {
+        description = "Resolves which parity artifacts can SEE the working tree's change, prints SEES / BLIND / PLAN / " +
+            "BUDGET and writes _run/plan.json. Runs no producer and measures nothing. -Pchanged=<paths> -Pformat=json"
+        group = "parity"
+        // The only dependency, and deliberately not a producer of any kind: a plan a broken toolkit
+        // produced is worse than no plan.
+        dependsOn("paritySelfTest")
+        requireParityRootUnderCache()
+        val changed = parityProperty("changed")
+        val json = parityProperty("format") == "json"
+        parityToolkit(*buildList {
+            add("plan")
+            add("--root"); add(parityWorkingRoot)
+            add("--store"); add(parityProductionStore)
+            if (changed == null) add("--changed-from-git")
+            else changed.split(",").map(String::trim).filter { it.isNotEmpty() }
+                .forEach { add("--changed"); add(it) }
+            if (json) { add("--format"); add("json") }
+        }.toTypedArray())
+        // A plan is a function of the working tree, which Gradle cannot see.
+        outputs.upToDateWhen { false }
+    }
+
     // One capture step per artifact row, attached to every task that can produce it. Registered last,
     // so every producer name the table references is already registered.
     parityArtifacts.forEach { registerParityCapture(it) }
