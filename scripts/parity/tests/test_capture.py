@@ -159,9 +159,54 @@ class Normalize(unittest.TestCase):
 
     def test_a_self_captured_row_present_is_validated_and_stamped(self):
         write_json(self.root / "pins" / "player-crc.json",
-                   {"artifact": "pin.player-crc", "key": "pin_key", "kind": "pin-set", "pins": []})
+                   {"artifact": "pin.player-crc", "key": "pin_key", "kind": "pin-set",
+                    "values": {}})
         capture.normalize("pin.player-crc", self.root, self.root, REPO, runs=2)
         self.assertIn("provenance", read_json(self.root / "pins" / "player-crc.json"))
+
+
+class SelfCapturedPayload(unittest.TestCase):
+    """What a producer may declare in the file it self-captures, and what is counted for it."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp()) / "run"
+
+    def _write(self, **extra) -> None:
+        write_json(self.root / "digests" / "shipped-tables.json",
+                   {"artifact": "digest.shipped-tables", "key": "name", "kind": "digest-set",
+                    "digests": {"block_models": {"form": "table-canonical", "sha256": "a"},
+                                "glint_items": {"form": "table-canonical", "sha256": "b"}},
+                    **extra})
+
+    def _capture(self, **kwargs) -> dict:
+        capture.normalize("digest.shipped-tables", self.root, self.root, REPO, **kwargs)
+        return read_json(self.root / "digests" / "shipped-tables.json")
+
+    def test_the_entries_are_counted_rather_than_declared(self):
+        """Counted from the finished file, so the number cannot disagree with what is stored."""
+        self._write()
+        self.assertEqual(self._capture()["provenance"]["counts"], {"digests": 2})
+
+    def test_a_producer_declared_flag_reaches_provenance(self):
+        """The only channel for a value only the measuring process knows."""
+        self._write(_flags=["gson=2.13.2"])
+        self.assertEqual(self._capture()["provenance"]["flags"], {"gson": "2.13.2"})
+
+    def test_the_declared_flag_is_not_stored_as_payload(self):
+        self._write(_flags=["gson=2.13.2"])
+        self.assertNotIn("_flags", self._capture())
+
+    def test_an_observed_flag_beats_a_declared_one(self):
+        """A `--flag` guessed on the build side must not overwrite what the producer measured."""
+        self._write(_flags=["gson=2.13.2"])
+        self.assertEqual(self._capture(flags=["gson=2.11.0"])["provenance"]["flags"]["gson"],
+                         "2.13.2")
+
+    def test_a_payload_with_no_countable_member_records_no_counts(self):
+        write_json(self.root / "pins" / "player-crc.json",
+                   {"artifact": "pin.player-crc", "key": "pin_key", "kind": "pin-set"})
+        capture.normalize("pin.player-crc", self.root, self.root, REPO)
+        self.assertNotIn("counts", read_json(self.root / "pins" / "player-crc.json")["provenance"])
 
 
 class Index(unittest.TestCase):

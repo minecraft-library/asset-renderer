@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from parity import compare, sweep
+from parity import compare, store, sweep
 from parity.norm import ComparisonFailed
 
 DATA = Path(__file__).resolve().parent / "data"
@@ -232,7 +232,7 @@ class ObjectKeyedPayloads(unittest.TestCase):
 
     def test_the_pin_set_member_is_the_one_the_java_reader_asks_for(self):
         """`Pins.payload` reads `values`; a member named anything else stores what nothing reads."""
-        self.assertEqual(compare._ROWS_MEMBER["pin-set"], "values")
+        self.assertEqual(store.rows_member("pin-set"), "values")
 
 
 if __name__ == "__main__":

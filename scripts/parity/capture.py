@@ -121,8 +121,12 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
     else:
         raise MissingInput(f"no capture reader for artifact {artifact!r}")
 
+    # A producer's own `_flags` come LAST, so an observed value beats a declared one: only the
+    # process that took the measurement knows which version of a dependency the form encodes, and a
+    # `--flag` guessed on the build side must not overwrite it.
     payload["provenance"] = provenance_mod.gather(
-        artifact, repo, producer=producer, mode=mode, flags=flags, runs=runs,
+        artifact, repo, producer=producer, mode=mode, runs=runs,
+        flags=[*flags, *payload.pop("_flags", [])],
         counts=payload.pop("_counts", None), root=payload.pop("_root", None))
     write_json(target, payload)
     return target
@@ -174,7 +178,15 @@ def _self_captured(artifact: str, source: Path, root: Path, target: Path) -> dic
         raise MissingInput(
             f"{artifact} was not written by its producer at {target}; a filtered test run that "
             "never reached it captures nothing rather than promoting a stale value")
-    return read_json(target)
+    payload = read_json(target)
+    # Counted here rather than declared by the producer, so the number cannot disagree with what is
+    # stored. The other two readers write their own count because they build the payload; this one
+    # is handed a finished file, and counting it is the only reading available.
+    member = store_mod.rows_member(payload.get("kind", ""))
+    entries = payload.get(member) if member else None
+    if isinstance(entries, (dict, list)):
+        payload["_counts"] = {member: len(entries)}
+    return payload
 
 
 def index(root: Path, producers: Sequence[str] = (), flags: Sequence[str] = (),

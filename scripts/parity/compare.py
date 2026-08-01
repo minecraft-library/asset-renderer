@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from parity import store as store_mod
 from parity.norm import ComparisonFailed, fsum, read_json
 from parity.sweep import CANVAS
 
@@ -27,16 +28,6 @@ from parity.sweep import CANVAS
 #: ``also``, so the counts partition and the detail loses nothing. A canvas move that also moved the
 #: metric is a canvas move, because that is what a reader has to know first.
 CLASSES = ("added", "dropped", "status", "canvas", "metric")
-
-#: Which member of a stored artifact carries its rows, per kind. Two of the five are OBJECTS keyed
-#: by the entry's own key rather than arrays of rows - see `_rows`.
-_ROWS_MEMBER = {
-    "sweep-table": "rows",
-    "manifest": "files",
-    "digest-set": "digests",
-    "pin-set": "values",
-    "blindness-roster": "rules",
-}
 
 _ENVELOPE = {"//", "artifact", "format", "key", "kind", "provenance"}
 
@@ -104,7 +95,7 @@ def side_of(payload: dict, label: str) -> Side:
     key = payload.get("key")
     if not key:
         raise ComparisonFailed(f"{payload.get('artifact', label)} carries no envelope key")
-    member = _ROWS_MEMBER.get(payload.get("kind", ""))
+    member = store_mod.rows_member(payload.get("kind", ""))
     if member is None:
         member = next((name for name, value in payload.items()
                        if name not in _ENVELOPE and isinstance(value, list)), None)

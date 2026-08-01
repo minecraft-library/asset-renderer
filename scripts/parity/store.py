@@ -40,6 +40,26 @@ _ROOT_FILES = {
     "roster.blindness-rules": "blindness.json",
 }
 
+#: Which member of an envelope carries its entries, by the envelope's own ``kind``. Keyed by kind
+#: rather than by the id's prefix because the two key spaces are different (``pin`` against
+#: ``pin-set``), and it lives here rather than in ``compare`` because it is a structural fact about
+#: the format that three modules need: ``compare`` joins on it, ``capture`` counts it, and
+#: ``promote`` reads that count into the index's display column.
+#:
+#: Two of the five members are OBJECTS keyed by the entry's own name; three are arrays of rows.
+ROWS_MEMBER = {
+    "sweep-table": "rows",
+    "manifest": "files",
+    "digest-set": "digests",
+    "pin-set": "values",
+    "blindness-roster": "rules",
+}
+
+
+def rows_member(kind: str) -> str | None:
+    """The payload member an envelope of this kind carries its entries in, or None if unknown."""
+    return ROWS_MEMBER.get(kind)
+
 
 def repo_root() -> Path:
     """The repo containing ``scripts/parity/``, so the working directory never matters."""

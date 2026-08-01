@@ -209,5 +209,45 @@ class Apply(Base):
         self.assertEqual(self.store.read("sweep.entity")["rows"][0]["mean_argb_delta"], "2.0000")
 
 
+class IndexEntryCount(Base):
+    """`entries` is the count under the payload member's OWN name - one rule, every kind."""
+
+    def _promote(self, artifact_id: str, relative: str, payload: dict) -> dict:
+        write_json(self.root / relative, payload)
+        capture.index(self.root, runs=2)
+        promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
+        return self.store.index()["artifacts"][artifact_id]
+
+    def test_a_manifest_counts_its_files(self):
+        row = self._promote("manifest.fluid", "manifests/fluid.json", {
+            "artifact": "manifest.fluid", "format": 1, "key": "path", "kind": "manifest",
+            "files": [{"path": "a.gif", "sha256": "1"}, {"path": "b.gif", "sha256": "2"}],
+            "provenance": {"counts": {"files": 2}, "determinism_runs": 2}})
+        self.assertEqual(row["entries"], 2)
+
+    def test_a_manifest_with_logs_still_counts_only_the_primary_payload(self):
+        """Accepted: `manifest.tooling-tables` reads 10 where the gate joins 18."""
+        row = self._promote("manifest.tooling-tables", "manifests/tooling-tables.json", {
+            "artifact": "manifest.tooling-tables", "format": 1, "key": "path", "kind": "manifest",
+            "files": [{"path": "a.json", "sha256": "1"}],
+            "logs": {"blockItems": "d", "blockTints": "e"},
+            "provenance": {"counts": {"files": 1, "logs": 2}, "determinism_runs": 2}})
+        self.assertEqual(row["entries"], 1)
+
+    def test_a_digest_set_counts_its_digests(self):
+        row = self._promote("digest.shipped-tables", "digests/shipped-tables.json", {
+            "artifact": "digest.shipped-tables", "format": 1, "key": "name", "kind": "digest-set",
+            "digests": {"block_models": {"sha256": "a"}, "glint_items": {"sha256": "b"}},
+            "provenance": {"counts": {"digests": 2}, "determinism_runs": 2}})
+        self.assertEqual(row["entries"], 2)
+
+    def test_a_pin_set_counts_its_values(self):
+        row = self._promote("pin.corpus-count", "pins/corpus-count.json", {
+            "artifact": "pin.corpus-count", "format": 1, "key": "pin_key", "kind": "pin-set",
+            "values": {"glint_items": {"count": 7, "type": "int"}},
+            "provenance": {"counts": {"values": 1}, "determinism_runs": 2}})
+        self.assertEqual(row["entries"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
