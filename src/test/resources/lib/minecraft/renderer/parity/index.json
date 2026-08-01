@@ -83,39 +83,60 @@
       "sha256": "dcda1bb1a836e7e807f6f53f39ca1e664f6cb689ea5a4e375f9ae1fcb7f0cdf8"
     },
     "pin.block-crc": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 3,
       "file": "pins/block-crc.json",
-      "kind": "pin-set"
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "0e20474a93858bc39f1202548e48263e48bf28753211a2237809922f95fcde67"
     },
     "pin.corpus-count": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 2,
       "file": "pins/corpus-count.json",
-      "kind": "pin-set"
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "d5efe7cf0b7eac1b3bb7fe75618f33e770b9e8b78a52a6ff65e92f1b40099310"
     },
     "pin.fluid-crc": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 13,
       "file": "pins/fluid-crc.json",
-      "kind": "pin-set"
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "f2d6408409a24ac139402ce174d1c1a6aa1f5d8b5cc22d46e1faafce975ba22c"
     },
     "pin.kit-corners": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 1,
       "file": "pins/kit-corners.json",
-      "kind": "pin-set"
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "44cf7df5720bd1da3014103aabb3365c94e83c9ec5a9f12e0b8be1393ea98959"
     },
     "pin.player-crc": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 3,
       "file": "pins/player-crc.json",
-      "kind": "pin-set"
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "b086888de3bd10d3401977e125cf2818b2685a8d870a933c548f26a43c04518a"
     },
     "pin.portal-crc": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 2,
       "file": "pins/portal-crc.json",
-      "kind": "pin-set"
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "61e8265b1178cae2848f2d1ef9b4994292ce34653a7170bf8297abe5cce2d4e8"
     },
     "pin.vanilla-iso-pose": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 1,
       "file": "pins/vanilla-iso-pose.json",
-      "kind": "pin-set"
+      "kind": "pin-set",
+      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
+      "sha256": "7618413736607fc41bd45ad925f4c0fe3df305d385d22605a796a91aba72acdc"
     },
     "report.oracle-index": {
       "baselined": false,

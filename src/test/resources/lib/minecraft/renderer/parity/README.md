@@ -26,13 +26,13 @@ Values this store holds, one file each.
 | `manifest.references` | `manifests/references.json` | 2312 | 2312 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 10 | 10 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.visual` | `manifests/visual.json` | 153 | 153 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `pin.block-crc` | `pins/block-crc.json` | - | - | - | **no** |
-| `pin.corpus-count` | `pins/corpus-count.json` | - | - | - | **no** |
-| `pin.fluid-crc` | `pins/fluid-crc.json` | - | - | - | **no** |
-| `pin.kit-corners` | `pins/kit-corners.json` | - | - | - | **no** |
-| `pin.player-crc` | `pins/player-crc.json` | - | - | - | **no** |
-| `pin.portal-crc` | `pins/portal-crc.json` | - | - | - | **no** |
-| `pin.vanilla-iso-pose` | `pins/vanilla-iso-pose.json` | - | - | - | **no** |
+| `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
+| `pin.corpus-count` | `pins/corpus-count.json` | 2 | 2 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
+| `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
+| `pin.kit-corners` | `pins/kit-corners.json` | 1 | 1 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
+| `pin.player-crc` | `pins/player-crc.json` | 3 | 3 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
+| `pin.portal-crc` | `pins/portal-crc.json` | 2 | 2 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
+| `pin.vanilla-iso-pose` | `pins/vanilla-iso-pose.json` | 1 | 1 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `report.oracle-index` | `index.json` | - | - | - | **no** |
 | `roster.blindness-rules` | `blindness.json` | - | - | - | **no** |
 | `sweep.armor` | `sweeps/armor.json` | 7 | 7 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |

@@ -1,0 +1,57 @@
+{
+  "//": "parity.pin.vanilla-iso-pose · regen: ./gradlew parityCapture -Partifacts=pin.vanilla-iso-pose",
+  "artifact": "pin.vanilla-iso-pose",
+  "format": 1,
+  "key": "pin_key",
+  "kind": "pin-set",
+  "provenance": {
+    "artifact": "pin.vanilla-iso-pose",
+    "asset_dirty": false,
+    "asset_sha": "00a006307ac6443e243d30caf238849e20cd9c60",
+    "counts": {
+      "values": 1
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "test",
+    "reason": "P12: the eight render CRCs, the forty golden floats and the two corpus counts move out of Java literals into the store, carried across verbatim - every value equals the literal deleted at 00a00630^. pin.fluid-crc's thirteen values are new: the test compared run A to run B and pinned nothing",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "timestamp": "2026-08-01T11:35:39Z",
+    "tool_version": "1.0.0"
+  },
+  "values": {
+    "pose": {
+      "length": 16,
+      "order": "get(col,row): [c1r1,c1r2,c1r3,c1r4, c2r1,...]",
+      "subject": "Projection.VANILLA_ISO.resolve().camera().pose()",
+      "type": "float32[]",
+      "values": [
+        -0.70710695,
+        -0.3535533,
+        0.61237234,
+        0.0,
+        -1.4901161e-08,
+        0.86602545,
+        0.49999997,
+        0.0,
+        -0.70710665,
+        0.35355344,
+        -0.6123725,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  }
+}
