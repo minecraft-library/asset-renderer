@@ -197,6 +197,24 @@ val parityReferenceRoot: String =
     "cache/asset-renderer/vanilla/${minecraftVersion.split(".").take(2).joinToString(".")}/references"
 
 /**
+ * The six visual producers no other parity artifact covers, each with the `cache/visual` sub-tree it
+ * writes.
+ *
+ * <p>One map rather than a dependency list and a parallel comment, because three things read it: the
+ * aggregator's dependencies, the clear that runs before them, and the ordering edge between the two.
+ * The directory half is the other end of `manifest.SUBTREES["manifest.visual"]` in the toolkit -
+ * these six sub-trees ARE that artifact.
+ */
+val visualSweepProducers = mapOf(
+    "blockRender3D" to "block-render-3d",
+    "entityRender3D" to "entity-render-3d",
+    "itemDayCycle" to "item-day-cycle",
+    "itemRender2D" to "item-render-2d",
+    "loreTooltip" to "lore-tooltip",
+    "menuRender" to "menu-render"
+)
+
+/**
  * Where every parity producer's stdout is teed, as a project-relative path the toolkit can read.
  *
  * <p>DERIVED from the build directory rather than written out, because two things have to agree on
@@ -1046,17 +1064,26 @@ tasks {
     // sweep table rather than a byte-gate population. `atlas` is not a member either: it writes
     // build/atlas/, outside the root entirely, and its parallel tile dispatch makes its output
     // permanently unhashable.
+    register<Delete>("visualSweepClean") {
+        // No group: it is visualSweepSet's first act. A TASK rather than a doFirst on the aggregator,
+        // because a doFirst runs after that task's dependencies - which are the very producers whose
+        // output it has to clear.
+        description = "Erases the six sub-trees visualSweepSet produces, so manifest.visual's population is what the run wrote."
+        delete(visualSweepProducers.values.map { "cache/visual/$it" })
+    }
+
     register("visualSweepSet") {
         description = "Runs the visual renders whose output cache/visual sub-tree no other parity artifact covers - the producer of manifest.visual."
         group = "visual"
-        dependsOn(
-            "blockRender3D",    // block-render-3d
-            "entityRender3D",   // entity-render-3d
-            "itemDayCycle",     // item-day-cycle
-            "itemRender2D",     // item-render-2d
-            "loreTooltip",      // lore-tooltip
-            "menuRender"        // menu-render
-        )
+        // The clear runs first, and the producers are ordered after it. Without that the six
+        // sub-trees accumulate across sessions and the artifact's population becomes a function of
+        // session history: measured at 255 files where the run itself wrote 153, with
+        // entity-render-3d 90 fresh beside 14 stale and block-render-3d 35 beside 83.
+        dependsOn("visualSweepClean")
+        dependsOn(visualSweepProducers.keys)
+    }
+    visualSweepProducers.keys.forEach { producer ->
+        named(producer) { mustRunAfter("visualSweepClean") }
     }
 
     // The harness runs. Seven rows over one helper, where there used to be five 30-line Exec bodies

@@ -165,6 +165,30 @@ class MemberSubtrees(unittest.TestCase):
         self.assertEqual(len(manifest.build("manifest.fluid", self.root).entries), 9)
 
 
+class NonMembers(unittest.TestCase):
+    """A producer can write more than its artifact is defined as."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        for group in ("core-matrix", "toggles", "trims"):
+            write_text(self.root / group / "cell.png", group)
+            write_text(self.root / f"{group}.png", f"{group} composite")
+        write_text(self.root / "account" / "cell.png", "a live account's skin")
+        write_text(self.root / "account.png", "account composite")
+
+    def test_the_network_only_group_is_not_a_member(self):
+        """It is 8 cells and a composite of the 113-against-104 difference, and it is not offline."""
+        paths = manifest.build("manifest.player-sheets", self.root).by_path()
+        self.assertEqual(len(paths), 6)
+        self.assertNotIn("account/cell.png", paths)
+        self.assertNotIn("account.png", paths)
+
+    def test_the_offline_groups_are_all_kept(self):
+        paths = manifest.build("manifest.player-sheets", self.root).by_path()
+        self.assertIn("core-matrix/cell.png", paths)
+        self.assertIn("trims.png", paths)
+
+
 class DiagnosticsLogProjection(unittest.TestCase):
     """A byte-identical table is not the same claim as an unchanged run.
 

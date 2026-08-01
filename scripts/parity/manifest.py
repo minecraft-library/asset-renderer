@@ -41,6 +41,16 @@ SUBTREES = {
                         "item-render-2d", "lore-tooltip", "menu-render"),
 }
 
+#: What an artifact's own producer writes that the artifact is nonetheless not defined as.
+#:
+#: ``playerRender`` ships eleven sheet groups and this artifact is the **ten offline** ones. The
+#: eleventh, ``account``, renders a live account's skin: it is 8 cells and a composite, it is the
+#: whole of the 113-against-104 difference, and a render that depends on a skin service cannot be a
+#: byte baseline whatever its digest happens to be today.
+NOT_MEMBERS = {
+    "manifest.player-sheets": ("account/*", "account.png"),
+}
+
 DEFAULT_GLOBS = {
     "manifest.references": REFERENCE_GLOBS,
     "manifest.visual": IMAGE_GLOBS,
@@ -110,8 +120,9 @@ def build(artifact: str, source: Path, globs: Sequence[str] | None = None,
     if not source.is_dir():
         raise MissingInput(f"no tree to hash at {source}")
     members = SUBTREES.get(artifact, ()) if subtrees is None else subtrees
+    excluded = tuple(exclude) + NOT_MEMBERS.get(artifact, ())
     entries = [Entry(path=posix(path, source), sha256=sha256_file(path))
-               for path in walk(source, globs_for(artifact, globs), exclude, members)]
+               for path in walk(source, globs_for(artifact, globs), excluded, members)]
     entries.sort(key=lambda entry: entry.path)
     return Manifest(artifact=artifact, root=posix(source), entries=entries)
 
