@@ -28,12 +28,13 @@ from parity.sweep import CANVAS
 #: metric is a canvas move, because that is what a reader has to know first.
 CLASSES = ("added", "dropped", "status", "canvas", "metric")
 
-#: Which member of a stored artifact carries its rows, per kind.
+#: Which member of a stored artifact carries its rows, per kind. Two of the five are OBJECTS keyed
+#: by the entry's own key rather than arrays of rows - see `_rows`.
 _ROWS_MEMBER = {
     "sweep-table": "rows",
     "manifest": "files",
     "digest-set": "digests",
-    "pin-set": "pins",
+    "pin-set": "values",
     "blindness-roster": "rules",
 }
 
@@ -107,8 +108,7 @@ def side_of(payload: dict, label: str) -> Side:
     if member is None:
         member = next((name for name, value in payload.items()
                        if name not in _ENVELOPE and isinstance(value, list)), None)
-    rows_list = payload.get(member, []) if member else []
-    rows = {str(row[key]): row for row in rows_list if key in row}
+    rows = _rows(payload.get(member) if member else None, key)
     # A manifest may carry a second payload key, `logs`: an object of flow name to digest over that
     # flow's normalized diagnostics log. Its entries join the SAME keyspace under a `logs/` prefix
     # rather than sitting beside the comparison, because a stored value the gate does not read is
@@ -117,6 +117,25 @@ def side_of(payload: dict, label: str) -> Side:
     for name, digest in sorted((payload.get("logs") or {}).items()):
         rows[f"logs/{name}"] = {key: f"logs/{name}", "sha256": digest}
     return Side(artifact=payload.get("artifact", ""), key=key, label=label, rows=rows)
+
+
+def _rows(payload_member: Any, key: str) -> dict[str, dict]:
+    """Key a payload member, whichever of the two shapes a kind spells it in.
+
+    A sweep, a manifest and the blindness roster carry an ARRAY of rows, each stating its own key.
+    A digest-set and a pin-set carry an OBJECT keyed by the entry's own name, because both are read
+    by a JUnit test that asks for one entry by key and an array would make every reader scan. The
+    key is injected into the entry so the two shapes join identically and `classify` never sees the
+    key itself as a moved field.
+
+    Reading only the array shape is not a narrowing, it is a **false green**: every value of a
+    digest-set could move and the join would report zero rows on both sides, zero movers and clean.
+    Measured, on exactly the payload P11 stores.
+    """
+    if isinstance(payload_member, dict):
+        return {str(name): {**entry, key: str(name)}
+                for name, entry in payload_member.items() if isinstance(entry, dict)}
+    return {str(row[key]): row for row in (payload_member or []) if key in row}
 
 
 def classify(before: dict, after: dict) -> tuple[str, list[str], dict]:

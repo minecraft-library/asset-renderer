@@ -188,5 +188,52 @@ class ManifestLogDigests(unittest.TestCase):
         self.assertEqual(sorted(compare.side_of(left, "base").rows), ["a.png"])
 
 
+class ObjectKeyedPayloads(unittest.TestCase):
+    """A digest-set and a pin-set key their payload by name; reading only the array shape is a
+    FALSE GREEN, not a narrowing - every value can move and the join reports clean."""
+
+    @staticmethod
+    def _digests(sha: str) -> dict:
+        return {"artifact": "digest.shipped-tables", "format": 1, "key": "name",
+                "kind": "digest-set",
+                "digests": {"block_models": {"form": "table-canonical", "regen": "blockModels",
+                                             "sha256": sha}}}
+
+    @staticmethod
+    def _pins(crc: str) -> dict:
+        return {"artifact": "pin.player-crc", "format": 1, "key": "pin_key", "kind": "pin-set",
+                "values": {"full_vanilla_iso": {"crc32": crc, "subject": "Type.FULL",
+                                                "type": "crc32"}}}
+
+    def test_a_moved_digest_is_a_mover(self):
+        result = compare.compare(self._digests("aaaa"), self._digests("bbbb"))
+        self.assertEqual([mover["key"] for mover in result.movers], ["block_models"])
+        self.assertEqual(result.movers[0]["fields"], {"sha256": ["aaaa", "bbbb"]})
+        self.assertFalse(result.clean())
+
+    def test_an_unchanged_digest_set_is_clean(self):
+        self.assertTrue(compare.compare(self._digests("aaaa"), self._digests("aaaa")).clean())
+
+    def test_a_dropped_digest_is_a_drop_rather_than_an_empty_join(self):
+        right = self._digests("aaaa")
+        right["digests"] = {}
+        result = compare.compare(self._digests("aaaa"), right)
+        self.assertEqual(result.dropped, ["block_models"])
+        self.assertFalse(result.clean())
+
+    def test_the_map_key_becomes_the_row_key_rather_than_being_read_out_of_the_entry(self):
+        """An object-keyed payload states the key once, in the map, so the join injects it."""
+        side = compare.side_of(self._digests("aaaa"), "base")
+        self.assertEqual(side.rows["block_models"]["name"], "block_models")
+
+    def test_a_pin_set_joins_on_its_values_member(self):
+        result = compare.compare(self._pins("0x11111111"), self._pins("0x22222222"))
+        self.assertEqual([mover["key"] for mover in result.movers], ["full_vanilla_iso"])
+
+    def test_the_pin_set_member_is_the_one_the_java_reader_asks_for(self):
+        """`Pins.payload` reads `values`; a member named anything else stores what nothing reads."""
+        self.assertEqual(compare._ROWS_MEMBER["pin-set"], "values")
+
+
 if __name__ == "__main__":
     unittest.main()
