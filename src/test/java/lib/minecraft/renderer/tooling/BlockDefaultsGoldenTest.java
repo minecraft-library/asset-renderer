@@ -35,8 +35,8 @@ import static org.hamcrest.Matchers.is;
 /**
  * Live-pipeline cross-check for {@code block_defaults.json}.
  * <p>
- * The byte-level integrity fixture ({@code block_defaults.sha256}) is asserted alongside the other
- * bundled JSON in {@code ResourceShaTest}. This {@code slow}-tagged test cross-checks the
+ * The byte-level integrity digest is pinned alongside the other bundled JSON in
+ * {@code digest.shipped-tables} and asserted by {@code ResourceShaTest}. This {@code slow}-tagged test cross-checks the
  * committed snapshot against a live pipeline: each non-empty {@code default} key must subset-resolve
  * to one of the block's runtime {@code block.getVariants().keySet()} variants. This catches the
  * ASM-derived default drifting away from the live blockstate parse.
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.is;
  * object exactly as {@code BlockDefaultsLoader} does at load.
  * <p>
  * Regeneration workflow: run {@code ./gradlew :asset-renderer:blockDefaults} to refresh the snapshot,
- * then update {@code block_defaults.sha256} per {@code ResourceShaTest}.
+ * then re-pin its digest per {@code ResourceShaTest}. No digest is transcribed by hand.
  */
 @DisplayName("block_defaults.json agrees with the live pipeline")
 class BlockDefaultsGoldenTest {

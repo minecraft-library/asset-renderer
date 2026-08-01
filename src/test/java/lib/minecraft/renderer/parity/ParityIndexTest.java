@@ -104,6 +104,26 @@ final class ParityIndexTest {
     }
 
     @Test
+    @DisplayName("an artifact with a file in the store is marked baselined")
+    void aStoredValueIsAlwaysMarkedBaselined() {
+        JsonObject artifacts = ParityStore.read("report.oracle-index").getAsJsonObject("artifacts");
+
+        List<String> unclaimed = artifacts.entrySet().stream()
+            .map(Map.Entry::getKey)
+            .filter(id -> !ParityStore.isRootFile(id))
+            .filter(ParityStore::exists)
+            .filter(id -> !artifacts.getAsJsonObject(id).get("baselined").getAsBoolean())
+            .sorted()
+            .toList();
+
+        assertThat("artifacts that have a file in the store but that the index does not call "
+            + "baselined. This is the converse of the check above and it is the one that keeps a "
+            + "self-captured pin honest: its reader asserts only when the index says there is a "
+            + "value, so a row flipped back to false would silently turn its gate into a capture",
+            unclaimed, is(empty()));
+    }
+
+    @Test
     @DisplayName("reading an unbaselined pin throws and names the command that captures it")
     void anAbsentPinThrowsRatherThanReadingEmpty() {
         String pin = "pin.player-crc";

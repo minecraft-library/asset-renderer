@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.parity;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.jetbrains.annotations.NotNull;
@@ -87,6 +88,49 @@ public final class ParityStore {
      */
     public static boolean exists(@NotNull String artifactId) {
         return Files.isRegularFile(PRODUCTION.resolve(pathOf(artifactId)));
+    }
+
+    /**
+     * Returns whether this artifact is one of the store's own two root files.
+     *
+     * <p>The index and the blindness roster sit at the store root under names that predate the id
+     * grammar, and they are the store's scaffolding rather than measured values: no producer writes
+     * one, no capture holds one and no promotion baselines one. A rule about baselines has to say
+     * so, because both files exist unconditionally and would otherwise read as promoted values that
+     * nobody promoted.
+     *
+     * @param artifactId the artifact id
+     * @return whether it is a root file
+     */
+    public static boolean isRootFile(@NotNull String artifactId) {
+        return ROOT_FILES.containsKey(artifactId);
+    }
+
+    /**
+     * Returns whether the index says this artifact has a last known value.
+     *
+     * <p>The index is the authority rather than the file's presence, because the two answer
+     * different questions: a file can be half-promoted or hand-dropped, and {@code baselined} is
+     * what {@code promote-apply} writes in the same act as the file. A reader that has to behave
+     * differently before its first promotion - a self-captured pin, which has to be capturable
+     * before it can be promoted - keys on this rather than on a flag of its own, so the bootstrap
+     * state lives in one tracked file instead of in whoever remembers to pass a property.
+     *
+     * @param artifactId the artifact id
+     * @return whether the index marks it baselined
+     * @throws ParityStoreException if the index does not register the id at all
+     */
+    public static boolean isBaselined(@NotNull String artifactId) {
+        JsonObject artifacts = read("report.oracle-index").getAsJsonObject("artifacts");
+        JsonElement row = artifacts == null ? null : artifacts.get(artifactId);
+        if (row == null || !row.isJsonObject())
+            throw new ParityStoreException(
+                "Parity artifact '%s' is not registered in the store index, so nothing can say "
+                    + "whether it has a baseline - coining an artifact is an edit to index.json and "
+                    + "to ParityArtifacts together",
+                artifactId);
+        JsonObject entry = row.getAsJsonObject();
+        return entry.has("baselined") && entry.get("baselined").getAsBoolean();
     }
 
     /**

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pipeline;
 
 
+import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -13,6 +14,10 @@ import lib.minecraft.renderer.asset.pack.PackContainer;
 import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.parity.ParityJson;
+import lib.minecraft.renderer.parity.ParityStore;
+import lib.minecraft.renderer.parity.Pins;
+import lib.minecraft.renderer.parity.SelfCapture;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.pack.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
@@ -25,12 +30,13 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assumptions.abort;
 
 /**
  * End-to-end asset pipeline integration test that downloads the Minecraft 26.1 client jar,
@@ -54,6 +60,12 @@ class PipelineIntegrationTest {
 
     /** Stable, non-temporary cache root so the extracted client jar survives across sessions. */
     private static final File CACHE_ROOT = new File("cache/it");
+
+    /** The digest-set the colormap byte-parity assertion both writes and reads. */
+    private static final String COLORMAP_ARTIFACT = "digest.colormap-lut";
+
+    /** The canonical form those digests are taken over: the raw big-endian ARGB buffer. */
+    private static final String COLORMAP_FORM = "raw-argb-bytes";
 
     /** Client assets (options + vanilla root) shared across every test, built once in {@link #downloadAndExtract()}. */
     private static ClientAssets result;
@@ -214,25 +226,37 @@ class PipelineIntegrationTest {
     }
 
     @Test
-    @DisplayName("stack-resolved colormaps byte-match the bundled color_maps.json LUT (D10)")
+    @DisplayName("stack-resolved colormaps byte-match the digests pinned in the parity store (D10)")
     void colormapsByteMatchBundledLut() {
-        // The byte-parity probe: sha256 of the raw
-        // big-endian ARGB bytes of each bundled colormap. The re-point resolves vanilla's own
-        // extracted PNG through the stack and must decode to the identical bytes.
-        assertThat(sha256(colorMaps.get(ColorMap.Type.GRASS).pixels()),
-            equalTo("99ac9a2db44c6ed14da168bad2f66001535fd8b6290a2255bc8aa251d16afcc4"));
-        assertThat(sha256(colorMaps.get(ColorMap.Type.FOLIAGE).pixels()),
-            equalTo("64c43c6b59f7da4ae1c8f56a332c6e21a6d0789dd0272c2cc32c809bc2e0da50"));
-        assertThat(sha256(colorMaps.get(ColorMap.Type.DRY_FOLIAGE).pixels()),
-            equalTo("04fe97199d0400e161c1413077735b8dff765d86999890d76953681bee86708f"));
-    }
-
-    private static String sha256(byte[] bytes) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (java.security.NoSuchAlgorithmException ex) {
-            throw new IllegalStateException(ex);
+        // The byte-parity probe: sha256 of the raw big-endian ARGB bytes of each bundled colormap.
+        // The re-point resolves vanilla's own extracted PNG through the stack and must decode to
+        // the identical bytes. The form is `raw-argb-bytes`, which - unlike the shipped tables'
+        // `table-canonical` - encodes no library's formatting, so no dependency version rides with
+        // it.
+        Map<String, JsonObject> entries = new TreeMap<>();
+        Map<String, String> observed = new TreeMap<>();
+        for (ColorMap.Type type : List.of(ColorMap.Type.GRASS, ColorMap.Type.FOLIAGE,
+            ColorMap.Type.DRY_FOLIAGE)) {
+            String digest = ParityJson.sha256(colorMaps.get(type).pixels());
+            observed.put(type.name(), digest);
+            JsonObject entry = new JsonObject();
+            entry.addProperty("form", COLORMAP_FORM);
+            entry.addProperty("sha256", digest);
+            entries.put(type.name(), entry);
         }
+        SelfCapture.write(COLORMAP_ARTIFACT, entries);
+
+        if (!ParityStore.isBaselined(COLORMAP_ARTIFACT))
+            abort(COLORMAP_ARTIFACT + " has no baseline yet, so there is nothing to assert against. "
+                + "The capture this run just wrote is the value to promote: "
+                + Pins.regenCommand(COLORMAP_ARTIFACT) + " then ./gradlew parityPromote -Preason=<why>");
+
+        assertThat("the pinned LUT set and the LUTs actually resolved must be the same names",
+            Pins.keys(COLORMAP_ARTIFACT), equalTo(List.copyOf(observed.keySet())));
+        observed.forEach((name, digest) -> assertThat(name + " colormap LUT bytes; if intentional, "
+                + "promote the capture this run already wrote with "
+                + Pins.regenCommand(COLORMAP_ARTIFACT),
+            digest, equalTo(Pins.digest(COLORMAP_ARTIFACT, name))));
     }
 
 }

@@ -283,11 +283,16 @@ data class ParityArtifact(
     val logSource: String? = null
 )
 
-// Rows 16 to 23 carry the WORKING ROOT as their source: those producers self-capture from inside the
-// test JVM, so the capture step validates and stamps the already-canonical file rather than reading a
-// producer directory. Row 15 is `test` and row 16 is `slowTest` because ResourceShaTest runs in the
-// fast suite while PipelineIntegrationTest is @Tag("slow") - naming `test` for the latter would let a
-// fast-suite run credit itself with a value it never computed.
+// Rows 15 to 23 carry the WORKING ROOT ITSELF as their source, with no sub-directory: those producers
+// self-capture from inside the test JVM, so the capture step validates and stamps the already-canonical
+// file at its own production-relative path rather than reading a producer directory. `--source` naming
+// the root IS what marks a row self-captured, so `$parityWorkingRoot/pins` refuses exactly as the
+// shipped-tables directory does. Row 15 is one of them and not an exception: `table-canonical` is
+// Gson's number formatting, which Python cannot reproduce for the seven float-bearing tables, so no
+// reader outside the test JVM can take that digest at all.
+// Row 15 is `test` and row 16 is `slowTest` because ResourceShaTest runs in the fast suite while
+// PipelineIntegrationTest is @Tag("slow") - naming `test` for the latter would let a fast-suite run
+// credit itself with a value it never computed.
 //
 // manifest.references names ONE producer where five tasks write into that tree: the four narrow runs
 // leave sub-trees stale, and a whole-tree manifest taken after one of them hashes a mix of fresh and
@@ -316,15 +321,15 @@ val parityArtifacts = listOf(
         listOf("entityModels", "blockModels", "blockDefaults", "blockItems", "blockTints", "potionColors", "glintItems", "colorMaps"),
         "src/main/resources/lib/minecraft/renderer",
         logSource = parityProducerLogDir),
-    ParityArtifact("digest.shipped-tables", listOf("test"), "src/main/resources/lib/minecraft/renderer"),
-    ParityArtifact("digest.colormap-lut", listOf("slowTest"), "$parityWorkingRoot/digests"),
-    ParityArtifact("pin.vanilla-iso-pose", listOf("test"), "$parityWorkingRoot/pins"),
-    ParityArtifact("pin.kit-corners", listOf("test"), "$parityWorkingRoot/pins"),
-    ParityArtifact("pin.corpus-count", listOf("test"), "$parityWorkingRoot/pins"),
-    ParityArtifact("pin.player-crc", listOf("slowTest"), "$parityWorkingRoot/pins"),
-    ParityArtifact("pin.block-crc", listOf("slowTest"), "$parityWorkingRoot/pins"),
-    ParityArtifact("pin.portal-crc", listOf("slowTest"), "$parityWorkingRoot/pins"),
-    ParityArtifact("pin.fluid-crc", listOf("slowTest"), "$parityWorkingRoot/pins")
+    ParityArtifact("digest.shipped-tables", listOf("test"), parityWorkingRoot),
+    ParityArtifact("digest.colormap-lut", listOf("slowTest"), parityWorkingRoot),
+    ParityArtifact("pin.vanilla-iso-pose", listOf("test"), parityWorkingRoot),
+    ParityArtifact("pin.kit-corners", listOf("test"), parityWorkingRoot),
+    ParityArtifact("pin.corpus-count", listOf("test"), parityWorkingRoot),
+    ParityArtifact("pin.player-crc", listOf("slowTest"), parityWorkingRoot),
+    ParityArtifact("pin.block-crc", listOf("slowTest"), parityWorkingRoot),
+    ParityArtifact("pin.portal-crc", listOf("slowTest"), parityWorkingRoot),
+    ParityArtifact("pin.fluid-crc", listOf("slowTest"), parityWorkingRoot)
 )
 
 /** Every task the artifact table names, so a producer's stdout is captured wherever it runs. */
