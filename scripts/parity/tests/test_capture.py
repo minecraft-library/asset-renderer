@@ -50,6 +50,66 @@ class Wipe(unittest.TestCase):
         self.assertTrue(fresh.is_dir())
 
 
+class OncePerInvocation(unittest.TestCase):
+    """The erase happens once per capture invocation, however many rows that invocation names.
+
+    The build registers one capture step per artifact so each can finalize its own producer, which
+    makes a step one process per row. Erasing unconditionally in every step left only the row that
+    ran last, and nothing said so: both steps reported success, and `compare` and `promote`
+    enumerate what the root holds rather than what was asked for.
+    """
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp()) / "run"
+
+    def _artifact(self, name):
+        write_json(self.root / "manifests" / f"{name}.json", {"artifact": f"manifest.{name}"})
+
+    def test_a_second_step_of_one_invocation_does_not_erase_the_first(self):
+        """The measured failure, in one test."""
+        capture.begin(self.root)
+        self._artifact("fluid")
+        self.assertFalse(capture.join_or_begin(self.root))
+        self._artifact("portal")
+        self.assertTrue((self.root / "manifests" / "fluid.json").is_file())
+        self.assertTrue((self.root / "manifests" / "portal.json").is_file())
+
+    def test_a_step_on_a_closed_root_erases_so_single_slot_survives(self):
+        """A hand-run producer is one step and no begin, and it must still leave exactly one."""
+        capture.begin(self.root)
+        self._artifact("fluid")
+        capture.index(self.root)
+        self.assertTrue(capture.join_or_begin(self.root))
+        self.assertFalse((self.root / "manifests" / "fluid.json").exists())
+
+    def test_begin_erases_even_when_a_capture_is_already_open(self):
+        """A crashed invocation leaves OPEN behind; the next one must not build on it."""
+        capture.begin(self.root)
+        self._artifact("fluid")
+        capture.begin(self.root)
+        self.assertFalse((self.root / "manifests" / "fluid.json").exists())
+
+    def test_index_closes_the_capture(self):
+        capture.begin(self.root)
+        capture.index(self.root)
+        self.assertFalse((self.root / store.RUN_DIR / capture.OPEN).exists())
+        self.assertTrue((self.root / store.RUN_DIR / capture.COMPLETE).is_file())
+
+    def test_the_expected_diff_manifest_survives_begin(self):
+        write_json(self.root / store.RUN_DIR / capture.EXEMPT, {"movers": [{"key": "x"}]})
+        capture.begin(self.root)
+        survivor = self.root / store.RUN_DIR / capture.EXEMPT
+        self.assertTrue(survivor.is_file())
+        self.assertEqual(len(read_json(survivor)["movers"]), 1)
+
+    def test_the_open_marker_is_not_indexed_as_an_artifact(self):
+        capture.begin(self.root)
+        self._artifact("fluid")
+        capture.index(self.root)
+        recorded = read_json(self.root / store.RUN_DIR / "_capture.json")
+        self.assertEqual([entry["path"] for entry in recorded["files"]], ["manifests/fluid.json"])
+
+
 class Normalize(unittest.TestCase):
 
     def setUp(self):

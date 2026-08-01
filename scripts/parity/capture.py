@@ -7,6 +7,19 @@ one exemption. That is single-slot made mechanical: there is no accumulation, no
 living beside the first, and nothing to rename. A capture of two artifacts followed by a capture of
 one leaves one, and ``compare`` says the other is absent rather than joining a stale copy.
 
+**Once per invocation is what ``_run/OPEN`` carries, and it is load-bearing because a capture step
+is one process per artifact.** The build registers a step per row so each can finalize its own
+producer, so an erase performed unconditionally by every step leaves only the row that happened to
+run last - measured, with both steps reporting success and every stage downstream silent about it,
+because ``compare`` and ``promote`` enumerate what the root holds. ``begin`` erases and opens;
+a step erases only when no capture is open; ``index`` closes. The erase therefore happens once
+however many rows an invocation names.
+
+That ordering is also what keeps the self-captured rows alive. A row whose producer writes it from
+inside the test JVM lands *in the working root itself*, so an erase on the far side of that producer
+destroys the very file it was about to stamp. The erase is a task ordered before every producer, not
+merely before every capture step, which is what puts it on the other side of them.
+
 The exemption is ``_run/expected-diff.json``, because the gate order is ``expect`` ->
 ``parityCapture`` -> ``parityCompare``: the manifest is written *before* the capture it gates.
 
@@ -33,6 +46,10 @@ EXEMPT = "expected-diff.json"
 
 COMPLETE = "COMPLETE"
 
+#: Present between ``begin`` and ``index``. A capture step erases only when it is absent, which is
+#: what makes the erase once per invocation rather than once per artifact.
+OPEN = "OPEN"
+
 CAPTURE_INDEX = "_capture.json"
 
 
@@ -50,6 +67,39 @@ def wipe(root: Path) -> None:
             child.unlink()
     if kept is not None:
         write_text(keep, kept.decode("utf-8"))
+
+
+def begin(root: Path) -> Path:
+    """Erase the root and open a capture. The first act of an invocation, before any producer runs.
+
+    Unconditional, and that is what stops a stale artifact joining a completed capture: ``index`` is
+    the only writer of ``COMPLETE`` and the only path to it starts here, so a root left open by a
+    crashed or hand-run capture is erased rather than accumulated onto.
+    """
+    wipe(root)
+    return _mark_opened(root)
+
+
+def join_or_begin(root: Path) -> bool:
+    """Join the invocation's capture, or begin one when none is open. What a capture step calls.
+
+    Deliberately not named for the marker it tests: ``norm`` is the package's sole writer and its
+    scan is a plain substring search, so any identifier whose call site would spell the builtin's
+    name followed by a bracket reads as a bypass of it.
+
+    :param root: the working root
+    :return: whether it erased
+    """
+    if (root / store_mod.RUN_DIR / OPEN).is_file():
+        return False
+    begin(root)
+    return True
+
+
+def _mark_opened(root: Path) -> Path:
+    marker = root / store_mod.RUN_DIR / OPEN
+    write_text(marker, "")
+    return marker
 
 
 def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str = "",
@@ -138,6 +188,9 @@ def index(root: Path, producers: Sequence[str] = (), flags: Sequence[str] = (),
         "timestamp": timestamp or "",
     }
     write_json(run / CAPTURE_INDEX, payload)
+    # Closed before it is marked complete, so the next invocation's first step erases rather than
+    # accumulating onto a capture that has already been indexed.
+    (run / OPEN).unlink(missing_ok=True)
     write_text(run / COMPLETE, "")  # last, always
     return run / COMPLETE
 

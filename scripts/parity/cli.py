@@ -371,13 +371,22 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     return OK
 
 
+def _cmd_capture_begin(args: argparse.Namespace) -> int:
+    root = store_mod.working(args.root, _bases(args)).root
+    marker = capture_mod.begin(root)
+    _emit(args, f"capture open: {marker}", {"open": str(marker)})
+    return OK
+
+
 def _cmd_capture_normalize(args: argparse.Namespace) -> int:
     repo = _bases(args)
     root = store_mod.working(args.root, repo).root
     sources = args.source
     if len(sources) not in (1, len(args.artifact)):
         raise Refused(f"give one --source, or one per --artifact ({len(args.artifact)})")
-    capture_mod.wipe(root)
+    # Conditional: a step is one process per artifact, so erasing here unconditionally leaves only
+    # whichever row ran last. `capture-begin` is what erases when an invocation names several.
+    capture_mod.join_or_begin(root)
     written = []
     for position, artifact in enumerate(args.artifact):
         source = Path(sources[0] if len(sources) == 1 else sources[position])
@@ -734,6 +743,10 @@ def _register(subparsers: Any) -> dict[str, Command]:
     rep_render.add_argument("--in", dest="input", required=True, metavar="FILE")
     rep_render.add_argument("--kind", default=None)
     table["report"] = _cmd_report
+
+    subparsers.add_parser("capture-begin",
+                          help="erase the working root and open a capture; the erase happens here, once")
+    table["capture-begin"] = _cmd_capture_begin
 
     cap = subparsers.add_parser("capture-normalize",
                                 help="read a producer's raw output into the working root as canonical JSON")

@@ -425,6 +425,14 @@ fun TaskContainer.registerHarnessRun(
 }
 
 /**
+ * The task whose action is the once-per-invocation erase of the parity working root.
+ *
+ * <p>Named rather than repeated because three things order against it: every capture step, every
+ * producer, and `parityCapture` itself.
+ */
+val parityCaptureBeginTask = "parityCaptureBegin"
+
+/**
  * Returns the capture step's task name for an artifact.
  *
  * <p>Shared by the registration and by `parityCapture`'s own `dependsOn`, because the umbrella has to
@@ -478,7 +486,10 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     // Ordering first, and it holds for every producer: a capture reads what a producer wrote, so it
     // runs after one whenever both are in the graph. That is what a finalizer edge was implicitly
     // giving, and the two suites below do not get one.
-    step.configure { mustRunAfter(spec.producers) }
+    step.configure {
+        mustRunAfter(spec.producers)
+        mustRunAfter(parityCaptureBeginTask)
+    }
 
     // A hand-run producer captures without anyone remembering a flag - EXCEPT the two whole-suite
     // producers. `test` and `slowTest` produce their nine rows from inside the test JVM, and a
@@ -487,8 +498,16 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     // primary gate outright until those rows have a writer, which was measured rather than foreseen.
     // Their rows are still rows: parityCapture -Partifacts=pins runs the suite and then the step, and
     // the step still fails on an absent file, which is the backstop a --tests-filtered run needs.
-    spec.producers.filter { it !in paritySuiteProducers }
-        .forEach { producer -> named(producer) { finalizedBy(step) } }
+    spec.producers.forEach { producer ->
+        named(producer) {
+            // Every producer is ordered after the erase, not merely every capture step. Rows whose
+            // source IS the working root are written there by the test JVM, so an erase on the far
+            // side of `slowTest` deletes the pins that run just wrote. mustRunAfter binds only when
+            // both tasks are in the graph, so a hand-run producer is unaffected by this edge.
+            mustRunAfter(parityCaptureBeginTask)
+            if (producer !in paritySuiteProducers) finalizedBy(step)
+        }
+    }
 }
 
 /**
@@ -1094,12 +1113,24 @@ tasks {
         outputs.upToDateWhen { false }
     }
 
+    register<Exec>(parityCaptureBeginTask) {
+        // No group: it is parityCapture's first act rather than an entry point. It exists as a task
+        // rather than as something each capture step does, because the erase has to happen ONCE per
+        // invocation - a step is one process per artifact, so a step-local erase leaves only the row
+        // that ran last - and because it has to happen BEFORE every producer, since the rows whose
+        // source is the working root are written into it from inside the test JVM.
+        description = "Erases the parity working root and opens a capture. Ordered before every producer."
+        parityToolkit("capture-begin", "--root", parityWorkingRoot)
+        outputs.upToDateWhen { false }
+    }
+
     register<ParityToolkitTask>("parityCapture") {
         description = "Runs the producers of -Partifacts and writes their captures into the parity working root. " +
             "-Partifacts=sweep.entity,manifest.fluid | all | sweeps | renders | dump | tables | pins | digests. " +
             "Absent, it reads the plan's SEES set. -Pruns=<n> -PparityRoot=<dir>"
         group = "parity"
         dependsOn("paritySelfTest")
+        dependsOn(parityCaptureBeginTask)
         requireParityRootUnderCache()
         pythonExe.set(parityPythonExe)
         val runs = parityProperty("runs")
