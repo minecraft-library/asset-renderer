@@ -1,0 +1,45 @@
+{
+  "//": "parity.digest.colormap-lut · regen: ./gradlew parityCapture -Partifacts=digest.colormap-lut",
+  "artifact": "digest.colormap-lut",
+  "digests": {
+    "DRY_FOLIAGE": {
+      "form": "raw-argb-bytes",
+      "sha256": "04fe97199d0400e161c1413077735b8dff765d86999890d76953681bee86708f"
+    },
+    "FOLIAGE": {
+      "form": "raw-argb-bytes",
+      "sha256": "64c43c6b59f7da4ae1c8f56a332c6e21a6d0789dd0272c2cc32c809bc2e0da50"
+    },
+    "GRASS": {
+      "form": "raw-argb-bytes",
+      "sha256": "99ac9a2db44c6ed14da168bad2f66001535fd8b6290a2255bc8aa251d16afcc4"
+    }
+  },
+  "format": 1,
+  "key": "name",
+  "kind": "digest-set",
+  "provenance": {
+    "artifact": "digest.colormap-lut",
+    "asset_dirty": false,
+    "asset_sha": "b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e",
+    "counts": {
+      "digests": 3
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "slowTest",
+    "reason": "P11: the ten shipped-table digests and the three colormap LUT digests move out of ten one-line fixtures and three inline hex literals into the store, carried across verbatim - every value equals the blob committed at HEAD~2",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "timestamp": "2026-08-01T11:00:32Z",
+    "tool_version": "1.0.0"
+  }
+}

@@ -3,14 +3,20 @@
   "artifact": "report.oracle-index",
   "artifacts": {
     "digest.colormap-lut": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 3,
       "file": "digests/colormap-lut.json",
-      "kind": "digest-set"
+      "kind": "digest-set",
+      "promoted_at": "b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e",
+      "sha256": "01bec04337418a4cbd2bce8acf68b36b5d23411d33cb950d41ebb8461f0d27b8"
     },
     "digest.shipped-tables": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 10,
       "file": "digests/shipped-tables.json",
-      "kind": "digest-set"
+      "kind": "digest-set",
+      "promoted_at": "b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e",
+      "sha256": "c000b00ff4ed273c6d363ba953755ba8a5c66b956b0d228b78589feb6a96aba3"
     },
     "manifest.dump.packs": {
       "baselined": true,

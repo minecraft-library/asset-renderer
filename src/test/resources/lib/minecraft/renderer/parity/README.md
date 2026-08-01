@@ -16,8 +16,8 @@ Values this store holds, one file each.
 
 | artifact | file | entries | headline | promoted at | baselined |
 |---|---|---:|---|---|---|
-| `digest.colormap-lut` | `digests/colormap-lut.json` | - | - | - | **no** |
-| `digest.shipped-tables` | `digests/shipped-tables.json` | - | - | - | **no** |
+| `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
+| `digest.shipped-tables` | `digests/shipped-tables.json` | 10 | 10 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
 | `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
