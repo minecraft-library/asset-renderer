@@ -109,20 +109,29 @@ def _sweep_of(path: Path, key_field: str) -> str:
 
 
 def discover(source: Path) -> dict[str, Path]:
-    """Find sweep tables under either layout a producer or a capture leaves behind.
+    """Find sweep tables under any layout a producer or a capture leaves behind.
 
     ``cache/visual/<sweep>-parity-vanilla/parity-report.tsv`` is what the six sweeps write;
     ``cache/p0/sweep-<sweep>.tsv`` is what a capture of them looks like. Accepting both is what lets
     ``--from`` name either without a second flag.
+
+    A sweep's OWN output directory is a third layout, and it is the one the build uses: the artifact
+    table points each sweep row at its producer's own directory, which is one level below the
+    ``cache/visual`` the second form is written relative to. It is attributed by DIRECTORY NAME
+    rather than accepted bare, so a lone ``parity-report.tsv`` is credited to the sweep that wrote
+    it instead of to whichever name the loop happens to be on.
     """
     if source.is_file():
         table = read_table(source)
         return {table.sweep: source}
     found: dict[str, Path] = {}
     for name in SWEEPS:
-        for candidate in (source / f"sweep-{name}.tsv",
-                          source / f"{name}-parity-vanilla" / "parity-report.tsv",
-                          source / f"{name}.tsv"):
+        candidates = [source / f"sweep-{name}.tsv",
+                      source / f"{name}-parity-vanilla" / "parity-report.tsv",
+                      source / f"{name}.tsv"]
+        if source.name == f"{name}-parity-vanilla":
+            candidates.append(source / "parity-report.tsv")
+        for candidate in candidates:
             if candidate.is_file():
                 found[name] = candidate
                 break

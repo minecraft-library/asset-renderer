@@ -134,6 +134,25 @@ class Discovery(unittest.TestCase):
             with self.assertRaises(MissingInput):
                 sweep.discover(Path(empty))
 
+    def test_a_sweeps_own_output_directory(self):
+        """What the build actually hands a capture step: the producer's own directory."""
+        import shutil
+        import tempfile
+        home = Path(tempfile.mkdtemp()) / "armor-parity-vanilla"
+        home.mkdir(parents=True)
+        shutil.copyfile(DATA / "sweep-armor.tsv", home / "parity-report.tsv")
+        self.assertEqual(sweep.discover(home), {"armor": home / "parity-report.tsv"})
+
+    def test_a_bare_report_is_not_credited_to_a_sweep_the_directory_does_not_name(self):
+        """Attribution is by directory name, so one table cannot answer for six."""
+        import shutil
+        import tempfile
+        home = Path(tempfile.mkdtemp()) / "somewhere-else"
+        home.mkdir(parents=True)
+        shutil.copyfile(DATA / "sweep-armor.tsv", home / "parity-report.tsv")
+        with self.assertRaises(MissingInput):
+            sweep.discover(home)
+
 
 if __name__ == "__main__":
     unittest.main()
