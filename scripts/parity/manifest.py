@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from parity.norm import ComparisonFailed, MissingInput, posix, sha256_file, read_lines
+from parity.norm import ComparisonFailed, MissingInput, posix, sha256_file, sha256_text, read_lines
 
 #: A render tree is images. The reference tree additionally admits JSON, because
 #: ``glint/atlas_uv.json`` is live ground truth that the corpus's own manifest does not cover.
@@ -40,6 +40,11 @@ DEFAULT_GLOBS = {
 }
 
 _LINE = re.compile(r"^([0-9a-f]{64})\s+\*?(?:\./)?(.+)$")
+
+#: One diagnostics line as ``Diagnostics`` emits it. CONSOLE writes ``[SEV] path - message``; FILE
+#: puts an ``Instant`` in front of the same triple. The capture group is the triple, which is why
+#: one pattern serves both modes.
+_DIAGNOSTIC = re.compile(r"^.*?(\[(?:INFO|WARN|ERROR)\] .*)$")
 
 
 @dataclass(frozen=True)
@@ -96,6 +101,56 @@ def to_artifact(manifest: Manifest) -> dict:
         "kind": "manifest",
         "provenance": {"counts": {"files": len(manifest.entries)}, "root": manifest.root},
     }
+
+
+# --- the diagnostics-log projection ----------------------------------------------------------------
+# A byte-identical table is not the same claim as an unchanged run: the entity flow once moved an
+# INFO line from position 9 to 6 with every emitted table byte-identical. The raw log cannot carry
+# that claim - `Diagnostics.flush()` timestamps every FILE line and `ToolingPipeline` timestamps the
+# filename - so what is stored is this projection of it.
+
+def normalize_log(path: Path) -> str:
+    """The comparable projection of one flow's diagnostics log.
+
+    Keeps the ``(severity, path, message)`` triples in recording order, joined with LF, and drops
+    everything else - so the projection is stable against anything a producer prints on the same
+    stream, and identical whether the flow ran under CONSOLE or under FILE.
+
+    :param path: the flow's log
+    :return: the normalized text the digest is taken over
+    """
+    kept = []
+    for line in read_lines(path):
+        match = _DIAGNOSTIC.match(line)
+        if match:
+            kept.append(match.group(1))
+    return "\n".join(kept)
+
+
+def log_digests(logs: Path, flows: Sequence[str]) -> dict[str, str]:
+    """A digest per flow over its normalized log, keyed by flow name.
+
+    Every named flow must have a log. An absent one means that flow did not run into this capture,
+    and digesting the seven that did is the tree-that-hashes-cleanly-minus-the-missing-file shape
+    the whole store is built against (I-20).
+
+    Known and accepted: a log is the last run of *its own* flow, so a capture triggered by one
+    hand-run flow digests the other seven from whenever they last ran. Every promotion path runs
+    all eight, which is the case this artifact is promoted from.
+
+    :param logs: the directory the producer logs are teed into
+    :param flows: the flow names, which are the artifact's own producer task names
+    :return: flow name to digest, ordered by name
+    """
+    out = {}
+    for flow in flows:
+        path = logs / f"producer-{flow}.log"
+        if not path.is_file():
+            raise MissingInput(
+                f"no diagnostics log for flow {flow!r} at {path}; the logs half of a capture needs "
+                "every flow's own run, not whichever ones happened to be asked for")
+        out[flow] = sha256_text(normalize_log(path))
+    return dict(sorted(out.items()))
 
 
 def from_artifact(payload: dict) -> Manifest:

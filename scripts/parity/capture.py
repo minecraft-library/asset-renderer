@@ -103,7 +103,8 @@ def _mark_opened(root: Path) -> Path:
 
 
 def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str = "",
-              mode: str | None = None, flags: Sequence[str] = (), runs: int = 0) -> Path:
+              mode: str | None = None, flags: Sequence[str] = (), runs: int = 0,
+              logs: Path | None = None) -> Path:
     """Read a producer's raw output and write the canonical form at its production-relative path."""
     target = root / store_mod.path_of(artifact)
     kind, _, name = artifact.partition(".")
@@ -111,7 +112,10 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
     if kind == "sweep":
         payload = _sweep(artifact, name, source)
     elif kind == "manifest":
-        payload = _manifest(artifact, source)
+        # The flow names ARE the artifact's producer task names, so the logs half needs no roster of
+        # its own and cannot drift from the row that declares them.
+        payload = _manifest(artifact, source, logs,
+                            [name for name in producer.split(",") if name])
     elif kind in ("digest", "pin"):
         payload = _self_captured(artifact, source, root, target)
     else:
@@ -141,10 +145,15 @@ def _sweep(artifact: str, name: str, source: Path) -> dict:
     }
 
 
-def _manifest(artifact: str, source: Path) -> dict:
+def _manifest(artifact: str, source: Path, logs: Path | None = None,
+              flows: Sequence[str] = ()) -> dict:
     built = manifest_mod.build(artifact, source)
     payload = manifest_mod.to_artifact(built)
-    payload["_counts"] = {"files": len(built.entries)}
+    counts = {"files": len(built.entries)}
+    if logs is not None:
+        payload["logs"] = manifest_mod.log_digests(logs, flows)
+        counts["logs"] = len(payload["logs"])
+    payload["_counts"] = counts
     payload["_root"] = built.root
     payload.pop("provenance", None)
     return payload

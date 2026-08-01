@@ -391,7 +391,8 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
     for position, artifact in enumerate(args.artifact):
         source = Path(sources[0] if len(sources) == 1 else sources[position])
         target = capture_mod.normalize(artifact, source, root, repo, producer=args.producer or "",
-                                       mode=args.mode, flags=args.flag or (), runs=args.runs)
+                                       mode=args.mode, flags=args.flag or (), runs=args.runs,
+                                       logs=Path(args.logs) if args.logs else None)
         written.append({"artifact": artifact, "path": str(target)})
     _emit(args, "\n".join(f"captured {row['artifact']} -> {row['path']}" for row in written),
           {"captured": written})
@@ -755,6 +756,9 @@ def _register(subparsers: Any) -> dict[str, Command]:
     cap.add_argument("--producer", default=None, help="one comma list of producing task names")
     cap.add_argument("--flag", action="append", default=None, metavar="k=v")
     cap.add_argument("--runs", type=int, default=0, help="how many runs AGREED, a measurement")
+    cap.add_argument("--logs", default=None, metavar="DIR",
+                     help="digest each producer's normalized diagnostics log into the manifest's "
+                          "`logs` key; a byte-identical table is not an unchanged run")
     cap.add_argument("--mode", default=None)
     table["capture-normalize"] = _cmd_capture_normalize
 

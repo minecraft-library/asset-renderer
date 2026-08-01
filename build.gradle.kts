@@ -196,6 +196,16 @@ val minecraftVersion: String = providers
 val parityReferenceRoot: String =
     "cache/asset-renderer/vanilla/${minecraftVersion.split(".").take(2).joinToString(".")}/references"
 
+/**
+ * Where every parity producer's stdout is teed, as a project-relative path the toolkit can read.
+ *
+ * <p>DERIVED from the build directory rather than written out, because two things have to agree on
+ * it: the tee that writes the logs and the artifact row whose stored form digests them. A literal
+ * would agree with `layout.buildDirectory` only for as long as nobody moves the build directory.
+ */
+val parityProducerLogDir: String = layout.buildDirectory.dir("parity").get().asFile
+    .relativeTo(layout.projectDirectory.asFile).invariantSeparatorsPath
+
 // ---- the parity toolkit invocation --------------------------------------------------------------
 // The default is RESOLVED against PATH rather than left as the bare name, because a bare name is not
 // startable here. Windows puts a Microsoft Store app-execution alias at
@@ -244,12 +254,15 @@ fun org.gradle.process.ExecSpec.parityToolkit(vararg argv: String) {
  *   root itself for a row whose producer self-captures from inside the test JVM
  * @param scopedBy project properties that narrow the producer - any one present suppresses the
  *   capture, because a scoped run is a hole rather than a sample
+ * @param logSource the directory holding this artifact's producers' teed diagnostics logs, for a row
+ *   whose stored form carries a digest per flow beside its file digests; null for every other row
  */
 data class ParityArtifact(
     val artifact: String,
     val producers: List<String>,
     val source: String,
-    val scopedBy: List<String> = emptyList()
+    val scopedBy: List<String> = emptyList(),
+    val logSource: String? = null
 )
 
 // Rows 16 to 23 carry the WORKING ROOT as their source: those producers self-capture from inside the
@@ -278,9 +291,13 @@ val parityArtifacts = listOf(
         listOf("sheets", "account", "renderSize", "pack")),
     ParityArtifact("manifest.fluid", listOf("fluidRenderer"), "cache/visual/fluid-renderer"),
     ParityArtifact("manifest.portal", listOf("portalRenderer"), "cache/visual/portal-renderer"),
+    // The only row with a logSource: a shipped table reproducing byte for byte is not the same claim
+    // as the run that produced it being unchanged, and the entity flow has already moved an INFO line
+    // from position 9 to 6 with every emitted byte identical.
     ParityArtifact("manifest.tooling-tables",
         listOf("entityModels", "blockModels", "blockDefaults", "blockItems", "blockTints", "potionColors", "glintItems", "colorMaps"),
-        "src/main/resources/lib/minecraft/renderer"),
+        "src/main/resources/lib/minecraft/renderer",
+        logSource = parityProducerLogDir),
     ParityArtifact("digest.shipped-tables", listOf("test"), "src/main/resources/lib/minecraft/renderer"),
     ParityArtifact("digest.colormap-lut", listOf("slowTest"), "$parityWorkingRoot/digests"),
     ParityArtifact("pin.vanilla-iso-pose", listOf("test"), "$parityWorkingRoot/pins"),
@@ -470,6 +487,7 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
             // rather than registered and dropped. Absent means the artifact's declared floor, which
             // the toolkit owns because the floor is a property of the artifact, not of the build.
             runs?.let { add("--runs"); add(it) }
+            spec.logSource?.let { add("--logs"); add(it) }
         }.toTypedArray())
         // Never up to date, for the reason parityDump's own comment gives: a capture reported
         // UP-TO-DATE is a stale capture served as fresh evidence.

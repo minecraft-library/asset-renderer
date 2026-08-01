@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from parity import manifest
-from parity.norm import ComparisonFailed, write_text
+from parity.norm import ComparisonFailed, MissingInput, write_text
 
 DATA = Path(__file__).resolve().parent / "data"
 
@@ -112,6 +112,55 @@ class Verify(unittest.TestCase):
         current = self._manifest([("a.png", "2" * 64)])
         with self.assertRaises(ComparisonFailed):
             manifest.raise_on(manifest.compare(base, current))
+
+
+class DiagnosticsLogProjection(unittest.TestCase):
+    """A byte-identical table is not the same claim as an unchanged run.
+
+    The entity flow once moved an INFO line from position 9 to 6 with every emitted table byte for
+    byte identical, which is the move this projection exists to catch.
+    """
+
+    def setUp(self):
+        self.logs = Path(tempfile.mkdtemp())
+
+    def _log(self, flow, text):
+        write_text(self.logs / f"producer-{flow}.log", text)
+
+    def test_the_console_form_is_kept_verbatim(self):
+        self._log("blockItems", "[INFO] blockItems - walked 3 aliases\n")
+        self.assertEqual(manifest.normalize_log(self.logs / "producer-blockItems.log"),
+                         "[INFO] blockItems - walked 3 aliases")
+
+    def test_the_file_form_normalizes_onto_the_console_form(self):
+        """FILE timestamps every line, so the raw log can never be byte-compared."""
+        self._log("a", "[INFO] flow/x - m\n")
+        self._log("b", "2026-07-31T09:12:13.456789Z [INFO] flow/x - m\n")
+        self.assertEqual(manifest.normalize_log(self.logs / "producer-a.log"),
+                         manifest.normalize_log(self.logs / "producer-b.log"))
+
+    def test_a_non_diagnostic_line_is_dropped(self):
+        self._log("a", "Downloading client jar...\n[INFO] flow - m\nDone in 4s\n")
+        self.assertEqual(manifest.normalize_log(self.logs / "producer-a.log"), "[INFO] flow - m")
+
+    def test_reordering_two_lines_moves_the_digest(self):
+        """The whole point: same lines, same table, different run."""
+        self._log("a", "[INFO] flow - one\n[INFO] flow - two\n")
+        self._log("b", "[INFO] flow - two\n[INFO] flow - one\n")
+        digests = manifest.log_digests(self.logs, ["a", "b"])
+        self.assertNotEqual(digests["a"], digests["b"])
+
+    def test_it_is_keyed_by_flow_and_ordered_by_name(self):
+        for flow in ("zeta", "alpha"):
+            self._log(flow, f"[INFO] {flow} - m\n")
+        self.assertEqual(list(manifest.log_digests(self.logs, ["zeta", "alpha"])), ["alpha", "zeta"])
+
+    def test_a_flow_with_no_log_is_a_failure_rather_than_seven_of_eight(self):
+        """I-20: a set that hashes cleanly minus the missing member is the false green."""
+        self._log("a", "[INFO] flow - m\n")
+        with self.assertRaises(MissingInput) as caught:
+            manifest.log_digests(self.logs, ["a", "b"])
+        self.assertIn("'b'", str(caught.exception))
 
 
 if __name__ == "__main__":

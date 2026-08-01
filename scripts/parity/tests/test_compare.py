@@ -157,5 +157,36 @@ class Envelope(unittest.TestCase):
         self.assertEqual(compare.compare(left, right).movers[0]["key"], "a.png")
 
 
+class ManifestLogDigests(unittest.TestCase):
+    """A manifest's `logs` entries join the SAME keyspace its files do.
+
+    They have to: a value the gate does not read gates nothing, and the reordered-log-with-an
+    -identical-table case is the one the projection was added for.
+    """
+
+    @staticmethod
+    def _tables(table_digest: str, log_digest: str) -> dict:
+        return {"artifact": "manifest.tooling-tables", "key": "path", "kind": "manifest",
+                "files": [{"path": "block_items.json", "sha256": table_digest}],
+                "logs": {"blockItems": log_digest}}
+
+    def test_a_moved_log_digest_is_a_mover(self):
+        result = compare.compare(self._tables("1", "a"), self._tables("1", "b"))
+        self.assertEqual([mover["key"] for mover in result.movers], ["logs/blockItems"])
+        self.assertFalse(result.clean())
+
+    def test_an_unchanged_pair_is_clean(self):
+        self.assertTrue(compare.compare(self._tables("1", "a"), self._tables("1", "a")).clean())
+
+    def test_the_log_rows_do_not_collide_with_the_file_rows(self):
+        result = compare.compare(self._tables("1", "a"), self._tables("1", "a"))
+        self.assertEqual(sorted(result.left.rows), ["block_items.json", "logs/blockItems"])
+
+    def test_a_manifest_without_logs_is_untouched(self):
+        left = {"artifact": "manifest.fluid", "key": "path", "kind": "manifest",
+                "files": [{"path": "a.png", "sha256": "1"}]}
+        self.assertEqual(sorted(compare.side_of(left, "base").rows), ["a.png"])
+
+
 if __name__ == "__main__":
     unittest.main()

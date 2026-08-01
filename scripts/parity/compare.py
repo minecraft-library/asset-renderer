@@ -108,8 +108,15 @@ def side_of(payload: dict, label: str) -> Side:
         member = next((name for name, value in payload.items()
                        if name not in _ENVELOPE and isinstance(value, list)), None)
     rows_list = payload.get(member, []) if member else []
-    return Side(artifact=payload.get("artifact", ""), key=key, label=label,
-                rows={str(row[key]): row for row in rows_list if key in row})
+    rows = {str(row[key]): row for row in rows_list if key in row}
+    # A manifest may carry a second payload key, `logs`: an object of flow name to digest over that
+    # flow's normalized diagnostics log. Its entries join the SAME keyspace under a `logs/` prefix
+    # rather than sitting beside the comparison, because a stored value the gate does not read is
+    # the false green this store exists against - and a reordered log with a byte-identical table is
+    # exactly the move it is there to catch.
+    for name, digest in sorted((payload.get("logs") or {}).items()):
+        rows[f"logs/{name}"] = {key: f"logs/{name}", "sha256": digest}
+    return Side(artifact=payload.get("artifact", ""), key=key, label=label, rows=rows)
 
 
 def classify(before: dict, after: dict) -> tuple[str, list[str], dict]:
