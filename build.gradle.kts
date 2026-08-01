@@ -1153,7 +1153,7 @@ tasks {
 
     register<Exec>("parityCompare") {
         description = "Compares the parity working root against the production store (or -Pbase=<dir>) and fails " +
-            "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= -Pstale=include"
+            "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= -Pstale=include -Pbootstrap"
         group = "parity"
         dependsOn("paritySelfTest")
         requireParityRootUnderCache()
@@ -1164,6 +1164,10 @@ tasks {
         val base = parityProperty("base") ?: "production"
         val expected = parityProperty("expected")
         val stale = parityProperty("stale") == "include"
+        // An artifact with no baseline is MISSING_BASELINE, which is a failure everywhere except the
+        // one promotion that establishes it. Without this the toolkit's own refusal names a flag the
+        // build never sends, so the first promotion of any artifact is unreachable through Gradle.
+        val bootstrap = parityFlag("bootstrap")
         parityToolkit(*buildList {
             add("compare")
             add("--root"); add(parityWorkingRoot)
@@ -1171,6 +1175,7 @@ tasks {
             artifacts?.let { add("--artifacts"); add(it) }
             expected?.let { add("--expected"); add(it) }
             if (stale) add("--include-stale")
+            if (bootstrap) add("--bootstrap")
         }.toTypedArray())
         outputs.upToDateWhen { false }
     }
