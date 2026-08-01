@@ -5,9 +5,12 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from parity import cli
+from parity import capture, cli, store
+from parity.norm import write_json
 
 
 def run(argv: list[str]) -> tuple[int, str, str]:
@@ -94,6 +97,71 @@ class GlobalOptions(unittest.TestCase):
         code, out, _ = run(["--version"])
         self.assertEqual(code, 0)
         self.assertIn("parity", out)
+
+
+class ShippedTablesAgreementThroughTheCli(unittest.TestCase):
+    """Which COPY of each operand the check reads, and that it says so when it read neither."""
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        self.store = self.repo / "store"
+
+    @staticmethod
+    def _digests(*names: str) -> dict:
+        return {"artifact": "digest.shipped-tables", "format": 1, "key": "name",
+                "kind": "digest-set", "provenance": {"determinism_runs": 2},
+                "digests": {name: {"form": "table-canonical", "sha256": "a"} for name in names}}
+
+    @staticmethod
+    def _tables(*names: str) -> dict:
+        return {"artifact": "manifest.tooling-tables", "format": 1, "key": "path",
+                "kind": "manifest", "provenance": {"determinism_runs": 2},
+                "files": [{"path": f"{name}.json", "sha256": "b"} for name in names]}
+
+    def _capture(self, *payloads: dict) -> None:
+        for payload in payloads:
+            write_json(self.root / store.path_of(payload["artifact"]), payload)
+        capture.index(self.root)
+
+    def _compare(self) -> tuple[int, dict]:
+        code, out, _ = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                            "--store", str(self.store), "--format", "json",
+                            "compare", "--bootstrap"])
+        return code, json.loads(out)
+
+    def test_both_in_the_root_and_agreeing(self):
+        self._capture(self._digests("block_models"), self._tables("block_models"))
+        code, payload = self._compare()
+        self.assertEqual(code, cli.OK)
+        self.assertEqual(payload["checks"]["shipped-tables-agreement"]["status"], "agreed")
+
+    def test_both_in_the_root_and_disagreeing_fails(self):
+        self._capture(self._digests("block_models"), self._tables("block_models", "eleventh"))
+        code, payload = self._compare()
+        self.assertEqual(code, cli.DIFFERENCES)
+        verdict = payload["checks"]["shipped-tables-agreement"]
+        self.assertEqual(verdict["status"], "disagreed")
+        self.assertEqual(verdict["disagreements"], ["eleventh"])
+
+    def test_the_operand_the_capture_did_not_name_is_read_from_the_base(self):
+        """`-Partifacts=digests` is the common case; without the fallback the check never runs."""
+        store.WritableStore(self.store).write("manifest.tooling-tables",
+                                              self._tables("block_models", "eleventh"))
+        self._capture(self._digests("block_models"))
+        code, payload = self._compare()
+        self.assertEqual(code, cli.DIFFERENCES)
+        self.assertEqual(payload["checks"]["shipped-tables-agreement"]["disagreements"],
+                         ["eleventh"])
+
+    def test_neither_side_holds_an_operand_says_so_rather_than_passing(self):
+        """A check that is silent when it did not run cannot be told from one that passed."""
+        self._capture(self._digests("block_models"))
+        code, payload = self._compare()
+        self.assertEqual(code, cli.OK)
+        verdict = payload["checks"]["shipped-tables-agreement"]
+        self.assertEqual(verdict["status"], "not_evaluated")
+        self.assertEqual(verdict["absent"], ["manifest.tooling-tables"])
 
 
 if __name__ == "__main__":

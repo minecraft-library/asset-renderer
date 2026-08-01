@@ -46,6 +46,23 @@ def render_diff(payload: dict) -> str:
     return "\n\n".join(blocks)
 
 
+def render_checks(checks: dict) -> str:
+    """The cross-artifact checks, one line each.
+
+    Rendered whatever the verdict, `not_evaluated` included: a check that is silent when it did not
+    run is indistinguishable from one that ran and passed, which is the whole failure mode the
+    parity store exists against.
+    """
+    if not checks:
+        return "_no cross-artifact checks_"
+    lines = ["## Checks", "", "| check | status | detail |", "|---|---|---|"]
+    for name, verdict in sorted(checks.items()):
+        detail = ", ".join(f"`{value}`" for value in
+                           verdict.get("disagreements") or verdict.get("absent") or [])
+        lines.append(f"| `{name}` | {verdict.get('status', '?')} | {detail or '-'} |")
+    return "\n".join(lines)
+
+
 def _render_one_diff(entry: dict) -> str:
     left, right = entry.get("left", {}), entry.get("right", {})
     totals = entry.get("totals", {})

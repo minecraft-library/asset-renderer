@@ -346,6 +346,8 @@ def _cmd_compare(args: argparse.Namespace) -> int:
 
     payload = compare_mod.to_report(results)
     payload["missing_baseline"] = missing
+    agreement = _shipped_tables_agreement(args, root)
+    payload["checks"] = {compare_mod.AGREEMENT_CHECK: agreement}
     if args.bootstrap:
         payload["bootstrap"] = True
     if args.include_stale:
@@ -361,14 +363,57 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     text = report_mod.render_diff(payload)
     if missing:
         text += f"\n\n**MISSING_BASELINE**: {', '.join(missing)}"
+    text += "\n\n" + report_mod.render_checks(payload["checks"])
     _emit(args, text, payload)
 
     if missing and not args.bootstrap:
         raise ComparisonFailed(
             f"MISSING_BASELINE for {', '.join(missing)}: nothing to compare against. "
             "The first capture of an artifact is compared with --bootstrap")
+    # Before the mover gate, because it is a POPULATION check like MISSING_BASELINE rather than a
+    # value one: if the two artifacts disagree about which tables exist, the per-row comparison over
+    # them is answering a question about a covered set that is already wrong.
+    if agreement["status"] == "disagreed":
+        raise ComparisonFailed(
+            f"{compare_mod.AGREEMENT_CHECK} on digest.shipped-tables: "
+            f"{', '.join(agreement['disagreements'])} "
+            f"{'is' if len(agreement['disagreements']) == 1 else 'are'} covered by one of "
+            f"{' / '.join(compare_mod.AGREEMENT_ARTIFACTS)} and not the other. The two digests are "
+            "over different canonical forms and are never comparable value for value; the covered "
+            "set is, and a table a flow added or dropped shows up exactly here")
     compare_mod.raise_on(results)
     return OK
+
+
+def _shipped_tables_agreement(args: argparse.Namespace, root: store_mod.ReadOnlyStore) -> dict:
+    """Resolve both operands and run the cross-artifact covered-set check.
+
+    Each operand is taken from the working root when the root holds it and from the base otherwise,
+    which is the state the store would be in **after** this capture were promoted - the thing a gate
+    is actually asserting about. A capture naming only one of the two is the common case
+    (``-Partifacts=digests``), and reading the other's last known value is what keeps the check
+    evaluable there instead of quietly skipping on nearly every run.
+    """
+    payloads = {}
+    absent = []
+    for artifact in compare_mod.AGREEMENT_ARTIFACTS:
+        for read in (lambda name=artifact: root.read(name),
+                     lambda name=artifact: _load(args, name, args.base)):
+            try:
+                payloads[artifact] = read()
+                break
+            except (MissingInput, ValueError):
+                continue
+        if artifact not in payloads:
+            absent.append(artifact)
+    if absent:
+        # Reported rather than silently omitted: a check that is never evaluated and never says so
+        # is indistinguishable from one that passes.
+        return {"absent": absent, "status": "not_evaluated"}
+    disagreements = compare_mod.shipped_tables_agreement(*(payloads[name]
+                                                           for name in compare_mod.AGREEMENT_ARTIFACTS))
+    return {"disagreements": disagreements,
+            "status": "disagreed" if disagreements else "agreed"}
 
 
 def _cmd_capture_begin(args: argparse.Namespace) -> int:

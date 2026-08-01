@@ -31,6 +31,10 @@ CLASSES = ("added", "dropped", "status", "canvas", "metric")
 
 _ENVELOPE = {"//", "artifact", "format", "key", "kind", "provenance"}
 
+#: The two artifacts `shipped-tables-agreement` relates, and the check's own id.
+AGREEMENT_CHECK = "shipped-tables-agreement"
+AGREEMENT_ARTIFACTS = ("digest.shipped-tables", "manifest.tooling-tables")
+
 
 @dataclass
 class Side:
@@ -170,6 +174,34 @@ def compare(left_payload: dict, right_payload: dict, expected: dict | None = Non
             "key": key,
         })
     return result
+
+
+def shipped_tables_agreement(digests: dict, tables: dict) -> list[str]:
+    """The names `digest.shipped-tables` and `manifest.tooling-tables#/files` disagree about.
+
+    The two digests are taken over different canonical forms - Gson's reparse-and-compact against
+    the file's raw bytes - so they can never be compared value for value, and a rule that tried
+    would fail on every table for ever. What **is** comparable is the covered set: a table a flow
+    adds or drops shows up as a name in one artifact and not the other.
+
+    The two populations are discovered independently and by different walks, which is what gives the
+    check something to find. `ResourceShaTest` lists the directory's top level; `manifest.build`
+    rglobs it. They agree today because nothing lives in a sub-directory, and the day something does
+    the manifest gains `sub/foo.json` and the digest set does not.
+
+    :param digests: the `digest.shipped-tables` payload
+    :param tables: the `manifest.tooling-tables` payload
+    :return: the symmetric difference, sorted; empty when they agree
+    """
+    left = set((digests.get("digests") or {}).keys())
+    # `files` is keyed by a path relative to the manifest's root, so the extension comes off and any
+    # directory component deliberately stays on - a nested table IS a disagreement.
+    right = {_strip_json(row["path"]) for row in (tables.get("files") or []) if "path" in row}
+    return sorted(left ^ right)
+
+
+def _strip_json(path: str) -> str:
+    return path[:-len(".json")] if path.endswith(".json") else path
 
 
 def _registered(expected: dict | None, artifact: str) -> set[str]:

@@ -235,5 +235,56 @@ class ObjectKeyedPayloads(unittest.TestCase):
         self.assertEqual(store.rows_member("pin-set"), "values")
 
 
+class ShippedTablesAgreement(unittest.TestCase):
+    """The one cross-artifact check: the covered SET is comparable where the digests are not."""
+
+    @staticmethod
+    def _digests(*names: str) -> dict:
+        return {"artifact": "digest.shipped-tables", "format": 1, "key": "name",
+                "kind": "digest-set",
+                "digests": {name: {"form": "table-canonical", "sha256": "a"} for name in names}}
+
+    @staticmethod
+    def _tables(*paths: str) -> dict:
+        return {"artifact": "manifest.tooling-tables", "format": 1, "key": "path",
+                "kind": "manifest",
+                "files": [{"path": path, "sha256": "b"} for path in paths]}
+
+    def test_the_ten_agree(self):
+        names = ("block_defaults", "block_geometry", "block_items", "block_models", "block_tints",
+                 "color_maps", "entity_geometry", "entity_models", "glint_items", "potion_colors")
+        self.assertEqual(compare.shipped_tables_agreement(
+            self._digests(*names), self._tables(*(f"{name}.json" for name in names))), [])
+
+    def test_it_fires_on_a_name_in_the_manifest_and_not_the_digest_set(self):
+        """A flow that started emitting an eleventh table only one walk picked up."""
+        self.assertEqual(compare.shipped_tables_agreement(
+            self._digests("block_models"), self._tables("block_models.json", "new_table.json")),
+            ["new_table"])
+
+    def test_it_fires_on_a_name_in_the_digest_set_and_not_the_manifest(self):
+        self.assertEqual(compare.shipped_tables_agreement(
+            self._digests("block_models", "dropped"), self._tables("block_models.json")),
+            ["dropped"])
+
+    def test_it_does_NOT_fire_on_two_different_digests_for_one_name(self):
+        """The two are taken over different canonical forms, so a value rule would fail for ever."""
+        digests = self._digests("block_models")
+        digests["digests"]["block_models"]["sha256"] = "ffff"
+        self.assertEqual(compare.shipped_tables_agreement(digests, self._tables("block_models.json")),
+                         [])
+
+    def test_a_nested_table_is_a_disagreement_rather_than_a_match(self):
+        """The manifest rglobs and the test lists one level, which is what gives this something to
+        find; the directory component therefore stays on."""
+        self.assertEqual(compare.shipped_tables_agreement(
+            self._digests("block_models"), self._tables("sub/block_models.json")),
+            ["block_models", "sub/block_models"])
+
+    def test_only_a_trailing_json_comes_off(self):
+        self.assertEqual(compare.shipped_tables_agreement(
+            self._digests("a.json.keep"), self._tables("a.json.keep.json")), [])
+
+
 if __name__ == "__main__":
     unittest.main()
