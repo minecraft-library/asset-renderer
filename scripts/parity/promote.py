@@ -88,14 +88,8 @@ def _without_provenance(payload: dict) -> dict:
 
 
 def _artifacts_under(root: Path) -> list[str]:
-    found = []
-    for path in sorted(root.rglob("*.json")):
-        if store_mod.RUN_DIR in path.parts:
-            continue
-        payload = read_json(path)
-        if isinstance(payload, dict) and payload.get("artifact"):
-            found.append(payload["artifact"])
-    return found
+    """Every artifact this root CAPTURED. An unstamped file a producer left is not one of them."""
+    return [artifact for artifact, stamped in store_mod.artifact_files(root) if stamped]
 
 
 def to_report(entries: Sequence[Entry]) -> dict:

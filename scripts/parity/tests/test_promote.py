@@ -117,15 +117,26 @@ class Refusals(Base):
             promote.check(self.root, entries, "why")
         self.assertIn("bootstrap", str(caught.exception))
 
-    def test_an_artifact_with_no_provenance(self):
+    def test_a_NAMED_artifact_with_no_provenance(self):
+        """Asking for one that no capture step stamped is an error, where enumerating skips it."""
+        self._unstamped()
+        entries = promote.plan(self.root, self.store, ["sweep.entity"])
+        with self.assertRaises(Refused) as caught:
+            promote.check(self.root, entries, "why", bootstrap=True)
+        self.assertIn("provenance", str(caught.exception))
+
+    def test_an_UNSTAMPED_artifact_is_not_enumerated(self):
+        """A self-capturing producer writes its file whenever it runs, so a root captured for one
+        artifact holds files for others. Crediting this run with them planned to REPLACE a promoted
+        digest set with a by-product that differed from it by the private `_flags` key alone."""
+        self._unstamped()
+        self.assertEqual(promote.plan(self.root, self.store), [])
+
+    def _unstamped(self) -> None:
         payload = artifact()
         payload.pop("provenance")
         write_json(self.root / "sweeps" / "entity.json", payload)
         capture.index(self.root)
-        entries = promote.plan(self.root, self.store)
-        with self.assertRaises(Refused) as caught:
-            promote.check(self.root, entries, "why", bootstrap=True)
-        self.assertIn("provenance", str(caught.exception))
 
     def test_a_root_edited_after_its_capture_index(self):
         """A plan cannot be applied to a root that has since been re-captured."""

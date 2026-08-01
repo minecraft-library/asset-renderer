@@ -154,6 +154,18 @@ class ShippedTablesAgreementThroughTheCli(unittest.TestCase):
         self.assertEqual(payload["checks"]["shipped-tables-agreement"]["disagreements"],
                          ["eleventh"])
 
+    def test_an_unstamped_by_product_is_named_rather_than_compared(self):
+        """`-Partifacts=digests` runs the suites, which write the PINS into the root too - stamped
+        by no capture step. Comparing one credits this run with capturing it."""
+        write_json(self.root / store.path_of("pin.player-crc"),
+                   {"artifact": "pin.player-crc", "format": 1, "key": "pin_key", "kind": "pin-set",
+                    "values": {"full_vanilla_iso": {"crc32": "0x1", "type": "crc32"}}})
+        self._capture(self._digests("block_models"), self._tables("block_models"))
+        code, payload = self._compare()
+        self.assertEqual(code, cli.OK)
+        self.assertEqual(payload["not_captured"], ["pin.player-crc"])
+        self.assertNotIn("pin.player-crc", [entry["artifact"] for entry in payload["artifacts"]])
+
     def test_neither_side_holds_an_operand_says_so_rather_than_passing(self):
         """A check that is silent when it did not run cannot be told from one that passed."""
         self._capture(self._digests("block_models"))

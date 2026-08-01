@@ -66,6 +66,34 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def artifact_files(root: Path) -> list[tuple[str, bool]]:
+    """Every artifact file under a root, each with whether a capture step STAMPED it.
+
+    The two are different sets and conflating them is a live hazard. A self-capturing producer
+    writes its file whenever it runs, so ``-Partifacts=pins`` leaves the two digest sets in the root
+    as well - written by the same ``test`` / ``slowTest`` invocation, named by no capture step, and
+    therefore carrying no provenance and still carrying the private ``_flags`` key that
+    ``capture-normalize`` pops. Enumerating the root by filename alone credits this run with
+    capturing them: measured, where a bare ``promote-plan`` on a pins root planned to **replace** a
+    promoted digest set with the unstamped by-product, differing from it by ``_flags`` alone.
+
+    Provenance is the mark, because ``capture-normalize`` is the only thing that writes one and it
+    writes one on every artifact it stamps. Naming an unstamped artifact explicitly still refuses in
+    ``promote.check`` - an enumeration skips what was not captured, a request for it does not.
+    """
+    found = []
+    for path in sorted(root.rglob("*.json")):
+        if RUN_DIR in path.parts:
+            continue
+        try:
+            payload = read_json(path)
+        except ValueError:
+            continue
+        if isinstance(payload, dict) and payload.get("artifact"):
+            found.append((payload["artifact"], bool(payload.get("provenance"))))
+    return found
+
+
 def path_of(artifact_id: str) -> str:
     """Map an artifact id to its store-relative path.
 

@@ -346,6 +346,11 @@ def _cmd_compare(args: argparse.Namespace) -> int:
 
     payload = compare_mod.to_report(results)
     payload["missing_baseline"] = missing
+    # Named rather than dropped: an artifact file in the root that this run did not capture is worth
+    # a reader knowing about, and silence would read as "the root held nothing else".
+    not_captured = _not_captured_in(root.root)
+    if not_captured:
+        payload["not_captured"] = not_captured
     agreement = _shipped_tables_agreement(args, root)
     payload["checks"] = {compare_mod.AGREEMENT_CHECK: agreement}
     if args.bootstrap:
@@ -363,6 +368,9 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     text = report_mod.render_diff(payload)
     if missing:
         text += f"\n\n**MISSING_BASELINE**: {', '.join(missing)}"
+    if not_captured:
+        text += (f"\n\n**not captured by this run** (in the root, stamped by no capture step): "
+                 f"{', '.join(not_captured)}")
     text += "\n\n" + report_mod.render_checks(payload["checks"])
     _emit(args, text, payload)
 
@@ -676,17 +684,13 @@ def _plan_text(payload: dict) -> str:
 
 
 def _artifacts_in(root: Path) -> list[str]:
-    found = []
-    for path in sorted(root.rglob("*.json")):
-        if store_mod.RUN_DIR in path.parts:
-            continue
-        try:
-            payload = read_json(path)
-        except ValueError:
-            continue
-        if isinstance(payload, dict) and payload.get("artifact"):
-            found.append(payload["artifact"])
-    return found
+    """Every artifact this root CAPTURED, which is not every artifact file in it."""
+    return [artifact for artifact, stamped in store_mod.artifact_files(root) if stamped]
+
+
+def _not_captured_in(root: Path) -> list[str]:
+    """Artifact files a producer left in the root that no capture step stamped."""
+    return sorted(artifact for artifact, stamped in store_mod.artifact_files(root) if not stamped)
 
 
 def _cmd_report(args: argparse.Namespace) -> int:
