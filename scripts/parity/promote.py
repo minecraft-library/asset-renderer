@@ -184,6 +184,11 @@ def _index_row(entry: Entry, payload: dict, target: store_mod.WritableStore) -> 
     record = payload.get("provenance", {})
     counts = record.get("counts", {})
     row = {
+        # Written affirmatively rather than by dropping the key the empty store carries. Both
+        # readers of this column - ParityIndexTest and the generated README - ask `baselined` for a
+        # boolean, so absence-means-promoted would have made one NPE and the other render every
+        # promoted artifact as `**no**`.
+        "baselined": True,
         "file": entry.path,
         "kind": payload.get("kind", ""),
         "promoted_at": record.get("asset_sha") or "",

@@ -157,6 +157,17 @@ class Apply(Base):
         self.assertEqual(index["artifacts"]["sweep.entity"]["entries"], 1)
         self.assertEqual(index["artifacts"]["sweep.entity"]["file"], "sweeps/entity.json")
 
+    def test_a_promoted_row_says_it_is_baselined(self):
+        """Affirmatively, not by dropping the key the empty store carries.
+
+        Both readers of the column ask it for a boolean - the index test and the generated README -
+        so absence-means-promoted made one throw and the other render every promoted artifact as
+        not baselined.
+        """
+        self._capture(artifact())
+        promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
+        self.assertIs(self.store.index()["artifacts"]["sweep.entity"]["baselined"], True)
+
     def test_there_is_no_provenance_directory_on_either_side(self):
         self._capture(artifact())
         promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
