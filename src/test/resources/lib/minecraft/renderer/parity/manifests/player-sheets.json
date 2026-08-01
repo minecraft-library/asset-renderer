@@ -1,0 +1,450 @@
+{
+  "//": "parity.manifest.player-sheets · regen: ./gradlew parityCapture -Partifacts=manifest.player-sheets",
+  "artifact": "manifest.player-sheets",
+  "files": [
+    {
+      "path": "armor-2d.png",
+      "sha256": "39594d526647b709093576e5c93b63405c341b5688e451663c8d6991e3d0d482"
+    },
+    {
+      "path": "armor-2d/chainmail_TWO_D.png",
+      "sha256": "ef9f5dfb2b258faa49089845814d406ea80e73f05bca26e9d558bea77805a536"
+    },
+    {
+      "path": "armor-2d/copper_TWO_D.png",
+      "sha256": "3f99dca394db4086e805fe1e1762647d48011989aa5ab66ca500c8de1ffc30e9"
+    },
+    {
+      "path": "armor-2d/diamond_TWO_D.png",
+      "sha256": "b40f1ffd13b7f953745267da7efe4c7dfb2363c96278c99c9cd50740acf116d0"
+    },
+    {
+      "path": "armor-2d/golden_TWO_D.png",
+      "sha256": "77c30a19003d71559526e27bd095a7f2526cf65cffda749497cbcf92cf2a961f"
+    },
+    {
+      "path": "armor-2d/iron_TWO_D.png",
+      "sha256": "3076718ed0dabd1b8cf583c9b38c7acbbd067a3079943b64fb9e08b8cb43f029"
+    },
+    {
+      "path": "armor-2d/leather_TWO_D.png",
+      "sha256": "4f075e9f6520094da7c605ba293dc252ac04e5887027ed9e3c7f96033d0a3d2e"
+    },
+    {
+      "path": "armor-2d/netherite_TWO_D.png",
+      "sha256": "11e55ea358be7a44217cc43ff925ffb6a0936c71599e73463f79d265b6fc777d"
+    },
+    {
+      "path": "armor-2d/turtle_scute_TWO_D.png",
+      "sha256": "31e036f82648ec9dcef3808f658f15d6d9705566e0c4e97fab2752e93c06f72b"
+    },
+    {
+      "path": "armor-3d.png",
+      "sha256": "5090e306481cb6794295d7d01587b30180d823455d8f70796a71914fb7575e66"
+    },
+    {
+      "path": "armor-3d/chainmail_THREE_D.png",
+      "sha256": "3bf2fa82c27997288fd4281d7632590c703bdd9a9f6f1ddf6040b367369a837a"
+    },
+    {
+      "path": "armor-3d/copper_THREE_D.png",
+      "sha256": "730ed57f54699346d358fb325a3e857361c269a38f87ca6cf3e5b783021fcb54"
+    },
+    {
+      "path": "armor-3d/diamond_THREE_D.png",
+      "sha256": "5533f407d992231a0729c34558efcfd81fe4ca2fbd40c5b8249d65e9c1f0a496"
+    },
+    {
+      "path": "armor-3d/golden_THREE_D.png",
+      "sha256": "43726b446817936b086d8287614e1920650e1dd9dcde5fba50647a9ab47bf2c6"
+    },
+    {
+      "path": "armor-3d/iron_THREE_D.png",
+      "sha256": "42512c0937936b9841108330fff6e126a39f6fae06dd53b3fc08652bb144dac0"
+    },
+    {
+      "path": "armor-3d/leather_THREE_D.png",
+      "sha256": "e2e8b8fd32f67d641abec7fe1f54d6ad3e6aa0e50d82f36c07f6d55ac0e20dda"
+    },
+    {
+      "path": "armor-3d/netherite_THREE_D.png",
+      "sha256": "e30237056034d51a0d2074cdc06417e5d1b178963795e51909a7929a3fd19382"
+    },
+    {
+      "path": "armor-3d/turtle_scute_THREE_D.png",
+      "sha256": "90d8ec1cfb80b93a923cda8f8d8ca508b43d858f8a2a0112113af69491a1da44"
+    },
+    {
+      "path": "armor-per-slot.png",
+      "sha256": "ae95f101a8e387a181ba7059f33ad00aa7dcf5970c99ef747a9dab653a99704f"
+    },
+    {
+      "path": "armor-per-slot/boots_only_2D.png",
+      "sha256": "eb791a0989c7bc257edd5d0b2b0f7c923c84f07e2bab15d70429a8ebd57c835f"
+    },
+    {
+      "path": "armor-per-slot/boots_only_3D.png",
+      "sha256": "39100eed8008b403b4a7c819e55f2152f7d8bf3f030789630271e3a0291a4047"
+    },
+    {
+      "path": "armor-per-slot/chestplate_only_2D.png",
+      "sha256": "97bd358c02caf642748a2319d7ce591435cc5a6cb5eb47694e5b527a6a761658"
+    },
+    {
+      "path": "armor-per-slot/chestplate_only_3D.png",
+      "sha256": "e824a93cffa7f5df841a90977ec0cd9ec3f641598956670ba2226025a020b5a1"
+    },
+    {
+      "path": "armor-per-slot/enchanted_iron_3D.png",
+      "sha256": "8511a0b50ce0f413e45969c378bfe2b33b94e92a5b686f56d3e8999ba7206361"
+    },
+    {
+      "path": "armor-per-slot/helmet_only_2D.png",
+      "sha256": "c779719233ac0582979afb830e4d7eaed41834a433832bfa59f6eff72a2d6c66"
+    },
+    {
+      "path": "armor-per-slot/helmet_only_3D.png",
+      "sha256": "24c66390c097263972c24ae28c0b0fb68fb25a34075b0bf3a2542db08be0523d"
+    },
+    {
+      "path": "armor-per-slot/leggings_only_2D.png",
+      "sha256": "ce7b0640eb8eed32db9c6be9ff5777b4b093d1db740308ff364bb5dfbde3f3d8"
+    },
+    {
+      "path": "armor-per-slot/leggings_only_3D.png",
+      "sha256": "dc3c17a0c7663e16bf0991a954dd55f4df2d915c8db3f10f9ce1108aee8ad7a9"
+    },
+    {
+      "path": "core-matrix.png",
+      "sha256": "3d18f84092c0a9ed03ea7d84cf36ddcf31c0b85e86a9544f9369b43137059ab0"
+    },
+    {
+      "path": "core-matrix/BUST_THREE_D.png",
+      "sha256": "341ceb8c855f2e6549986285ad5195a02f49662fed04fc7543b066767aa6f4ec"
+    },
+    {
+      "path": "core-matrix/BUST_TWO_D.png",
+      "sha256": "ea5a2ebb08388f7a5d2d1bd6d199eaa966c199e676b6ffdd6d7dd55121091f44"
+    },
+    {
+      "path": "core-matrix/FULL_THREE_D.png",
+      "sha256": "81215fdd0f48061685370b48c429e2c2a02599bbcad2558f6fdb65e316cebc84"
+    },
+    {
+      "path": "core-matrix/FULL_TWO_D.png",
+      "sha256": "ab91e2d719f39ea2af0aa0a9807641ee3b40d087735fcfe9a7d72619e13fd39a"
+    },
+    {
+      "path": "core-matrix/SKULL_THREE_D.png",
+      "sha256": "db45c5a72dc82817406dd3ee8df8d13cb8168dd9e54139a6c13f2ca6d830971a"
+    },
+    {
+      "path": "core-matrix/SKULL_TWO_D.png",
+      "sha256": "c521cfd724e32e50eab19198698ed4b01038db8873f80e3b88301f1d6c497dfa"
+    },
+    {
+      "path": "facing.png",
+      "sha256": "40ce359a771b07ac801c9f780cda6830bd06fb937bdc35ec6659d7644ad610db"
+    },
+    {
+      "path": "facing/cavalier_default.png",
+      "sha256": "b168035c38f56c7a67dff1f39936daee80d4400c1dc309fd474578206d815cbf"
+    },
+    {
+      "path": "facing/cavalier_mirrored.png",
+      "sha256": "60b3c73a0e2eb6d1f6cc4f2e5f1b3c601ea70a3a475ea148e9ef7015248a7600"
+    },
+    {
+      "path": "facing/portrait_--.png",
+      "sha256": "0e8df28ca51f91745fc5b83fe8cb0e52329616ce3988e355f79baa356fd36bd0"
+    },
+    {
+      "path": "facing/portrait_-F.png",
+      "sha256": "13829d1fe174a00451f22671b8a4e9c3f6794a330c2367b48b75104a80c41e34"
+    },
+    {
+      "path": "facing/portrait_M-.png",
+      "sha256": "3eec7854afcea9133e4c153c637fd5317f47a041cb5456376a7fa0c4a21dc2ff"
+    },
+    {
+      "path": "facing/portrait_MF.png",
+      "sha256": "39b18744c0cfa74c3b80c16cf751f95cbb5c67ed4384c8c0195c1f27923a558c"
+    },
+    {
+      "path": "glint-per-slot/all_slots_2D.gif",
+      "sha256": "a42df591cc476fdb9261c29998123024a74e9f9f933fe457355e3ef2ae59dc59"
+    },
+    {
+      "path": "glint-per-slot/all_slots_3D.gif",
+      "sha256": "95cdd2b13ec316cf122a81ac609ee99fe14ad4e57a675d64186d3695cee43116"
+    },
+    {
+      "path": "glint-per-slot/boots_2D.gif",
+      "sha256": "d74d20dd37386eab620c72bb7172c3e8cc0efefb1111632728190822dab1778a"
+    },
+    {
+      "path": "glint-per-slot/boots_3D.gif",
+      "sha256": "56b4d45471215e937bba51111299a2692f9ea01e4096e92ab3b8a6ab6f132bc0"
+    },
+    {
+      "path": "glint-per-slot/chestplate_2D.gif",
+      "sha256": "7ab97f51f7ff59cc0d7143a65295ebe5218332131f0d0437c5c05a6182b9e5af"
+    },
+    {
+      "path": "glint-per-slot/chestplate_3D.gif",
+      "sha256": "fad1daf5db93251dac0d275b3ecec246ecccbdd6457831f7b408159f65801690"
+    },
+    {
+      "path": "glint-per-slot/helmet_2D.gif",
+      "sha256": "55e5cbddd3668dd3d06996a4b975aa9c496db34e8cec519fd9c3e7e454cd45d0"
+    },
+    {
+      "path": "glint-per-slot/helmet_3D.gif",
+      "sha256": "af1b679e343eaf42f7b6b984ea1cf8570bdf0c3c8003012409ef440952dab639"
+    },
+    {
+      "path": "glint-per-slot/leggings_2D.gif",
+      "sha256": "76e0b60fedc5b66f8ae31a31b8b96074e878fc5451575184c4c352032df866e1"
+    },
+    {
+      "path": "glint-per-slot/leggings_3D.gif",
+      "sha256": "2e1f8673f5551a9e07244e70e27ad3de7144ca7cc4e92dc73f7ade6df66fd49e"
+    },
+    {
+      "path": "leather-dye.png",
+      "sha256": "36afbca515b7342a389bc2e8b8285ef53252bcdad9c2de35a9e43b946efd7c16"
+    },
+    {
+      "path": "leather-dye/blue_THREE_D.png",
+      "sha256": "4a7029dd70176b581e7b76fffaba3a8ff106288919b41ad5f0923a7618260828"
+    },
+    {
+      "path": "leather-dye/blue_TWO_D.png",
+      "sha256": "f42800f055541a0a3a1426888d174c978d9add1ce6d0ea83c39714b2b11aef84"
+    },
+    {
+      "path": "leather-dye/cyan_THREE_D.png",
+      "sha256": "01e9907a1ad79a95c2b36167176def2a51371830f18b695630f8c9249db3a31d"
+    },
+    {
+      "path": "leather-dye/cyan_TWO_D.png",
+      "sha256": "f13ba5781f4324805626f3daeabd23dfa80f7e5de10a98fa4857649e445835c6"
+    },
+    {
+      "path": "leather-dye/default_THREE_D.png",
+      "sha256": "e2e8b8fd32f67d641abec7fe1f54d6ad3e6aa0e50d82f36c07f6d55ac0e20dda"
+    },
+    {
+      "path": "leather-dye/default_TWO_D.png",
+      "sha256": "4f075e9f6520094da7c605ba293dc252ac04e5887027ed9e3c7f96033d0a3d2e"
+    },
+    {
+      "path": "leather-dye/green_THREE_D.png",
+      "sha256": "3a7dd49a42f28b30edd95068ec79744a9b86c05c96b8cd09e537610d0b1ce17f"
+    },
+    {
+      "path": "leather-dye/green_TWO_D.png",
+      "sha256": "67533067e3ed05e9c10108d014d1f2684a9e7d6da9bbb69a85e6c9e4c17d2cdd"
+    },
+    {
+      "path": "leather-dye/orange_THREE_D.png",
+      "sha256": "ebf77285f1f8edd70b26a8154d3ce8d01ba273d64e718f21d7c77928980bebdd"
+    },
+    {
+      "path": "leather-dye/orange_TWO_D.png",
+      "sha256": "a4fcaae98eca5b27ffdf9c1f6d26fd7960a1396dfff650e680010f443776d62e"
+    },
+    {
+      "path": "leather-dye/red_THREE_D.png",
+      "sha256": "e1bd373cc3b291099fee636f4c0b42cdbd3cfef5a8127f4dc7493e32bf697eba"
+    },
+    {
+      "path": "leather-dye/red_TWO_D.png",
+      "sha256": "267302afd907544a66c8cef654c2dd0238e061037ccb3cb3ab73d58ed751d629"
+    },
+    {
+      "path": "projections.png",
+      "sha256": "880ea5d01f6668c4fbbf12d54a5b2a17033e03475379d1860dec97312e54e7cb"
+    },
+    {
+      "path": "projections/cabinet.png",
+      "sha256": "ae684282b1cc87d7c4c741bca2f03c101db0c1c9352fac56cd0af26b16b36bd3"
+    },
+    {
+      "path": "projections/cavalier.png",
+      "sha256": "b168035c38f56c7a67dff1f39936daee80d4400c1dc309fd474578206d815cbf"
+    },
+    {
+      "path": "projections/dimetric.png",
+      "sha256": "c47c7fa64ef58d5495d2d54ba09b067aee8ea3a0a7bcdf25428518a64e337a5b"
+    },
+    {
+      "path": "projections/isometric.png",
+      "sha256": "dcabc964b977792f6090d7ba5c11d4917638250303afcb69586437cb48673841"
+    },
+    {
+      "path": "projections/military.png",
+      "sha256": "8c9d6ef25fd89c6c263e65e28a63048d9695184fa707e4b6e3ecc2104c9abbc6"
+    },
+    {
+      "path": "projections/one_point.png",
+      "sha256": "eab642590a2d61358d80a4a651cd7eeb1a3230ace5ec37d88784ef8cbf39888b"
+    },
+    {
+      "path": "projections/portrait.png",
+      "sha256": "0e8df28ca51f91745fc5b83fe8cb0e52329616ce3988e355f79baa356fd36bd0"
+    },
+    {
+      "path": "projections/three_point.png",
+      "sha256": "b0206f76128b8a4fe5f31e108a77253596b576a76c2035c043e733d22a5c4815"
+    },
+    {
+      "path": "projections/trimetric.png",
+      "sha256": "7faff2f77654cb529fec620524cd19309643afb9b16df657d4dea730d76cfa01"
+    },
+    {
+      "path": "projections/two_point.png",
+      "sha256": "b44bacc97730cee4a02e5aa9aeb29a715b38e0e7f4d1c79802e4f27ab0fd71dc"
+    },
+    {
+      "path": "projections/vanilla_gui_item.png",
+      "sha256": "eab642590a2d61358d80a4a651cd7eeb1a3230ace5ec37d88784ef8cbf39888b"
+    },
+    {
+      "path": "projections/vanilla_iso.png",
+      "sha256": "db45c5a72dc82817406dd3ee8df8d13cb8168dd9e54139a6c13f2ca6d830971a"
+    },
+    {
+      "path": "toggles.png",
+      "sha256": "f9dc56148ffc9f621ef24fd26e303c56fa75c1f092034e0a4930196d364bd427"
+    },
+    {
+      "path": "toggles/2D_bg_solid.png",
+      "sha256": "749e5efb3b13504ff345180f5ec59a0b8411da6b0f782beb8455acc515157a26"
+    },
+    {
+      "path": "toggles/FULL_3D_base.png",
+      "sha256": "81215fdd0f48061685370b48c429e2c2a02599bbcad2558f6fdb65e316cebc84"
+    },
+    {
+      "path": "toggles/bg_checkerboard.png",
+      "sha256": "7fe0e68c1d7e6394c372ff55dc90d7af2147e9e518c703b35106290e4cf2d175"
+    },
+    {
+      "path": "toggles/bg_solid_grey.png",
+      "sha256": "28b749d4ca7a8d065881c65f1c706704a3d1f3474a32dca215763d7c4ca23c63"
+    },
+    {
+      "path": "toggles/cape_front_.png",
+      "sha256": "8467be800fc8a3dc6dba3f64f6af8b781d1219fd43cb43ce5af2d7f69d4bea36"
+    },
+    {
+      "path": "toggles/cape_rear_.png",
+      "sha256": "26dddebc03ec8121e59a9b2976ec97d18d8d03bd7d010771674b484f385d1fab"
+    },
+    {
+      "path": "toggles/elytra_cape_3_4_.png",
+      "sha256": "afed80c4732335d033536d2af45f1fdc50e8cb5be33dec85b4001ab49004fab0"
+    },
+    {
+      "path": "toggles/elytra_only_3_4_.png",
+      "sha256": "8c7728cf1553b592845d0b20e966accf6e3b65f75afac1c224fe3afc089bb37d"
+    },
+    {
+      "path": "toggles/overlay_off.png",
+      "sha256": "f132117d84e6af1c0dcce42f3a3519496eede4c39e2fe7af8d6fa0a73c7236f5"
+    },
+    {
+      "path": "toggles/rot_0_0_0_front_.png",
+      "sha256": "81215fdd0f48061685370b48c429e2c2a02599bbcad2558f6fdb65e316cebc84"
+    },
+    {
+      "path": "toggles/rot_15_210_0.png",
+      "sha256": "aa46e0bbb8ded268e11099258b4329b4636d765a95264b1157244e733a9dae3f"
+    },
+    {
+      "path": "toggles/ssaa_1_raw_.png",
+      "sha256": "d39ece4c94124f1e970a5c7e1e4e13b1ddede60afc688bcf2b8be0488b12fe17"
+    },
+    {
+      "path": "toggles/ssaa_4_fxaa.png",
+      "sha256": "e49a405919e3cadb20dec7e4c353d119833e0a07ff335c7dc382a5b9ed28522a"
+    },
+    {
+      "path": "trims.png",
+      "sha256": "9d4bfe7815556d976d568f5d6dc784219537102bcd452811f9508d075bbdfcbd"
+    },
+    {
+      "path": "trims/all_slots_tide_copper.png",
+      "sha256": "b4f334629d299359973e35a8a3222bb8b09cfbfd64d52144c16b8770386e8b2a"
+    },
+    {
+      "path": "trims/coast_lapis.png",
+      "sha256": "1cdfaeac14ccfbe58f41757ea60fc72bfaaf0546167f0906ab22a6412014b47d"
+    },
+    {
+      "path": "trims/eye_redstone.png",
+      "sha256": "7c1cb10a0f40355b33efc2631c5713b75d8977706090a461139f55f4bd15c47a"
+    },
+    {
+      "path": "trims/sentry_gold.png",
+      "sha256": "708311472ff38a94777f5ef89011729fb861f4283c1c33bcffe5d4c893fda69a"
+    },
+    {
+      "path": "trims/silence_copper_chest.png",
+      "sha256": "64791850150d076bc7cf6b9669d3a0b6fefcda958eab370dad11868351ba0460"
+    },
+    {
+      "path": "trims/silence_diamond_chest.png",
+      "sha256": "d2f41f32771791214308f9f465ed878604828028b86562f72f5f772f16c74a5d"
+    },
+    {
+      "path": "trims/silence_gold_chest.png",
+      "sha256": "0ae09cdce3354c946b1e6e56914bdcbf11bf5ffa2265e17c190b127d6754b2eb"
+    },
+    {
+      "path": "trims/silence_netherite_darker_chest.png",
+      "sha256": "d1089e9c51cfb1024572b83a0e18fa595f7dedc4125f0b349ac8802a7c9aa91f"
+    },
+    {
+      "path": "trims/spire_amethyst.png",
+      "sha256": "3f2bf854e7a5e7936d1291575bee3c6b83cafee9c4b336eeb1e502763e38a0b8"
+    },
+    {
+      "path": "trims/ward_iron_darker.png",
+      "sha256": "185e5c1e708f29d16d3a4d9d658d8006ac1023340db158fe670d09eca9cf3fc3"
+    },
+    {
+      "path": "trims/wild_emerald.png",
+      "sha256": "034736a2a082a1c73f18804f2105e4be0f323da4964be43b92bfba40a12a119d"
+    }
+  ],
+  "format": 1,
+  "key": "path",
+  "kind": "manifest",
+  "provenance": {
+    "artifact": "manifest.player-sheets",
+    "asset_dirty": false,
+    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "counts": {
+      "files": 104
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "playerRender",
+    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 4/5, render manifests: player-sheets 104, fluid 12, portal 12, visual 153 measured rather than asserted; 0 movers across the pair on all four. Fluid and portal are digest-for-digest identical to the P0 fp-run1 capture. Against p11-base, manifest.visual drops 625 entries that all fall inside a declared exclusion - the entity diff-panel tree and the three sub-trees with manifests of their own - adds 98 that are all inside member directories, and differs on exactly one: block-render-3d/minecraft_oak_stairs.png, the unsuffixed render alone with all six state-named oak_stairs renders unchanged, which is the fingerprint of the landed block-icon branch that takes a null variant only when the caller names no state. manifest.player-sheets has no independent operand anywhere and is promoted on determinism and population alone.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "root": "cache/visual/player-render",
+    "timestamp": "2026-08-01T02:51:28Z",
+    "tool_version": "1.0.0"
+  }
+}

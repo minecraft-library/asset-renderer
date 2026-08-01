@@ -1,0 +1,90 @@
+{
+  "//": "parity.manifest.dump.packs · regen: ./gradlew parityCapture -Partifacts=manifest.dump.packs",
+  "artifact": "manifest.dump.packs",
+  "files": [
+    {
+      "path": "block-entities.json",
+      "sha256": "02f52e9669ebb1d44f70b770ebff0ffb6b4ce86c4e99b5cab52a90c3ff1bfe0f"
+    },
+    {
+      "path": "block-models.json",
+      "sha256": "0e0cccb0431eda3425c1facc9ea656996cdde1b45256ffd9b951323204af8c95"
+    },
+    {
+      "path": "blocks.json",
+      "sha256": "bcd692f72ec8ed5668918b24a09a00c23565b31f48884ab0515d278b46e13e62"
+    },
+    {
+      "path": "entities.json",
+      "sha256": "bace1e41cda5df7858e3f61a0eefed30bb8481fbd411072677699a869616dafb"
+    },
+    {
+      "path": "item-models.json",
+      "sha256": "446d013779c79022ce544c4b011056fa83e510b341168f3b8eda88404a10a2c3"
+    },
+    {
+      "path": "items.json",
+      "sha256": "0b0e6954bdd0aaf42bbe9564ee47142e9d7298e018b67fd9ed7267cfa39dab8a"
+    },
+    {
+      "path": "misc.json",
+      "sha256": "74eb9023ecefc7fdab1e4b241da4c92c4acb00425c9a5414bfdbbad6912283e6"
+    },
+    {
+      "path": "packs.json",
+      "sha256": "92dcc3c3520bb82ea67325455c678ce989c017f7eab766d6233751dff74e9d44"
+    },
+    {
+      "path": "probes.json",
+      "sha256": "4b7fe0be2f4cebdd91732ab7cc1f33aa8d1fcbfcc3afb57897e40092d28a7aab"
+    },
+    {
+      "path": "rules.json",
+      "sha256": "77f42286aea3c40a45d4f2962927b06efec61e465fee845232eb191bbcc212f4"
+    },
+    {
+      "path": "run.json",
+      "sha256": "bfc4ccaa4faa5d9abb64d14e972cac0f767eeeb0b24d8dd7b564533fcca3b021"
+    },
+    {
+      "path": "synthesis.json",
+      "sha256": "3dccf13adb485c780f11143480998b144fe321856de87c326d7c249460246fe9"
+    },
+    {
+      "path": "textures.json",
+      "sha256": "2975ce2587616862033e593f9fad70895e248accc705e0f3b10883c0dbf40029"
+    },
+    {
+      "path": "trees.json",
+      "sha256": "e030104c3731cebd4f406e1400435fadfc7ed184de13152d7043294828994415"
+    }
+  ],
+  "format": 1,
+  "key": "path",
+  "kind": "manifest",
+  "provenance": {
+    "artifact": "manifest.dump.packs",
+    "asset_dirty": false,
+    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "counts": {
+      "files": 14
+    },
+    "determinism_runs": 5,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "parityDump",
+    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 5/5, dump pair at FIVE runs: 14 of 14 sections stable across all five in both configs, all four compares against run 1 clean. The retained series-end dump tree reproduces the committed oracle digests exactly, so it is that oracle; six of its fourteen sections differ and it predates HEAD by 314 commits. Field-level, every one is accounted for: block-models.json and item-models.json differ ONLY by gui_light_3d being removed from every model, 2392 and 1284 removals with no other field touched, which is the registered delta; entities.json differs by named landed work - show_base_plate becoming base_plate plus arms, the small armour stand size_models SMALL, and equipment texture_template becoming layer_type, material_assets and default_material; and block-entities.json, blocks.json and items.json have an identical field set with values moved, so no schema change. run.json is byte-identical to the oracle.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "root": "cache/parity-dump/head/packs",
+    "timestamp": "2026-08-01T02:31:04Z",
+    "tool_version": "1.0.0"
+  }
+}

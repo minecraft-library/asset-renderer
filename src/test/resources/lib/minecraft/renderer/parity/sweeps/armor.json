@@ -1,0 +1,90 @@
+{
+  "//": "parity.sweep.armor · regen: ./gradlew parityCapture -Partifacts=sweep.armor",
+  "artifact": "sweep.armor",
+  "format": 1,
+  "key": "subject",
+  "kind": "sweep-table",
+  "provenance": {
+    "artifact": "sweep.armor",
+    "asset_dirty": false,
+    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "counts": {
+      "failed": 0,
+      "rows": 7
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "armorParityVanilla",
+    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 3/5, sweeps: six tables, 0 movers across the pair on every one, every failed=0, and all six sums on the corpus figures exactly - entity 60.0047, block 131.5270, item 128.9575, player 29.1376, armor 18.2471, glint 528.6236. Against the five frozen LKG baselines the only differences are the already-landed ShellPart.Mesh cube-operand-order change, predicted to the digit by the record: 8 entity rows, five better and three worse with zombie_villager largest at +0.0068, for +0.0004 on the sum, plus the one armour-diagnostic row at +0.0371. Block, item and player join at 0 movers once those two older baselines are normalized off their kind_id colon keys onto the reference stem. sweep.glint has never had a baseline.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "timestamp": "2026-08-01T02:45:52Z",
+    "tool_version": "1.0.0"
+  },
+  "rows": [
+    {
+      "differing_pixels": "10361",
+      "java_coverage": "0.2983",
+      "mean_argb_delta": "2.4906",
+      "status": "ok",
+      "subject": "minecraft__piglin_iron",
+      "vanilla_coverage": "0.2986"
+    },
+    {
+      "differing_pixels": "16223",
+      "java_coverage": "0.4312",
+      "mean_argb_delta": "1.8954",
+      "status": "ok",
+      "subject": "minecraft__piglin_iron_baby",
+      "vanilla_coverage": "0.4322"
+    },
+    {
+      "differing_pixels": "28892",
+      "java_coverage": "0.4312",
+      "mean_argb_delta": "2.0604",
+      "status": "ok",
+      "subject": "minecraft__piglin_leather-dyeb04030_baby",
+      "vanilla_coverage": "0.4322"
+    },
+    {
+      "differing_pixels": "8492",
+      "java_coverage": "0.2970",
+      "mean_argb_delta": "2.4299",
+      "status": "ok",
+      "subject": "minecraft__zombie_iron",
+      "vanilla_coverage": "0.2996"
+    },
+    {
+      "differing_pixels": "16226",
+      "java_coverage": "0.3907",
+      "mean_argb_delta": "3.2188",
+      "status": "ok",
+      "subject": "minecraft__zombie_iron_baby",
+      "vanilla_coverage": "0.3948"
+    },
+    {
+      "differing_pixels": "25665",
+      "java_coverage": "0.2990",
+      "mean_argb_delta": "2.4841",
+      "status": "ok",
+      "subject": "minecraft__zombie_leather-dyeb04030",
+      "vanilla_coverage": "0.3016"
+    },
+    {
+      "differing_pixels": "28952",
+      "java_coverage": "0.3907",
+      "mean_argb_delta": "3.6679",
+      "status": "ok",
+      "subject": "minecraft__zombie_leather-dyeb04030_baby",
+      "vanilla_coverage": "0.3948"
+    }
+  ]
+}

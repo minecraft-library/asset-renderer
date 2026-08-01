@@ -1,0 +1,85 @@
+{
+  "//": "parity.manifest.tooling-tables · regen: ./gradlew parityCapture -Partifacts=manifest.tooling-tables",
+  "artifact": "manifest.tooling-tables",
+  "files": [
+    {
+      "path": "block_defaults.json",
+      "sha256": "299154a304f79bc07450db8ce1916fcd09b9fd7e2fdc20fac2160b4d12be522d"
+    },
+    {
+      "path": "block_geometry.json",
+      "sha256": "9b88fd63d04ebecb2a0e0a6f58e2ea9287298cc2ac87c190ee8b54a033292bd8"
+    },
+    {
+      "path": "block_items.json",
+      "sha256": "44943c6667db89b69b6bfc26776f7be9416795dbeb4acedee317135cd6559029"
+    },
+    {
+      "path": "block_models.json",
+      "sha256": "4867a2fb4304b3efa6bb75f72067bbb20c23e44b102fe3e0a8db8021c32eb521"
+    },
+    {
+      "path": "block_tints.json",
+      "sha256": "b677bf8111540dff7208654417c5569a1982762e0924c9d3237d16a48012ad86"
+    },
+    {
+      "path": "color_maps.json",
+      "sha256": "84b4da239293b562e31d7488265ec24136423a09a8a6ed0720c183057437a08d"
+    },
+    {
+      "path": "entity_geometry.json",
+      "sha256": "82507b71e6def3631e9d3fe77600fc0f4151ad9f6c6f377e5ef65df0193cc3e8"
+    },
+    {
+      "path": "entity_models.json",
+      "sha256": "336a6cb237db50c641421cd3cda3300a66113fdaf1c9008e7033e8f78040570d"
+    },
+    {
+      "path": "glint_items.json",
+      "sha256": "a809102fe19baf6edd50f95b8176eaf1d2fa9e74b45176be5440eaeaf26b2ff3"
+    },
+    {
+      "path": "potion_colors.json",
+      "sha256": "2a0b32eb49da0ccce2c333c3e03c9f9c646dcfa501d3a5809d71bd500101f694"
+    }
+  ],
+  "format": 1,
+  "key": "path",
+  "kind": "manifest",
+  "logs": {
+    "blockDefaults": "be1bc712c186ba1a04e5328c2b0908472871ba8565fb38265e291b2a8b089a0c",
+    "blockItems": "9c2c39ac54a51796d596f17231d2c3362b140a3bb24d2a1a51c1d903b2e9131a",
+    "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
+    "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
+    "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
+    "entityModels": "5e16591c1be7501b68ca56333681ef0a0708aab0e1213e5271940073cae48d65",
+    "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
+    "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
+  },
+  "provenance": {
+    "artifact": "manifest.tooling-tables",
+    "asset_dirty": false,
+    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "counts": {
+      "files": 10,
+      "logs": 8
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
+    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 1/5, tooling tables: 10 shipped tables plus 8 normalized diagnostics-log digests, 18 rows, 0 movers across the pair. The eight flows reproduced their shipped bytes exactly - git status was empty after both captures - which is M1 and M8 re-asserted after a real capture, and P0 recorded the same reproduction.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "root": "src/main/resources/lib/minecraft/renderer",
+    "timestamp": "2026-08-01T02:28:07Z",
+    "tool_version": "1.0.0"
+  }
+}

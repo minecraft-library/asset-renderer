@@ -1,0 +1,133 @@
+{
+  "//": "parity.sweep.glint · regen: ./gradlew parityCapture -Partifacts=sweep.glint",
+  "artifact": "sweep.glint",
+  "format": 1,
+  "key": "subject",
+  "kind": "sweep-table",
+  "provenance": {
+    "artifact": "sweep.glint",
+    "asset_dirty": false,
+    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "counts": {
+      "failed": 0,
+      "rows": 11
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "glintParityVanilla",
+    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 3/5, sweeps: six tables, 0 movers across the pair on every one, every failed=0, and all six sums on the corpus figures exactly - entity 60.0047, block 131.5270, item 128.9575, player 29.1376, armor 18.2471, glint 528.6236. Against the five frozen LKG baselines the only differences are the already-landed ShellPart.Mesh cube-operand-order change, predicted to the digit by the record: 8 entity rows, five better and three worse with zombie_villager largest at +0.0068, for +0.0004 on the sum, plus the one armour-diagnostic row at +0.0371. Block, item and player join at 0 movers once those two older baselines are normalized off their kind_id colon keys onto the reference stem. sweep.glint has never had a baseline.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "timestamp": "2026-08-01T02:45:53Z",
+    "tool_version": "1.0.0"
+  },
+  "rows": [
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "5.3818",
+      "status": "ok",
+      "subject": "minecraft__debug_stick",
+      "vanilla_present": "true",
+      "worst_frame": "14"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "23.3374",
+      "status": "ok",
+      "subject": "minecraft__enchanted_book",
+      "vanilla_present": "true",
+      "worst_frame": "16"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "16.8569",
+      "status": "ok",
+      "subject": "minecraft__enchanted_golden_apple",
+      "vanilla_present": "true",
+      "worst_frame": "17"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "11.3918",
+      "status": "ok",
+      "subject": "minecraft__end_crystal",
+      "vanilla_present": "true",
+      "worst_frame": "21"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "15.2725",
+      "status": "ok",
+      "subject": "minecraft__experience_bottle",
+      "vanilla_present": "true",
+      "worst_frame": "22"
+    },
+    {
+      "diagnostic": "true",
+      "frames": "30",
+      "mean_argb_delta": "103.9529",
+      "status": "ok",
+      "subject": "minecraft__leather_boots",
+      "vanilla_present": "true",
+      "worst_frame": "23"
+    },
+    {
+      "diagnostic": "true",
+      "frames": "30",
+      "mean_argb_delta": "111.3907",
+      "status": "ok",
+      "subject": "minecraft__leather_chestplate",
+      "vanilla_present": "true",
+      "worst_frame": "17"
+    },
+    {
+      "diagnostic": "true",
+      "frames": "30",
+      "mean_argb_delta": "120.0313",
+      "status": "ok",
+      "subject": "minecraft__leather_helmet",
+      "vanilla_present": "true",
+      "worst_frame": "25"
+    },
+    {
+      "diagnostic": "true",
+      "frames": "30",
+      "mean_argb_delta": "85.3111",
+      "status": "ok",
+      "subject": "minecraft__leather_leggings",
+      "vanilla_present": "true",
+      "worst_frame": "16"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "9.1703",
+      "status": "ok",
+      "subject": "minecraft__nether_star",
+      "vanilla_present": "true",
+      "worst_frame": "16"
+    },
+    {
+      "diagnostic": "false",
+      "frames": "30",
+      "mean_argb_delta": "26.5269",
+      "status": "ok",
+      "subject": "minecraft__written_book",
+      "vanilla_present": "true",
+      "worst_frame": "6"
+    }
+  ]
+}

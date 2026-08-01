@@ -18,14 +18,14 @@ Values this store holds, one file each.
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | - | - | - | **no** |
 | `digest.shipped-tables` | `digests/shipped-tables.json` | - | - | - | **no** |
-| `manifest.dump.packs` | `manifests/dump-packs.json` | - | - | - | **no** |
-| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | - | - | - | **no** |
-| `manifest.fluid` | `manifests/fluid.json` | - | - | - | **no** |
-| `manifest.player-sheets` | `manifests/player-sheets.json` | - | - | - | **no** |
-| `manifest.portal` | `manifests/portal.json` | - | - | - | **no** |
-| `manifest.references` | `manifests/references.json` | - | - | - | **no** |
-| `manifest.tooling-tables` | `manifests/tooling-tables.json` | - | - | - | **no** |
-| `manifest.visual` | `manifests/visual.json` | - | - | - | **no** |
+| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `manifest.references` | `manifests/references.json` | 2312 | 2312 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 10 | 10 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `manifest.visual` | `manifests/visual.json` | 153 | 153 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | - | - | - | **no** |
 | `pin.corpus-count` | `pins/corpus-count.json` | - | - | - | **no** |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | - | - | - | **no** |
@@ -35,12 +35,12 @@ Values this store holds, one file each.
 | `pin.vanilla-iso-pose` | `pins/vanilla-iso-pose.json` | - | - | - | **no** |
 | `report.oracle-index` | `index.json` | - | - | - | **no** |
 | `roster.blindness-rules` | `blindness.json` | - | - | - | **no** |
-| `sweep.armor` | `sweeps/armor.json` | - | - | - | **no** |
-| `sweep.block` | `sweeps/block.json` | - | - | - | **no** |
-| `sweep.entity` | `sweeps/entity.json` | - | - | - | **no** |
-| `sweep.glint` | `sweeps/glint.json` | - | - | - | **no** |
-| `sweep.item` | `sweeps/item.json` | - | - | - | **no** |
-| `sweep.player` | `sweeps/player.json` | - | - | - | **no** |
+| `sweep.armor` | `sweeps/armor.json` | 7 | 7 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `sweep.block` | `sweeps/block.json` | 1055 | 1055 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `sweep.entity` | `sweeps/entity.json` | 402 | 402 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `sweep.glint` | `sweeps/glint.json` | 11 | 11 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `sweep.item` | `sweeps/item.json` | 479 | 479 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `sweep.player` | `sweeps/player.json` | 2 | 2 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 
 ## Pointers
 

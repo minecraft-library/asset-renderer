@@ -1,0 +1,50 @@
+{
+  "//": "parity.sweep.player · regen: ./gradlew parityCapture -Partifacts=sweep.player",
+  "artifact": "sweep.player",
+  "format": 1,
+  "key": "subject",
+  "kind": "sweep-table",
+  "provenance": {
+    "artifact": "sweep.player",
+    "asset_dirty": false,
+    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "counts": {
+      "failed": 0,
+      "rows": 2
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "playerParityVanilla",
+    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 3/5, sweeps: six tables, 0 movers across the pair on every one, every failed=0, and all six sums on the corpus figures exactly - entity 60.0047, block 131.5270, item 128.9575, player 29.1376, armor 18.2471, glint 528.6236. Against the five frozen LKG baselines the only differences are the already-landed ShellPart.Mesh cube-operand-order change, predicted to the digit by the record: 8 entity rows, five better and three worse with zombie_villager largest at +0.0068, for +0.0004 on the sum, plus the one armour-diagnostic row at +0.0371. Block, item and player join at 0 movers once those two older baselines are normalized off their kind_id colon keys onto the reference stem. sweep.glint has never had a baseline.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "timestamp": "2026-08-01T02:46:08Z",
+    "tool_version": "1.0.0"
+  },
+  "rows": [
+    {
+      "differing_pixels": "67152",
+      "java_coverage": "0.2827",
+      "mean_argb_delta": "11.8529",
+      "status": "ok",
+      "subject": "full",
+      "vanilla_coverage": "0.2820"
+    },
+    {
+      "differing_pixels": "116939",
+      "java_coverage": "0.6145",
+      "mean_argb_delta": "17.2847",
+      "status": "ok",
+      "subject": "skull",
+      "vanilla_coverage": "0.6198"
+    }
+  ]
+}

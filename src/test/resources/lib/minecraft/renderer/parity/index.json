@@ -13,44 +13,68 @@
       "kind": "digest-set"
     },
     "manifest.dump.packs": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 14,
       "file": "manifests/dump-packs.json",
-      "kind": "manifest"
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "7b934f7386bd438e72831e1f111c8ea0050334aaec60fe13ab9cd3b3cb998bc0"
     },
     "manifest.dump.vanilla": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 14,
       "file": "manifests/dump-vanilla.json",
-      "kind": "manifest"
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "750d5a26dea696106e5aa33d8687769a7fea0d122999a83de85587ed04afa90d"
     },
     "manifest.fluid": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 12,
       "file": "manifests/fluid.json",
-      "kind": "manifest"
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "a1a1fa683e06dc3f0540db23770c8197149bf6e564f6e3c1d988375108274994"
     },
     "manifest.player-sheets": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 104,
       "file": "manifests/player-sheets.json",
-      "kind": "manifest"
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "e1913d22014274647c4ea6bc55389ad4cf2e970c6c956ccefe6653983ce026e3"
     },
     "manifest.portal": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 12,
       "file": "manifests/portal.json",
-      "kind": "manifest"
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "14920840b5c76ec7b3a8c19c22a4d6bc2faed60d1438800670c06569ca159c17"
     },
     "manifest.references": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 2312,
       "file": "manifests/references.json",
-      "kind": "manifest"
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "38e17e9dba36520a0f0e6104ccdab66d371b84a19cc910701bdbca6b655988a7"
     },
     "manifest.tooling-tables": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 10,
       "file": "manifests/tooling-tables.json",
-      "kind": "manifest"
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "bd99fd7d0edb80a042c346cfb14bc6f4a5a6b3637f229d3e358bf3f42122c362"
     },
     "manifest.visual": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 153,
       "file": "manifests/visual.json",
-      "kind": "manifest"
+      "kind": "manifest",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "dcda1bb1a836e7e807f6f53f39ca1e664f6cb689ea5a4e375f9ae1fcb7f0cdf8"
     },
     "pin.block-crc": {
       "baselined": false,
@@ -98,34 +122,52 @@
       "kind": "blindness-roster"
     },
     "sweep.armor": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 7,
       "file": "sweeps/armor.json",
-      "kind": "sweep-table"
+      "kind": "sweep-table",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "d1b6c87dd35455cb1977f08257506c036e13f4fd9423282149a040625a8cb162"
     },
     "sweep.block": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 1055,
       "file": "sweeps/block.json",
-      "kind": "sweep-table"
+      "kind": "sweep-table",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "a33837f8da120801282997457929afd79f26d92f6a162054542da655397ddd00"
     },
     "sweep.entity": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 402,
       "file": "sweeps/entity.json",
-      "kind": "sweep-table"
+      "kind": "sweep-table",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "b4027a6238d924d9948168a14405c61708707c7ccf4fdc123531507712473310"
     },
     "sweep.glint": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 11,
       "file": "sweeps/glint.json",
-      "kind": "sweep-table"
+      "kind": "sweep-table",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "fe6e4e63e177a81800a0156e6a60030d0b99d8d91ebdc3b1e8f14a8635348166"
     },
     "sweep.item": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 479,
       "file": "sweeps/item.json",
-      "kind": "sweep-table"
+      "kind": "sweep-table",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "861b2c45b548a540a7af5c3a6212470adf3a7a948d504377c7c60e58ccfa8e9d"
     },
     "sweep.player": {
-      "baselined": false,
+      "baselined": true,
+      "entries": 2,
       "file": "sweeps/player.json",
-      "kind": "sweep-table"
+      "kind": "sweep-table",
+      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+      "sha256": "f127b320b16a3f28285faed776ec1826773bc86d1a37329e676a62825a8fc86b"
     }
   },
   "external": {

@@ -1,0 +1,82 @@
+{
+  "//": "parity.manifest.fluid · regen: ./gradlew parityCapture -Partifacts=manifest.fluid",
+  "artifact": "manifest.fluid",
+  "files": [
+    {
+      "path": "lava_animated_iso.gif",
+      "sha256": "16fde1af5f31ba2f3834e9ffeba137eb44760cd1b03cb71db0aaea5b1b062300"
+    },
+    {
+      "path": "lava_face_2d.png",
+      "sha256": "c0938200a091470a0ec1f425b5aa9a3022cb5b0d19bbb894e607296359d70507"
+    },
+    {
+      "path": "lava_source_iso.png",
+      "sha256": "2b2f72239209373b314cd3359f98e07a0bad5bb019505493bf8238298ae8c01e"
+    },
+    {
+      "path": "water_animated_iso.gif",
+      "sha256": "5d37f305bdec1bd00834d74299e859afa5f432a7107da65b7834b1b41a1dc7f6"
+    },
+    {
+      "path": "water_cherry_grove.png",
+      "sha256": "525ba64df3d38f14bbfa18aa83034be4dfdced9708cd6a706c1714babae4c516"
+    },
+    {
+      "path": "water_face_2d.png",
+      "sha256": "1f789f851746de9666c1e64f5953350fbd98282d90da26c69916c7f660d2a1e8"
+    },
+    {
+      "path": "water_level_4_flow_ne.png",
+      "sha256": "bc99dc32d88d1ef34ee64c0aeaec917904b07f3455f251ff4ea220d75403b68f"
+    },
+    {
+      "path": "water_override_magenta.png",
+      "sha256": "1d1920c835fcfa61a0a874c152fdf4b455e0b23f9df07cf7e9c8d267859a5c48"
+    },
+    {
+      "path": "water_plains.png",
+      "sha256": "f20a490008637fb114092494de7f637a514e4f1ebc2da5b5b3f81fe1a620a779"
+    },
+    {
+      "path": "water_source_iso.png",
+      "sha256": "f20a490008637fb114092494de7f637a514e4f1ebc2da5b5b3f81fe1a620a779"
+    },
+    {
+      "path": "water_swamp.png",
+      "sha256": "c7317af8ed308e74220e68d5f7447b03c7a334b3bcbc494f5f0c5819482e80fb"
+    },
+    {
+      "path": "water_warm_ocean.png",
+      "sha256": "0b60bf339a8dfd50d553414eddad0b6d063a755edbe14cebd7acc54de4d3d0ab"
+    }
+  ],
+  "format": 1,
+  "key": "path",
+  "kind": "manifest",
+  "provenance": {
+    "artifact": "manifest.fluid",
+    "asset_dirty": false,
+    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "counts": {
+      "files": 12
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "parity_class": "neutral",
+    "producer": "fluidRenderer",
+    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 4/5, render manifests: player-sheets 104, fluid 12, portal 12, visual 153 measured rather than asserted; 0 movers across the pair on all four. Fluid and portal are digest-for-digest identical to the P0 fp-run1 capture. Against p11-base, manifest.visual drops 625 entries that all fall inside a declared exclusion - the entity diff-panel tree and the three sub-trees with manifests of their own - adds 98 that are all inside member directories, and differs on exactly one: block-render-3d/minecraft_oak_stairs.png, the unsuffixed render alone with all six state-named oak_stairs renders unchanged, which is the fingerprint of the landed block-icon branch that takes a null variant only when the caller names no state. manifest.player-sheets has no independent operand anywhere and is promoted on determinism and population alone.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1091,
+      "entities": 402,
+      "glint": 330,
+      "items": 479,
+      "players": 2
+    },
+    "root": "cache/visual/fluid-renderer",
+    "timestamp": "2026-08-01T02:51:11Z",
+    "tool_version": "1.0.0"
+  }
+}
