@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -125,20 +126,23 @@ final class ParityIndexTest {
 
     @Test
     @DisplayName("reading an artifact the store does not hold throws and names the command that captures it")
-    void anAbsentPinThrowsRatherThanReadingEmpty() {
-        // A registered id with no file, whatever the store currently holds - so this stays the
-        // empty-store case as artifacts are promoted one phase at a time, where naming a particular
-        // pin made the test expire on the day that pin got a value.
-        String absent = ParityArtifacts.withHome(ParityArtifacts.Home.STORE).stream()
-            .filter(id -> !ParityStore.exists(id))
+    void anAbsentArtifactThrowsRatherThanReadingEmpty() {
+        // An artifact homed OUTSIDE the store that the naming rule nonetheless answers for. Those
+        // are the permanently absent operands: `onlyStoreArtifactsGetAFile` above asserts none of
+        // them ever gets a file, so this case cannot expire the way naming one unbaselined pin did -
+        // that operand ran out the moment its phase promoted it.
+        String absent = Stream.of(ParityArtifacts.Home.SOURCE, ParityArtifacts.Home.EXTERNAL,
+                ParityArtifacts.Home.POINTER)
+            .flatMap(home -> ParityArtifacts.withHome(home).stream())
+            .filter(ParityIndexTest::isStorePath)
             .sorted()
             .findFirst()
             .orElseThrow(() -> new AssertionError(
-                "every store artifact now has a file, so the empty-store case has no operand left; "
-                    + "this test needs a different shape rather than deleting"));
+                "no registered artifact is homed outside the store while still resolving to a store "
+                    + "path, so this case has no operand; it needs a different shape, not deleting"));
 
         ParityStoreException thrown = assertThrows(ParityStoreException.class,
-            () -> Pins.digest(absent, "any-key"));
+            () -> Pins.crc32(absent, "any-key"));
 
         assertThat("an absent artifact must name itself", thrown.getMessage(), containsString(absent));
         assertThat("and must name the command that captures it",
