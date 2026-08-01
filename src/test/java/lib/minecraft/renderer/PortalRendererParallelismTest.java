@@ -1,9 +1,10 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.option.PortalOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.parity.PinSet;
+import lib.minecraft.renderer.parity.Pins;
+import lib.minecraft.renderer.parity.RenderDigest;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
@@ -14,9 +15,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.zip.CRC32;
+import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -36,6 +35,14 @@ import static org.hamcrest.Matchers.is;
 class PortalRendererParallelismTest {
 
     private static final File CACHE_ROOT = new File("cache/it");
+
+    private static final String ARTIFACT = "pin.portal-crc";
+
+    /** The two faces and the render each pins. */
+    private static final PinSet PINS = PinSet.of(ARTIFACT, Map.of(
+        "end_portal_face_2d", "Portal.END_PORTAL, PORTAL_FACE_2D, canvas 128",
+        "end_gateway_face_2d", "Portal.END_GATEWAY, PORTAL_FACE_2D, canvas 128"));
+
     private static PortalRenderer renderer;
 
     @BeforeAll
@@ -59,7 +66,7 @@ class PortalRendererParallelismTest {
                 .canvasSize(128)
                 .build())
             .build();
-        assertIdenticalAndMatchesHash(options, 0x102F6A01L);
+        assertIdenticalAndMatchesHash(options, "end_portal_face_2d");
     }
 
     @Test
@@ -72,45 +79,35 @@ class PortalRendererParallelismTest {
                 .canvasSize(128)
                 .build())
             .build();
-        assertIdenticalAndMatchesHash(options, 0x6A1994F8L);
+        assertIdenticalAndMatchesHash(options, "end_gateway_face_2d");
     }
 
     /**
      * Renders the portal twice with the given options and asserts:
      * <ol>
      * <li>The two renders produce byte-identical pixel buffers (parallel-stream determinism).</li>
-     * <li>The first render's CRC32 matches the supplied expected value (protects against future
-     *     math changes that would silently alter output without tripping the determinism check).</li>
+     * <li>The first render's CRC32 matches the value pinned in {@code pin.portal-crc} (protects
+     *     against future math changes that would silently alter output without tripping the
+     *     determinism check).</li>
      * </ol>
-     * When adding a new case, set {@code expectedCrc32} to {@code 0L} on first run, read the
-     * actual CRC from the failure message, then pin it.
+     * A new case is added by naming it in {@code PINS}, running, and promoting the capture - never by
+     * reading a value out of a failure message and pasting it back.
      */
-    private void assertIdenticalAndMatchesHash(PortalOptions options, long expectedCrc32) {
-        int[] first = firstFramePixels(renderer.render(options));
-        int[] second = firstFramePixels(renderer.render(options));
+    private void assertIdenticalAndMatchesHash(PortalOptions options, String key) {
+        int[] first = RenderDigest.firstFramePixels(renderer.render(options));
+        int[] second = RenderDigest.firstFramePixels(renderer.render(options));
 
+        // Before the pin, always: a flaky parallel path must fail on a different message than a
+        // drifted value, or a re-baseline gets reached for when the fix is a determinism bug.
         assertThat("parallel render must be deterministic across invocations",
             second, equalTo(first));
 
-        long actualCrc32 = crc32(first);
-        assertThat("rasterization output CRC32 (update test with 0x%sL if intentional)"
-                .formatted(Long.toHexString(actualCrc32).toUpperCase()),
-            actualCrc32, is(expectedCrc32));
-    }
-
-    /** Extracts the first frame's full ARGB pixel array - the 2D portal face bake is single-frame. */
-    private static int[] firstFramePixels(ImageData image) {
-        PixelBuffer buffer = image.getFrames().getFirst().pixels();
-        return buffer.getPixels(0, 0, buffer.width(), buffer.height(), null, 0, 0);
-    }
-
-    /** CRC32 over the little-endian ARGB int pixels - the byte-exact pin compared against the expected constant. */
-    private static long crc32(int[] pixels) {
-        ByteBuffer bb = ByteBuffer.allocate(pixels.length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        for (int p : pixels) bb.putInt(p);
-        CRC32 crc = new CRC32();
-        crc.update(bb.array());
-        return crc.getValue();
+        long actual = RenderDigest.crc32(first);
+        PINS.crc32(key, actual);
+        PINS.requireBaseline();
+        assertThat("rasterization output CRC32; if intentional, promote the capture this run already "
+                + "wrote with " + Pins.regenCommand(ARTIFACT),
+            actual, is(Pins.crc32(ARTIFACT, key)));
     }
 
 }

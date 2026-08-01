@@ -124,18 +124,25 @@ final class ParityIndexTest {
     }
 
     @Test
-    @DisplayName("reading an unbaselined pin throws and names the command that captures it")
+    @DisplayName("reading an artifact the store does not hold throws and names the command that captures it")
     void anAbsentPinThrowsRatherThanReadingEmpty() {
-        String pin = "pin.player-crc";
-        assertThat("this test is about the empty-store case and " + pin + " now has a value",
-            ParityStore.exists(pin), is(false));
+        // A registered id with no file, whatever the store currently holds - so this stays the
+        // empty-store case as artifacts are promoted one phase at a time, where naming a particular
+        // pin made the test expire on the day that pin got a value.
+        String absent = ParityArtifacts.withHome(ParityArtifacts.Home.STORE).stream()
+            .filter(id -> !ParityStore.exists(id))
+            .sorted()
+            .findFirst()
+            .orElseThrow(() -> new AssertionError(
+                "every store artifact now has a file, so the empty-store case has no operand left; "
+                    + "this test needs a different shape rather than deleting"));
 
         ParityStoreException thrown = assertThrows(ParityStoreException.class,
-            () -> Pins.crc32(pin, "full_vanilla_iso"));
+            () -> Pins.digest(absent, "any-key"));
 
-        assertThat("an absent artifact must name itself", thrown.getMessage(), containsString(pin));
+        assertThat("an absent artifact must name itself", thrown.getMessage(), containsString(absent));
         assertThat("and must name the command that captures it",
-            thrown.getMessage(), containsString("parityCapture -Partifacts=" + pin));
+            thrown.getMessage(), containsString("parityCapture -Partifacts=" + absent));
     }
 
     @Test

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.parity;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Assumptions;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -47,6 +48,27 @@ public final class SelfCapture {
     private static final @NotNull String FLAGS = "_flags";
 
     private SelfCapture() {}
+
+    /**
+     * Aborts the calling test when the store index says this artifact has no baseline yet.
+     *
+     * <p>A self-captured value has to be capturable <em>before</em> it can be promoted, so its
+     * reader cannot assert on the run that first produces it. That state is read from
+     * {@link ParityStore#isBaselined} - a tracked file - rather than from a property somebody
+     * remembers to pass, and it stops being reachable the moment the artifact is promoted.
+     *
+     * <p>An abort rather than a pass: a test reported as skipped, with this reason, is
+     * distinguishable in the report from one that ran and agreed.
+     *
+     * @param artifactId the artifact the caller is about to read
+     * @throws ParityStoreException if the index does not register the id at all
+     */
+    public static void requireBaseline(@NotNull String artifactId) {
+        if (ParityStore.isBaselined(artifactId)) return;
+        Assumptions.abort(artifactId + " has no baseline yet, so there is nothing to assert against. "
+            + "The capture this run just wrote is the value to promote: "
+            + Pins.regenCommand(artifactId) + " then ./gradlew parityPromote -Preason=<why>");
+    }
 
     /**
      * Writes a self-captured artifact, with no producer-declared flags.

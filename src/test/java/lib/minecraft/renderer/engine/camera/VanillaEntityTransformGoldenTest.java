@@ -9,6 +9,8 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.TextureSize;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.parity.PinSet;
+import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -16,14 +18,12 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -32,11 +32,12 @@ import static org.hamcrest.Matchers.greaterThan;
  * its composition with the single-cube kit fixture - so accidental drift in the iso pose or the kit
  * fixture trips these assertions.
  *
- * <p>The values baked below are captured once via {@link #writeSnapshot}. {@code VANILLA_ISO}
- * resolves to the plain {@code rotationXYZ(30, 225, 0)} iso display pose (det=+1);
- * the entity's model-to-world facing / chirality lives on the {@code ENTITY_FLIP} {@code Placement} in
- * {@code EntityRenderer}, not the camera. A deliberate change to that pose or the kit fixture re-baselines
- * these values (regenerate via {@link #writeSnapshot}).
+ * <p>The values live in {@code pin.vanilla-iso-pose} and {@code pin.kit-corners}, captured by this
+ * test and read back by it. {@code VANILLA_ISO} resolves to the plain {@code rotationXYZ(30, 225, 0)}
+ * iso display pose (det=+1); the entity's model-to-world facing / chirality lives on the
+ * {@code ENTITY_FLIP} {@code Placement} in {@code EntityRenderer}, not the camera. A deliberate change
+ * to that pose or the kit fixture re-baselines those pins - which is a promotion of the capture this
+ * test already wrote, never a paste into Java source.
  *
  * <p>The load-bearing structural assertion is {@link #pose_isDet_positive}: the camera is a plain det=+1
  * rotation. A det≤0 would mean chirality leaked back onto the camera (regressing the split).
@@ -45,6 +46,23 @@ class VanillaEntityTransformGoldenTest {
 
     /** Half-extent of the cube fixture (matches {@code EntityGeometryKitTest}). */
     private static final float HALF = 1f;
+
+    private static final String POSE_ARTIFACT = "pin.vanilla-iso-pose";
+    private static final String CORNERS_ARTIFACT = "pin.kit-corners";
+
+    /** How to read the flattened pose back, stored beside it. */
+    private static final String POSE_ORDER = "get(col,row): [c1r1,c1r2,c1r3,c1r4, c2r1,...]";
+
+    /** How to read the flattened corners back, stored beside them. */
+    private static final String CORNERS_ORDER = "8 corners, each (x,y,z), sorted by x then y then z";
+
+    private static final PinSet POSE_PIN = PinSet.of(POSE_ARTIFACT, Map.of(
+        "pose", "Projection.VANILLA_ISO.resolve().camera().pose()"));
+
+    private static final PinSet CORNERS_PIN = PinSet.of(CORNERS_ARTIFACT, Map.of(
+        "corners", "the single-bone single-cube kit fixture ([-1,+1] cube, solid-white 64x64 "
+            + "texture) built by EntityGeometryKit.buildTriangles, its 8 unique corners transformed "
+            + "by Projection.VANILLA_ISO's camera pose"));
 
     /** Tolerance for the golden float compares - exact-ish, guards against ULP-scale drift creeping in. */
     private static final float EPS = 1e-6f;
@@ -62,7 +80,17 @@ class VanillaEntityTransformGoldenTest {
     @DisplayName("golden: VANILLA_ISO pose 16 floats match the captured display-pose baseline")
     void pose_matchesGolden() {
         Matrix4f pose = Projection.VANILLA_ISO.resolve().camera().pose();
-        assertMatrix(GOLDEN_POSE, pose);
+        POSE_PIN.floats("pose", flatten(pose), POSE_ORDER);
+        POSE_PIN.requireBaseline();
+
+        // The expected length is an ARGUMENT, which is what carries the old anti-vacuity guard: an
+        // emptied golden array once returned rather than failing, so an emptied pin throws here.
+        float[] expected = Pins.floats(POSE_ARTIFACT, "pose", 16);
+        int index = 0;
+        for (int col = 1; col <= 4; col++)
+            for (int row = 1; row <= 4; row++, index++)
+                assertThat("pose(" + col + "," + row + ")",
+                    (double) pose.get(col, row), closeTo(expected[index], EPS));
     }
 
     /**
@@ -73,70 +101,16 @@ class VanillaEntityTransformGoldenTest {
     @Test
     @DisplayName("golden: single-cube fixture corners, kit-built then camera-posed, match the baseline")
     void fixtureCorners_matchGolden() {
-        // An emptied golden used to return rather than fail, so wiping the array turned the pin into a
-        // no-op that still reported green. Assert it is populated instead.
-        assertThat("GOLDEN_CORNERS must hold the 8 fixture corners; regenerate via writeSnapshot()",
-            GOLDEN_CORNERS.length, org.hamcrest.Matchers.is(24));
         Matrix4f pose = Projection.VANILLA_ISO.resolve().camera().pose();
         float[] actual = fixtureCornerSample(pose);
-        for (int i = 0; i < GOLDEN_CORNERS.length; i++)
-            assertThat("corner sample [" + i + "]", (double) actual[i],
-                org.hamcrest.Matchers.closeTo(GOLDEN_CORNERS[i], EPS));
-    }
+        CORNERS_PIN.floats("corners", actual, CORNERS_ORDER);
+        CORNERS_PIN.requireBaseline();
 
-    // ------------------------------------------------------------------------------------------
-    // Golden values - captured from the current display pose. Re-baseline (with delta documented)
-    // only as a conscious Phase 2 step. Regenerate via writeSnapshot() below.
-    // ------------------------------------------------------------------------------------------
-
-    /** {@link Projection#VANILLA_ISO} pose in get(col,row) order: [c1r1,c1r2,c1r3,c1r4, c2r1,...]. */
-    private static final float[] GOLDEN_POSE = {
-        -0.70710695f, -0.3535533f, 0.61237234f, 0.0f,
-        -1.4901161E-8f, 0.86602545f, 0.49999997f, 0.0f,
-        -0.70710665f, 0.35355344f, -0.6123725f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f,
-    };
-
-    /** Flattened (x,y,z) of the 8 fixture-cube corners transformed by the pose. */
-    private static final float[] GOLDEN_CORNERS = {
-        0.6363961f, -0.3897115f, -0.22499989f,
-        1.1920929E-7f, -0.071513414f, -0.77613515f,
-        0.6363961f, 0.38971138f, 0.22500008f,
-        1.1920929E-7f, 0.70790946f, -0.32613516f,
-        -1.1920929E-7f, -0.70790946f, 0.32613516f,
-        -0.6363961f, -0.38971138f, -0.22500008f,
-        -1.1920929E-7f, 0.071513414f, 0.77613515f,
-        -0.6363961f, 0.3897115f, 0.22499989f,
-    };
-
-    /**
-     * Regeneration harness: writes the current display-pose snapshot to {@code build/golden/} in
-     * copy-paste-ready Java-array form. Not an assertion - run once to (re-)capture the golden, paste
-     * the arrays above. Kept in the suite so the golden is reproducible from source, not folklore.
-     */
-    @Test
-    @DisplayName("capture: write current display-pose snapshot to build/golden/ (regeneration aid)")
-    void writeSnapshot() {
-        Matrix4f pose = Projection.VANILLA_ISO.resolve().camera().pose();
-        StringBuilder sb = new StringBuilder();
-        sb.append("// GOLDEN_POSE\n");
-        for (int col = 1; col <= 4; col++) {
-            for (int row = 1; row <= 4; row++)
-                sb.append(fmt(pose.get(col, row))).append("f, ");
-            sb.append('\n');
-        }
-        sb.append("// GOLDEN_CORNERS\n");
-        float[] corners = fixtureCornerSample(pose);
-        for (int i = 0; i < corners.length; i += 3)
-            sb.append(fmt(corners[i])).append("f, ").append(fmt(corners[i + 1]))
-                .append("f, ").append(fmt(corners[i + 2])).append("f,\n");
-        try {
-            Path out = Path.of("build/golden/vanilla-entity-transform.txt");
-            Files.createDirectories(out.getParent());
-            Files.writeString(out, sb.toString());
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
+        // 24 as an argument, for the same reason the pose pin passes 16: an emptied golden used to
+        // return rather than fail, which turned the pin into a no-op that still reported green.
+        float[] expected = Pins.floats(CORNERS_ARTIFACT, "corners", 24);
+        for (int i = 0; i < expected.length; i++)
+            assertThat("corner sample [" + i + "]", (double) actual[i], closeTo(expected[i], EPS));
     }
 
     // ------------------------------------------------------------------------------------------
@@ -191,19 +165,20 @@ class VanillaEntityTransformGoldenTest {
         return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
     }
 
-    private static void assertMatrix(float[] expected, Matrix4f actual) {
-        // Same escape as the corner pin carried: an emptied golden returned rather than failed.
-        assertThat("the golden pose must hold all 16 floats; regenerate via writeSnapshot()",
-            expected.length, org.hamcrest.Matchers.is(16));
-        int k = 0;
+    /**
+     * Flattens a matrix in {@code get(col,row)} order - the order {@link #POSE_ORDER} states and the
+     * pin stores.
+     *
+     * @param matrix the matrix to flatten
+     * @return its 16 floats
+     */
+    private static float[] flatten(Matrix4f matrix) {
+        float[] out = new float[16];
+        int index = 0;
         for (int col = 1; col <= 4; col++)
-            for (int row = 1; row <= 4; row++, k++)
-                assertThat("pose(" + col + "," + row + ")",
-                    (double) actual.get(col, row), org.hamcrest.Matchers.closeTo(expected[k], EPS));
-    }
-
-    private static String fmt(float v) {
-        return Float.toString(v);
+            for (int row = 1; row <= 4; row++, index++)
+                out[index] = matrix.get(col, row);
+        return out;
     }
 
     /** Drains the build result's triangle stream into a random-access list. */

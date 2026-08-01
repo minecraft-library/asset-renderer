@@ -15,7 +15,6 @@ import lib.minecraft.renderer.asset.pack.PackId;
 import lib.minecraft.renderer.asset.pack.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.parity.ParityJson;
-import lib.minecraft.renderer.parity.ParityStore;
 import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.parity.SelfCapture;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
@@ -36,7 +35,6 @@ import java.util.TreeMap;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.junit.jupiter.api.Assumptions.abort;
 
 /**
  * End-to-end asset pipeline integration test that downloads the Minecraft 26.1 client jar,
@@ -246,10 +244,7 @@ class PipelineIntegrationTest {
         }
         SelfCapture.write(COLORMAP_ARTIFACT, entries);
 
-        if (!ParityStore.isBaselined(COLORMAP_ARTIFACT))
-            abort(COLORMAP_ARTIFACT + " has no baseline yet, so there is nothing to assert against. "
-                + "The capture this run just wrote is the value to promote: "
-                + Pins.regenCommand(COLORMAP_ARTIFACT) + " then ./gradlew parityPromote -Preason=<why>");
+        SelfCapture.requireBaseline(COLORMAP_ARTIFACT);
 
         assertThat("the pinned LUT set and the LUTs actually resolved must be the same names",
             Pins.keys(COLORMAP_ARTIFACT), equalTo(List.copyOf(observed.keySet())));

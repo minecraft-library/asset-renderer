@@ -5,7 +5,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.parity.ParityJson;
-import lib.minecraft.renderer.parity.ParityStore;
 import lib.minecraft.renderer.parity.Pins;
 import lib.minecraft.renderer.parity.SelfCapture;
 import org.jetbrains.annotations.NotNull;
@@ -29,7 +28,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assumptions.abort;
 
 /**
  * Single golden-reference guard for every bundled JSON resource under
@@ -105,10 +103,7 @@ class ResourceShaTest {
         Map<String, String> observed = observedDigests();
         SelfCapture.write(ARTIFACT, entries(observed), List.of("gson=" + gsonVersion()));
 
-        if (!ParityStore.isBaselined(ARTIFACT))
-            abort(ARTIFACT + " has no baseline yet, so there is nothing to assert against. The "
-                + "capture this run just wrote is the value to promote: "
-                + Pins.regenCommand(ARTIFACT) + " then ./gradlew parityPromote -Preason=<why>");
+        SelfCapture.requireBaseline(ARTIFACT);
 
         assertThat("the pinned covered set and the tables actually shipped must be the same names; "
                 + "a table a flow added or dropped is a review, not a silent narrowing",
