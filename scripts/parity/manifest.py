@@ -28,6 +28,19 @@ JSON_GLOBS = ("*.json",)
 #: that still carries them cannot make a first capture look like a mass deletion.
 STALE_SIDECARS = ("*.variant", "*.vertices.tsv")
 
+#: For an artifact whose source is a SHARED parent, the sub-directories that are members.
+#:
+#: An allowlist, never a denylist. ``cache/visual`` holds 9,197 images; 147 of them are this
+#: artifact's. The rest are the six per-subject diff-panel trees, the three sub-trees that have
+#: manifests of their own, and whatever A/B directories a session left behind - and a denylist would
+#: have to be extended for each of those, with forgetting silently baking scratch into a baseline.
+#: The diff panels are the sharper reason: a sweep run rewrites them, so admitting them would make
+#: this artifact move on every sweep and gate nothing.
+SUBTREES = {
+    "manifest.visual": ("block-render-3d", "entity-render-3d", "item-day-cycle",
+                        "item-render-2d", "lore-tooltip", "menu-render"),
+}
+
 DEFAULT_GLOBS = {
     "manifest.references": REFERENCE_GLOBS,
     "manifest.visual": IMAGE_GLOBS,
@@ -69,22 +82,36 @@ def globs_for(artifact: str, given: Sequence[str] | None = None) -> tuple[str, .
     return DEFAULT_GLOBS.get(artifact, IMAGE_GLOBS)
 
 
-def walk(source: Path, globs: Sequence[str], exclude: Sequence[str] = ()) -> list[Path]:
+def walk(source: Path, globs: Sequence[str], exclude: Sequence[str] = (),
+         subtrees: Sequence[str] = ()) -> list[Path]:
+    """Every file under ``source`` matching a glob, or under each named sub-tree when given.
+
+    Walking the members rather than filtering the parent's walk is what keeps the cost proportional
+    to the manifest instead of to whatever else shares the directory.
+    """
     excluded = tuple(exclude) + STALE_SIDECARS
+    roots = [source / name for name in subtrees] if subtrees else [source]
+    for root in roots:
+        if not root.is_dir():
+            raise MissingInput(
+                f"{root} is a declared member of this manifest and is not there; its producer did "
+                "not run, and a manifest short one member hashes cleanly minus the missing files")
     found: set[Path] = set()
-    for pattern in globs:
-        found.update(source.rglob(pattern))
+    for root in roots:
+        for pattern in globs:
+            found.update(root.rglob(pattern))
     kept = [path for path in found if path.is_file()
             and not any(path.match(pattern) for pattern in excluded)]
     return sorted(kept)
 
 
 def build(artifact: str, source: Path, globs: Sequence[str] | None = None,
-          exclude: Sequence[str] = ()) -> Manifest:
+          exclude: Sequence[str] = (), subtrees: Sequence[str] | None = None) -> Manifest:
     if not source.is_dir():
         raise MissingInput(f"no tree to hash at {source}")
+    members = SUBTREES.get(artifact, ()) if subtrees is None else subtrees
     entries = [Entry(path=posix(path, source), sha256=sha256_file(path))
-               for path in walk(source, globs_for(artifact, globs), exclude)]
+               for path in walk(source, globs_for(artifact, globs), exclude, members)]
     entries.sort(key=lambda entry: entry.path)
     return Manifest(artifact=artifact, root=posix(source), entries=entries)
 

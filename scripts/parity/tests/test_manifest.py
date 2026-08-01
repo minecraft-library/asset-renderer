@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -44,6 +45,11 @@ class LineGrammars(unittest.TestCase):
 
 
 class Build(unittest.TestCase):
+    """The default image glob and the path form.
+
+    These name `manifest.fluid` rather than `manifest.visual` because their subject is the glob, and
+    `manifest.visual` declares member sub-directories a bare fixture tree does not have.
+    """
 
     def setUp(self):
         self.tree = Path(tempfile.mkdtemp())
@@ -53,7 +59,7 @@ class Build(unittest.TestCase):
         (self.tree / "sub" / "e.png").write_bytes(b"e")
 
     def test_default_glob_is_images_and_recurses(self):
-        built = manifest.build("manifest.visual", self.tree)
+        built = manifest.build("manifest.fluid", self.tree)
         self.assertEqual([entry.path for entry in built.entries],
                          ["a.png", "b.gif", "c.webp", "sub/e.png"])
 
@@ -63,7 +69,7 @@ class Build(unittest.TestCase):
         self.assertIn("atlas_uv.json", [entry.path for entry in built.entries])
 
     def test_paths_are_posix_relative_to_the_declared_root(self):
-        built = manifest.build("manifest.visual", self.tree)
+        built = manifest.build("manifest.fluid", self.tree)
         self.assertTrue(all("\\" not in entry.path for entry in built.entries))
         self.assertEqual(manifest.to_artifact(built)["provenance"]["root"],
                          built.root)
@@ -77,12 +83,12 @@ class Build(unittest.TestCase):
         self.assertNotIn("y.vertices.tsv", paths)
 
     def test_the_stored_form_keys_on_path(self):
-        payload = manifest.to_artifact(manifest.build("manifest.visual", self.tree))
+        payload = manifest.to_artifact(manifest.build("manifest.fluid", self.tree))
         self.assertEqual(payload["key"], "path")
         self.assertEqual(payload["kind"], "manifest")
 
     def test_round_trips_through_the_stored_form(self):
-        built = manifest.build("manifest.visual", self.tree)
+        built = manifest.build("manifest.fluid", self.tree)
         self.assertEqual(manifest.from_artifact(manifest.to_artifact(built)).by_path(),
                          built.by_path())
 
@@ -112,6 +118,51 @@ class Verify(unittest.TestCase):
         current = self._manifest([("a.png", "2" * 64)])
         with self.assertRaises(ComparisonFailed):
             manifest.raise_on(manifest.compare(base, current))
+
+
+class MemberSubtrees(unittest.TestCase):
+    """An artifact whose source is a shared parent takes only its declared members.
+
+    cache/visual holds 9,197 images and 147 of them are manifest.visual's. The rest include the
+    per-subject diff panels, which a sweep run rewrites - so admitting them would make the artifact
+    move on every sweep and gate nothing.
+    """
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        for name in ("block-render-3d", "entity-render-3d", "item-day-cycle",
+                     "item-render-2d", "lore-tooltip", "menu-render"):
+            write_text(self.root / name / "a.png", name)
+        write_text(self.root / "entity-parity-vanilla" / "minecraft__cow" / "diff.png", "panel")
+        write_text(self.root / "player-render" / "sheet.png", "has its own manifest")
+        write_text(self.root / "p8-before" / "scratch.png", "left behind by an A/B")
+
+    def test_only_the_declared_members_are_hashed(self):
+        built = manifest.build("manifest.visual", self.root)
+        self.assertEqual(len(built.entries), 6)
+        self.assertTrue(all("/" in entry.path for entry in built.entries))
+
+    def test_a_diff_panel_tree_is_not_a_member(self):
+        paths = manifest.build("manifest.visual", self.root).by_path()
+        self.assertNotIn("entity-parity-vanilla/minecraft__cow/diff.png", paths)
+
+    def test_a_subtree_with_its_own_manifest_is_not_a_member(self):
+        self.assertNotIn("player-render/sheet.png",
+                         manifest.build("manifest.visual", self.root).by_path())
+
+    def test_scratch_left_behind_by_an_ab_is_not_a_member(self):
+        """The whole reason it is an allowlist: nobody has to remember to exclude this."""
+        self.assertNotIn("p8-before/scratch.png",
+                         manifest.build("manifest.visual", self.root).by_path())
+
+    def test_a_missing_member_is_a_failure_rather_than_a_smaller_manifest(self):
+        shutil.rmtree(self.root / "menu-render")
+        with self.assertRaises(MissingInput) as caught:
+            manifest.build("manifest.visual", self.root)
+        self.assertIn("menu-render", str(caught.exception))
+
+    def test_an_artifact_with_no_declared_members_walks_the_whole_tree(self):
+        self.assertEqual(len(manifest.build("manifest.fluid", self.root).entries), 9)
 
 
 class DiagnosticsLogProjection(unittest.TestCase):
