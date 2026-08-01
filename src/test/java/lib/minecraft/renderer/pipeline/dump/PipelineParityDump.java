@@ -117,6 +117,12 @@ public final class PipelineParityDump {
         "defrosted", "hypixel-skyblock", "eureka.cats.zip"
     );
 
+    /** The namespace every custom JVM flag in this repository lives under. */
+    private static final @NotNull String ASSET_PREFIX = "asset.";
+
+    /** The parity harness's own sub-namespace, which the run header records nothing from. */
+    private static final @NotNull String PARITY_PREFIX = "asset.parity.";
+
     private PipelineParityDump() {}
 
     /**
@@ -227,6 +233,13 @@ public final class PipelineParityDump {
      * long-lived Gradle daemon rather than from the command line, so two captures with identical
      * command lines can disagree. Recording them makes that disagreement a visible diff.
      *
+     * <p>The {@code asset.parity.*} namespace is deliberately excluded. It names where the parity
+     * harness reads its references and writes its working root - plumbing this dump does not read -
+     * and the build's global forwarder injects it into every fork, so recording it made the dumped
+     * bytes a function of which {@code -PparityRoot} the capture happened to use. Measured: five
+     * captures into five roots produced five different {@code run.json} digests while all thirteen
+     * other sections were identical across all five.
+     *
      * @param options the configuration that was loaded
      * @return the run section
      */
@@ -239,7 +252,8 @@ public final class PipelineParityDump {
         Properties properties = System.getProperties();
         Map<String, String> assetFlags = new TreeMap<>();
         for (String name : properties.stringPropertyNames())
-            if (name.startsWith("asset.")) assetFlags.put(name, properties.getProperty(name));
+            if (name.startsWith(ASSET_PREFIX) && !name.startsWith(PARITY_PREFIX))
+                assetFlags.put(name, properties.getProperty(name));
         root.add("asset_flags", CanonicalJson.map(assetFlags, JsonPrimitive::new));
 
         return root;
