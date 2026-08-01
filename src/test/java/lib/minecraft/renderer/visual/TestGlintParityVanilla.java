@@ -240,7 +240,7 @@ public final class TestGlintParityVanilla {
             diffFrames.add(diff);
             ImageIO.write(diff, "PNG", dir.resolve("diff").resolve(frameName(n)).toFile());
 
-            double delta = meanDelta(vanilla, java);
+            double delta = ParityMetrics.compareImages(vanilla, java).meanDelta();
             totalDelta += delta;
             if (delta > worstDelta) { worstDelta = delta; worstFrame = n; }
         }
@@ -468,33 +468,6 @@ public final class TestGlintParityVanilla {
             g.dispose();
         }
         return sheet;
-    }
-
-    // --- diff math (mirrors TestItemParityVanilla: mean |delta| of RGB composited over white) ---
-
-    private static double meanDelta(@NotNull BufferedImage a, @NotNull BufferedImage b) {
-        int w = Math.min(a.getWidth(), b.getWidth());
-        int h = Math.min(a.getHeight(), b.getHeight());
-        long total = 0L;
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int pa = a.getRGB(x, y);
-                int pb = b.getRGB(x, y);
-                total += compositeDiff(pa, ColorMath.alpha(pa), pb, ColorMath.alpha(pb));
-            }
-        }
-        return (double) total / ((long) w * h);
-    }
-
-    private static int compositeDiff(int pa, int aa, int pb, int ab) {
-        int r = compositeOverWhite(ColorMath.red(pa), aa) - compositeOverWhite(ColorMath.red(pb), ab);
-        int g = compositeOverWhite(ColorMath.green(pa), aa) - compositeOverWhite(ColorMath.green(pb), ab);
-        int bl = compositeOverWhite(ColorMath.blue(pa), aa) - compositeOverWhite(ColorMath.blue(pb), ab);
-        return Math.abs(r) + Math.abs(g) + Math.abs(bl);
-    }
-
-    private static int compositeOverWhite(int channel, int alpha) {
-        return (channel * alpha + 255 * (255 - alpha) + 127) / 255;
     }
 
     /** Per-subject row in the TSV report. */
