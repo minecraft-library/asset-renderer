@@ -102,6 +102,10 @@ public final class ParityArtifacts {
         // comparison admissible at all; the dump pair carries 5 because that is what was measured.
         Registration.store("manifest.references", "renderVanillaAllReferences", 2),
         Registration.store("manifest.visual", "visualSweepSet", 2),
+        // The raw halves of the two sweeps that rescale before diffing. Its producer is an aggregator
+        // over both of them rather than either one, because a manifest captured after a single sweep
+        // would hash one fresh member beside one stale one and compare clean.
+        Registration.store("manifest.player-raw", "playerRawSweepSet", 2),
         Registration.store("manifest.dump.vanilla", "parityDump", 5),
         Registration.store("manifest.dump.packs", "parityDump", 5),
         Registration.store("manifest.player-sheets", "playerRender", 2),

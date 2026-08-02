@@ -189,6 +189,68 @@ class NonMembers(unittest.TestCase):
         self.assertIn("trims.png", paths)
 
 
+class RawRenderPair(unittest.TestCase):
+    """The one artifact whose membership is decided by file NAME rather than by extension.
+
+    A sweep that rescales both sides before diffing writes six PNGs per subject and only two of them
+    are what a renderer produced. The other four are an AWT resample and two things built from it, so
+    digesting them would fold a JDK-owned computation into the artifact and a mover would stop naming
+    the renderer.
+    """
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        for member, subjects in (("player-parity-vanilla", ("full", "skull")),
+                                 ("armor-parity-vanilla", ("minecraft__zombie_iron",))):
+            for subject in subjects:
+                for name in ("vanilla.png", "java.png", "aligned_vanilla.png", "aligned_java.png",
+                             "diff.png", "diff_panel.png"):
+                    write_text(self.root / member / subject / name, f"{member}/{subject}/{name}")
+            write_text(self.root / member / "parity-report.tsv", "subject\tmean_argb_delta\n")
+        # manifest.visual's own population, which this artifact must not reach into and vice versa.
+        # All six, because that artifact refuses a member it cannot find - which is the property the
+        # disjointness check below would otherwise trip over rather than test.
+        for member in ("block-render-3d", "entity-render-3d", "item-day-cycle",
+                       "item-render-2d", "lore-tooltip", "menu-render"):
+            write_text(self.root / member / "java.png", "a different artifact's member")
+
+    def test_both_members_are_hashed_and_only_the_raw_pair(self):
+        paths = manifest.build("manifest.player-raw", self.root).by_path()
+        self.assertEqual(sorted(paths), [
+            "armor-parity-vanilla/minecraft__zombie_iron/java.png",
+            "armor-parity-vanilla/minecraft__zombie_iron/vanilla.png",
+            "player-parity-vanilla/full/java.png",
+            "player-parity-vanilla/full/vanilla.png",
+            "player-parity-vanilla/skull/java.png",
+            "player-parity-vanilla/skull/vanilla.png",
+        ])
+
+    def test_the_rescaled_pair_is_not_a_member(self):
+        """It is the LOOK gauge's operand, and alignToBox resamples both sides to produce it."""
+        paths = manifest.build("manifest.player-raw", self.root).by_path()
+        self.assertNotIn("player-parity-vanilla/full/aligned_vanilla.png", paths)
+        self.assertNotIn("player-parity-vanilla/full/aligned_java.png", paths)
+
+    def test_neither_diagnostic_is_a_member(self):
+        paths = manifest.build("manifest.player-raw", self.root).by_path()
+        self.assertNotIn("player-parity-vanilla/full/diff.png", paths)
+        self.assertNotIn("player-parity-vanilla/full/diff_panel.png", paths)
+
+    def test_the_other_visual_artifacts_population_is_not_reached(self):
+        """The two share cache/visual as a source and their member sets are disjoint."""
+        self.assertNotIn("block-render-3d/java.png",
+                         manifest.build("manifest.player-raw", self.root).by_path())
+        self.assertNotIn("player-parity-vanilla/full/java.png",
+                         manifest.build("manifest.visual", self.root).by_path())
+
+    def test_a_missing_member_is_a_failure_rather_than_half_the_pairs(self):
+        """One sweep run and not the other is exactly the case the aggregator producer prevents."""
+        shutil.rmtree(self.root / "armor-parity-vanilla")
+        with self.assertRaises(MissingInput) as caught:
+            manifest.build("manifest.player-raw", self.root)
+        self.assertIn("armor-parity-vanilla", str(caught.exception))
+
+
 class DiagnosticsLogProjection(unittest.TestCase):
     """A byte-identical table is not the same claim as an unchanged run.
 

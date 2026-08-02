@@ -42,6 +42,11 @@
       "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
       "sha256": "a1a1fa683e06dc3f0540db23770c8197149bf6e564f6e3c1d988375108274994"
     },
+    "manifest.player-raw": {
+      "baselined": false,
+      "file": "manifests/player-raw.json",
+      "kind": "manifest"
+    },
     "manifest.player-sheets": {
       "baselined": true,
       "entries": 104,

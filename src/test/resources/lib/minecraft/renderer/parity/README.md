@@ -21,6 +21,7 @@ Values this store holds, one file each.
 | `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `manifest.player-raw` | `manifests/player-raw.json` | - | - | - | **no** |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.references` | `manifests/references.json` | 2312 | 2312 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |

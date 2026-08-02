@@ -137,10 +137,11 @@
       "id": "B8",
       "mode": "select",
       "probe": "read TestPlayerParityVanilla for an assert of any kind; there is none, and the id is kept separate from B9 so the citation survives",
-      "reason": "TestPlayerParityVanilla is a main that alpha-crops AND rescales both sides to a common box before diffing, so it cannot detect a part-placement or fit change of any size. Its number is a LOOK gauge; the byte gate is the CRC pin and the contact-sheet manifest.",
+      "reason": "TestPlayerParityVanilla is a main that alpha-crops AND rescales both sides to a common box before diffing, so it cannot detect a part-placement or fit change of any size. Its number is a LOOK gauge; the byte gates are the CRC pin, the contact-sheet manifest and the raw pair the sweep writes beside its rescaled one.",
       "sees": [
         "pin.player-crc",
-        "manifest.player-sheets"
+        "manifest.player-sheets",
+        "manifest.player-raw"
       ],
       "source": "07/blindness#8; CLAUDE.md 'Which gate sees what'",
       "trigger_paths": [
@@ -158,7 +159,8 @@
       "reason": "The player byte pin is PlayerRasterizeFittedGoldenTest's two CRC32 constants, which cover FULL and SKULL with no cape and no armour. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.",
       "sees": [
         "pin.player-crc",
-        "manifest.player-sheets"
+        "manifest.player-sheets",
+        "manifest.player-raw"
       ],
       "source": "07/blindness#8,#9,#12; CLAUDE.md 'Which gate sees what'",
       "trigger_paths": [
@@ -183,7 +185,8 @@
         "sweep.armor",
         "pin.player-crc",
         "manifest.player-sheets",
-        "manifest.portal"
+        "manifest.portal",
+        "manifest.player-raw"
       ],
       "source": "07/blindness#10; CLAUDE.md 'Which gate sees what'",
       "trigger_paths": [
@@ -218,7 +221,8 @@
         "sweep.block",
         "sweep.item",
         "sweep.armor",
-        "pin.player-crc"
+        "pin.player-crc",
+        "manifest.player-raw"
       ],
       "source": "07/blindness#11; audit 09/G7; CLAUDE.md depth section",
       "trigger_paths": [
@@ -253,7 +257,8 @@
         "digest.shipped-tables",
         "pin.player-crc",
         "pin.block-crc",
-        "pin.portal-crc"
+        "pin.portal-crc",
+        "manifest.player-raw"
       ],
       "claim": "Every test and sweep in the repo is structurally blind to a tooling/ change",
       "id": "B13",
@@ -369,7 +374,8 @@
         "pin.player-crc",
         "manifest.fluid",
         "manifest.portal",
-        "manifest.player-sheets"
+        "manifest.player-sheets",
+        "manifest.player-raw"
       ],
       "source": "07/blindness#1,#19",
       "trigger_paths": [
@@ -439,7 +445,8 @@
         "sweep.item",
         "sweep.player",
         "sweep.armor",
-        "sweep.glint"
+        "sweep.glint",
+        "manifest.player-raw"
       ],
       "claim": "No parity sweep reaches the paletted trim permutation",
       "id": "B23",
@@ -473,7 +480,8 @@
         "pin.player-crc",
         "manifest.player-sheets",
         "manifest.fluid",
-        "manifest.portal"
+        "manifest.portal",
+        "manifest.player-raw"
       ],
       "source": "reach baseline; coverage gap measured at P9 (109 of 356 files uncovered by the 23)",
       "trigger_paths": [
@@ -494,7 +502,8 @@
         "sweep.armor",
         "sweep.glint",
         "manifest.dump.vanilla",
-        "manifest.dump.packs"
+        "manifest.dump.packs",
+        "manifest.player-raw"
       ],
       "source": "reach baseline; coverage gap measured at P9",
       "trigger_paths": [
@@ -520,7 +529,8 @@
         "pin.vanilla-iso-pose",
         "pin.kit-corners",
         "manifest.fluid",
-        "manifest.portal"
+        "manifest.portal",
+        "manifest.player-raw"
       ],
       "source": "reach baseline; coverage gap measured at P9",
       "trigger_paths": [
@@ -545,7 +555,8 @@
         "pin.player-crc",
         "manifest.player-sheets",
         "manifest.fluid",
-        "manifest.portal"
+        "manifest.portal",
+        "manifest.player-raw"
       ],
       "source": "reach baseline; coverage gap measured at P9",
       "trigger_paths": [
@@ -559,7 +570,8 @@
         "sweep.item",
         "sweep.player",
         "sweep.armor",
-        "sweep.glint"
+        "sweep.glint",
+        "manifest.player-raw"
       ],
       "claim": "The exception types carry no behaviour a parity artifact can observe",
       "id": "R5",
@@ -586,7 +598,8 @@
         "sweep.player",
         "sweep.armor",
         "sweep.glint",
-        "manifest.references"
+        "manifest.references",
+        "manifest.player-raw"
       ],
       "source": "reach baseline; CLAUDE.md 'renderVanillaReferences is not a full sweep'",
       "trigger_paths": [
@@ -645,7 +658,8 @@
         "manifest.visual",
         "manifest.player-sheets",
         "manifest.fluid",
-        "manifest.portal"
+        "manifest.portal",
+        "manifest.player-raw"
       ],
       "source": "reach baseline; P13's writer reshape is exactly this path",
       "trigger_paths": [

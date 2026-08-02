@@ -46,9 +46,12 @@ import java.util.Optional;
  * <b>lighting</b> (R7's subject) from framing / geometry differences. The mean-delta number consequently
  * includes some residual silhouette-edge and geometry mismatch and is a LOOK gauge, not a byte gate.
  *
- * <p>Output: one folder per scope under {@code cache/visual/player-parity-vanilla/} with
- * {@code vanilla.png}, {@code java.png}, {@code diff.png}, {@code diff_panel.png}, plus a top-level
- * {@code parity-report.tsv}.
+ * <p>Output: one folder per scope under {@code cache/visual/player-parity-vanilla/} with six files,
+ * plus a top-level {@code parity-report.tsv}. {@code vanilla.png} and {@code java.png} are the
+ * <b>raw</b> renders, byte-for-byte what each pipeline produced and the only pair here a digest can
+ * be taken over. {@code aligned_vanilla.png} and {@code aligned_java.png} are those two rescaled onto
+ * the common box; {@code diff.png} and {@code diff_panel.png} are built from the aligned pair, as is
+ * the reported delta.
  *
  * <p>Usage: {@code ./gradlew :asset-renderer:playerParityVanilla}. Run
  * {@code :asset-renderer:renderVanillaPlayerReferences} first if the references are missing.
@@ -114,7 +117,7 @@ public final class TestPlayerParityVanilla {
 
     /**
      * Renders one scope through the Java pipeline, alpha-aligns it against the vanilla reference, writes the
-     * per-scope {@code vanilla/java/diff/diff_panel} PNGs, and returns the comparison {@link Row}.
+     * per-scope raw, aligned, diff and panel PNGs, and returns the comparison {@link Row}.
      */
     private static @NotNull Row renderAndCompare(@NotNull PlayerOptions.Type scope, @NotNull PlayerRenderer javaRenderer) {
         String name = scope.name().toLowerCase(Locale.ROOT);
@@ -142,13 +145,18 @@ public final class TestPlayerParityVanilla {
             ImageData java = javaRenderer.render(options);
             BufferedImage javaRaw = java.toBufferedImage();
 
+            // The raw pair goes to disk FIRST and under the plain names, because it is the only output
+            // of this sweep that is what a renderer actually produced and can therefore be hashed.
+            ImageIO.write(vanillaRaw, "PNG", new File(scopeDir.toFile(), "vanilla.png"));
+            ImageIO.write(javaRaw, "PNG", new File(scopeDir.toFile(), "java.png"));
+
             // Alpha-tight-crop + scale-to-common-box both sides so the per-face lighting compares free of
             // the framing / geometry silhouette gap between the Java cubes and vanilla's PlayerModel.
             BufferedImage vanillaImg = ParityMetrics.alignToBox(vanillaRaw, RENDER_SIZE, ALIGN_FILL);
             BufferedImage javaImg = ParityMetrics.alignToBox(javaRaw, RENDER_SIZE, ALIGN_FILL);
 
-            ImageIO.write(vanillaImg, "PNG", new File(scopeDir.toFile(), "vanilla.png"));
-            ImageIO.write(javaImg, "PNG", new File(scopeDir.toFile(), "java.png"));
+            ImageIO.write(vanillaImg, "PNG", new File(scopeDir.toFile(), "aligned_vanilla.png"));
+            ImageIO.write(javaImg, "PNG", new File(scopeDir.toFile(), "aligned_java.png"));
             PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaImg);
             PixelBuffer javaPB = PixelBuffer.wrap(javaImg);
             BufferedImage diffImg = vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage();

@@ -24,6 +24,17 @@ IMAGE_GLOBS = ("*.png", "*.gif", "*.webp")
 REFERENCE_GLOBS = IMAGE_GLOBS + ("*.json",)
 JSON_GLOBS = ("*.json",)
 
+#: The only glob tuple that names FILES rather than an extension, because the artifact it serves is
+#: defined by which of a producer's outputs are renders rather than by their type.
+#:
+#: A parity sweep that rescales both sides before diffing writes six PNGs per subject, and only these
+#: two are what a renderer produced: ``aligned_*.png`` is an AWT nearest-neighbour resample of them,
+#: and ``diff.png`` / ``diff_panel.png`` are built from that. Digesting the derived four would fold a
+#: JDK-owned computation - AWT's resampler, and the panel's *fonts* - into the artifact, so a mover
+#: would stop naming the renderer. ``walk`` passes each pattern to ``rglob``, so a bare file name
+#: matches at any depth under a member and nothing else does.
+RAW_RENDER_GLOBS = ("java.png", "vanilla.png")
+
 #: Two stale sidecar classes that inflate every walk. Excluded rather than assumed gone, so a tree
 #: that still carries them cannot make a first capture look like a mass deletion.
 STALE_SIDECARS = ("*.variant", "*.vertices.tsv")
@@ -36,9 +47,14 @@ STALE_SIDECARS = ("*.variant", "*.vertices.tsv")
 #: have to be extended for each of those, with forgetting silently baking scratch into a baseline.
 #: The diff panels are the sharper reason: a sweep run rewrites them, so admitting them would make
 #: this artifact move on every sweep and gate nothing.
+#: The two artifacts share ``cache/visual`` as their source and cover DISJOINT file sets under it:
+#: ``manifest.visual``'s six members are exactly the producer directories no other artifact covers,
+#: and neither of ``manifest.player-raw``'s two is among them. So the sweep trees excluded above are
+#: not merely ungated - one of them is the other artifact's whole population.
 SUBTREES = {
     "manifest.visual": ("block-render-3d", "entity-render-3d", "item-day-cycle",
                         "item-render-2d", "lore-tooltip", "menu-render"),
+    "manifest.player-raw": ("player-parity-vanilla", "armor-parity-vanilla"),
 }
 
 #: What an artifact's own producer writes that the artifact is nonetheless not defined as.
@@ -54,6 +70,7 @@ NOT_MEMBERS = {
 DEFAULT_GLOBS = {
     "manifest.references": REFERENCE_GLOBS,
     "manifest.visual": IMAGE_GLOBS,
+    "manifest.player-raw": RAW_RENDER_GLOBS,
     "manifest.player-sheets": IMAGE_GLOBS,
     "manifest.fluid": IMAGE_GLOBS,
     "manifest.portal": IMAGE_GLOBS,

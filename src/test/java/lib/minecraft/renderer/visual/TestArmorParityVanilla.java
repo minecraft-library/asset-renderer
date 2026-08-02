@@ -55,9 +55,12 @@ import java.util.Optional;
  * mismatch - a LOOK gauge, not a byte gate. The separately reported coverage pair is where a
  * genuine silhouette (proportion) difference shows up.
  *
- * <p>Output: one folder per subject under {@code cache/visual/armor-parity-vanilla/} with
- * {@code vanilla.png}, {@code java.png}, {@code diff.png}, {@code diff_panel.png}, plus a top-level
- * {@code parity-report.tsv}.
+ * <p>Output: one folder per subject under {@code cache/visual/armor-parity-vanilla/} with six files,
+ * plus a top-level {@code parity-report.tsv}. {@code vanilla.png} and {@code java.png} are the
+ * <b>raw</b> renders, byte-for-byte what each pipeline produced and the only pair here a digest can
+ * be taken over. {@code aligned_vanilla.png} and {@code aligned_java.png} are those two rescaled onto
+ * the common box; {@code diff.png} and {@code diff_panel.png} are built from the aligned pair, as is
+ * the reported delta.
  *
  * <p>Usage: {@code ./gradlew :asset-renderer:armorParityVanilla}. Run
  * {@code :asset-renderer:renderVanillaArmorReferences} first if the references are missing.
@@ -178,7 +181,7 @@ public final class TestArmorParityVanilla {
 
     /**
      * Renders one subject through the Java pipeline, alpha-aligns it against the vanilla reference,
-     * writes the per-subject {@code vanilla/java/diff/diff_panel} PNGs, and returns the comparison
+     * writes the per-subject raw, aligned, diff and panel PNGs, and returns the comparison
      * {@link Row}. Any failure marks the row {@code POSITIVE_INFINITY} rather than
      * aborting the sweep.
      */
@@ -216,14 +219,20 @@ public final class TestArmorParityVanilla {
                     .build())
                 .build();
             ImageData java = javaRenderer.render(options);
+            BufferedImage javaRaw = java.toBufferedImage();
+
+            // The raw pair goes to disk FIRST and under the plain names, because it is the only output
+            // of this sweep that is what a renderer actually produced and can therefore be hashed.
+            ImageIO.write(vanillaRaw, "PNG", new File(subjectDir.toFile(), "vanilla.png"));
+            ImageIO.write(javaRaw, "PNG", new File(subjectDir.toFile(), "java.png"));
 
             // Alpha-tight-crop + scale-to-common-box both sides so appearance compares free of the
             // framing gap between the two pipelines' independent canvas fits for these subjects.
             BufferedImage vanillaImg = ParityMetrics.alignToBox(vanillaRaw, RENDER_SIZE, ALIGN_FILL);
-            BufferedImage javaImg = ParityMetrics.alignToBox(java.toBufferedImage(), RENDER_SIZE, ALIGN_FILL);
+            BufferedImage javaImg = ParityMetrics.alignToBox(javaRaw, RENDER_SIZE, ALIGN_FILL);
 
-            ImageIO.write(vanillaImg, "PNG", new File(subjectDir.toFile(), "vanilla.png"));
-            ImageIO.write(javaImg, "PNG", new File(subjectDir.toFile(), "java.png"));
+            ImageIO.write(vanillaImg, "PNG", new File(subjectDir.toFile(), "aligned_vanilla.png"));
+            ImageIO.write(javaImg, "PNG", new File(subjectDir.toFile(), "aligned_java.png"));
             PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaImg);
             PixelBuffer javaPB = PixelBuffer.wrap(javaImg);
             ImageIO.write(vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage(), "PNG",

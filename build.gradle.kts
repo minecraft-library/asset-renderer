@@ -292,14 +292,14 @@ data class ParityArtifact(
     val selfCaptured: Boolean get() = source == parityWorkingRoot
 }
 
-// Rows 15 to 23 carry the WORKING ROOT ITSELF as their source, with no sub-directory: those producers
+// Rows 16 to 24 carry the WORKING ROOT ITSELF as their source, with no sub-directory: those producers
 // self-capture from inside the test JVM, so the capture step validates and stamps the already-canonical
 // file at its own production-relative path rather than reading a producer directory. `--source` naming
 // the root IS what marks a row self-captured, so `$parityWorkingRoot/pins` refuses exactly as the
-// shipped-tables directory does. Row 15 is one of them and not an exception: `table-canonical` is
+// shipped-tables directory does. Row 16 is one of them and not an exception: `table-canonical` is
 // Gson's number formatting, which Python cannot reproduce for the seven float-bearing tables, so no
 // reader outside the test JVM can take that digest at all.
-// Row 15 is `test` and row 16 is `slowTest` because ResourceShaTest runs in the fast suite while
+// Row 16 is `test` and row 17 is `slowTest` because ResourceShaTest runs in the fast suite while
 // PipelineIntegrationTest is @Tag("slow") - naming `test` for the latter would let a fast-suite run
 // credit itself with a value it never computed.
 //
@@ -317,6 +317,12 @@ val parityArtifacts = listOf(
     ParityArtifact("sweep.glint", listOf("glintParityVanilla"), "cache/visual/glint-parity-vanilla", listOf("itemId")),
     ParityArtifact("manifest.references", listOf("renderVanillaAllReferences"), parityReferenceRoot, listOf("refharnessTargets")),
     ParityArtifact("manifest.visual", listOf("visualSweepSet"), "cache/visual"),
+    // Shares manifest.visual's parent and its member mechanism, and covers a disjoint file set: that
+    // allowlist names six directories and neither of these two is among them. ONE producer, and it is
+    // an aggregator rather than the two sweeps, for manifest.references' reason - a capture taken
+    // after one of them would hash one fresh member beside one stale one, and a compare skips what a
+    // run did not capture, so a real regression in the un-run half would read clean.
+    ParityArtifact("manifest.player-raw", listOf("playerRawSweepSet"), "cache/visual"),
     ParityArtifact("manifest.dump.vanilla", listOf("parityDump"), "cache/parity-dump/$parityDumpLabel/vanilla"),
     ParityArtifact("manifest.dump.packs", listOf("parityDump"), "cache/parity-dump/$parityDumpLabel/packs"),
     ParityArtifact("manifest.player-sheets", listOf("playerRender"), "cache/visual/player-render",
@@ -1113,6 +1119,22 @@ tasks {
         named(producer) { mustRunAfter("visualSweepClean") }
     }
 
+    // manifest.player-raw's producer. Both sweeps rescale both sides before diffing, so their delta is
+    // a LOOK gauge; the raw renders they now also write are not, and this is what captures the pair of
+    // them together.
+    //
+    // There is deliberately NO clean beside it, where visualSweepSet has one. That clean exists
+    // because its six producers are parameterised (-PblockId, -PrenderSize) and accumulate across
+    // sessions - measured at 255 files where the run wrote 153. These two take a fixed Java roster,
+    // two scopes and seven subjects, and rewrite every file every run; they are also the only two
+    // sweep rows with an empty `scopedBy`, which is that property stated where the capture reads it.
+    // So the population is not a function of session history and there is nothing to erase.
+    register("playerRawSweepSet") {
+        description = "Runs the player and armour parity sweeps together - the producer of manifest.player-raw, whose two members are one sweep's output each."
+        group = "visual"
+        dependsOn("playerParityVanilla", "armorParityVanilla")
+    }
+
     // The harness runs. Seven rows over one helper, where there used to be five 30-line Exec bodies
     // re-declaring workingDir, the wrapper path, the OS test and the argv prologue verbatim and
     // differing only by a mode flag, whether they forward -PrefharnessTargets, and which sub-trees
@@ -1174,7 +1196,7 @@ tasks {
     // Minecraft version bump requires regenerating the OTF files.
 
     // ---- parity: the entry points, and the capture step behind every producer --------------------
-    // Group `parity` is deliberately small and countable. The 23 capture steps below carry NO group,
+    // Group `parity` is deliberately small and countable. The 24 capture steps below carry NO group,
     // because they are finalizers rather than something to run: a human runs a producer, and the
     // capture happens. That is the whole of "route through the same store without remembering a flag".
 
