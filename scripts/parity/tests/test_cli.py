@@ -5,12 +5,13 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from parity import capture, cli, store
-from parity.norm import write_json
+from parity import capture, cli, provenance, store
+from parity.norm import write_json, write_text
 
 
 def run(argv: list[str]) -> tuple[int, str, str]:
@@ -174,6 +175,88 @@ class ShippedTablesAgreementThroughTheCli(unittest.TestCase):
         verdict = payload["checks"]["shipped-tables-agreement"]
         self.assertEqual(verdict["status"], "not_evaluated")
         self.assertEqual(verdict["absent"], ["manifest.tooling-tables"])
+
+
+class GateExit(unittest.TestCase):
+    """`plan --gate-exit`'s tri-state, which is the pre-commit hook's entire predicate.
+
+    A real git repository rather than a mock, because the branch that matters is the one that
+    SILENCES the hook: if it answered 'already gated' wrongly the gate would simply stop firing, and
+    a stubbed sha would not have exercised the comparison that decides it.
+    """
+
+    RULE = {"artifact": "roster.blindness-rules", "format": 1, "key": "id",
+            "kind": "blindness-roster", "no_reach": ["docs/**"],
+            "rules": [{"id": "T1", "claim": "c", "mode": "select", "probe": "p", "reason": "r",
+                       "source": "s", "sees": ["sweep.entity"], "blind": [],
+                       "trigger_paths": ["src/**"]}]}
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.store = self.repo / "store"
+        write_json(self.store / "blindness.json", self.RULE)
+        subprocess.run(["git", "init", "-q"], cwd=self.repo, check=True)
+        write_text(self.repo / "seed.txt", "seed\n")
+        # The working root is under cache/ and cache/ is ignored, exactly as in the real repo. That
+        # is load-bearing rather than tidy: `git status --porcelain` lists untracked files, so
+        # without it WRITING the verdict would change the very digest the verdict records, and the
+        # gate could never answer "already gated" even once.
+        write_text(self.repo / ".gitignore", "cache/\nstore/\n")
+        subprocess.run(["git", "add", "-A"], cwd=self.repo, check=True)
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                        "commit", "-qm", "seed"], cwd=self.repo, check=True)
+
+    def _plan(self, *changed: str) -> int:
+        argv = ["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                "--store", str(self.store), "--quiet", "plan", "--gate-exit"]
+        for path in changed:
+            argv += ["--changed", path]
+        return run(argv)[0]
+
+    def _record_verdict(self, artifacts: list[str], **overrides) -> None:
+        payload = {"artifacts": artifacts,
+                   "asset_dirty_digest": provenance.dirty_digest(self.repo),
+                   "asset_sha": provenance.asset_state(self.repo)["asset_sha"]}
+        payload.update(overrides)
+        write_json(self.repo / "cache" / "parity" / "current" / store.RUN_DIR
+                   / "last-verdict.json", payload)
+
+    def test_0_when_nothing_sees_the_change(self):
+        self.assertEqual(self._plan("docs/readme.md"), cli.OK)
+
+    def test_10_when_seen_and_no_verdict_exists(self):
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_20_when_a_verdict_covers_this_exact_tree(self):
+        self._record_verdict(["sweep.entity"])
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def test_10_again_once_the_tree_moves(self):
+        """The whole reason the digest exists: same commit, different bytes."""
+        self._record_verdict(["sweep.entity"])
+        write_text(self.repo / "seed.txt", "edited\n")
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_10_when_the_verdict_covered_fewer_artifacts_than_the_plan_needs(self):
+        self._record_verdict(["sweep.block"])
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_20_when_the_verdict_covered_more(self):
+        """Subset, never equality - a wider previous compare still covers this one."""
+        self._record_verdict(["sweep.block", "sweep.entity"])
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def test_10_when_the_recorded_sha_is_null(self):
+        """An unreadable git is not evidence of having been gated; it re-arms."""
+        self._record_verdict(["sweep.entity"], asset_sha=None)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_the_flag_is_opt_in_so_parityPlan_still_exits_zero(self):
+        """parityPlan is a Gradle Exec: a plan that answered 10 on reach would fail every build."""
+        code, _, _ = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                          "--store", str(self.store), "--quiet", "plan",
+                          "--changed", "src/Main.java"])
+        self.assertEqual(code, cli.OK)
 
 
 if __name__ == "__main__":

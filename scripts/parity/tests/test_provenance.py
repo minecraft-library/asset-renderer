@@ -61,6 +61,24 @@ class Degradation(unittest.TestCase):
         self.assertIsNone(record["mc_version"])
 
 
+class DirtyDigest(unittest.TestCase):
+    """The third value, because a sha and a boolean cannot tell two edits on one commit apart."""
+
+    def test_a_real_repo_answers_a_digest(self):
+        digest = provenance.dirty_digest(REPO)
+        self.assertIsNotNone(digest)
+        self.assertRegex(digest, r"^[0-9a-f]{64}$")
+
+    def test_it_is_stable_across_calls(self):
+        """It gates whether a tree has already been gated, so an unstable answer re-arms for ever."""
+        self.assertEqual(provenance.dirty_digest(REPO), provenance.dirty_digest(REPO))
+
+    def test_no_repo_answers_none_rather_than_the_empty_digest(self):
+        """None is 'git could not be asked'; the empty digest is 'nothing is uncommitted'. A caller
+        that conflated them would read an unreadable git as a clean tree."""
+        self.assertIsNone(provenance.dirty_digest(Path(tempfile.mkdtemp())))
+
+
 class ManifestDigest(unittest.TestCase):
     """A row identifies a reference set in one field instead of carrying 2311 lines."""
 

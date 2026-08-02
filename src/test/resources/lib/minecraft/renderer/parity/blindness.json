@@ -692,6 +692,53 @@
       "trigger_paths": [
         "src/test/resources/lib/minecraft/renderer/parity/**"
       ]
+    },
+    {
+      "blind": [],
+      "claim": "The ten shipped tables are pipeline INPUT, so a change to one reaches every render that loads it",
+      "id": "R12",
+      "mode": "select",
+      "probe": "edit one value in block_tints.json and re-run the block sweep and parityDump; both move, and manifest.tooling-tables moves whether or not a generator ran",
+      "reason": "src/main/resources/lib/minecraft/renderer/ holds exactly the ten ASM-derived tables the tooling flows emit and the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files and digest.shipped-tables digests the same ten, so both see any edit directly; the sweeps and the dumps see it through the index the loaders build. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything.",
+      "sees": [
+        "manifest.tooling-tables",
+        "digest.shipped-tables",
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "sweep.glint",
+        "manifest.player-raw",
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "source": "P15; the gap R1 refused on - no rule covered the files two artifacts are defined over",
+      "trigger_paths": [
+        "src/main/resources/lib/minecraft/renderer/*.json"
+      ]
+    },
+    {
+      "blind": [],
+      "claim": "The GsonContributor service registration configures every pipeline decode, so nothing that loads is blind to it",
+      "id": "R13",
+      "mode": "select",
+      "probe": "delete the registration and run any sweep; the pipeline fails to decode outright rather than decoding differently, which is what makes this a load-time reach rather than a per-value one",
+      "reason": "META-INF/services/dev.simplified.gson.GsonContributor is how PipelineGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on R12.",
+      "sees": [
+        "digest.shipped-tables",
+        "sweep.entity",
+        "sweep.block",
+        "sweep.item",
+        "sweep.armor",
+        "sweep.glint",
+        "manifest.player-raw",
+        "manifest.dump.vanilla",
+        "manifest.dump.packs"
+      ],
+      "source": "P15; the second uncovered path under src/main/resources/",
+      "trigger_paths": [
+        "src/main/resources/META-INF/services/**"
+      ]
     }
   ]
 }

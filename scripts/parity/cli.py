@@ -360,8 +360,15 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     run = root.root / store_mod.RUN_DIR
     write_json(run / "compare.json", payload)
     write_text(run / "compare.md", report_mod.render_diff(payload))
+    # The three fields that name a TREE STATE, plus what the compare covered. `plan --gate-exit`
+    # reads them to answer "has this exact tree already been gated"; nothing else does. It is written
+    # into the working root and never into the store, because a compare is a measurement (I-7) - so a
+    # `cache/` clean re-arms the gate, which is the correct degradation: the evidence for "already
+    # gated" is cache, and losing it costs one re-run rather than a wrong answer.
     write_json(run / "last-verdict.json", {
         "artifacts": [result.artifact for result in results],
+        "asset_dirty_digest": provenance_mod.dirty_digest(_bases(args)),
+        "asset_sha": provenance_mod.asset_state(_bases(args))["asset_sha"],
         "missing_baseline": missing,
         "unexpected": payload["totals"]["unexpected"],
     })
@@ -506,7 +513,57 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     lines.append(f"BUDGET {budget} ms"
                  + ("" if budget else "  (nothing promoted yet, so no artifact has a duration)"))
     _emit(args, "\n".join(lines), payload)
-    return OK
+    return _gate_exit(args, base, root, reach) if args.gate_exit else OK
+
+
+#: `plan --gate-exit`'s tri-state, which is a REPORT rather than a failure - hence codes of its own
+#: rather than the six in the table above. 10 and 20 both mean the command succeeded.
+GATE_SEES_UNGATED = 10
+GATE_ALREADY_GATED = 20
+
+
+def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
+               reach: blindness_mod.Reach) -> int:
+    """Answer the pre-commit hook's question in the exit code.
+
+    Three answers: ``OK`` when no artifact can see the change, ``GATE_ALREADY_GATED`` when a compare
+    verdict already covers this exact tree state, and ``GATE_SEES_UNGATED`` when artifacts see it and
+    no such verdict exists.
+
+    **It is opt-in, and that is not a style choice.** ``parityPlan`` is a Gradle ``Exec``, so a
+    non-zero exit fails the build - a plan that answered 10 whenever reach was non-empty would fail
+    the build on every real change, which is the opposite of what a plan is for. The flag is what
+    lets one reach implementation serve a task that must always succeed and a hook that must answer
+    in three states.
+
+    :param args: the parsed namespace
+    :param base: the repo root
+    :param root: the working root
+    :param reach: the resolved reach
+    :return: the exit code
+    """
+    if not reach.sees:
+        return OK
+    verdict = root / store_mod.RUN_DIR / "last-verdict.json"
+    if not verdict.is_file():
+        return GATE_SEES_UNGATED
+    try:
+        recorded = read_json(verdict)
+    except ValueError:
+        return GATE_SEES_UNGATED
+    sha = provenance_mod.asset_state(base)["asset_sha"]
+    digest = provenance_mod.dirty_digest(base)
+    # An unreadable git is not evidence of having been gated. Both sides must be present AND equal,
+    # so a null on either side re-arms rather than short-circuits.
+    if sha is None or digest is None:
+        return GATE_SEES_UNGATED
+    if recorded.get("asset_sha") != sha or recorded.get("asset_dirty_digest") != digest:
+        return GATE_SEES_UNGATED
+    # The tree matches, but a verdict that covered fewer artifacts than this plan needs has not
+    # gated the difference. Subset, never equality: a WIDER previous compare still covers this one.
+    if not set(reach.sees) <= set(recorded.get("artifacts", [])):
+        return GATE_SEES_UNGATED
+    return GATE_ALREADY_GATED
 
 
 def _changed_from_git(base: Path) -> list[str]:
@@ -820,6 +877,10 @@ def _register(subparsers: Any) -> dict[str, Command]:
     pln = subparsers.add_parser("plan", help="resolve which artifacts can SEE the working tree's change")
     pln.add_argument("--changed-from-git", action="store_true", dest="changed_from_git")
     pln.add_argument("--changed", action="append", default=None, metavar="PATH")
+    pln.add_argument("--gate-exit", action="store_true", dest="gate_exit",
+                     help=f"answer in the exit code: 0 nothing sees it, {GATE_SEES_UNGATED} seen and "
+                          f"ungated, {GATE_ALREADY_GATED} already gated for this tree. For the "
+                          "pre-commit hook; parityPlan must always exit 0, so it is opt-in")
     table["plan"] = _cmd_plan
 
     exp = subparsers.add_parser("expect", help="register the movers a phase intends (I-15)")

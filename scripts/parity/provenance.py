@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Sequence
 
 from parity import VERSION
-from parity.norm import read_text, sha256_file
+from parity.norm import LF, read_text, sha256_file, sha256_text
 
 #: Post-consolidation the harness is a directory in this repo, not a sibling repository, so there is
 #: exactly one sha and one dirty flag. The spine registers `harness_sha` / `harness_dirty` beside the
@@ -49,6 +49,37 @@ def asset_state(repo: Path) -> dict:
     head = _git(repo, "rev-parse", "HEAD")
     status = _git(repo, "status", "--porcelain")
     return {"asset_dirty": bool(status) if status is not None else None, "asset_sha": head}
+
+
+def dirty_digest(repo: Path) -> str | None:
+    """A digest over the working tree's uncommitted diff, so a TREE STATE has one name.
+
+    ``asset_sha`` names a commit and ``asset_dirty`` says only whether something is uncommitted, so
+    the pair cannot distinguish two different edits on top of one commit - which is exactly what the
+    pre-commit gate has to distinguish, since an already-gated tree that has been edited since must
+    re-arm. This is that third value.
+
+    LF-normalized before digesting, for I-1's reason and one more: ``git diff`` renders the worktree's
+    own line endings, so on Windows an unchanged file could otherwise digest differently than it did
+    on the run that gated it.
+
+    A clean tree digests the empty string rather than answering ``None``, because "nothing is
+    uncommitted" is an answer and ``None`` is reserved for "git could not be asked".
+
+    It digests ``status --porcelain`` alongside the diff, because the reach resolution this guards
+    reads the untracked-but-unignored set too (``_changed_from_git``) and ``diff HEAD`` cannot see a
+    file that has never been added. What remains outside it is an EDIT to a never-added file, and
+    that is not a hole: such a file cannot be in the commit, and adding it puts it in ``diff HEAD``.
+
+    :param repo: the repository root
+    :return: the digest, or None when git is unavailable
+    """
+    diff = _git(repo, "diff", "HEAD")
+    status = _git(repo, "status", "--porcelain")
+    if diff is None or status is None:
+        return None
+    body = f"{status}\n{diff}".replace("\r\n", LF).replace("\r", LF)
+    return sha256_text(body)
 
 
 def mc_version(repo: Path) -> str | None:
