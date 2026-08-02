@@ -552,6 +552,69 @@ class PlanSplit(unittest.TestCase):
              "home": "unregistered", "where": ""}])
 
 
+class BlindLines(unittest.TestCase):
+    """The printed answer to "what is blind here", which is the only place a reader meets it.
+
+    The resolver keeps a claim another rule's `sees` overrules instead of dropping it, and the whole
+    value of that is one printed marker. So the line is asserted WHOLE and by equality: a check that
+    the printout mentions the artifact passes just as well on the shape this replaced, where a rule
+    whose entire content was one blind line printed nothing at all.
+
+    Two lines rather than one, because the marker is what the two states differ by and a test holding
+    only the marked one cannot tell "always marked" from "marked when overruled".
+    """
+
+    UNCONTESTED = "The dump serialises loaded data and never renders."
+    OVERRULED = "PipelineParityDump never calls a renderer entry point."
+
+    #: T1 claims both artifacts blind. T2 and T3 select one of them on the same path, so that claim is
+    #: overruled and the other is not - the two states side by side under one rule, which is the pair
+    #: the marker has to tell apart. Two selectors, so the join between their ids is pinned as well.
+    RULE = {"artifact": "roster.blindness-rules", "format": 1, "key": "id",
+            "kind": "blindness-roster", "no_reach": [],
+            "rules": [{"id": "T1", "claim": "c", "mode": "select", "probe": "p",
+                       "reason": OVERRULED, "source": "s", "sees": [],
+                       "blind": ["sweep.entity", "sweep.block"], "trigger_paths": ["src/**"]},
+                      {"id": "T2", "claim": "c", "mode": "select", "probe": "p",
+                       "reason": UNCONTESTED, "source": "s", "sees": ["sweep.entity"], "blind": [],
+                       "trigger_paths": ["src/**"]},
+                      {"id": "T3", "claim": "c", "mode": "select", "probe": "p",
+                       "reason": UNCONTESTED, "source": "s", "sees": ["sweep.entity"], "blind": [],
+                       "trigger_paths": ["src/**"]}]}
+
+    INDEX = {"artifact": "report.oracle-index", "format": 1, "key": "artifact", "kind": "index",
+             "artifacts": {"sweep.entity": {"baselined": True, "kind": "sweep-table"}},
+             "pointers": {}, "external": {}, "sources": {}}
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.store = self.repo / "store"
+        write_json(self.store / "blindness.json", self.RULE)
+        write_json(self.store / "index.json", self.INDEX)
+
+    def _lines(self) -> list[str]:
+        _, out, _ = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                         "--store", str(self.store), "--quiet", "plan",
+                         "--changed", "src/Main.java"])
+        return out.splitlines()
+
+    def test_an_overruled_claim_prints_the_contradiction_and_the_rules_that_made_it(self):
+        self.assertIn(f"BLIND  sweep.entity [T1] claimed blind, selected by T2, T3 - {self.OVERRULED}",
+                      self._lines())
+
+    def test_an_uncontested_claim_prints_the_reason_and_no_marker(self):
+        """The marker is the exception, so a reader meets it only where there is a contradiction."""
+        self.assertIn(f"BLIND  sweep.block [T1] {self.OVERRULED}", self._lines())
+
+    def test_the_overruled_artifact_is_still_in_the_bundle(self):
+        """Reporting rather than demoting: what the marker corrects is the ANSWER, not the plan."""
+        _, _, _ = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                       "--store", str(self.store), "--quiet", "plan", "--changed", "src/Main.java"])
+        payload = json.loads(
+            (self.repo / "cache" / "parity" / "current" / store.RUN_DIR / "plan.json").read_text())
+        self.assertEqual(payload["plan"], ["sweep.entity"])
+
+
 class RegisteredPointers(unittest.TestCase):
     """The store's own pointer registry, resolved against the join the compare actually performs.
 
@@ -627,7 +690,8 @@ class GateExit(unittest.TestCase):
     """
 
     RULE = {"artifact": "roster.blindness-rules", "format": 1, "key": "id",
-            "kind": "blindness-roster", "no_reach": ["docs/**"],
+            "kind": "blindness-roster",
+            "no_reach": [{"glob": "docs/**", "reason": "r", "probe": "p"}],
             "rules": [{"id": "T1", "claim": "c", "mode": "select", "probe": "p", "reason": "r",
                        "source": "s", "sees": ["sweep.entity"], "blind": [],
                        "trigger_paths": ["src/**"]}]}

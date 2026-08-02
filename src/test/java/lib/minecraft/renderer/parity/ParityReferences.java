@@ -159,11 +159,35 @@ public final class ParityReferences {
         out.add("for checking a rule that is being questioned. Reasoning from the prose instead is the");
         out.add("judged reach resolution the map replaced, and it looks correct while being wrong.");
         out.add("");
-        out.add("Three modes, and the order they apply in is the whole of the arithmetic. `select`");
-        out.add("contributes its `sees` to the union. `demote` contributes too and then removes its");
-        out.add("`blind` set **after** the union is taken, which is the only way a rule can speak");
-        out.add("about artifacts it does not itself select. `suppress` marks an artifact inadmissible");
-        out.add("outright, whatever selected it.");
+        out.add("Reach is resolved **one changed path at a time** and the answers are unioned, so a");
+        out.add("rule speaks about the files it triggers on and about no others: a file that reaches");
+        out.add("nothing, committed beside one that reaches a bundle, still plans that bundle.");
+        out.add("");
+        out.add("Within one path the resolver runs three passes, in this order. **Union**: each");
+        out.add("fired rule contributes its `sees`, its mode included. **Demote**: each fired");
+        out.add("`demote` rule removes its own `blind` set from that union, taking out what a");
+        out.add("different rule selected on this same path along with its own contribution.");
+        out.add("**Suppress**: each fired `suppress` rule removes its `sees` and its `blind`");
+        out.add("together, the pass that outranks the other two.");
+        out.add("");
+        out.add("Neither removal pass reads a `select` rule's `blind` list, so that list subtracts");
+        out.add("nothing and is a statement the plan prints - B10 and B23 below each carry one");
+        out.add("naming artifacts outside their own `sees`. What a claim comes to therefore");
+        out.add("depends on whether the claiming rule and the selecting rule fire on the **same");
+        out.add("path** or on **different paths**, and one pair of rules answers both ways over");
+        out.add("one change set.");
+        out.add("");
+        out.add("`BlindnessMapTest.java` alone fires R14 (`select`) and R16 (`demote`, R14's");
+        out.add("list) on one path: the demote pass empties the union, SEES is empty, and every");
+        out.add("artifact on that list is reported blind with nothing recorded against it. That");
+        out.add("file beside `SelfCapture.java` fires R16 on the first path alone, the second");
+        out.add("path resolves to R14's list, and the union carries it - SEES holds all of it");
+        out.add("and each blind row reads \"claimed blind, selected by R14\". A `select`");
+        out.add("rule's claim resolves by the same arithmetic from the other side: on");
+        out.add("`BlockGeometryKit.java` B10 claims `sweep.block` blind while B19 selects it on");
+        out.add("that path, so it is in SEES and its row names B19; on `PlayerRenderer.java` B9");
+        out.add("claims `sweep.player` and no fired rule selects it, so it is absent from SEES and");
+        out.add("its row names nobody.");
         out.add("");
 
         for (JsonElement element : map.getAsJsonArray("rules")) {
@@ -186,11 +210,21 @@ public final class ParityReferences {
         out.add("");
         out.add("Covered and reaching nothing is a different answer from \"I do not know\". A changed");
         out.add("path matching neither a rule nor one of these is `UNKNOWN`, and refusal R1 stops the");
-        out.add("plan rather than guessing.");
+        out.add("plan rather than guessing. A **rule wins** where both match, so an entry here speaks");
+        out.add("only for paths no rule claims.");
         out.add("");
-        out.add(codeList(map.getAsJsonArray("no_reach")));
 
-        return String.join("\n", out) + "\n";
+        for (JsonElement element : map.getAsJsonArray("no_reach")) {
+            JsonObject entry = element.getAsJsonObject();
+            out.add("### `" + entry.get("glob").getAsString() + "`");
+            out.add("");
+            out.add(entry.get("reason").getAsString());
+            out.add("");
+            out.add("*Probe:* " + entry.get("probe").getAsString());
+            out.add("");
+        }
+
+        return String.join("\n", out).stripTrailing() + "\n";
     }
 
     /**

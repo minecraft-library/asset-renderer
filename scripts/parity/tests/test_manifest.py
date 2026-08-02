@@ -123,37 +123,53 @@ class Verify(unittest.TestCase):
 class MemberSubtrees(unittest.TestCase):
     """An artifact whose source is a shared parent takes only its declared members.
 
-    cache/visual holds 9,197 images and 147 of them are manifest.visual's. The rest include the
-    per-subject diff panels, which a sweep run rewrites - so admitting them would make the artifact
-    move on every sweep and gate nothing.
+    cache/visual holds thousands of images and only manifest.visual's members are its own. The rest
+    include the per-subject diff panels, which a sweep run rewrites - so admitting them would make the
+    artifact move on every sweep and gate nothing.
+
+    The fixture writes one file per DECLARED member rather than a typed list of names: a third copy
+    of the membership is a third thing to keep in step, and one that disagreed would leave this suite
+    green over the very drift it is here to catch.
     """
+
+    MEMBERS = manifest.SUBTREES["manifest.visual"]
+
+    #: What the fixture writes under the shared parent that is NOT a member, each for a different
+    #: reason: a per-subject diff panel a sweep rewrites, a sub-tree with a manifest of its own, and
+    #: a directory an A/B left behind.
+    OUTSIDERS = ("entity-parity-vanilla/minecraft__cow/diff.png", "player-render/sheet.png",
+                 "p8-before/scratch.png")
 
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
-        for name in ("block-render-3d", "entity-render-3d", "item-day-cycle",
-                     "item-render-2d", "lore-tooltip", "menu-render"):
+        for name in self.MEMBERS:
             write_text(self.root / name / "a.png", name)
-        write_text(self.root / "entity-parity-vanilla" / "minecraft__cow" / "diff.png", "panel")
-        write_text(self.root / "player-render" / "sheet.png", "has its own manifest")
-        write_text(self.root / "p8-before" / "scratch.png", "left behind by an A/B")
+        for path in self.OUTSIDERS:
+            write_text(self.root / path, path)
 
     def test_only_the_declared_members_are_hashed(self):
         built = manifest.build("manifest.visual", self.root)
-        self.assertEqual(len(built.entries), 6)
+        self.assertEqual(len(built.entries), len(self.MEMBERS))
         self.assertTrue(all("/" in entry.path for entry in built.entries))
 
     def test_a_diff_panel_tree_is_not_a_member(self):
-        paths = manifest.build("manifest.visual", self.root).by_path()
-        self.assertNotIn("entity-parity-vanilla/minecraft__cow/diff.png", paths)
+        panel = "entity-parity-vanilla/minecraft__cow/diff.png"
+        # Named here and written by setUp from the tuple, so the two can part company: a path the
+        # fixture never wrote is absent from every manifest ever built, which would leave this check
+        # vacuous - and the allowlist it is here to prove would read as a denylist just as green.
+        self.assertIn(panel, self.OUTSIDERS)
+        self.assertNotIn(panel, manifest.build("manifest.visual", self.root).by_path())
 
     def test_a_subtree_with_its_own_manifest_is_not_a_member(self):
-        self.assertNotIn("player-render/sheet.png",
-                         manifest.build("manifest.visual", self.root).by_path())
+        sheet = "player-render/sheet.png"
+        self.assertIn(sheet, self.OUTSIDERS)  # or the check below is vacuous, as above
+        self.assertNotIn(sheet, manifest.build("manifest.visual", self.root).by_path())
 
     def test_scratch_left_behind_by_an_ab_is_not_a_member(self):
         """The whole reason it is an allowlist: nobody has to remember to exclude this."""
-        self.assertNotIn("p8-before/scratch.png",
-                         manifest.build("manifest.visual", self.root).by_path())
+        scratch = "p8-before/scratch.png"
+        self.assertIn(scratch, self.OUTSIDERS)  # or the check below is vacuous, as above
+        self.assertNotIn(scratch, manifest.build("manifest.visual", self.root).by_path())
 
     def test_a_missing_member_is_a_failure_rather_than_a_smaller_manifest(self):
         shutil.rmtree(self.root / "menu-render")
@@ -162,7 +178,14 @@ class MemberSubtrees(unittest.TestCase):
         self.assertIn("menu-render", str(caught.exception))
 
     def test_an_artifact_with_no_declared_members_walks_the_whole_tree(self):
-        self.assertEqual(len(manifest.build("manifest.fluid", self.root).entries), 9)
+        """Everything the fixture wrote, members and outsiders alike - the contrast with the above."""
+        whole = len(manifest.build("manifest.fluid", self.root).entries)
+        self.assertEqual(whole, len(self.MEMBERS) + len(self.OUTSIDERS))
+        # Both counts are derived from the same tuples, so the sum alone holds however few non-members
+        # the fixture writes - including none, which would leave this check vacuous by agreeing with
+        # the member-only build. Strictly greater is the contrast the test is named for, and it is the
+        # one form that says the member list SUBTRACTS rather than merely being read.
+        self.assertGreater(whole, len(manifest.build("manifest.visual", self.root).entries))
 
 
 class NonMembers(unittest.TestCase):
@@ -208,10 +231,9 @@ class RawRenderPair(unittest.TestCase):
                     write_text(self.root / member / subject / name, f"{member}/{subject}/{name}")
             write_text(self.root / member / "parity-report.tsv", "subject\tmean_argb_delta\n")
         # manifest.visual's own population, which this artifact must not reach into and vice versa.
-        # All six, because that artifact refuses a member it cannot find - which is the property the
-        # disjointness check below would otherwise trip over rather than test.
-        for member in ("block-render-3d", "entity-render-3d", "item-day-cycle",
-                       "item-render-2d", "lore-tooltip", "menu-render"):
+        # Every one of them, because that artifact refuses a member it cannot find - which is the
+        # property the disjointness check below would otherwise trip over rather than test.
+        for member in manifest.SUBTREES["manifest.visual"]:
             write_text(self.root / member / "java.png", "a different artifact's member")
 
     def test_both_members_are_hashed_and_only_the_raw_pair(self):

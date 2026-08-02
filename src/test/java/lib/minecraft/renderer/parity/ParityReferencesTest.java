@@ -81,9 +81,18 @@ final class ParityReferencesTest {
         for (var rule : map.getAsJsonArray("rules"))
             assertThat("the skill's blindness reference omits a rule", blindness,
                 containsString("## " + rule.getAsJsonObject().get("id").getAsString() + " -"));
-        for (var glob : map.getAsJsonArray("no_reach"))
+        for (var entry : map.getAsJsonArray("no_reach")) {
+            var declaration = entry.getAsJsonObject();
             assertThat("the skill's blindness reference omits a no_reach glob", blindness,
-                containsString("`" + glob.getAsString() + "`"));
+                containsString("### `" + declaration.get("glob").getAsString() + "`"));
+            // The glob alone was what this asserted, and a glob with no mechanism beside it is the
+            // shape the entry is not allowed to have: the reference would list the path and leave a
+            // reader with no way to tell a decision from an oversight.
+            assertThat("the skill's blindness reference omits a no_reach reason", blindness,
+                containsString(declaration.get("reason").getAsString()));
+            assertThat("the skill's blindness reference omits a no_reach probe", blindness,
+                containsString(declaration.get("probe").getAsString()));
+        }
     }
 
     @Test

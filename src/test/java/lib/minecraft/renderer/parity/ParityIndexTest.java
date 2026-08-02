@@ -1,14 +1,21 @@
 package lib.minecraft.renderer.parity;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -16,6 +23,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -29,6 +37,19 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * <p>It also asserts the partition is <b>exact</b>: an id in two maps would give one artifact two
  * homes, and an id in none would be an artifact nothing can find.
+ *
+ * <p>One artifact's <b>membership</b> is written twice for the same reason its registration is, and
+ * is checked here on the same grounds. {@code manifest.visual} is defined as the union of a set of
+ * {@code cache/visual} sub-directories, named once in the build file beside the task that writes each
+ * one and again in the toolkit that walks them. The drift there is one-sided and therefore the
+ * dangerous kind: the walk raises for a member directory that is absent, so removing a producer
+ * fails loudly, while adding one to the build alone lands a render inside the artifact's declared
+ * source and outside its manifest.
+ *
+ * <p>The membership and the promoted baseline are related here too, in the one direction a green
+ * suite can hold: a baseline hashing a sub-tree the membership has dropped can never be reproduced,
+ * where a membership naming a sub-tree the baseline predates is what a capture reports as added and
+ * a promotion clears.
  */
 @DisplayName("The parity index registers every artifact exactly once")
 final class ParityIndexTest {
@@ -86,6 +107,119 @@ final class ParityIndexTest {
 
         assertThat("the index and the roster hold the same number of artifacts",
             registered.size(), equalTo(ParityArtifacts.ALL.size()));
+    }
+
+    @Test
+    @DisplayName("the build file and the toolkit declare the same visual members")
+    void theVisualMembershipIsWrittenOnceInTwoPlaces() {
+        List<String> build = buildFileVisualMembers();
+        List<String> toolkit = toolkitVisualMembers();
+
+        assertThat("build.gradle.kts declares visualSweepProducers as an empty map, which would "
+            + "leave this check vacuous", build, is(not(empty())));
+        assertThat("manifest.py declares no members for manifest.visual, which would leave this "
+            + "check vacuous", toolkit, is(not(empty())));
+        assertThat("the cache/visual sub-trees the build file's producers write, against the ones "
+            + "the toolkit walks when it builds manifest.visual. A directory only the build knows "
+            + "about is a render inside the artifact's declared source that its manifest never "
+            + "hashes, and nothing else in the tree relates the two lists", toolkit, equalTo(build));
+    }
+
+    @Test
+    @DisplayName("the visual baseline names no sub-tree the membership no longer declares")
+    void theVisualBaselineStaysInsideTheDeclaredMembership() {
+        Set<String> declared = Set.copyOf(toolkitVisualMembers());
+        Set<String> hashed = new TreeSet<>();
+        for (JsonElement file : ParityStore.read("manifest.visual").getAsJsonArray("files"))
+            hashed.add(file.getAsJsonObject().get("path").getAsString().split("/", 2)[0]);
+        List<String> undeclared = hashed.stream().filter(name -> !declared.contains(name)).toList();
+        List<String> unbaselined = declared.stream().filter(name -> !hashed.contains(name)).sorted().toList();
+        // The other direction is not asserted, because it is what ADDING a member legitimately
+        // creates: the baseline was promoted over the membership of its day, and until the next
+        // promotion the new member's files are what the compare reports as `added`. Printed rather
+        // than asserted, and printed with the act that clears it, so what the redefinition owes is a
+        // command a reader can run rather than a state they have to infer.
+        System.out.printf("declared visual members the baseline holds no row for: %s%s%n", unbaselined,
+            unbaselined.isEmpty() ? "" : " - owed: ./gradlew parityCapture -Partifacts=manifest.visual"
+                + ", then ./gradlew parityPromote -Partifacts=manifest.visual -Preason=<why>. The "
+                + "capture depends on visualSweepSet, and -Preason has no default: promote refuses at "
+                + "configuration time without one, so it is part of the command rather than a step "
+                + "somebody is expected to know");
+
+        assertThat("the visual baseline hashes no file, which would leave this check vacuous",
+            hashed, is(not(empty())));
+        assertThat("sub-trees the promoted baseline hashes that the membership no longer declares. "
+            + "A renamed or retired producer leaves rows nothing can ever reproduce, and every "
+            + "later compare reports them as dropped - which reads as a regression rather than as "
+            + "the redefinition it is", undeclared, is(empty()));
+    }
+
+    /**
+     * The {@code cache/visual} sub-trees {@code visualSweepProducers} maps its tasks onto.
+     *
+     * <p>Matched as whole {@code "task" to "directory"} pairs rather than as every literal in the
+     * block, so the task half cannot be mistaken for a directory by a rule about how the two are
+     * spelled.
+     *
+     * @return the directory names, sorted
+     */
+    private static List<String> buildFileVisualMembers() {
+        String body = declarationBody(read(Path.of("build.gradle.kts")),
+            "val visualSweepProducers = mapOf(", "\n)");
+        List<String> out = new ArrayList<>();
+        Matcher matcher = Pattern.compile("\"[^\"]+\"\\s+to\\s+\"([^\"]+)\"").matcher(body);
+        while (matcher.find()) out.add(matcher.group(1));
+        return out.stream().sorted().toList();
+    }
+
+    /**
+     * The {@code cache/visual} sub-trees the toolkit walks for {@code manifest.visual}.
+     *
+     * @return the directory names, sorted
+     */
+    private static List<String> toolkitVisualMembers() {
+        String body = declarationBody(read(Path.of("scripts/parity/manifest.py")),
+            "\"manifest.visual\": (", ")");
+        List<String> out = new ArrayList<>();
+        Matcher matcher = Pattern.compile("\"([^\"]+)\"").matcher(body);
+        while (matcher.find()) out.add(matcher.group(1));
+        return out.stream().sorted().toList();
+    }
+
+    /**
+     * A declaration's body, from just after its opening to the first terminator.
+     *
+     * <p>Both operands are read as text because neither is a Java value: one is Kotlin DSL and the
+     * other is Python, and the alternative is a third generated file that would itself need a gate.
+     * The slice starts <b>after</b> the opening, so a marker that is itself quoted - a map key - does
+     * not read as the first member of its own body.
+     *
+     * @param source the file's text
+     * @param opening the declaration up to and including what opens its body
+     * @param terminator what closes it
+     * @return the body's text
+     */
+    private static String declarationBody(String source, String opening, String terminator) {
+        int start = source.indexOf(opening);
+        if (start < 0) throw new AssertionError("no declaration matching '" + opening + "'");
+        int body = start + opening.length();
+        int end = source.indexOf(terminator, body);
+        if (end < 0) throw new AssertionError("'" + opening + "' is not closed by '" + terminator + "'");
+        return source.substring(body, end);
+    }
+
+    /**
+     * Reads a tracked file's text, by path because it is not on the classpath.
+     *
+     * @param file the repo-relative path
+     * @return the file's text
+     */
+    private static String read(Path file) {
+        try {
+            return Files.readString(file);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     @Test

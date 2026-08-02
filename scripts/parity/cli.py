@@ -522,7 +522,13 @@ def _cmd_plan(args: argparse.Namespace) -> int:
 
     lines = [f"SEES   ({len(reach.sees)}): " + (", ".join(reach.sees) or "(none)")]
     for entry in reach.blind:
-        lines.append(f"BLIND  {entry['artifact']} [{entry['rule']}] {entry['reason']}")
+        # A declaration another rule's `sees` overrules is printed as the contradiction it is rather
+        # than dropped. The artifact still runs and is still compared - the bundle is unchanged - so
+        # what the marker corrects is the ANSWER to "what is blind here", which used to come back
+        # empty for a rule whose entire content was one blind line.
+        overruled = (" claimed blind, selected by " + ", ".join(entry["selected_by"]) + " -"
+                     if entry.get("selected_by") else "")
+        lines.append(f"BLIND  {entry['artifact']} [{entry['rule']}]{overruled} {entry['reason']}")
     if reach.no_reach:
         lines.append("NO REACH: " + ", ".join(reach.no_reach))
     lines.append(f"PLAN   ({len(plan)}): " + (", ".join(plan) or "(none)"))

@@ -106,7 +106,7 @@ owns `--dry-run` for itself.
 | SEES non-empty, 0 movers, no expected-diff | GREEN. Commit. |
 | Movers == the registered expected-diff | GREEN. Commit; promote in the same commit. |
 | Movers != expected-diff | RED. Report per-row before/after. Do not re-baseline to make it pass. |
-| A mover on an artifact a rule called BLIND | RED, escalated separately. The map is wrong or the change is wider than its paths. Fix the rule; never register it as expected. |
+| A mover on an artifact a rule called BLIND | RED, escalated separately. The map is wrong or the change is wider than its paths. Fix the rule; never register it as expected. **Unless the plan printed that line as `claimed blind, selected by <rule>`** - reach resolves one changed path at a time, so a `blind` list subtracts only on the paths its own rule triggers on and a `select` rule's subtracts on none at all. The named rule's `sees` put the artifact in the bundle regardless, whether it fired on the same path or on another in the change set, and the claiming rule's `mode` does not change that. The mover is ordinary; judge it by the rows above. |
 | Sum unchanged but `moved > 0` | RED. A sum can hold while rows cancel. |
 | COVERED non-empty | Nothing owed. The capture that writes each container writes that value with it, and the compare joins that node, so a move in it is already a mover on the container. |
 | MANUAL row saying `capture <id>` | Widen the capture: add `<id>` to `-Partifacts` and gate it like any other row. Do not read it at the location beside it - that is the last **promoted** value, so it reports a stale baseline as a finding. |

@@ -225,21 +225,26 @@ val parityReferenceRoot: String =
     "cache/asset-renderer/vanilla/${minecraftVersion.split(".").take(2).joinToString(".")}/references"
 
 /**
- * The six visual producers no other parity artifact covers, each with the `cache/visual` sub-tree it
+ * The visual producers no other parity artifact covers, each with the `cache/visual` sub-tree it
  * writes.
  *
  * <p>One map rather than a dependency list and a parallel comment, because three things read it: the
  * aggregator's dependencies, the clear that runs before them, and the ordering edge between the two.
  * The directory half is the other end of `manifest.SUBTREES["manifest.visual"]` in the toolkit -
- * these six sub-trees ARE that artifact.
+ * these sub-trees ARE that artifact, and `ParityIndexTest` asserts the two maps name the same set.
+ * Without that the drift is one-sided: the toolkit raises for a member directory that is not there,
+ * so REMOVING a producer is loud, while adding one here alone lands a render inside the store's
+ * declared coverage and outside the only gate that covers it.
  */
 val visualSweepProducers = mapOf(
     "blockRender3D" to "block-render-3d",
+    "entityProjections" to "entity-projections",
     "entityRender3D" to "entity-render-3d",
     "itemDayCycle" to "item-day-cycle",
     "itemRender2D" to "item-render-2d",
     "loreTooltip" to "lore-tooltip",
-    "menuRender" to "menu-render"
+    "menuRender" to "menu-render",
+    "projectionSmoke" to "projection-smoke"
 )
 
 /**
@@ -346,10 +351,11 @@ val parityArtifacts = listOf(
     ParityArtifact("manifest.references", listOf("renderVanillaAllReferences"), parityReferenceRoot, listOf("refharnessTargets")),
     ParityArtifact("manifest.visual", listOf("visualSweepSet"), "cache/visual"),
     // Shares manifest.visual's parent and its member mechanism, and covers a disjoint file set: that
-    // allowlist names six directories and neither of these two is among them. ONE producer, and it is
-    // an aggregator rather than the two sweeps, for manifest.references' reason - a capture taken
-    // after one of them would hash one fresh member beside one stale one, and a compare skips what a
-    // run did not capture, so a real regression in the un-run half would read clean.
+    // allowlist names the producer directories no other artifact covers, and neither of these two is
+    // among them. ONE producer, and it is an aggregator rather than the two sweeps, for
+    // manifest.references' reason - a capture taken after one of them would hash one fresh member
+    // beside one stale one, and a compare skips what a run did not capture, so a real regression in
+    // the un-run half would read clean.
     ParityArtifact("manifest.player-raw", listOf("playerRawSweepSet"), "cache/visual"),
     ParityArtifact("manifest.dump.vanilla", listOf("parityDump"), "cache/parity-dump/$parityDumpLabel/vanilla"),
     ParityArtifact("manifest.dump.packs", listOf("parityDump"), "cache/parity-dump/$parityDumpLabel/packs"),
@@ -678,6 +684,14 @@ tasks.withType<Test>().configureEach {
     inputs.file("build.gradle.kts").withPropertyName("parityBuildFile")
     inputs.files(parityTriggerRoots).withPropertyName("parityTriggerRoots")
     inputs.dir(paritySkillReferences).withPropertyName("paritySkillReferences").optional()
+    // The git index, because the map's coverage and orphan checks resolve against `git ls-files`
+    // rather than against a walk: a glob whose only witness is an untracked scratch file is an orphan
+    // on every other checkout. Nothing else here declares the index, and the roots above cannot stand
+    // in for it - the whole point of the coverage check is that a file tracked under a root NOBODY
+    // declared is the one it has to fail on, and that is exactly the edit that would leave this task
+    // UP-TO-DATE. The cost is that any git operation rewriting the index re-runs the fast suite,
+    // which is the same trade the whole-file build declaration above already makes.
+    inputs.file(".git/index").withPropertyName("parityGitIndex").optional()
 }
 tasks.withType<JavaExec>().configureEach {
     jvmArgs(addVectorModuleArg)
@@ -1137,10 +1151,10 @@ tasks {
     // manifest.visual's producer, and the reason it exists: that artifact had a store file and no
     // producer, so nothing could capture it.
     //
-    // The membership is an ALLOWLIST of six producer directories rather than a denylist of
-    // everything else. A denylist would have to be extended every time someone runs an A/B and
-    // leaves a directory behind under cache/visual, and forgetting to extend it silently bakes
-    // scratch into a baseline - there are nine such session-leftover directories on disk today.
+    // The membership is an ALLOWLIST of producer directories rather than a denylist of everything
+    // else. A denylist would have to be extended every time someone runs an A/B and leaves a
+    // directory behind under cache/visual, and forgetting to extend it silently bakes scratch into a
+    // baseline - there are nine such session-leftover directories on disk today.
     //
     // Three producers writing into cache/visual are deliberately NOT members because each already
     // IS an artifact of its own (playerRender, fluidRenderer, portalRenderer), and the six
@@ -1148,21 +1162,39 @@ tasks {
     // sweep table rather than a byte-gate population. `atlas` is not a member either: it writes
     // build/atlas/, outside the root entirely, and its parallel tile dispatch makes its output
     // permanently unhashable.
+    //
+    // Two more are non-members for reasons of their own, written down rather than left as an
+    // omission, because an unrecorded exclusion is indistinguishable from an oversight:
+    //
+    //  - `blockFlipbook` is an authoring tool: it opts the animation in for four blocks, writing an
+    //    animated GIF plus three sampled stills where the derivation finds a flipbook and a static
+    //    PNG where it does not, so a human can see whether consecutive frames differ. Its four
+    //    subjects are gated - sweep.block carries a per-subject row for each of them - and what no
+    //    artifact holds is the other axis: this is the only block render that turns deriveTimeline
+    //    on, so the frame count that derivation produces and the pixels of the frames it samples are
+    //    measured nowhere. What keeps it out even so is that its main catches a render failure,
+    //    prints it and carries on, so the task exits 0 having written nothing for that subject; a
+    //    capture over it can be short while the build is green, and a row here needs that made loud
+    //    first.
+    //  - `bedCompare` renders half its output from the mc-assets checkout under cache/, an untracked
+    //    third-party tree treated as ground truth. A baseline over it would move whenever that
+    //    checkout moved and name nothing in this repository.
     register<Delete>("visualSweepClean") {
         // No group: it is visualSweepSet's first act. A TASK rather than a doFirst on the aggregator,
         // because a doFirst runs after that task's dependencies - which are the very producers whose
         // output it has to clear.
-        description = "Erases the six sub-trees visualSweepSet produces, so manifest.visual's population is what the run wrote."
+        description = "Erases the sub-trees visualSweepSet produces, so manifest.visual's population is what the run wrote."
         delete(visualSweepProducers.values.map { "cache/visual/$it" })
     }
 
     register("visualSweepSet") {
         description = "Runs the visual renders whose output cache/visual sub-tree no other parity artifact covers - the producer of manifest.visual."
         group = "visual"
-        // The clear runs first, and the producers are ordered after it. Without that the six
+        // The clear runs first, and the producers are ordered after it. Without that the member
         // sub-trees accumulate across sessions and the artifact's population becomes a function of
-        // session history: measured at 255 files where the run itself wrote 153, with
-        // entity-render-3d 90 fresh beside 14 stale and block-render-3d 35 beside 83.
+        // session history: measured over the six members of the day at 255 files where the run
+        // itself wrote 153, with entity-render-3d 90 fresh beside 14 stale and block-render-3d 35
+        // beside 83.
         dependsOn("visualSweepClean")
         dependsOn(visualSweepProducers.keys)
     }
@@ -1175,7 +1207,7 @@ tasks {
     // them together.
     //
     // There is deliberately NO clean beside it, where visualSweepSet has one. That clean exists
-    // because its six producers are parameterised (-PblockId, -PrenderSize) and accumulate across
+    // because its producers are parameterised (-PblockId, -PrenderSize) and accumulate across
     // sessions - measured at 255 files where the run wrote 153. These two take a fixed Java roster,
     // two scopes and seven subjects, and rewrite every file every run; they are also the only two
     // sweep rows with an empty `scopedBy`, which is that property stated where the capture reads it.

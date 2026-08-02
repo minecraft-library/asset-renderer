@@ -41,19 +41,33 @@ STALE_SIDECARS = ("*.variant", "*.vertices.tsv")
 
 #: For an artifact whose source is a SHARED parent, the sub-directories that are members.
 #:
-#: An allowlist, never a denylist. ``cache/visual`` holds 9,197 images; 147 of them are this
+#: An allowlist, never a denylist. ``cache/visual`` holds thousands of images and only these are this
 #: artifact's. The rest are the six per-subject diff-panel trees, the three sub-trees that have
 #: manifests of their own, and whatever A/B directories a session left behind - and a denylist would
 #: have to be extended for each of those, with forgetting silently baking scratch into a baseline.
 #: The diff panels are the sharper reason: a sweep run rewrites them, so admitting them would make
 #: this artifact move on every sweep and gate nothing.
 #: The two artifacts share ``cache/visual`` as their source and cover DISJOINT file sets under it:
-#: ``manifest.visual``'s six members are exactly the producer directories no other artifact covers,
-#: and neither of ``manifest.player-raw``'s two is among them. So the sweep trees excluded above are
-#: not merely ungated - one of them is the other artifact's whole population.
+#: ``manifest.visual``'s members are exactly the producer directories no other artifact covers, and
+#: neither of ``manifest.player-raw``'s two is among them. So the sweep trees excluded above are not
+#: merely ungated - one of them is the other artifact's whole population.
+#:
+#: ``manifest.visual``'s tuple is the other end of ``visualSweepProducers`` in ``build.gradle.kts``,
+#: which registers the task writing each directory. ``walk`` raises for a member that is not there,
+#: so dropping a producer from the build is loud; ADDING one is not, which is why a Java test asserts
+#: the two name the same set rather than leaving the pairing to a comment.
+#:
+#: Editing this tuple REDEFINES the artifact rather than measuring it again, and the stored baseline
+#: goes on describing the membership it was promoted over until the next promotion replaces it. What
+#: an added name reaches is the capture's population: its directory's files enter the capture and no
+#: baseline row answers them, so ``compare`` has them to report as ``added`` rather than as movers -
+#: a RED a promotion clears and a re-render does not, which is why the promotion's recorded reason is
+#: where a membership change gets written down. An added name whose directory no producer has written
+#: reaches ``walk``'s refusal above instead, and the capture stops short of a comparison.
 SUBTREES = {
-    "manifest.visual": ("block-render-3d", "entity-render-3d", "item-day-cycle",
-                        "item-render-2d", "lore-tooltip", "menu-render"),
+    "manifest.visual": ("block-render-3d", "entity-projections", "entity-render-3d",
+                        "item-day-cycle", "item-render-2d", "lore-tooltip", "menu-render",
+                        "projection-smoke"),
     "manifest.player-raw": ("player-parity-vanilla", "armor-parity-vanilla"),
 }
 
