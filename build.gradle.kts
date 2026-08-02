@@ -696,8 +696,10 @@ dependencies {
     // the built-in getPath is compound-only, so the rule layer supplies its own list/wildcard walker.
     api("com.github.minecraft-library:nbt-factory") { version { strictly("f8b5f52") } }
 
-    // ASM - used by VanillaTintsLoader to parse net.minecraft.client.color.block.BlockColors
-    // straight from the extracted client jar, replacing the previously hand-curated tint table.
+    // ASM - used by the `blockTints` tooling flow (ToolingBlockTints -> TintWalk) to parse
+    // net.minecraft.client.color.block.BlockColors straight from the extracted client jar into
+    // block_tints.json, replacing the previously hand-curated tint table. The runtime reads that
+    // table through BlockTintsLoader and needs no jar.
     // 9.8 added support for Java 25 class files (major version 69), which the Minecraft version
     // named by the harness's gradle.properties emits.
     implementation("org.ow2.asm:asm:9.8")

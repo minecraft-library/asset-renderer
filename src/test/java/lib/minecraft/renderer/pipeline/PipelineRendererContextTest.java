@@ -121,11 +121,11 @@ class PipelineRendererContextTest {
         // texture index with the real TextureIndexer / ColorMapLoader, keeping the test honest about
         // the exact id format and resolution shape the context resolves against.
         //
-        // VanillaTintsLoader is intentionally NOT called here: it now parses BlockColors from
-        // a real client jar, which the unit test does not have. Tint entries are synthesised
-        // directly so the context wiring (Block.tintTarget population, findColorMap pass-through)
-        // can still be exercised in isolation. The end-to-end loader is exercised by the
-        // slowTest against the cached vanilla 26.1 jar.
+        // BlockTintsLoader is intentionally NOT called here. Tint entries are synthesised directly
+        // so the context wiring (Block.tintTarget population, findColorMap pass-through) can be
+        // exercised against a chosen table rather than against the shipped one - which is the point,
+        // since a test that loaded the real block_tints.json would assert on whatever the last
+        // `blockTints` run emitted. The end-to-end loader is exercised by the slowTest.
         ResourcePack vanillaPack = new ResourcePack(
             PackId.VANILLA, new PackContainer.Directory(packRoot), MCMeta.EMPTY,
             Concurrent.newList(PackRoot.BASE), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE));
