@@ -32,7 +32,7 @@ suspected byte-neutral refactor, or pricing a deliberate move before registering
 ```bash
 # 1. the AFTER side is the working tree; capture the BEFORE side into a redirected root
 git stash push -- src
-./gradlew parityCapture -Partifacts=<the plan's SEES set> -PparityRoot=cache/parity/base
+./gradlew parityCapture -Partifacts=<the plan's PLAN set> -PparityRoot=cache/parity/base
 git stash pop
 
 # 2. the after side, into the default root
@@ -60,7 +60,7 @@ restore before believing anything:
 
 ```bash
 git checkout HEAD~1 -- <the files the commit touched>
-./gradlew parityCapture -Partifacts=<the SEES set> -PparityRoot=cache/parity/base
+./gradlew parityCapture -Partifacts=<the PLAN set> -PparityRoot=cache/parity/base
 git checkout HEAD -- <the same files>
 git status --short          # MUST be empty before you believe the numbers
 ```

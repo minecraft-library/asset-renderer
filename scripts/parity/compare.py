@@ -31,9 +31,36 @@ CLASSES = ("added", "dropped", "status", "canvas", "metric")
 
 _ENVELOPE = {"//", "artifact", "format", "key", "kind", "provenance"}
 
+#: The one member `side_of` joins besides the kind's own rows member: a manifest's log digests, whose
+#: entries enter the SAME keyspace under a prefix rather than sitting beside the comparison.
+JOINED_ALSO = "logs"
+
 #: The two artifacts `shipped-tables-agreement` relates, and the check's own id.
 AGREEMENT_CHECK = "shipped-tables-agreement"
 AGREEMENT_ARTIFACTS = ("digest.shipped-tables", "manifest.tooling-tables")
+
+
+def joins(kind: str, member: str) -> bool:
+    """Whether the join reads a node under this top-level member of an envelope of this kind.
+
+    `side_of` builds its rows out of two members and no others: the one the kind names, and `logs`.
+    Everything else an artifact's file carries the compare never looks at - the six envelope keys by
+    name, and any other member because no shape reaches it - so a value there is written by the
+    capture, read by nothing, and reported by no verdict. That is the difference between a stored
+    value and a GATED one, and only the second is what "the capture measures it" can mean.
+
+    `provenance` is the case that matters. Every captured file carries one and the exclusion is
+    deliberate: a wall time and a run sha differ on every run, so joining them would report a mover
+    on every artifact of every compare. The value really is written and really is not diffed.
+
+    A kind this store does not name answers false, which is the safe direction: an unrecognised
+    envelope reports its nodes as ungated rather than claiming a join nothing performs.
+
+    :param kind: the container envelope's ``kind``
+    :param member: the first segment of the JSON pointer into it
+    :return: whether the compare's join reaches that node
+    """
+    return member == JOINED_ALSO or member == store_mod.rows_member(kind)
 
 
 @dataclass
@@ -109,7 +136,7 @@ def side_of(payload: dict, label: str) -> Side:
     # rather than sitting beside the comparison, because a stored value the gate does not read is
     # the false green this store exists against - and a reordered log with a byte-identical table is
     # exactly the move it is there to catch.
-    for name, digest in sorted((payload.get("logs") or {}).items()):
+    for name, digest in sorted((payload.get(JOINED_ALSO) or {}).items()):
         rows[f"logs/{name}"] = {key: f"logs/{name}", "sha256": digest}
     return Side(artifact=payload.get("artifact", ""), key=key, label=label, rows=rows)
 

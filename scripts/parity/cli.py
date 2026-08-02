@@ -11,6 +11,7 @@ through ``norm``.
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 import unittest
@@ -473,6 +474,12 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     It fails on exactly three things: an unreadable map, a usage error, and a changed path no rule
     covers. It never fails on reach - a wide reach is a big plan, and refusing one would be refusing
     to answer the question it was asked.
+
+    It answers three ways. ``sees`` is what the change moves; ``plan`` is the part of it a capture
+    writes a file for; ``covered`` is the part with no file of its own whose value the plan's own
+    capture both writes and is compared on; ``manual`` is what is left, and each of its rows carries
+    the act that would measure it - widening the capture to a container this plan missed, or reading
+    a value no verdict anywhere reports.
     """
     base = _bases(args)
     root = store_mod.working(args.root, base).root
@@ -485,20 +492,29 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     if reach.unknown:
         raise Refused(str(blindness_mod.UnknownReach(reach.unknown)))
 
-    index = store_mod.production(args.store, base).index().get("artifacts", {})
-    budget = sum(int(index.get(artifact, {}).get("last_duration_ms", 0)) for artifact in reach.sees)
+    index = store_mod.production(args.store, base).index()
+    plan, covered, manual = _split_reach(reach.sees, index)
+    budget = sum(int(index.get(_STORE_MAP, {}).get(artifact, {}).get("last_duration_ms", 0))
+                 for artifact in plan)
     payload = {
         "//": "parity.report.plan · regen: ./gradlew parityPlan",
         "artifact": "report.plan",
         "blind": reach.blind,
         "budget_ms": budget,
         "changed": sorted(changed),
+        # `sees` answers reach and `plan` selects a capture, which are two different sets: every
+        # artifact the change moves, against the ones the store keeps a file for and a producer can
+        # rewrite. `covered` and `manual` are the rest of `sees`, split by whether this plan's own
+        # capture already GATES it - writes the value and is compared on it - so the three partition
+        # the reach answer. A truncation nobody names reads as "that was all of it", and a remainder
+        # nobody splits sends a reader to redo the capture's work by hand. Each `manual` row carries
+        # an `action`, because that remainder is two kinds: one a wider capture reaches and one only
+        # a human can.
+        "covered": covered,
         "format": 1,
         "kind": "plan",
-        # `sees` is what the map resolves the changed paths to; `plan` is what a capture would
-        # actually run after any narrowing. They are the same here and are kept apart because the
-        # moment they are not, a reader has to be able to tell which one they are looking at.
-        "plan": reach.sees,
+        "manual": manual,
+        "plan": plan,
         "rules_fired": reach.fired,
         "sees": reach.sees,
     }
@@ -509,11 +525,193 @@ def _cmd_plan(args: argparse.Namespace) -> int:
         lines.append(f"BLIND  {entry['artifact']} [{entry['rule']}] {entry['reason']}")
     if reach.no_reach:
         lines.append("NO REACH: " + ", ".join(reach.no_reach))
-    lines.append(f"PLAN   ({len(reach.sees)}): " + (", ".join(reach.sees) or "(none)"))
+    lines.append(f"PLAN   ({len(plan)}): " + (", ".join(plan) or "(none)"))
+    planned = set(plan)
+    if covered:
+        lines.append(f"COVERED ({len(covered)}): no capture row of its own; each one's value is a "
+                     "joined field of a file this plan already captures, so that capture writes it "
+                     "and the compare reports a move in it")
+        for entry in covered:
+            rides = ", ".join(name for name in entry["containers"] if name in planned)
+            lines.append(f"  {entry['artifact']} [{entry['home']}] {entry['where']} <- {rides}")
+    if manual:
+        lines.append(f"MANUAL ({len(manual)}): reached by this change and gated by nothing this "
+                     "plan captures. A row saying `capture` names a file the store does keep, whose "
+                     "compare joins the field, and this plan missed - so widening the capture to it "
+                     "is the act that measures it; a row saying `read` is read where it lives, "
+                     "because no verdict anywhere reports it")
+        for entry in manual:
+            act = (f"capture {','.join(entry['containers'])}"
+                   if entry["action"] == _CAPTURE else "read it there")
+            where = f" {entry['where']}" if entry["where"] else ""
+            lines.append(f"  {entry['artifact']} [{entry['home']}]{where} - {act}")
     lines.append(f"BUDGET {budget} ms"
                  + ("" if budget else "  (nothing promoted yet, so no artifact has a duration)"))
     _emit(args, "\n".join(lines), payload)
-    return _gate_exit(args, base, root, reach) if args.gate_exit else OK
+    return _gate_exit(args, base, root, reach, plan) if args.gate_exit else OK
+
+
+#: The map of the index that registers an artifact the production store keeps a FILE for - the one
+#: home a capture can write into, and therefore the one a plan may name.
+_STORE_MAP = "artifacts"
+
+#: Where the index registers an artifact whose home is not the store, and the field each of those
+#: maps carries that says where its value is read. These three and ``artifacts`` ARE the four
+#: artifact homes and a Java test holds them to it, so the split is read out of the store rather than
+#: kept as a second copy of the taxonomy here.
+_ELSEWHERE = {"pointers": "pointer", "external": "home", "sources": "test_class"}
+
+#: The one map above whose field names a place INSIDE the store - a JSON pointer into another
+#: artifact's file - so a capture can reach its value at all. ``external`` names a path outside the
+#: store and ``sources`` a Java class, and their fields are free text in their own grammar: one that
+#: happens to read as a store path is a coincidence, not a container, so only this map's targets are
+#: ever matched against one.
+_CONTAINED = "pointers"
+
+#: The two acts a MANUAL row can ask for. ``capture`` names a container the store keeps a file for,
+#: whose compare joins the node this row points at, and which this plan left out - so widening
+#: ``-Partifacts`` to it is the act that measures the row. ``read`` is everything else, and is the
+#: only one a human answers by hand: a home no capture writes, and equally a node no compare joins,
+#: because a capture that cannot report a move on it does not measure it. The same word carried in
+#: the payload and printed on the line, so a reader and a script agree on which.
+_CAPTURE = "capture"
+_READ = "read"
+
+#: A ``<name>`` in a pointer's target stands for a family of container files rather than one:
+#: ``sweeps/<sweep>.json`` is any sweep table, ``<artifact>`` is any artifact's own envelope. The
+#: group is captured so a split keeps the placeholders alongside the literals.
+_POINTER_WILDCARD = re.compile(r"(<[^>]*>)")
+
+
+def _split_reach(sees: list[str], index: dict) -> tuple[list[str], list[dict], list[dict]]:
+    """Split a reach answer into what a capture runs, what its verdict already covers, and the rest.
+
+    ``sees`` answers reach: an artifact belongs in it whenever the change really does move that
+    artifact, whatever home it lives in. A pointer into another artifact's file and a pin whose home
+    is Java source both move for a real reason and neither has a capture row, so handing one to
+    ``parityCapture`` refuses the whole invocation at CONFIGURATION time - which is what killed the
+    documented plan-then-capture flow for every change under ``tooling/**``, ``pipeline/**`` or
+    ``TrimKit``.
+
+    The store's own ``artifacts`` map is the registry the split is taken against rather than a set
+    spelled here, because that map is exactly what the roster registers as store-homed and one test
+    relates the two; a Python copy would be a third spelling to keep in step.
+
+    **Dropping from the plan is not the same as being uncovered**, but being written is not being
+    gated either. A pointer whose target is a row field lands in the joined keyspace, so the capture
+    that writes that file writes the value and the compare reports a move in it like any other row -
+    ``report.diagnostics-log`` is the ``logs`` object of ``manifest.tooling-tables``, produced and
+    diffed on every plan that names that manifest, and telling a reader to go and read that by hand
+    would be telling them to redo work the capture already did.
+
+    A pointer at a node the join never reads is the opposite case wearing the same clothes. Its
+    container is captured, its value is written, and ``compare`` builds its rows out of the kind's
+    rows member and ``logs`` alone - so a summary object, and every ``provenance`` field, is stored
+    and never diffed. No widening of ``-Partifacts`` makes a verdict speak about it, which is why
+    ``compare.joins`` decides containment here rather than the file half of the target alone.
+
+    **What is left is therefore two kinds**, and each row says which. A pointer the compare does join
+    on, whose container this plan missed, is measured by adding that container to the capture - so
+    the row names it rather than sending a reader to open the store's own copy, which holds the last
+    PROMOTED value and would report a stale baseline as a finding. Everything else - a pin homed in
+    Java source, a value homed outside the store, a node no compare joins - is read where it lives,
+    because reading it is the only answer there is.
+
+    An index registering nothing has never been promoted into and can narrow nothing, so the reach
+    answer stands whole. That direction is deliberate: a plan emptied by an unreadable registry reads
+    downstream as "there was nothing to capture", where an unnarrowed one still refuses loudly.
+
+    :param sees: the resolved reach, in its own order
+    :param index: the production store's index envelope
+    :return: the plan, the rows a plan member's own compare gates, and the rows nothing in the plan
+        gates, each of the last carrying the act that would measure it
+    """
+    stored = index.get(_STORE_MAP) or {}
+    if not stored:
+        return list(sees), [], []
+    plan = [artifact for artifact in sees if artifact in stored]
+    planned = set(plan)
+    covered: list[dict] = []
+    manual: list[dict] = []
+    for artifact in sees:
+        if artifact in stored:
+            continue
+        row = _homed_elsewhere(artifact, index, stored)
+        if planned.intersection(row["containers"]):
+            covered.append(row)
+        else:
+            manual.append({**row, "action": _CAPTURE if row["containers"] else _READ})
+    return plan, covered, manual
+
+
+def _homed_elsewhere(artifact: str, index: dict, stored: dict) -> dict:
+    """Locate one reached artifact the store keeps no file of its own for.
+
+    :param artifact: the artifact id
+    :param index: the production store's index envelope
+    :param stored: the index's store-homed map, whose keys the containers are drawn from
+    :return: its id, which map registers it, where its value is read, and which stored artifacts'
+        captures gate it
+    """
+    for name, field in _ELSEWHERE.items():
+        entry = index.get(name, {}).get(artifact)
+        if entry is None:
+            continue
+        where = str(entry.get(field, ""))
+        containers = _pointer_containers(where, stored) if name == _CONTAINED else []
+        return {"artifact": artifact, "containers": containers, "home": name, "where": where}
+    # Unregistered is reachable only through a store whose index and roster have parted company, and
+    # saying so beats printing an empty home as though the lookup had succeeded.
+    return {"artifact": artifact, "containers": [], "home": "unregistered", "where": ""}
+
+
+def _pointer_containers(target: str, stored: dict) -> list[str]:
+    """Which stored artifacts' captures GATE the value a pointer names.
+
+    A target is ``<store-relative file>#<json pointer>`` and both halves are load-bearing. The file
+    half is MATCHED against each stored artifact's own path rather than looked up, because it may
+    name a family instead of one file and a placeholder there is the registration saying so. It is
+    matched whole: a target naming part of a path - a stem without its extension, a directory - names
+    a file the store does not keep, and crediting the file it is a prefix of would answer for a value
+    that registration never pointed at.
+
+    The pointer half then asks ``compare.joins``, because a container whose compare never reads that
+    node writes the value and reports nothing about it. Being written is not being gated, and only a
+    container that is both is worth naming: a plan that offered the other one would send a reader to
+    run a capture whose verdict cannot move for the row they asked about.
+
+    :param target: the pointer's registered target
+    :param stored: the index's store-homed map
+    :return: the container ids, sorted; empty when no stored file both carries the value and is
+        joined on it
+    """
+    container, _, pointer = target.partition("#")
+    member = pointer.strip("/").split("/")[0]
+    return [artifact for artifact in _pointer_files(container, stored)
+            if compare_mod.joins(str((stored[artifact] or {}).get("kind", "")), member)]
+
+
+def _pointer_files(container: str, stored: dict) -> list[str]:
+    """Which stored artifacts the file half of a pointer target names.
+
+    :param container: the target's file half, a store-relative path with any placeholders left in
+    :param stored: the index's store-homed map
+    :return: the artifact ids whose own path the half names, sorted
+    """
+    pattern = re.compile("".join(
+        ".+" if piece.startswith("<") else re.escape(piece)
+        for piece in _POINTER_WILDCARD.split(container)))
+    found = []
+    for artifact in stored:
+        try:
+            path = store_mod.path_of(artifact)
+        except MissingInput:
+            # The naming rule answers for a kind prefix it knows; an id it does not is registered in
+            # the store map without a path, which is a registry defect rather than a container.
+            continue
+        if pattern.fullmatch(path):
+            found.append(artifact)
+    return sorted(found)
 
 
 #: `plan --gate-exit`'s tri-state, which is a REPORT rather than a failure - hence codes of its own
@@ -523,7 +721,7 @@ GATE_ALREADY_GATED = 20
 
 
 def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
-               reach: blindness_mod.Reach) -> int:
+               reach: blindness_mod.Reach, plan: list[str]) -> int:
     """Answer the pre-commit hook's question in the exit code.
 
     Three answers: ``OK`` when no artifact can see the change, ``GATE_ALREADY_GATED`` when a compare
@@ -539,7 +737,8 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     :param args: the parsed namespace
     :param base: the repo root
     :param root: the working root
-    :param reach: the resolved reach
+    :param reach: the resolved reach, which decides whether there is anything to gate at all
+    :param plan: the capture set drawn from it, which is what a verdict is measured against
     :return: the exit code
     """
     if not reach.sees:
@@ -560,8 +759,12 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     if recorded.get("asset_sha") != sha or recorded.get("asset_dirty_digest") != digest:
         return GATE_SEES_UNGATED
     # The tree matches, but a verdict that covered fewer artifacts than this plan needs has not
-    # gated the difference. Subset, never equality: a WIDER previous compare still covers this one.
-    if not set(reach.sees) <= set(recorded.get("artifacts", [])):
+    # gated the difference. Against the PLAN, because a verdict records what a compare covered and a
+    # compare covers what a capture produced: an id no capture produces can never appear there, so
+    # comparing the reach answer makes the subset unsatisfiable and the hook asks on every commit
+    # touching a path whose reach names one - which is the silence this predicate exists to earn.
+    # Subset, never equality: a WIDER previous compare still covers this one.
+    if not set(plan) <= set(recorded.get("artifacts", [])):
         return GATE_SEES_UNGATED
     return GATE_ALREADY_GATED
 

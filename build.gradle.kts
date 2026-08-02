@@ -154,6 +154,34 @@ val parityWorkingRoot: String =
 // side and one on the Python side.
 val parityProductionStore: String = "src/test/resources/lib/minecraft/renderer/parity"
 
+// The parity-gate skill's reference files, two of which are generated from the store's JSON and
+// asserted byte-identical by ParityReferencesTest. The suite reads them by filesystem path, so this
+// is the Gradle-side spelling of `ParityReferences.HOME` for the same reason the store has one here,
+// one in Java and one in Python.
+val paritySkillReferences: String = ".claude/skills/parity-gate/references"
+
+// The directories BlindnessMapTest's own walk skips, at any depth. Kept as one list applied to every
+// root below rather than a per-root spelling, because the two lists differing is unnoticeable by
+// inspection and means the declaration is either missing files the walk reads or declaring ones it
+// never sees.
+val parityWalkSkips: List<String> =
+    listOf(".git", ".gradle", ".idea", "build", "cache", "texturepacks", ".jmh", "__pycache__")
+        .map { "**/$it/**" }
+
+// Every root a blindness rule's trigger glob can match that nothing else already reaches the test
+// task. BlindnessMapTest resolves those globs against files on disk to catch a rename orphaning a
+// rule, and the main and test trees reach it through the classpath while these do not. The
+// exclusions are the walk's skip list and nothing else. Gradle drops the `.gitignore` family from
+// every file tree on top of that and the only opt-out is global, so those few stay undeclared -
+// measured, and left, because no trigger glob's only match is one of them.
+val parityTriggerRoots: FileCollection = files(
+    "gradle.properties", "gradlew", "gradlew.bat", "settings.gradle.kts",
+    fileTree("gradle") { exclude(parityWalkSkips) },
+    fileTree("src/jmh") { exclude(parityWalkSkips) },
+    fileTree("scripts/parity") { exclude(parityWalkSkips) },
+    fileTree("harness") { exclude(parityWalkSkips) }
+)
+
 /**
  * Refuses a working root a `cache/` clean would not reach.
  *
@@ -366,27 +394,35 @@ val parityArtifactAliases: Map<String, List<String>> = mapOf(
 )
 
 /**
- * The artifact ids a plan resolved the changed paths to, or null when no plan has been written.
+ * The artifact ids a plan selected for capture, or null when no plan has been written.
  *
  * Read through `providers.fileContents` so an absent plan is an absent value rather than an
  * exception, and so the read is a declared input.
  *
- * @return the plan's SEES set, or null when the working root holds no plan
+ * The `plan` key rather than `sees`, because they answer different questions. `sees` states what the
+ * change moves and names artifacts the store keeps no file of its own for - a pointer into another
+ * artifact's file, a pin whose home is Java source - and every row here is a file, so feeding it
+ * `sees` refuses the whole invocation at CONFIGURATION time for every change under the tooling and
+ * pipeline packages or `TrimKit`. What the plan leaves out the planner still prints, split into what
+ * a captured file already carries and what a human has to read, because a silent drop would read as
+ * full coverage.
+ *
+ * @return the plan's capture set, or null when the working root holds no plan
  */
 fun parityPlannedArtifacts(): List<String>? {
     val text = providers
         .fileContents(layout.projectDirectory.file("$parityWorkingRoot/_run/plan.json"))
         .asText.orNull ?: return null
     val plan = groovy.json.JsonSlurper().parseText(text) as Map<*, *>
-    return (plan["sees"] as List<*>?)?.map { it.toString() }
+    return (plan["plan"] as List<*>?)?.map { it.toString() }
 }
 
 /**
  * Expands `-Partifacts` into the rows to capture.
  *
  * Three branches in order: an explicit comma list of ids and aliases; absent with a plan, which
- * resolves to the plan's SEES set so a human never has to know the ids; absent with no plan, which
- * throws carrying the full id list.
+ * resolves to the plan's capture set so a human never has to know the ids; absent with no plan,
+ * which throws carrying the full id list.
  *
  * @param spec the -Partifacts value, or null when it was not given
  * @return the named rows, in table order and without duplicates
@@ -629,6 +665,19 @@ tasks.withType<Test>().configureEach {
     // rather than a second one: a value the suite reads and the build does not know about is exactly
     // what that exclude makes unrepresentable on the classpath side.
     inputs.dir(parityProductionStore).withPropertyName("parityStore").optional()
+    // Three more the suite reads off the filesystem rather than the classpath, and the same decision
+    // for the same reason. BlindnessMapTest parses THIS FILE's artifact table and resolves the map's
+    // trigger globs against the tree; ParityReferencesTest asserts the skill's generated references
+    // are still what their JSON renders to. Undeclared, editing any of them leaves `test` UP-TO-DATE
+    // and the guard never fires - measured on the artifact table, where the check and the row it
+    // checks live in the same file and a green run said nothing about either.
+    //
+    // The build file is a WHOLE-SUITE input: Gradle tracks a task rather than a test class, so any
+    // build-file edit re-runs all of it. There is no narrower honest form of it, and the alternative
+    // is a guard that cannot fail, which is exactly what it exists to catch.
+    inputs.file("build.gradle.kts").withPropertyName("parityBuildFile")
+    inputs.files(parityTriggerRoots).withPropertyName("parityTriggerRoots")
+    inputs.dir(paritySkillReferences).withPropertyName("paritySkillReferences").optional()
 }
 tasks.withType<JavaExec>().configureEach {
     jvmArgs(addVectorModuleArg)
@@ -1223,7 +1272,7 @@ tasks {
     register<ParityToolkitTask>("parityCapture") {
         description = "Runs the producers of -Partifacts and writes their captures into the parity working root. " +
             "-Partifacts=sweep.entity,manifest.fluid | all | sweeps | renders | dump | tables | pins | digests. " +
-            "Absent, it reads the plan's SEES set. -Pruns=<n> -PparityRoot=<dir>"
+            "Absent, it reads the plan's capture set. -Pruns=<n> -PparityRoot=<dir>"
         group = "parity"
         dependsOn("paritySelfTest")
         dependsOn(parityCaptureBeginTask)

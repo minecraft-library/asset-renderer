@@ -34,7 +34,16 @@ mechanism, not the gate.
 ## What this gate does
 
 - Maps changed paths to artifacts via `blindness.json` - **SEES**, **BLIND**, **UNKNOWN**.
-- Runs only the artifacts in SEES, cheapest first.
+- Runs only the artifacts in PLAN, cheapest first. PLAN is SEES narrowed to what the store holds a
+  file for. What that drops splits again, on whether a **verdict** can report a move in it rather
+  than on whether a capture writes it: **COVERED** is a row field of a file the plan already
+  captures, so that capture writes it, the compare joins it, and nothing more is owed; **MANUAL** is
+  the rest, and each row names the act that measures it - `capture <id>` when its value is a joined
+  field of a store file this plan left out, `read it there` when nothing gates it. `read it there`
+  covers two cases: a home no capture writes at all (a test class, a path outside the store), and a
+  node written into a captured file that the compare never reads - every `#/provenance/...` target
+  and every `#/summary/...` one, since `compare.side_of` joins the kind's rows member and a
+  manifest's `logs` and nothing else.
 - Compares the capture against the store path-for-path and reports `moved=` per artifact.
 - Asserts `diff == expected-diff` (empty by default), never "the sum held".
 - Always prints what is blind and why.
@@ -44,8 +53,8 @@ It does not judge pixels, re-derive a sum, or decide whether a mover is acceptab
 ## Standard invocation
 
 ```bash
-./gradlew parityPlan                    # SEES / BLIND / cost; writes _run/plan.json
-./gradlew parityCapture                 # runs the plan's SEES set into cache/parity/current/
+./gradlew parityPlan                    # SEES / BLIND / PLAN / COVERED / MANUAL / cost; writes _run/plan.json
+./gradlew parityCapture                 # runs the plan's PLAN set into cache/parity/current/
 ./gradlew parityCompare                 # the verdict; the only task that can fail
 ```
 
@@ -64,9 +73,14 @@ recorded duration yet, not that the bundle is free - read the producer list inst
 
 ## Common flags
 
-- `-Partifacts=<comma list|alias>` - **optional.** Absent, the task reads `_run/plan.json`'s SEES
+- `-Partifacts=<comma list|alias>` - **optional.** Absent, the task reads `_run/plan.json`'s PLAN
   set; absent with no plan, it throws with the full id list and says to run `parityPlan` first.
-  Present, it overrides the plan. Prefer narrowing the *change*.
+  Present, it overrides the plan. Prefer narrowing the *change*. Naming an artifact the store holds
+  no file for - anything the plan printed under COVERED or MANUAL - still throws `unknown artifact
+  id`, which is the refusal working rather than a gap. A COVERED id is already inside the capture
+  that writes its container. A MANUAL row names its own answer instead: a `capture <id>` row is
+  asking for that **container**, which is a store file with a row of its own, and a `read it there`
+  row has no container to name - either nothing captures it, or nothing compares it once captured.
 - `-PparityRoot=cache/parity/base` - capture the A/B before-side into a redirected root instead of
   `cache/parity/current/`. Used with `git stash push -- src`; see `references/procedures.md`. The
   root is a path, must be relative and under `cache/`, and there is no slot name.
@@ -94,6 +108,9 @@ owns `--dry-run` for itself.
 | Movers != expected-diff | RED. Report per-row before/after. Do not re-baseline to make it pass. |
 | A mover on an artifact a rule called BLIND | RED, escalated separately. The map is wrong or the change is wider than its paths. Fix the rule; never register it as expected. |
 | Sum unchanged but `moved > 0` | RED. A sum can hold while rows cancel. |
+| COVERED non-empty | Nothing owed. The capture that writes each container writes that value with it, and the compare joins that node, so a move in it is already a mover on the container. |
+| MANUAL row saying `capture <id>` | Widen the capture: add `<id>` to `-Partifacts` and gate it like any other row. Do not read it at the location beside it - that is the last **promoted** value, so it reports a stale baseline as a finding. |
+| MANUAL row saying `read it there` | Read it at the location the plan printed beside it, and say what you found. No verdict reports it: either no capture writes it, or a capture writes it into a node the compare does not join. Widening `-Partifacts` does not help - reading is the only answer. |
 | A changed path matches no rule | Refuse (R1). Add the rule or declare `no_reach`. |
 | SEES empty | Refuse (R2). Build a gate first, or drop the change. |
 | Baseline missing | Refuse (R3). Bootstrap: prove determinism, capture clean, promote. |

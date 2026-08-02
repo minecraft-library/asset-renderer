@@ -9,6 +9,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -27,6 +29,10 @@ import static org.hamcrest.Matchers.is;
  * <p>Third of three generated-file gates, each covering a different destination:
  * {@link ParityIndexTest} relates the Java roster to {@code index.json}, {@link ParityViewsTest}
  * gates the store's own markdown views, and this one gates the skill's reference files.
+ *
+ * <p>One check is about the gate rather than the files: the references are read by filesystem path,
+ * so Gradle learns of them from the build file's declaration alone, and a declaration naming a
+ * different real directory leaves this suite UP-TO-DATE over the edit it exists to catch.
  *
  * <p>Passing {@code -Dasset.parity.regenerateViews=true} makes it <b>write</b> the references rather
  * than assert against them, through the same code path for {@code ParityViewsTest}'s reason: a
@@ -90,6 +96,41 @@ final class ParityReferencesTest {
             for (String literal : new String[] {" 59 artifact", " 60 artifact", " 59 registered", " 60 registered"})
                 assertThat("a generated reference restates the artifact count as a literal",
                     rendered.contains(literal), is(false));
+    }
+
+    @Test
+    @DisplayName("the build file's references path is this one, and holds the files it claims")
+    void theBuildFileNamesTheSameReferenceHome() {
+        String declared = buildFileValue("paritySkillReferences");
+
+        assertThat("the path build.gradle.kts declares as this suite's input, against the one this "
+                + "suite reads. Gradle refuses a declared directory that does not exist, so what "
+                + "survives silently is a path naming a real directory that is not this one - and "
+                + "then editing a reference leaves the task UP-TO-DATE and the staleness unread",
+            declared, equalTo(ParityReferences.HOME.toString().replace('\\', '/')));
+        for (String generated : ParityReferences.GENERATED)
+            assertThat("the declared path holds no such file, so the declaration watches a "
+                    + "directory this suite does not read: " + declared + "/" + generated,
+                Files.isRegularFile(Path.of(declared).resolve(generated)), is(true));
+    }
+
+    /**
+     * The string a top-level {@code val} of the build file is assigned.
+     *
+     * @param name the declaration's name
+     * @return its literal value
+     */
+    private static String buildFileValue(String name) {
+        String build;
+        try {
+            build = Files.readString(Path.of("build.gradle.kts"));
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+        Matcher matcher = Pattern.compile("val " + Pattern.quote(name) + "[^=\\n]*= \"([^\"]+)\"")
+            .matcher(build);
+        if (!matcher.find()) throw new AssertionError("build.gradle.kts declares no " + name);
+        return matcher.group(1);
     }
 
     /**
