@@ -169,7 +169,9 @@ public final class ToolingAtlasDiagnose {
         diagnostics.info("wrote %s", atlasJson.toAbsolutePath());
 
         ids.sort(String.CASE_INSENSITIVE_ORDER);
-        Files.writeString(outDir.resolve("ids.txt"), String.join(System.lineSeparator(), ids) + System.lineSeparator());
+        // Literal LF, for the reason every other writer here uses one: the platform separator makes an
+        // emitted file's bytes a fact about the host that produced them.
+        Files.writeString(outDir.resolve("ids.txt"), String.join("\n", ids) + "\n");
         diagnostics.info("wrote mini-atlas: %d tiles, %dx%d grid -> %s", matching.size(), columns, rows, outDir.resolve("atlas.png").toAbsolutePath());
     }
 

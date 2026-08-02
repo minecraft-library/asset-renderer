@@ -11,8 +11,7 @@
     ".claude/**",
     ".gitattributes",
     ".gitignore",
-    "scripts/euler_reference_svg.py",
-    "scripts/parity_analysis/**"
+    "scripts/euler_reference_svg.py"
   ],
   "rules": [
     {

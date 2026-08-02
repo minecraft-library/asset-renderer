@@ -42,14 +42,35 @@ git stash pop
 ./gradlew parityCompare -Pbase=cache/parity/base
 ```
 
-Three things this gets right that a hand-rolled version does not:
+Four things this gets right that a hand-rolled version does not:
 
 - **The before-side is a redirected root, never a second slot.** A root is a path, guarded to be
   relative and under `cache/`, so it always dies with a `cache/` clean and can never be committed.
 - **`git stash push -- src` and not a bare stash.** A bare stash also removes the toolkit and the
   store, so the before-side would be captured by different code than the after-side.
+- **Check `git status` first: `git stash` on a clean tree is a SILENT no-op.** It stashes nothing,
+  the "before" run measures the change you meant to remove, and `before == after` then reads as
+  everything being fine. This is the failure mode that looks most like success in the whole
+  procedure.
 - **The before-side can never be promoted.** A promotion is only ever from the root the compare it
   requires was run against. An A/B before-side is an operand.
+
+For a change already committed, revert just the touched files instead of stashing, and prove the
+restore before believing anything:
+
+```bash
+git checkout HEAD~1 -- <the files the commit touched>
+./gradlew parityCapture -Partifacts=<the SEES set> -PparityRoot=cache/parity/base
+git checkout HEAD -- <the same files>
+git status --short          # MUST be empty before you believe the numbers
+```
+
+**A report sitting in `cache/` is output, not a baseline.** `cache/visual/*/parity-report.tsv` is
+whatever the last run wrote - it can be days old and from an unrelated commit. Copying one and
+calling the copy a "before" measures nothing, and it has cost real time: a two-day-stale item report
+made seven glint rows appear to move when measured properly **none of them had**. A before/after
+claim needs a "before" produced by code you actually reverted, or a stored baseline whose provenance
+you can name.
 
 ## The tooling-regen A/B
 

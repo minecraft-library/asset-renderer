@@ -444,7 +444,10 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             tilesJson.add(entry);
         }
         root.add("tiles", tilesJson);
-        return gson.toJson(root) + System.lineSeparator();
+        // A literal LF rather than the platform separator: every emitted byte in this repo is LF, and
+        // a writer that asks the JVM what a newline is emits CRLF on one host and LF on another for
+        // the same input - which is a digest that depends on who ran it.
+        return gson.toJson(root) + "\n";
     }
 
     /**

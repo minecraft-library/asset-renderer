@@ -188,7 +188,10 @@ public final class Diagnostics {
         if (this.parent != null)
             throw new ToolingException("flush is root-only (called on scope '%s')", this.path);
         if (this.mode != Output.FILE || this.fileTarget == null) return;
-        StringJoiner lines = new StringJoiner(System.lineSeparator(), "", System.lineSeparator());
+        // Literal LF on both the separator and the terminator. A diagnostics log is an operand - the
+        // tooling-tables artifact carries a digest per flow over it - so asking the JVM what a
+        // newline is would make that digest a fact about the host rather than about the run.
+        StringJoiner lines = new StringJoiner("\n", "", "\n");
         for (Entry entry : this.rootEntries)
             lines.add(entry.timestamp() + " [" + entry.severity() + "] " + entry.path() + " - " + entry.message());
         try {

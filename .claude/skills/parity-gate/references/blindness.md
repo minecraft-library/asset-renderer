@@ -455,4 +455,4 @@ Covered and reaching nothing is a different answer from "I do not know". A chang
 path matching neither a rule nor one of these is `UNKNOWN`, and refusal R1 stops the
 plan rather than guessing.
 
-`**/package-info.java`, `**/*.md`, `notes/**`, `.claude/**`, `.gitattributes`, `.gitignore`, `scripts/euler_reference_svg.py`, `scripts/parity_analysis/**`
+`**/package-info.java`, `**/*.md`, `notes/**`, `.claude/**`, `.gitattributes`, `.gitignore`, `scripts/euler_reference_svg.py`
