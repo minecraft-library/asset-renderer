@@ -15,7 +15,7 @@ import org.jetbrains.annotations.NotNull;
  * FXAA anti-aliasing knobs. Composed into each subject's options as one {@code output} field so the
  * frame is declared once rather than re-spelled per renderer.
  * <p>
- * Defaults are neutral - {@link Renderer#DEFAULT_CANVAS_SIZE} pixels, {@link Projection#VANILLA_ISO},
+ * Defaults are neutral - {@code 256} pixels, {@link Projection#VANILLA_ISO},
  * {@link Facing#DEFAULT}, {@link EulerRotation#NONE}, no supersampling, no FXAA. A subject that needs a
  * different default (the item icon's {@link Projection#VANILLA_GUI_ITEM}) pins it in its own
  * {@code DEFAULT_OUTPUT} constant.
@@ -27,10 +27,12 @@ import org.jetbrains.annotations.NotNull;
 public class OutputOptions {
 
     /**
-     * Output image dimensions in pixels (square), defaulting to {@link Renderer#DEFAULT_CANVAS_SIZE}.
+     * Output image dimensions in pixels (square), defaulting to {@code 256}. The subject renderers
+     * share this frame, so one value here is the tile dimension every one of them agrees on out of
+     * the box.
      */
     @lombok.Builder.Default
-    private final int canvasSize = Renderer.DEFAULT_CANVAS_SIZE;
+    private final int canvasSize = 256;
 
     /**
      * Graphical projection posing the camera and its lens. Defaults to {@link Projection#VANILLA_ISO}.
