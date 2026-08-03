@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/parity-gate-precommit.js",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/parity-gate-precommit.js\"",
             "timeout": 20,
             "statusMessage": "Checking parity gate..."
           }
