@@ -87,7 +87,7 @@ selected by `parityPlan`, and none is a gate.
 
 | task | why it has no id |
 |---|---|
-| `atlas`, `diagnoseAtlas`, `diagnoseAtlasTask10` | `AtlasRenderer` dispatches its tiles on `parallelStream` by design, so two runs place the same sprites at different offsets and the output can never be hashed (blindness rule B15). A must-not-crash smoke check. |
+| `generateAtlas` (with `-Pdiagnose` / `-PsourceFilter` / `-PskipRender`) | `AtlasRenderer` dispatches its tiles on `parallelStream` by design, so two runs place the same sprites at different offsets and the output can never be hashed (blindness rule B15). A must-not-crash smoke check. |
 | `javadoc` | RED at HEAD with about twenty pre-existing errors, seventeen of them Lombok-generated builders an annotation processor produces and javadoc cannot see. Its exit code carries no information. |
 | `jmh` | Benchmark scores, not rendered bytes. `jmh-regression-gate` is the separate skill that compares them. |
 | `bedParity`, `packOverlay`, `redstoneTints`, `stackCountBadge`, `loreTooltip` cells | Authoring and version-bump tools. What they write either has no oracle or is already covered by `manifest.visual`. |

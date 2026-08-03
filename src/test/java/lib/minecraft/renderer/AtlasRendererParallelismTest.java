@@ -1,6 +1,7 @@
 package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.option.AtlasOptions;
+import lib.minecraft.renderer.option.AtlasTile;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
@@ -63,11 +64,11 @@ class AtlasRendererParallelismTest {
             .tileSize(64)
             .build();
 
-        List<String> firstIds = atlasRenderer.renderAtlas(options).tiles().stream()
-            .map(AtlasRenderer.TileSpec::id)
+        List<String> firstIds = atlasRenderer.renderAtlas(options).sidecar().tiles().stream()
+            .map(AtlasTile::id)
             .toList();
-        List<String> secondIds = atlasRenderer.renderAtlas(options).tiles().stream()
-            .map(AtlasRenderer.TileSpec::id)
+        List<String> secondIds = atlasRenderer.renderAtlas(options).sidecar().tiles().stream()
+            .map(AtlasTile::id)
             .toList();
 
         assertThat("parallel atlas dispatch must be order-stable",

@@ -902,32 +902,24 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
-    // atlas render job - a render over the texture pack, not a client-jar extraction; output stays
-    // scratch build/atlas/. diagnoseAtlas and diagnoseAtlasBlockstates share one main class,
-    // ToolingAtlasDiagnose, split by the --source-filter arg.
+    // atlas render job - a render over the texture pack, not a client-jar extraction, so it is not a
+    // tooling flow and nothing wires it; output stays scratch under build/atlas/. One manual task,
+    // its passes selected by property: -Pdiagnose adds the slice-and-flag pass over the rendered
+    // atlas, -PsourceFilter=<source> writes the mini atlas of that source alone, -PskipRender reads
+    // the atlas already on disk instead of rendering a fresh one.
 
-    register<JavaExec>("atlas") {
-        description = "tooling: renders a block/item atlas PNG + typed AtlasSidecar JSON to build/atlas/."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlas")
-        classpath = sourceSets["main"].runtimeClasspath
-        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
-    }
-
-    register<JavaExec>("diagnoseAtlas") {
-        description = "tooling: slices build/atlas/atlas.png by the AtlasSidecar, flags blank/sparse tiles to build/atlas/missing.json."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlasDiagnose")
-        classpath = sourceSets["main"].runtimeClasspath
-        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
-    }
-
-    register<JavaExec>("diagnoseAtlasBlockstates") {
-        description = "tooling: writes a mini atlas containing only blockstate additions to build/atlas/blockstate_only/."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlasDiagnose")
-        classpath = sourceSets["main"].runtimeClasspath
-        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath, "--source-filter=blockstate_only")
+    register<JavaExec>("generateAtlas") {
+        description = "Renders a block/item atlas PNG + the typed AtlasSidecar JSON to build/atlas/, as a worked example of driving AtlasRenderer. -Pdiagnose -PsourceFilter=blockstate_only -PskipRender"
+        group = "build"
+        mainClass.set("lib.minecraft.renderer.example.AtlasGenerator")
+        classpath = sourceSets["test"].runtimeClasspath
+        val sourceFilter = project.findProperty("sourceFilter") as String?
+        args = buildList {
+            add(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
+            if (project.hasProperty("diagnose")) add("--diagnose")
+            if (sourceFilter != null) add("--source-filter=$sourceFilter")
+            if (project.hasProperty("skipRender")) add("--skip-render")
+        }
     }
 
     // Visual diagnostics - main() entry points in src/test/java/lib/minecraft/renderer/visual/.
@@ -1159,9 +1151,9 @@ tasks {
     // Three producers writing into cache/visual are deliberately NOT members because each already
     // IS an artifact of its own (playerRender, fluidRenderer, portalRenderer), and the six
     // *-parity-vanilla trees are not members because they are per-subject diff panels keyed by a
-    // sweep table rather than a byte-gate population. `atlas` is not a member either: it writes
-    // build/atlas/, outside the root entirely, and its parallel tile dispatch makes its output
-    // permanently unhashable.
+    // sweep table rather than a byte-gate population. `generateAtlas` is not a member either: it
+    // writes build/atlas/, outside the root entirely, and its parallel tile dispatch makes its
+    // output permanently unhashable.
     //
     // Two more are non-members for reasons of their own, written down rather than left as an
     // omission, because an unrecorded exclusion is indistinguishable from an oversight:

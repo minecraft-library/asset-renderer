@@ -33,7 +33,9 @@ writes a capture, `parityCompare` reports movers, `parityPromote` makes a captur
 - `BlockGeometryKitTest` and `FrameTurnTest` build fixtures by reflection into private
   parser-populated fields, so a rename compiles clean and fails at runtime.
 
-Task inventories: `./gradlew tasks --group visual`, `--group tooling`, `--group parity`.
+Task inventories: `./gradlew tasks --group visual`, `--group tooling`, `--group parity`, `--group
+build`. The last holds `generateAtlas`, a worked example of driving a renderer rather than a
+resource-regenerator, which is why it is not in `tooling`.
 
 ## Tooling
 

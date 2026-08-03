@@ -252,7 +252,7 @@ asset-renderer/
 │   │       ├── parser/      # GeometryParser
 │   │       └── util/        # AsmKit, ClassNodeCache, VanillaSourceClasses, ...
 │   ├── main/resources/lib/minecraft/renderer/    # Bundled JSON snapshots
-│   ├── test/java/           # JUnit 5 tests (fast + @Tag("slow")) + visual/ main() entry points
+│   ├── test/java/           # JUnit 5 tests (fast + @Tag("slow")) + visual/ and example/ main() entry points
 │   └── jmh/java/lib/minecraft/renderer/bench/    # JMH benchmarks
 ├── build.gradle.kts  settings.gradle.kts  gradle/libs.versions.toml
 └── LICENSE.md  COPYRIGHT.md  CONTRIBUTING.md  CLAUDE.md
@@ -275,7 +275,7 @@ The library ships pre-generated JSON snapshots under `src/main/resources/lib/min
 > [!NOTE]
 > These tasks fetch the client JAR automatically on first run through `Pipeline`, then reuse `<cacheRoot>/vanilla/<version>/client.jar`. `entityModels` output is guarded by the `JsonResourceShaTest` fixtures - re-run it, paste the printed SHA into the matching `*.sha256`, and commit both.
 
-The separate `atlas` / `diagnoseAtlas` tasks dump every block + item into `build/atlas/atlas.png` (+ `atlas.json`) and scan it for blank tiles; they are build diagnostics, not bundled resources.
+The single `generateAtlas` task dumps every block + item into `build/atlas/atlas.png` (+ `atlas.json`). It sits in the `build` group rather than `tooling` and runs from the test sourceset as a worked example of driving `AtlasRenderer`: `-Pdiagnose` also scans the atlas for blank and sparse tiles into `missing.json`, `-PsourceFilter=<source>` also writes a mini-atlas of that one source, and `-PskipRender` reads the atlas already on disk instead of re-rendering it. A build diagnostic, not a bundled resource.
 
 ### Runtime Directories
 
@@ -285,7 +285,7 @@ Created during execution and excluded from version control:
 |-----------|----------|
 | `cache/` | Client JARs, extracted assets, test-render output |
 | `texturepacks/` | User-supplied overlay packs discovered by `TexturePackLoader` |
-| `build/` | Gradle outputs and `atlas` task products |
+| `build/` | Gradle outputs and `generateAtlas` task products |
 
 [vanilla-reference-harness]: https://github.com/minecraft-library/vanilla-reference-harness
 

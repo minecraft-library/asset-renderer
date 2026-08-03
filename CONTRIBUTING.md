@@ -73,7 +73,7 @@ Thank you for your interest in contributing! This document explains how to get s
 1. Open the project root (the directory containing `settings.gradle.kts`). IntelliJ auto-imports the Gradle build.
 2. Ensure the **Project SDK** under **File > Project Structure** is set to a JDK 21 installation.
 3. The build script excludes `cache/` and `texturepacks/` from the IDE module, so indexing stays fast even after the client JAR is downloaded.
-4. For per-task runs, open the **Gradle** tool window. The `tooling` group holds resource-regenerators (`atlas`, `blockTints`, etc.); the `visual` group holds the renderer diagnostics (`blockRender3D`, `fluidRenderer`, `portalRenderer`, etc.).
+4. For per-task runs, open the **Gradle** tool window. The `tooling` group holds resource-regenerators (`blockDefaults`, `blockTints`, etc.); the `visual` group holds the renderer diagnostics (`blockRender3D`, `fluidRenderer`, `portalRenderer`, etc.); the `build` group holds `generateAtlas`, the worked example that drives `AtlasRenderer` over the texture pack into `build/atlas/`.
 
 ## Making Changes
 

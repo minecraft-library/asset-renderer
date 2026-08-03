@@ -212,14 +212,14 @@ Each index build records its own INFO entries, so reordering two of them is invi
 ## B15 - atlas.png can never be a byte gate
 
 - **mode** suppress
-- **triggers** `src/main/java/lib/minecraft/renderer/tooling/atlas/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/AtlasRenderer.java`, `src/main/java/lib/minecraft/renderer/option/Atlas*.java`, `src/test/java/lib/minecraft/renderer/example/**`
 - **sees** -
 - **blind** -
 - **source** 07/blindness#15; CLAUDE.md 'atlas parallel non-deterministic'
 
-AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it.
+AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it. The entry point that drives it sits in the test tree and emits, so R10's claim that those sources only assert is false for it; this rule is where the same answer is written down rather than inferred from an excuse.
 
-*Probe:* run atlas twice with --rerun-tasks and hash build/atlas/atlas.png; the two differ
+*Probe:* run generateAtlas twice with --rerun-tasks and hash build/atlas/atlas.png; the two differ
 
 ## B16 - The probes.json resolveIn sample is itself guarded against a salt-randomized findFirst
 
@@ -433,7 +433,7 @@ Each sweep and render main is the entry point its Gradle task runs, so its own c
 - **blind** -
 - **source** reach baseline
 
-A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can. The exceptions are the sources that DO emit, and each has a rule of its own: R9 for the visual mains, R14 for the write path behind the dump sections and every self-captured file, and R15 for the tests that compute the value each self-captured one carries.
+A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can. The exceptions are the sources that DO emit, and each has a rule of its own: R9 for the visual mains, R14 for the write path behind the dump sections and every self-captured file, R15 for the tests that compute the value each self-captured one carries, and B15 for the atlas entry point, whose output is unhashable by construction.
 
 *Probe:* run ./gradlew test, then capture any artifact and confirm it is byte-identical
 
