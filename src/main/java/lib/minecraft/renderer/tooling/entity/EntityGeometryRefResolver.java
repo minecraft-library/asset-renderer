@@ -7,6 +7,8 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -19,7 +21,6 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -417,19 +418,11 @@ final class EntityGeometryRefResolver {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return Map.of();
 
-        Map<String, String> out = new LinkedHashMap<>();
-        String pendingModelLayer = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
-                pendingModelLayer = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, typeOwner) && pendingModelLayer != null) {
-                out.put(((FieldInsnNode) in).name, pendingModelLayer);
-                pendingModelLayer = null;
-            }
-        }
-        return out;
+        return AsmWalker.over(clinit)
+            .latch(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
+                ? ((FieldInsnNode) in).name : null)
+            .commitAt(Insn.putStatic(typeOwner))
+            .toMap(put -> put.name, values -> values.isEmpty() ? null : values.getFirst());
     }
 
 }
