@@ -6,6 +6,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -207,11 +208,8 @@ final class EntityBlockOverlayResolver {
         Type[] args = AsmKit.argTypes(method.desc);
         if (args.length == 0 || args[0].getSort() != Type.OBJECT) return false;
         String entityClass = args[0].getInternalName();
-        for (AbstractInsnNode in : method.instructions)
-            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
-                && entityClass.equals(mi.owner) && mi.desc.endsWith(")Z"))
-                return true;
-        return false;
+        return AsmWalker.over(method).any(in -> in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
+            && entityClass.equals(mi.owner) && mi.desc.endsWith(")Z"));
     }
 
     // ------------------------------------------------------------------------------------
@@ -314,7 +312,9 @@ final class EntityBlockOverlayResolver {
         return out;
     }
 
-    /** The {@code Axis.<X>} field name behind a {@code rotationDegrees} call. */
+    /**
+     * The {@code Axis.<X>} field name behind a {@code rotationDegrees} call.
+     */
     private static @Nullable String findPrecedingAxisField(@NotNull MethodInsnNode call) {
         AbstractInsnNode hit = AsmKit.findPreceding(call,
             node -> AsmKit.isGetStatic(node, VanillaSourceClasses.Types.MATH_AXIS),
@@ -329,18 +329,17 @@ final class EntityBlockOverlayResolver {
      * {@code getChild} string, with getter-name / snake_case fallbacks.
      */
     private @Nullable String findPrecedingBoneAccessor(@NotNull MethodInsnNode call) {
-        for (AbstractInsnNode in = AsmKit.previousReal(call); in != null; in = AsmKit.previousReal(in)) {
-            if (!(in instanceof MethodInsnNode accessor)
-                || accessor.getOpcode() != Opcodes.INVOKEVIRTUAL
-                || !accessor.name.startsWith("get")
-                || !AsmKit.descriptorReturns(accessor.desc, VanillaSourceClasses.Types.MODEL_PART)) continue;
-            String resolved = resolveAccessorBone(accessor.owner, accessor.name);
-            if (resolved != null) return resolved;
-            String stem = accessor.name.substring(3);
-            // Fallback: getter-name decapitalisation when the field trace misses.
-            return stem.isEmpty() ? null : Character.toLowerCase(stem.charAt(0)) + stem.substring(1);
-        }
-        return null;
+        AbstractInsnNode hit = AsmWalker.before(call).real().first(in ->
+            in instanceof MethodInsnNode accessor
+                && accessor.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && accessor.name.startsWith("get")
+                && AsmKit.descriptorReturns(accessor.desc, VanillaSourceClasses.Types.MODEL_PART));
+        if (!(hit instanceof MethodInsnNode accessor)) return null;
+        String resolved = resolveAccessorBone(accessor.owner, accessor.name);
+        if (resolved != null) return resolved;
+        String stem = accessor.name.substring(3);
+        // Fallback: getter-name decapitalisation when the field trace misses.
+        return stem.isEmpty() ? null : Character.toLowerCase(stem.charAt(0)) + stem.substring(1);
     }
 
     /**
@@ -358,20 +357,24 @@ final class EntityBlockOverlayResolver {
         return bone != null ? bone : EntityOverlayResolver.axisToken(field);
     }
 
-    /** The field a simple {@code ()->ModelPart} getter returns, or {@code null}. */
+    /**
+     * The field a simple {@code ()->ModelPart} getter returns, or {@code null}.
+     */
     private static @Nullable String fieldReturnedByGetter(@NotNull ClassNode model, @NotNull String accessorName) {
         String returnDesc = "()" + VanillaSourceClasses.Descs.MODEL_PART_REF;
         for (MethodNode method : model.methods) {
             if (!accessorName.equals(method.name) || !returnDesc.equals(method.desc)) continue;
-            for (AbstractInsnNode in : method.instructions)
-                if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi
-                    && VanillaSourceClasses.Descs.MODEL_PART_REF.equals(fi.desc))
-                    return fi.name;
+            AbstractInsnNode hit = AsmWalker.over(method).first(in ->
+                in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi
+                    && VanillaSourceClasses.Descs.MODEL_PART_REF.equals(fi.desc));
+            if (hit != null) return ((FieldInsnNode) hit).name;
         }
         return null;
     }
 
-    /** The {@code getChild} string a model {@code <init>} assigns into {@code field}, or {@code null}. */
+    /**
+     * The {@code getChild} string a model {@code <init>} assigns into {@code field}, or {@code null}.
+     */
     private static @Nullable String boneAssignedToField(@NotNull ClassNode model, @NotNull String field) {
         MethodNode init = AsmKit.findMethod(model, AsmKit.INIT);
         if (init == null) return null;
