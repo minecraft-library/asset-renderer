@@ -3,17 +3,17 @@ package lib.minecraft.renderer.tooling.geometry;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Exit;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -149,56 +149,43 @@ public record BabyMeshTransform(
     public static @Nullable BabyMeshTransform resolve(
         @NotNull ClassNodeCache cache, @NotNull String owner, @NotNull String field
     ) {
-        MethodNode clinit = AsmKit.findClinit(cache, owner);
-        if (clinit == null) return null;
+        Cells.ListCell<Integer> ints = Cells.list();
+        Cells.ListCell<Float> floats = Cells.list();
+        Cells.ListCell<String> strings = Cells.list();
+        Cells.Latch<BabyMeshTransform> pending = Cells.latch();
 
-        List<Integer> ints = new ArrayList<>();
-        List<Float> floats = new ArrayList<>();
-        Set<String> strings = new LinkedHashSet<>();
-        BabyMeshTransform pending = null;
-
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (AsmKit.isPseudoNode(in)) continue;
-
-            if (in instanceof TypeInsnNode type
-                && in.getOpcode() == Opcodes.NEW
-                && VanillaSourceClasses.Types.BABY_MODEL_TRANSFORM.equals(type.desc)) {
-                ints.clear();
-                floats.clear();
-                strings.clear();
-                pending = null;
-                continue;
-            }
-
-            Integer asInt = AsmKit.readIntLiteral(in);
-            if (asInt != null) {
-                ints.add(asInt);
-                continue;
-            }
-            Float asFloat = AsmKit.readFloatLiteral(in);
-            if (asFloat != null) {
-                floats.add(asFloat);
-                continue;
-            }
-            if (in instanceof LdcInsnNode ldc && ldc.cst instanceof String value) {
-                strings.add(value);
-                continue;
-            }
-
-            if (in instanceof MethodInsnNode mi
-                && in.getOpcode() == Opcodes.INVOKESPECIAL
-                && AsmKit.INIT.equals(mi.name)
-                && VanillaSourceClasses.Types.BABY_MODEL_TRANSFORM.equals(mi.owner)) {
-                pending = build(owner, field, mi.desc, ints, floats, strings);
-                continue;
-            }
-
-            if (in instanceof FieldInsnNode fi
-                && in.getOpcode() == Opcodes.PUTSTATIC
-                && owner.equals(fi.owner)
-                && field.equals(fi.name)) return pending;
-        }
-        return null;
+        // The binding PUTSTATIC is a stop, not a commit - the transformer was already built at
+        // the <init> and nothing observable happens at the stopping node - so the latch is read
+        // off the SENTINEL exit. A missing class or <clinit> exits MISSING and answers null.
+        Exit exit = AsmWalker.clinit(cache, owner)
+            .real()
+            .until(Insn.putStatic(owner, field))
+            .on(Insn.of(TypeInsnNode.class, alloc -> alloc.getOpcode() == Opcodes.NEW
+                    && VanillaSourceClasses.Types.BABY_MODEL_TRANSFORM.equals(alloc.desc)),
+                alloc -> {
+                    ints.clear();
+                    floats.clear();
+                    strings.clear();
+                    pending.clear();
+                })
+            .on(Insn.of(AbstractInsnNode.class, in -> AsmKit.readIntLiteral(in) != null), in -> {
+                Integer asInt = AsmKit.readIntLiteral(in);
+                if (asInt != null) ints.add(asInt);
+            })
+            .on(Insn.of(AbstractInsnNode.class, in -> AsmKit.readFloatLiteral(in) != null), in -> {
+                Float asFloat = AsmKit.readFloatLiteral(in);
+                if (asFloat != null) floats.add(asFloat);
+            })
+            .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String),
+                ldc -> strings.add((String) ldc.cst))
+            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.BABY_MODEL_TRANSFORM, AsmKit.INIT), init -> {
+                BabyMeshTransform built = build(owner, field, init.desc,
+                    ints.values(), floats.values(), new LinkedHashSet<>(strings.values()));
+                if (built == null) pending.clear();
+                else pending.set(built);
+            })
+            .run();
+        return exit == Exit.SENTINEL ? pending.get() : null;
     }
 
     /**
