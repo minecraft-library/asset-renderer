@@ -5,6 +5,9 @@ import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.CommitWalk;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
@@ -16,8 +19,6 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -98,19 +99,15 @@ public final class BlockItemAliasWalk {
             return;
         }
 
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (in instanceof InvokeDynamicInsnNode indy && indy.desc.endsWith(BIFUNCTION_RETURN_SUFFIX)) {
-                AbstractInsnNode primary = AsmKit.previousReal(indy);
+        AsmWalker.over(clinit)
+            .on(Insn.of(InvokeDynamicInsnNode.class, indy -> indy.desc.endsWith(BIFUNCTION_RETURN_SUFFIX)), indy -> {
+                AbstractInsnNode primary = AsmWalker.previousReal(indy);
                 if (primary instanceof FieldInsnNode field && AsmKit.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
                     collectLambdaSecondaries(items, indy, field.name);
-                continue;
-            }
-
-            if (in.getOpcode() == Opcodes.ANEWARRAY
-                && in instanceof TypeInsnNode arrayType
-                && arrayType.desc.equals(VanillaSourceClasses.Types.BLOCK))
-                collectVarargsSecondaries(in);
-        }
+            })
+            .on(Insn.of(TypeInsnNode.class, arrayType -> arrayType.getOpcode() == Opcodes.ANEWARRAY
+                && arrayType.desc.equals(VanillaSourceClasses.Types.BLOCK)), this::collectVarargsSecondaries)
+            .run();
 
         writeAliases(root);
         this.diagnostics.info("mapped %d secondary blocks to their standing-block item", this.aliases.size());
@@ -131,9 +128,10 @@ public final class BlockItemAliasWalk {
             return;
         MethodNode lambda = AsmKit.findMethod(items, handle.getName(), handle.getDesc());
         if (lambda == null) return;
-        for (AbstractInsnNode node : lambda.instructions)
-            if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS))
-                emit(((FieldInsnNode) node).name, primaryField);
+        AsmWalker.over(lambda)
+            .getStatic(VanillaSourceClasses.Types.BLOCKS)
+            .names()
+            .forEach(secondary -> emit(secondary, primaryField));
     }
 
     /**
@@ -147,18 +145,14 @@ public final class BlockItemAliasWalk {
         if (!(primary instanceof FieldInsnNode field) || !AsmKit.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
             return;
 
-        List<String> secondaries = new ArrayList<>();
-        for (AbstractInsnNode node = anewarray.getNext(); node != null; node = node.getNext()) {
-            if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS)) {
-                secondaries.add(((FieldInsnNode) node).name);
-                continue;
-            }
-            if (node instanceof MethodInsnNode call
-                && AsmKit.isInvokeStatic(call, VanillaSourceClasses.Types.ITEMS, REGISTER_BLOCK, REGISTER_BLOCK_VARARGS_DESC)) {
-                for (String secondary : secondaries) emit(secondary, field.name);
-                return;
-            }
-        }
+        CommitWalk.Commit<MethodInsnNode, String> register = AsmWalker.after(anewarray)
+            .gather(node -> AsmKit.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS)
+                ? ((FieldInsnNode) node).name : null)
+            .commitAt(MethodInsnNode.class, call -> AsmKit.isInvokeStatic(
+                call, VanillaSourceClasses.Types.ITEMS, REGISTER_BLOCK, REGISTER_BLOCK_VARARGS_DESC))
+            .first();
+        if (register == null) return;
+        for (String secondary : register.values()) emit(secondary, field.name);
     }
 
     /**
