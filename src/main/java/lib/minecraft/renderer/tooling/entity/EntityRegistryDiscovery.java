@@ -6,6 +6,7 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -16,6 +17,8 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
@@ -138,32 +141,30 @@ public final class EntityRegistryDiscovery {
         }
 
         Map<String, String> out = new LinkedHashMap<>();
-        String pendingId = null;
-        String pendingCategory = null;
-
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) pendingId = literal;
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MOB_CATEGORY))
-                pendingCategory = ((FieldInsnNode) in).name;
-
-            if (!isBuilderOfCall(in)) continue;
-            if (pendingId == null || pendingCategory == null) {
-                diagnostics.warn("EntityType$Builder.of call without preceding entity id and MobCategory literals");
-                pendingId = null;
-                pendingCategory = null;
-                continue;
-            }
-
-            String fieldName = AsmKit.findFollowingPutStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE, EntityRegistryDiscovery::isBuilderOfCall);
-            if (fieldName == null) {
-                diagnostics.warn("EntityType registration for id '%s' has no PUTSTATIC field", pendingId);
-            } else {
-                out.put(fieldName, pendingId);
-            }
-            pendingId = null;
-            pendingCategory = null;
-        }
+        Cells.Latch<String> pendingId = Cells.latch();
+        Cells.Latch<String> pendingCategory = Cells.latch();
+        AsmWalker.over(clinit)
+            .feed(pendingId)
+            .feed(pendingCategory)
+            .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String),
+                ldc -> pendingId.set((String) ldc.cst))
+            .on(Insn.getStatic(VanillaSourceClasses.Types.MOB_CATEGORY),
+                category -> pendingCategory.set(category.name))
+            .commitAt(Insn.of(MethodInsnNode.class, EntityRegistryDiscovery::isBuilderOfCall), call -> {
+                String id = pendingId.get();
+                if (id == null || pendingCategory.get() == null) {
+                    diagnostics.warn("EntityType$Builder.of call without preceding entity id and MobCategory literals");
+                    return;
+                }
+                AbstractInsnNode put = AsmWalker.after(call)
+                    .first(node -> AsmKit.isPutStatic(node, VanillaSourceClasses.Types.ENTITY_TYPE),
+                        node -> !isBuilderOfCall(node));
+                if (put == null)
+                    diagnostics.warn("EntityType registration for id '%s' has no PUTSTATIC field", id);
+                else
+                    out.put(((FieldInsnNode) put).name, id);
+            })
+            .run();
 
         return out;
     }
