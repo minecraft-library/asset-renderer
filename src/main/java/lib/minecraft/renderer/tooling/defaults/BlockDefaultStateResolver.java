@@ -4,6 +4,7 @@ import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -91,37 +92,36 @@ final class BlockDefaultStateResolver {
      */
     private @NotNull Map<String, String> extractSetValues(@NotNull MethodNode ctor) {
         Map<String, String> pairs = new HashMap<>();
-        String pendingProp = null;
-        String pendingValue = null;
-        Integer lastInt = null;
-        for (AbstractInsnNode node : ctor.instructions) {
-            Integer intLiteral = AsmKit.readIntLiteral(node);
-            if (intLiteral != null) {
-                lastInt = intLiteral;
-                continue;
-            }
-            if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode field) {
-                if (PropertyDefinitionResolver.isPropertyFieldRef(field.desc)) pendingProp = this.properties.resolvePropertyName(field.owner, field.name);
-                else pendingValue = this.properties.enumSerializedName(field.owner, field.name);
-                continue;
-            }
-            if (node instanceof MethodInsnNode call) {
-                if (call.getOpcode() == Opcodes.INVOKESTATIC && VALUE_OF.equals(call.name)) {
-                    if (INTEGER_BOXED.equals(call.owner) && lastInt != null) pendingValue = Integer.toString(lastInt);
-                    else if (BOOLEAN_BOXED.equals(call.owner) && lastInt != null) pendingValue = Boolean.toString(lastInt != 0);
-                    continue;
-                }
-                if (call.getOpcode() == Opcodes.INVOKEVIRTUAL && VanillaSourceClasses.Methods.SET_VALUE.equals(call.name)) {
-                    if (pendingProp != null && pendingValue != null) pairs.put(pendingProp, pendingValue);
-                    pendingProp = null;
-                    pendingValue = null;
-                    lastInt = null;
-                    continue;
-                }
-                if (call.getOpcode() == Opcodes.INVOKEVIRTUAL && VanillaSourceClasses.Methods.REGISTER_DEFAULT_STATE.equals(call.name))
-                    break;
-            }
-        }
+        Cells.Window<Integer> lastInt = Cells.window(AsmWalker::intLiteral, 1);
+        Cells.Latch<String> pendingProp = Cells.latch();
+        Cells.Latch<String> pendingValue = Cells.latch();
+        AsmWalker.over(ctor)
+            .until(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && VanillaSourceClasses.Methods.REGISTER_DEFAULT_STATE.equals(call.name)))
+            .feed(lastInt)
+            .feed(pendingProp)
+            .feed(pendingValue)
+            .on(Insn.of(FieldInsnNode.class, field -> field.getOpcode() == Opcodes.GETSTATIC), field -> {
+                if (PropertyDefinitionResolver.isPropertyFieldRef(field.desc)) {
+                    String name = this.properties.resolvePropertyName(field.owner, field.name);
+                    if (name != null) pendingProp.set(name);
+                    else pendingProp.clear();
+                } else pendingValue.set(this.properties.enumSerializedName(field.owner, field.name));
+            })
+            .on(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKESTATIC
+                && VALUE_OF.equals(call.name)), call -> {
+                if (lastInt.size() == 0) return;
+                int held = lastInt.values().getLast();
+                if (INTEGER_BOXED.equals(call.owner)) pendingValue.set(Integer.toString(held));
+                else if (BOOLEAN_BOXED.equals(call.owner)) pendingValue.set(Boolean.toString(held != 0));
+            })
+            .commitAt(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && VanillaSourceClasses.Methods.SET_VALUE.equals(call.name)), setValue -> {
+                String prop = pendingProp.get();
+                String value = pendingValue.get();
+                if (prop != null && value != null) pairs.put(prop, value);
+            })
+            .run();
         return pairs;
     }
 
