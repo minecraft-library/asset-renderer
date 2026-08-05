@@ -7,6 +7,7 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -142,17 +143,19 @@ public final class LayerDefinitionIndex {
             return new LayerDefinitionIndex(out);
         }
 
-        AsmKit.SlotTracker<Entry> slotState = new AsmKit.SlotTracker<>();
+        Cells.Slots<Entry> slotState = Cells.slots();
         // Tracks `astore N` of MeshTransformer references built locally via
         // `ldc F; invokestatic MeshTransformer.scaling(F)`. When a later `aload N` precedes an
         // `invokevirtual LayerDefinition.apply(MeshTransformer)`, the F here is the scale to
         // fold into the Entry. The horse layer uses this pattern: `ldc 1.1f; invokestatic
         // scaling; astore 75; ... aload 75; invokevirtual apply`.
-        AsmKit.SlotTracker<Float> meshTransformerSlots = new AsmKit.SlotTracker<>();
-        String pendingLayerField = null;
-        Entry pendingDirect = null;
-        Entry pendingMesh = null;
-        Integer[] widthHeight = {null, null};
+        Cells.Slots<Float> meshTransformerSlots = Cells.slots();
+        Cells.Latch<String> pendingLayerField = Cells.latch();
+        Cells.Latch<Entry> pendingDirect = Cells.latch();
+        Cells.Latch<Entry> pendingMesh = Cells.latch();
+        // The last two int literals, older first - an inline `LayerDefinition.create(mesh, W, H)`
+        // reads them as its texture width and height.
+        Cells.Window<Integer> widthHeight = Cells.window(AsmWalker::intLiteral, 2);
         // Tracks the grow of the most recent deformation on the operand stack - an inline
         // `new CubeDeformation(F); <init>` or a `GETSTATIC <field>:CubeDeformation` resolved
         // through the owner's <clinit> bind (FISH_PATTERN_DEFORMATION, the cat
@@ -160,72 +163,57 @@ public final class LayerDefinitionIndex {
         // call consumes the deformation, this value rides into the Entry as its grow
         // pre-seed. Reset on each new ModelLayers field so the value can't leak across
         // registrations.
-        float[] pendingDeformationGrow = null;
-        Float pendingFloat = null;
+        Cells.Latch<float[]> pendingDeformationGrow = Cells.latch();
+        Cells.Latch<Float> pendingFloat = Cells.latch();
         // F of the `MeshTransformer.scaling(F)` that just returned to the operand stack but
         // hasn't yet been astored to a slot or applied. Cleared by ASTORE (captures into
         // meshTransformerSlots) or by direct inline consumption at the apply.
-        Float pendingScalingMTFloat = null;
+        Cells.Latch<Float> pendingScalingMTFloat = Cells.latch();
         // F of the MeshTransformer most recently pushed onto the operand stack (via GETSTATIC
         // of a static MeshTransformer field, or ALOAD of a tracked slot). Consumed by the next
         // `invokevirtual apply(MeshTransformer)` to fold into pendingDirect.
-        Float pendingAppliedMTScale = null;
+        Cells.Latch<Float> pendingAppliedMTScale = Cells.latch();
         // The aged-down transformer the MeshTransformer most recently pushed resolves to, when it
         // is one. Read only where the scaling resolve declines, so the ten scaling-bound fields
         // never pay for the second walk.
-        BabyMeshTransform pendingAppliedBaby = null;
+        Cells.Latch<BabyMeshTransform> pendingAppliedBaby = Cells.latch();
 
-        for (AbstractInsnNode in : createRoots.instructions) {
-            int opcode = in.getOpcode();
-
+        AsmWalker.over(createRoots)
             // Capture float literals that may end up as the `new CubeDeformation(F)` arg or a
             // single-float factory call-site argument.
-            Float asFloat = AsmKit.readFloatLiteral(in);
-            if (asFloat != null) {
-                pendingFloat = asFloat;
-                continue;
-            }
-
+            .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.floatLiteral(in) != null), in -> {
+                Float asFloat = AsmWalker.floatLiteral(in);
+                if (asFloat != null) pendingFloat.set(asFloat);
+            })
             // `new CubeDeformation; dup; ldc F; invokespecial <init>(F)V`: capture the float
             // into pendingDeformationGrow so the next factory call that consumes the
             // deformation picks it up. Only the single-float ctor appears inline in
             // createRoots on 26.1; the FFF ctor never does.
-            if (in instanceof MethodInsnNode mi
-                && opcode == Opcodes.INVOKESPECIAL
-                && AsmKit.INIT.equals(mi.name)
-                && VanillaSourceClasses.Types.CUBE_DEFORMATION.equals(mi.owner)) {
-                if (mi.desc.startsWith("(F") && pendingFloat != null)
-                    pendingDeformationGrow = new float[]{pendingFloat, pendingFloat, pendingFloat};
-                pendingFloat = null;
-                continue;
-            }
-
+            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.CUBE_DEFORMATION, AsmKit.INIT), mi -> {
+                Float held = pendingFloat.get();
+                if (mi.desc.startsWith("(F") && held != null)
+                    pendingDeformationGrow.set(new float[]{held, held, held});
+                pendingFloat.clear();
+            })
             // `GETSTATIC <field>: CubeDeformation` - a static-field deformation at the call
-            // site, resolved through the owner's <clinit> bind.
-            if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
-                && VanillaSourceClasses.Descs.CUBE_DEFORMATION_REF.equals(fi.desc)) {
-                pendingDeformationGrow = resolveDeformationField(cache, fi.owner, fi.name);
-                continue;
-            }
-
-            Integer asInt = AsmKit.readIntLiteral(in);
-            if (asInt != null) {
-                widthHeight[0] = widthHeight[1];
-                widthHeight[1] = asInt;
-                continue;
-            }
-
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
-                pendingLayerField = ((FieldInsnNode) in).name;
-                pendingDirect = null;
-                pendingMesh = null;
-                pendingDeformationGrow = null;
-                pendingFloat = null;
-                pendingAppliedMTScale = null;
-                pendingAppliedBaby = null;
-                continue;
-            }
-
+            // site, resolved through the owner's <clinit> bind; an unresolvable field leaves
+            // the latch empty.
+            .on(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.GETSTATIC
+                && VanillaSourceClasses.Descs.CUBE_DEFORMATION_REF.equals(fi.desc)), fi -> {
+                float[] resolvedGrow = resolveDeformationField(cache, fi.owner, fi.name);
+                if (resolvedGrow != null) pendingDeformationGrow.set(resolvedGrow);
+                else pendingDeformationGrow.clear();
+            })
+            .feed(widthHeight)
+            .on(Insn.getStatic(VanillaSourceClasses.Types.MODEL_LAYERS), fi -> {
+                pendingLayerField.set(fi.name);
+                pendingDirect.clear();
+                pendingMesh.clear();
+                pendingDeformationGrow.clear();
+                pendingFloat.clear();
+                pendingAppliedMTScale.clear();
+                pendingAppliedBaby.clear();
+            })
             // `GETSTATIC <field>: MeshTransformer` - cat / horse-family pattern chaining a
             // class-level static transformer onto the LayerDefinition via apply(). Resolved via
             // the field owner's <clinit>; non-canonical initialisers (indy-backed
@@ -234,127 +222,135 @@ public final class LayerDefinitionIndex {
             // A field the scaling resolve declines may still be an aged-down transformer - the
             // MeshTransformer type covers both, and three vanilla classes spell BABY_TRANSFORMER
             // as a scaling while a fourth spells it as a BabyModelTransform.
-            if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
-                && VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF.equals(fi.desc)) {
-                pendingAppliedMTScale = AsmKit.resolveStaticScalingFactor(cache, fi.owner, fi.name,
+            .on(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.GETSTATIC
+                && VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF.equals(fi.desc)), fi -> {
+                Float scale = AsmKit.resolveStaticScalingFactor(cache, fi.owner, fi.name,
                     VanillaSourceClasses.Types.MESH_TRANSFORMER, VanillaSourceClasses.Methods.SCALING,
                     VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF);
-                pendingAppliedBaby = pendingAppliedMTScale != null
-                    ? null
-                    : BabyMeshTransform.resolve(cache, fi.owner, fi.name);
-                continue;
-            }
-
+                if (scale != null) {
+                    pendingAppliedMTScale.set(scale);
+                    pendingAppliedBaby.clear();
+                } else {
+                    pendingAppliedMTScale.clear();
+                    BabyMeshTransform baby = BabyMeshTransform.resolve(cache, fi.owner, fi.name);
+                    if (baby != null) pendingAppliedBaby.set(baby);
+                    else pendingAppliedBaby.clear();
+                }
+            })
             // `invokestatic MeshTransformer.scaling(F)` - two consumption patterns:
             // slot-mediated (horse: astore then aload + apply) captured via
-            // pendingScalingMTFloat for the ASTORE handler, and inline (cave_spider:
+            // pendingScalingMTFloat for the ASTORE hook, and inline (cave_spider:
             // `aload; ldc 0.7f; invokestatic scaling; invokevirtual apply`, no astore)
-            // captured via pendingAppliedMTScale for the apply handler. The ASTORE handler
-            // clears the inline mirror on store; the apply handler clears the slot mirror on
-            // direct consumption.
-            if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.MESH_TRANSFORMER,
-                    VanillaSourceClasses.Methods.SCALING, SCALING_DESC)
-                && pendingFloat != null) {
-                pendingScalingMTFloat = pendingFloat;
-                pendingAppliedMTScale = pendingFloat;
-                pendingFloat = null;
-                continue;
-            }
-
-            if (in instanceof MethodInsnNode mi && opcode == Opcodes.INVOKESTATIC) {
+            // captured via pendingAppliedMTScale for the apply hook. The ASTORE hook
+            // clears the inline mirror on store; the apply hook clears the slot mirror on
+            // direct consumption. A scaling call with no captured literal is inert.
+            .on(Insn.invokeStatic(VanillaSourceClasses.Types.MESH_TRANSFORMER,
+                VanillaSourceClasses.Methods.SCALING, SCALING_DESC), mi -> {
+                Float held = pendingFloat.get();
+                if (held == null) return;
+                pendingScalingMTFloat.set(held);
+                pendingAppliedMTScale.set(held);
+                pendingFloat.clear();
+            })
+            .on(Insn.of(MethodInsnNode.class, mi -> mi.getOpcode() == Opcodes.INVOKESTATIC), mi -> {
                 if (AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION)) {
-                    pendingMesh = new Entry(mi.owner, mi.name, mi.desc, null, null,
-                        pendingLayerField == null ? "" : pendingLayerField,
-                        growOf(pendingDeformationGrow), null, 1f, null);
-                    pendingDeformationGrow = null;
-                    continue;
+                    String layerField = pendingLayerField.get();
+                    pendingMesh.set(new Entry(mi.owner, mi.name, mi.desc, null, null,
+                        layerField == null ? "" : layerField,
+                        growOf(pendingDeformationGrow.get()), null, 1f, null));
+                    pendingDeformationGrow.clear();
+                    return;
                 }
+                Entry mesh = pendingMesh.get();
                 if (VanillaSourceClasses.Types.LAYER_DEFINITION.equals(mi.owner)
                     && VanillaSourceClasses.Methods.CREATE.equals(mi.name)
-                    && pendingMesh != null) {
-                    pendingDirect = new Entry(pendingMesh.factoryClass(), pendingMesh.factoryMethod(),
-                        pendingMesh.factoryDesc(), widthHeight[0], widthHeight[1],
-                        pendingMesh.layerField(), pendingMesh.grow(), null, 1f, null);
-                    pendingMesh = null;
-                    continue;
+                    && mesh != null) {
+                    List<Integer> sizes = widthHeight.values();
+                    pendingDirect.set(new Entry(mesh.factoryClass(), mesh.factoryMethod(),
+                        mesh.factoryDesc(), sizes.size() == 2 ? sizes.getFirst() : null,
+                        sizes.isEmpty() ? null : sizes.getLast(),
+                        mesh.layerField(), mesh.grow(), null, 1f, null));
+                    pendingMesh.clear();
+                    return;
                 }
                 if (AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.LAYER_DEFINITION)
                     && !VanillaSourceClasses.Types.LAYER_DEFINITION.equals(mi.owner)) {
                     // A single-float factory (`DonkeyModel.createBodyLayer(F)`) captures the
                     // call-site literal so the parser can substitute it via slot 0; other
                     // arities leave floatParam null.
-                    Float floatParam = pendingFloat != null && mi.desc.startsWith("(F)") ? pendingFloat : null;
-                    pendingDirect = new Entry(mi.owner, mi.name, mi.desc, null, null,
-                        pendingLayerField == null ? "" : pendingLayerField,
-                        growOf(pendingDeformationGrow), floatParam, 1f, null);
-                    pendingDeformationGrow = null;
-                    pendingFloat = null;
+                    Float held = pendingFloat.get();
+                    Float floatParam = held != null && mi.desc.startsWith("(F)") ? held : null;
+                    String layerField = pendingLayerField.get();
+                    pendingDirect.set(new Entry(mi.owner, mi.name, mi.desc, null, null,
+                        layerField == null ? "" : layerField,
+                        growOf(pendingDeformationGrow.get()), floatParam, 1f, null));
+                    pendingDeformationGrow.clear();
+                    pendingFloat.clear();
                 }
-                continue;
-            }
-
-            if (in instanceof VarInsnNode vi && opcode == Opcodes.ASTORE) {
-                if (pendingScalingMTFloat != null) {
-                    meshTransformerSlots.store(vi.var, pendingScalingMTFloat);
-                    pendingScalingMTFloat = null;
+            })
+            .on(Insn.of(VarInsnNode.class, vi -> vi.getOpcode() == Opcodes.ASTORE), vi -> {
+                Float scaling = pendingScalingMTFloat.get();
+                if (scaling != null) {
+                    meshTransformerSlots.store(vi.var, scaling);
+                    pendingScalingMTFloat.clear();
                     // Also clear the inline-apply mirror so a slot-mediated store doesn't leave
                     // a stale scale dangling for an unrelated downstream apply.
-                    pendingAppliedMTScale = null;
-                    continue;
+                    pendingAppliedMTScale.clear();
+                    return;
                 }
-                if (pendingDirect != null) {
-                    slotState.store(vi.var, pendingDirect);
-                    pendingDirect = null;
+                Entry direct = pendingDirect.get();
+                if (direct != null) {
+                    slotState.store(vi.var, direct);
+                    pendingDirect.clear();
                 }
-                continue;
-            }
-
-            if (in instanceof VarInsnNode vi && opcode == Opcodes.ALOAD) {
-                Entry stored = slotState.load(vi.var);
+            })
+            .on(Insn.of(VarInsnNode.class, load -> load.getOpcode() == Opcodes.ALOAD), load -> {
+                Entry stored = slotState.load(load.var);
                 if (stored != null) {
-                    pendingDirect = stored;
-                    continue;
+                    pendingDirect.set(stored);
+                    return;
                 }
-                Float mtSlot = meshTransformerSlots.load(vi.var);
-                if (mtSlot != null) pendingAppliedMTScale = mtSlot;
-                continue;
-            }
-
+                Float mtSlot = meshTransformerSlots.load(load.var);
+                if (mtSlot != null) pendingAppliedMTScale.set(mtSlot);
+            })
             // `invokevirtual LayerDefinition.apply(MeshTransformer)` - folds the resolved F
             // into the pending entry (cat CAT_TRANSFORMER 0.8f, horse slot 75, cave_spider
             // inline 0.7f).
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.LAYER_DEFINITION,
-                    VanillaSourceClasses.Methods.APPLY, APPLY_DESC)
-                && pendingDirect != null
-                && (pendingAppliedMTScale != null || pendingAppliedBaby != null)) {
-                if (pendingAppliedMTScale != null) pendingDirect = pendingDirect.composeAppliedScale(pendingAppliedMTScale);
-                if (pendingAppliedBaby != null) pendingDirect = pendingDirect.composeBabyTransform(pendingAppliedBaby);
-                pendingAppliedMTScale = null;
-                pendingAppliedBaby = null;
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.LAYER_DEFINITION,
+                VanillaSourceClasses.Methods.APPLY).and(mi -> APPLY_DESC.equals(mi.desc)), mi -> {
+                Entry direct = pendingDirect.get();
+                Float scale = pendingAppliedMTScale.get();
+                BabyMeshTransform baby = pendingAppliedBaby.get();
+                if (direct == null || (scale == null && baby == null)) return;
+                if (scale != null) direct = direct.composeAppliedScale(scale);
+                if (baby != null) direct = direct.composeBabyTransform(baby);
+                pendingDirect.set(direct);
+                pendingAppliedMTScale.clear();
+                pendingAppliedBaby.clear();
                 // Inline apply consumes the scaling result directly off the operand stack -
                 // clear the slot mirror so a later unrelated ASTORE doesn't pick it up.
-                pendingScalingMTFloat = null;
-                continue;
-            }
-
-            if (in instanceof MethodInsnNode mi
-                && opcode == Opcodes.INVOKEVIRTUAL
+                pendingScalingMTFloat.clear();
+            })
+            // The registration put commits only while armed - an unarmed put clears nothing -
+            // and the reset is narrowed to the per-registration cells: both slot tables, the
+            // width/height window, the deformation grow and the float literal deliberately
+            // stay live across commits.
+            .commitAt(Insn.of(MethodInsnNode.class, mi -> mi.getOpcode() == Opcodes.INVOKEVIRTUAL
                 && BUILDER_PUT.equals(mi.name)
                 && mi.owner.endsWith(IMMUTABLE_MAP_BUILDER_SUFFIX)
-                && pendingLayerField != null
-                && pendingDirect != null) {
-                out.put(pendingLayerField, unaliasDelegate(cache, new Entry(
-                    pendingDirect.factoryClass(), pendingDirect.factoryMethod(), pendingDirect.factoryDesc(),
-                    pendingDirect.texWidthOverride(), pendingDirect.texHeightOverride(),
-                    pendingLayerField, pendingDirect.grow(), pendingDirect.floatParam(),
-                    pendingDirect.appliedMeshTransformerScale(), pendingDirect.appliedBabyTransform())));
-                pendingLayerField = null;
-                pendingDirect = null;
-                pendingMesh = null;
-                pendingAppliedMTScale = null;
-                pendingAppliedBaby = null;
-            }
-        }
+                && pendingLayerField.get() != null
+                && pendingDirect.get() != null), put -> {
+                String layerField = pendingLayerField.get();
+                Entry direct = pendingDirect.get();
+                if (layerField == null || direct == null) return;
+                out.put(layerField, unaliasDelegate(cache, new Entry(
+                    direct.factoryClass(), direct.factoryMethod(), direct.factoryDesc(),
+                    direct.texWidthOverride(), direct.texHeightOverride(),
+                    layerField, direct.grow(), direct.floatParam(),
+                    direct.appliedMeshTransformerScale(), direct.appliedBabyTransform())));
+            })
+            .clearing(pendingLayerField, pendingDirect, pendingMesh, pendingAppliedMTScale, pendingAppliedBaby)
+            .run();
 
         diagnostics.info("indexed %d ModelLayers entries from %s.%s", out.size(),
             VanillaSourceClasses.Types.LAYER_DEFINITIONS, VanillaSourceClasses.Methods.CREATE_ROOTS);
@@ -393,33 +389,54 @@ public final class LayerDefinitionIndex {
         @NotNull String ownerInternalName,
         @NotNull String fieldName
     ) {
-        MethodNode clinit = AsmKit.findClinit(cache, ownerInternalName);
-        if (clinit == null) return null;
-        boolean inAlloc = false;
-        float[] literals = new float[3];
-        int seen = 0;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (in.getOpcode() == Opcodes.NEW
-                && in instanceof TypeInsnNode alloc
-                && VanillaSourceClasses.Types.CUBE_DEFORMATION.equals(alloc.desc)) {
-                inAlloc = true;
-                seen = 0;
-                continue;
-            }
-            if (!inAlloc) continue;
-            Float literal = AsmKit.readFloatLiteral(in);
-            if (literal != null) {
-                if (seen < 3) literals[seen] = literal;
-                seen++;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, ownerInternalName, fieldName) && seen >= 1)
-                return seen == 1
-                    ? new float[]{literals[0], literals[0], literals[0]}
-                    : new float[]{literals[0], literals[1], literals[2]};
-            if (in.getOpcode() == Opcodes.PUTSTATIC) inAlloc = false;
-        }
-        return null;
+        AsmWalker clinit = AsmWalker.clinit(cache, ownerInternalName);
+        if (clinit.missing() != null) return null;
+        // The literal slots persist across allocation segments - only the write cursor resets
+        // at a NEW - so a bind that pushed fewer than three literals reads its missing
+        // components off whatever an earlier segment left in those slots, zero when nothing
+        // did.
+        Cells.Slots<Float> literals = Cells.slots();
+        Cells.Latch<Integer> seen = Cells.latch();
+        Cells.Flag inAlloc = Cells.flag();
+        float[][] resolved = new float[1][];
+        clinit
+            .on(Insn.of(TypeInsnNode.class, alloc -> alloc.getOpcode() == Opcodes.NEW
+                && VanillaSourceClasses.Types.CUBE_DEFORMATION.equals(alloc.desc)), alloc -> {
+                inAlloc.set();
+                seen.set(0);
+            })
+            .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.floatLiteral(in) != null), in -> {
+                if (!inAlloc.get()) return;
+                Float literal = AsmWalker.floatLiteral(in);
+                if (literal == null) return;
+                Integer counted = seen.get();
+                int count = counted == null ? 0 : counted;
+                if (count < 3) literals.store(count, literal);
+                seen.set(count + 1);
+            })
+            .on(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC), fi -> {
+                if (!inAlloc.get()) return;
+                Integer counted = seen.get();
+                int count = counted == null ? 0 : counted;
+                if (ownerInternalName.equals(fi.owner) && fieldName.equals(fi.name) && count >= 1) {
+                    if (resolved[0] == null) {
+                        float first = slotOrZero(literals, 0);
+                        resolved[0] = count == 1
+                            ? new float[]{first, first, first}
+                            : new float[]{first, slotOrZero(literals, 1), slotOrZero(literals, 2)};
+                    }
+                    return;
+                }
+                inAlloc.clear();
+            })
+            .run();
+        return resolved[0];
+    }
+
+    /** The value bound to a literal slot, or zero for a never-written slot. */
+    private static float slotOrZero(@NotNull Cells.Slots<Float> slots, int slot) {
+        Float value = slots.load(slot);
+        return value == null ? 0f : value;
     }
 
     /**
