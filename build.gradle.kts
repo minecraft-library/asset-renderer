@@ -109,12 +109,18 @@ fun parityProperty(name: String): String? =
     gradle.startParameter.projectProperties[name]?.takeIf { it.isNotBlank() }
 
 /**
- * Returns whether a command-line project property was given at all, valueless or not.
+ * Returns whether a command-line boolean option is on: given, and not given the value `false`.
+ *
+ * <p>Presence alone is not the test, and the reason is what the shipped documentation writes. Both
+ * `SKILL.md` and `references/procedures.md` spell these `-Pname=true`, which is the only spelling
+ * that makes `-Pname=false` look meaningful - and under a presence test `=false` turns the option
+ * ON. A valueless `-Pname` still means on, so the documented spelling and the terse one agree.
  *
  * @param name the -P name
- * @return whether it was given
+ * @return whether it was given with anything but the value `false`
  */
-fun parityFlag(name: String): Boolean = gradle.startParameter.projectProperties.containsKey(name)
+fun parityFlag(name: String): Boolean =
+    gradle.startParameter.projectProperties.containsKey(name) && parityProperty(name) != "false"
 
 /**
  * Returns whether this invocation actually asked for the named task.
@@ -126,11 +132,31 @@ fun parityFlag(name: String): Boolean = gradle.startParameter.projectProperties.
  * not anticipated. Gating on the requested names keeps the refusal exactly where it was protecting
  * something and nowhere else.
  *
+ * <p>The start parameter holds what was TYPED, and Gradle expands a camel-case abbreviation to a
+ * task name later, so a literal comparison answers no for `parityCapt` while the build goes on to
+ * run `parityCapture`. Every refusal and every dependency edge behind this predicate then vanishes:
+ * `parityCapt` erased the working root, ran no producer, wrote a valid index over nothing and
+ * reported success. Gradle's own matcher decides it here, so the two cannot disagree about what a
+ * token names. The candidate list is the one name being asked about, which over-answers for a token
+ * ambiguous across several tasks - and that invocation fails in Gradle's own resolution anyway.
+ *
+ * <p><b>`NameMatcher` is Gradle-internal and carries no compatibility guarantee</b>, so a wrapper
+ * bump can move it or change its signature. Accepted knowingly, and in the loud direction: the
+ * failure is a build script that will not compile, on the first invocation after the bump, rather
+ * than a predicate that quietly answers differently. The alternative - a hand-rolled camel matcher
+ * - is the one thing this must not be, because a matcher that disagrees with Gradle's about what a
+ * token names is the defect it was written to remove.
+ *
  * @param name the task name
  * @return whether the command line asked for it
  */
 fun parityTaskRequested(name: String): Boolean =
-    gradle.startParameter.taskNames.any { it == name || it.endsWith(":$name") }
+    gradle.startParameter.taskNames.any { typed ->
+        val token = typed.substringAfterLast(':')
+        typed == name || typed.endsWith(":$name") ||
+            (token.isNotEmpty() &&
+                org.gradle.util.internal.NameMatcher().find(token, listOf(name)) != null)
+    }
 
 // ---- parity roots -------------------------------------------------------------------------------
 // The working root is SINGLE-SLOT and self-overwriting: one root, one capture in it, and the next
@@ -153,6 +179,13 @@ val parityWorkingRoot: String =
 // source set's resources, so moving it is this one line on the Gradle side, one constant on the Java
 // side and one on the Python side.
 val parityProductionStore: String = "src/test/resources/lib/minecraft/renderer/parity"
+
+// The prefix on a line a test JVM wants an operator to read, forwarded to the console below. Gradle
+// captures a test's stdout and shows it to nobody, so a self-captured row declining to overwrite a
+// finished capture said so into a report file and nowhere else. Declared here rather than typed
+// into the listener because `SelfCaptureTest` reads it back out of this file and asserts it is the
+// prefix the decline actually prints - two spellings of it would forward nothing and look wired.
+val parityOutputPrefix: String = "parity: "
 
 // The parity-gate skill's reference files, two of which are generated from the store's JSON and
 // asserted byte-identical by ParityReferencesTest. The suite reads them by filesystem path, so this
@@ -664,6 +697,15 @@ tasks.withType<Test>().configureEach {
     forwardAssetProperties()
     systemProperty("asset.parity.root", parityWorkingRoot)
     systemProperty("asset.parity.references", parityReferenceRoot)
+    // A self-captured row declines to write into a FINISHED capture and says so. Gradle shows a
+    // test's own output to nobody, so the run that skipped the write - an ordinary `test` after a
+    // capture, whose author is expecting the file to move - was the one run that heard nothing.
+    // Only the toolkit's prefix is forwarded: `showStandardStreams` would carry every line the
+    // suite prints with it, and a line nobody can pick out of that is the same as no line.
+    addTestOutputListener { _, event ->
+        if (event.message.startsWith(parityOutputPrefix))
+            logger.lifecycle(event.message.trimEnd())
+    }
     // The store is read by filesystem path and excluded from processTestResources, so it reaches the
     // suite by a route Gradle cannot see. Declared here it is an input like any other: without this a
     // promotion leaves `test` UP-TO-DATE and the verification run reports the PRE-promotion answer -
@@ -683,6 +725,11 @@ tasks.withType<Test>().configureEach {
     // is a guard that cannot fail, which is exactly what it exists to catch.
     inputs.file("build.gradle.kts").withPropertyName("parityBuildFile")
     inputs.files(parityTriggerRoots).withPropertyName("parityTriggerRoots")
+    // The suite's own sources, which reach the task compiled everywhere but here: PinsTest reads
+    // them to find a message prescribing a promotion with no compare in it, and javac emits the
+    // same bytes for a javadoc edit that does not move a line. A shipped regeneration runbook lives
+    // in one, so the one edit this guard exists to catch is the one Gradle cannot see.
+    inputs.dir("src/test/java").withPropertyName("parityTestSources")
     inputs.dir(paritySkillReferences).withPropertyName("paritySkillReferences").optional()
     // The git index, because the map's coverage and orphan checks resolve against `git ls-files`
     // rather than against a walk: a glob whose only witness is an untracked scratch file is an orphan
@@ -1325,6 +1372,10 @@ tasks {
             "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= -Pstale=include -Pbootstrap"
         group = "parity"
         dependsOn("paritySelfTest")
+        // A compare reads what a capture wrote, so it never runs before one in the same invocation.
+        // Command-line order decided it, and the sanctioned three-invocation runbook happens to get
+        // it right; nothing made it so.
+        mustRunAfter("parityCapture")
         requireParityRootUnderCache()
         // -Partifacts absent is not an error here, and this is the one task where that is true: it has
         // a root to walk where capture and promote have nothing to run. So a bare `parityCompare`
@@ -1351,9 +1402,14 @@ tasks {
 
     register<Exec>("parityPromote") {
         description = "Promotes the parity working root into the production store as the new baseline and writes the " +
-            "diff analysis report. Runs no producer. Requires -Preason=<text>. -Partifacts= -Ppopulation=changed -Pclass= -Pbootstrap"
+            "diff analysis report. Runs no producer. Requires -Preason=<text>. -Partifacts= -Ppopulation=changed -Pclass= -Pbootstrap -PallowDirty"
         group = "parity"
         dependsOn("paritySelfTest")
+        // `parityPromote parityCompare` promoted the root into the store and then diffed the root
+        // against the store it had just been written into - necessarily zero movers - leaving a
+        // verdict that says this exact tree was gated. Nothing wipes after a promote, so the hook
+        // read that verdict and stayed silent on a commit nothing had compared.
+        mustRunAfter("parityCompare")
         requireParityRootUnderCache()
         // -Preason has no default and no prompt: a baseline replaced for a reason nobody wrote down is
         // the failure this whole store is built against.
@@ -1366,6 +1422,10 @@ tasks {
         // Defaults to `moving` because forgetting it cannot then understate a change.
         val parityClass = parityProperty("class") ?: "moving"
         val bootstrap = parityFlag("bootstrap")
+        // The dirty-tree refusal's only override, and it has to be reachable from here or the
+        // refusal is one nobody can answer. It is recorded in the promoted provenance, because an
+        // exception nothing writes down cannot be told from the refusal never having fired.
+        val allowDirty = parityFlag("allowDirty")
         parityToolkit(*buildList {
             add("promote-apply")
             add("--root"); add(parityWorkingRoot)
@@ -1375,6 +1435,7 @@ tasks {
             artifacts?.let { add("--artifacts"); add(it) }
             if (population) add("--population-changed")
             if (bootstrap) add("--bootstrap")
+            if (allowDirty) add("--allow-dirty")
         }.toTypedArray())
         outputs.upToDateWhen { false }
     }

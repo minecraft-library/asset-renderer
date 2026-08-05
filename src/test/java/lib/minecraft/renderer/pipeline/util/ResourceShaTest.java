@@ -60,9 +60,15 @@ import static org.hamcrest.Matchers.is;
  * the other.
  * <p>
  * Regeneration workflow: regenerate the JSON via the matching {@code ./gradlew} {@code <task>}
- * tooling task - each table's own is pinned beside its digest as {@code regen} - then
- * {@code ./gradlew parityCapture -Partifacts=digest.shipped-tables} and
- * {@code ./gradlew parityPromote -Preason=<why>}. No value is transcribed by hand.
+ * tooling task - each table's own is pinned beside its digest as {@code regen} - <b>commit the
+ * regenerated tables</b>, then {@code ./gradlew parityCapture -Partifacts=digest.shipped-tables},
+ * {@code ./gradlew parityCompare -Partifacts=digest.shipped-tables} and
+ * {@code ./gradlew parityPromote -Partifacts=digest.shipped-tables -Preason=<why>}. Two of those
+ * four steps are the ones a shorter recipe drops and the promotion refuses without. The commit:
+ * a capture from an uncommitted tree records {@code asset_dirty}, and a baseline whose capture
+ * cannot be shown to have run on a committed tree is re-derivable from no commit. The compare: a
+ * capture erases the working root's run directory, so a promotion following one directly has no
+ * comparison to apply. No value is transcribed by hand.
  */
 @DisplayName("bundled JSON resources match the digests pinned in the parity store")
 class ResourceShaTest {
@@ -116,8 +122,8 @@ class ResourceShaTest {
                 drift.add(table.getKey() + ".json: pinned " + expected + " but actual " + table.getValue());
         }
         assertThat("bundled JSON drifted from the digests pinned in the parity store. If intentional, "
-                + "promote the capture this run already wrote: " + Pins.regenCommand(ARTIFACT)
-                + " then ./gradlew parityPromote -Preason=<why>\n" + String.join("\n", drift),
+                + "re-baseline it: " + Pins.rebaselineCommand(ARTIFACT)
+                + "\n" + String.join("\n", drift),
             drift, is(empty()));
     }
 

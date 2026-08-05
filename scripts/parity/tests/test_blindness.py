@@ -294,7 +294,7 @@ class TheShippedMap(unittest.TestCase):
             self.assertIn(artifact, reach.sees)
 
     def test_a_markdown_file_under_the_harness_reaches_nothing(self):
-        """R6 costs a whole-client re-render, and prose cannot move a reference byte."""
+        """B29 costs a whole-client re-render, and prose cannot move a reference byte."""
         reach = blindness.resolve(["harness/CLAUDE.md"], self.rules, self.no_reach)
         self.assertEqual(reach.sees, [])
         self.assertEqual(reach.no_reach, ["harness/CLAUDE.md"])
@@ -305,7 +305,7 @@ class TheShippedMap(unittest.TestCase):
         self.assertIn("manifest.references", reach.sees)
 
     def test_the_self_capture_writers_are_not_resolved_as_emitting_nothing(self):
-        """R10's claim - the test tree asserts rather than emits - is false for these two."""
+        """B33's claim - the test tree asserts rather than emits - is false for these two."""
         for path in ("src/test/java/lib/minecraft/renderer/parity/SelfCapture.java",
                      "src/test/java/lib/minecraft/renderer/pipeline/dump/PipelineParityDump.java"):
             reach = blindness.resolve([path], self.rules, self.no_reach)
@@ -337,7 +337,7 @@ class TheShippedMap(unittest.TestCase):
         together = blindness.resolve([writer, reader], self.rules, self.no_reach)
         self.assertEqual(together.sees, alone)
         self.assertEqual([e["selected_by"] for e in together.blind if e["artifact"] == "pin.player-crc"],
-                         [["R14"]])
+                         [["B37"]])
 
     def test_every_test_that_declares_a_self_captured_artifact_reaches_it(self):
         """The writer is one mechanism; the VALUE is declared once per artifact, elsewhere.
@@ -375,6 +375,295 @@ class TheShippedMap(unittest.TestCase):
             (store.repo_root() / store.PRODUCTION / "index.json").read_text(encoding="utf-8"))
         return {name for name, row in index["artifacts"].items()
                 if row["kind"] in ("pin-set", "digest-set")}
+
+
+class TheTwoIdNamespaces(unittest.TestCase):
+    """A reach rule is a ``B<n>`` and a refusal is an ``R<n>``, and no prose may swap them.
+
+    They collided once - the map's rules were ``R<n>`` too, so one skill held two ``R14``s meaning
+    unrelated things - and the rules were renamed to clear it. A blanket rename is how the same
+    defect comes back pointing the other way: this module is where the two namespaces meet, its
+    uncovered-path exception IS refusal R1, and the docstring describing that same condition was
+    swept along with the rules and cited a rule about the option surface instead. A reader following
+    it into the skill's table finds no such refusal and into the rendered map finds the wrong
+    subject, which is the whole cost of an id - it is a thing you can look up.
+    """
+
+    #: Where the gate's prose lives and therefore where either id can be spelled: the toolkit, the
+    #: skill, the store's Java (which renders two of the skill's reference files), and the build file
+    #: the tasks each refusal comes out of are registered in.
+    SURFACES = ("scripts/parity", ".claude/skills/parity-gate",
+                "src/test/java/lib/minecraft/renderer/parity", "build.gradle.kts")
+
+    #: The suffixes a surface is walked for, which is the second operand of the same scan: dropping
+    #: one stops reading a whole language's worth of prose and leaves every case below green.
+    SUFFIXES = ("*.py", "*.md", "*.java", "*.kts")
+
+    #: One file per surface whose citation is a durable property of that file rather than today's
+    #: total, so a surface or a suffix dropped from the scan fails on the thing it stopped reading.
+    #: `blindness.py`'s uncovered-path exception IS refusal R1's implementation, `procedures.md` is
+    #: the runbook telling an operator what to do about one, and `ParityReferences` renders the
+    #: sentence the skill's own map carries.
+    REACHED = ("scripts/parity/blindness.py",
+               ".claude/skills/parity-gate/references/procedures.md",
+               "src/test/java/lib/minecraft/renderer/parity/ParityReferences.java")
+
+    #: How the skill's decision table spells a refusal, which is the only declaration of the set.
+    DECLARES = re.compile(r"Refuse \((R\d+)\)")
+
+    #: One id: any letter-then-digit token rather than ``R\d+``, because a citation spelling the
+    #: OTHER namespace is the thing being looked for and a pattern narrowed to this one would not
+    #: see it. That holds wherever the id sits, so this is what reads the head of a citation and
+    #: what reads every id after it.
+    ID = r"[A-Za-z]+\d+[a-z]?"
+
+    #: What joins two ids of one citation, in three arms. The bare ``and`` of ``R3 and R6`` is the
+    #: only one written anywhere the scan reads today, so the bare comma of ``R3, R6`` and the
+    #: comma-then-``and`` of ``R3, R6, and R1`` are driven only where a case writes one between two
+    #: ids - the roster below, whose content is read back before it is looped, and the case pinning
+    #: the whitespace each bound here accepts. Each arm is load-bearing:
+    #: comma-then-``and`` is reached by neither of the others, the comma leaving ``and`` sitting
+    #: where the next id has to be and ``and`` never getting past the comma. Their ORDER is not
+    #: load-bearing: an arm that matches and is then followed by something that is not an id is
+    #: backtracked out of and the next arm tried. ``and`` is a word on both sides, each bound
+    #: carrying its own half: without the right one the middle of ``android2`` is a join, its tail
+    #: the id that has to follow one, and the word is swept into the clause for ``CITED`` to read
+    #: back out whole. Without the left one a word running flush out of an id joins, which takes
+    #: ``R11aand`` to reach because ``ID`` spends its optional trailing letter on the ``a`` of any
+    #: ``and`` written straight after a digit.
+    JOINS = r"\s*(?:,\s*and\b|,|\band\b)\s*"
+
+    #: A whole citation - the word, the head id, and every joined id after it - captured as one
+    #: clause that ``CITED`` is then run over. Not one group per id: ``findall`` over a group
+    #: repeated by ``*`` returns only that group's LAST repetition, so ``refusals R3 and R6 and R1``
+    #: would report ``R3`` and ``R1`` and silently drop the middle. The clause stops at the first
+    #: thing that is neither a join nor an id, which is what keeps a bare ``R9`` in the next
+    #: sentence out of it.
+    CITES = re.compile(rf"[Rr]efusals?\s+({ID}(?:{JOINS}{ID})*)")
+
+    #: Every id inside a clause ``CITES`` matched. Run over the clause and never over a whole file,
+    #: so a token that is not in citation position is not read as one.
+    CITED = re.compile(ID)
+
+    #: How a list citation is written, each form paired with how many of the three ids it names.
+    #: Formats rather than finished citations, because the scan below reads this file: the word
+    #: glued to an id is a citation wherever it appears, so spelling one that names a rule id here
+    #: would make the corpus case report this file. Interpolating the ids at run time is what lets
+    #: the defect be exercised without being committed. Between them the four forms spell one
+    #: representative of each of ``JOINS``'s three arms - ``", "``, ``" and "`` and ``", and "`` -
+    #: and not every string ``JOINS`` accepts around them, its two outer bounds and the one inside
+    #: the comma-then-word arm each taking any run of whitespace or none. Which three joins the
+    #: forms spell is asserted where they are looped rather than left to be read off the table, and
+    #: that assertion pins the join set exactly - a form spelling a different run of whitespace
+    #: cannot join this roster without widening it first, so what the bounds accept is driven by its
+    #: own case instead.
+    LIST_FORMS = (("{a}, {b}", 2), ("{a} and {b}", 2), ("{a}, {b} and {c}", 3),
+                  ("{a}, {b}, and {c}", 3))
+
+    #: The three ids each form above is filled with, one triple per namespace. Two triples because
+    #: a blanket rename is what puts a rule id into a citation, and it lands wherever the rename's
+    #: regex reached - a list whose head is still a refusal and whose tail is now a rule id is the
+    #: shape that produces. Three ids because the widest form names three, and distinct ids because
+    #: a matcher answering one id per clause reads as correct against a repeated one. The second
+    #: triple's tail names rules of the shipped map, so each is a real id that really is not a
+    #: refusal, and ``B11a`` is the map's suffixed spelling, which the head-position pattern already
+    #: had to accept. Read back for each of those properties where they are looped.
+    DRIVEN_IDS = (("R3", "R6", "R1"), ("R3", "B24", "B11a"))
+
+    def setUp(self):
+        from parity import store
+        self.root = store.repo_root()
+        self.production = self.root / store.PRODUCTION
+        skill = (self.root / ".claude/skills/parity-gate/SKILL.md").read_text(encoding="utf-8")
+        self.declared = set(self.DECLARES.findall(skill))
+
+    def test_the_skill_declares_the_refusal_namespace(self):
+        """The operand everything below is compared against, so an unparsed table cannot pass."""
+        self.assertTrue(self.declared, "SKILL.md's decision table declares no `Refuse (R<n>)` row")
+
+    def test_no_rule_of_the_map_is_also_a_refusal_id(self):
+        """The collision itself, which is what the rename was for and what a rename back restores."""
+        rules, _ = blindness.load(self.production)
+        self.assertEqual(sorted({rule.id for rule in rules} & self.declared), [])
+
+    def test_every_refusal_citation_names_a_declared_refusal(self):
+        """A cited id has to resolve where the citation sends the reader, and only one table has it.
+
+        Scoped to the citation form rather than to bare ids on purpose: `R9` names a benchmark seam
+        under `src/jmh`, so "every R<n> is a refusal" is false of the repository and would have to
+        be fitted with exceptions until it stopped saying anything.
+        """
+        wrong = [f"{path}: refusal {cited}" for path, cited in self._citations()
+                 if cited not in self.declared]
+        self.assertEqual(wrong, [])
+
+    def test_the_scan_reaches_every_surface_that_cites_one(self):
+        """Otherwise a scan that read nothing satisfies the case above by finding no counterexample.
+
+        Named files rather than a count, and one per surface rather than one in total: the case
+        above is only as wide as what the walk opened, and a root or a suffix quietly dropped from
+        it reads exactly like a corpus that cites nothing.
+        """
+        # The roster before the reach, and by what it names rather than by being non-empty: a bare
+        # non-emptiness check catches the emptying and misses the narrowing, and narrowed to one
+        # file this case goes green while the surface and the language the other two stood for go
+        # unread - after which dropping either from the walk reads green too.
+        self.assertEqual(sorted(path.rsplit(".", 1)[1] for path in self.REACHED),
+                         ["java", "md", "py"], "one file per language the walk opens")
+        walked = [surface for surface in self.SURFACES
+                  if "." not in surface.rsplit("/", 1)[-1]]
+        self.assertEqual([surface for surface in walked
+                          if any(path.startswith(surface + "/") for path in self.REACHED)],
+                         walked, "and one under every surface it opens as a directory")
+        cited = {path for path, _ in self._citations()}
+        self.assertEqual([path for path in self.REACHED if path not in cited], [])
+
+    def test_a_list_citation_names_every_id_in_it_and_not_only_its_head(self):
+        """The form the corpus already writes, read at its head alone until this case existed.
+
+        `procedures.md` opens by citing two refusals in one clause, and so does the comment on
+        ``CITES``. A head-only pattern validates the first and never looks at the second, which is
+        the namespace collision this class exists over, reachable in the exact syntax the files
+        being scanned use.
+        """
+        # BOTH operands of the loop, read back before it, for the reason either is written down at
+        # all: the loop asserts exactly what its operands spell, so emptied it asserts nothing, and
+        # narrowed - to one form, one triple, or fewer ids - it quietly stops covering the join
+        # spelling or the namespace that was dropped while reading green. Neither is checked for
+        # being non-empty, which catches the emptying and misses the narrowing. The joins are read
+        # back out of the forms, so what is named here is what the loop spells.
+        self.assertEqual(sorted({join for form, _ in self.LIST_FORMS
+                                 for join in re.split(r"\{[abc]}", form)[1:-1]}),
+                         [" and ", ", ", ", and "],
+                         "the roster must spell one representative of each join arm")
+        rules = {rule.id for rule in blindness.load(self.production)[0]}
+        self.assertEqual(len(self.DRIVEN_IDS), 2, "one triple per namespace")
+        refusals, crossing = self.DRIVEN_IDS
+        self.assertEqual([len(ids) for ids in self.DRIVEN_IDS], [3, 3],
+                         "a triple fills the widest form, which names three")
+        self.assertEqual([len(set(ids)) for ids in self.DRIVEN_IDS], [3, 3],
+                         "and names them distinctly, or one id per clause reads as correct")
+        self.assertEqual(sorted(set(refusals) - self.declared), [],
+                         "the first triple is a citation right the whole way along")
+        self.assertIn(crossing[0], self.declared,
+                      "the second is one a rename left right at its head")
+        self.assertEqual(sorted(set(crossing[1:]) & self.declared), [], "and wrong after it")
+        self.assertEqual(sorted(set(crossing[1:]) - rules), [],
+                         "naming rules of the shipped map rather than ids nothing declares")
+        self.assertTrue(any(cited[-1].isalpha() for cited in crossing),
+                        "one of them suffixed, a spelling head position already had to accept")
+        visited = []
+        for ids in self.DRIVEN_IDS:
+            for form, named in self.LIST_FORMS:
+                text = "refusals " + form.format(a=ids[0], b=ids[1], c=ids[2])
+                self.assertEqual(self._cited(text), list(ids[:named]), text)
+                visited.append((ids, form))
+        # What everything above cannot say: that the loop read the operands it was handed. They pin
+        # what each SPELLS, and a loop whose iterable is replaced by an empty literal still passes
+        # every one of them while asserting nothing itself. What is compared here is the pairs the
+        # body saw rather than how many times it ran, because a count is satisfied by an iterable
+        # padded back to length - one triple repeated runs eight times and reads the namespace it
+        # dropped nowhere.
+        self.assertEqual(visited, [(ids, form) for ids in self.DRIVEN_IDS
+                                   for form, _ in self.LIST_FORMS],
+                         "the loop must visit every form of every triple")
+
+    def test_a_file_is_read_past_the_first_citation_in_it(self):
+        """Clause position, which is the same blindness one level out from list position.
+
+        No other case here hands the matcher more than one clause, so a matcher truncated to the
+        first clause it finds reads all of them back unchanged, while the corpus scan then validates
+        each file's opening citation and nothing after it. Two of the three files the reach roster
+        names write more than one clause apiece, and the runbook first names the determinism refusal
+        after its opening one, so an id cited only later is exactly what such a scan stops seeing.
+        The reach roster cannot catch that: every file it names still yields its first clause.
+        """
+        text = ("Loaded on refusals {a} and {b}. The store rejects a promotion on "
+                "refusal {c}.".format(a="R3", b="R6", c="R5"))
+        self.assertEqual(self._cited(text), ["R3", "R6", "R5"])
+
+    def test_a_join_is_a_word_and_never_the_middle_or_the_tail_of_one(self):
+        """The two word bounds on ``and``, one assertion each, driven by nothing else.
+
+        Neither shape is written anywhere the scan reads - the corpus reads out identically with
+        both bounds dropped - so either can go, together or one at a time, with every other case in
+        this class green. The left one takes the second shape to reach because ``ID`` spends its
+        optional trailing letter on the ``a`` wherever ``and`` follows a digit directly, which
+        leaves the join tried one character in and failing on the ``n`` for a reason that has
+        nothing to do with a bound.
+
+        Interpolated for the reason the list forms are: each is a citation where it stands, and the
+        second names an id no table declares, which the corpus case would report out of this file.
+        """
+        self.assertEqual(self._cited("refusal {a} android2".format(a="R1")), ["R1"],
+                         "the middle of a word is not a join")
+        self.assertEqual(self._cited("refusals {a}and {b}".format(a="R11a", b="R2")), ["R11a"],
+                         "a word running flush out of an id is not a join")
+
+    def test_a_join_needs_no_whitespace_of_its_own(self):
+        """The two bounds the roster only ever spells with a space in, and therefore cannot pin.
+
+        A form spells its join with a space after it, and the one comma-then-word form spells a
+        space between the comma and the word, so tightening either of those bounds to one-or-more
+        reads the whole roster back unchanged and leaves the rest of this class green while the scan
+        stops reading a citation that was typed without one. The bound BEFORE a join is already
+        reached - a join opening on a comma has no space in front of it, so tightening that one
+        fails the roster on the spot.
+        """
+        self.assertEqual(self._cited("refusals {a},{b}".format(a="R3", b="R6")), ["R3", "R6"],
+                         "a bare comma needs no space after it")
+        self.assertEqual(self._cited("refusals {a},and {b}".format(a="R3", b="R6")), ["R3", "R6"],
+                         "nor does the comma of the comma-then-word arm")
+
+    def test_a_citation_ends_where_its_ids_do(self):
+        """The other half of taking a clause: it must not run on into the prose after the list.
+
+        The last assertion is the one a widened clause fails: `R9` names a benchmark seam rather
+        than a refusal, and a clause reaching past its final join reads it out of the sentence
+        after. The first three are the single-id and no-id forms the corpus writes, so the widening
+        cannot be bought back by narrowing those instead.
+        """
+        self.assertEqual(self._cited("Refusal {a}.".format(a="R1")), ["R1"])
+        self.assertEqual(self._cited("refusal R1 stops the walk"), ["R1"], "a following word")
+        self.assertEqual(self._cited("the refusal is what forces the caller"), [], "no id at all")
+        # The runbook's own opening line, plus the sentence after it that carries the id nothing
+        # cited: a clause that runs past its last join reports the benchmark seam as a refusal.
+        self.assertEqual(self._cited("Loaded on refusals {a} and {b}, and for any A/B. The bench "
+                                     "seam R9 is not one.".format(a="R3", b="R6")),
+                         ["R3", "R6"], "a trailing sentence")
+
+    def test_the_operands_no_citation_can_reach_are_declared(self):
+        """The two the case above cannot hold, because nothing under either cites a refusal today.
+
+        A task registration names what a refusal comes out of and never the refusal, so the build
+        file carries none - and no `.kts` file anywhere does. Both are still where the next one
+        would land, so a drop of either is a real loss of reach and is asserted directly.
+        """
+        self.assertIn("build.gradle.kts", self.SURFACES)
+        self.assertIn("*.kts", self.SUFFIXES)
+
+    def _cited(self, text: str) -> list[str]:
+        """Every id ``text`` cites as a refusal, in the order it spells them.
+
+        The whole matcher, so the synthetic cases above drive what the corpus scan below runs.
+
+        :param text: any prose
+        :return: each cited id, one entry per position in a list citation
+        """
+        return [cited for clause in self.CITES.findall(text) for cited in self.CITED.findall(clause)]
+
+    def _citations(self) -> list[tuple[str, str]]:
+        """Every ``(path, id)`` a surface cites as a refusal, in path order."""
+        found = []
+        for surface in self.SURFACES:
+            base = self.root / surface
+            sources = [base] if base.is_file() else sorted(
+                path for suffix in self.SUFFIXES for path in base.rglob(suffix))
+            for source in sources:
+                path = source.relative_to(self.root).as_posix()
+                found.extend((path, cited)
+                             for cited in self._cited(source.read_text(encoding="utf-8")))
+        return sorted(found)
 
 
 if __name__ == "__main__":

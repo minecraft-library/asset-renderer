@@ -29,12 +29,12 @@ statement the plan prints; shipped ``select`` rules do carry one naming artifact
 rule and the selecting rule fire on the SAME path or on different paths, and one pair of rules
 answers both ways over one change set:
 
-* ``BlindnessMapTest.java`` alone fires R14 (``select``) and R16 (``demote``, R14's list) on one
+* ``BlindnessMapTest.java`` alone fires B37 (``select``) and B39 (``demote``, B37's list) on one
   path. Pass 2 empties the union: ``sees`` is ``[]`` and every artifact on that list is reported
   blind with an empty ``selected_by``.
-* That file beside ``SelfCapture.java`` fires R16 on the first path alone. The second path resolves
-  to R14's list and the union carries it: ``sees`` holds all of it and each blind row reads
-  ``selected_by=['R14']``.
+* That file beside ``SelfCapture.java`` fires B39 on the first path alone. The second path resolves
+  to B37's list and the union carries it: ``sees`` holds all of it and each blind row reads
+  ``selected_by=['B37']``.
 * A ``select`` rule's claim resolves by the same arithmetic from the other side. On
   ``BlockGeometryKit.java``, B10 claims ``sweep.block`` blind while B19 selects it on that path, so it
   is in ``sees`` and its row reads ``selected_by=['B19']``; on ``PlayerRenderer.java``, B9 claims

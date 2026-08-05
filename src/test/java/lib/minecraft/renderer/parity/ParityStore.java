@@ -155,10 +155,13 @@ public final class ParityStore {
     public static @NotNull JsonObject readFrom(@NotNull Path root, @NotNull String artifactId) {
         Path file = root.resolve(pathOf(artifactId));
         if (!Files.isRegularFile(file))
+            // The sequence rather than a summary of it, and built where every other message
+            // prescribing one builds it: a first baseline takes -Pbootstrap=true on two of its
+            // three commands and a committed tree under all of them, and each is a refusal rather
+            // than a convention.
             throw new ParityStoreException(
-                "Parity artifact '%s' is absent from the store at '%s' - capture it with "
-                    + "'./gradlew parityCapture -Partifacts=%s' and promote it",
-                artifactId, file, artifactId);
+                "Parity artifact '%s' is absent from the store at '%s' - give it a first baseline: %s",
+                artifactId, file, Pins.bootstrapCommand(artifactId));
 
         JsonObject envelope;
         try {

@@ -5,8 +5,9 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from parity import capture, store
+from parity import capture, promote, store
 from parity.norm import MissingInput, Refused, read_json, write_json, write_text
 
 DATA = Path(__file__).resolve().parent / "data"
@@ -74,13 +75,27 @@ class OncePerInvocation(unittest.TestCase):
         self.assertTrue((self.root / "manifests" / "fluid.json").is_file())
         self.assertTrue((self.root / "manifests" / "portal.json").is_file())
 
-    def test_a_step_on_a_closed_root_erases_so_single_slot_survives(self):
-        """A hand-run producer is one step and no begin, and it must still leave exactly one."""
+    def test_a_step_on_a_closed_root_refuses_rather_than_erasing_it(self):
+        """A hand-run producer is one step and no begin, and the root it lands in may already hold
+        a finished capture: `index` unlinks OPEN before it writes COMPLETE, so the begin branch is
+        the one a lone step takes. Erasing there destroys a bundle nobody asked to replace."""
         capture.begin(self.root)
         self._artifact("fluid")
         capture.index(self.root)
-        self.assertTrue(capture.join_or_begin(self.root))
+        with self.assertRaises(Refused) as caught:
+            capture.join_or_begin(self.root)
+        self.assertIn(capture.COMPLETE, str(caught.exception))
+        self.assertTrue((self.root / "manifests" / "fluid.json").is_file())
+
+    def test_begin_still_erases_a_closed_root_so_single_slot_survives(self):
+        """The erase is `capture-begin`'s act and stays unconditional: one root, one capture, and
+        the next invocation replaces the previous whether or not it finished."""
+        capture.begin(self.root)
+        self._artifact("fluid")
+        capture.index(self.root)
+        capture.begin(self.root)
         self.assertFalse((self.root / "manifests" / "fluid.json").exists())
+        self.assertFalse((self.root / store.RUN_DIR / capture.COMPLETE).exists())
 
     def test_begin_erases_even_when_a_capture_is_already_open(self):
         """A crashed invocation leaves OPEN behind; the next one must not build on it."""
@@ -165,6 +180,47 @@ class Normalize(unittest.TestCase):
         self.assertIn("provenance", read_json(self.root / "pins" / "player-crc.json"))
 
 
+class RunsDefaultsToTheFloor(unittest.TestCase):
+    """An absent `--runs` stamps the artifact's floor, which is what the build says this side owns.
+
+    Defaulting it to zero instead stamped a number below every floor, so the standard invocation -
+    a bare `parityCapture`, which passes no `-Pruns` - captured a bundle `promote.check` then
+    refused. The refusal landed after the capture had run, which for a full bundle is the whole cost
+    of the gate.
+    """
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp()) / "run"
+
+    def _runs(self, artifact_id: str, **kwargs) -> int:
+        write_json(self.root / store.path_of(artifact_id),
+                   {"artifact": artifact_id, "key": "name", "kind": "digest-set",
+                    "digests": {"block_models": {"sha256": "a"}}})
+        capture.normalize(artifact_id, self.root, self.root, REPO, **kwargs)
+        return read_json(self.root / store.path_of(artifact_id))["provenance"]["determinism_runs"]
+
+    def test_an_absent_runs_stamps_the_ordinary_floor(self):
+        self.assertEqual(self._runs("digest.shipped-tables"), 2)
+
+    def test_the_default_is_the_ARTIFACT_s_floor_and_not_the_common_one(self):
+        """Two artifacts of one kind, one of them raised, so a literal 2 cannot pass this.
+
+        The roster is patched rather than a raised row picked out of it, because every row that
+        really carries five is a manifest and a manifest's capture reads a producer directory. What
+        is being asserted is which function answers, and that is the same function either way.
+        """
+        with mock.patch.dict(promote.FLOORS, {"digest.colormap-lut": 5}):
+            self.assertEqual(self._runs("digest.colormap-lut"), 5)
+            self.assertEqual(self._runs("digest.shipped-tables"), 2)
+
+    def test_an_explicit_runs_is_never_overwritten_by_the_floor(self):
+        self.assertEqual(self._runs("digest.colormap-lut", runs=7), 7)
+
+    def test_an_explicit_zero_stays_zero_so_the_default_is_absence_and_not_falsehood(self):
+        """A measured zero is a claim someone made, and it must still be refused at promote."""
+        self.assertEqual(self._runs("digest.colormap-lut", runs=0), 0)
+
+
 class SelfCapturedPayload(unittest.TestCase):
     """What a producer may declare in the file it self-captures, and what is counted for it."""
 
@@ -243,6 +299,29 @@ class Index(unittest.TestCase):
         self.assertEqual(capture.verify_against_index(self.root), [])
         write_json(self.root / "sweeps" / "entity.json", {"artifact": "sweep.entity", "x": 1})
         self.assertEqual(capture.verify_against_index(self.root), ["sweeps/entity.json"])
+
+    def test_require_unmoved_passes_an_untouched_root_and_refuses_a_moved_one(self):
+        """The shared refusal behind both readers of a finished capture."""
+        capture.index(self.root)
+        capture.require_unmoved(self.root)
+        write_json(self.root / "sweeps" / "entity.json", {"artifact": "sweep.entity", "x": 1})
+        with self.assertRaises(Refused) as caught:
+            capture.require_unmoved(self.root)
+        self.assertIn("changed since", str(caught.exception))
+        self.assertIn("sweeps/entity.json", str(caught.exception))
+
+    def test_the_content_digest_names_the_capture_and_moves_with_it(self):
+        """One name for the tree a finished capture holds, so a later reader can say WHICH capture
+        a report it is holding was written about. Two captures of different bytes into one slot are
+        the case that has to differ - the root's path is the same on both."""
+        capture.index(self.root)
+        first = capture.content_digest(self.root)
+        self.assertEqual(len(first), 64)
+        self.assertEqual(first, capture.content_digest(self.root))
+        capture.begin(self.root)
+        write_json(self.root / "sweeps" / "entity.json", {"artifact": "sweep.entity", "x": 1})
+        capture.index(self.root)
+        self.assertNotEqual(capture.content_digest(self.root), first)
 
 
 if __name__ == "__main__":

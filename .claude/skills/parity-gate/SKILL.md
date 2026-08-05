@@ -88,10 +88,19 @@ recorded duration yet, not that the bundle is free - read the producer list inst
   against the store.
 - `-Pruns=N` on `parityCapture` - **recorded, never measured.** It stamps how many runs the operator
   is claiming agreed; the measurement is two captures into two roots compared against each other.
-  Two for a render tree, five where the `Map.copyOf` salt can reach.
+  Two for a render tree, five where the `Map.copyOf` salt can reach. Absent, each artifact is
+  stamped with its own declared floor, so the determinism refusal is not what a bare capture trips
+  on and a claim of fewer runs than the floor has to be typed. It is not the only refusal a
+  promotion makes: read the table below before assuming a capture is promotable.
 - `-Pbootstrap=true` - the first capture of an artifact has no baseline, so `MISSING_BASELINE` is the
   expected state; this is the only thing in the design that turns it into a pass. It does not lower a
-  determinism floor.
+  determinism floor and it does not excuse a dirty tree. It **is** the exemption from the
+  compare requirement, because a first baseline has nothing to be diffed against - and the flag is
+  per-invocation where a missing baseline is per-artifact, so it exempts every row promoted beside
+  the new one. Give the promotion `-Partifacts` naming the new row, and nothing else rides it.
+- `-PallowDirty=true` on `parityPromote` - promote a capture taken from an uncommitted tree, and
+  record the exception in the promoted provenance. Reach for it only when the alternative is worse:
+  the baseline is then re-derivable from no commit, and nothing read later recovers that.
 - `-Pclass={neutral,shaped,moving}` on `parityPromote` - defaults to `moving`, because forgetting it
   cannot then understate a change.
 - `-Preason=<text>` - mandatory on `parityPromote`.
@@ -114,14 +123,16 @@ owns `--dry-run` for itself.
 | A changed path matches no rule | Refuse (R1). Add the rule or declare `no_reach`. |
 | SEES empty | Refuse (R2). Build a gate first, or drop the change. |
 | Baseline missing | Refuse (R3). Bootstrap: prove determinism, capture clean, promote. |
-| Promote from a dirty tree | Refuse (R4). |
+| Promote from a dirty tree | Refuse (R4). `parityPromote` refuses it, naming the recorded `asset_dirty`. Land the change and re-capture; `-PallowDirty=true` records the exception instead. |
 | `determinism_runs` below floor | Refuse (R5). |
 | References stale or partial | Refuse (R6). Run `renderVanillaAllReferences` - the whole tree, never a narrow task. |
 | Capture partial / producer non-zero / count mismatch | Refuse (R7). |
+| Promote what this capture's compare did not cover | Refuse (R8). `parityPromote` requires `_run/compare.json` stamped with this capture's digest and naming every artifact it would write, so run `parityCompare` between the capture and the promotion and widen its `-Partifacts` to match. `-Pbootstrap=true` is the one exemption - a first baseline has nothing to be diffed against - and it exempts the whole invocation, so narrow that promotion with `-Partifacts`. |
 
 **A phase that promotes is two commits, not one.** The migration lands first, because a capture that
 gets promoted must run committed code or its provenance records `asset_dirty: true` and the baseline
-is not re-derivable from any commit. A phase that promotes nothing is one commit.
+is not re-derivable from any commit - which `parityPromote` refuses rather than leaves to procedure.
+A phase that promotes nothing is one commit.
 
 **Scope a promotion with `-Partifacts`.** A capture root often holds more than the artifact a phase
 declared, because a producer finalizes its own capture step wherever it runs; a bare `parityPromote`

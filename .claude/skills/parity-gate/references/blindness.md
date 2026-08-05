@@ -29,12 +29,12 @@ depends on whether the claiming rule and the selecting rule fire on the **same
 path** or on **different paths**, and one pair of rules answers both ways over
 one change set.
 
-`BlindnessMapTest.java` alone fires R14 (`select`) and R16 (`demote`, R14's
+`BlindnessMapTest.java` alone fires B37 (`select`) and B39 (`demote`, B37's
 list) on one path: the demote pass empties the union, SEES is empty, and every
 artifact on that list is reported blind with nothing recorded against it. That
-file beside `SelfCapture.java` fires R16 on the first path alone, the second
-path resolves to R14's list, and the union carries it - SEES holds all of it
-and each blind row reads "claimed blind, selected by R14". A `select`
+file beside `SelfCapture.java` fires B39 on the first path alone, the second
+path resolves to B37's list, and the union carries it - SEES holds all of it
+and each blind row reads "claimed blind, selected by B37". A `select`
 rule's claim resolves by the same arithmetic from the other side: on
 `BlockGeometryKit.java` B10 claims `sweep.block` blind while B19 selects it on
 that path, so it is in SEES and its row names B19; on `PlayerRenderer.java` B9
@@ -217,7 +217,7 @@ Each index build records its own INFO entries, so reordering two of them is invi
 - **blind** -
 - **source** 07/blindness#15; CLAUDE.md 'atlas parallel non-deterministic'
 
-AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it. The entry point that drives it sits in the test tree and emits, so R10's claim that those sources only assert is false for it; this rule is where the same answer is written down rather than inferred from an excuse.
+AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it. The entry point that drives it sits in the test tree and emits, so B33's claim that those sources only assert is false for it; this rule is where the same answer is written down rather than inferred from an excuse.
 
 *Probe:* run generateAtlas twice with --rerun-tasks and hash build/atlas/atlas.png; the two differ
 
@@ -317,7 +317,7 @@ A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the ite
 
 *Probe:* throw from TrimKit.permuteFrom and run all five sweeps; none of them fires it
 
-## R1 - The option surface reaches every renderer that takes options, and nothing else
+## B24 - The option surface reaches every renderer that takes options, and nothing else
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/option/**`
@@ -329,7 +329,7 @@ Every renderer entry point takes a RenderOptions, so a default or a resolution r
 
 *Probe:* change a default on an option record and confirm the five sweeps move while all 30 dump files are byte-identical
 
-## R2 - The asset DTO layer is what every renderer reads and what the dump serialises, so it reaches both
+## B25 - The asset DTO layer is what every renderer reads and what the dump serialises, so it reaches both
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/asset/**`
@@ -341,7 +341,7 @@ asset.** holds the records the pipeline builds and the renderers consume, and th
 
 *Probe:* add a field to a dumped record and confirm both the dump and a sweep move
 
-## R3 - The tensor math is under every projected vertex, so it reaches every render and is pinned by two golden float vectors
+## B26 - The tensor math is under every projected vertex, so it reaches every render and is pinned by two golden float vectors
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/tensor/**`
@@ -353,7 +353,7 @@ Matrix4f and Vector3f are on the path of every vertex the engine projects, and t
 
 *Probe:* perturb a Matrix4f multiply and confirm pin.vanilla-iso-pose fails while the dump is byte-identical
 
-## R4 - The face vocabulary decides winding, UV pairing and per-face shade, so it reaches every 3D render
+## B27 - The face vocabulary decides winding, UV pairing and per-face shade, so it reaches every 3D render
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/face/**`
@@ -365,7 +365,7 @@ CornerPhase fixes which corner a quad starts at and therefore which diagonal the
 
 *Probe:* flip one CornerPhase index array and confirm FacePhaseTest fails while all 30 dump files are byte-identical
 
-## R5 - The exception types carry no behaviour a parity artifact can observe
+## B28 - The exception types carry no behaviour a parity artifact can observe
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/exception/**`
@@ -377,7 +377,7 @@ These are message and constructor shapes on throwables. Nothing renders differen
 
 *Probe:* change a detail message and confirm no sweep row moves; change a supertype and confirm the sweep fails to run at all
 
-## R6 - A harness render change rewrites the ground truth every sweep diffs against
+## B29 - A harness render change rewrites the ground truth every sweep diffs against
 
 - **mode** select
 - **triggers** `harness/src/**`, `harness/build.gradle`, `harness/settings.gradle`, `harness/gradle.properties`, `harness/gradle/**`, `harness/gradlew`, `harness/gradlew.bat`, `harness/run-profile/**`
@@ -389,7 +389,7 @@ The harness produces the reference tree, so a change to a frame renderer or the 
 
 *Probe:* re-render with the change stashed: a reference that moves was stale, and one that does not was not reached
 
-## R7 - A toolkit change alters how every artifact is COMPUTED and how none of them is produced
+## B30 - A toolkit change alters how every artifact is COMPUTED and how none of them is produced
 
 - **mode** select
 - **triggers** `scripts/parity/**`
@@ -397,11 +397,11 @@ The harness produces the reference tree, so a change to a frame renderer or the 
 - **blind** -
 - **source** reach baseline; the toolkit is the one producer of every stored byte
 
-The toolkit reads a producer's output and writes the canonical form; it renders nothing, so no artifact's producer bytes move. What can move is the captured form itself, and the gate for that is paritySelfTest, which every parity task depends on. A capture taken across a toolkit change is compared with the OLD store, so a form change surfaces as movers on every artifact at once, which is the signature to look for. One file under this glob is more than a reader: the member map in manifest.py DECLARES the population of the two manifests that share cache/visual rather than measuring it, and R18 names those artifacts for that file. This list stays empty because the rest of the toolkit does only what the claim says.
+The toolkit reads a producer's output and writes the canonical form; it renders nothing, so no artifact's producer bytes move. What can move is the captured form itself, and the gate for that is paritySelfTest, which every parity task depends on. A capture taken across a toolkit change is compared with the OLD store, so a form change surfaces as movers on every artifact at once, which is the signature to look for. One file under this glob is more than a reader: the member map in manifest.py DECLARES the population of the two manifests that share cache/visual rather than measuring it, and B41 names those artifacts for that file. This list stays empty because the rest of the toolkit does only what the claim says.
 
 *Probe:* run the selftest, then capture one artifact either side of the change and diff the two canonical files
 
-## R8 - The build wiring decides what runs, and renders nothing itself
+## B31 - The build wiring decides what runs, and renders nothing itself
 
 - **mode** select
 - **triggers** `build.gradle.kts`, `settings.gradle.kts`, `gradle/**`, `gradle.properties`, `gradlew`, `gradlew.bat`, `src/jmh/**`
@@ -409,11 +409,11 @@ The toolkit reads a producer's output and writes the canonical form; it renders 
 - **blind** -
 - **source** reach baseline; P5 and P6 gated exactly this way
 
-A task registration, a finalizer edge or a property read moves no rendered byte: what it changes is which producer runs and what argv it runs with. The gate is running the tasks and reading their argv, which is why the Gradle phases of this effort gate on task lists and resolved command lines rather than on a sum. Two declarations in the build file escape that: visualSweepProducers and the player-raw aggregator's dependencies decide which producers run and therefore what the two cache/visual manifests hold, so R18 names those artifacts for the build file. This list stays empty because every other glob here is wiring around producers rather than a statement of what one of them covers.
+A task registration, a finalizer edge or a property read moves no rendered byte: what it changes is which producer runs and what argv it runs with. The gate is running the tasks and reading their argv, which is why the Gradle phases of this effort gate on task lists and resolved command lines rather than on a sum. Two declarations in the build file escape that: visualSweepProducers and the player-raw aggregator's dependencies decide which producers run and therefore what the two cache/visual manifests hold, so B41 names those artifacts for the build file. This list stays empty because every other glob here is wiring around producers rather than a statement of what one of them covers.
 
 *Probe:* read back the resolved commandLine of every task the change touches and compare it to the one it replaced
 
-## R9 - The visual mains are the producers, so a change to one changes what its artifact holds
+## B32 - The visual mains are the producers, so a change to one changes what its artifact holds
 
 - **mode** select
 - **triggers** `src/test/java/lib/minecraft/renderer/visual/**`
@@ -425,7 +425,7 @@ Each sweep and render main is the entry point its Gradle task runs, so its own c
 
 *Probe:* re-run the sweep and diff the captured table: a measurement change moves every row and a render change moves some
 
-## R10 - The rest of the test suite asserts rather than emits, so no stored artifact sees it
+## B33 - The rest of the test suite asserts rather than emits, so no stored artifact sees it
 
 - **mode** select
 - **triggers** `src/test/java/**`, `src/test/resources/**`
@@ -433,47 +433,47 @@ Each sweep and render main is the entry point its Gradle task runs, so its own c
 - **blind** -
 - **source** reach baseline
 
-A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can. The exceptions are the sources that DO emit, and each has a rule of its own: R9 for the visual mains, R14 for the write path behind the dump sections and every self-captured file, R15 for the tests that compute the value each self-captured one carries, and B15 for the atlas entry point, whose output is unhashable by construction.
+A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can. The exceptions are the sources that DO emit, and each has a rule of its own: B32 for the visual mains, B37 for the write path behind the dump sections and every self-captured file, B38 for the tests that compute the value each self-captured one carries, and B15 for the atlas entry point, whose output is unhashable by construction.
 
 *Probe:* run ./gradlew test, then capture any artifact and confirm it is byte-identical
 
-## R14 - The dump sections and every self-captured file are written by these two packages, so a change to one rewrites the FORM of everything below it
+## B37 - The dump sections and every self-captured file are written by these two packages, so a change to one rewrites the FORM of everything below it
 
 - **mode** select
 - **triggers** `src/test/java/lib/minecraft/renderer/parity/**`, `src/test/java/lib/minecraft/renderer/pipeline/dump/**`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
 - **blind** -
-- **source** reach baseline; the emitters R10's glob covers and its claim excludes
+- **source** reach baseline; the emitters B33's glob covers and its claim excludes
 
-R10's claim - that the test tree asserts rather than emits - is false for these two packages. PipelineParityDump is the only writer of the dump section files both dump manifests hash, and SelfCapture is the only writer of the file every digest set and every pin is stored as. What they own is the emitted form rather than the measurement: the envelope, the canonical JSON and the path. The VALUE inside each file is computed by the test that hands it over, and R15 covers that half. The globs take the two packages whole rather than naming the writers one by one, so a new file joining the write path is reached without anybody remembering to list it. R16 is the demotion that pays for that polarity, and it names its readers ONE FILE AT A TIME rather than carving a shape out of these globs: a reader it does not name answers with this whole list, which costs a run, where a writer it wrongly named would cost an unnoticed regression. Several files here are readers R16 does not name, and that is the cheap direction working as intended rather than an omission to close.
+B33's claim - that the test tree asserts rather than emits - is false for these two packages. PipelineParityDump is the only writer of the dump section files both dump manifests hash, and SelfCapture is the only writer of the file every digest set and every pin is stored as. What they own is the emitted form rather than the measurement: the envelope, the canonical JSON and the path. The VALUE inside each file is computed by the test that hands it over, and B38 covers that half. The globs take the two packages whole rather than naming the writers one by one, so a new file joining the write path is reached without anybody remembering to list it. B39 is the demotion that pays for that polarity, and it names its readers ONE FILE AT A TIME rather than carving a shape out of these globs: a reader it does not name answers with this whole list, which costs a run, where a writer it wrongly named would cost an unnoticed regression. Several files here are readers B39 does not name, and that is the cheap direction working as intended rather than an omission to close.
 
 *Probe:* perturb the envelope SelfCapture writes and re-run the suite that feeds it; every pin and digest below moves while no renderer and no sweep does
 
-## R15 - Each of these tests declares a self-captured artifact and computes the value stored under it, so its own edit is what moves that value
+## B38 - Each of these tests declares a self-captured artifact and computes the value stored under it, so its own edit is what moves that value
 
 - **mode** select
 - **triggers** `src/test/java/lib/minecraft/renderer/ModelEngineParallelismTest.java`, `src/test/java/lib/minecraft/renderer/FluidRendererParallelismTest.java`, `src/test/java/lib/minecraft/renderer/PortalRendererParallelismTest.java`, `src/test/java/lib/minecraft/renderer/PlayerRasterizeFittedGoldenTest.java`, `src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/util/ResourceShaTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/PipelineIntegrationTest.java`
 - **sees** `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
 - **blind** -
-- **source** reach baseline; the ARTIFACT declarations R14's two globs do not contain
+- **source** reach baseline; the ARTIFACT declarations B37's two globs do not contain
 
-R14 covers the mechanism that writes a self-captured file; none of the values in one is decided there. Each artifact below is named by an ARTIFACT constant in one of these tests, which builds the payload and hands it to SelfCapture, directly or through PinSet - the four CRC pins off a render the class configures, pin.corpus-count and pin.kit-corners and pin.vanilla-iso-pose off what it measures, and both digest sets off the collection it walks. Under R10 alone every one of them resolved to reaching nothing, which is the same false answer R14 was written for one level up. The sees list is the union across the eight, because a rule answers per glob set rather than per file: an edit to one of them plans the others too, and over-selecting costs a run where under-selecting costs an unnoticed regression.
+B37 covers the mechanism that writes a self-captured file; none of the values in one is decided there. Each artifact below is named by an ARTIFACT constant in one of these tests, which builds the payload and hands it to SelfCapture, directly or through PinSet - the four CRC pins off a render the class configures, pin.corpus-count and pin.kit-corners and pin.vanilla-iso-pose off what it measures, and both digest sets off the collection it walks. Under B33 alone every one of them resolved to reaching nothing, which is the same false answer B37 was written for one level up. The sees list is the union across the eight, because a rule answers per glob set rather than per file: an edit to one of them plans the others too, and over-selecting costs a run where under-selecting costs an unnoticed regression.
 
 *Probe:* change what one of them measures - a render option, a subject list, the table set a digest is taken over - and re-run it; the artifact it declares moves and no other does
 
-## R16 - These are the parity package's own suites and the two renderers of its markdown views; none of them writes a byte any artifact digests
+## B39 - These are the parity package's own suites and the two renderers of its markdown views; none of them writes a byte any artifact digests
 
 - **mode** demote
 - **triggers** `src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityIndexTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityReferences.java`, `src/test/java/lib/minecraft/renderer/parity/ParityReferencesTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityViews.java`, `src/test/java/lib/minecraft/renderer/parity/ParityViewsTest.java`
 - **sees** -
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
-- **source** reach baseline; the readers inside R14's write-path packages
+- **source** reach baseline; the readers inside B37's write-path packages
 
-Four suites that read the store to assert against it, and the two renderers behind them, whose output is markdown - the skill's reference files and the store's own README, neither of which any artifact digests. Listed here rather than cut out of R14, so a file ADDED to that package keeps answering with R14's whole list until somebody decides otherwise. A demotion answers for the paths that fired it and for no others, which is what makes this list safe to widen: a commit carrying one of these readers beside a real writer still plans the writer's bundle, and that pairing is the ordinary shape of work in this package rather than an edge case.
+Four suites that read the store to assert against it, and the two renderers behind them, whose output is markdown - the skill's reference files and the store's own README, neither of which any artifact digests. Listed here rather than cut out of B37, so a file ADDED to that package keeps answering with B37's whole list until somebody decides otherwise. A demotion answers for the paths that fired it and for no others, which is what makes this list safe to widen: a commit carrying one of these readers beside a real writer still plans the writer's bundle, and that pairing is the ordinary shape of work in this package rather than an edge case.
 
-*Probe:* edit any one of them and capture any artifact R14 names; every stored byte is identical, and the only thing that fails is the suite that gates the file
+*Probe:* edit any one of them and capture any artifact B37 names; every stored byte is identical, and the only thing that fails is the suite that gates the file
 
-## R11 - The parity store's own files are the baseline a comparison reads, never something a run produces
+## B34 - The parity store's own files are the baseline a comparison reads, never something a run produces
 
 - **mode** select
 - **triggers** `src/test/resources/lib/minecraft/renderer/parity/**`
@@ -485,7 +485,7 @@ Editing a stored artifact by hand does not change what a producer emits; it chan
 
 *Probe:* compare after a hand-edit: the digest in index.json no longer matches the file
 
-## R12 - The ten shipped tables are pipeline INPUT, so a change to one reaches every render that loads it
+## B35 - The ten shipped tables are pipeline INPUT, so a change to one reaches every render that loads it
 
 - **mode** select
 - **triggers** `src/main/resources/lib/minecraft/renderer/*.json`
@@ -497,7 +497,7 @@ src/main/resources/lib/minecraft/renderer/ holds exactly the ten ASM-derived tab
 
 *Probe:* edit one value in block_tints.json and re-run the block sweep and parityDump; both move, and manifest.tooling-tables moves whether or not a generator ran
 
-## R13 - The GsonContributor service registration configures every pipeline decode, so nothing that loads is blind to it
+## B36 - The GsonContributor service registration configures every pipeline decode, so nothing that loads is blind to it
 
 - **mode** select
 - **triggers** `src/main/resources/META-INF/services/**`
@@ -505,11 +505,11 @@ src/main/resources/lib/minecraft/renderer/ holds exactly the ten ASM-derived tab
 - **blind** -
 - **source** P15; the second uncovered path under src/main/resources/
 
-META-INF/services/dev.simplified.gson.GsonContributor is how PipelineGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on R12.
+META-INF/services/dev.simplified.gson.GsonContributor is how PipelineGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on B35.
 
 *Probe:* delete the registration and run any sweep; the pipeline fails to decode outright rather than decoding differently, which is what makes this a load-time reach rather than a per-value one
 
-## R17 - The root package's documentation declares nothing, so it is read by a reader and by no producer
+## B40 - The root package's documentation declares nothing, so it is read by a reader and by no producer
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/package-info.java`
@@ -521,15 +521,15 @@ This is the one package-info in the tree that sits in no package another rule al
 
 *Probe:* open the file: it carries a package declaration and javadoc and no member, and no artifact digests a javadoc
 
-## R18 - The two manifests a member list separates are DECLARED in these two files, so editing either adds or drops rows with no producer having run
+## B41 - The two manifests a member list separates are DECLARED in these two files, so editing either adds or drops rows with no producer having run
 
 - **mode** select
 - **triggers** `build.gradle.kts`, `scripts/parity/manifest.py`
 - **sees** `manifest.visual`, `manifest.player-raw`
 - **blind** -
-- **source** correction to R7 and R8's claim that a toolkit or build-script change reaches nothing - these two files hold the membership the two cache/visual manifests are defined over, and the build file holds their producers' render defaults
+- **source** correction to B30 and B31's claim that a toolkit or build-script change reaches nothing - these two files hold the membership the two cache/visual manifests are defined over, and the build file holds their producers' render defaults
 
-manifest.visual and manifest.player-raw both take cache/visual as their source and are told apart by a member list rather than by a directory of their own. A build-script edit reaches them because that member list is typed in these two files: the toolkit's member map holds the sub-directory names for both artifacts, and the build file holds the registrations that decide which producers write those directories - visualSweepProducers for one, the player-raw aggregator's dependencies for the other. A producer names its own output directory a third time in its Java source, so a member those three disagree about is a directory nothing writes. Adding a name to any of those lists admits every file under that directory to the artifact and dropping one takes them away, so the edit REDEFINES the artifact rather than measuring it again: the rows move with no producer having run, the promoted baseline goes on describing the membership it was promoted over, and the next compare reports added or dropped rows rather than movers - a RED a promotion clears and a re-render does not. Membership is not the whole of what these two files reach. The build file also carries each producer's render defaults - renderSize for projectionSmoke, blockRender3D, entityProjections, entityRender3D, itemDayCycle and itemRender2D, with ssaa, supersample, antiAlias and dayFrames beside it - so editing one of those literals hands the producer a different argv and re-renders that member's sub-tree the next time it runs, which moves stored rows while adding and dropping no member. Six of manifest.visual's eight members read a default typed in the build file, which is why both artifacts are PLANNED for an edit to either file rather than exempted from the edits that look like wiring: the plan states what the edit can reach and the capture is what says whether anything moved. The trigger takes each file whole because neither a Kotlin script nor a Python module offers a glob any sub-file address, and a narrower trigger reads correct until the day somebody edits a member list or a render default in the same commit as the wiring it was written to exclude. R7 and R8 keep their empty sees lists and the union does the rest, which is what keeps a wrapper bump or a JMH edit from planning a render.
+manifest.visual and manifest.player-raw both take cache/visual as their source and are told apart by a member list rather than by a directory of their own. A build-script edit reaches them because that member list is typed in these two files: the toolkit's member map holds the sub-directory names for both artifacts, and the build file holds the registrations that decide which producers write those directories - visualSweepProducers for one, the player-raw aggregator's dependencies for the other. A producer names its own output directory a third time in its Java source, so a member those three disagree about is a directory nothing writes. Adding a name to any of those lists admits every file under that directory to the artifact and dropping one takes them away, so the edit REDEFINES the artifact rather than measuring it again: the rows move with no producer having run, the promoted baseline goes on describing the membership it was promoted over, and the next compare reports added or dropped rows rather than movers - a RED a promotion clears and a re-render does not. Membership is not the whole of what these two files reach. The build file also carries each producer's render defaults - renderSize for projectionSmoke, blockRender3D, entityProjections, entityRender3D, itemDayCycle and itemRender2D, with ssaa, supersample, antiAlias and dayFrames beside it - so editing one of those literals hands the producer a different argv and re-renders that member's sub-tree the next time it runs, which moves stored rows while adding and dropping no member. Six of manifest.visual's eight members read a default typed in the build file, which is why both artifacts are PLANNED for an edit to either file rather than exempted from the edits that look like wiring: the plan states what the edit can reach and the capture is what says whether anything moved. The trigger takes each file whole because neither a Kotlin script nor a Python module offers a glob any sub-file address, and a narrower trigger reads correct until the day somebody edits a member list or a render default in the same commit as the wiring it was written to exclude. B30 and B31 keep their empty sees lists and the union does the rest, which is what keeps a wrapper bump or a JMH edit from planning a render.
 
 *Probe:* add a directory name to one of the member lists and build that manifest either side: the file count moves with nothing having been rendered, and ParityIndexTest fails outright on the two visual lists disagreeing. For the other half, edit renderSize's default beside one producer and re-run it: the member count holds and its sub-tree's images move
 
@@ -542,7 +542,7 @@ only for paths no rule claims.
 
 ### `**/*.md`
 
-Markdown is documentation and no producer reads one, so an edit moves no captured byte. Two of the files this glob speaks for are generated - the skill's artifacts.md and blindness.md - and ParityReferencesTest asserts they regenerate byte-identically, which is a gate in the fast suite rather than a stored artifact. The store's own README is generated too and does not reach this glob at all: R11 claims the directory it sits in, which is the rule-wins precedence doing its job.
+Markdown is documentation and no producer reads one, so an edit moves no captured byte. Two of the files this glob speaks for are generated - the skill's artifacts.md and blindness.md - and ParityReferencesTest asserts they regenerate byte-identically, which is a gate in the fast suite rather than a stored artifact. The store's own README is generated too and does not reach this glob at all: B34 claims the directory it sits in, which is the rule-wins precedence doing its job.
 
 *Probe:* edit a word in any tracked markdown file and capture any artifact; every stored byte is identical. The two generated references are the one place an edit is caught, and ./gradlew test is what catches them
 
@@ -578,6 +578,6 @@ A standalone authoring script that regenerates one javadoc illustration. It is n
 
 ### `harness/COMMIT-MAP.tsv`
 
-The old-to-new sha map recorded when the harness was imported as a subtree. It is a provenance record that nothing at build or render time opens, so it sits under harness/ without being part of what R6 speaks about.
+The old-to-new sha map recorded when the harness was imported as a subtree. It is a provenance record that nothing at build or render time opens, so it sits under harness/ without being part of what B29 speaks about.
 
 *Probe:* grep the harness build for any read of it; there is none, and the client renders identically with the file deleted

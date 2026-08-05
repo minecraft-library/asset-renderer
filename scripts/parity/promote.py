@@ -9,7 +9,15 @@ below is a mechanism for an invariant rather than a policy someone has to rememb
 - ``failed > 0``, no promotion without an explicit ``--allow-partial``, because a partial sweep
   leaves a tree that hashes cleanly minus the missing files (I-20);
 - a root whose digests disagree with its own capture index, no promotion, so a plan cannot be
-  applied to a root that has since been re-captured.
+  applied to a root that has since been re-captured;
+- no compare of this capture covering this artifact, no promotion, so a promotion can only ever
+  apply a diff a human has been shown. ``--bootstrap`` is its one exemption, because a first
+  baseline has nothing to be diffed against - and the exemption is per-INVOCATION, so a bootstrap
+  promotion of a whole root carries the already-baselined rows beside the new one;
+- a capture taken from an uncommitted tree, no promotion without an explicit ``--allow-dirty``. It
+  is the only refusal here whose failure mode cannot be detected afterwards: a baseline whose
+  capture cannot be shown to have run on a committed tree is not re-derivable from any commit, and
+  nothing in the stored value says so.
 """
 
 from __future__ import annotations
@@ -105,16 +113,20 @@ def to_report(entries: Sequence[Entry]) -> dict:
 
 
 def check(root: Path, entries: Sequence[Entry], reason: str, allow_partial: bool = False,
-          bootstrap: bool = False) -> None:
+          bootstrap: bool = False, allow_dirty: bool = False) -> None:
     """Every refusal, in one place, before a single production byte is written."""
     if not reason.strip():
         raise Refused("promote-apply requires --reason: a promotion is a recorded act (I-8)")
 
-    moved = capture_mod.verify_against_index(root)
-    if moved:
-        raise Refused(
-            f"the working root has changed since its capture index was written ({len(moved)} file(s), "
-            f"first {moved[0]}); re-capture rather than promoting a root that moved under the plan")
+    capture_mod.require_unmoved(root)
+    # `--bootstrap` is the one exemption, and it is per-INVOCATION where the thing it excuses is
+    # per-ARTIFACT: the flag is typed because a row has no baseline, and it cannot say which row
+    # that was. So a bootstrap promotion over a whole root writes the already-baselined rows beside
+    # the new one with no compare either, and `--artifacts` is what narrows the write to the row the
+    # flag was meant for. The refusal one loop below still fires per row, so nothing is promoted as
+    # a first baseline that already had one.
+    if not bootstrap:
+        _require_compare(root, entries)
 
     for entry in entries:
         payload = read_json(root / entry.path)
@@ -138,11 +150,68 @@ def check(root: Path, entries: Sequence[Entry], reason: str, allow_partial: bool
             raise Refused(
                 f"{entry.artifact} has no baseline to replace; the first promotion of an artifact "
                 "is --bootstrap, and it is refused for anything below its determinism floor")
+        dirty = record.get("asset_dirty")
+        if dirty is not False and not allow_dirty:
+            raise Refused(
+                f"{entry.artifact} records asset_dirty={dirty}: a baseline whose capture cannot be "
+                "shown to have run on a committed tree is not re-derivable from any commit, and no "
+                "later reading recovers that. Commit the change, re-capture, and promote from the "
+                "committed tree. Pass --allow-dirty to record the exception in provenance")
+
+
+def _require_compare(root: Path, entries: Sequence[Entry]) -> None:
+    """Refuse a promotion no compare of this capture has shown a human.
+
+    The report has to be **this** capture's. A working root is single-slot and self-overwriting, so
+    the report an earlier capture left in it names the same artifacts and says nothing whatever
+    about the bytes about to be written; the capture index's own digest is stamped into the report
+    for exactly that, and read back here.
+
+    It also has to cover every artifact the promotion would write. A compare scoped to one row is no
+    comparison at all of the others, and ``-Partifacts`` scopes the two commands separately. An
+    ``unchanged`` entry writes no production byte, so it is not held to it.
+
+    **A row the compare found no baseline for is covered.** It looks the row up, finds nothing to
+    diff against and files it under ``missing_baseline`` rather than under ``artifacts``, which is
+    where ``--base`` pointed at another tree puts a row this store does hold. Reading the one list
+    alone refuses that promotion for not having been compared when it was: what this function asks
+    is whether the compare LOOKED, and there it did.
+
+    ``--bootstrap`` never reaches here - the caller is the one place that decides an exemption, so a
+    first baseline is answered by not asking rather than by an arm inside the question.
+
+    :param root: the working root
+    :param entries: the promotion plan
+    :raises Refused: if no report is there, if it was written against another capture, or if it does
+        not cover an artifact this promotion would write
+    """
+    report = root / store_mod.RUN_DIR / compare_mod.REPORT
+    if not report.is_file():
+        raise Refused(
+            f"no {store_mod.RUN_DIR}/{compare_mod.REPORT} under {root}: a promotion applies a diff "
+            "someone has been shown, so parityCompare runs first. A first baseline has nothing to "
+            "be diffed against and is exempt under --bootstrap, which exempts every row in the "
+            "same invocation - narrow one with --artifacts")
+    payload = read_json(report)
+    taken = capture_mod.content_digest(root)
+    if payload.get(compare_mod.CAPTURE_DIGEST) != taken:
+        raise Refused(
+            f"{store_mod.RUN_DIR}/{compare_mod.REPORT} was written against a different capture "
+            f"({payload.get(compare_mod.CAPTURE_DIGEST)} against {taken}); the working root is one "
+            "slot, so re-run parityCompare over the capture being promoted")
+    compared = {row.get("artifact") for row in payload.get("artifacts") or []}
+    compared |= set(payload.get("missing_baseline") or [])
+    uncompared = sorted(entry.artifact for entry in entries
+                        if entry.action != "unchanged" and entry.artifact not in compared)
+    if uncompared:
+        raise Refused(
+            f"the compare did not cover {', '.join(uncompared)}, which this promotion would write; "
+            "widen parityCompare's -Partifacts to them, or narrow the promotion to what was compared")
 
 
 def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry], reason: str,
           parity_class: str = "moving", allow_partial: bool = False,
-          population_changed: bool = False) -> dict:
+          population_changed: bool = False, allow_dirty: bool = False) -> dict:
     """Copy through ``norm``, so a hand-edited CRLF capture is normalized on the way in.
 
     That is why the copy is Python rather than a Kotlin ``copy { }``: a byte copy would carry a CRLF
@@ -159,6 +228,8 @@ def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry],
         record["parity_class"] = parity_class
         if allow_partial:
             record["allow_partial"] = True
+        if allow_dirty:
+            record["allow_dirty"] = True
         if population_changed:
             record["population_changed"] = True
         target.write(entry.artifact, payload)

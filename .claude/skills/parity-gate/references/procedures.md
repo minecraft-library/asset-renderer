@@ -153,8 +153,13 @@ time.
 
 - **Clean tree, or the baseline is not re-derivable from any commit.** A capture that gets promoted
   must run committed code; a promoting phase is therefore two commits, migration then promotion.
+  `parityPromote` refuses a capture whose provenance does not record a clean tree, and
+  `-PallowDirty=true` is the only way past it - it writes the exception into the promoted value.
 - **`-Partifacts` is not optional in practice.** A capture root usually holds more than the artifact
-  you meant, because a producer finalizes its own capture step wherever it runs.
+  you meant, because a producer finalizes its own capture step wherever it runs. Here it carries a
+  second job: `-Pbootstrap=true` is what exempts a promotion from needing a compare of the capture
+  it applies, and the flag is per-invocation, so anything else in the root would be written on the
+  same exemption.
 - **Regenerate both view sets afterwards.** A promotion rewrites `index.json`, and two tracked
   markdown files render from it. `--rerun` is required or the task reports success and writes
   nothing.

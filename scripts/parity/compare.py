@@ -39,6 +39,15 @@ JOINED_ALSO = "logs"
 AGREEMENT_CHECK = "shipped-tables-agreement"
 AGREEMENT_ARTIFACTS = ("digest.shipped-tables", "manifest.tooling-tables")
 
+#: The compare's report, inside the working root's run directory. Named here rather than at either
+#: end, because the command that writes it and the promotion that requires it are two modules and a
+#: promotion that looked for a different filename would silently find nothing and refuse everything.
+REPORT = "compare.json"
+
+#: The field a report stamps with `capture.content_digest`, so a promotion can tell this capture's
+#: compare from one an earlier capture left behind in the same slot.
+CAPTURE_DIGEST = "capture_digest"
+
 
 def joins(kind: str, member: str) -> bool:
     """Whether the join reads a node under this top-level member of an envelope of this kind.

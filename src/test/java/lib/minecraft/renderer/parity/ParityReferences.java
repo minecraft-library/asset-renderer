@@ -177,12 +177,12 @@ public final class ParityReferences {
         out.add("path** or on **different paths**, and one pair of rules answers both ways over");
         out.add("one change set.");
         out.add("");
-        out.add("`BlindnessMapTest.java` alone fires R14 (`select`) and R16 (`demote`, R14's");
+        out.add("`BlindnessMapTest.java` alone fires B37 (`select`) and B39 (`demote`, B37's");
         out.add("list) on one path: the demote pass empties the union, SEES is empty, and every");
         out.add("artifact on that list is reported blind with nothing recorded against it. That");
-        out.add("file beside `SelfCapture.java` fires R16 on the first path alone, the second");
-        out.add("path resolves to R14's list, and the union carries it - SEES holds all of it");
-        out.add("and each blind row reads \"claimed blind, selected by R14\". A `select`");
+        out.add("file beside `SelfCapture.java` fires B39 on the first path alone, the second");
+        out.add("path resolves to B37's list, and the union carries it - SEES holds all of it");
+        out.add("and each blind row reads \"claimed blind, selected by B37\". A `select`");
         out.add("rule's claim resolves by the same arithmetic from the other side: on");
         out.add("`BlockGeometryKit.java` B10 claims `sweep.block` blind while B19 selects it on");
         out.add("that path, so it is in SEES and its row names B19; on `PlayerRenderer.java` B9");

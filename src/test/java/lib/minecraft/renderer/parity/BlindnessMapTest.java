@@ -182,15 +182,16 @@ final class BlindnessMapTest {
         "parityBuildFile", "\"build.gradle.kts\"",
         "parityTriggerRoots", "parityTriggerRoots",
         "paritySkillReferences", "paritySkillReferences",
+        "parityTestSources", "\"src/test/java\"",
         "parityGitIndex", "\".git/index\"");
 
     /**
      * The roots a triggered file may sit under that {@code parityTriggerRoots} does not name.
      *
-     * <p>The build file is its own declared input, and the two source trees reach the task as
-     * compiled classes and processed resources. Those routes are not observable from here, which is
-     * why they are written down rather than derived - and why the collection exists at all for
-     * everything else.
+     * <p>The build file and the test Java tree are each their own declared input, and everything
+     * else under the two source trees reaches the task as compiled classes and processed resources.
+     * Those routes are not observable from here, which is why they are written down rather than
+     * derived - and why the collection exists at all for everything else.
      */
     private static final List<String> CLASSPATH_ROOTS =
         List.of("build.gradle.kts", "src/main", "src/test");

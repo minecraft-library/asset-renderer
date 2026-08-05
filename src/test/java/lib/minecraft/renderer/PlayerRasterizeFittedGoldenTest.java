@@ -162,8 +162,8 @@ class PlayerRasterizeFittedGoldenTest {
         long actual = RenderDigest.crc32(first);
         PINS.crc32(key, actual);
         PINS.requireBaseline();
-        assertThat("fitted rasterization output CRC32; if intentional, promote the capture this run "
-                + "already wrote with " + Pins.regenCommand(ARTIFACT),
+        assertThat("fitted rasterization output CRC32; if intentional, re-baseline it: "
+                + Pins.rebaselineCommand(ARTIFACT),
             actual, is(Pins.crc32(ARTIFACT, key)));
     }
 

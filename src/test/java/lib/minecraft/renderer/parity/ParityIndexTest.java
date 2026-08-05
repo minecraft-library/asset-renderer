@@ -140,11 +140,11 @@ final class ParityIndexTest {
         // than asserted, and printed with the act that clears it, so what the redefinition owes is a
         // command a reader can run rather than a state they have to infer.
         System.out.printf("declared visual members the baseline holds no row for: %s%s%n", unbaselined,
-            unbaselined.isEmpty() ? "" : " - owed: ./gradlew parityCapture -Partifacts=manifest.visual"
-                + ", then ./gradlew parityPromote -Partifacts=manifest.visual -Preason=<why>. The "
-                + "capture depends on visualSweepSet, and -Preason has no default: promote refuses at "
-                + "configuration time without one, so it is part of the command rather than a step "
-                + "somebody is expected to know");
+            unbaselined.isEmpty() ? "" : " - owed: " + Pins.rebaselineCommand("manifest.visual")
+                + ". The capture depends on visualSweepSet; the commit ahead of it is what keeps the "
+                + "baseline re-derivable, the compare between capture and promotion is what the "
+                + "promotion applies, and -Preason has no default. Each is part of the command "
+                + "rather than a step somebody is expected to know");
 
         assertThat("the visual baseline hashes no file, which would leave this check vacuous",
             hashed, is(not(empty())));

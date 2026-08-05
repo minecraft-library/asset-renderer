@@ -94,13 +94,37 @@ def _bases(args: argparse.Namespace) -> Path:
     return Path(args.repo_root).resolve() if args.repo_root else store_mod.repo_root()
 
 
+def _out_path(args: argparse.Namespace) -> Path:
+    """``--out`` as a path, refused when it lands inside the production store.
+
+    **Every writer of ``--out`` resolves it here**, and that is the whole mechanism. The guard used
+    to sit inside ``_emit``, which is the redirect-stdout path alone, so every command that builds a
+    body of its own and writes it reached a baseline through a bare write and nothing went red.
+    Stating the rule rather than the roster is deliberate: a roster of the commands is what went
+    stale last time, and what it was stale against was a count. The line below is the one that turns
+    ``args.out`` into a path, and ``OutNeverWritesProduction`` reads this file and fails on any other
+    line that either constructs one over it or binds it to a name - the second because a name is a
+    construction one line further on, out of reach of anything looking for the attribute. A presence
+    test on ``args.out`` is neither and stays invisible. What the scan cannot see is a bypass that
+    never spells the attribute at all, and nothing in the parser can be asked who honours ``--out``,
+    which is why the roster beside it drives every writer through ``main``. Only ``promote-apply``
+    writes production.
+
+    :param args: the parsed namespace, whose ``out`` is set
+    :return: the path to write
+    :raises Refused: if the path lies inside the production store
+    """
+    target = Path(args.out)
+    if store_mod.production(args.store, _bases(args)).contains(target):
+        raise Refused(f"--out would write inside the production store: {args.out}")
+    return target
+
+
 def _emit(args: argparse.Namespace, text: str, payload: Any = None) -> None:
     """stdout carries the answer and nothing else; ``--out`` redirects it through ``norm``."""
     body = canonical_json(payload) if args.format == "json" and payload is not None else text
     if args.out:
-        target = Path(args.out)
-        if store_mod.production(args.store, _bases(args)).contains(target):
-            raise Refused(f"--out would write inside the production store: {args.out}")
+        target = _out_path(args)
         write_text(target, body)
         print(f"wrote {target}")
         return
@@ -244,7 +268,7 @@ def _cmd_manifest(args: argparse.Namespace) -> int:
     if args.manifest_command == "export":
         if not args.out:
             raise Refused("manifest export needs --out FILE")
-        write_text(Path(args.out), manifest_mod.export_text(stored))
+        write_text(_out_path(args), manifest_mod.export_text(stored))
         print(f"wrote {args.out}")
         return OK
 
@@ -286,7 +310,7 @@ def _cmd_json(args: argparse.Namespace) -> int:
                     "meaningless under the other"
                 )
             text = canonical_json(read_json(path))
-            write_text(Path(args.out) if args.out else path, text)
+            write_text(_out_path(args) if args.out else path, text)
             print(f"canonicalized {path}")
         return OK
 
@@ -324,8 +348,12 @@ def _cmd_render_bytes(args: argparse.Namespace) -> int:
 def _cmd_compare(args: argparse.Namespace) -> int:
     root = store_mod.working(args.root, _bases(args))
     # Refuse a root that never finished: a stale tree reported as agreement is the recorded
-    # `&& diff` trap, and COMPLETE being written last is what makes it detectable.
-    capture_mod.require_complete(root.root)
+    # `&& diff` trap, and COMPLETE being written last is what makes it detectable. Then refuse one
+    # that MOVED after it finished, which is the same trap one step along: a self-capturing producer
+    # rewrites its file whenever its suite runs, so a root can be part this capture and part the run
+    # after it while COMPLETE still describes the first. `provenance` is outside the compared
+    # payload, so the rewrite is invisible to every number the verdict prints.
+    capture_mod.require_unmoved(root.root)
 
     wanted = [name.strip() for name in args.artifacts.split(",")] if args.artifacts else None
     if not wanted:
@@ -346,6 +374,10 @@ def _cmd_compare(args: argparse.Namespace) -> int:
         results.append(compare_mod.compare(base_payload, root.read(artifact), expected))
 
     payload = compare_mod.to_report(results)
+    # The capture this report is about, so a promotion can tell it from the report an earlier
+    # capture left in the same single slot. Without it "a compare.json exists" is satisfied by any
+    # compare ever run into this root, which is not evidence about the bytes being promoted.
+    payload[compare_mod.CAPTURE_DIGEST] = capture_mod.content_digest(root.root)
     payload["missing_baseline"] = missing
     # Named rather than dropped: an artifact file in the root that this run did not capture is worth
     # a reader knowing about, and silence would read as "the root held nothing else".
@@ -359,7 +391,7 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     if args.include_stale:
         payload["include_stale"] = True
     run = root.root / store_mod.RUN_DIR
-    write_json(run / "compare.json", payload)
+    write_json(run / compare_mod.REPORT, payload)
     write_text(run / "compare.md", report_mod.render_diff(payload))
     # The three fields that name a TREE STATE, plus what the compare covered. `plan --gate-exit`
     # reads them to answer "has this exact tree already been gated"; nothing else does. It is written
@@ -836,11 +868,13 @@ def _cmd_promote_apply(args: argparse.Namespace) -> int:
     write_json(run / "promote.json", payload)
     write_text(run / "promote.md", report_mod.render(payload, "promotion-plan"))
 
-    promote_mod.check(root, entries, args.reason or "", args.allow_partial, args.bootstrap)
+    promote_mod.check(root, entries, args.reason or "", args.allow_partial, args.bootstrap,
+                      args.allow_dirty)
     result = promote_mod.apply(root, target, entries, args.reason,
                                parity_class=args.parity_class,
                                allow_partial=args.allow_partial,
-                               population_changed=args.population_changed)
+                               population_changed=args.population_changed,
+                               allow_dirty=args.allow_dirty)
     _emit(args, f"promoted {len(result['promoted'])}: {', '.join(result['promoted']) or 'nothing'}",
           {**payload, "applied": result})
     return OK
@@ -883,6 +917,12 @@ def _cmd_panel(args: argparse.Namespace) -> int:
 
 
 def _cmd_lab(args: argparse.Namespace) -> int:
+    # Resolved before the optional imports and before a pixel is read. The two lab writers below are
+    # the expensive ones in the toolkit - a census joins three whole-frame dumps - and a refusal
+    # earned after that work is a refusal that costs what it refuses. It also puts the guard in
+    # front of the numpy/Pillow import, so where a command may write is answerable without them.
+    target = _out_path(args) if args.out else None
+
     from parity import panel  # noqa: F401  - proves the optional pair is importable before use
     from parity.lab import census as census_mod
     from parity.lab import crop as crop_mod
@@ -894,7 +934,7 @@ def _cmd_lab(args: argparse.Namespace) -> int:
     if args.lab_command == "census":
         payload = census_mod.census(Path(args.allpass), Path(args.raw), Path(args.landed),
                                     Path(args.vanilla), Path(args.java))
-        write_json(Path(args.out) if args.out else probes / "contests.json", payload)
+        write_json(target or probes / "contests.json", payload)
         _emit(args, f"aligned {payload['totals']['aligned_px']} px, "
                     f"{payload['totals']['contests']} contests, "
                     f"misaligned {payload['misaligned_px']}; classes {payload['classes']}", payload)
@@ -931,7 +971,7 @@ def _cmd_lab(args: argparse.Namespace) -> int:
         return OK
     region = tuple(int(part) for part in args.region.split(","))
     out = crop_mod.crop(Path(args.vanilla), Path(args.java), region,
-                        Path(args.out or "crop.png"), args.zoom)
+                        target or Path("crop.png"), args.zoom)
     print(f"wrote {out}  vanilla | java | |delta|x4")
     return OK
 
@@ -963,7 +1003,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
     if not args.out:
         raise Refused("report render needs --out")
     payload = read_json(Path(args.input))
-    write_text(Path(args.out), report_mod.render(payload, args.kind))
+    write_text(_out_path(args), report_mod.render(payload, args.kind))
     print(f"wrote {args.out}")
     return OK
 
@@ -1070,7 +1110,9 @@ def _register(subparsers: Any) -> dict[str, Command]:
     cap.add_argument("--source", action="append", required=True, metavar="PATH")
     cap.add_argument("--producer", default=None, help="one comma list of producing task names")
     cap.add_argument("--flag", action="append", default=None, metavar="k=v")
-    cap.add_argument("--runs", type=int, default=0, help="how many runs AGREED, a measurement")
+    cap.add_argument("--runs", type=int, default=None,
+                     help="how many runs AGREED, a measurement; absent means the artifact's "
+                          "declared floor, which is a property of the artifact and not of a build")
     cap.add_argument("--logs", default=None, metavar="DIR",
                      help="digest each producer's normalized diagnostics log into the manifest's "
                           "`logs` key; a byte-identical table is not an unchanged run")
@@ -1124,6 +1166,10 @@ def _register(subparsers: Any) -> dict[str, Command]:
                         help="defaults to moving, because forgetting it cannot then understate a change")
     papply.add_argument("--population-changed", action="store_true")
     papply.add_argument("--allow-partial", action="store_true")
+    papply.add_argument("--allow-dirty", action="store_true", dest="allow_dirty",
+                        help="promote a capture taken from an uncommitted tree, recording the "
+                             "exception in provenance; the baseline is then re-derivable from no "
+                             "commit and nothing later can recover that")
     papply.add_argument("--bootstrap", action="store_true")
     table["promote-apply"] = _cmd_promote_apply
 
