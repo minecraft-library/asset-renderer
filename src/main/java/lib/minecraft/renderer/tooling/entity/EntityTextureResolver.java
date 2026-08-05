@@ -6,6 +6,8 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -362,33 +364,29 @@ final class EntityTextureResolver {
         if (clinit == null) return Map.of();
 
         Map<String, String> out = new LinkedHashMap<>();
-        String pendingPath = null;
-        boolean expectingPutStatic = false;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) {
-                pendingPath = literal;
-                expectingPutStatic = false;
-                continue;
-            }
-            if (in instanceof MethodInsnNode mi
-                && in.getOpcode() == Opcodes.INVOKESTATIC
+        Cells.Latch<String> pendingPath = Cells.latch();
+        Cells.Flag expectingPutStatic = Cells.flag();
+        AsmWalker.over(clinit)
+            .feed(pendingPath)
+            .feed(expectingPutStatic)
+            .on(Insn.of(AbstractInsnNode.class, in -> {
+                String literal = AsmWalker.stringLiteral(in);
+                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY);
+            }), in -> {
+                String literal = AsmWalker.stringLiteral(in);
+                if (literal == null) return;
+                pendingPath.set(literal);
+                expectingPutStatic.clear();
+            })
+            .on(Insn.of(MethodInsnNode.class, mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
                 && isWithDefaultNamespace(mi)
-                && pendingPath != null) {
-                expectingPutStatic = true;
-                continue;
-            }
-            if (in instanceof FieldInsnNode fi
-                && in.getOpcode() == Opcodes.PUTSTATIC
-                && classInternalName.equals(fi.owner)
-                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
-                && expectingPutStatic
-                && pendingPath != null) {
-                out.put(fi.name, pendingPath);
-                pendingPath = null;
-                expectingPutStatic = false;
-            }
-        }
+                && pendingPath.get() != null), mi -> expectingPutStatic.set())
+            .commitAt(Insn.putStatic(classInternalName)
+                    .and(fi -> VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
+                        && expectingPutStatic.get()
+                        && pendingPath.get() != null),
+                fi -> out.put(fi.name, pendingPath.get()))
+            .run();
         return out;
     }
 
@@ -462,32 +460,27 @@ final class EntityTextureResolver {
         if (clinit == null) return Map.of();
 
         Map<String, String> out = new LinkedHashMap<>();
-        String pendingPath = null;
-        boolean expectingPutStatic = false;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) {
-                pendingPath = literal;
-                expectingPutStatic = false;
-                continue;
-            }
-            if (in instanceof MethodInsnNode mi
-                && in.getOpcode() == Opcodes.INVOKESTATIC
+        Cells.Latch<String> pendingPath = Cells.latch();
+        Cells.Flag expectingPutStatic = Cells.flag();
+        AsmWalker.over(clinit)
+            .feed(pendingPath)
+            .feed(expectingPutStatic)
+            .on(Insn.of(AbstractInsnNode.class, in -> {
+                String literal = AsmWalker.stringLiteral(in);
+                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY);
+            }), in -> {
+                String literal = AsmWalker.stringLiteral(in);
+                if (literal == null) return;
+                pendingPath.set(literal);
+                expectingPutStatic.clear();
+            })
+            .on(Insn.of(MethodInsnNode.class, mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
                 && isWithDefaultNamespace(mi)
-                && pendingPath != null) {
-                expectingPutStatic = true;
-                continue;
-            }
-            if (in instanceof FieldInsnNode fi
-                && in.getOpcode() == Opcodes.PUTSTATIC
-                && typeOwner.equals(fi.owner)
-                && expectingPutStatic
-                && pendingPath != null) {
-                out.put(fi.name, pendingPath);
-                pendingPath = null;
-                expectingPutStatic = false;
-            }
-        }
+                && pendingPath.get() != null), mi -> expectingPutStatic.set())
+            .commitAt(Insn.putStatic(typeOwner)
+                    .and(fi -> expectingPutStatic.get() && pendingPath.get() != null),
+                fi -> out.put(fi.name, pendingPath.get()))
+            .run();
         return out;
     }
 
@@ -516,30 +509,31 @@ final class EntityTextureResolver {
         ClassNode cn = this.cache.load(classInternalName);
         if (cn == null) return null;
         Map<String, String> variantToTexture = new LinkedHashMap<>();
-        String variantClass = null;
+        // The variant class is first-wins across every walked body, so it rides a hook-written
+        // local rather than a per-walk cell.
+        String[] variantClass = {null};
         for (MethodNode m : cn.methods) {
             if (!m.name.startsWith(AsmKit.LAMBDA_STATIC_PREFIX) && !AsmKit.CLINIT.equals(m.name)) continue;
-            String pendingVariantName = null;
-            for (AbstractInsnNode in : m.instructions) {
-                if (in.getOpcode() == Opcodes.GETSTATIC && in instanceof FieldInsnNode fi
+            Cells.Latch<String> pendingVariantName = Cells.latch();
+            AsmWalker.over(m)
+                .feed(pendingVariantName)
+                .on(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.GETSTATIC
                     && fi.desc.startsWith("L")
                     && fi.desc.endsWith(";")
-                    && fi.owner.endsWith("Variant")) {
-                    pendingVariantName = fi.name;
-                    if (variantClass == null) variantClass = fi.owner;
-                    continue;
-                }
-                String literal = AsmKit.readStringLiteral(in);
-                if (literal != null
-                    && isRealTexturePath(literal)
-                    && !literal.endsWith("_baby.png")
-                    && pendingVariantName != null
-                    && !variantToTexture.containsKey(pendingVariantName))
-                    variantToTexture.put(pendingVariantName, literal);
-            }
+                    && fi.owner.endsWith("Variant")), fi -> {
+                    pendingVariantName.set(fi.name);
+                    if (variantClass[0] == null) variantClass[0] = fi.owner;
+                })
+                .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.stringLiteral(in) != null), in -> {
+                    String literal = AsmWalker.stringLiteral(in);
+                    if (literal == null || !isRealTexturePath(literal) || literal.endsWith("_baby.png")) return;
+                    String pending = pendingVariantName.get();
+                    if (pending != null) variantToTexture.putIfAbsent(pending, literal);
+                })
+                .run();
         }
-        if (variantClass == null || variantToTexture.isEmpty()) return null;
-        String defaultName = AsmKit.findEnumDefaultName(this.cache, variantClass, DEFAULT_FIELD);
+        if (variantClass[0] == null || variantToTexture.isEmpty()) return null;
+        String defaultName = AsmKit.findEnumDefaultName(this.cache, variantClass[0], DEFAULT_FIELD);
         if (defaultName == null) return null;
         return variantToTexture.get(defaultName);
     }
