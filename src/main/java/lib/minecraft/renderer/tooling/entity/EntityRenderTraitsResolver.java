@@ -6,6 +6,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -18,7 +19,6 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -345,26 +345,21 @@ final class EntityRenderTraitsResolver {
         MethodNode scaleMethod = findPrimaryScaleMethod(cn);
         if (scaleMethod == null) return null;
 
-        Map<Integer, Float> slotLiterals = new HashMap<>();
-        for (AbstractInsnNode in : scaleMethod.instructions) {
-            if (AsmKit.isBranchInsn(in.getOpcode())) break;
-            if (in.getOpcode() != Opcodes.FSTORE || !(in instanceof VarInsnNode store)) continue;
-            AbstractInsnNode prev = AsmKit.previousReal(in);
-            Float literal = prev == null ? null : AsmKit.readFloatLiteral(prev);
-            if (literal != null) slotLiterals.put(store.var, literal);
-        }
+        // First pass: pre-branch FSTORE-of-literal slots, stopping short of the first branch.
+        Map<Integer, Float> slotLiterals = AsmWalker.over(scaleMethod)
+            .until(Insn.branch())
+            .ofType(VarInsnNode.class)
+            .where(store -> store.getOpcode() == Opcodes.FSTORE)
+            .toMap(store -> store.var, store -> AsmWalker.floatLiteral(AsmWalker.previousReal(store)));
 
+        // Second pass: the uniform product over every resolvable scale call, reading the
+        // first pass's slots. An empty product is exactly 1 and falls to the tolerance gate.
         String scaleDesc = "(FFF)V";
-        float accum = 1f;
-        boolean anyResolved = false;
-        for (AbstractInsnNode in : scaleMethod.instructions) {
-            if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE, scaleDesc)) continue;
-            Float xyz = readUniformScaleArgs(in, slotLiterals);
-            if (xyz == null) continue;
-            accum *= xyz;
-            anyResolved = true;
-        }
-        if (!anyResolved) return null;
+        float accum = AsmWalker.over(scaleMethod)
+            .invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE)
+            .where(call -> scaleDesc.equals(call.desc))
+            .mapNotNull(call -> readUniformScaleArgs(call, slotLiterals))
+            .reduce(1f, (product, xyz) -> product * xyz);
         if (Math.abs(accum - 1f) <= UNIFORM_SCALE_TOLERANCE) return null;
         this.diagnostics.info("renderer scale %.6f from poseStack.scale chain", accum);
         return accum;
