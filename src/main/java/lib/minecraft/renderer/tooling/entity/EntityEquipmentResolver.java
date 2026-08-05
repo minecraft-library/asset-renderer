@@ -141,19 +141,22 @@ final class EntityEquipmentResolver {
      * @return the row, or {@code null} when the pair cannot be resolved
      */
     @Nullable JsonTree resolveBespoke(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
-        String layerType = null;
-        String meshField = null;
+        // Both first-wins reads span every method of the class, so the pair lives in locals
+        // written from the walks rather than in per-run cells. The first non-baby ModelLayers
+        // field is the adult mesh.
+        String[] layerType = {null};
+        String[] meshField = {null};
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in : method.instructions) {
-                if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
-                if (layerType == null && VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE.equals(fi.owner))
-                    layerType = fi.name;
-                else if (meshField == null && VanillaSourceClasses.Types.MODEL_LAYERS.equals(fi.owner)
-                    && !fi.name.contains("BABY"))   // the first non-baby field is the adult mesh
-                    meshField = fi.name;
-            }
-        if (layerType == null || meshField == null) return null;
-        return buildRow(site, layerType, meshField, null);
+            AsmWalker.over(method)
+                .on(Insn.getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
+                        .and(fi -> layerType[0] == null),
+                    fi -> layerType[0] = fi.name)
+                .on(Insn.getStatic(VanillaSourceClasses.Types.MODEL_LAYERS)
+                        .and(fi -> meshField[0] == null && !fi.name.contains("BABY")),
+                    fi -> meshField[0] = fi.name)
+                .run();
+        if (layerType[0] == null || meshField[0] == null) return null;
+        return buildRow(site, layerType[0], meshField[0], null);
     }
 
     /**
