@@ -12,6 +12,7 @@ import javax.inject.Inject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
+import java.util.concurrent.Callable
 
 plugins {
     id("java-library")
@@ -73,6 +74,13 @@ class TeeStream(private val console: OutputStream, private val log: OutputStream
     }
 }
 
+// The namespace every custom flag of this build lives under. Written once because two places read
+// the same table for the same set: the forwarder below puts them on a fork, and a parity capture
+// records the ones in force as the conditions that fork ran under. The two answering with different
+// sets means a capture claims a fork carried flags it did not, or omits ones it did, and neither is
+// visible by inspection - so ParityTaskWiringTest relates the two spellings.
+val assetPropertyPrefix: String = "asset."
+
 // Forward every -Dasset.* system property to every forked Test + JavaExec JVM, in ONE place, so any
 // future asset.* debug flag (e.g. -Dasset.snap.grid, -Dasset.entity.pixel.dump, -Dasset.glint.itemScale)
 // auto-propagates to every task without per-task wiring. The CLI -D lands in the gradle daemon's
@@ -80,7 +88,27 @@ class TeeStream(private val console: OutputStream, private val log: OutputStream
 fun org.gradle.process.JavaForkOptions.forwardAssetProperties() =
     System.getProperties().forEach { k, v ->
         val key = k.toString()
-        if (key.startsWith("asset.")) systemProperty(key, v.toString())
+        if (key.startsWith(assetPropertyPrefix)) systemProperty(key, v.toString())
+    }
+
+/**
+ * Returns every `-Dasset.*` in force, which is exactly the set `forwardAssetProperties` puts on a
+ * fork.
+ *
+ * <p>Sorted, so a caller's argv is a function of the properties alone and two invocations under the
+ * same flags build the same command line. That is all the sort buys, and the limit is worth writing
+ * down: the record the flags land in folds the pairs into an object that canonical JSON sorts, so
+ * the stored bytes are identical whatever order they arrive in, and the ordering shows only in the
+ * command a run prints.
+ *
+ * @return the resolved flags by name
+ */
+fun assetPropertiesInForce(): Map<String, String> =
+    sortedMapOf<String, String>().also { found ->
+        System.getProperties().forEach { key, value ->
+            val name = key.toString()
+            if (name.startsWith(assetPropertyPrefix)) found[name] = value.toString()
+        }
     }
 
 // The vanilla-reference-harness Fabric mod, which lives inside this repo at harness/ and stays its
@@ -123,22 +151,39 @@ fun parityFlag(name: String): Boolean =
     gradle.startParameter.projectProperties.containsKey(name) && parityProperty(name) != "false"
 
 /**
- * Returns whether this invocation actually asked for the named task.
+ * Returns whether one of this invocation's typed tokens may have named the task.
  *
- * <p>A parity task refuses a missing `-Partifacts` or `-Preason` at CONFIGURATION time, which is
- * where a refusal belongs: it fails before a producer runs rather than after one has. But
- * `gradle tasks` and `gradle help` realize every registered task to read its description, so an
- * unconditional throw makes the task report unrunnable and the parity group uncountable - measured,
- * not anticipated. Gating on the requested names keeps the refusal exactly where it was protecting
- * something and nowhere else.
+ * <p><b>It decides one thing: an up-to-date rule.</b> Its single caller marks a self-capturing
+ * producer never-up-to-date while a capture is being run, because such a producer's real output is
+ * a file in the root the erase has just emptied and Gradle cannot see that - on an unchanged tree
+ * `test` is UP-TO-DATE, does not run, and the step then fails on a file nothing rewrote. Answering
+ * true for an invocation that goes on to capture nothing costs that invocation a cache entry and
+ * nothing else, which is the property that makes an imprecise predicate safe here.
  *
- * <p>The start parameter holds what was TYPED, and Gradle expands a camel-case abbreviation to a
- * task name later, so a literal comparison answers no for `parityCapt` while the build goes on to
- * run `parityCapture`. Every refusal and every dependency edge behind this predicate then vanishes:
- * `parityCapt` erased the working root, ran no producer, wrote a valid index over nothing and
- * reported success. Gradle's own matcher decides it here, so the two cannot disagree about what a
- * token names. The candidate list is the one name being asked about, which over-answers for a token
- * ambiguous across several tasks - and that invocation fails in Gradle's own resolution anyway.
+ * <p><b>It over-answers, and cannot be made not to.</b> A task OPTION and its value ride this same
+ * list - `tasks --group parity` arrives as `[tasks, --group, parity]` - and nothing on this side
+ * can tell an option's value from a task name, because that answer is a function of the option's
+ * own arity: a valued option like `--task` is followed by its value, a boolean one like `--rerun`
+ * by whatever comes next, which is often the next task. Only the task Gradle matched the option
+ * against knows which, so a positional rule here is wrong for one of the two shapes whichever way
+ * it is written.
+ *
+ * <p><b>So nothing that costs anything hangs off it.</b> A refusal goes through
+ * `refuseWhenScheduled` and a dependency edge through a lazy `Callable`, both of which ask the
+ * RESOLVED graph rather than the tokens. The difference is what a wrong true buys: a refusal thrown
+ * for a token that named no task is a build that will not configure, and an edge resolved for one
+ * is whatever resolving it costs - and `tasks --group parity` and `help --task parityCapture`
+ * realize every registered task to read its description, so both fired on exactly the invocation
+ * that runs no parity task at all.
+ *
+ * <p>It under-answers for nothing, and that is why it is not a literal comparison. The start
+ * parameter holds what was TYPED and Gradle expands a camel-case abbreviation to a task name later,
+ * so a literal test answers no for `parityCapt` while the build goes on to run `parityCapture` -
+ * which leaves the self-capturing producers cached over a root the erase has just emptied, and the
+ * step after them fails on a file nothing rewrote. Gradle's own matcher decides it here, so the two
+ * cannot disagree about what a token names. The candidate list is the one name being asked about,
+ * which over-answers again for a token ambiguous across several tasks - and that invocation fails
+ * in Gradle's own resolution anyway.
  *
  * <p><b>`NameMatcher` is Gradle-internal and carries no compatibility guarantee</b>, so a wrapper
  * bump can move it or change its signature. Accepted knowingly, and in the loud direction: the
@@ -148,7 +193,7 @@ fun parityFlag(name: String): Boolean =
  * token names is the defect it was written to remove.
  *
  * @param name the task name
- * @return whether the command line asked for it
+ * @return whether the command line may have asked for it
  */
 fun parityTaskRequested(name: String): Boolean =
     gradle.startParameter.taskNames.any { typed ->
@@ -157,6 +202,30 @@ fun parityTaskRequested(name: String): Boolean =
             (token.isNotEmpty() &&
                 org.gradle.util.internal.NameMatcher().find(token, listOf(name)) != null)
     }
+
+/**
+ * Refuses an invocation that will actually run the named task, before any task of it executes.
+ *
+ * <p>The question a refusal has to ask is not which tokens were typed but which tasks Gradle
+ * resolved them into, and the graph is the only thing that knows: it is built after every token has
+ * been matched against the task it belongs to, so an abbreviation, an option and an option's value
+ * are already told apart by the code that owns that distinction. `tasks --group parity` and
+ * `help --task parityPromote` schedule neither task and reach no refusal; `parityProm` schedules
+ * `parityPromote` and reaches its own.
+ *
+ * <p>It runs where a configuration-time throw used to and keeps that property, which is the one that
+ * matters: the graph is ready before the first task executes, so a missing `-Preason` still fails
+ * ahead of the multi-minute producer it was going to waste rather than after it. A `doFirst` would
+ * not - `parityPromote` is ordered after `parityCompare`, so the refusal would land on the far side
+ * of the compare it exists to run before.
+ *
+ * @receiver the task the refusal belongs to
+ * @param refuse what to throw, evaluated only when this task is scheduled
+ */
+fun Task.refuseWhenScheduled(refuse: () -> Unit) {
+    val scheduled = path
+    project.gradle.taskGraph.whenReady { if (hasTask(scheduled)) refuse() }
+}
 
 // ---- parity roots -------------------------------------------------------------------------------
 // The working root is SINGLE-SLOT and self-overwriting: one root, one capture in it, and the next
@@ -192,6 +261,12 @@ val parityOutputPrefix: String = "parity: "
 // is the Gradle-side spelling of `ParityReferences.HOME` for the same reason the store has one here,
 // one in Java and one in Python.
 val paritySkillReferences: String = ".claude/skills/parity-gate/references"
+
+// The skill body itself, which states how many entry points it has and then runs them. Nothing
+// regenerates it, so it is here for one reason: ParityTaskWiringTest reads that count back against
+// the tasks this file registers into the `parity` group, and undeclared, editing the sentence alone
+// leaves the suite UP-TO-DATE and the guard never runs on the edit it exists for.
+val paritySkillFile: String = ".claude/skills/parity-gate/SKILL.md"
 
 // The directories BlindnessMapTest's own walk skips, at any depth. Kept as one list applied to every
 // root below rather than a per-root spelling, because the two lists differing is unnoticeable by
@@ -329,6 +404,12 @@ fun org.gradle.process.ExecSpec.parityToolkit(vararg argv: String) {
 }
 
 // ---- the artifact roster ------------------------------------------------------------------------
+// The row that hashes the whole vanilla reference tree, named for the one RULE that asks about that
+// one row by id: which rows are a function of the tree. The roster below keeps the id as a literal,
+// because the roster is the declaration a rule is resolved against and two suites read those rows as
+// data.
+val parityReferencesArtifact: String = "manifest.references"
+
 /**
  * One parity artifact and the task that produces it.
  *
@@ -356,6 +437,28 @@ data class ParityArtifact(
      * be refused at capture time with the two spellings disagreeing.
      */
     val selfCaptured: Boolean get() = source == parityWorkingRoot
+
+    /**
+     * Whether this row's numbers are a diff against the vanilla reference tree.
+     *
+     * <p>The six sweeps are exactly those rows, which is why this is a rule over the kind rather
+     * than a column: every `*ParityVanilla` producer reads the reference tree and nothing else does.
+     * Such a row's provenance carries the digest of that tree's manifest, so a stored number says
+     * which ground truth produced it - the one thing that cannot be recovered from the number later.
+     * ParityTaskWiringTest holds the rule to that statement, resolving it against the producer
+     * column rather than trusting the prefix.
+     */
+    val referenceDerived: Boolean get() = artifact.startsWith("sweep.")
+
+    /**
+     * Whether this row's value is a function of the vanilla reference tree at all.
+     *
+     * <p>The six that diff against it and the one that hashes it. Wider than `referenceDerived` by
+     * exactly that row, and the two part company because a digest of the tree is what a number is
+     * measured against and would restate that row's own content - but the render mode that last
+     * wrote the tree is a fact about the invocation, which the row that hashes it needs as much.
+     */
+    val readsReferenceTree: Boolean get() = referenceDerived || artifact == parityReferencesArtifact
 }
 
 // Rows 16 to 24 carry the WORKING ROOT ITSELF as their source, with no sub-directory: those producers
@@ -441,10 +544,12 @@ val parityArtifactAliases: Map<String, List<String>> = mapOf(
  * The `plan` key rather than `sees`, because they answer different questions. `sees` states what the
  * change moves and names artifacts the store keeps no file of its own for - a pointer into another
  * artifact's file, a pin whose home is Java source - and every row here is a file, so feeding it
- * `sees` refuses the whole invocation at CONFIGURATION time for every change under the tooling and
- * pipeline packages or `TrimKit`. What the plan leaves out the planner still prints, split into what
- * a captured file already carries and what a human has to read, because a silent drop would read as
- * full coverage.
+ * `sees` refuses the whole invocation for every change under the tooling and pipeline packages or
+ * `TrimKit`. That refusal lands where this is read: inside the capture's `dependsOn(Callable { })`,
+ * which Gradle resolves as it builds the task graph and only for an invocation the graph holds -
+ * ahead of every producer, and not on a `tasks --group parity` that merely realizes the task. What
+ * the plan leaves out the planner still prints, split into what a captured file already carries and
+ * what a human has to read, because a silent drop would read as full coverage.
  *
  * @return the plan's capture set, or null when the working root holds no plan
  */
@@ -492,6 +597,25 @@ val referenceSubTrees = listOf("blocks", "items", "entities", "players", "glint"
 /** The whole-suite producers, which order a capture step but are never finalized by one. */
 val paritySuiteProducers = setOf("test", "slowTest")
 
+// Which HarnessMode each run that WRITES the reference tree selects, filled as the run is REGISTERED
+// so the ordering edges below can name every one of them without a second list of their names.
+// ParityTaskWiringTest holds every value here to a constant the harness declares, because free text
+// in a promoted baseline is free text forever. The two probes are not here and that is the same
+// distinction the stamp below draws: each renders into its own directory beside the tree and
+// rewrites nothing in it, so nothing reading the tree needs ordering against one.
+val harnessRunModes: MutableMap<String, String> = linkedMapOf()
+
+// Which of those runs actually RAN, filled as each one executes. This is what a capture stamps, and
+// the distinction is the whole value of the field: the mode a row's declared producer would select
+// is a constant restatement of that producer's name, where the mode that refreshed the tree this
+// invocation is the difference between a baseline whose ground truth was refreshed in part and one
+// whose was refreshed whole. Empty is the honest answer for a capture that refreshed nothing: a
+// record claiming ground truth nobody re-measured is worse than one that omits the claim, and the
+// digest of the tree beside it already says WHICH references a number was measured against. Sorted,
+// and comma-joined where it is stamped, so two runs in one invocation name themselves in an order
+// that is a function of the modes rather than of execution timing.
+val parityHarnessModesRun: MutableSet<String> = sortedSetOf()
+
 /**
  * Registers one harness run. A mode is a task, never a pass-through property: a mode flag changes
  * what the run produces, and a task named `renderVanillaReferences` that renders no reference is the
@@ -500,14 +624,18 @@ val paritySuiteProducers = setOf("test", "slowTest")
  * @receiver the task container the run joins
  * @param name the task name
  * @param modeFlag the harness -P selecting the mode, or null for the harness's full mode
+ * @param mode the HarnessMode constant that flag resolves to, held against the harness's own
+ *   declaration of it and stamped on this invocation's captures when the run refreshes something
  * @param forwardsTargets whether -PrefharnessTargets is honoured by the sweeps this mode runs
- * @param refreshes the reference sub-trees this run rewrites; empty means it writes outside the tree
+ * @param refreshes the reference sub-trees this run rewrites; empty means it writes outside the
+ *   tree, which is also what makes the run no re-measurement of anybody's ground truth
  * @param describe the task description
  * @return the registered task
  */
 fun TaskContainer.registerHarnessRun(
     name: String,
     modeFlag: String?,
+    mode: String,
     forwardsTargets: Boolean,
     refreshes: List<String>,
     describe: String
@@ -552,7 +680,17 @@ fun TaskContainer.registerHarnessRun(
             println("$name does NOT refresh ${stale.joinToString()} - those sub-trees keep whatever " +
                 "produced them. After any harness render change run renderVanillaAllReferences.")
     }
-}
+    // The run happened, so any capture still to come in this invocation reads a tree this mode
+    // wrote. doLast rather than doFirst: a render that failed left a half-written tree, and a
+    // record naming the mode that produced one is a claim about a run that did not finish. Guarded
+    // on what the run REFRESHES, because a probe rewrites no reference: it renders into its own
+    // directory beside the tree, so an invocation running one has re-measured no ground truth and a
+    // capture stamping its mode says the opposite about numbers taken off references nobody touched.
+    if (refreshes.isNotEmpty()) doLast { parityHarnessModesRun += mode }
+    // The name-to-mode map is recorded through `also`, which runs where the run is REGISTERED. The
+    // configuration block above runs only when the task is realized, and the ordering edges that
+    // read this map are wired whether or not a harness run is in the graph.
+}.also { if (refreshes.isNotEmpty()) harnessRunModes[name] = mode }
 
 /**
  * The task whose action is the once-per-invocation erase of the parity working root.
@@ -587,6 +725,10 @@ fun parityCaptureTaskName(artifact: String): String =
 fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     val scoped = spec.scopedBy.filter { project.hasProperty(it) }
     val runs = parityProperty("runs")
+    // The -Dasset.* in force on the producing fork. A fork inherits them from a long-lived daemon
+    // rather than from the command line, so two captures typed identically can disagree and this is
+    // the only place that difference is ever written down.
+    val assetFlags = assetPropertiesInForce()
     val step = register<Exec>(parityCaptureTaskName(spec.artifact)) {
         // No group: these are finalizers, not an entry point. The group = "parity" tasks are.
         description = "Captures ${spec.artifact} from ${spec.source} into the parity working root."
@@ -601,7 +743,25 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
             // the toolkit owns because the floor is a property of the artifact, not of the build.
             runs?.let { add("--runs"); add(it) }
             spec.logSource?.let { add("--logs"); add(it) }
+            assetFlags.forEach { (name, value) -> add("--flag"); add("$name=$value") }
+            // The ground truth this row's numbers are a diff against, named as the TREE. Naming the
+            // captured manifest instead put the field on a harness-triggered capture and nowhere
+            // else: an ordinary renderer change's plan selects the sweeps and not the row that
+            // hashes the tree, so the file is not there and the one field tying a number to its
+            // reference set was absent on every sweep the sanctioned flow produces. The toolkit
+            // digests the manifest OF this tree, provenance out, so the value is the stored
+            // manifest.references row's own identity whether or not this invocation captured it.
+            if (spec.referenceDerived) { add("--reference-tree"); add(parityReferenceRoot) }
         }.toTypedArray())
+        // And the render mode behind that tree, appended where the answer exists: which harness run
+        // executed is not known while the graph is being configured, and the mode a row's declared
+        // producer would name instead is that producer's own name spelled a second way. A row that
+        // does not read the tree never carries one.
+        if (spec.readsReferenceTree)
+            doFirst {
+                val ran = parityHarnessModesRun.joinToString(",")
+                if (ran.isNotEmpty()) args("--mode", ran)
+            }
         // Never up to date, for the reason parityDump's own comment gives: a capture reported
         // UP-TO-DATE is a stale capture served as fresh evidence.
         outputs.upToDateWhen { false }
@@ -620,6 +780,14 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     step.configure {
         mustRunAfter(spec.producers)
         mustRunAfter(parityCaptureBeginTask)
+        // And after any render of the tree: a render that landed between this row's producer and
+        // this step would have the capture name a mode and a manifest the measured value never saw.
+        // The producers take the same edge below, which is what makes the pair of stamped fields a
+        // statement about the number rather than about task order. No edge orders the two rows that
+        // read the tree against EACH OTHER: neither writes into it, so they answer the same question
+        // about the same bytes whichever runs first, and this edge is what keeps a render out from
+        // between them.
+        if (spec.readsReferenceTree) mustRunAfter(harnessRunModes.keys)
     }
 
     // A hand-run producer captures without anyone remembering a flag - EXCEPT the two whole-suite
@@ -731,6 +899,7 @@ tasks.withType<Test>().configureEach {
     // in one, so the one edit this guard exists to catch is the one Gradle cannot see.
     inputs.dir("src/test/java").withPropertyName("parityTestSources")
     inputs.dir(paritySkillReferences).withPropertyName("paritySkillReferences").optional()
+    inputs.file(paritySkillFile).withPropertyName("paritySkillFile")
     // The git index, because the map's coverage and orphan checks resolve against `git ls-files`
     // rather than against a walk: a glob whose only witness is an untracked scratch file is an orphan
     // on every other checkout. Nothing else here declares the index, and the roots above cannot stand
@@ -1269,34 +1438,34 @@ tasks {
     // renderVanillaReferences, where it made the task render no reference at all - under a name
     // claiming otherwise, and exiting 0. It has its own task now, and so does the depth-quantum
     // probe, which was previously reachable only by cd-ing into the harness.
-    registerHarnessRun("renderVanillaReferences", null, true,
+    registerHarnessRun("renderVanillaReferences", null, "FULL", true,
         listOf("blocks", "items", "entities", "players"),
         "Runs the harness in FULL mode: blocks, items, entities and the player. Does NOT refresh glint/ or " +
         "armor/ - use renderVanillaAllReferences after any harness render change. ~125 s warm.")
 
-    registerHarnessRun("renderVanillaGlintReferences", "refharnessGlintOnly", true, listOf("glint"),
+    registerHarnessRun("renderVanillaGlintReferences", "refharnessGlintOnly", "GLINT", true, listOf("glint"),
         "Runs the harness in GLINT mode: references/glint/ only. ~43 s. Then run glintParityVanilla.")
 
     // forwardsTargets = false on the next two, and the reason is in the sweep rather than in the task:
     // PlayerSweep.honoursTargetFilter() and ArmorSweep.honoursTargetFilter() both return false because
     // neither sweep's subjects have a registry id, so a filter would match nothing and the run would
     // write no reference at all.
-    registerHarnessRun("renderVanillaPlayerReferences", "refharnessPlayersOnly", false, listOf("players"),
+    registerHarnessRun("renderVanillaPlayerReferences", "refharnessPlayersOnly", "PLAYERS", false, listOf("players"),
         "Runs the harness in PLAYERS mode: references/players/ only. Then run playerParityVanilla.")
 
-    registerHarnessRun("renderVanillaArmorReferences", "refharnessArmorOnly", false, listOf("armor"),
+    registerHarnessRun("renderVanillaArmorReferences", "refharnessArmorOnly", "ARMOR", false, listOf("armor"),
         "Runs the harness in ARMOR mode: references/armor/ only. ~27 s. Then run armorParityVanilla.")
 
-    registerHarnessRun("renderVanillaAllReferences", "refharnessEverySweep", true, referenceSubTrees,
+    registerHarnessRun("renderVanillaAllReferences", "refharnessEverySweep", "EVERY", true, referenceSubTrees,
         "Runs every sweep in ONE client boot and writes the whole reference tree. ~152 s, which is 43 s " +
         "cheaper than the three narrower tasks run separately. The only task that can leave no sub-tree stale.")
 
-    registerHarnessRun("renderVanillaPitchRollProbe", "refharnessPitchRollSweep", true, emptyList(),
+    registerHarnessRun("renderVanillaPitchRollProbe", "refharnessPitchRollSweep", "PITCH_ROLL", true, emptyList(),
         "Harness PITCH_ROLL probe: renders the first -PrefharnessTargets subject over a 24x24 pitch/roll " +
         "grid into entities-pitch-roll-sweep/, OUTSIDE the reference tree. Refreshes no reference. " +
         "Requires -PrefharnessTargets.")
 
-    registerHarnessRun("renderVanillaDepthQuantumProbe", "refharnessDepthQuantumProbe", false, emptyList(),
+    registerHarnessRun("renderVanillaDepthQuantumProbe", "refharnessDepthQuantumProbe", "DEPTH_QUANTUM", false, emptyList(),
         "Harness DEPTH_QUANTUM probe: writes its frames into depth-quantum-probe/, OUTSIDE the reference " +
         "tree. This is the probe that measured the 2^-23 depth quantum. Refreshes no reference.")
 
@@ -1336,7 +1505,62 @@ tasks {
         // that ran last - and because it has to happen BEFORE every producer, since the rows whose
         // source is the working root are written into it from inside the test JVM.
         description = "Erases the parity working root and opens a capture. Ordered before every producer."
+        // And after the registration, which is the one edge that orders the WHOLE capture chain -
+        // every producer and every step is already ordered after this task. The erase spares the
+        // expected-diff, so either order leaves the manifest intact and this buys no correctness;
+        // what it buys is the documented flow being the flow Gradle picks. Without it, `parityCapture
+        // parityExpect` in one invocation schedules the registration last, and the sentence saying
+        // the registration runs before the capture is false of the case a reader is likeliest to try.
+        mustRunAfter("parityExpect")
         parityToolkit("capture-begin", "--root", parityWorkingRoot)
+        outputs.upToDateWhen { false }
+    }
+
+    register<Exec>("parityExpect") {
+        description = "Registers the movers this change intends into the working root's expected-diff, which is what " +
+            "makes the gate diff == expected rather than diff == empty. The manifest survives the capture wipe, so a " +
+            "previous change's registration stands until this clears it. -PexpectEmpty | -Partifact= -Pkey= -Pto= -Preason="
+        group = "parity"
+        dependsOn("paritySelfTest")
+        requireParityRootUnderCache()
+        val empty = parityFlag("expectEmpty")
+        val artifact = parityProperty("artifact")
+        val key = parityProperty("key")
+        val to = parityProperty("to")
+        val reason = parityProperty("reason")
+        val members = listOf("artifact" to artifact, "key" to key, "to" to to, "reason" to reason)
+        val given = members.filter { (_, value) -> value != null }.map { (name, _) -> name }
+        val registers = given.size == members.size
+        // Two refusals, and the second is the one the task exists for. -Pto has no default: a
+        // registration that names no value licenses any value the row takes, which is the tolerance
+        // this gate is built without. And a clear given alongside a registration is two orders in one
+        // invocation - taking either silently discards the other, so neither is taken.
+        //
+        // Raised off the resolved graph, because configuration runs for `gradle tasks` too and the
+        // typed tokens cannot say which of them named this task. The argv below carries whatever was
+        // given rather than falling back to a clear: the toolkit raises both of these refusals too,
+        // so an argv that reached it under-specified would be refused there rather than erasing the
+        // registration a previous invocation left - which is what a fallback to --empty does.
+        refuseWhenScheduled {
+            if (empty && given.isNotEmpty())
+                throw GradleException(
+                    "parityExpect was given -PexpectEmpty and ${given.joinToString { "-P$it" }} " +
+                        "together: a clear and a registration are two different orders, and one of " +
+                        "them would be silently dropped. Clear first, then register.")
+            if (!empty && !registers)
+                throw GradleException(
+                    "parityExpect needs -PexpectEmpty to clear the manifest, or all four of " +
+                        "-Partifact=<id> -Pkey=<row key> -Pto=<the value it must land on> -Preason=<why>")
+        }
+        parityToolkit(*buildList {
+            add("expect")
+            add("--root"); add(parityWorkingRoot)
+            if (empty) add("--empty")
+            artifact?.let { add("--artifact"); add(it) }
+            key?.let { add("--key"); add(it) }
+            to?.let { add("--to"); add(it) }
+            reason?.let { add("--reason"); add(it) }
+        }.toTypedArray())
         outputs.upToDateWhen { false }
     }
 
@@ -1359,23 +1583,35 @@ tasks {
         // edge is what orders THIS task's own action - capture-index writes _run/COMPLETE last, and a
         // finalizer is only guaranteed to run after the task it finalizes, not before a third task
         // that depends on that same producer.
-        if (parityTaskRequested("parityCapture"))
-            resolveParityArtifacts(parityProperty("artifacts")).forEach { spec ->
-                spec.producers.forEach { dependsOn(it) }
-                dependsOn(parityCaptureTaskName(spec.artifact))
-            }
+        //
+        // Behind a Callable, which Gradle resolves while it builds the graph and only for a task the
+        // graph holds. That is what keeps `resolveParityArtifacts`'s refusal - no -Partifacts, no
+        // plan - on the invocations that will actually capture. Resolved where the task is merely
+        // CONFIGURED it fires on `tasks --group parity` and `help --task parityCapture`, both of
+        // which realize every task to read its description, so counting the group's tasks failed on
+        // any checkout carrying no plan: the same shape of refusal-at-configuration the promotion
+        // reason was moved off. It still lands before the first task executes, so a missing plan
+        // costs no producer.
+        dependsOn(Callable {
+            resolveParityArtifacts(parityProperty("artifacts"))
+                .flatMap { spec -> spec.producers + parityCaptureTaskName(spec.artifact) }
+        })
         outputs.upToDateWhen { false }
     }
 
     register<Exec>("parityCompare") {
         description = "Compares the parity working root against the production store (or -Pbase=<dir>) and fails " +
-            "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= -Pstale=include -Pbootstrap"
+            "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= -Pbootstrap"
         group = "parity"
         dependsOn("paritySelfTest")
         // A compare reads what a capture wrote, so it never runs before one in the same invocation.
         // Command-line order decided it, and the sanctioned three-invocation runbook happens to get
         // it right; nothing made it so.
         mustRunAfter("parityCapture")
+        // And it reads the expected-diff, which is the other input to its verdict. Registering a
+        // mover after the compare that was supposed to accept it leaves that compare RED for a
+        // reason the operator has already answered.
+        mustRunAfter("parityExpect")
         requireParityRootUnderCache()
         // -Partifacts absent is not an error here, and this is the one task where that is true: it has
         // a root to walk where capture and promote have nothing to run. So a bare `parityCompare`
@@ -1383,7 +1619,6 @@ tasks {
         val artifacts = parityProperty("artifacts")
         val base = parityProperty("base") ?: "production"
         val expected = parityProperty("expected")
-        val stale = parityProperty("stale") == "include"
         // An artifact with no baseline is MISSING_BASELINE, which is a failure everywhere except the
         // one promotion that establishes it. Without this the toolkit's own refusal names a flag the
         // build never sends, so the first promotion of any artifact is unreachable through Gradle.
@@ -1394,7 +1629,6 @@ tasks {
             add("--base"); add(if (base == "production") parityProductionStore else base)
             artifacts?.let { add("--artifacts"); add(it) }
             expected?.let { add("--expected"); add(it) }
-            if (stale) add("--include-stale")
             if (bootstrap) add("--bootstrap")
         }.toTypedArray())
         outputs.upToDateWhen { false }
@@ -1412,11 +1646,14 @@ tasks {
         mustRunAfter("parityCompare")
         requireParityRootUnderCache()
         // -Preason has no default and no prompt: a baseline replaced for a reason nobody wrote down is
-        // the failure this whole store is built against.
-        val reason = parityProperty("reason")
-            ?: if (parityTaskRequested("parityPromote"))
+        // the failure this whole store is built against. Raised off the resolved graph so `gradle
+        // tasks` still reads the description, and there rather than at execution because this task
+        // is ordered after parityCompare - a doFirst would refuse on the far side of the compare.
+        val reason = parityProperty("reason") ?: ""
+        refuseWhenScheduled {
+            if (reason.isEmpty())
                 throw GradleException("parityPromote requires -Preason=<why this value is being replaced>")
-            else ""
+        }
         val artifacts = parityProperty("artifacts")
         val population = parityProperty("population") == "changed"
         // Defaults to `moving` because forgetting it cannot then understate a change.
@@ -1466,6 +1703,18 @@ tasks {
     // One capture step per artifact row, attached to every task that can produce it. Registered last,
     // so every producer name the table references is already registered.
     parityArtifacts.forEach { registerParityCapture(it) }
+
+    // A sweep reads the vanilla reference tree, so it runs after any render of that tree whenever
+    // both are in the graph. Command-line order got this right by convention and nothing made it so,
+    // and the cost of the gap is not a stale number: it is a capture stamping the mode and the
+    // manifest digest of a tree its own producer never saw, which reads as evidence about the number
+    // and is a statement about which task Gradle picked first. A producer that IS a harness run takes
+    // no edge - it is the render.
+    parityArtifacts.filter { it.readsReferenceTree }
+        .flatMap { it.producers }
+        .distinct()
+        .filter { it !in harnessRunModes }
+        .forEach { producer -> named(producer) { mustRunAfter(harnessRunModes.keys) } }
 
     // A producer's stdout is the only source of its row counts and its wall time, and nothing
     // redirected it: ten of the file-producing artifacts are JavaExec, whose stream Gradle discards.

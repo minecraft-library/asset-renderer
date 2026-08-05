@@ -388,8 +388,6 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     payload["checks"] = {compare_mod.AGREEMENT_CHECK: agreement}
     if args.bootstrap:
         payload["bootstrap"] = True
-    if args.include_stale:
-        payload["include_stale"] = True
     run = root.root / store_mod.RUN_DIR
     write_json(run / compare_mod.REPORT, payload)
     write_text(run / "compare.md", report_mod.render_diff(payload))
@@ -485,7 +483,9 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
         source = Path(sources[0] if len(sources) == 1 else sources[position])
         target = capture_mod.normalize(artifact, source, root, repo, producer=args.producer or "",
                                        mode=args.mode, flags=args.flag or (), runs=args.runs,
-                                       logs=Path(args.logs) if args.logs else None)
+                                       logs=Path(args.logs) if args.logs else None,
+                                       reference_tree=(Path(args.reference_tree)
+                                                       if args.reference_tree else None))
         written.append({"artifact": artifact, "path": str(target)})
     _emit(args, "\n".join(f"captured {row['artifact']} -> {row['path']}" for row in written),
           {"captured": written})
@@ -627,9 +627,9 @@ def _split_reach(sees: list[str], index: dict) -> tuple[list[str], list[dict], l
     ``sees`` answers reach: an artifact belongs in it whenever the change really does move that
     artifact, whatever home it lives in. A pointer into another artifact's file and a pin whose home
     is Java source both move for a real reason and neither has a capture row, so handing one to
-    ``parityCapture`` refuses the whole invocation at CONFIGURATION time - which is what killed the
-    documented plan-then-capture flow for every change under ``tooling/**``, ``pipeline/**`` or
-    ``TrimKit``.
+    ``parityCapture`` refuses the whole invocation as Gradle resolves that task's dependencies while
+    it builds the graph - which is what killed the documented plan-then-capture flow for every change
+    under ``tooling/**``, ``pipeline/**`` or ``TrimKit``.
 
     The store's own ``artifacts`` map is the registry the split is taken against rather than a set
     spelled here, because that map is exactly what the roster registers as store-homed and one test
@@ -762,9 +762,11 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
                reach: blindness_mod.Reach, plan: list[str]) -> int:
     """Answer the pre-commit hook's question in the exit code.
 
-    Three answers: ``OK`` when no artifact can see the change, ``GATE_ALREADY_GATED`` when a compare
-    verdict already covers this exact tree state, and ``GATE_SEES_UNGATED`` when artifacts see it and
-    no such verdict exists.
+    Three answers: ``OK`` when no artifact can see the change, ``GATE_ALREADY_GATED`` when a passing
+    compare verdict already covers this exact tree state, and ``GATE_SEES_UNGATED`` when artifacts
+    see it and no such verdict exists. A verdict that found unexpected movers, or that found no
+    baseline for something it was asked about, is a failure this tree carries rather than a gating
+    of it.
 
     **It is opt-in, and that is not a style choice.** ``parityPlan`` is a Gradle ``Exec``, so a
     non-zero exit fails the build - a plan that answered 10 whenever reach was non-empty would fail
@@ -804,6 +806,13 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     # Subset, never equality: a WIDER previous compare still covers this one.
     if not set(plan) <= set(recorded.get("artifacts", [])):
         return GATE_SEES_UNGATED
+    # The tree matches and the compare covered the plan, and the compare said no. A verdict carrying
+    # unexpected movers, or naming an artifact it found no baseline for, records a failure rather
+    # than a gating - and this is the one automatic detector in the loop, so its going quiet after
+    # exactly the run whose answer was RED is the worst state it can be in. Both fields are written
+    # by every compare; until here nothing read either.
+    if int(recorded.get("unexpected") or 0) > 0 or recorded.get("missing_baseline"):
+        return GATE_SEES_UNGATED
     return GATE_ALREADY_GATED
 
 
@@ -823,6 +832,15 @@ def _changed_from_git(base: Path) -> list[str]:
 def _cmd_expect(args: argparse.Namespace) -> int:
     root = store_mod.working(args.root, _bases(args)).root
     target = root / store_mod.RUN_DIR / "expected-diff.json"
+    # A clear and a registration are two different orders. Taking either silently drops the other,
+    # and the one that would be dropped here is the registration - so a command that named a row and
+    # a value would report "0 mover(s) registered" and exit 0.
+    named = [flag for flag, value in (("--artifact", args.artifact), ("--key", args.key),
+                                      ("--to", args.to), ("--reason", args.reason)) if value]
+    if args.empty and named:
+        raise Refused(f"expect was given --empty and {', '.join(named)} together: a clear and a "
+                      "registration are two different orders, and one of them would be silently "
+                      "dropped. Clear first, then register")
     payload = compare_mod.load_expected(target) or compare_mod.empty_expected() \
         if not args.empty else compare_mod.empty_expected()
     if not args.empty:
@@ -1089,7 +1107,11 @@ def _register(subparsers: Any) -> dict[str, Command]:
     cmp_parser.add_argument("--artifacts", default=None, help="one comma list of artifact ids")
     cmp_parser.add_argument("--base", default=None, metavar="DIR")
     cmp_parser.add_argument("--expected", default=None, metavar="FILE")
-    cmp_parser.add_argument("--include-stale", action="store_true")
+    # `--include-stale` was registered here and stamped one field nothing read or rendered. It was
+    # the escape hatch for a refusal - an artifact captured before the inputs it was taken from -
+    # that exists nowhere in this package, so a stale artifact was admitted always rather than only
+    # under the flag. Dropped rather than left advertising a defence that was never built; the
+    # deleted-spellings roster is what makes a resurrection visible instead of silently accepted.
     cmp_parser.add_argument("--bootstrap", action="store_true")
     table["compare"] = _cmd_compare
 
@@ -1116,7 +1138,15 @@ def _register(subparsers: Any) -> dict[str, Command]:
     cap.add_argument("--logs", default=None, metavar="DIR",
                      help="digest each producer's normalized diagnostics log into the manifest's "
                           "`logs` key; a byte-identical table is not an unchanged run")
-    cap.add_argument("--mode", default=None)
+    cap.add_argument("--mode", default=None, metavar="NAME[,NAME]",
+                     help="which harness render mode wrote the reference tree in the invocation "
+                          "this capture belongs to - the difference between ground truth refreshed "
+                          "in part and refreshed whole. A comma-joined set when one invocation ran "
+                          "more than one, and absent when it refreshed nothing")
+    cap.add_argument("--reference-tree", default=None, metavar="DIR",
+                     help="the reference set this artifact was measured against, digested through "
+                          "its manifest into one provenance field; absent, the record cannot say "
+                          "which ground truth produced its numbers")
     table["capture-normalize"] = _cmd_capture_normalize
 
     idx = subparsers.add_parser("capture-index", help="write _run/_capture.json then COMPLETE last")

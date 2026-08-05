@@ -5,8 +5,8 @@ no JSON source. Loaded on refusals R3 and R6, and for any A/B.
 
 ## The toolkit's six exit codes
 
-The single rendering of this table. `parityCompare` and `parityPromote` fail the Gradle build on any
-non-zero code, so this is what a red build means.
+The single rendering of this table. `parityExpect`, `parityCompare` and `parityPromote` fail the
+Gradle build on any non-zero code, so this is what a red build means.
 
 | Code | Name | Means |
 |---|---|---|
@@ -14,11 +14,21 @@ non-zero code, so this is what a red build means.
 | 1 | DIFFERENCES | A comparison found movers the expected-diff did not register. **This is the only code that means "the gate said no".** |
 | 2 | USAGE | argparse rejected the argv. A malformed invocation, never a verdict about the code. |
 | 3 | MISSING_INPUT | Something the command had to read was absent or unreadable - a producer directory, a declared manifest member, a baseline under `--bootstrap`. |
-| 4 | MISSING_DEPENDENCY | An optional Python package a `lab/` probe needs. Never reachable from the four Gradle tasks. |
-| 5 | REFUSED | The command declined to answer: an uncovered path (R1), a promotion with no reason, a promotion below a determinism floor, a working root outside `cache/`. |
+| 4 | MISSING_DEPENDENCY | An optional Python package a `lab/` probe needs. Never reachable from the Gradle tasks. |
+| 5 | REFUSED | The command declined to answer: an uncovered path (R1), a side of a comparison carrying no provenance, an expected-diff registration naming no row or no value, a clear and a registration in one `expect`, a promotion with no reason, a promotion below a determinism floor, a working root outside `cache/`. |
 
 The separation of 1 from 3 and 5 is the point, and the corpus conflated them twice. **Do not read a
 3 or a 5 as "the gate failed"** - it means the gate could not run, which needs a different fix.
+
+Four of the causes listed on that row never reach you as a 5 through the task that would raise one,
+because the Gradle side refuses them first and a refusal there is an ordinary configuration failure -
+**exit 1, no toolkit process, no code from this table**. `parityExpect` rejects `-PexpectEmpty`
+given beside a registration, and rejects a registration missing any of `-Partifact -Pkey -Pto
+-Preason`; `parityPromote` rejects an absent `-Preason`. Those three are raised once the task graph
+is resolved and before any task of it executes, so a malformed invocation costs no producer run. The
+fourth is a working root outside `cache/`, which each of the five tasks rejects as it is configured -
+earlier still, and on any invocation that so much as realizes one of them to read its description.
+The toolkit raises 5 for all four, which is what a hand `python scripts/parity ...` call meets.
 
 `plan --gate-exit` answers on a different scale and is not part of this table: `0` nothing sees the
 change, `10` seen and ungated, `20` already gated for this tree. All three mean the command

@@ -45,8 +45,8 @@ import static org.hamcrest.Matchers.not;
  * it the store holds a file for. Both are assertions about the map's own {@code sees} lists, so they
  * belong to the suite that owns the map; the build file is their second operand and is read here as
  * text. Those two registries disagreeing is the failure - a rule reaching an artifact the capture
- * table has no row for refuses the capture at configuration time, and every gate on that path with
- * it.
+ * table has no row for refuses the capture as Gradle resolves that task's dependencies while it
+ * builds the graph, and every gate on that path with it.
  *
  * <p>The rest read the build file for a different reason: the git index and the walk below decide
  * which files this suite sees, and Gradle decides whether it runs at all from the same index and the
@@ -182,6 +182,7 @@ final class BlindnessMapTest {
         "parityBuildFile", "\"build.gradle.kts\"",
         "parityTriggerRoots", "parityTriggerRoots",
         "paritySkillReferences", "paritySkillReferences",
+        "paritySkillFile", "paritySkillFile",
         "parityTestSources", "\"src/test/java\"",
         "parityGitIndex", "\".git/index\"");
 
@@ -261,8 +262,8 @@ final class BlindnessMapTest {
             is(not(empty())));
         assertThat("store-homed artifacts a rule's sees names that the build file has no capture row "
             + "for. The roster admits store artifacts no producer captures - the index the promotion "
-            + "writes, the map itself - so a rule reaching one of those refuses the capture at "
-            + "configuration time exactly as a pointer would", unrunnable, is(empty()));
+            + "writes, the map itself - so a rule reaching one of those refuses the capture as its "
+            + "dependencies are resolved exactly as a pointer would", unrunnable, is(empty()));
     }
 
     @Test
@@ -283,8 +284,9 @@ final class BlindnessMapTest {
             unrunnable, is(not(empty())));
         assertThat("the plan-document keys parityPlannedArtifacts reads. `sees` states what a change "
             + "moves whatever home the artifact lives in and names " + unrunnable + ", which this "
-            + "table has no row for, so reading it refuses parityCapture at configuration time for "
-            + "every change whose reach includes one", keys, equalTo(List.of("plan")));
+            + "table has no row for, so reading it refuses parityCapture as Gradle resolves that "
+            + "task's dependencies, for every change whose reach includes one",
+            keys, equalTo(List.of("plan")));
     }
 
     @Test
@@ -756,7 +758,8 @@ final class BlindnessMapTest {
      * <p>Read out of the build file because that table is the only place a capture row is spelled,
      * and the two registries admitting different sets is the whole failure this checks for: a
      * {@code sees} list validated here against the roster, and the same ids validated there against
-     * the table, went green in the fast suite and refused the gate at configuration time.
+     * the table, goes green in the fast suite and refuses the gate as Gradle resolves the capture's
+     * dependencies.
      *
      * @return the ids, in table order
      */

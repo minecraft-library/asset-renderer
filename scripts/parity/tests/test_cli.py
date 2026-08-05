@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 
 from parity import capture, cli, pixels, promote, provenance, store
-from parity.norm import write_json, write_text
+from parity.norm import read_json, write_json, write_text
 
 DATA = Path(__file__).resolve().parent / "data"
 
@@ -91,11 +91,28 @@ class GlobalOptions(unittest.TestCase):
             self.assertNotEqual(run(argv + ["--root", "cache/parity/base"])[0], cli.USAGE, argv)
 
     def test_deleted_spellings_are_rejected(self):
-        """A merge that resurrects one of these is visible rather than silently accepted."""
+        """A merge that resurrects one of these is visible rather than silently accepted.
+
+        `--include-stale` is here rather than in the parser because the refusal it overrode - an
+        artifact captured before the inputs it was taken from - was never built, so the flag
+        advertised a defence that did not exist and admitted every stale artifact anyway.
+        """
         for flag in ("--slot", "--store-root", "--production", "--against", "--expect",
-                     "--determinism-runs", "--dry-run"):
+                     "--determinism-runs", "--dry-run", "--include-stale"):
             code, _, _ = run(["doctor", flag, "x"])
             self.assertEqual(code, cli.USAGE, flag)
+
+    def test_the_compare_parser_rejects_the_deleted_staleness_flag(self):
+        """The per-command half of the check above, which that one cannot make.
+
+        `doctor --include-stale` is a usage error whether or not `compare` accepts the flag, so a
+        subcommand option has to be typed at the subcommand that used to take it. Nothing else here
+        would notice it being registered again.
+        """
+        repo = Path(tempfile.mkdtemp())
+        code, _, _ = run(["--repo-root", str(repo), "--root", "cache/parity/current", "--quiet",
+                          "compare", "--include-stale"])
+        self.assertEqual(code, cli.USAGE)
 
     def test_version(self):
         code, out, _ = run(["--version"])
@@ -602,6 +619,63 @@ class TheEntryPointDefaultsRunsToTheFloor(unittest.TestCase):
         self.assertEqual(self._stamp("--runs", "0"), 0)
 
 
+class TheCaptureStampsWhatProducedTheValue(unittest.TestCase):
+    """The three conditions a capture records beside the value, driven through `main` end to end.
+
+    Each is a hop the build makes and the entry point has to complete: an argument the parser
+    accepts and hands nowhere lands nothing in the file, which is exactly how `mode`, `flags` and
+    `reference_manifest_digest` sat in the signature and reached 24 promoted baselines absent. Read
+    off the stamped file rather than off the source of the function that writes it, because the
+    defect being guarded against is a call that compiles and drops its argument.
+    """
+
+    ARTIFACT = "digest.shipped-tables"
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+
+    def _invoke(self, *argv: str) -> None:
+        code, _, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current", *argv])
+        self.assertEqual(code, cli.OK, err)
+
+    def _provenance(self, *argv: str) -> dict:
+        self._invoke("capture-begin")
+        write_json(self.root / store.path_of(self.ARTIFACT),
+                   {"artifact": self.ARTIFACT, "format": 1, "key": "name", "kind": "digest-set",
+                    "digests": {"block_models": {"sha256": "a"}}})
+        self._invoke("capture-normalize", "--artifact", self.ARTIFACT,
+                     "--source", str(self.root), *argv)
+        return json.loads(
+            (self.root / store.path_of(self.ARTIFACT)).read_text(encoding="utf-8"))["provenance"]
+
+    def test_the_mode_reaches_the_stamped_record(self):
+        self.assertEqual(self._provenance("--mode", "EVERY")["mode"], "EVERY")
+
+    def test_an_absent_mode_is_an_omitted_field_rather_than_an_empty_one(self):
+        """A record saying nothing about the mode and one claiming an unnamed mode differ."""
+        self.assertNotIn("mode", self._provenance())
+
+    def test_every_flag_reaches_the_stamped_record(self):
+        """Two, because one would pass on an implementation that keeps only the last."""
+        self.assertEqual(
+            self._provenance("--flag", "asset.depth.range=1000", "--flag", "asset.snap.grid=400")
+            ["flags"],
+            {"asset.depth.range": "1000", "asset.snap.grid": "400"})
+
+    def test_the_reference_tree_is_stamped_as_the_digest_of_its_manifest(self):
+        # Outside the working root, which the capture that reads it erases first.
+        tree = self.repo / "references"
+        write_text(tree / "blocks" / "stone" / "vanilla.png", "one")
+        self.assertEqual(self._provenance("--reference-tree", str(tree))
+                         ["reference_manifest_digest"],
+                         provenance.reference_manifest_digest(tree))
+
+    def test_an_absent_reference_tree_stamps_no_digest_rather_than_a_wrong_one(self):
+        self.assertNotIn("reference_manifest_digest",
+                         self._provenance("--reference-tree", str(self.root / "nowhere")))
+
+
 class AllowDirtyIsReachableAndRecorded(unittest.TestCase):
     """The dirty-tree refusal's override, driven the only way an operator can reach it.
 
@@ -672,7 +746,8 @@ class PlanSplit(unittest.TestCase):
 
     A rule names an artifact whenever the change really moves it, and three of the four homes hold
     artifacts the store keeps no file of its own for. Handing one to `parityCapture` refuses the whole
-    invocation at configuration time, so the plan carries the store half.
+    invocation as Gradle resolves that task's dependencies while it builds the graph, so the plan
+    carries the store half.
 
     The remainder is not one thing, and it does not split on being written. A pointer at a ROW field
     lands in the keyspace `compare.side_of` joins, so the capture that writes that file writes the
@@ -763,7 +838,7 @@ class PlanSplit(unittest.TestCase):
                           "report.wall-time", "sweep.entity"])
 
     def test_plan_keeps_only_what_the_store_holds_a_file_for(self):
-        """The defect this split exists for: every other id refuses parityCapture at configuration."""
+        """The defect this split exists for: every other id refuses parityCapture as it resolves."""
         _, _, payload = self._plan()
         self.assertEqual(payload["plan"], ["manifest.tooling-tables", "sweep.entity"])
 
@@ -774,8 +849,8 @@ class PlanSplit(unittest.TestCase):
         The whole line, because every id it drops is still printed elsewhere on the same page: SEES
         names all of them a few lines above, so a check that the line CONTAINS the plan passes just
         as well on a line that also names `pin.armor-span` - which is the id `parityCapture` refuses
-        at configuration time, and the entire defect this split exists to fix. The count is inside
-        the assertion for the same reason.
+        as it resolves its own dependencies, and the entire defect this split exists to fix. The
+        count is inside the assertion for the same reason.
         """
         _, out, _ = self._plan()
         self.assertIn("PLAN   (2): manifest.tooling-tables, sweep.entity", out.splitlines())
@@ -1171,6 +1246,93 @@ class RegisteredPointers(unittest.TestCase):
             self.assertNotEqual(cli._pointer_files(head, self.stored), [], artifact)
 
 
+class ExpectRegistration(unittest.TestCase):
+    """The expected-diff's only writer, which `parityExpect` is the sanctioned way to reach.
+
+    The manifest is what makes the gate `diff == the registration` rather than `diff == empty`, and
+    it underpins the one verdict row that passes with movers in it. Until the task existed the
+    documented flow could not produce one at all.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.manifest = (self.repo / "cache" / "parity" / "current" / store.RUN_DIR
+                         / "expected-diff.json")
+
+    def _expect(self, *argv: str) -> int:
+        return run(["--repo-root", str(self.repo), "--root", "cache/parity/current", "--quiet",
+                    "expect", *argv])[0]
+
+    def test_empty_writes_a_manifest_that_registers_nothing(self):
+        self.assertEqual(self._expect("--empty"), cli.OK)
+        self.assertEqual(read_json(self.manifest)["movers"], [])
+
+    def test_a_registration_carries_the_row_and_the_value_it_must_land_on(self):
+        self.assertEqual(self._expect("--artifact", "sweep.entity", "--key", "minecraft__cow",
+                                      "--to", "0.2004", "--reason", "operand order"), cli.OK)
+        self.assertEqual(read_json(self.manifest)["movers"],
+                         [{"artifact": "sweep.entity", "key": "minecraft__cow",
+                           "reason": "operand order", "to": "0.2004"}])
+
+    def test_a_second_registration_lands_beside_the_first(self):
+        self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1", "--reason", "r")
+        self._expect("--artifact", "sweep.entity", "--key", "b", "--to", "2", "--reason", "r")
+        self.assertEqual([row["key"] for row in read_json(self.manifest)["movers"]], ["a", "b"])
+
+    def test_empty_clears_what_a_previous_change_registered(self):
+        """The manifest survives the capture wipe, so nothing else ever clears it."""
+        self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1", "--reason", "r")
+        self._expect("--empty")
+        self.assertEqual(read_json(self.manifest)["movers"], [])
+
+    def test_a_command_naming_nothing_at_all_is_refused_rather_than_read_as_a_clear(self):
+        """The backstop under `parityExpect`, which forwards what it was given and nothing else.
+
+        A task that filled an incomplete registration out with `--empty` reported success and
+        ERASED the registration a previous invocation left - the one outcome worse than refusing,
+        and reachable whenever the task's own refusal missed the invocation.
+        """
+        self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1", "--reason", "r")
+        self.assertEqual(self._expect(), cli.REFUSED)
+        self.assertEqual([row["key"] for row in read_json(self.manifest)["movers"]], ["a"])
+
+    def test_a_registration_naming_no_value_is_refused_and_writes_nothing(self):
+        self.assertEqual(
+            self._expect("--artifact", "sweep.entity", "--key", "a", "--reason", "r"), cli.REFUSED)
+        self.assertFalse(self.manifest.exists())
+
+    def test_a_clear_given_alongside_a_registration_is_refused_rather_than_taken(self):
+        """Two orders in one command, and taking either drops the other silently.
+
+        The one dropped is the registration, so the command that named a row and the value it must
+        land on reported zero movers registered and exited 0 - a task whose whole subject is
+        refusing an under-specified registration accepting a contradictory one.
+        """
+        self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1", "--reason", "r")
+        self.assertEqual(
+            self._expect("--empty", "--artifact", "sweep.entity", "--key", "b", "--to", "2",
+                         "--reason", "r"), cli.REFUSED)
+        self.assertEqual([row["key"] for row in read_json(self.manifest)["movers"]], ["a"])
+
+    def test_a_clear_is_refused_beside_any_one_member_of_a_registration(self):
+        """Every member on its own, because the refusal's operand is the whole four.
+
+        Handed all four at once the refusal is satisfied by any ONE of them being in the operand,
+        so three members can sit outside every assertion there is: narrowed to `--artifact` alone
+        it stays green, and `expect --empty --key a --to 1 --reason r` then clears the previous
+        change's registration and exits 0 - the silent drop the refusal exists against, reached
+        through the refusal itself.
+        """
+        for member, value in (("--artifact", "sweep.entity"), ("--key", "b"), ("--to", "2"),
+                              ("--reason", "r")):
+            with self.subTest(member=member):
+                self._expect("--empty")
+                self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1",
+                             "--reason", "r")
+                self.assertEqual(self._expect("--empty", member, value), cli.REFUSED)
+                self.assertEqual([row["key"] for row in read_json(self.manifest)["movers"]], ["a"])
+
+
 class GateExit(unittest.TestCase):
     """`plan --gate-exit`'s tri-state, which is the pre-commit hook's entire predicate.
 
@@ -1283,6 +1445,23 @@ class GateExit(unittest.TestCase):
             {"pointers": {"the.other-one": {"pointer": "sweeps/entity.json#/summary/sum"}}})
         self._record_verdict(["sweep.block"])
         self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_10_when_the_verdict_recorded_unexpected_movers(self):
+        """A compare that found movers nobody registered recorded a failure, not a gating.
+
+        The hook is the only automatic detector in the loop, so it going quiet after exactly the run
+        whose answer was RED is the worst state available to it.
+        """
+        self._record_verdict(["sweep.entity"], unexpected=1)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_10_when_the_verdict_found_no_baseline_for_something_it_looked_at(self):
+        self._record_verdict(["sweep.entity"], missing_baseline=["sweep.block"])
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_20_when_the_verdict_recorded_a_compare_that_passed(self):
+        self._record_verdict(["sweep.entity"], unexpected=0, missing_baseline=[])
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
 
     def test_the_flag_is_opt_in_so_parityPlan_still_exits_zero(self):
         """parityPlan is a Gradle Exec: a plan that answered 10 on reach would fail every build."""

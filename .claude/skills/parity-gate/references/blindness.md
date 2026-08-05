@@ -481,9 +481,9 @@ Four suites that read the store to assert against it, and the two renderers behi
 - **blind** -
 - **source** reach baseline; the store is the oracle rather than an output
 
-Editing a stored artifact by hand does not change what a producer emits; it changes what the emitted bytes are compared against, which is the one thing a capture cannot detect. index.json carries each file's digest over its normalized bytes for exactly this, so a hand-edit surfaces as the compare reporting the file as edited rather than as a mover.
+Editing a stored artifact by hand does not change what a producer emits; it changes what the emitted bytes are compared against, which is the one thing a capture cannot detect. index.json carries each file's digest over its normalized bytes for exactly this, and the reader is ./gradlew test - ParityIndexTest re-derives every row's digest from the file it names. The compare is NOT that reader: it opens the base payload directly and never index.json, so a hand-edited baseline reaches it as agreement about the edited value.
 
-*Probe:* compare after a hand-edit: the digest in index.json no longer matches the file
+*Probe:* hand-edit a promoted artifact and run ./gradlew test: ParityIndexTest names the row whose file no longer hashes to its recorded digest. The compare says nothing, which is why the check lives in the suite
 
 ## B35 - The ten shipped tables are pipeline INPUT, so a change to one reaches every render that loads it
 

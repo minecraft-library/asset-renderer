@@ -54,9 +54,41 @@ It does not judge pixels, re-derive a sum, or decide whether a mover is acceptab
 
 ```bash
 ./gradlew parityPlan                    # SEES / BLIND / PLAN / COVERED / MANUAL / cost; writes _run/plan.json
+./gradlew parityExpect -PexpectEmpty    # clears the expected-diff, which survives the capture wipe
 ./gradlew parityCapture                 # runs the plan's PLAN set into cache/parity/current/
 ./gradlew parityCompare                 # the verdict; the only task that can fail
 ```
+
+`parityExpect` runs before the capture and the compare because the manifest it writes is the
+compare's other input, and it is the one file a capture does not erase - so a previous change's
+registration is still in force until this clears it. For a change that intends to move rows,
+register each one instead, naming the value it must land on:
+
+```bash
+./gradlew parityExpect -PexpectEmpty
+./gradlew parityExpect -Partifact=sweep.entity -Pkey=minecraft__cow_temperate -Pto=0.2004 \
+    -Preason="buildBox operand order"
+```
+
+A registration is per-row and additive; `-PexpectEmpty` is what starts a fresh one, and the two
+cannot be given in one invocation - a clear and a registration are two orders and one would be
+dropped. A registration with no `-Pto` is refused rather than accepted as "this row may move".
+
+**`-Pkey` is the row's key exactly as the stored artifact spells it**, and nothing checks that it is
+one. A registration whose key matches no moved row is written, counted in the `N mover(s)
+registered` line and then never consulted, so a near miss reads as success and the row it meant
+still goes RED. Read the key out of the baseline rather than reconstructing it: `sweep.entity` keys
+the cow rows `minecraft__cow_cold`, `minecraft__cow_temperate`, `minecraft__cow_temperate~age=baby`
+and `minecraft__cow_warm`, and carries no `minecraft__cow`.
+
+**A registration covers one moved value, not the row.** A row can move in more than one column at
+once: a `sweep.entity`, `sweep.block` or `sweep.item` row carries nine comparable columns beside the
+key (`differing_pixels`, `java_coverage`, `java_h`, `java_w`, `mean_argb_delta`, `status`,
+`vanilla_coverage`, `vanilla_h`, `vanilla_w`), the player and armour rows five, a glint row six. A
+row is GREEN only when *every* column it moved landed on a value registered for that row. So a row
+that widens its canvas and moves its metric is two registrations on the same `-Pkey`; registering
+only the canvas leaves the metric move RED, which is the point. A registered row landing anywhere its
+registrations do not name is RED like any unregistered mover.
 
 Then, only on an announced, priced re-baseline:
 
@@ -103,7 +135,7 @@ recorded duration yet, not that the bundle is free - read the producer list inst
   the baseline is then re-derivable from no commit, and nothing read later recovers that.
 - `-Pclass={neutral,shaped,moving}` on `parityPromote` - defaults to `moving`, because forgetting it
   cannot then understate a change.
-- `-Preason=<text>` - mandatory on `parityPromote`.
+- `-Preason=<text>` - mandatory on `parityPromote`, and on a `parityExpect` that registers a row.
 
 There is no dry-run flag: `parityPlan` runs nothing and prints the plan and the budget, and Gradle
 owns `--dry-run` for itself.
@@ -113,7 +145,8 @@ owns `--dry-run` for itself.
 | Situation | Behavior |
 |---|---|
 | SEES non-empty, 0 movers, no expected-diff | GREEN. Commit. |
-| Movers == the registered expected-diff | GREEN. Commit; promote in the same commit. |
+| Movers == the registered expected-diff, every moved column of every row on a value registered for that row | GREEN. Commit; promote in the same commit. |
+| A registered row moved in a column no registration of its names | RED. A `-Pto` is what one column must land on, never a licence for the row. Register the second value too, or fix the second move. |
 | Movers != expected-diff | RED. Report per-row before/after. Do not re-baseline to make it pass. |
 | A mover on an artifact a rule called BLIND | RED, escalated separately. The map is wrong or the change is wider than its paths. Fix the rule; never register it as expected. **Unless the plan printed that line as `claimed blind, selected by <rule>`** - reach resolves one changed path at a time, so a `blind` list subtracts only on the paths its own rule triggers on and a `select` rule's subtracts on none at all. The named rule's `sees` put the artifact in the bundle regardless, whether it fired on the same path or on another in the change set, and the claiming rule's `mode` does not change that. The mover is ordinary; judge it by the rows above. |
 | Sum unchanged but `moved > 0` | RED. A sum can hold while rows cancel. |
@@ -203,8 +236,8 @@ Three reasons a hand-rolled compare gets this wrong, each measured in this repo:
 
 ## Invariants
 
-- The skill runs exactly four Gradle tasks and no others. No `awk`, no `join`, no
-  `xargs sha256sum`, no `python -c`.
+- The skill runs exactly the five Gradle tasks in group `parity` and no others. No `awk`, no
+  `join`, no `xargs sha256sum`, no `python -c`.
 - The skill never writes the production store. Only `parityPromote` does.
 - The skill never edits source, never stashes, never commits.
 - A `cache/` path is never cited as an expected value - anything under `cache/` is output.

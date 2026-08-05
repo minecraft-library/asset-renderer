@@ -212,7 +212,7 @@
       "stored": false
     },
     "pin.tick-lattice": {
-      "home": "lib.minecraft.renderer.option.TimelineTest",
+      "home": "lib.minecraft.renderer.engine.compose.TimelineTest",
       "reason": "an identity (millisAt(f) == tickAt(f) * 50.0), not a captured value - re-baselining is not a concept for it",
       "stored": false
     },

@@ -7,15 +7,27 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Pins the build-file wiring the parity refusals rest on, none of which any run of the suite reaches.
@@ -23,11 +35,12 @@ import static org.hamcrest.Matchers.not;
  * <p>Every statement read here is one a Gradle build has no unit to fail in, and every one of them
  * restores a defect end to end when it goes: an ordering edge gone and a promotion certifies itself
  * against the store it has just been written into; a value-blind flag reader and
- * {@code -Pbootstrap=false} turns bootstrap on; the task-name matcher gone and an abbreviation runs
- * the whole capture with every configuration-time refusal and every dependency edge silently
- * skipped; the override forwarding gone and the one answer to the dirty-tree refusal is unreachable
- * from a command line; the run-count forwarding gone and an operator's claim below the determinism
- * floor is replaced by the floor that refusal exists to enforce. Each left both suites green.
+ * {@code -Pbootstrap=false} turns bootstrap on; the task-name matcher gone and {@code parityCapt}
+ * leaves every self-capturing producer UP-TO-DATE over the root the erase has just emptied, so the
+ * step after them fails on a file nothing rewrote; the override forwarding gone and the one answer
+ * to the dirty-tree refusal is unreachable from a command line; the run-count forwarding gone and
+ * an operator's claim below the determinism floor is replaced by the floor that refusal exists to
+ * enforce. Each left both suites green.
  *
  * <p>So the statements are read out of the build file and asserted. That is what is available -
  * exercising them needs a Gradle build, and the alternative is the state these landed in, where the
@@ -58,6 +71,31 @@ final class ParityTaskWiringTest {
             + "(token.isNotEmpty() && "
             + "org.gradle.util.internal.NameMatcher().find(token, listOf(name)) != null) }";
 
+    /** The refusal hook, which asks the resolved graph rather than the tokens that were typed. */
+    private static final String REFUSES_OFF_THE_RESOLVED_GRAPH =
+        "fun Task.refuseWhenScheduled(refuse: () -> Unit) { "
+            + "val scheduled = path "
+            + "project.gradle.taskGraph.whenReady { if (hasTask(scheduled)) refuse() } }";
+
+    /** How the forwarder is declared, which is as an extension and so not by its name alone. */
+    private static final String DECLARES_THE_FORWARDER =
+        "fun org.gradle.process.JavaForkOptions.forwardAssetProperties()";
+
+    /** The forwarder, which is what puts the daemon's asset flags onto a fork. */
+    private static final String FORWARDS_EVERY_ASSET_PROPERTY =
+        "fun org.gradle.process.JavaForkOptions.forwardAssetProperties() = "
+            + "System.getProperties().forEach { k, v -> "
+            + "val key = k.toString() "
+            + "if (key.startsWith(assetPropertyPrefix)) systemProperty(key, v.toString()) }";
+
+    /** The recorder, which reads the daemon's asset flags and is what a capture stamps. */
+    private static final String RECORDS_EVERY_ASSET_PROPERTY =
+        "fun assetPropertiesInForce(): Map<String, String> = "
+            + "sortedMapOf<String, String>().also { found -> "
+            + "System.getProperties().forEach { key, value -> "
+            + "val name = key.toString() "
+            + "if (name.startsWith(assetPropertyPrefix)) found[name] = value.toString() } }";
+
     /** The one guarded spelling of the run-count forwarding, which every site has to be. */
     private static final String FORWARDS_THE_RUN_COUNT = "runs?.let { add(\"--runs\"); add(it) }";
 
@@ -67,6 +105,69 @@ final class ParityTaskWiringTest {
     /** The capture step's registration, which is the body that argv reaches a capture through. */
     private static final String REGISTERS_A_CAPTURE_STEP =
         "fun TaskContainer.registerParityCapture(";
+
+    /** The harness-run registration, whose mode argument is what a capture stamps. */
+    private static final String REGISTERS_A_HARNESS_RUN = "fun TaskContainer.registerHarnessRun(";
+
+    /** The once-per-invocation erase, which every producer and every capture step runs after. */
+    private static final String ERASES_THE_WORKING_ROOT = "register<Exec>(parityCaptureBeginTask) {";
+
+    /** Where one harness run is registered, as opposed to where the registration is declared. */
+    private static final String CALLS_A_HARNESS_RUN = "registerHarnessRun(\"";
+
+    /** What a run's own description says when it writes outside the reference tree. */
+    private static final String REFRESHES_NO_REFERENCE = "Refreshes no reference.";
+
+    /** One member of a {@code parityExpect} registration, forwarded only when it was given. */
+    private static final Pattern FORWARDS_AN_EXPECT_MEMBER =
+        Pattern.compile("(\\w+)\\?\\.let \\{ add\\(\"--(\\w+)\"\\); add\\(it\\) \\}");
+
+    /** One harness-run call site, capturing the HarnessMode constant it names. */
+    private static final Pattern HARNESS_RUN_CALL = Pattern.compile(
+        "registerHarnessRun\\(\"[^\"]+\", (?:null|\"[^\"]+\"), \"([A-Z_]+)\"");
+
+    /** One constant of the harness's own mode enum, which is the vocabulary those names come from. */
+    private static final Pattern HARNESS_MODE_CONSTANT = Pattern.compile("\n    ([A-Z][A-Z_]*)[,;]");
+
+    /** What joins the modes of an invocation that ran more than one render into the stamped value. */
+    private static final String MODE_SEPARATOR = ",";
+
+    /** Where the harness declares that enum. */
+    private static final Path HARNESS_MODE =
+        Path.of("harness/src/client/java/lib/minecraft/refharness/HarnessMode.java");
+
+    /** One artifact row of the build's table: its id and its producer list. */
+    private static final Pattern ARTIFACT_ROW =
+        Pattern.compile("ParityArtifact\\(\"([^\"]+)\",\\s*listOf\\(([^)]*)\\)");
+
+    /** One quoted string, for reading a producer list apart. */
+    private static final Pattern QUOTED = Pattern.compile("\"([^\"]+)\"");
+
+    /** Where the skill states its own entry points, and states how many of them there are. */
+    private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
+
+    /** The shipped invariant, capturing the count it writes as a word. */
+    private static final Pattern SKILL_TASK_COUNT =
+        Pattern.compile("The skill runs exactly the (\\w+) Gradle tasks in group `parity`");
+
+    /** One task the skill tells an operator to run. */
+    private static final Pattern SKILL_INVOCATION = Pattern.compile("\\./gradlew (\\w+)");
+
+    /** The words that invariant can spell its count with, each at the index it names. */
+    private static final List<String> COUNT_WORDS = List.of(
+        "no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten");
+
+    /** What a task declares to join the group the skill's entry points live in. */
+    private static final String DECLARES_THE_PARITY_GROUP = "group = \"parity\"";
+
+    /**
+     * A line comment, whose text is removed before the group declarations are attributed.
+     *
+     * <p>Not preceded by a colon, which is the one other place these two characters occur here: a
+     * repository URL. Removing a comment is what keeps prose about a declaration from reading as
+     * one, and keeps a brace inside prose out of the walk that attributes it.
+     */
+    private static final Pattern LINE_COMMENT = Pattern.compile("(?m)(?<!:)//.*$");
 
     @Test
     @DisplayName("a boolean option is off when it is given the value false")
@@ -87,6 +188,137 @@ final class ParityTaskWiringTest {
                 + "replacement that must not pass here - disagreeing with Gradle about what a token "
                 + "names is the defect itself",
             collapsed(function("parityTaskRequested")), equalTo(RESOLVES_THROUGH_GRADLES_MATCHER));
+    }
+
+    @Test
+    @DisplayName("a refusal is raised off the resolved task graph, never off the typed tokens")
+    void aRefusalAsksTheGraphWhichTasksWillRun() {
+        String build = buildFile();
+
+        assertThat("the typed tokens carry a task's OPTIONS beside its name, and which of them is "
+                + "an option's value depends on that option's arity - `--task parityExpect` is a "
+                + "value where `--rerun parityExpect` is the next task. Only the graph knows, "
+                + "because only it has matched each token against the task that declares it",
+            collapsed(toBlankLine("fun Task.refuseWhenScheduled(")),
+            equalTo(REFUSES_OFF_THE_RESOLVED_GRAPH));
+        assertThat("every refusal goes through it: read off the tokens instead, a task named after "
+                + "a boolean task option is one the predicate misses, and the refusal it was "
+                + "guarding is skipped on an invocation that goes on to run that very task",
+            occurrences(collapsed(build), "refuseWhenScheduled {"), is(equalTo(2)));
+        assertThat("and the promotion's own condition, which the count above cannot reach - a "
+                + "count of SITES says nothing about what either one tests. The default is read "
+                + "here too, because an absent -Preason is only empty while it falls back to the "
+                + "empty string. Inverted, `parityPromote -Preason=x` fails the build and a bare "
+                + "`parityPromote` configures clean, refused later by the toolkit on the far side "
+                + "of the compare this refusal exists to precede",
+            collapsed(taskBlock("parityPromote")),
+            containsString("val reason = parityProperty(\"reason\") ?: \"\" "
+                + "refuseWhenScheduled { if (reason.isEmpty()) throw GradleException("));
+        assertThat("and the token predicate keeps its one wiring caller and no second: its "
+                + "declaration plus the up-to-date rule, which is the only thing an over-answer "
+                + "leaves inert. A second call site is the predicate back on work that costs "
+                + "something on an invocation it answered true for and Gradle then did not run",
+            occurrences(build, "parityTaskRequested("), is(equalTo(2)));
+        assertThat("the up-to-date rule, which over-answering only ever makes stricter",
+            collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
+            containsString("if (spec.selfCaptured && parityTaskRequested(\"parityCapture\")) "
+                + "outputs.upToDateWhen { false }"));
+        assertThat("and the producer edges behind a Callable, which Gradle resolves while it builds "
+                + "the graph and only for a task the graph holds. Resolved where this task is "
+                + "CONFIGURED instead, the refusal inside it fires on every invocation that merely "
+                + "realizes the task to read its description - so `tasks --group parity`, the way "
+                + "the group's own tasks are counted, failed on any checkout carrying no plan",
+            collapsed(taskBlock("parityCapture")),
+            containsString("dependsOn(Callable { "
+                + "resolveParityArtifacts(parityProperty(\"artifacts\")) "
+                + ".flatMap { spec -> spec.producers + parityCaptureTaskName(spec.artifact) } })"));
+        assertThat("and the plan is read in that one place, so no second site can resolve it "
+                + "eagerly under a token test", occurrences(build, "resolveParityArtifacts("),
+            is(equalTo(2)));
+    }
+
+    @Test
+    @DisplayName("a registration parityExpect cannot complete is refused rather than turned into a clear")
+    void anUnderSpecifiedRegistrationIsNeverForwardedAsAClear() {
+        String argv = collapsed(taskBlock("parityExpect"));
+
+        assertThat("--empty is sent when it was asked for and never as a fallback. Sent as one, an "
+                + "invocation the refusal above missed ERASES the registration a previous one left "
+                + "and reports success, which is the one outcome worse than refusing",
+            argv, containsString("if (empty) add(\"--empty\")"));
+        for (String member : List.of("artifact", "key", "to", "reason"))
+            assertThat("each member is forwarded exactly as given, so an incomplete set reaches the "
+                    + "toolkit's own refusal rather than being rewritten into a different order",
+                argv, containsString(member + "?.let { add(\"--" + member + "\"); add(it) }"));
+    }
+
+    @Test
+    @DisplayName("both orders parityExpect cannot carry out are refused, and over every member")
+    void bothRegistrationRefusalsAreRaisedOverEveryMember() {
+        String block = collapsed(taskBlock("parityExpect"));
+
+        assertThat("a clear and a registration in one invocation. Whichever is taken, the other is "
+                + "discarded without a word - and the one discarded by the argv below is the "
+                + "registration, so the command that named a row and a value reports a cleared "
+                + "manifest and exits 0",
+            block, containsString("if (empty && given.isNotEmpty()) throw GradleException("));
+        assertThat("and an incomplete registration, which is the refusal this task exists for: a "
+                + "-Pto is what makes a registration an assertion rather than a licence for the row "
+                + "to take any value at all. The `!empty` half is load-bearing in the other "
+                + "direction - dropped, the first line of the documented flow, a bare "
+                + "-PexpectEmpty, is refused for naming none of the four",
+            block, containsString("if (!empty && !registers) throw GradleException("));
+        assertThat("what was given is counted over the member list rather than over four reads, so "
+                + "a member added to one is a member the refusal already knows about",
+            block, containsString("val given = members.filter { (_, value) -> value != null }"
+                + ".map { (name, _) -> name }"));
+        assertThat("and completeness is that list's own size, never a number beside it",
+            block, containsString("val registers = given.size == members.size"));
+
+        List<String> members = new ArrayList<>();
+        Matcher declares = QUOTED.matcher(declared(block, "val members = listOf\\(([^)]*)\\)"));
+        while (declares.find()) members.add(declares.group(1));
+        List<String> forwarded = new ArrayList<>();
+        Matcher sends = FORWARDS_AN_EXPECT_MEMBER.matcher(block);
+        while (sends.find()) {
+            assertThat("a member reaches the toolkit under its own name", sends.group(2),
+                equalTo(sends.group(1)));
+            forwarded.add(sends.group(2));
+        }
+
+        assertThat("the members the refusal counts are the members the argv sends. Dropped from the "
+                + "list, a member is one the build hands the toolkit without ever having required "
+                + "it: the registration configures three-quarters complete and the refusal that "
+                + "catches it is the toolkit's, after the self-test the task depends on has run",
+            members, equalTo(forwarded));
+    }
+
+    @Test
+    @DisplayName("the number of entry points the skill claims is the number the group holds")
+    void theSkillsTaskCountIsTheGroupsOwnSize() {
+        Set<String> registered = parityGroupTasks();
+        String skill = read(PARITY_SKILL);
+
+        Matcher stated = SKILL_TASK_COUNT.matcher(skill);
+        assertThat("SKILL.md states no count of the tasks it runs, so what is pinned below is not "
+            + "the sentence that shipped", stated.find(), is(true));
+        assertThat("the count is written as a word and this is the vocabulary; one outside it has "
+                + "no number to compare and would pass by naming nothing",
+            COUNT_WORDS, hasItem(stated.group(1)));
+        assertThat("the number that sentence states, against the size of the group it states it "
+                + "about. Nothing else relates the two: a task is asserted into the group where "
+                + "its own body is sliced, which says how each is registered and never how many "
+                + "are, so a sixth entry point leaves the shipped sentence false with every suite "
+                + "green", registered.size(), is(equalTo(COUNT_WORDS.indexOf(stated.group(1)))));
+
+        Set<String> invoked = new TreeSet<>();
+        Matcher runs = SKILL_INVOCATION.matcher(skill);
+        while (runs.find()) invoked.add(runs.group(1));
+        assertThat("and the tasks it tells an operator to run are those same tasks. `and no "
+                + "others` is the rest of that sentence, and a count on its own is satisfied by a "
+                + "skill naming a different five - or by a registration the skill never mentions "
+                + "arriving as one it does",
+            invoked, equalTo(registered));
     }
 
     @Test
@@ -150,6 +382,409 @@ final class ParityTaskWiringTest {
             occurrences(build, FORWARDS_THE_RUN_COUNT), is(equalTo(named)));
     }
 
+    @Test
+    @DisplayName("a compare is ordered after the expected-diff whose registration it reads")
+    void theCompareIsOrderedAfterTheExpectedDiff() {
+        assertThat("the expected-diff is the other input to the verdict, and registering a mover "
+                + "after the compare that was meant to accept it leaves that compare RED for a "
+                + "reason the operator has already answered",
+            taskBlock("parityCompare"), containsString("mustRunAfter(\"parityExpect\")"));
+    }
+
+    @Test
+    @DisplayName("the whole capture chain is ordered after the expected-diff, through the one erase")
+    void theCaptureChainIsOrderedAfterTheExpectedDiff() {
+        assertThat("taken on the erase rather than on parityCapture itself, because the erase is "
+                + "what every producer and every step is already ordered after - an edge on the "
+                + "entry point alone leaves the producers and the steps free to run first, and then "
+                + "the documented order holds for the task and not for the work it stands for",
+            collapsed(toBlankLine(ERASES_THE_WORKING_ROOT)),
+            containsString("mustRunAfter(\"parityExpect\")"));
+        assertThat("which is what makes that one edge reach the whole chain: the capture step takes "
+                + "it, and so does every producer",
+            occurrences(collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
+                "mustRunAfter(parityCaptureBeginTask)"), is(equalTo(2)));
+    }
+
+    @Test
+    @DisplayName("the flags a capture records are the daemon's own, selected the way a fork's are")
+    void theCaptureRecordsTheSameFlagNamespaceTheForkCarries() {
+        String build = buildFile();
+
+        assertThat("every custom flag of this build lives under this namespace, so a capture "
+                + "collecting a different one records a set no fork ever carried - and the two "
+                + "differing is invisible by inspection, because both still read plausible",
+            declared(build, "val assetPropertyPrefix: String = \"([^\"]+)\""), equalTo("asset."));
+        assertThat("the forwarder, WHOLE. It walks the daemon's own System.getProperties() and keeps "
+                + "the pairs whose name carries the one prefix above, which is the half of the "
+                + "relation that decides what a fork carries. Read whole because the shape this has "
+                + "to fail on is the test still being there and answering the other way: a count of "
+                + "the sites reading the prefix is 2 with the sense of either one inverted, and so "
+                + "is a containment test on the walk they sit in",
+            collapsed(toBlankLine(DECLARES_THE_FORWARDER)), equalTo(FORWARDS_EVERY_ASSET_PROPERTY));
+        assertThat("and the recorder, WHOLE, which is the other half: the same walk over the same "
+                + "table, keeping the pairs the same name test keeps, so what a capture writes down "
+                + "is the set the forwarder puts on a fork. The two selecting differently is "
+                + "invisible by inspection because both still read plausible, and it makes a record "
+                + "an inventory of some other set of flags. Its map is SORTED, and that too is read here "
+                + "rather than beside this: it buys a caller an argv that is a function of the flags "
+                + "rather than of a hash table's iteration order, and nothing more, because the "
+                + "record folds the pairs into an object canonical JSON sorts and no stored byte can "
+                + "tell two orders apart",
+            collapsed(function("assetPropertiesInForce")), equalTo(RECORDS_EVERY_ASSET_PROPERTY));
+        assertThat("and no site filters on a prefix of its own beside them",
+            occurrences(collapsed(build), "startsWith(\"asset"), is(equalTo(0)));
+        assertThat("the two parity roots are put on a fork AFTER the forwarder and outside it, and "
+                + "that is where a fork's flags and a record's part company. systemProperty sets a "
+                + "property in the FORKED JVM; assetPropertiesInForce reads the DAEMON's table. So a "
+                + "root is recorded when a command line put it in the daemon and not because the "
+                + "build put it on a fork - measured both ways on this tree: with no -D the daemon "
+                + "held no asset.* and a capture would record none, while a Test fork was configured "
+                + "with both roots; under -Dasset.parity.root the daemon held that one and a capture "
+                + "records it, while asset.parity.references, which neither run set on the command "
+                + "line, stayed on the fork and out of the record both times. Pinned so that stays "
+                + "the arrangement - reordered, the forwarder overwrites the resolved roots with "
+                + "whatever the daemon held, and dropped, a fork stops carrying them at all",
+            occurrences(collapsed(build),
+                "forwardAssetProperties() systemProperty(\"asset.parity.root\", parityWorkingRoot) "
+                    + "systemProperty(\"asset.parity.references\", parityReferenceRoot)"),
+            is(equalTo(2)));
+        assertThat("collected once, so the fork's list and the capture's cannot be two walks",
+            collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
+            containsString("val assetFlags = assetPropertiesInForce()"));
+        assertThat("one --flag per resolved property. A fork inherits them from a long-lived daemon "
+                + "rather than from the command line, so two captures typed identically can "
+                + "disagree and nothing else ever writes that difference down",
+            collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
+            containsString("assetFlags.forEach { (name, value) -> add(\"--flag\"); add(\"$name=$value\") }"));
+    }
+
+    @Test
+    @DisplayName("the rows that read the reference tree are the rows whose producers read it")
+    void theReferenceRuleSelectsTheRowsItSaysItDoes() {
+        String build = buildFile();
+        String prefix =
+            declared(build, "val referenceDerived: Boolean get\\(\\) = artifact.startsWith\\(\"([^\"]+)\"\\)");
+        assertThat("the wider rule is the narrow one plus the row that hashes the tree; read here "
+                + "rather than restated, because a second spelling of it is a second answer",
+            collapsed(build),
+            containsString("val readsReferenceTree: Boolean get() = referenceDerived "
+                + "|| artifact == parityReferencesArtifact"));
+
+        Set<String> diffAgainstIt = idsWhoseProducerSatisfies(name -> name.endsWith("ParityVanilla"));
+        Set<String> hashIt = idsWhoseProducerSatisfies(harnessRunNames()::contains);
+        Set<String> selected = new TreeSet<>();
+        Set<String> readsTheTree = new TreeSet<>();
+        for (Map.Entry<String, List<String>> row : artifactTable(build).entrySet()) {
+            if (row.getKey().startsWith(prefix)) selected.add(row.getKey());
+            if (row.getKey().startsWith(prefix) || row.getKey().equals(referencesArtifact(build)))
+                readsTheTree.add(row.getKey());
+        }
+
+        assertThat("no artifact's producer is a sweep, which would leave this vacuous",
+            diffAgainstIt, is(not(empty())));
+        assertThat("the rule decides which rows carry the digest of the ground truth they were "
+                + "measured against, so it has to select the rows that ARE measured against it - "
+                + "resolved from the producer column of the Java-side roster rather than from the "
+                + "prefix, which is the thing under test", selected, equalTo(diffAgainstIt));
+        assertThat("no artifact's producer is a harness run, the same", hashIt, is(not(empty())));
+        assertThat("and the wider rule adds exactly the row a harness run writes",
+            readsTheTree, equalTo(union(diffAgainstIt, hashIt)));
+    }
+
+    @Test
+    @DisplayName("a capture stamps the mode of the run that happened, not of the row's own producer")
+    void theStampedModeComesFromTheRunThatExecuted() {
+        String build = buildFile();
+
+        assertThat("declared once, written once and read once. The mode a row's declared producer "
+                + "would select is that producer's name spelled a second way - a constant on the "
+                + "one row that has one and absent on every other - so the recorded value has to "
+                + "come from a run that executed, and a second writer would be a way to record one "
+                + "that did not", occurrences(build, "parityHarnessModesRun"), is(equalTo(3)));
+        assertThat("written where a render finishes, so a failed one records nothing",
+            collapsed(toBlankLine(REGISTERS_A_HARNESS_RUN)),
+            containsString("doLast { parityHarnessModesRun += mode }"));
+        assertThat("and read where the capture's argv is built, at execution, on the rows that read "
+                + "the tree and no others: which harness run is in the graph is not known while it "
+                + "is being configured, and a row whose value is no function of the tree carries no "
+                + "statement about what last wrote one - unguarded, a shipped-table digest taken in "
+                + "an invocation that also rendered is stamped with the render's mode",
+            collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
+            containsString("if (spec.readsReferenceTree) doFirst { "
+                + "val ran = parityHarnessModesRun.joinToString(\",\") "
+                + "if (ran.isNotEmpty()) args(\"--mode\", ran) }"));
+        assertThat("never off the artifact table's own producer column, which is where the value "
+                + "restates the producer instead of describing the run",
+            collapsed(declaration(REGISTERS_A_CAPTURE_STEP)), not(containsString("harnessRunModes[")));
+    }
+
+    @Test
+    @DisplayName("a run that refreshes no reference stamps no mode and orders nothing")
+    void aRunThatRefreshesNothingIsNoRenderOfTheGroundTruth() {
+        String registration = collapsed(toBlankLine(REGISTERS_A_HARNESS_RUN));
+
+        assertThat("guarded on what the run REFRESHES. Both probes render into their own directory "
+                + "beside the reference tree and rewrite nothing in it, so an invocation running one "
+                + "has re-measured no ground truth - and a capture stamping its mode says the "
+                + "opposite about numbers taken off references nobody touched, which is worse than "
+                + "the absent field the honest answer leaves",
+            registration,
+            containsString("if (refreshes.isNotEmpty()) doLast { parityHarnessModesRun += mode }"));
+        assertThat("and the ordering edges read the same set through the same predicate, so what a "
+                + "row that reads the tree is ordered against is what can write the tree",
+            registration,
+            containsString("}.also { if (refreshes.isNotEmpty()) harnessRunModes[name] = mode }"));
+
+        Map<String, Boolean> refreshesNothing = new TreeMap<>();
+        Map<String, Boolean> saysItRefreshesNothing = new TreeMap<>();
+        for (String call : harnessRunCalls()) {
+            String name = declared(call, "registerHarnessRun\\(\"([^\"]+)\"");
+            refreshesNothing.put(name, collapsed(call).contains("emptyList()"));
+            saysItRefreshesNothing.put(name, call.contains(REFRESHES_NO_REFERENCE));
+        }
+
+        assertThat("no registered run declares an empty refresh list, which would leave the guard "
+            + "above inert and the relation below vacuous", refreshesNothing.containsValue(true), is(true));
+        assertThat("every registered run declares one, which would leave it equally vacuous the "
+            + "other way", refreshesNothing.containsValue(false), is(true));
+        assertThat("the two spellings of what a run refreshes answer together: the list the wiring "
+                + "reads, and the sentence the task description gives an operator. A run whose list "
+                + "says it rewrites a sub-tree while its description says it refreshes none is one "
+                + "of the two claims being wrong, and the wiring reads the one nobody looks at",
+            saysItRefreshesNothing, equalTo(refreshesNothing));
+    }
+
+    @Test
+    @DisplayName("a row measured against the reference tree is ordered after any render of it")
+    void whatReadsTheReferenceTreeRunsAfterARenderOfIt() {
+        assertThat("a render landing between a sweep and the capture of it has that capture stamp "
+                + "a mode and a manifest digest the measured value never saw, which reads as "
+                + "evidence about the number and is a statement about task order",
+            collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
+            containsString("if (spec.readsReferenceTree) mustRunAfter(harnessRunModes.keys)"));
+        assertThat("and the producers take the same edge, which is the half that decides what the "
+                + "number was measured against",
+            collapsed(buildFile()),
+            containsString("parityArtifacts.filter { it.readsReferenceTree } "
+                + ".flatMap { it.producers } .distinct() .filter { it !in harnessRunModes } "
+                + ".forEach { producer -> named(producer) { mustRunAfter(harnessRunModes.keys) } }"));
+    }
+
+    @Test
+    @DisplayName("what a sweep was measured against is named as the tree, reachable on every capture")
+    void theGroundTruthIsNamedAsTheTreeAndNotAsACapturedFile() {
+        String step = collapsed(declaration(REGISTERS_A_CAPTURE_STEP));
+
+        assertThat("named as the DIRECTORY the producer read. Named as the captured manifest "
+                + "instead, the field landed only where that row was also captured - and an "
+                + "ordinary renderer change's plan selects the sweeps and not the row that hashes "
+                + "the tree, so the one field tying a number to its reference set was absent on "
+                + "every sweep the sanctioned flow produces",
+            step, containsString("if (spec.referenceDerived) { add(\"--reference-tree\"); "
+                + "add(parityReferenceRoot) }"));
+        assertThat("the same root the sweeps and the harness are pointed at, so the digest names "
+                + "the tree that was read rather than a second derivation of where it should be",
+            occurrences(buildFile(), "systemProperty(\"asset.parity.references\", parityReferenceRoot)"),
+            is(greaterThan(0)));
+        assertThat("forwarded once, under the rule that says which rows are measured against the "
+                + "tree - an unguarded one puts the digest on rows nothing measured",
+            occurrences(step, "add(\"--reference-tree\")"), is(equalTo(1)));
+        assertThat("and never as a path into the working root, which is what made it conditional "
+                + "on a capture that the routine flow does not take",
+            step, not(containsString("manifests/references.json")));
+    }
+
+    @Test
+    @DisplayName("every name a stamped mode can carry is one the harness itself declares")
+    void everyHarnessModeIsOneTheHarnessDeclares() {
+        Set<String> declared = new TreeSet<>();
+        Matcher constants = HARNESS_MODE_CONSTANT.matcher(read(HARNESS_MODE));
+        while (constants.find()) declared.add(constants.group(1));
+
+        Set<String> named = new TreeSet<>();
+        Matcher calls = HARNESS_RUN_CALL.matcher(buildFile());
+        while (calls.find()) named.add(calls.group(1));
+
+        assertThat("no harness run names a mode, which would leave this check vacuous",
+            named, is(not(empty())));
+        assertThat("the harness declares no modes, the same", declared, is(not(empty())));
+        assertThat("a stamped mode is read out of a promoted baseline's provenance forever, so "
+                + "every name it can carry has to be one the harness answers to rather than free "
+                + "text nothing relates to a run",
+            declared.containsAll(named), is(true));
+        // The stamped value is a SET, because one invocation can run two renders - a player refresh
+        // and an armour refresh land as `ARMOR,PLAYERS`. So the value is the names above joined,
+        // and it only decomposes back into them while none of them carries the joiner.
+        assertThat("the value is joined on this separator, so a reader splits on it to recover the "
+                + "runs", collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
+            containsString("parityHarnessModesRun.joinToString(\"" + MODE_SEPARATOR + "\")"));
+        assertThat("and the set it joins is SORTED, so the joined value is a function of the modes "
+                + "rather than of which render finished first. Unlike the flag map collected beside "
+                + "it, whose pairs canonical JSON sorts back into place, this string is stamped "
+                + "verbatim into a promoted baseline's provenance: unsorted, two invocations running "
+                + "the same two renders in opposite orders name one reference tree two ways, and "
+                + "the difference is in the stored bytes forever",
+            declared(buildFile(),
+                "val parityHarnessModesRun: MutableSet<String> = (\\w+)\\(\\)"),
+            equalTo("sortedSetOf"));
+        assertThat("a declared mode carrying the separator would make a two-run value ambiguous "
+                + "with a one-run value, and the composite would stop being a set of names",
+            declared.stream().filter(mode -> mode.contains(MODE_SEPARATOR)).toList(), is(empty()));
+    }
+
+    /**
+     * Returns the one group of a pattern that has to match the build file exactly once.
+     *
+     * @param build the build file's text
+     * @param pattern the pattern, carrying one capturing group
+     * @return the captured text
+     */
+    private static String declared(String build, String pattern) {
+        Matcher found = Pattern.compile(pattern).matcher(build);
+        assertThat("build.gradle.kts carries nothing matching " + pattern, found.find(), is(true));
+        return found.group(1);
+    }
+
+    /**
+     * Returns the artifact table's rows, each id mapped to the producers it declares.
+     *
+     * @param build the build file's text
+     * @return the producers by artifact id, in declaration order
+     */
+    private static Map<String, List<String>> artifactTable(String build) {
+        Map<String, List<String>> rows = new LinkedHashMap<>();
+        Matcher found = ARTIFACT_ROW.matcher(build);
+        while (found.find())
+            rows.put(found.group(1),
+                QUOTED.matcher(found.group(2)).results().map(hit -> hit.group(1)).toList());
+        assertThat("build.gradle.kts declares no artifact rows", rows.keySet(), is(not(empty())));
+        return rows;
+    }
+
+    /** The artifact id the build gives the row that hashes the whole reference tree. */
+    private static String referencesArtifact(String build) {
+        return declared(build, "val parityReferencesArtifact: String = \"([^\"]+)\"");
+    }
+
+    /**
+     * Returns every harness-run call site, each from its opening to the blank line after it.
+     *
+     * <p>Whole call sites rather than one captured argument, because what is read off them is two
+     * spellings of one fact - the sub-trees the run declares it rewrites, and the sentence its
+     * description gives an operator - and a pattern reaching only one of them cannot relate them.
+     *
+     * @return the call sites, verbatim
+     */
+    private static List<String> harnessRunCalls() {
+        String build = buildFile();
+        List<String> calls = new ArrayList<>();
+        for (int at = build.indexOf(CALLS_A_HARNESS_RUN); at >= 0;
+             at = build.indexOf(CALLS_A_HARNESS_RUN, at + 1)) {
+            int end = build.indexOf("\n\n", at);
+            assertThat("a harness run's call site runs to the end of the build file", end, is(not(-1)));
+            calls.add(build.substring(at, end));
+        }
+        assertThat("build.gradle.kts calls no harness registration", calls, is(not(empty())));
+        return calls;
+    }
+
+    /** Every harness-run task name the build registers. */
+    private static Set<String> harnessRunNames() {
+        Set<String> names = new TreeSet<>();
+        Matcher calls = Pattern.compile("registerHarnessRun\\(\"([^\"]+)\"").matcher(buildFile());
+        while (calls.find()) names.add(calls.group(1));
+        assertThat("build.gradle.kts registers no harness run", names, is(not(empty())));
+        return names;
+    }
+
+    /**
+     * Returns the artifacts the Java-side roster homes in the store whose producer matches.
+     *
+     * <p>The roster is a deliberate second copy of the taxonomy, so resolving a build-file rule
+     * against it relates two independently maintained statements rather than restating one.
+     *
+     * @param producer what the producing task's name has to satisfy
+     * @return the matching artifact ids
+     */
+    private static Set<String> idsWhoseProducerSatisfies(Predicate<String> producer) {
+        return ParityArtifacts.ALL.stream()
+            .filter(registration -> producer.test(registration.producer()))
+            .map(ParityArtifacts.Registration::id)
+            .collect(Collectors.toCollection(TreeSet::new));
+    }
+
+    /**
+     * Returns every task the build registers into the {@code parity} group.
+     *
+     * <p>Enumerated from the <b>group declarations</b> and never from the registrations, because the
+     * declaration is what decides membership while a registration has several spellings that all
+     * reach the same container: {@code register<T>("name")} indented inside the container block,
+     * {@code tasks.register<T>("name")} at column zero, {@code create}, {@code named} over a task
+     * registered elsewhere. Sliced at one of those, the enumeration answers with a subset of the
+     * group and the count it feeds is then true of the subset and false of the build - which is the
+     * failure the count exists to catch, restored inside the thing that catches it.
+     *
+     * <p>Each declaration is attributed to a name by walking backwards from it over the same text,
+     * counting a closing brace as one level deeper and an opening brace as one shallower, to the
+     * brace that opens the block the declaration sits in; the task's name is the last quoted word
+     * before that brace on its own line. Line comments go first, so a comment mentioning the
+     * declaration is not attributed to whatever encloses it. A declaration inside no block, or one
+     * whose enclosing block opens with no quoted name, fails here rather than being dropped: a
+     * member the walk cannot name is a member of the group all the same.
+     *
+     * <p>What is left bound to a spelling is the declaration itself, read as the literal assignment
+     * every task in the group is written with. A group named through a constant, or set by a call
+     * rather than an assignment, is a member this does not see - and unlike a registration spelling,
+     * that is not a form the build file uses anywhere.
+     *
+     * @return the task names
+     */
+    private static Set<String> parityGroupTasks() {
+        String build = LINE_COMMENT.matcher(buildFile()).replaceAll("");
+        Set<String> named = new TreeSet<>();
+        for (int at = build.indexOf(DECLARES_THE_PARITY_GROUP); at >= 0;
+             at = build.indexOf(DECLARES_THE_PARITY_GROUP, at + 1)) {
+            int opens = enclosingBrace(build, at);
+            assertThat("a parity-group declaration inside no block at all, which no registration can "
+                + "own and which leaves the size of the group unanswerable", opens, is(not(-1)));
+            String header = build.substring(build.lastIndexOf('\n', opens) + 1, opens);
+            String name = null;
+            Matcher quoted = QUOTED.matcher(header);
+            while (quoted.find()) name = quoted.group(1);
+            assertThat("a parity-group declaration whose enclosing block opens with no quoted name, "
+                + "so the task joining the group cannot be named and counting the group would drop "
+                + "it: " + header.trim(), name, is(notNullValue()));
+            named.add(name);
+        }
+        assertThat("build.gradle.kts registers nothing into the parity group", named, is(not(empty())));
+        return named;
+    }
+
+    /**
+     * Returns where the block a position sits inside was opened.
+     *
+     * @param text the build file, its line comments already removed
+     * @param from the position to walk back from
+     * @return the offset of the opening brace, or -1 when the position is inside no block
+     */
+    private static int enclosingBrace(String text, int from) {
+        int depth = 0;
+        for (int at = from - 1; at >= 0; at--) {
+            char ch = text.charAt(at);
+            if (ch == '}') depth++;
+            else if (ch == '{' && depth-- == 0) return at;
+        }
+        return -1;
+    }
+
+    /** The union of two id sets, sorted, so a failure prints both sides comparably. */
+    private static Set<String> union(Set<String> left, Set<String> right) {
+        Set<String> both = new TreeSet<>(left);
+        both.addAll(right);
+        return both;
+    }
+
     /**
      * Returns the body of a top-level build-file function, declaration line included.
      *
@@ -165,6 +800,24 @@ final class ParityTaskWiringTest {
         assertThat("build.gradle.kts declares no " + name, start, is(not(-1)));
         int end = build.indexOf("\n\n", start);
         assertThat(name + " runs to the end of the build file", end, is(not(-1)));
+        return build.substring(start, end);
+    }
+
+    /**
+     * Returns a declaration from its opening text to the blank line after it.
+     *
+     * <p>The complement of {@link #declaration}: a declaration whose closing brace carries a
+     * trailing call cannot be bounded by that brace, because that call is the part being read.
+     *
+     * @param opening the declaration's opening text, verbatim
+     * @return the declaration and its body
+     */
+    private static String toBlankLine(String opening) {
+        String build = buildFile();
+        int start = build.indexOf(opening);
+        assertThat("build.gradle.kts declares no " + opening, start, is(not(-1)));
+        int end = build.indexOf("\n\n", start);
+        assertThat(opening + " runs to the end of the build file", end, is(not(-1)));
         return build.substring(start, end);
     }
 
@@ -235,8 +888,18 @@ final class ParityTaskWiringTest {
     }
 
     private static String buildFile() {
+        return read(Path.of("build.gradle.kts"));
+    }
+
+    /**
+     * Reads a tracked file's text, by path because none of these is on the classpath.
+     *
+     * @param file the repo-relative path
+     * @return its text
+     */
+    private static String read(Path file) {
         try {
-            return Files.readString(Path.of("build.gradle.kts"));
+            return Files.readString(file);
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }

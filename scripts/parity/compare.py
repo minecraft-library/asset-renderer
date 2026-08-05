@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from parity import store as store_mod
-from parity.norm import ComparisonFailed, fsum, read_json
+from parity.norm import ComparisonFailed, Refused, fsum, read_json
 from parity.sweep import CANVAS
 
 #: Ordered. A row matching more than one is reported under the FIRST, and carries the rest in
@@ -188,6 +188,8 @@ def classify(before: dict, after: dict) -> tuple[str, list[str], dict]:
 
 
 def compare(left_payload: dict, right_payload: dict, expected: dict | None = None) -> Result:
+    require_provenance(left_payload, "base")
+    require_provenance(right_payload, "current")
     left = side_of(left_payload, "base")
     right = side_of(right_payload, "current")
     if left.artifact and right.artifact and left.artifact != right.artifact:
@@ -205,11 +207,29 @@ def compare(left_payload: dict, right_payload: dict, expected: dict | None = Non
         result.movers.append({
             "also": also,
             "class": kind,
-            "expected": key in registered,
+            "expected": _landed_where_registered(registered.get(key), fields),
             "fields": fields,
             "key": key,
         })
     return result
+
+
+def require_provenance(payload: dict, label: str) -> None:
+    """Refuse a side that cannot say what produced it.
+
+    The refusal is stated at the compare and was implemented only at the promotion, which covers the
+    store because nothing else writes it - and covers nothing else at all. An A/B of two redirected
+    roots never promotes either side, so a hand-written file went in as evidence.
+
+    :param payload: the side's payload
+    :param label: which side it is, for the message
+    :raises Refused: if the payload carries no provenance object
+    """
+    if not payload.get("provenance"):
+        raise Refused(
+            f"the {label} copy of '{payload.get('artifact') or '?'}' carries no provenance object, "
+            "so nothing can say what produced it, on what tree, or over how many runs; a comparison "
+            "against one reports agreement about an unidentified value")
 
 
 def shipped_tables_agreement(digests: dict, tables: dict) -> list[str]:
@@ -240,10 +260,60 @@ def _strip_json(path: str) -> str:
     return path[:-len(".json")] if path.endswith(".json") else path
 
 
-def _registered(expected: dict | None, artifact: str) -> set[str]:
+def _registered(expected: dict | None, artifact: str) -> dict[str, set[str]]:
+    """The movers registered for this artifact, each with the values it is expected to move TO.
+
+    Keyed membership alone is not the assertion. A registration that names no value licenses any
+    value, so an intended ``+0.2000`` landing at ``99.9999`` passed GREEN - which is the tolerance
+    this module is written without, arriving through the one device that replaces it. A row with no
+    ``to`` is therefore refused rather than read as a wildcard.
+
+    A key carries a SET because a registration is per-row and additive while a row is one key and
+    every column beside it - a sweep row's count runs from five to nine depending on the sweep, and
+    a manifest's is one. A row moving its canvas and its metric moves to two values and one
+    registration cannot name both. Registering the key twice is how that row is declared, and the
+    values accumulate rather than the second overwriting the first.
+
+    :param expected: the expected-diff manifest, or None when none was written
+    :param artifact: the artifact being joined
+    :return: the expected values by row key
+    :raises Refused: if a registration for this artifact names no key or no value
+    """
     if not expected:
-        return set()
-    return {row["key"] for row in expected.get("movers", []) if row.get("artifact") == artifact}
+        return {}
+    registered: dict[str, set[str]] = {}
+    for row in expected.get("movers", []):
+        if row.get("artifact") != artifact:
+            continue
+        key, to = row.get("key"), row.get("to")
+        if not key or to is None or str(to) == "":
+            raise Refused(
+                f"the expected-diff registers a mover on '{artifact}' with "
+                f"key={key!r} to={to!r}: a registration names the row AND the value it is expected "
+                "to land on, and one missing either licenses any value that row takes")
+        registered.setdefault(str(key), set()).add(str(to))
+    return registered
+
+
+def _landed_where_registered(to: set[str] | None, fields: dict) -> bool:
+    """Whether a mover landed, in EVERY field it moved, on a value its registration named.
+
+    Every field, not any: a row can move in more than one of its columns at once, so a registration
+    naming the canvas value it was widened to would otherwise mark the whole row expected and let an
+    unregistered ``mean_argb_delta`` regression on that same row pass GREEN. That is the defect this
+    module's expected-diff exists against, narrowed to a multi-column row rather than closed. A row
+    with one column beside its key - every manifest's - cannot reach it, which is why the guard is
+    over the fields that moved rather than over the kind.
+
+    An unregistered key answers false, as does a registered one that moved anywhere its registration
+    did not name - the second being the whole difference between asserting which keys moved and
+    asserting what they moved to.
+
+    :param to: the registered values, or None when the key carries no registration
+    :param fields: the moved fields, each a before/after pair
+    :return: whether the registration covers every part of this move
+    """
+    return to is not None and all(str(after) in to for _, after in fields.values())
 
 
 def to_report(results: list[Result], generated_at: str = "") -> dict:

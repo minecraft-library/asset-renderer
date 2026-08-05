@@ -2,6 +2,7 @@ package lib.minecraft.renderer.parity;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -13,15 +14,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -50,6 +54,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * suite can hold: a baseline hashing a sub-tree the membership has dropped can never be reproduced,
  * where a membership naming a sub-tree the baseline predates is what a capture reports as added and
  * a promotion clears.
+ *
+ * <p>Every column the index carries is read back against what it describes: a stored row's digest
+ * against the bytes of the file it names, a {@code sources} row's class against the source tree, an
+ * {@code external} home against the same tree when it is spelled as a class - that column's grammar
+ * is free text, and a directory or a prose home has nothing to resolve - and a {@code pointers}
+ * row's citation against the document it points into. The store's own directory is walked beside
+ * them, for the file no row names at all. The digest is written by every promotion and the homes and
+ * citations by hand, and until these cases nothing read any of them back.
  */
 @DisplayName("The parity index registers every artifact exactly once")
 final class ParityIndexTest {
@@ -60,6 +72,56 @@ final class ParityIndexTest {
         "pointers", ParityArtifacts.Home.POINTER,
         "external", ParityArtifacts.Home.EXTERNAL,
         "sources", ParityArtifacts.Home.SOURCE);
+
+    /** Where a Java class named by an index row can live, in the order they are tried. */
+    private static final List<Path> SOURCE_ROOTS =
+        List.of(Path.of("src/test/java"), Path.of("src/main/java"), Path.of("src/jmh/java"));
+
+    /**
+     * A fully-qualified Java class name, which is what tells one {@code external} home from another.
+     *
+     * <p>That column's grammar is free text - a directory, a path with a placeholder in it, "commit
+     * messages" - so only the entries shaped like a class are held to resolving as one. Lower-case
+     * segments then an upper-case leaf, and every other shipped home carries a separator or a space
+     * that puts it outside this.
+     */
+    private static final Pattern JAVA_FQN =
+        Pattern.compile("[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+\\.[A-Z][A-Za-z0-9_]*");
+
+    /** The placeholder standing for any stored file, which is a whole pointer's file half. */
+    private static final String ANY_STORED_FILE = "<artifact>";
+
+    /** The placeholder standing for one stored sweep's stem. */
+    private static final String ANY_SWEEP_STEM = "<sweep>";
+
+    /** The placeholder standing for any member of the node it indexes, which is a row index. */
+    private static final String ANY_MEMBER = "<n>";
+
+    /** Where a stored sweep lives, which is what {@link #ANY_SWEEP_STEM} ranges over. */
+    private static final String SWEEP_DIRECTORY = "sweeps/";
+
+    /** The skill's own body, which works a registration against a named row of a named artifact. */
+    private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
+
+    /** One such worked registration, capturing the artifact it names and the row key it uses. */
+    private static final Pattern WORKED_REGISTRATION =
+        Pattern.compile("-Partifact=(\\S+) -Pkey=(\\S+)");
+
+    /**
+     * The pointer-homed artifacts whose documented location holds nothing in any file it names.
+     *
+     * <p>Pinned rather than tolerated. A pointer-homed artifact is nothing but its citation, so one
+     * that dereferences nowhere is a value the store advertises and cannot produce - a {@code
+     * summary} object no stored sweep has ever carried, row columns no producer writes, a
+     * provenance key the registry declares and no record carries. Recording the set exactly is what
+     * makes both directions fail: a pointer going dead is a new name here, and repairing one is a
+     * name that has to leave. How the members divide between those kinds is measured rather than
+     * written down, by {@link #citationShapes} - and that measurement is read back too, because a
+     * derived description is only better than a typed one while its derivation is checked.
+     */
+    private static final Set<String> POINTERS_THAT_REACH_NOTHING = new TreeSet<>(List.of(
+        "report.buckets", "report.canvas-mismatch", "report.coverage-gaps", "report.glint-frames",
+        "report.panel-stats", "report.sum", "report.wall-time", "report.worst-list"));
 
     @Test
     @DisplayName("every registered artifact appears in exactly one map, and in the one its home names")
@@ -107,6 +169,377 @@ final class ParityIndexTest {
 
         assertThat("the index and the roster hold the same number of artifacts",
             registered.size(), equalTo(ParityArtifacts.ALL.size()));
+    }
+
+    @Test
+    @DisplayName("every index row's digest still re-derives from the file it names")
+    void everyRowsDigestReDerivesFromItsFile() {
+        JsonObject artifacts = ParityStore.read("report.oracle-index").getAsJsonObject("artifacts");
+
+        List<String> undeclared = new ArrayList<>();
+        List<String> absent = new ArrayList<>();
+        List<String> drifted = new ArrayList<>();
+        int checked = 0;
+        for (Map.Entry<String, JsonElement> entry : artifacts.entrySet()) {
+            JsonObject row = entry.getValue().getAsJsonObject();
+            if (!row.has("file")) continue;
+            if (!row.has("sha256")) {
+                // A promoted row always gets one. Without this arm, dropping the column is how a
+                // file leaves the check rather than how it fails it.
+                if (row.get("baselined").getAsBoolean()) undeclared.add(entry.getKey());
+                continue;
+            }
+            Path file = ParityStore.PRODUCTION.resolve(row.get("file").getAsString());
+            if (!Files.isRegularFile(file)) {
+                absent.add(entry.getKey());
+                continue;
+            }
+            checked++;
+            if (!ParityJson.sha256Normalized(file).equals(row.get("sha256").getAsString()))
+                drifted.add(entry.getKey());
+        }
+
+        assertThat("index rows carrying a digest, of which there are none - which would leave this "
+            + "check vacuous", checked, is(greaterThan(0)));
+        assertThat("baselined rows with a file and no digest column; the column is what a hand-edit "
+            + "is detectable against, so a row without one is outside every check there is",
+            undeclared, is(empty()));
+        assertThat("rows naming a file the store does not hold", absent, is(empty()));
+        assertThat("rows whose file no longer hashes to the digest recorded when it was promoted. "
+            + "The promotion writes both together, so they can only part company by the file being "
+            + "edited outside one - and an edited baseline is not a mover, it is a different "
+            + "question that every later comparison answers as though it were one", drifted, is(empty()));
+    }
+
+    @Test
+    @DisplayName("no file in the store is unreferenced by the index")
+    void everyStoreFileIsNamedBySomeRow() throws IOException {
+        JsonObject artifacts = ParityStore.read("report.oracle-index").getAsJsonObject("artifacts");
+
+        Set<String> referenced = new TreeSet<>();
+        for (JsonElement row : artifacts.asMap().values())
+            if (row.getAsJsonObject().has("file"))
+                referenced.add(row.getAsJsonObject().get("file").getAsString());
+
+        List<String> orphans;
+        try (Stream<Path> walk = Files.walk(ParityStore.PRODUCTION)) {
+            orphans = walk.filter(Files::isRegularFile)
+                .map(file -> ParityStore.PRODUCTION.relativize(file).toString().replace('\\', '/'))
+                .filter(path -> path.endsWith(".json"))
+                .filter(path -> !referenced.contains(path))
+                .sorted()
+                .toList();
+        }
+
+        assertThat("the index names no file at all, which would make every file below an orphan",
+            referenced, is(not(empty())));
+        assertThat("JSON files in the store that no index row names. The store is walked here "
+            + "rather than derived from the id set, because the failure this catches is a file the "
+            + "ids no longer reach - a rename promotes the new path and leaves the old one behind, "
+            + "and every id-keyed check passes over it without ever opening the directory",
+            orphans, is(empty()));
+    }
+
+    @Test
+    @DisplayName("every source-homed artifact names a class that is on disk")
+    void everySourceRowResolvesToAFile() {
+        JsonObject sources = ParityStore.read("report.oracle-index").getAsJsonObject("sources");
+
+        List<String> unresolved = sources.entrySet().stream()
+            .filter(entry -> !resolvesAsJavaClass(entry.getValue().getAsJsonObject()
+                .get("test_class").getAsString()))
+            .map(entry -> entry.getKey() + " -> "
+                + entry.getValue().getAsJsonObject().get("test_class").getAsString())
+            .sorted()
+            .toList();
+
+        assertThat("the index homes nothing in Java source, which would leave this check vacuous",
+            sources.keySet(), is(not(empty())));
+        assertThat("source-homed artifacts whose class resolves under none of " + SOURCE_ROOTS
+            + ". The column is where a reader is sent to find the value, and a moved or renamed "
+            + "class sends them nowhere while every id-keyed check stays green", unresolved, is(empty()));
+    }
+
+    @Test
+    @DisplayName("every external home shaped like a Java class resolves to one")
+    void everyExternalClassHomeResolves() {
+        JsonObject external = ParityStore.read("report.oracle-index").getAsJsonObject("external");
+
+        List<String> homes = external.entrySet().stream()
+            .map(entry -> entry.getValue().getAsJsonObject().get("home").getAsString())
+            .filter(home -> JAVA_FQN.matcher(home).matches())
+            .sorted()
+            .toList();
+        List<String> unresolved = homes.stream().filter(home -> !resolvesAsJavaClass(home)).toList();
+
+        assertThat("no external home is shaped like a Java class, so this check has no operand; it "
+            + "needs a different shape rather than deleting", homes, is(not(empty())));
+        assertThat("external homes naming a Java class that is on no source path", unresolved, is(empty()));
+    }
+
+    @Test
+    @DisplayName("every pointer's file half names files the index itself registers")
+    void everyPointerNamesFilesTheStoreHolds() {
+        JsonObject index = ParityStore.read("report.oracle-index");
+        Set<String> stored = storedFiles(index.getAsJsonObject("artifacts"));
+
+        List<String> reachNoFile = new ArrayList<>();
+        List<String> expandToNothing = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry
+            : index.getAsJsonObject("pointers").entrySet()) {
+            String pointer = entry.getValue().getAsJsonObject().get("pointer").getAsString();
+            List<String> files = expand(pointer.substring(0, pointer.indexOf('#')), stored);
+            if (files.isEmpty()) expandToNothing.add(entry.getKey() + " -> " + pointer);
+            files.stream().filter(file -> !stored.contains(file))
+                .forEach(file -> reachNoFile.add(entry.getKey() + " -> " + file));
+        }
+
+        assertThat("the index registers no pointer, which would leave this check vacuous",
+            index.getAsJsonObject("pointers").keySet(), is(not(empty())));
+        assertThat("pointers whose placeholder expands over nothing at all. A template is only a "
+            + "citation while some file answers it, and one that answers none reads identically to "
+            + "one nobody has looked at", expandToNothing, is(empty()));
+        assertThat("pointers naming a file the index registers no row for. The file half is half a "
+            + "citation and it is the half a rename breaks: the row keeps pointing at the old path "
+            + "while every id-keyed check passes, which is how a pointer column goes stale without "
+            + "one of them noticing", reachNoFile, is(empty()));
+    }
+
+    @Test
+    @DisplayName("the pointers that dereference are exactly the ones recorded as dereferencing")
+    void theDereferencingPointersAreTheOnesRecordedAsSuch() {
+        JsonObject index = ParityStore.read("report.oracle-index");
+        Set<String> stored = storedFiles(index.getAsJsonObject("artifacts"));
+
+        Set<String> reaches = new TreeSet<>();
+        Set<String> reachesNothing = new TreeSet<>();
+        for (Map.Entry<String, JsonElement> entry
+            : index.getAsJsonObject("pointers").entrySet()) {
+            String pointer = entry.getValue().getAsJsonObject().get("pointer").getAsString();
+            int hash = pointer.indexOf('#');
+            boolean found = expand(pointer.substring(0, hash), stored).stream()
+                .anyMatch(file -> !dereference(readStoreFile(file), pointer.substring(hash + 1))
+                    .isEmpty());
+            (found ? reaches : reachesNothing).add(entry.getKey());
+        }
+
+        assertThat("no pointer dereferences, so the walk below is broken rather than the column",
+            reaches, is(not(empty())));
+        assertThat("pointers whose documented location holds nothing in any file it expands over. "
+            + "A pointer-homed artifact IS its citation, so one reaching nothing is a value the "
+            + "store says it can produce and cannot. The recorded set is "
+            + POINTERS_THAT_REACH_NOTHING.size() + ": "
+            + citationShapes(index.getAsJsonObject("pointers"), POINTERS_THAT_REACH_NOTHING, stored)
+            + ". It is pinned rather than allowed, so one joining them fails here and so does "
+            + "repairing one of them", reachesNothing, equalTo(POINTERS_THAT_REACH_NOTHING));
+    }
+
+    @Test
+    @DisplayName("how far a citation is described as resolving is how far the store answers it")
+    void theDescribedDepthIsHowFarTheStoreAnswers() {
+        JsonObject index = ParityStore.read("report.oracle-index");
+        Set<String> stored = storedFiles(index.getAsJsonObject("artifacts"));
+        Set<String> registered = new TreeSet<>(index.getAsJsonObject("pointers").keySet());
+
+        Map<String, String> depth = new TreeMap<>();
+        Set<String> describedWhole = new TreeSet<>();
+        Set<String> answeredWhole = new TreeSet<>();
+        for (Map.Entry<String, JsonElement> entry
+            : index.getAsJsonObject("pointers").entrySet()) {
+            String pointer = entry.getValue().getAsJsonObject().get("pointer").getAsString();
+            String fragment = pointer.substring(pointer.indexOf('#') + 1);
+            String resolves = resolvingPrefix(pointer, stored);
+            depth.put(entry.getKey(), resolves.isEmpty() ? "(nothing)" : resolves);
+            if (resolves.equals(fragment)) describedWhole.add(entry.getKey());
+            if (expand(pointer.substring(0, pointer.indexOf('#')), stored).stream()
+                .anyMatch(file -> !dereference(readStoreFile(file), fragment).isEmpty()))
+                answeredWhole.add(entry.getKey());
+        }
+
+        assertThat("the store answers no citation's whole fragment, so there is no citation the walk "
+            + "has to run to the end and the comparison below holds for a walk that never starts",
+            answeredWhole, is(not(empty())));
+        assertThat("the store answers every citation whole, so no citation has a stopping point "
+            + "short of its own fragment and the comparison below holds for a walk that never stops",
+            answeredWhole, is(not(equalTo(registered))));
+        assertThat("the citations the depth walk describes as resolving whole, against the ones the "
+            + "store actually answers whole. The walk extends the fragment one segment at a time and "
+            + "stops at the first prefix no file the pointer names answers, so the prefix it "
+            + "returns is the whole fragment exactly when some file answers all of it - and that "
+            + "equivalence is the entire warrant for describing a dead citation by where it died. "
+            + "Without the stop the walk returns every citation's own whole fragment, and the "
+            + "sentence beside the recorded set then says a pointer dying on its first segment "
+            + "resolves as far as a container no stored file carries: the same set, described "
+            + "falsely. Measured depths: " + depth, describedWhole, equalTo(answeredWhole));
+    }
+
+    @Test
+    @DisplayName("every registration the skill works through names a row the stored artifact holds")
+    void theSkillsWorkedRegistrationsNameRowsThatExist() {
+        String skill = read(PARITY_SKILL);
+
+        List<String> unknown = new ArrayList<>();
+        List<String> worked = new ArrayList<>();
+        Matcher example = WORKED_REGISTRATION.matcher(skill);
+        while (example.find()) {
+            String artifact = example.group(1);
+            String wanted = example.group(2);
+            worked.add(artifact + " -> " + wanted);
+            JsonObject stored = ParityStore.read(artifact);
+            assertThat("the skill works a registration against " + artifact + ", which stores no "
+                + "`rows` array to look a key up in; this check reads a row-keyed artifact and has "
+                + "to grow a second shape rather than pass over one", stored.has("rows"), is(true));
+            String column = stored.get("key").getAsString();
+            if (stored.getAsJsonArray("rows").asList().stream().noneMatch(row ->
+                wanted.equals(row.getAsJsonObject().get(column).getAsString()))) unknown.add(worked.getLast());
+        }
+
+        assertThat("the skill works no registration at all, so the documented flow shows no example "
+            + "of the one verdict row that passes with movers in it", worked, is(not(empty())));
+        assertThat("worked registrations naming a row key the artifact does not carry. A key "
+            + "matching no row is written, counted in the `N mover(s) registered` line and never "
+            + "consulted again - so an operator copying the documented line is told it worked and "
+            + "still goes RED on the row they meant", unknown, is(empty()));
+    }
+
+    /**
+     * Describes a set of pointers by tallying how far into its own fragment each of them gets.
+     *
+     * <p>Both halves of every clause are measured, and that is the point of the method. A count
+     * typed into a message is one nothing re-derives, and so is the wording beside it: a member
+     * moving from one kind to another leaves a hand-written partition adding up while describing
+     * the wrong split, which reads exactly like a correct one. Here the kinds are not a table to
+     * mislabel - each is the deepest prefix of the citation that the store answers, taken off the
+     * store, so a pointer whose node moves is described by where it now dies.
+     *
+     * <p>That depth is what the kinds in the set are: a citation resolving no segment names a
+     * container no file carries, and one resolving all but its last segment names a container that
+     * is there without the member it asks of it.
+     *
+     * @param pointers the index's pointers map
+     * @param names the ids to describe
+     * @param stored every store-relative file the index registers
+     * @return one clause per depth present, each a count and where those citations stop
+     */
+    private static String citationShapes(JsonObject pointers, Set<String> names, Set<String> stored) {
+        Map<String, Integer> tally = new TreeMap<>();
+        for (String name : names)
+            tally.merge(resolvingPrefix(pointers.getAsJsonObject(name).get("pointer").getAsString(),
+                stored), 1, Integer::sum);
+        return tally.entrySet().stream()
+            .map(depth -> depth.getValue() + (depth.getKey().isEmpty()
+                ? " resolving no segment of their fragment at all"
+                : " resolving as far as `" + depth.getKey() + "` and no further"))
+            .collect(Collectors.joining(", "));
+    }
+
+    /**
+     * Returns the longest leading part of a pointer's fragment that some file it names answers.
+     *
+     * @param pointer the whole pointer, file half included
+     * @param stored every store-relative file the index registers
+     * @return that prefix, leading slash included, or the empty string when no segment resolves
+     */
+    private static String resolvingPrefix(String pointer, Set<String> stored) {
+        int hash = pointer.indexOf('#');
+        List<JsonElement> files =
+            expand(pointer.substring(0, hash), stored).stream().map(ParityIndexTest::readStoreFile).toList();
+        String resolves = "";
+        StringBuilder prefix = new StringBuilder();
+        for (String segment : pointer.substring(hash + 1).replaceFirst("^/", "").split("/")) {
+            String deeper = prefix.append('/').append(segment).toString();
+            if (files.stream().allMatch(file -> dereference(file, deeper).isEmpty())) break;
+            resolves = deeper;
+        }
+        return resolves;
+    }
+
+    /**
+     * Returns whether a fully-qualified class name has a source file under any source root.
+     *
+     * @param className the fully-qualified name
+     * @return whether one of the roots holds it
+     */
+    private static boolean resolvesAsJavaClass(String className) {
+        return SOURCE_ROOTS.stream()
+            .anyMatch(root -> Files.isRegularFile(root.resolve(className.replace('.', '/') + ".java")));
+    }
+
+    /**
+     * Returns every store-relative file the index's {@code artifacts} map names.
+     *
+     * @param artifacts the index's artifacts map
+     * @return the registered paths
+     */
+    private static Set<String> storedFiles(JsonObject artifacts) {
+        return artifacts.asMap().values().stream()
+            .map(JsonElement::getAsJsonObject)
+            .filter(row -> row.has("file"))
+            .map(row -> row.get("file").getAsString())
+            .collect(Collectors.toCollection(TreeSet::new));
+    }
+
+    /**
+     * Expands a pointer's file half over the files it stands for.
+     *
+     * <p>Two templates are in use and each stands for a different set: {@code <sweep>} for the
+     * stem of every stored sweep, and a whole file half of {@code <artifact>} for every stored file
+     * there is. Expanded against the index's own rows rather than against the directory, so a
+     * template that outlives the files it named fails as a citation rather than as a walk.
+     *
+     * @param filePart the pointer's text before the {@code #}
+     * @param stored every store-relative file the index registers
+     * @return the concrete paths, which is the one path itself when it carries no placeholder
+     */
+    private static List<String> expand(String filePart, Set<String> stored) {
+        if (filePart.equals(ANY_STORED_FILE)) return List.copyOf(stored);
+        if (filePart.contains(ANY_SWEEP_STEM))
+            return stored.stream()
+                .filter(file -> file.startsWith(SWEEP_DIRECTORY))
+                .map(file -> filePart.replace(ANY_SWEEP_STEM,
+                    file.substring(SWEEP_DIRECTORY.length(), file.lastIndexOf('.'))))
+                .toList();
+        return List.of(filePart);
+    }
+
+    /**
+     * Resolves a JSON pointer, with {@code <n>} standing for any member of the node it indexes.
+     *
+     * <p>A list rather than one node, because {@code <n>} is a row index: a pointer naming a
+     * column of every row reaches as many nodes as there are rows, and it dereferences while any
+     * one of them carries it.
+     *
+     * @param from the document to walk
+     * @param pointer the pointer, leading slash included
+     * @return the nodes reached, empty when the pointer names nothing here
+     */
+    private static List<JsonElement> dereference(JsonElement from, String pointer) {
+        List<JsonElement> at = new ArrayList<>(List.of(from));
+        for (String segment : pointer.replaceFirst("^/", "").split("/")) {
+            List<JsonElement> next = new ArrayList<>();
+            for (JsonElement node : at) {
+                if (ANY_MEMBER.equals(segment)) {
+                    if (node.isJsonArray()) node.getAsJsonArray().forEach(next::add);
+                    if (node.isJsonObject()) next.addAll(node.getAsJsonObject().asMap().values());
+                } else if (node.isJsonObject() && node.getAsJsonObject().has(segment)) {
+                    next.add(node.getAsJsonObject().get(segment));
+                }
+            }
+            at = next;
+            if (at.isEmpty()) return at;
+        }
+        return at;
+    }
+
+    /**
+     * Reads one store file by its index-registered path.
+     *
+     * @param file the store-relative path
+     * @return the parsed document
+     */
+    private static JsonElement readStoreFile(String file) {
+        return JsonParser.parseString(
+            ParityStore.readNormalized(ParityStore.PRODUCTION.resolve(file)));
     }
 
     @Test

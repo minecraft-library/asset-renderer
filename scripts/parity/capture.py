@@ -126,13 +126,20 @@ def _mark_opened(root: Path) -> Path:
 
 def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str = "",
               mode: str | None = None, flags: Sequence[str] = (), runs: int | None = None,
-              logs: Path | None = None) -> Path:
+              logs: Path | None = None, reference_tree: Path | None = None) -> Path:
     """Read a producer's raw output and write the canonical form at its production-relative path.
 
     An absent ``runs`` means the artifact's declared floor, which is the value the build has always
     said the toolkit owns because a floor is a property of the artifact rather than of an invocation.
     Defaulting it to zero instead stamped a number ``promote.check`` refuses on every artifact, and
     it refused after the capture had already run - the multi-minute half of the gate.
+
+    ``mode``, ``flags`` and ``reference_tree`` are what make the stamped record say **what produced
+    this value** rather than only when. Two captures with identical command lines can disagree,
+    because a fork inherits every ``-Dasset.*`` in force from a long-lived daemon; the flags are the
+    only place that difference is ever written down. ``reference_tree`` is the ground truth a sweep
+    diffed against, named as a directory rather than as a captured manifest so the record carries it
+    on every capture and not only on the one that also hashed the tree into the store.
     """
     # Imported at call time rather than at module scope: `promote` reads this module for its root
     # checks, and the floor is the one value that has to travel back the other way.
@@ -160,7 +167,8 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
     payload["provenance"] = provenance_mod.gather(
         artifact, repo, producer=producer, mode=mode, runs=runs,
         flags=[*flags, *payload.pop("_flags", [])],
-        counts=payload.pop("_counts", None), root=payload.pop("_root", None))
+        counts=payload.pop("_counts", None), root=payload.pop("_root", None),
+        reference_tree=reference_tree)
     write_json(target, payload)
     return target
 
