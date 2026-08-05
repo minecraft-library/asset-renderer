@@ -8,6 +8,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -42,7 +43,9 @@ import org.objectweb.asm.tree.MethodNode;
  */
 final class EntityAgeAxisResolver {
 
-    /** Forward-scan window from an {@code isBaby} read to its consuming boolean-dispatch call. */
+    /**
+     * Forward-scan window from an {@code isBaby} read to its consuming boolean-dispatch call.
+     */
     private static final int DISPATCH_WINDOW = 8;
 
     private final @NotNull ClassNodeCache cache;
@@ -200,23 +203,18 @@ final class EntityAgeAxisResolver {
      * the scan window.
      */
     private static boolean readsIsBaby(@NotNull MethodNode method, @Nullable String dispatchOwner) {
-        for (AbstractInsnNode in : method.instructions) {
+        return AsmWalker.over(method).any(in -> {
             if (in.getOpcode() != Opcodes.GETFIELD
                 || !(in instanceof FieldInsnNode fi)
                 || !VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)
-                || !"Z".equals(fi.desc)) continue;
+                || !"Z".equals(fi.desc)) return false;
             if (dispatchOwner == null) return true;
-            AbstractInsnNode cursor = in;
-            for (int step = 0; step < DISPATCH_WINDOW && cursor != null; step++) {
-                cursor = AsmKit.nextReal(cursor);
-                if (cursor instanceof MethodInsnNode mi
+            return AsmWalker.after(in).real().limit(DISPATCH_WINDOW).any(cursor ->
+                cursor instanceof MethodInsnNode mi
                     && cursor.getOpcode() == Opcodes.INVOKEVIRTUAL
                     && dispatchOwner.equals(mi.owner)
-                    && mi.desc.startsWith("(Z"))
-                    return true;
-            }
-        }
-        return false;
+                    && mi.desc.startsWith("(Z"));
+        });
     }
 
     // ------------------------------------------------------------------------------------
