@@ -8,6 +8,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -54,13 +55,19 @@ import java.util.Objects;
  */
 final class EntityOverlayResolver {
 
-    /** Field descriptor of a {@code java.util.function.Function} ctor arg (JDK name, kit-local). */
+    /**
+     * Field descriptor of a {@code java.util.function.Function} ctor arg (JDK name, kit-local).
+     */
     private static final @NotNull String FUNCTION_DESC = "Ljava/util/function/Function;";
 
-    /** Field descriptor of a {@code java.util.Map} static field (JDK name, kit-local). */
+    /**
+     * Field descriptor of a {@code java.util.Map} static field (JDK name, kit-local).
+     */
     private static final @NotNull String MAP_DESC = "Ljava/util/Map;";
 
-    /** The no-tint sentinel (multiplicative identity). */
+    /**
+     * The no-tint sentinel (multiplicative identity).
+     */
     private static final int NO_TINT = 0xFFFFFFFF;
 
     private final @NotNull ClassNodeCache cache;
@@ -131,7 +138,9 @@ final class EntityOverlayResolver {
         return rows.isEmpty() ? null : JsonTree.arrayOf(rows);
     }
 
-    /** Dispatches one roster site through the structural arms; first claim wins. */
+    /**
+     * Dispatches one roster site through the structural arms; first claim wins.
+     */
     private @NotNull List<JsonTree> resolveSite(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull ClassNode cn,
@@ -180,37 +189,33 @@ final class EntityOverlayResolver {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return false;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
-        for (AbstractInsnNode in : submit.instructions) {
-            if (in.getOpcode() != Opcodes.GETFIELD || !(in instanceof FieldInsnNode fi)) continue;
-            if (!dyeRef.equals(fi.desc)) continue;
-            AbstractInsnNode cursor = in;
-            for (int step = 0; step < 4; step++) {
-                cursor = AsmKit.nextReal(cursor);
-                if (cursor == null) break;
-                int opcode = cursor.getOpcode();
-                if (opcode == Opcodes.IFNULL || opcode == Opcodes.IFNONNULL) return true;
-                if (opcode != Opcodes.ASTORE && opcode != Opcodes.ALOAD && opcode != Opcodes.DUP) break;
-            }
-        }
-        return false;
+        return AsmWalker.over(submit).any(in -> in.getOpcode() == Opcodes.GETFIELD
+            && in instanceof FieldInsnNode fi
+            && dyeRef.equals(fi.desc)
+            && AsmWalker.after(in).real().limit(4).first(
+                cursor -> cursor.getOpcode() == Opcodes.IFNULL || cursor.getOpcode() == Opcodes.IFNONNULL,
+                cursor -> cursor.getOpcode() == Opcodes.ASTORE || cursor.getOpcode() == Opcodes.ALOAD
+                    || cursor.getOpcode() == Opcodes.DUP) != null);
     }
 
-    /** The block-decoration qualifier: the typed submit reads a {@code BlockModelRenderState}-typed field. */
+    /**
+     * The block-decoration qualifier: the typed submit reads a {@code BlockModelRenderState}-typed field.
+     */
     static boolean readsBlockModelRenderState(@NotNull ClassNode cn) {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return false;
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
-        for (AbstractInsnNode in : submit.instructions)
-            if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi && stateRef.equals(fi.desc))
-                return true;
-        return false;
+        return AsmWalker.over(submit).any(in -> in.getOpcode() == Opcodes.GETFIELD
+            && in instanceof FieldInsnNode fi && stateRef.equals(fi.desc));
     }
 
-    /** The bespoke-equipment discriminator: any method references the LayerType enum. */
+    /**
+     * The bespoke-equipment discriminator: any method references the LayerType enum.
+     */
     static boolean referencesEquipmentLayerType(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in : method.instructions)
-                if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)) return true;
+            if (AsmWalker.over(method).any(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)))
+                return true;
         return false;
     }
 
@@ -232,40 +237,38 @@ final class EntityOverlayResolver {
     static @Nullable EnumMapOverlay findEnumMapOverlay(@NotNull ClassNodeCache cache, @NotNull ClassNode cn) {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return null;
-        for (AbstractInsnNode in : submit.instructions) {
-            if (in.getOpcode() != Opcodes.INVOKEINTERFACE || !(in instanceof MethodInsnNode mi)) continue;
-            if (!"java/util/Map".equals(mi.owner) || !"get".equals(mi.name)) continue;
-            String stateField = null;
-            String mapField = null;
-            for (AbstractInsnNode back = in.getPrevious(); back != null && (stateField == null || mapField == null);
-                 back = back.getPrevious()) {
-                if (back.getOpcode() == Opcodes.GETFIELD && back instanceof FieldInsnNode read
-                    && stateField == null && read.desc.startsWith("L"))
-                    stateField = read.name;
-                if (back.getOpcode() == Opcodes.GETSTATIC && back instanceof FieldInsnNode map
-                    && mapField == null && cn.name.equals(map.owner) && MAP_DESC.equals(map.desc))
-                    mapField = map.name;
-            }
-            if (stateField == null || mapField == null) continue;
+        return AsmWalker.over(submit).firstNotNull(in -> {
+            if (in.getOpcode() != Opcodes.INVOKEINTERFACE || !(in instanceof MethodInsnNode mi)) return null;
+            if (!"java/util/Map".equals(mi.owner) || !"get".equals(mi.name)) return null;
+            String stateField = AsmWalker.before(in).firstNotNull(back ->
+                back.getOpcode() == Opcodes.GETFIELD && back instanceof FieldInsnNode read
+                    && read.desc.startsWith("L") ? read.name : null);
+            String mapField = AsmWalker.before(in).firstNotNull(back ->
+                back.getOpcode() == Opcodes.GETSTATIC && back instanceof FieldInsnNode map
+                    && cn.name.equals(map.owner) && MAP_DESC.equals(map.desc) ? map.name : null);
+            if (stateField == null || mapField == null) return null;
             Map<String, String> textures = AsmKit.readStaticEnumMap(cache, cn.name, mapField,
                 EntityOverlayResolver::readEntityTextureLiteral);
-            if (!textures.isEmpty()) return new EnumMapOverlay(stateField, textures);
-        }
-        return null;
+            return textures.isEmpty() ? null : new EnumMapOverlay(stateField, textures);
+        });
     }
 
     // ------------------------------------------------------------------------------------
     // row assembly helpers
     // ------------------------------------------------------------------------------------
 
-    /** A fresh row carrying its source-class and layer-index provenance pair. */
+    /**
+     * A fresh row carrying its source-class and layer-index provenance pair.
+     */
     private static @NotNull JsonTree row(@NotNull String sourceClass, int layerIndex) {
         return JsonTree.object()
             .put("source", simpleName(sourceClass))
             .putInt("layer_index", layerIndex);
     }
 
-    /** The simple class name of a JVM internal name (nested classes keep their {@code $} form). */
+    /**
+     * The simple class name of a JVM internal name (nested classes keep their {@code $} form).
+     */
     static @NotNull String simpleName(@NotNull String internalName) {
         return AsmKit.simpleName(internalName);
     }
@@ -300,12 +303,16 @@ final class EntityOverlayResolver {
         return new MeshRef(key, null);
     }
 
-    /** The grow when any component is non-zero, else {@code null}. */
+    /**
+     * The grow when any component is non-zero, else {@code null}.
+     */
     private static float @Nullable [] nonZeroGrow(float @NotNull [] grow) {
         return grow[0] == 0f && grow[1] == 0f && grow[2] == 0f ? null : grow;
     }
 
-    /** Emits {@code grow} as a scalar when uniform, a triplet when asymmetric. */
+    /**
+     * Emits {@code grow} as a scalar when uniform, a triplet when asymmetric.
+     */
     private static void putGrow(@NotNull JsonTree row, float @Nullable [] grow) {
         if (grow == null) return;
         if (grow[0] == grow[1] && grow[1] == grow[2]) row.put("grow", grow[0]);
@@ -339,7 +346,9 @@ final class EntityOverlayResolver {
         return node;
     }
 
-    /** A raw {@code textures/entity/...png} literal without a format placeholder, or {@code null}. */
+    /**
+     * A raw {@code textures/entity/...png} literal without a format placeholder, or {@code null}.
+     */
     private static @Nullable String readEntityTextureLiteral(@NotNull AbstractInsnNode in) {
         String literal = AsmKit.readStringLiteral(in);
         if (literal == null) return null;
@@ -347,7 +356,9 @@ final class EntityOverlayResolver {
         return literal.contains("%") ? null : literal;
     }
 
-    /** The stem gate: a pre-built RenderType binding is an eye / glow overlay only on an eye-stem texture. */
+    /**
+     * The stem gate: a pre-built RenderType binding is an eye / glow overlay only on an eye-stem texture.
+     */
     private static boolean hasEyeStem(@NotNull String texturePath) {
         String stem = texturePath.substring(0, texturePath.length() - ".png".length());
         for (String suffix : EntityOverlayPolicies.EYE_STEM_FIRST_LITERAL.strings())
@@ -355,7 +366,9 @@ final class EntityOverlayResolver {
         return false;
     }
 
-    /** Prefixes a raw jar texture path with the vanilla namespace. */
+    /**
+     * Prefixes a raw jar texture path with the vanilla namespace.
+     */
     private static @NotNull String namespaced(@NotNull String rawPath) {
         return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + rawPath;
     }
@@ -473,7 +486,9 @@ final class EntityOverlayResolver {
         return node;
     }
 
-    /** The snake_case axis token of a camelCase state member ({@code patternColor} to {@code pattern_color}). */
+    /**
+     * The snake_case axis token of a camelCase state member ({@code patternColor} to {@code pattern_color}).
+     */
     static @NotNull String axisToken(@NotNull String memberName) {
         StringBuilder out = new StringBuilder(memberName.length() + 4);
         for (int i = 0; i < memberName.length(); i++) {
@@ -548,7 +563,9 @@ final class EntityOverlayResolver {
         return babyForm(findFirstBabyTextureLiteral(cn), null, overlayMesh(babyField).key());
     }
 
-    /** The first ctor-baked non-baby {@code ModelLayers} field (name filter), or {@code null}. */
+    /**
+     * The first ctor-baked non-baby {@code ModelLayers} field (name filter), or {@code null}.
+     */
     private static @Nullable String findCtorBakedField(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods) {
             if (!AsmKit.INIT.equals(method.name)) continue;
@@ -592,7 +609,9 @@ final class EntityOverlayResolver {
         return null;
     }
 
-    /** Whether any hierarchy INSTANCE method invokes a {@code RenderTypes} factory or the cutout helper. */
+    /**
+     * Whether any hierarchy INSTANCE method invokes a {@code RenderTypes} factory or the cutout helper.
+     */
     private boolean compositeGateAccepts(@NotNull ClassNode cn) {
         boolean[] accepted = {false};
         AsmKit.walkSuperChain(this.cache, cn.name, level -> {
@@ -625,29 +644,30 @@ final class EntityOverlayResolver {
         MethodNode submit = typedSubmit(cn);
         if (submit == null) return null;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
-        for (AbstractInsnNode in : submit.instructions) {
-            if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR)) continue;
+        JsonTree tinted = AsmWalker.over(submit).firstNotNull(in -> {
+            if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR)) return null;
             AbstractInsnNode next = AsmKit.nextReal(in);
             if (next != null && (next.getOpcode() == Opcodes.IF_ACMPEQ || next.getOpcode() == Opcodes.IF_ACMPNE)) {
                 AbstractInsnNode before = AsmKit.previousReal(in);
                 if (before instanceof FieldInsnNode read && dyeRef.equals(read.desc))
                     return JsonTree.object().put("tinted", true);
             }
-        }
-        for (AbstractInsnNode in : submit.instructions) {
-            if (in.getOpcode() != Opcodes.GETFIELD || !(in instanceof FieldInsnNode fi)) continue;
-            if (!"Z".equals(fi.desc) || !fi.name.startsWith("is")) continue;
+            return null;
+        });
+        if (tinted != null) return tinted;
+        return AsmWalker.over(submit).firstNotNull(in -> {
+            if (in.getOpcode() != Opcodes.GETFIELD || !(in instanceof FieldInsnNode fi)) return null;
+            if (!"Z".equals(fi.desc) || !fi.name.startsWith("is")) return null;
             AbstractInsnNode branch = AsmKit.nextReal(in);
-            if (branch == null || (branch.getOpcode() != Opcodes.IFEQ && branch.getOpcode() != Opcodes.IFNE)) continue;
+            if (branch == null || (branch.getOpcode() != Opcodes.IFEQ && branch.getOpcode() != Opcodes.IFNE)) return null;
             AbstractInsnNode body = AsmKit.nextReal(branch);
-            if (body == null || body.getOpcode() != Opcodes.RETURN) continue;
+            if (body == null || body.getOpcode() != Opcodes.RETURN) return null;
             String token = axisToken(fi.name.substring(2));
-            if (!EntityAxisPolicies.AXIS_NAME_VOCABULARY.strings().contains(token)) continue;
+            if (!EntityAxisPolicies.AXIS_NAME_VOCABULARY.strings().contains(token)) return null;
             // IFEQ skips the RETURN when the flag is false - the row renders at flag ==
             // false (the wool renders UNsheared); IFNE is the inverse shape.
             return JsonTree.object().put("flag", token).put("value", branch.getOpcode() != Opcodes.IFEQ);
-        }
-        return null;
+        });
     }
 
     /**
@@ -714,10 +734,10 @@ final class EntityOverlayResolver {
     private @NotNull ColorSource extractCutoutTint(@NotNull ClassNode layerCn) {
         for (MethodNode method : layerCn.methods) {
             if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
-            for (AbstractInsnNode in : method.instructions) {
-                if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) continue;
-                if (!VanillaSourceClasses.Methods.COLORED_CUTOUT_HELPER.equals(mi.name)) continue;
-                for (AbstractInsnNode prev = in.getPrevious(); prev != null; prev = prev.getPrevious()) {
+            ColorSource sourced = AsmWalker.over(method).firstNotNull(in -> {
+                if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) return null;
+                if (!VanillaSourceClasses.Methods.COLORED_CUTOUT_HELPER.equals(mi.name)) return null;
+                return AsmWalker.before(in).firstNotNull(prev -> {
                     if (prev.getOpcode() == Opcodes.INVOKEVIRTUAL
                         && prev instanceof MethodInsnNode colorCall
                         && "()I".equals(colorCall.desc)) {
@@ -730,8 +750,10 @@ final class EntityOverlayResolver {
                         int argb = resolveStateColorField(colorField.name);
                         return new ColorSource(argb, tintAxisOf(colorField.name));
                     }
-                }
-            }
+                    return null;
+                });
+            });
+            if (sourced != null) return sourced;
         }
         return new ColorSource(NO_TINT, null);
     }
@@ -771,7 +793,9 @@ final class EntityOverlayResolver {
         return argb[0];
     }
 
-    /** The vocabulary-gated tint axis of a color-source member name ({@code getWoolColor} to {@code wool_color}). */
+    /**
+     * The vocabulary-gated tint axis of a color-source member name ({@code getWoolColor} to {@code wool_color}).
+     */
     private static @Nullable String tintAxisOf(@NotNull String memberName) {
         String stem = memberName.startsWith("get") ? memberName.substring(3) : memberName;
         String token = axisToken(stem);
@@ -792,20 +816,16 @@ final class EntityOverlayResolver {
             : AsmKit.findMethod(stateClass, stateColorCall.name, stateColorCall.desc);
         if (stateMethod == null) return NO_TINT;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
-        for (AbstractInsnNode in : stateMethod.instructions) {
-            if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.COLOR_LERPER_TYPE, VanillaSourceClasses.Methods.GET_COLOR)) continue;
-            String dyeField = null;
-            for (AbstractInsnNode prev = in.getPrevious(); prev != null; prev = prev.getPrevious())
-                if (prev.getOpcode() == Opcodes.GETFIELD && prev instanceof FieldInsnNode fi && dyeRef.equals(fi.desc)) {
-                    dyeField = fi.name;
-                    break;
-                }
-            if (dyeField == null) continue;
-            if (!"WHITE".equals(fieldDefaultDyeConstant(stateClass, dyeField))) continue;
-            Integer white = colorLerperWhiteReturn();
-            if (white != null) return white;
-        }
-        return NO_TINT;
+        Integer white = AsmWalker.over(stateMethod).firstNotNull(in -> {
+            if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.COLOR_LERPER_TYPE, VanillaSourceClasses.Methods.GET_COLOR)) return null;
+            String dyeField = AsmWalker.before(in).firstNotNull(prev ->
+                prev.getOpcode() == Opcodes.GETFIELD && prev instanceof FieldInsnNode fi && dyeRef.equals(fi.desc)
+                    ? fi.name : null);
+            if (dyeField == null) return null;
+            if (!"WHITE".equals(fieldDefaultDyeConstant(stateClass, dyeField))) return null;
+            return colorLerperWhiteReturn();
+        });
+        return white == null ? NO_TINT : white;
     }
 
     /**
@@ -841,7 +861,9 @@ final class EntityOverlayResolver {
         return EntityRenderTraitsResolver.whiteTextureDiffuseColor(this.cache);
     }
 
-    /** The {@code GETSTATIC DyeColor.<NAME>; PUTFIELD <field>} default initialiser constant, or {@code null}. */
+    /**
+     * The {@code GETSTATIC DyeColor.<NAME>; PUTFIELD <field>} default initialiser constant, or {@code null}.
+     */
     private static @Nullable String fieldDefaultDyeConstant(@NotNull ClassNode stateClass, @NotNull String fieldName) {
         MethodNode init = AsmKit.findMethod(stateClass, AsmKit.INIT);
         if (init == null) return null;
@@ -903,12 +925,11 @@ final class EntityOverlayResolver {
         if (own != null) return own;
         for (MethodNode method : cn.methods) {
             if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
-            for (AbstractInsnNode in : method.instructions) {
-                if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
-                if (!VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)) continue;
-                String chased = chaseTextureFieldOwner(fi.owner, fi.name);
-                if (chased != null) return chased;
-            }
+            String chased = AsmWalker.over(method).firstNotNull(in ->
+                in.getOpcode() == Opcodes.GETSTATIC && in instanceof FieldInsnNode fi
+                    && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
+                    ? chaseTextureFieldOwner(fi.owner, fi.name) : null);
+            if (chased != null) return chased;
         }
         return null;
     }
@@ -1088,7 +1109,9 @@ final class EntityOverlayResolver {
         return List.of(node);
     }
 
-    /** The provider ctor shape: two or more {@code Function} args plus a model-class arg. */
+    /**
+     * The provider ctor shape: two or more {@code Function} args plus a model-class arg.
+     */
     private static boolean isEmissiveProviderShaped(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods) {
             if (!AsmKit.INIT.equals(method.name)) continue;
@@ -1106,7 +1129,9 @@ final class EntityOverlayResolver {
         return false;
     }
 
-    /** The first lambda handle inside a provider-factory method ({@code getEyeTextureLocationProvider}). */
+    /**
+     * The first lambda handle inside a provider-factory method ({@code getEyeTextureLocationProvider}).
+     */
     private @Nullable Handle providerFactoryLambda(@NotNull MethodInsnNode factoryCall) {
         ClassNode owner = this.cache.load(factoryCall.owner);
         MethodNode method = owner == null ? null : AsmKit.findMethod(owner, factoryCall.name, factoryCall.desc);
@@ -1119,7 +1144,9 @@ final class EntityOverlayResolver {
         return null;
     }
 
-    /** Slot-to-{@code ModelLayers}-field bindings of pre-baked models {@code ASTORE}d in the ctor (warden). */
+    /**
+     * Slot-to-{@code ModelLayers}-field bindings of pre-baked models {@code ASTORE}d in the ctor (warden).
+     */
     private static @NotNull Map<Integer, String> bakedModelSlots(@NotNull MethodNode ctor) {
         Map<Integer, String> out = new LinkedHashMap<>();
         String pendingField = null;
@@ -1181,7 +1208,9 @@ final class EntityOverlayResolver {
         return new ProviderTexture(namespaced(zeroState), vocab ? token : null);
     }
 
-    /** The first eye-stem texture literal over the lambda-reachable clinits. */
+    /**
+     * The first eye-stem texture literal over the lambda-reachable clinits.
+     */
     private @Nullable String firstEyeLiteral(@NotNull ClassNode lambdaOwner, @NotNull MethodNode lambda) {
         LinkedHashSet<String> candidates = new LinkedHashSet<>();
         candidates.add(lambdaOwner.name);
@@ -1192,20 +1221,22 @@ final class EntityOverlayResolver {
                 candidates.add(mi.owner);
         List<String> stems = EntityOverlayPolicies.EYE_STEM_FIRST_LITERAL.strings();
         for (String candidate : candidates) {
-            MethodNode clinit = AsmKit.findClinit(this.cache, candidate);
-            if (clinit == null) continue;
-            for (AbstractInsnNode in : clinit.instructions) {
+            String found = AsmWalker.clinit(this.cache, candidate).firstNotNull(in -> {
                 String literal = readEntityTextureLiteral(in);
-                if (literal == null) continue;
+                if (literal == null) return null;
                 String stem = literal.substring(0, literal.length() - ".png".length());
                 for (String suffix : stems)
                     if (stem.endsWith(suffix)) return literal;
-            }
+                return null;
+            });
+            if (found != null) return found;
         }
         return null;
     }
 
-    /** The {@code RenderTypes} factory a render-type provider resolves to ({@code ""} = unresolved). */
+    /**
+     * The {@code RenderTypes} factory a render-type provider resolves to ({@code ""} = unresolved).
+     */
     private @NotNull String renderTypeFactoryName(@NotNull Handle renderTypeProvider) {
         if (VanillaSourceClasses.Types.RENDER_TYPES.equals(renderTypeProvider.getOwner()))
             return renderTypeProvider.getName();
@@ -1213,11 +1244,10 @@ final class EntityOverlayResolver {
         MethodNode lambda = owner == null ? null
             : AsmKit.findMethod(owner, renderTypeProvider.getName(), renderTypeProvider.getDesc());
         if (lambda == null) return "";
-        for (AbstractInsnNode in : lambda.instructions)
-            if (in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi
-                && VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner))
-                return mi.name;
-        return "";
+        String factory = AsmWalker.over(lambda).firstNotNull(in ->
+            in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi
+                && VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner) ? mi.name : null);
+        return factory == null ? "" : factory;
     }
 
     /**
@@ -1296,7 +1326,9 @@ final class EntityOverlayResolver {
         return 0f;
     }
 
-    /** Applies a recognised float intrinsic to the interpreter stack, or reports an unknown call. */
+    /**
+     * Applies a recognised float intrinsic to the interpreter stack, or reports an unknown call.
+     */
     private static boolean applyFloatIntrinsic(@NotNull String name, @NotNull Deque<Double> stack) {
         switch (name) {
             case "cos" -> stack.push(Math.cos(popOrZero(stack)));
@@ -1312,7 +1344,9 @@ final class EntityOverlayResolver {
         return true;
     }
 
-    /** Pops a value from the interpreter stack, treating an underflow as {@code 0}. */
+    /**
+     * Pops a value from the interpreter stack, treating an underflow as {@code 0}.
+     */
     private static double popOrZero(@NotNull Deque<Double> stack) {
         Double value = stack.poll();
         return value == null ? 0.0 : value;
@@ -1452,7 +1486,9 @@ final class EntityOverlayResolver {
             .putIf("no_hat_root", noHatRoot);
     }
 
-    /** Whether any ctor takes a plain {@code String} parameter (the path prefix). */
+    /**
+     * Whether any ctor takes a plain {@code String} parameter (the path prefix).
+     */
     private static boolean ctorTakesString(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods) {
             if (!AsmKit.INIT.equals(method.name)) continue;
@@ -1486,10 +1522,9 @@ final class EntityOverlayResolver {
      * self String-arg helper gate the caller already applied.
      */
     private static @NotNull CategoryTokens collectCategoryTokens(@NotNull MethodNode submit, @NotNull String layerClass) {
-        boolean helperSeen = false;
-        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null && !helperSeen; in = in.getNext())
-            helperSeen = in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
-                && layerClass.equals(mi.owner) && mi.desc.startsWith("(Ljava/lang/String;");
+        boolean helperSeen = AsmWalker.over(submit).any(in ->
+            in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
+                && layerClass.equals(mi.owner) && mi.desc.startsWith("(Ljava/lang/String;"));
         if (!helperSeen) return new CategoryTokens(List.of(), null, null);
         LinkedHashSet<String> out = new LinkedHashSet<>();
         String babyCategory = null;
@@ -1529,7 +1564,9 @@ final class EntityOverlayResolver {
         return elseArm == null ? null : AsmKit.readStringLiteral(elseArm);
     }
 
-    /** A category token: lowercase word characters only, never a path fragment. */
+    /**
+     * A category token: lowercase word characters only, never a path fragment.
+     */
     private static boolean isCategoryToken(@NotNull String literal) {
         if (literal.isEmpty() || literal.indexOf('/') >= 0 || literal.indexOf('.') >= 0) return false;
         for (int i = 0; i < literal.length(); i++) {
@@ -1539,7 +1576,9 @@ final class EntityOverlayResolver {
         return true;
     }
 
-    /** The plain string literal pushed in the site's ctor-arg region (the path prefix). */
+    /**
+     * The plain string literal pushed in the site's ctor-arg region (the path prefix).
+     */
     private static @Nullable String callSiteStringArg(@NotNull EntityRendererResolver.LayerSite site) {
         for (AbstractInsnNode in = site.allocation(); in != null && in != site.addLayer(); in = in.getNext()) {
             String literal = AsmKit.readStringLiteral(in);
@@ -1560,19 +1599,18 @@ final class EntityOverlayResolver {
      * @return {@code true} when the model select precedes the first pass
      */
     private static boolean selectsModelBeforeFirstPass(@NotNull MethodNode submit) {
-        for (AbstractInsnNode in : submit.instructions) {
-            if (in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi
-                && VanillaSourceClasses.Methods.RENDER_COLORED_CUTOUT_MODEL.equals(mi.name))
-                return false;
-            if (in.getOpcode() != Opcodes.IFEQ) continue;
-            AbstractInsnNode thenArm = AsmKit.nextReal(in);
-            if (thenArm == null || thenArm.getOpcode() != Opcodes.ALOAD) continue;
-            AbstractInsnNode skip = AsmKit.nextReal(thenArm);
-            if (skip == null || skip.getOpcode() != Opcodes.GOTO) continue;
-            AbstractInsnNode elseArm = AsmKit.nextReal(skip);
-            if (elseArm != null && elseArm.getOpcode() == Opcodes.ALOAD) return true;
-        }
-        return false;
+        return AsmWalker.over(submit).first(
+            in -> {
+                if (in.getOpcode() != Opcodes.IFEQ) return false;
+                AbstractInsnNode thenArm = AsmKit.nextReal(in);
+                if (thenArm == null || thenArm.getOpcode() != Opcodes.ALOAD) return false;
+                AbstractInsnNode skip = AsmKit.nextReal(thenArm);
+                if (skip == null || skip.getOpcode() != Opcodes.GOTO) return false;
+                AbstractInsnNode elseArm = AsmKit.nextReal(skip);
+                return elseArm != null && elseArm.getOpcode() == Opcodes.ALOAD;
+            },
+            in -> !(in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi
+                && VanillaSourceClasses.Methods.RENDER_COLORED_CUTOUT_MODEL.equals(mi.name))) != null;
     }
 
     /**
@@ -1617,18 +1655,18 @@ final class EntityOverlayResolver {
         if (factory == null) return null;
         String direct = clearedChildInBody(factory);
         if (direct != null) return direct;
-        for (AbstractInsnNode in : factory.instructions) {
-            if (!AsmKit.isLambdaInvokeDynamic(in) || !(in instanceof InvokeDynamicInsnNode indy)) continue;
+        return AsmWalker.over(factory).firstNotNull(in -> {
+            if (!AsmKit.isLambdaInvokeDynamic(in) || !(in instanceof InvokeDynamicInsnNode indy)) return null;
             Handle handle = AsmKit.extractLambdaHandle(indy);
             MethodNode lambda = handle == null || !handle.getOwner().equals(factoryOwner.name) ? null
                 : AsmKit.findMethod(factoryOwner, handle.getName(), handle.getDesc());
-            String nested = lambda == null ? null : clearedChildInBody(lambda);
-            if (nested != null) return nested;
-        }
-        return null;
+            return lambda == null ? null : clearedChildInBody(lambda);
+        });
     }
 
-    /** The name argument of the first {@code PartDefinition.clearChild} a body calls, or {@code null}. */
+    /**
+     * The name argument of the first {@code PartDefinition.clearChild} a body calls, or {@code null}.
+     */
     private static @Nullable String clearedChildInBody(@NotNull MethodNode body) {
         String pending = null;
         for (AbstractInsnNode in : body.instructions) {
@@ -1674,7 +1712,9 @@ final class EntityOverlayResolver {
         return new ArrayList<>(ids);
     }
 
-    /** The last string literal an owner {@code <clinit>} pairs with {@code PUTSTATIC <field>}. */
+    /**
+     * The last string literal an owner {@code <clinit>} pairs with {@code PUTSTATIC <field>}.
+     */
     private @Nullable String clinitStringBinding(@NotNull String ownerInternalName, @NotNull String fieldName) {
         MethodNode clinit = AsmKit.findClinit(this.cache, ownerInternalName);
         if (clinit == null) return null;
@@ -1739,7 +1779,9 @@ final class EntityOverlayResolver {
         return node;
     }
 
-    /** The parameterized ctor shape: a location + identifier param pair, the location baked via {@code ALOAD}. */
+    /**
+     * The parameterized ctor shape: a location + identifier param pair, the location baked via {@code ALOAD}.
+     */
     private static boolean bakesLocationParameter(@NotNull ClassNode cn) {
         String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
         for (MethodNode method : cn.methods) {
@@ -1755,12 +1797,12 @@ final class EntityOverlayResolver {
                 slot += arg.getSize();
             }
             if (locationSlot < 0 || !identifier) continue;
-            for (AbstractInsnNode in : method.instructions) {
-                if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER)) continue;
+            int location = locationSlot;
+            if (AsmWalker.over(method).any(in -> {
+                if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER)) return false;
                 AbstractInsnNode prev = AsmKit.previousReal(in);
-                if (prev instanceof VarInsnNode load && prev.getOpcode() == Opcodes.ALOAD && load.var == locationSlot)
-                    return true;
-            }
+                return prev instanceof VarInsnNode load && prev.getOpcode() == Opcodes.ALOAD && load.var == location;
+            })) return true;
         }
         return false;
     }
@@ -1864,12 +1906,16 @@ final class EntityOverlayResolver {
         return baby;
     }
 
-    /** The first {@code EquipmentClientInfo$LayerType} constant any method reads. */
+    /**
+     * The first {@code EquipmentClientInfo$LayerType} constant any method reads.
+     */
     private static @Nullable String firstLayerTypeConstant(@NotNull ClassNode cn) {
-        for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in : method.instructions)
-                if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
-                    return ((FieldInsnNode) in).name;
+        for (MethodNode method : cn.methods) {
+            String constant = AsmWalker.over(method).firstNotNull(in ->
+                AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
+                    ? ((FieldInsnNode) in).name : null);
+            if (constant != null) return constant;
+        }
         return null;
     }
 
@@ -1909,7 +1955,9 @@ final class EntityOverlayResolver {
         return constant != null && constant;
     }
 
-    /** The constant of an {@code iconst_0/1; ireturn} body, or {@code null} for computed returns. */
+    /**
+     * The constant of an {@code iconst_0/1; ireturn} body, or {@code null} for computed returns.
+     */
     private static @Nullable Boolean constantBooleanReturn(@NotNull MethodNode method) {
         Boolean pending = null;
         for (AbstractInsnNode in : method.instructions) {
