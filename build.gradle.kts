@@ -691,7 +691,14 @@ tasks.withType<Test>().configureEach {
     // declared is the one it has to fail on, and that is exactly the edit that would leave this task
     // UP-TO-DATE. The cost is that any git operation rewriting the index re-runs the fast suite,
     // which is the same trade the whole-file build declaration above already makes.
-    inputs.file(".git/index").withPropertyName("parityGitIndex").optional()
+    //
+    // `.git` is a directory on a primary checkout and a `gitdir:` pointer file in a linked
+    // worktree, whose index lives under the pointed-to directory - resolved here so the suite
+    // runs from either.
+    val dotGit = layout.projectDirectory.file(".git").asFile
+    val parityGitIndexFile =
+        File(if (dotGit.isFile) File(dotGit.readText().removePrefix("gitdir:").trim()) else dotGit, "index")
+    inputs.file(parityGitIndexFile).withPropertyName("parityGitIndex").optional()
 }
 tasks.withType<JavaExec>().configureEach {
     jvmArgs(addVectorModuleArg)

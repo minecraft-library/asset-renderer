@@ -176,13 +176,15 @@ final class BlindnessMapTest {
      * from, and that answer is the operand of every check here that judges the map against what the
      * repository holds - so tracking a file under a root nothing else declares is precisely the edit
      * those checks exist for, and precisely the edit that would otherwise leave them UP-TO-DATE.
+     * Its operand is a resolved variable rather than a literal, because {@code .git} is a directory
+     * on a primary checkout and a {@code gitdir:} pointer file in a linked worktree.
      */
     private static final Map<String, String> DECLARED_INPUTS = Map.of(
         "parityStore", "parityProductionStore",
         "parityBuildFile", "\"build.gradle.kts\"",
         "parityTriggerRoots", "parityTriggerRoots",
         "paritySkillReferences", "paritySkillReferences",
-        "parityGitIndex", "\".git/index\"");
+        "parityGitIndex", "parityGitIndexFile");
 
     /**
      * The roots a triggered file may sit under that {@code parityTriggerRoots} does not name.
