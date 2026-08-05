@@ -5,6 +5,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -229,16 +230,12 @@ public final class BlockRegistryIndex {
         if (helperName.equals(REGISTER_PREFIX)) return null;
         if (helperClassCache.containsKey(helperName)) return helperClassCache.get(helperName);
 
-        String resolved = null;
         MethodNode helper = AsmKit.findMethod(blocks, helperName);
-        if (helper != null) {
-            for (AbstractInsnNode in : helper.instructions) {
-                if (in instanceof InvokeDynamicInsnNode indy && indy.desc.endsWith(FUNCTION_RETURN_SUFFIX)) {
-                    resolved = AsmKit.resolveLambdaTargetClass(indy, blocks);
-                    if (resolved != null) break;
-                }
-            }
-        }
+        String resolved = helper == null ? null : AsmWalker.over(helper)
+            .ofType(InvokeDynamicInsnNode.class)
+            .where(indy -> indy.desc.endsWith(FUNCTION_RETURN_SUFFIX))
+            .mapNotNull(indy -> AsmKit.resolveLambdaTargetClass(indy, blocks))
+            .first();
         helperClassCache.put(helperName, resolved);
         return resolved;
     }
