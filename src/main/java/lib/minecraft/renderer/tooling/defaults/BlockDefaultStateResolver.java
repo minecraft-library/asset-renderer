@@ -3,6 +3,8 @@ package lib.minecraft.renderer.tooling.defaults;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -31,18 +33,24 @@ final class BlockDefaultStateResolver {
     private static final @NotNull String BOOLEAN_BOXED = "java/lang/Boolean";
     private static final @NotNull String VALUE_OF = "valueOf";
 
-    /** {@code EnumProperty.create(name, class, Enum[])} descriptor tail (first value = index-0 element). */
+    /**
+     * {@code EnumProperty.create(name, class, Enum[])} descriptor tail (first value = index-0 element).
+     */
     private static final @NotNull String ENUM_ARRAY_CREATE_TAIL =
         "[Ljava/lang/Enum;)" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.ENUM_PROPERTY);
 
-    /** {@code EnumProperty.create(name, class, Predicate)} descriptor tail (Plane filter -> first direction in plane). */
+    /**
+     * {@code EnumProperty.create(name, class, Predicate)} descriptor tail (Plane filter -> first direction in plane).
+     */
     private static final @NotNull String ENUM_PREDICATE_CREATE_TAIL =
         "Ljava/util/function/Predicate;)" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.ENUM_PROPERTY);
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull PropertyDefinitionResolver properties;
 
-    /** owner+'.'+field -> any()-default value; null reserved before recursion (cycle guard). */
+    /**
+     * owner+'.'+field -> any()-default value; null reserved before recursion (cycle guard).
+     */
     private final @NotNull Map<String, String> defaultValueCache = new HashMap<>();
 
     BlockDefaultStateResolver(@NotNull ClassNodeCache cache, @NotNull PropertyDefinitionResolver properties) {
@@ -117,7 +125,9 @@ final class BlockDefaultStateResolver {
         return pairs;
     }
 
-    /** The declared-but-unset {@code any()}-default of a property, memoised with a cycle guard. */
+    /**
+     * The declared-but-unset {@code any()}-default of a property, memoised with a cycle guard.
+     */
     private @Nullable String anyDefault(@NotNull PropertyDefinitionResolver.FieldRef ref) {
         String key = ref.owner() + '.' + ref.field();
         if (this.defaultValueCache.containsKey(key)) return this.defaultValueCache.get(key);
@@ -136,13 +146,10 @@ final class BlockDefaultStateResolver {
     private @Nullable String defaultFromCreate(@NotNull MethodInsnNode create) {
         if (VanillaSourceClasses.Types.INTEGER_PROPERTY.equals(create.owner)) {
             // create(name, min, max): walking back, the int nearest the name string is the min.
-            Integer min = null;
-            for (AbstractInsnNode node = create.getPrevious(); node != null; node = node.getPrevious()) {
-                if (AsmKit.isPseudoNode(node)) continue;
-                if (AsmKit.readStringLiteral(node) != null) break;
-                Integer literal = AsmKit.readIntLiteral(node);
-                if (literal != null) min = literal;
-            }
+            Integer min = AsmWalker.before(create).real()
+                .until(Insn.of(AbstractInsnNode.class, node -> AsmWalker.stringLiteral(node) != null))
+                .mapNotNull(AsmWalker::intLiteral)
+                .last();
             return min == null ? null : Integer.toString(min);
         }
         if (VanillaSourceClasses.Types.BOOLEAN_PROPERTY.equals(create.owner))
