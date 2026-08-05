@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.kernel;
 
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.CommitWalk;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -468,26 +471,14 @@ public final class AsmKit {
      *     or {@code null} when no match
      */
     public static @Nullable String findEnumDefaultName(@NotNull ClassNodeCache classNodes, @NotNull String enumInternalName, @NotNull String defaultFieldName) {
-        ClassNode cn = classNodes.load(enumInternalName);
-        if (cn == null) return null;
-        MethodNode clinit = findMethod(cn, CLINIT);
-        if (clinit == null) return null;
-        String pendingFieldName = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (in.getOpcode() == Opcodes.GETSTATIC
+        return AsmWalker.clinit(classNodes, enumInternalName)
+            .latch(in -> in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
-                && enumInternalName.equals(fi.owner)) {
-                pendingFieldName = fi.name;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.PUTSTATIC
-                && in instanceof FieldInsnNode fi
+                && enumInternalName.equals(fi.owner) ? fi.name : null)
+            .commitAt(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC
                 && enumInternalName.equals(fi.owner)
-                && defaultFieldName.equals(fi.name)
-                && pendingFieldName != null)
-                return pendingFieldName;
-        }
-        return null;
+                && defaultFieldName.equals(fi.name))
+            .firstNotNull(CommitWalk.Commit::value);
     }
 
     // ----------------------------------------------------------------------------------------
@@ -1331,13 +1322,7 @@ public final class AsmKit {
         @NotNull Predicate<AbstractInsnNode> matcher,
         @NotNull IntPredicate passthrough
     ) {
-        for (AbstractInsnNode node = from.getPrevious(); node != null; node = node.getPrevious()) {
-            if (isPseudoNode(node)) continue;
-            if (matcher.test(node)) return node;
-            if (passthrough.test(node.getOpcode())) continue;
-            return null;
-        }
-        return null;
+        return AsmWalker.before(from).real().first(matcher, node -> passthrough.test(node.getOpcode()));
     }
 
     /**
@@ -1360,14 +1345,9 @@ public final class AsmKit {
         @NotNull String ownerInternalName,
         @NotNull Predicate<AbstractInsnNode> stopAnchor
     ) {
-        for (AbstractInsnNode node = from.getNext(); node != null; node = node.getNext()) {
-            if (isPutStatic(node, ownerInternalName)) {
-                FieldInsnNode field = (FieldInsnNode) node;
-                return field.name;
-            }
-            if (stopAnchor.test(node)) return null;
-        }
-        return null;
+        AbstractInsnNode found = AsmWalker.after(from)
+            .first(node -> isPutStatic(node, ownerInternalName), node -> !stopAnchor.test(node));
+        return found == null ? null : ((FieldInsnNode) found).name;
     }
 
     /**
@@ -1457,28 +1437,13 @@ public final class AsmKit {
         @NotNull String mapField,
         @NotNull Function<AbstractInsnNode, @Nullable V> valueReader
     ) {
-        Map<String, V> out = new LinkedHashMap<>();
-        ClassNode cn = cache.load(owner);
-        if (cn == null) return out;
-        MethodNode clinit = findMethod(cn, CLINIT);
-        if (clinit == null) return out;
-        String pendingKey = null;
-        for (AbstractInsnNode node : clinit.instructions) {
-            if (isPutStatic(node, owner, mapField)) break;
-            if (node.getOpcode() == Opcodes.GETSTATIC
+        return AsmWalker.clinit(cache, owner)
+            .until(Insn.putStatic(owner, mapField))
+            .latch(node -> node.getOpcode() == Opcodes.GETSTATIC
                 && node instanceof FieldInsnNode field
-                && field.desc.equals("L" + field.owner + ";")) {
-                pendingKey = field.name;
-                continue;
-            }
-            if (pendingKey == null) continue;
-            V value = valueReader.apply(node);
-            if (value != null) {
-                out.putIfAbsent(pendingKey, value);
-                pendingKey = null;
-            }
-        }
-        return out;
+                && field.desc.equals("L" + field.owner + ";") ? field.name : null)
+            .commitOn(valueReader)
+            .toMapFirstWins();
     }
 
     // ----------------------------------------------------------------------------------------
@@ -1536,44 +1501,27 @@ public final class AsmKit {
         String key = owner + "." + fieldName;
         if (memo.containsKey(key)) return memo.get(key);
 
-        ClassNode cls = cache.load(owner);
-        MethodNode clinit = cls != null ? findMethod(cls, CLINIT) : null;
-        if (clinit == null) {
+        AsmWalker clinit = AsmWalker.clinit(cache, owner);
+        if (clinit.missing() != null) {
             memo.put(key, null);
             return null;
         }
 
         String factoryDesc = "(F)" + fieldDesc;
-        Float pendingFloat = null;
-        Float pendingScaled = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            int op = in.getOpcode();
-            if (op < 0) continue; // labels / line numbers / frames
-            if (in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f) {
-                pendingFloat = f;
-                pendingScaled = null;
-            } else if (in instanceof MethodInsnNode mi
-                && op == Opcodes.INVOKESTATIC
+        // The strict latch clears on any unrelated instruction so a stale F never binds to a later
+        // putstatic; the promoted factor survives no-op-ish instructions so the canonical
+        // ldc / invokestatic / putstatic triplet still binds.
+        clinit.real()
+            .latch(in -> in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f ? f : null)
+            .strict()
+            .takeAt(Insn.of(MethodInsnNode.class, mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
                 && factoryOwner.equals(mi.owner)
                 && factoryMethod.equals(mi.name)
-                && factoryDesc.equals(mi.desc)
-                && pendingFloat != null) {
-                pendingScaled = pendingFloat;
-                pendingFloat = null;
-            } else if (in instanceof FieldInsnNode fi
-                && op == Opcodes.PUTSTATIC
+                && factoryDesc.equals(mi.desc)))
+            .commitAt(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC
                 && fieldDesc.equals(fi.desc)
-                && fi.owner.equals(owner)) {
-                memo.put(owner + "." + fi.name, pendingScaled);
-                pendingScaled = null;
-                pendingFloat = null;
-            } else {
-                // Any unrelated instruction clears the pending literal so a stale F never binds to
-                // a later putstatic; pendingScaled survives no-op-ish instructions so the canonical
-                // ldc / invokestatic / putstatic triplet still binds.
-                pendingFloat = null;
-            }
-        }
+                && fi.owner.equals(owner))
+            .forEach(commit -> memo.put(owner + "." + commit.node().name, commit.value()));
 
         memo.putIfAbsent(key, null);
         return memo.get(key);
@@ -1736,17 +1684,12 @@ public final class AsmKit {
         // Walk forward from the body to find the IINC + GOTO that closes the loop. Stop at the
         // exit label or end-of-stream; abort if a different IINC slot or a non-GOTO-back-to-test
         // pattern shows up before then.
-        IincInsnNode iinc = null;
-        AbstractInsnNode goBack = null;
-        for (AbstractInsnNode cursor = bodyFirst; cursor != null; cursor = cursor.getNext()) {
-            if (cursor == exitLabel) break;
-            if (!(cursor instanceof IincInsnNode candidateIinc) || candidateIinc.var != slot) continue;
+        IincInsnNode iinc = AsmWalker.from(bodyFirst).until(exitLabel).firstNotNull(cursor -> {
+            if (!(cursor instanceof IincInsnNode candidateIinc) || candidateIinc.var != slot) return null;
             AbstractInsnNode after = nextReal(candidateIinc);
-            if (!(after instanceof JumpInsnNode jump) || jump.getOpcode() != Opcodes.GOTO || jump.label != testLoad.getPrevious() && !isLabelOf(jump.label, testLoad)) continue;
-            iinc = candidateIinc;
-            goBack = after;
-            break;
-        }
+            if (!(after instanceof JumpInsnNode jump) || jump.getOpcode() != Opcodes.GOTO || jump.label != testLoad.getPrevious() && !isLabelOf(jump.label, testLoad)) return null;
+            return candidateIinc;
+        });
         if (iinc == null) return null;
 
         AbstractInsnNode firstAfter = nextReal(exitLabel);
@@ -1762,11 +1705,7 @@ public final class AsmKit {
      * loop's test header.
      */
     private static boolean isLabelOf(@Nullable LabelNode label, @NotNull AbstractInsnNode target) {
-        if (label == null) return false;
-        for (AbstractInsnNode cursor = label; cursor != null; cursor = cursor.getNext()) {
-            if (!isPseudoNode(cursor)) return cursor == target;
-        }
-        return false;
+        return AsmWalker.from(label).real().first() == target;
     }
 
     // ----------------------------------------------------------------------------------------
@@ -1834,9 +1773,8 @@ public final class AsmKit {
         if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
             MethodNode lambda = findMethod(ownerClass, handle.getName(), handle.getDesc());
             if (lambda == null) return null;
-            for (AbstractInsnNode node : lambda.instructions)
-                if (node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW)
-                    return type.desc;
+            return AsmWalker.over(lambda)
+                .firstNotNull(node -> node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW ? type.desc : null);
         }
         return null;
     }
@@ -1869,13 +1807,9 @@ public final class AsmKit {
         if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
             MethodNode lambda = findMethod(ownerClass, handle.getName(), handle.getDesc());
             if (lambda == null) return null;
-            String found = null;
-            for (AbstractInsnNode node : lambda.instructions) {
-                visitor.accept(node);
-                if (found == null && node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW)
-                    found = type.desc;
-            }
-            return found;
+            AsmWalker body = AsmWalker.over(lambda);
+            body.forEach(visitor);
+            return body.firstNotNull(node -> node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW ? type.desc : null);
         }
         return null;
     }
@@ -1947,13 +1881,8 @@ public final class AsmKit {
      * @return the recipe string, or {@code null} when no matching indy is present
      */
     public static @Nullable String findStringConcatRecipeIn(@NotNull MethodNode helper) {
-        for (AbstractInsnNode node : helper.instructions) {
-            if (node instanceof InvokeDynamicInsnNode indy) {
-                String recipe = resolveStringConcatRecipe(indy);
-                if (recipe != null) return recipe;
-            }
-        }
-        return null;
+        return AsmWalker.over(helper)
+            .firstNotNull(node -> node instanceof InvokeDynamicInsnNode indy ? resolveStringConcatRecipe(indy) : null);
     }
 
     // ----------------------------------------------------------------------------------------
