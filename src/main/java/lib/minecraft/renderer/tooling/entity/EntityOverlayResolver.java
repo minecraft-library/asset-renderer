@@ -935,29 +935,34 @@ final class EntityOverlayResolver {
     private static @Nullable String findFirstTextureLiteral(@NotNull ClassNode cn, boolean baby) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
-        String pendingPath = null;
-        boolean pendingIdentifier = false;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = readEntityTextureLiteral(in);
-            if (literal != null) {
-                pendingPath = literal;
-                pendingIdentifier = false;
-                continue;
-            }
-            if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.IDENTIFIER, VanillaSourceClasses.Methods.WITH_DEFAULT_NAMESPACE)) {
-                pendingIdentifier = true;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.PUTSTATIC
-                && in instanceof FieldInsnNode fi
-                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
-                && pendingPath != null && pendingIdentifier) {
-                if (fi.name.contains("BABY") == baby) return pendingPath;
-                pendingPath = null;
-                pendingIdentifier = false;
-            }
-        }
-        return null;
+        Cells.Latch<String> pendingPath = Cells.latch();
+        Cells.Flag pendingIdentifier = Cells.flag();
+        Cells.Latch<String> found = Cells.latch();
+        // The PUTSTATIC arm is a hook rather than a commit: it manages its own arming and
+        // reset, so an unarmed Identifier field passes by with the pending pair intact and
+        // only the wrong-age arm discards it. The first accepted bind wins.
+        AsmWalker.over(clinit)
+            .on(Insn.of(AbstractInsnNode.class, in -> readEntityTextureLiteral(in) != null), in -> {
+                String literal = readEntityTextureLiteral(in);
+                if (literal == null) return;
+                pendingPath.set(literal);
+                pendingIdentifier.clear();
+            })
+            .on(Insn.invokeStatic(VanillaSourceClasses.Types.IDENTIFIER, VanillaSourceClasses.Methods.WITH_DEFAULT_NAMESPACE),
+                mi -> pendingIdentifier.set())
+            .on(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC
+                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)), fi -> {
+                String path = pendingPath.get();
+                if (path == null || !pendingIdentifier.get()) return;
+                if (fi.name.contains("BABY") == baby) {
+                    if (found.get() == null) found.set(path);
+                    return;
+                }
+                pendingPath.clear();
+                pendingIdentifier.clear();
+            })
+            .run();
+        return found.get();
     }
 
     // ------------------------------------------------------------------------------------
@@ -1109,25 +1114,24 @@ final class EntityOverlayResolver {
      */
     private static @NotNull Map<Integer, String> bakedModelSlots(@NotNull MethodNode ctor) {
         Map<Integer, String> out = new LinkedHashMap<>();
-        String pendingField = null;
-        boolean baked = false;
-        for (AbstractInsnNode in : ctor.instructions) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
-                pendingField = ((FieldInsnNode) in).name;
-                baked = false;
-                continue;
-            }
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDERER_PROVIDER_CONTEXT, VanillaSourceClasses.Methods.BAKE_LAYER)
-                && pendingField != null) {
-                baked = true;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.ASTORE && in instanceof VarInsnNode store) {
-                if (baked && pendingField != null) out.put(store.var, pendingField);
-                pendingField = null;
-                baked = false;
-            }
-        }
+        Cells.Latch<String> pendingField = Cells.latch();
+        Cells.Flag baked = Cells.flag();
+        AsmWalker.over(ctor)
+            .feed(pendingField)
+            .feed(baked)
+            .on(Insn.getStatic(VanillaSourceClasses.Types.MODEL_LAYERS), fi -> {
+                pendingField.set(fi.name);
+                baked.clear();
+            })
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.RENDERER_PROVIDER_CONTEXT, VanillaSourceClasses.Methods.BAKE_LAYER),
+                mi -> {
+                    if (pendingField.get() != null) baked.set();
+                })
+            .commitAt(Insn.of(VarInsnNode.class, store -> store.getOpcode() == Opcodes.ASTORE), store -> {
+                String field = pendingField.get();
+                if (baked.get() && field != null) out.put(store.var, field);
+            })
+            .run();
         return out;
     }
 
@@ -1483,26 +1487,32 @@ final class EntityOverlayResolver {
             in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
                 && layerClass.equals(mi.owner) && mi.desc.startsWith("(Ljava/lang/String;"));
         if (!helperSeen) return new CategoryTokens(List.of(), null, null);
-        LinkedHashSet<String> out = new LinkedHashSet<>();
-        String babyCategory = null;
-        String substituted = null;
-        for (AbstractInsnNode in : submit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal == null || !isCategoryToken(literal)) continue;
-            AbstractInsnNode branch = AsmKit.previousReal(in);
-            AbstractInsnNode read = branch == null ? null : AsmKit.previousReal(branch);
-            boolean babyArm = branch != null && (branch.getOpcode() == Opcodes.IFEQ || branch.getOpcode() == Opcodes.IFNE)
-                && read instanceof FieldInsnNode fi && VanillaSourceClasses.Fields.IS_BABY.equals(fi.name);
-            if (!babyArm) {
-                out.add(literal);
-                continue;
-            }
-            String elseArm = babyCategory == null ? elseArmLiteral(in) : null;
-            if (elseArm == null) continue;
-            babyCategory = literal;
-            substituted = elseArm;
-        }
-        return new CategoryTokens(new ArrayList<>(out), babyCategory, substituted);
+        Cells.ListCell<String> categories = Cells.list();
+        Cells.Latch<String> babyCategory = Cells.latch();
+        Cells.Latch<String> substituted = Cells.latch();
+        AsmWalker.over(submit)
+            .on(Insn.of(AbstractInsnNode.class, in -> {
+                String literal = AsmKit.readStringLiteral(in);
+                return literal != null && isCategoryToken(literal);
+            }), in -> {
+                String literal = AsmKit.readStringLiteral(in);
+                if (literal == null) return;
+                AbstractInsnNode branch = AsmKit.previousReal(in);
+                AbstractInsnNode read = branch == null ? null : AsmKit.previousReal(branch);
+                boolean babyArm = branch != null && (branch.getOpcode() == Opcodes.IFEQ || branch.getOpcode() == Opcodes.IFNE)
+                    && read instanceof FieldInsnNode fi && VanillaSourceClasses.Fields.IS_BABY.equals(fi.name);
+                if (!babyArm) {
+                    categories.add(literal);
+                    return;
+                }
+                String elseArm = babyCategory.get() == null ? elseArmLiteral(in) : null;
+                if (elseArm == null) return;
+                babyCategory.set(literal);
+                substituted.set(elseArm);
+            })
+            .run();
+        return new CategoryTokens(new ArrayList<>(new LinkedHashSet<>(categories.values())),
+            babyCategory.get(), substituted.get());
     }
 
     /**
@@ -1907,26 +1917,27 @@ final class EntityOverlayResolver {
     private @Nullable String chaseTextureFieldOwner(@NotNull String ownerInternalName, @NotNull String fieldName) {
         MethodNode clinit = AsmKit.findClinit(this.cache, ownerInternalName);
         if (clinit == null) return null;
-        String pendingPath = null;
-        boolean pendingIdentifier = false;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = readEntityTextureLiteral(in);
-            if (literal != null) {
-                pendingPath = literal;
-                pendingIdentifier = false;
-                continue;
-            }
-            if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.IDENTIFIER, VanillaSourceClasses.Methods.WITH_DEFAULT_NAMESPACE)) {
-                pendingIdentifier = true;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.PUTSTATIC
-                && in instanceof FieldInsnNode fi
-                && fieldName.equals(fi.name)
-                && pendingPath != null && pendingIdentifier)
-                return pendingPath;
-        }
-        return null;
+        Cells.Latch<String> pendingPath = Cells.latch();
+        Cells.Flag pendingIdentifier = Cells.flag();
+        Cells.Latch<String> found = Cells.latch();
+        // The PUTSTATIC arm is a hook rather than a commit: it manages its own arming, so an
+        // unarmed bind of the named field passes by with the pending pair intact and nothing
+        // ever resets it. The first accepted bind wins.
+        AsmWalker.over(clinit)
+            .on(Insn.of(AbstractInsnNode.class, in -> readEntityTextureLiteral(in) != null), in -> {
+                String literal = readEntityTextureLiteral(in);
+                if (literal == null) return;
+                pendingPath.set(literal);
+                pendingIdentifier.clear();
+            })
+            .on(Insn.invokeStatic(VanillaSourceClasses.Types.IDENTIFIER, VanillaSourceClasses.Methods.WITH_DEFAULT_NAMESPACE),
+                mi -> pendingIdentifier.set())
+            .on(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC && fieldName.equals(fi.name)), fi -> {
+                String path = pendingPath.get();
+                if (path != null && pendingIdentifier.get() && found.get() == null) found.set(path);
+            })
+            .run();
+        return found.get();
     }
 
 }
