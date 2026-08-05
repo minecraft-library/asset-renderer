@@ -6,11 +6,12 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Missing;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.MethodNode;
 
 import java.util.Map;
 import java.util.TreeMap;
@@ -46,9 +47,15 @@ public final class PotionColorWalk {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("effects");
 
-        MethodNode clinit = AsmKit.findMethodOrError(cache, diagnostics,
-            VanillaSourceClasses.Types.MOB_EFFECTS, AsmKit.CLINIT, "effect colour table");
-        if (clinit == null) return;
+        AsmWalker clinit = AsmWalker.over(cache, VanillaSourceClasses.Types.MOB_EFFECTS, AsmKit.CLINIT);
+        Missing missing = clinit.missing();
+        if (missing != null) {
+            if (missing == Missing.CLASS)
+                diagnostics.error("'%s' class missing - %s unresolved", VanillaSourceClasses.Types.MOB_EFFECTS, "effect colour table");
+            else
+                diagnostics.error("'%s.%s' missing - %s unresolved", VanillaSourceClasses.Types.MOB_EFFECTS, AsmKit.CLINIT, "effect colour table");
+            return;
+        }
 
         String colorCtorDesc = VanillaSourceClasses.Descs.of("V",
             VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MOB_EFFECT_CATEGORY), "I");
@@ -59,7 +66,7 @@ public final class PotionColorWalk {
         Integer pendingColor = null;
         AsmKit.LiteralStack intStack = new AsmKit.LiteralStack(8);
 
-        for (AbstractInsnNode node : clinit.instructions) {
+        for (AbstractInsnNode node : clinit.toList()) {
             Integer literal = AsmKit.readIntLiteral(node);
             if (literal != null) {
                 intStack.push(literal);
