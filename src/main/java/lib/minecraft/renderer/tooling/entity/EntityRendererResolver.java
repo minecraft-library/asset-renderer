@@ -120,17 +120,16 @@ final class EntityRendererResolver {
             List<LayerSite> level = new ArrayList<>();
             for (MethodNode ctor : cn.methods) {
                 if (!AsmKit.INIT.equals(ctor.name)) continue;
-                for (AbstractInsnNode in : ctor.instructions) {
-                    // Owner-agnostic addLayer match - the renderer's super may be any of
-                    // several LivingEntityRenderer subclasses; gate on the canonical
-                    // descriptor shape (single Layer arg, boolean return).
-                    if (in.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
-                    if (!(in instanceof MethodInsnNode mi)) continue;
-                    if (!VanillaSourceClasses.Methods.ADD_LAYER.equals(mi.name)) continue;
-                    if (!mi.desc.startsWith("(L") || !mi.desc.endsWith(";)Z")) continue;
-                    LayerSite site = resolveSite(ctor, in);
-                    if (site != null) level.add(site);
-                }
+                // Owner-agnostic addLayer match - the renderer's super may be any of
+                // several LivingEntityRenderer subclasses; gate on the canonical
+                // descriptor shape (single Layer arg, boolean return).
+                level.addAll(AsmWalker.over(ctor)
+                    .ofType(MethodInsnNode.class)
+                    .where(call -> call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                        && VanillaSourceClasses.Methods.ADD_LAYER.equals(call.name)
+                        && call.desc.startsWith("(L") && call.desc.endsWith(";)Z"))
+                    .mapNotNull(call -> resolveSite(ctor, call))
+                    .toList());
             }
             perClass.add(level);
         });
