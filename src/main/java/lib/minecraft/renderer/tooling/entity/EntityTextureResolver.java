@@ -5,6 +5,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -57,7 +58,9 @@ final class EntityTextureResolver {
      */
     private static final @NotNull String DEFAULT_FIELD = EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue();
 
-    /** The render-state variant field name vanilla uses on every variant RenderState class. */
+    /**
+     * The render-state variant field name vanilla uses on every variant RenderState class.
+     */
     private static final @NotNull String VARIANT_FIELD = VanillaSourceClasses.Fields.VARIANT;
 
     private final @NotNull ClassNodeCache cache;
@@ -235,12 +238,9 @@ final class EntityTextureResolver {
      * carries no binding info of its own.
      */
     private static boolean isBridgeMethod(@NotNull MethodNode method) {
-        for (AbstractInsnNode in : method.instructions)
-            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
-                && in instanceof MethodInsnNode mi
-                && VanillaSourceClasses.Methods.GET_TEXTURE_LOCATION.equals(mi.name))
-                return true;
-        return false;
+        return AsmWalker.over(method).any(in -> in.getOpcode() == Opcodes.INVOKEVIRTUAL
+            && in instanceof MethodInsnNode mi
+            && VanillaSourceClasses.Methods.GET_TEXTURE_LOCATION.equals(mi.name));
     }
 
     /**
@@ -267,13 +267,11 @@ final class EntityTextureResolver {
         String ownerSuffix = suffixes.getFirst();
         String exactAccessor = suffixes.get(1);
         String accessorSuffix = suffixes.getLast();
-        for (AbstractInsnNode in : method.instructions)
-            if (in instanceof MethodInsnNode mi
-                && in.getOpcode() == Opcodes.INVOKEVIRTUAL
-                && (mi.name.endsWith(accessorSuffix) || exactAccessor.equals(mi.name))
-                && mi.owner.endsWith(ownerSuffix))
-                return mi.owner;
-        return null;
+        return AsmWalker.over(method).firstNotNull(in -> in instanceof MethodInsnNode mi
+            && in.getOpcode() == Opcodes.INVOKEVIRTUAL
+            && (mi.name.endsWith(accessorSuffix) || exactAccessor.equals(mi.name))
+            && mi.owner.endsWith(ownerSuffix)
+            ? mi.owner : null);
     }
 
     /**
@@ -304,18 +302,17 @@ final class EntityTextureResolver {
         }
         if (sawStaticMap && sawMapGet) return "enum-map";
         if (sawIdentifierReturningCall) return "method-dispatch";
-        for (AbstractInsnNode in : method.instructions)
-            if (in.getOpcode() == Opcodes.GETFIELD
-                && in instanceof FieldInsnNode fi
-                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
-                && AsmKit.previousReal(in) instanceof VarInsnNode load
-                && load.getOpcode() == Opcodes.ALOAD
-                && load.var == 0)
-                return "instance-field";
-        return null;
+        return AsmWalker.over(method).any(in -> in.getOpcode() == Opcodes.GETFIELD
+            && in instanceof FieldInsnNode fi
+            && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
+            && AsmKit.previousReal(in) instanceof VarInsnNode load
+            && load.getOpcode() == Opcodes.ALOAD
+            && load.var == 0) ? "instance-field" : null;
     }
 
-    /** Reports whether {@code mi} is the {@code Identifier.withDefaultNamespace} factory itself. */
+    /**
+     * Reports whether {@code mi} is the {@code Identifier.withDefaultNamespace} factory itself.
+     */
     private static boolean isWithDefaultNamespace(@NotNull MethodInsnNode mi) {
         return VanillaSourceClasses.Types.IDENTIFIER.equals(mi.owner)
             && VanillaSourceClasses.Methods.WITH_DEFAULT_NAMESPACE.equals(mi.name);
@@ -345,7 +342,9 @@ final class EntityTextureResolver {
         return null;
     }
 
-    /** Every {@code GETSTATIC <field>:LIdentifier;} in the method, in source order. */
+    /**
+     * Every {@code GETSTATIC <field>:LIdentifier;} in the method, in source order.
+     */
     private static @NotNull List<FieldInsnNode> collectIdentifierGetStatics(@NotNull MethodNode method) {
         List<FieldInsnNode> out = new ArrayList<>();
         for (AbstractInsnNode in : method.instructions)
@@ -587,14 +586,18 @@ final class EntityTextureResolver {
         }
     }
 
-    /** A texture-path literal that exists as a jar entry. */
+    /**
+     * A texture-path literal that exists as a jar entry.
+     */
     private boolean isRealTexturePath(@NotNull String literal) {
         return literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)
             && literal.endsWith(".png")
             && entryExists(literal);
     }
 
-    /** Whether the asset-relative path exists in the jar. */
+    /**
+     * Whether the asset-relative path exists in the jar.
+     */
     private boolean entryExists(@NotNull String assetPath) {
         return this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + assetPath);
     }
