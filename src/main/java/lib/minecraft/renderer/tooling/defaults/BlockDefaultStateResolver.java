@@ -164,11 +164,13 @@ final class BlockDefaultStateResolver {
         if (create.desc.endsWith(ENUM_ARRAY_CREATE_TAIL)) {
             // create(name, class, Enum[]): first value = the array's index-0 GETSTATIC.
             AbstractInsnNode anewarray = AsmKit.findPreceding(create, n -> n.getOpcode() == Opcodes.ANEWARRAY, op -> true);
-            if (anewarray != null)
-                for (AbstractInsnNode node = anewarray; node != null && node != create; node = node.getNext())
-                    if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode value)
-                        return this.properties.enumSerializedName(value.owner, value.name);
-            return this.properties.firstEnumConstant(enumOwner);
+            FieldInsnNode value = AsmWalker.from(anewarray)
+                .until(create)
+                .ofType(FieldInsnNode.class)
+                .first(field -> field.getOpcode() == Opcodes.GETSTATIC);
+            return value != null
+                ? this.properties.enumSerializedName(value.owner, value.name)
+                : this.properties.firstEnumConstant(enumOwner);
         }
         if (create.desc.endsWith(ENUM_PREDICATE_CREATE_TAIL)) {
             // create(name, class, predicate): a Direction.Plane filter resolves to the first direction
@@ -191,20 +193,16 @@ final class BlockDefaultStateResolver {
      * {@code planeField} is not a plane-style filter constant.
      */
     private @Nullable String resolvePlaneFirstDirection(@NotNull FieldInsnNode planeField, @NotNull String enumOwner) {
-        MethodNode clinit = AsmKit.findClinit(this.cache, planeField.owner);
-        if (clinit == null) return null;
-        String firstDirection = null;
-        for (AbstractInsnNode node : clinit.instructions) {
-            if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode dir
-                && dir.owner.equals(enumOwner) && firstDirection == null)
-                firstDirection = dir.name;
-            if (AsmKit.isPutStatic(node, planeField.owner) && node instanceof FieldInsnNode put) {
-                if (put.name.equals(planeField.name) && firstDirection != null)
-                    return this.properties.enumSerializedName(enumOwner, firstDirection);
-                firstDirection = null;
-            }
-        }
-        return null;
+        return AsmWalker.clinit(this.cache, planeField.owner)
+            .latch(node -> node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode dir
+                && dir.owner.equals(enumOwner) ? dir.name : null)
+            .firstWins()
+            .commitAt(Insn.putStatic(planeField.owner))
+            .firstNotNull(commit -> {
+                String firstDirection = commit.value();
+                return commit.node().name.equals(planeField.name) && firstDirection != null
+                    ? this.properties.enumSerializedName(enumOwner, firstDirection) : null;
+            });
     }
 
 }
