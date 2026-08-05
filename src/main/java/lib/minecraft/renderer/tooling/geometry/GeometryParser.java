@@ -12,6 +12,7 @@ import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -314,15 +315,11 @@ public final class GeometryParser {
                 // The lambda body is the canonical `mesh.getRoot(); modifyMesh(...);
                 // aload_0; areturn` pattern. Find the first INVOKESTATIC whose descriptor is
                 // (Lnet/.../PartDefinition;)V - that's the modifyMesh-style callback.
-                for (AbstractInsnNode body : lambda.instructions) {
-                    if (AsmKit.isPseudoNode(body)) continue;
-                    if (body instanceof MethodInsnNode mi
-                        && mi.getOpcode() == Opcodes.INVOKESTATIC
-                        && mi.desc.startsWith("(L" + VanillaSourceClasses.Types.PART_DEFINITION + ";)V")) {
-                        return AsmKit.findMethodInHierarchy(cache, mi.owner, mi.name, mi.desc);
-                    }
-                }
-                return null;
+                MethodInsnNode target = AsmWalker.over(lambda).real()
+                    .ofType(MethodInsnNode.class)
+                    .first(mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
+                        && mi.desc.startsWith("(L" + VanillaSourceClasses.Types.PART_DEFINITION + ";)V"));
+                return target == null ? null : AsmKit.findMethodInHierarchy(cache, target.owner, target.name, target.desc);
             }
             pendingIndy = null;
         }
@@ -443,7 +440,9 @@ public final class GeometryParser {
         }
     }
 
-    /** The top-level bone a bone descends from - itself when it has no parent. */
+    /**
+     * The top-level bone a bone descends from - itself when it has no parent.
+     */
     private static @NotNull String topLevelAncestor(@NotNull String bone, @NotNull Map<String, String> parents) {
         String cursor = bone;
         for (String parent = parents.get(cursor); parent != null; parent = parents.get(cursor))
@@ -3093,11 +3092,9 @@ public final class GeometryParser {
      * Returns {@code null} when no matching PUTSTATIC exists.
      */
     private static @Nullable FieldInsnNode findPutstatic(@NotNull MethodNode clinit, @NotNull String fieldName, @NotNull String desc) {
-        for (AbstractInsnNode node : clinit.instructions) {
-            if (!(node instanceof FieldInsnNode put) || put.getOpcode() != Opcodes.PUTSTATIC) continue;
-            if (fieldName.equals(put.name) && desc.equals(put.desc)) return put;
-        }
-        return null;
+        return AsmWalker.over(clinit)
+            .ofType(FieldInsnNode.class)
+            .first(put -> put.getOpcode() == Opcodes.PUTSTATIC && fieldName.equals(put.name) && desc.equals(put.desc));
     }
 
     /**
