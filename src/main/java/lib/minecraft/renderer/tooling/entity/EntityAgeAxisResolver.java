@@ -9,6 +9,8 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.CommitWalk;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -305,16 +307,14 @@ final class EntityAgeAxisResolver {
     private @Nullable String clinitTexturePath(@NotNull ClassNode cn, @NotNull String fieldName) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
-        String pendingPath = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) {
-                pendingPath = literal;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, cn.name, fieldName)) return pendingPath;
-        }
-        return null;
+        CommitWalk.Commit<FieldInsnNode, String> commit = AsmWalker.over(clinit)
+            .latch(in -> {
+                String literal = AsmWalker.stringLiteral(in);
+                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY) ? literal : null;
+            })
+            .commitAt(Insn.putStatic(cn.name, fieldName))
+            .first();
+        return commit == null ? null : commit.value();
     }
 
 }
