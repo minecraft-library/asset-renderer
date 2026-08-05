@@ -7,6 +7,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -267,16 +268,11 @@ final class VariantIndex {
         }
 
         // Second pass: which FIELD is bound to DEFAULT.
-        String pendingField = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (AsmKit.isGetStatic(in, holderInternal)) {
-                pendingField = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, holderInternal, DEFAULT_FIELD) && pendingField != null)
-                return fieldToId.get(pendingField);
-        }
-        return null;
+        String defaultField = AsmWalker.over(clinit)
+            .latch(in -> AsmKit.isGetStatic(in, holderInternal) ? ((FieldInsnNode) in).name : null)
+            .commitAt(FieldInsnNode.class, put -> AsmKit.isPutStatic(put, holderInternal, DEFAULT_FIELD))
+            .firstNotNull(commit -> commit.value());
+        return defaultField == null ? null : fieldToId.get(defaultField);
     }
 
 }
