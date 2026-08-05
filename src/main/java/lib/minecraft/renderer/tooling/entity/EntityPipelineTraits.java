@@ -4,6 +4,8 @@ import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.CommitWalk;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -346,16 +348,18 @@ final class EntityPipelineTraits {
      */
     private void collectFactoryCalls(@NotNull MethodNode method, @NotNull List<String> out,
                                      @NotNull Set<String> visited, int hops) {
-        for (AbstractInsnNode in : method.instructions) {
-            if (in.getOpcode() != Opcodes.INVOKESTATIC || !(in instanceof MethodInsnNode mi)) continue;
-            if (VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner)) {
-                out.add(mi.name);
-                continue;
-            }
-            if (hops <= 0 || !visited.add(mi.owner + '.' + mi.name + mi.desc)) continue;
-            MethodNode helper = AsmKit.findMethodInHierarchy(this.cache, mi.owner, mi.name, mi.desc);
-            if (helper != null) collectFactoryCalls(helper, out, visited, hops - 1);
-        }
+        AsmWalker.over(method)
+            .opcode(Opcodes.INVOKESTATIC)
+            .ofType(MethodInsnNode.class)
+            .forEach(mi -> {
+                if (VanillaSourceClasses.Types.RENDER_TYPES.equals(mi.owner)) {
+                    out.add(mi.name);
+                    return;
+                }
+                if (hops <= 0 || !visited.add(mi.owner + '.' + mi.name + mi.desc)) return;
+                MethodNode helper = AsmKit.findMethodInHierarchy(this.cache, mi.owner, mi.name, mi.desc);
+                if (helper != null) collectFactoryCalls(helper, out, visited, hops - 1);
+            });
     }
 
     // ------------------------------------------------------------------------------------
@@ -405,17 +409,12 @@ final class EntityPipelineTraits {
     private static @Nullable MethodNode chaseFunctionFieldLambda(@NotNull ClassNode renderTypes, @NotNull String fieldName) {
         MethodNode clinit = AsmKit.findMethod(renderTypes, AsmKit.CLINIT);
         if (clinit == null) return null;
-        Handle pendingLambda = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy) {
-                Handle handle = AsmKit.extractLambdaHandle(indy);
-                if (handle != null) pendingLambda = handle;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, renderTypes.name, fieldName) && pendingLambda != null)
-                return AsmKit.findMethod(renderTypes, pendingLambda.getName(), pendingLambda.getDesc());
-        }
-        return null;
+        Handle bound = AsmWalker.over(clinit)
+            .latch(in -> AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
+                ? AsmKit.extractLambdaHandle(indy) : null)
+            .commitAt(Insn.putStatic(renderTypes.name, fieldName))
+            .firstNotNull(CommitWalk.Commit::value);
+        return bound == null ? null : AsmKit.findMethod(renderTypes, bound.getName(), bound.getDesc());
     }
 
     // ------------------------------------------------------------------------------------
