@@ -6,6 +6,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -71,11 +72,15 @@ import java.util.Objects;
  */
 public final class ArmorMeshIndex {
 
-    /** Method descriptor of {@code ArmorModelSet.putFrom(ArmorModelSet, ImmutableMap$Builder)}. */
+    /**
+     * Method descriptor of {@code ArmorModelSet.putFrom(ArmorModelSet, ImmutableMap$Builder)}.
+     */
     private static final @NotNull String PUT_FROM_PREFIX =
         "(" + VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF;
 
-    /** Guard on the delegate chain, well above vanilla's deepest ({@code piglin -> player -> humanoid}). */
+    /**
+     * Guard on the delegate chain, well above vanilla's deepest ({@code piglin -> player -> humanoid}).
+     */
     private static final int MAX_DELEGATE_DEPTH = 4;
 
     /**
@@ -117,7 +122,9 @@ public final class ArmorMeshIndex {
         @Nullable BabyMeshTransform babyTransform
     ) {
 
-        /** The unset arm offset - what an adult set, and a baby set at {@code PartPose.ZERO}, carries. */
+        /**
+         * The unset arm offset - what an adult set, and a baby set at {@code PartPose.ZERO}, carries.
+         */
         public static final float @NotNull [] NO_ARM_OFFSET = {0f, 0f, 0f};
 
         /**
@@ -416,7 +423,9 @@ public final class ArmorMeshIndex {
         return this.sets.get(armorMeshName);
     }
 
-    /** Whether a method name is one of the three spellings vanilla gives an armor-set factory. */
+    /**
+     * Whether a method name is one of the three spellings vanilla gives an armor-set factory.
+     */
     private static boolean isArmorSetFactory(@NotNull String name) {
         return VanillaSourceClasses.Methods.CREATE_ARMOR_MESH_SET.equals(name)
             || VanillaSourceClasses.Methods.CREATE_ARMOR_LAYER_SET.equals(name)
@@ -480,19 +489,21 @@ public final class ArmorMeshIndex {
         MethodNode node = AsmKit.findMethodInHierarchy(cache, owner, method, desc);
         if (node == null) return false;
 
-        for (AbstractInsnNode in : node.instructions)
-            if (in.getOpcode() == Opcodes.GETSTATIC
-                && in instanceof FieldInsnNode fi
-                && fi.name.endsWith(VanillaSourceClasses.Fields.ARMOR_PARTS_PER_SLOT_SUFFIX))
-                return fi.name.startsWith(VanillaSourceClasses.Fields.BABY_ARMOR_PARTS_PREFIX);
+        FieldInsnNode parts = AsmWalker.over(node)
+            .opcode(Opcodes.GETSTATIC)
+            .ofType(FieldInsnNode.class)
+            .where(fi -> fi.name.endsWith(VanillaSourceClasses.Fields.ARMOR_PARTS_PER_SLOT_SUFFIX))
+            .first();
+        if (parts != null) return parts.name.startsWith(VanillaSourceClasses.Fields.BABY_ARMOR_PARTS_PREFIX);
 
-        for (AbstractInsnNode in : node.instructions)
-            if (in.getOpcode() == Opcodes.INVOKESTATIC
-                && in instanceof MethodInsnNode mi
-                && desc.equals(mi.desc)
+        MethodInsnNode delegate = AsmWalker.over(node)
+            .opcode(Opcodes.INVOKESTATIC)
+            .ofType(MethodInsnNode.class)
+            .where(mi -> desc.equals(mi.desc)
                 && isArmorSetFactory(mi.name)
                 && !mi.owner.equals(owner))
-                return resolveBabyParts(cache, mi.owner, mi.name, desc, depth + 1);
+            .first();
+        if (delegate != null) return resolveBabyParts(cache, delegate.owner, delegate.name, desc, depth + 1);
         return false;
     }
 
@@ -538,21 +549,20 @@ public final class ArmorMeshIndex {
         int[] direct = atlasIn(node);
         if (direct != null) return direct;
 
-        for (AbstractInsnNode in : node.instructions) {
-            if (!(in instanceof InvokeDynamicInsnNode indy)) continue;
-            Handle handle = AsmKit.extractLambdaHandle(indy);
-            if (handle == null) continue;
-            int[] wrapped = resolveWrapAtlas(cache, handle);
-            if (wrapped != null) return wrapped;
-        }
+        int[] wrapped = AsmWalker.over(node)
+            .ofType(InvokeDynamicInsnNode.class)
+            .mapNotNull(AsmKit::extractLambdaHandle)
+            .firstNotNull(handle -> resolveWrapAtlas(cache, handle));
+        if (wrapped != null) return wrapped;
 
-        for (AbstractInsnNode in : node.instructions)
-            if (in.getOpcode() == Opcodes.INVOKESTATIC
-                && in instanceof MethodInsnNode mi
-                && desc.equals(mi.desc)
+        MethodInsnNode delegate = AsmWalker.over(node)
+            .opcode(Opcodes.INVOKESTATIC)
+            .ofType(MethodInsnNode.class)
+            .where(mi -> desc.equals(mi.desc)
                 && isArmorSetFactory(mi.name)
                 && !mi.owner.equals(owner))
-                return resolveFactoryAtlas(cache, mi.owner, mi.name, desc, depth + 1);
+            .first();
+        if (delegate != null) return resolveFactoryAtlas(cache, delegate.owner, delegate.name, desc, depth + 1);
         return null;
     }
 
@@ -565,7 +575,9 @@ public final class ArmorMeshIndex {
         return node == null ? null : atlasIn(node);
     }
 
-    /** The {@code LayerDefinition.create(mesh, w, h)} dimensions in a method body, or {@code null}. */
+    /**
+     * The {@code LayerDefinition.create(mesh, w, h)} dimensions in a method body, or {@code null}.
+     */
     private static int @Nullable [] atlasIn(@NotNull MethodNode node) {
         Integer prior = null;
         Integer latest = null;
@@ -609,25 +621,25 @@ public final class ArmorMeshIndex {
         MethodNode node = AsmKit.findMethodInHierarchy(cache, owner, method, desc);
         if (node == null) return null;
 
-        for (AbstractInsnNode in : node.instructions)
-            if (in.getOpcode() == Opcodes.INVOKESTATIC
-                && in instanceof MethodInsnNode mi
-                && desc.equals(mi.desc)
+        MethodInsnNode delegate = AsmWalker.over(node)
+            .opcode(Opcodes.INVOKESTATIC)
+            .ofType(MethodInsnNode.class)
+            .where(mi -> desc.equals(mi.desc)
                 && isArmorSetFactory(mi.name)
                 && !mi.owner.equals(owner))
-                return resolveBaseMeshFactory(cache, mi.owner, mi.name, desc, depth + 1);
+            .first();
+        if (delegate != null) return resolveBaseMeshFactory(cache, delegate.owner, delegate.name, desc, depth + 1);
 
-        for (AbstractInsnNode in : node.instructions) {
-            if (!(in instanceof InvokeDynamicInsnNode indy)) continue;
-            Handle handle = AsmKit.extractLambdaHandle(indy);
-            if (handle == null
-                || !AsmKit.descriptorReturns(handle.getDesc(), VanillaSourceClasses.Types.MESH_DEFINITION))
-                continue;
-            if (VanillaSourceClasses.Descs.BASE_ARMOR_MESH_DESC.equals(handle.getDesc())) return handle;
-            Handle forwarded = resolveForwardedMeshFactory(cache, handle);
-            if (forwarded != null) return forwarded;
-        }
-        return null;
+        return AsmWalker.over(node)
+            .ofType(InvokeDynamicInsnNode.class)
+            .firstNotNull(indy -> {
+                Handle handle = AsmKit.extractLambdaHandle(indy);
+                if (handle == null
+                    || !AsmKit.descriptorReturns(handle.getDesc(), VanillaSourceClasses.Types.MESH_DEFINITION))
+                    return null;
+                if (VanillaSourceClasses.Descs.BASE_ARMOR_MESH_DESC.equals(handle.getDesc())) return handle;
+                return resolveForwardedMeshFactory(cache, handle);
+            });
     }
 
     /**
@@ -638,12 +650,13 @@ public final class ArmorMeshIndex {
         @NotNull ClassNodeCache cache, @NotNull Handle lambda) {
         MethodNode node = AsmKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
         if (node == null) return null;
-        for (AbstractInsnNode in : node.instructions)
-            if (in.getOpcode() == Opcodes.INVOKESTATIC
-                && in instanceof MethodInsnNode mi
-                && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION))
-                return new Handle(Opcodes.H_INVOKESTATIC, mi.owner, mi.name, mi.desc, false);
-        return null;
+        MethodInsnNode forward = AsmWalker.over(node)
+            .opcode(Opcodes.INVOKESTATIC)
+            .ofType(MethodInsnNode.class)
+            .where(mi -> AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION))
+            .first();
+        return forward == null ? null
+            : new Handle(Opcodes.H_INVOKESTATIC, forward.owner, forward.name, forward.desc, false);
     }
 
 }
