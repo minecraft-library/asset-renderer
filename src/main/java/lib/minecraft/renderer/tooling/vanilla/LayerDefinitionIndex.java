@@ -6,6 +6,8 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -18,6 +20,7 @@ import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -440,23 +443,15 @@ public final class LayerDefinitionIndex {
         @NotNull String ownerInternalName,
         @NotNull String fieldName
     ) {
-        MethodNode clinit = AsmKit.findClinit(cache, ownerInternalName);
-        if (clinit == null) return null;
-        float[] literals = new float[3];
-        int seen = 0;
-        for (AbstractInsnNode in : clinit.instructions) {
-            Float literal = AsmKit.readFloatLiteral(in);
-            if (literal != null) {
-                if (seen < 3) literals[seen] = literal;
-                seen++;
-                continue;
-            }
-            if (in.getOpcode() != Opcodes.PUTSTATIC) continue;
-            if (AsmKit.isPutStatic(in, ownerInternalName, fieldName) && seen >= 3)
-                return new float[]{literals[0], literals[1], literals[2]};
-            seen = 0;
-        }
-        return null;
+        return AsmWalker.clinit(cache, ownerInternalName)
+            .gather(AsmWalker::floatLiteral)
+            .resetAt(Insn.opcode(Opcodes.PUTSTATIC))
+            .commitAt(Insn.putStatic(ownerInternalName, fieldName))
+            .firstNotNull(commit -> {
+                List<Float> floats = commit.values();
+                return floats.size() < 3 ? null
+                    : new float[]{floats.getFirst(), floats.get(1), floats.get(2)};
+            });
     }
 
     /**
@@ -470,19 +465,13 @@ public final class LayerDefinitionIndex {
         if (cn == null) return entry;
         MethodNode method = AsmKit.findMethod(cn, entry.factoryMethod(), entry.factoryDesc());
         if (method == null) return entry;
-        MethodInsnNode delegate = null;
-        for (AbstractInsnNode in : method.instructions) {
-            int op = in.getOpcode();
-            if (op == -1) continue;
-            if (op == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi) {
-                if (delegate != null) return entry;
-                delegate = mi;
-                continue;
-            }
-            if (op == Opcodes.ARETURN) continue;
+        AbstractInsnNode found = AsmWalker.over(method).real()
+            .first(in -> in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode,
+                in -> in.getOpcode() == Opcodes.ARETURN);
+        if (!(found instanceof MethodInsnNode delegate)
+            || AsmWalker.after(found).real().any(in -> in.getOpcode() != Opcodes.ARETURN)
+            || !delegate.desc.equals(entry.factoryDesc()))
             return entry;
-        }
-        if (delegate == null || !delegate.desc.equals(entry.factoryDesc())) return entry;
         return new Entry(delegate.owner, delegate.name, delegate.desc,
             entry.texWidthOverride(), entry.texHeightOverride(), entry.layerField(),
             entry.grow(), entry.floatParam(), entry.appliedMeshTransformerScale(),
