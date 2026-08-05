@@ -5,6 +5,8 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
@@ -158,21 +160,19 @@ public final class BlockEntityRegistryDiscovery {
         }
 
         Map<String, String> out = new LinkedHashMap<>();
-        String pendingTypeField = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE)) {
-                pendingTypeField = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (in instanceof InvokeDynamicInsnNode indy && pendingTypeField != null) {
-                String rendererClass = AsmKit.resolveLambdaTargetClass(indy, registryClass);
+        AsmWalker.over(clinit)
+            .latch(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE)
+                ? ((FieldInsnNode) in).name : null)
+            .commitAt(Insn.ofType(InvokeDynamicInsnNode.class))
+            .forEach(commit -> {
+                String typeField = commit.value();
+                if (typeField == null) return;
+                String rendererClass = AsmKit.resolveLambdaTargetClass(commit.node(), registryClass);
                 if (rendererClass != null)
-                    out.put(pendingTypeField, rendererClass);
+                    out.put(typeField, rendererClass);
                 else
-                    diagnostics.info("BlockEntityRenderers.<clinit>: could not resolve renderer class for BlockEntityType.%s - skipped", pendingTypeField);
-                pendingTypeField = null;
-            }
-        }
+                    diagnostics.info("BlockEntityRenderers.<clinit>: could not resolve renderer class for BlockEntityType.%s - skipped", typeField);
+            });
         return out;
     }
 
