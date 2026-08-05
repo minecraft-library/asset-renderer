@@ -10,6 +10,8 @@ import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -330,24 +332,23 @@ final class EntityVariantAxisResolver {
             if (method.name.startsWith(AsmKit.LAMBDA_STATIC_PREFIX)) bodies.add(method);
 
         for (MethodNode body : bodies) {
-            String pendingConstant = null;
-            for (AbstractInsnNode in : body.instructions) {
-                if (in.getOpcode() == Opcodes.GETSTATIC
-                    && in instanceof FieldInsnNode fi
-                    && enumInternal.equals(fi.owner)
-                    && fi.desc.equals(VanillaSourceClasses.Descs.ref(enumInternal))) {
-                    pendingConstant = fi.name;
-                    continue;
-                }
-                String literal = AsmKit.readStringLiteral(in);
-                if (literal == null || !literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) continue;
-                if (literal.contains("%")) {
-                    templates.add(literal);
-                    continue;
-                }
-                if (pendingConstant != null && literal.endsWith(".png"))
-                    byConstant.computeIfAbsent(pendingConstant, key -> new ArrayList<>()).add(literal);
-            }
+            Cells.Latch<String> pendingConstant = Cells.latch();
+            AsmWalker.over(body)
+                .feed(pendingConstant)
+                .on(Insn.getStatic(enumInternal).and(fi -> fi.desc.equals(VanillaSourceClasses.Descs.ref(enumInternal))),
+                    fi -> pendingConstant.set(fi.name))
+                .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.stringLiteral(in) != null), in -> {
+                    String literal = AsmWalker.stringLiteral(in);
+                    if (literal == null || !literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) return;
+                    if (literal.contains("%")) {
+                        templates.add(literal);
+                        return;
+                    }
+                    String constant = pendingConstant.get();
+                    if (constant != null && literal.endsWith(".png"))
+                        byConstant.computeIfAbsent(constant, key -> new ArrayList<>()).add(literal);
+                })
+                .run();
         }
         if (!byConstant.isEmpty()) return new CoatTable(byConstant);
         if (!templates.isEmpty()) return templateCoatTable(enumInternal, templates);
