@@ -5,6 +5,8 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -198,21 +200,19 @@ public final class EntityRegistryDiscovery {
         }
 
         Map<String, RendererRegistration> out = new LinkedHashMap<>();
-        String pendingEntityField = null;
-        for (AbstractInsnNode in : registryInit.instructions) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE)) {
-                pendingEntityField = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (in instanceof InvokeDynamicInsnNode indy && pendingEntityField != null) {
-                RendererRegistration resolution = resolveLambdaRenderer(indy, registryClass);
+        AsmWalker.over(registryInit)
+            .latch(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE)
+                ? ((FieldInsnNode) in).name : null)
+            .commitAt(Insn.ofType(InvokeDynamicInsnNode.class))
+            .forEach(commit -> {
+                String pendingEntityField = commit.value();
+                if (pendingEntityField == null) return;
+                RendererRegistration resolution = resolveLambdaRenderer(commit.node(), registryClass);
                 if (resolution != null)
                     out.put(pendingEntityField, resolution);
                 else
                     diagnostics.info("EntityRenderers.<clinit>: could not resolve renderer class for EntityType.%s - skipped", pendingEntityField);
-                pendingEntityField = null;
-            }
-        }
+            });
         return out;
     }
 
