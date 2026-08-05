@@ -5,6 +5,7 @@ import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -41,7 +42,9 @@ final class EntityRenderTraitsResolver {
      */
     private static final float UNIFORM_SCALE_TOLERANCE = EntityNamingPolicies.UNIFORM_SCALE_TOLERANCE.floatValue();
 
-    /** The no-op multiplicative tint. */
+    /**
+     * The no-op multiplicative tint.
+     */
     private static final int NO_TINT = 0xFFFFFFFF;
 
     private final @NotNull ClassNodeCache cache;
@@ -102,35 +105,38 @@ final class EntityRenderTraitsResolver {
         int scaleSlot = floatArgSlot(setupRotations.desc, 1);
         if (bodyRotSlot < 0 || scaleSlot < 0) return 0f;
 
-        for (AbstractInsnNode in : setupRotations.instructions) {
-            if (in.getOpcode() != Opcodes.INVOKESPECIAL) continue;
-            if (!(in instanceof MethodInsnNode mi) || !VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(mi.name)) continue;
-
-            AbstractInsnNode scaleLoad = AsmKit.previousReal(in);
-            if (!isFloadOf(scaleLoad, scaleSlot)) return 0f;
-            AbstractInsnNode beforeScale = AsmKit.previousReal(scaleLoad);
-            // Pass-through shape: FLOAD bodyRot; FLOAD scale; INVOKESPECIAL super.
-            if (isFloadOf(beforeScale, bodyRotSlot)) return 0f;
-            // Addend shape: FLOAD bodyRot; LDC C; FADD; FLOAD scale; INVOKESPECIAL super.
-            if (beforeScale != null && beforeScale.getOpcode() == Opcodes.FADD) {
-                AbstractInsnNode constInsn = AsmKit.previousReal(beforeScale);
-                Float addend = constInsn == null ? null : AsmKit.readFloatLiteral(constInsn);
-                AbstractInsnNode bodyRotLoad = constInsn == null ? null : AsmKit.previousReal(constInsn);
-                if (addend != null && isFloadOf(bodyRotLoad, bodyRotSlot)) {
-                    this.diagnostics.info("yaw addend %.1f from setupRotations override", addend);
-                    return addend;
+        Float resolved = AsmWalker.over(setupRotations)
+            .opcode(Opcodes.INVOKESPECIAL)
+            .ofType(MethodInsnNode.class)
+            .where(mi -> VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(mi.name))
+            .firstNotNull(mi -> {
+                AbstractInsnNode scaleLoad = AsmKit.previousReal(mi);
+                if (!isFloadOf(scaleLoad, scaleSlot)) return 0f;
+                AbstractInsnNode beforeScale = AsmKit.previousReal(scaleLoad);
+                // Pass-through shape: FLOAD bodyRot; FLOAD scale; INVOKESPECIAL super.
+                if (isFloadOf(beforeScale, bodyRotSlot)) return 0f;
+                // Addend shape: FLOAD bodyRot; LDC C; FADD; FLOAD scale; INVOKESPECIAL super.
+                if (beforeScale != null && beforeScale.getOpcode() == Opcodes.FADD) {
+                    AbstractInsnNode constInsn = AsmKit.previousReal(beforeScale);
+                    Float addend = constInsn == null ? null : AsmKit.readFloatLiteral(constInsn);
+                    AbstractInsnNode bodyRotLoad = constInsn == null ? null : AsmKit.previousReal(constInsn);
+                    if (addend != null && isFloadOf(bodyRotLoad, bodyRotSlot)) {
+                        this.diagnostics.info("yaw addend %.1f from setupRotations override", addend);
+                        return addend;
+                    }
                 }
-            }
-            return 0f;
-        }
-        return 0f;
+                return 0f;
+            });
+        return resolved == null ? 0f : resolved;
     }
 
     // ------------------------------------------------------------------------------------
     // setupRotations Y translation
     // ------------------------------------------------------------------------------------
 
-    /** Descriptor of the {@code PoseStack.translate} overload vanilla poses entities with. */
+    /**
+     * Descriptor of the {@code PoseStack.translate} overload vanilla poses entities with.
+     */
     private static final @NotNull String TRANSLATE_DESC = "(FFF)V";
 
     /**
@@ -288,14 +294,14 @@ final class EntityRenderTraitsResolver {
      * @return whether a literal non-Y turn is applied
      */
     private static boolean hasNonYRotation(@NotNull MethodNode method) {
-        for (AbstractInsnNode in : method.instructions) {
-            if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode field)) continue;
-            if (!VanillaSourceClasses.Types.MATH_AXIS.equals(field.owner) || field.name.startsWith("Y")) continue;
-            AbstractInsnNode angle = AsmKit.nextReal(in);
-            Float literal = angle == null ? null : AsmKit.readFloatLiteral(angle);
-            if (literal != null && literal != 0f) return true;
-        }
-        return false;
+        return AsmWalker.over(method)
+            .getStatic(VanillaSourceClasses.Types.MATH_AXIS)
+            .where(field -> !field.name.startsWith("Y"))
+            .any(field -> {
+                AbstractInsnNode angle = AsmKit.nextReal(field);
+                Float literal = angle == null ? null : AsmKit.readFloatLiteral(angle);
+                return literal != null && literal != 0f;
+            });
     }
 
     /**
@@ -315,7 +321,9 @@ final class EntityRenderTraitsResolver {
         return -1;
     }
 
-    /** Reports whether {@code in} is an {@code FLOAD} of the given slot. */
+    /**
+     * Reports whether {@code in} is an {@code FLOAD} of the given slot.
+     */
     private static boolean isFloadOf(@Nullable AbstractInsnNode in, int slot) {
         return in != null
             && in.getOpcode() == Opcodes.FLOAD
@@ -401,7 +409,9 @@ final class EntityRenderTraitsResolver {
         return xValue;
     }
 
-    /** A single float-arg push resolved to its zero-state value (literal or tracked FLOAD). */
+    /**
+     * A single float-arg push resolved to its zero-state value (literal or tracked FLOAD).
+     */
     private static @Nullable Float resolveFloatArg(@Nullable AbstractInsnNode node, @NotNull Map<Integer, Float> slotLiterals) {
         if (node == null) return null;
         Float literal = AsmKit.readFloatLiteral(node);
@@ -423,9 +433,8 @@ final class EntityRenderTraitsResolver {
      */
     private int resolveBaseTint(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in : method.instructions)
-                if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR))
-                    return whiteTextureDiffuseColor(this.cache);
+            if (AsmWalker.over(method).invokeVirtual(VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR).any())
+                return whiteTextureDiffuseColor(this.cache);
         return NO_TINT;
     }
 
@@ -474,7 +483,9 @@ final class EntityRenderTraitsResolver {
         return NO_TINT;
     }
 
-    /** Reports whether the constructor descriptor pairs an {@code int} directly before {@code MapColor}. */
+    /**
+     * Reports whether the constructor descriptor pairs an {@code int} directly before {@code MapColor}.
+     */
     private static boolean hasIntBeforeMapColor(@NotNull String desc) {
         Type[] args = AsmKit.argTypes(desc);
         for (int i = 1; i < args.length; i++)
