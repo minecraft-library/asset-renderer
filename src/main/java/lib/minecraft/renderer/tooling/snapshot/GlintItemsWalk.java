@@ -6,10 +6,13 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.walk.Missing;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 
 import java.util.TreeSet;
 
@@ -41,39 +44,38 @@ public final class GlintItemsWalk {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("items");
 
-        MethodNode clinit = AsmKit.findMethodOrError(cache, diagnostics,
-            VanillaSourceClasses.Types.ITEMS, AsmKit.CLINIT, "glint set");
-        if (clinit == null) return;
+        AsmWalker clinit = AsmWalker.clinit(cache, VanillaSourceClasses.Types.ITEMS);
+        Missing missing = clinit.missing();
+        if (missing == Missing.CLASS) {
+            diagnostics.error("'%s' class missing - %s unresolved", VanillaSourceClasses.Types.ITEMS, "glint set");
+            return;
+        }
+        if (missing == Missing.MEMBER) {
+            diagnostics.error("'%s.%s' missing - %s unresolved", VanillaSourceClasses.Types.ITEMS, AsmKit.CLINIT, "glint set");
+            return;
+        }
 
         String itemFieldDesc = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.ITEM);
         TreeSet<String> glintItems = new TreeSet<>();
 
-        String pendingItemId = null;
-        boolean pendingGlint = false;
+        Cells.Latch<String> pendingItemId = Cells.latch();
+        Cells.Flag pendingGlint = Cells.flag();
 
-        for (AbstractInsnNode node : clinit.instructions) {
-            String string = AsmKit.readStringLiteral(node);
-            if (string != null) {
-                if (pendingItemId == null) pendingItemId = string;
-                continue;
-            }
-
-            if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.DATA_COMPONENTS, VanillaSourceClasses.Fields.ENCHANTMENT_GLINT_OVERRIDE)) {
-                AbstractInsnNode next = AsmKit.nextReal(node);
-                Integer value = next == null ? null : AsmKit.readIntLiteral(next);
-                if (value != null && value == 1) pendingGlint = true;
-                continue;
-            }
-
-            if (AsmKit.isPutStatic(node, VanillaSourceClasses.Types.ITEMS)
-                && node instanceof FieldInsnNode field
-                && field.desc.equals(itemFieldDesc)) {
-                if (pendingGlint && pendingItemId != null)
-                    glintItems.add(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + pendingItemId);
-                pendingItemId = null;
-                pendingGlint = false;
-            }
-        }
+        clinit.feed(pendingItemId)
+            .feed(pendingGlint)
+            .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String), ldc -> {
+                if (pendingItemId.get() == null) pendingItemId.set((String) ldc.cst);
+            })
+            .on(Insn.getStatic(VanillaSourceClasses.Types.DATA_COMPONENTS, VanillaSourceClasses.Fields.ENCHANTMENT_GLINT_OVERRIDE), get -> {
+                AbstractInsnNode next = AsmWalker.nextReal(get);
+                Integer value = AsmWalker.intLiteral(next);
+                if (value != null && value == 1) pendingGlint.set();
+            })
+            .commitAt(Insn.putStatic(VanillaSourceClasses.Types.ITEMS).and(put -> put.desc.equals(itemFieldDesc)), put -> {
+                if (pendingGlint.get() && pendingItemId.get() != null)
+                    glintItems.add(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + pendingItemId.get());
+            })
+            .run();
 
         JsonTree itemsNode = root.childArray("items");
         glintItems.forEach(itemsNode::add);
