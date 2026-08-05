@@ -7,6 +7,9 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.CommitWalk;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -274,46 +277,24 @@ final class BlockCatalogResolver {
      * <sprite factory>; PUTSTATIC <field>}, so the base is the last string LDC before the store.
      */
     private @NotNull Map<String, String> chestVariantBases() {
-        Map<String, String> out = new LinkedHashMap<>();
-        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER);
-        if (clinit == null) return out;
-        String pending = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                pending = literal;
-                continue;
-            }
-            if (pending != null && AsmKit.isPutStatic(in, VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER)) {
-                out.put(((FieldInsnNode) in).name, pending);
-                pending = null;
-            }
-        }
-        return out;
+        return AsmWalker.clinit(this.cache, VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER)
+            .latch(AsmWalker::stringLiteral)
+            .commitAt(Insn.putStatic(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER))
+            .toMap(put -> put.name, held -> held.isEmpty() ? null : held.getFirst());
     }
 
     /** CopperGolemOxidationLevels field name -> stripped texture path (first path LDC after each NEW). */
     private @NotNull Map<String, String> copperGolemTextures() {
-        Map<String, String> out = new LinkedHashMap<>();
-        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS);
-        if (clinit == null) return out;
-        String pending = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (in.getOpcode() == Opcodes.NEW) {
-                pending = null;
-                continue;
-            }
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null && pending == null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURE_DIR)) {
-                pending = stripTexturePath(literal);
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, VanillaSourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS) && pending != null) {
-                out.put(((FieldInsnNode) in).name, pending);
-                pending = null;
-            }
-        }
-        return out;
+        return AsmWalker.clinit(this.cache, VanillaSourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS)
+            .latch(in -> {
+                String literal = AsmWalker.stringLiteral(in);
+                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURE_DIR)
+                    ? stripTexturePath(literal) : null;
+            })
+            .firstWins()
+            .resetAt(Insn.opcode(Opcodes.NEW))
+            .commitAt(Insn.putStatic(VanillaSourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS))
+            .toMap(put -> put.name, held -> held.isEmpty() ? null : held.getFirst());
     }
 
     /** SkullBlock$Types field name -> stripped skin path, from the SKIN_BY_TYPE populate lambda (PLAYER excluded). */
@@ -328,19 +309,16 @@ final class BlockCatalogResolver {
                 break;
             }
         if (lambda == null) return out;
-        String pendingType = null;
-        for (AbstractInsnNode in : lambda.instructions) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.SKULL_BLOCK_TYPES)) {
-                pendingType = ((FieldInsnNode) in).name;
-                continue;
-            }
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null && pendingType != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURE_DIR)) {
-                out.putIfAbsent(pendingType, stripTexturePath(literal));
-                pendingType = null;
-            }
-        }
-        return out;
+        return AsmWalker.over(lambda)
+            .latch(in -> in.getOpcode() == Opcodes.GETSTATIC
+                && in instanceof FieldInsnNode field
+                && field.owner.equals(VanillaSourceClasses.Types.SKULL_BLOCK_TYPES) ? field.name : null)
+            .commitOn(in -> {
+                String literal = AsmWalker.stringLiteral(in);
+                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURE_DIR)
+                    ? stripTexturePath(literal) : null;
+            })
+            .toMapFirstWins();
     }
 
     /**
@@ -366,19 +344,11 @@ final class BlockCatalogResolver {
 
     /** BellRenderer: the {@code BELL_TEXTURE} stem ({@code bell/bell_body}) under the block-entities {@code entity/} prefix. */
     private @NotNull String bellTexture() {
-        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.BELL_RENDERER);
-        if (clinit == null) return "";
-        String pendingStem = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                pendingStem = literal;
-                continue;
-            }
-            if (pendingStem != null && AsmKit.isPutStatic(in, VanillaSourceClasses.Types.BELL_RENDERER, "BELL_TEXTURE"))
-                return BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.BELL) + pendingStem;
-        }
-        return "";
+        String stem = AsmWalker.clinit(this.cache, VanillaSourceClasses.Types.BELL_RENDERER)
+            .latch(AsmWalker::stringLiteral)
+            .commitAt(Insn.putStatic(VanillaSourceClasses.Types.BELL_RENDERER, "BELL_TEXTURE"))
+            .firstNotNull(CommitWalk.Commit::value);
+        return stem == null ? "" : BlockFamilyPolicies.sheetTextureBase(BlockFamilyPolicies.CatalogFamily.BELL) + stem;
     }
 
     /**
