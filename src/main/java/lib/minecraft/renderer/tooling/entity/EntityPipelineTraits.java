@@ -4,13 +4,13 @@ import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
 import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
@@ -430,79 +430,59 @@ final class EntityPipelineTraits {
             return out;
         }
 
-        EnumSet<Trait> block = EnumSet.noneOf(Trait.class);
-        String pendingDefine = null;
-        Boolean blockDepthWrite = null;
-        Boolean pendingBoolean = null;
-        List<String> blockSnippets = new ArrayList<>();
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                pendingDefine = literal;
-                continue;
-            }
-            Boolean flag = AsmKit.readBooleanLiteral(in);
-            if (flag != null) {
-                pendingBoolean = flag;
-                continue;
-            }
-            // The depth-stencil state, in the two shapes vanilla writes it: the shared DEFAULT
-            // constant (LESS_THAN_OR_EQUAL, writeDepth true) and an explicit
-            // `new DepthStencilState(CompareOp, writeDepth)` whose flag is the boolean standing on
-            // the stack when the constructor is reached.
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DEPTH_STENCIL_STATE)
-                && in instanceof FieldInsnNode dsf
-                && VanillaSourceClasses.Defines.DEPTH_STENCIL_DEFAULT.equals(dsf.name)) {
-                blockDepthWrite = Boolean.TRUE;
-                continue;
-            }
-            if (AsmKit.isInvokeSpecial(in, VanillaSourceClasses.Types.DEPTH_STENCIL_STATE, AsmKit.INIT)
-                && pendingBoolean != null) {
-                blockDepthWrite = pendingBoolean;
-                pendingBoolean = null;
-                continue;
-            }
-            // A block builds on zero or more snippets and inherits whatever state it does not
-            // declare itself, so a pipeline naming no DepthStencilState (breeze wind) still has one.
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.RENDER_PIPELINES)
-                && in instanceof FieldInsnNode sf
-                && VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RENDER_PIPELINE_SNIPPET).equals(sf.desc)) {
-                blockSnippets.add(sf.name);
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
-                && in instanceof MethodInsnNode mi
-                && VanillaSourceClasses.Defines.WITH_SHADER_DEFINE.equals(mi.name)) {
-                if (VanillaSourceClasses.Defines.NO_CARDINAL_LIGHTING.equals(pendingDefine)) block.add(Trait.NO_CARDINAL_LIGHTING);
-                else if (VanillaSourceClasses.Defines.EMISSIVE.equals(pendingDefine)) block.add(Trait.EMISSIVE);
-                pendingDefine = null;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.GETSTATIC
-                && in instanceof FieldInsnNode fi
-                && VanillaSourceClasses.Types.BLEND_FUNCTION.equals(fi.owner)) {
+        Cells.ListCell<Trait> block = Cells.list();
+        Cells.Window<String> pendingDefine = Cells.window(AsmWalker::stringLiteral, 1);
+        Cells.Latch<Boolean> blockDepthWrite = Cells.latch();
+        Cells.Window<Boolean> pendingBoolean = Cells.window(AsmWalker::booleanLiteral, 1);
+        Cells.ListCell<String> blockSnippets = Cells.list();
+        // The depth-stencil state, in the two shapes vanilla writes it: the shared DEFAULT
+        // constant (LESS_THAN_OR_EQUAL, writeDepth true) and an explicit
+        // `new DepthStencilState(CompareOp, writeDepth)` whose flag is the boolean standing on
+        // the stack when the constructor is reached. A block builds on zero or more snippets
+        // and inherits whatever state it does not declare itself, so a pipeline naming no
+        // DepthStencilState (breeze wind) still has one.
+        AsmWalker.over(clinit)
+            .feed(block)
+            .feed(blockDepthWrite)
+            .feed(blockSnippets)
+            .feed(pendingDefine)
+            .feed(pendingBoolean)
+            .on(Insn.getStatic(VanillaSourceClasses.Types.DEPTH_STENCIL_STATE, VanillaSourceClasses.Defines.DEPTH_STENCIL_DEFAULT),
+                dsf -> blockDepthWrite.set(Boolean.TRUE))
+            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.DEPTH_STENCIL_STATE, AsmKit.INIT), mi -> {
+                if (pendingBoolean.size() == 0) return;
+                blockDepthWrite.set(pendingBoolean.values().getFirst());
+                pendingBoolean.clear();
+            })
+            .on(Insn.getStatic(VanillaSourceClasses.Types.RENDER_PIPELINES)
+                    .and(sf -> VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RENDER_PIPELINE_SNIPPET).equals(sf.desc)),
+                sf -> blockSnippets.add(sf.name))
+            .on(Insn.of(MethodInsnNode.class, mi -> mi.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && VanillaSourceClasses.Defines.WITH_SHADER_DEFINE.equals(mi.name)), mi -> {
+                String define = pendingDefine.size() == 0 ? null : pendingDefine.values().getFirst();
+                if (VanillaSourceClasses.Defines.NO_CARDINAL_LIGHTING.equals(define)) block.add(Trait.NO_CARDINAL_LIGHTING);
+                else if (VanillaSourceClasses.Defines.EMISSIVE.equals(define)) block.add(Trait.EMISSIVE);
+                pendingDefine.clear();
+            })
+            .on(Insn.getStatic(VanillaSourceClasses.Types.BLEND_FUNCTION), fi -> {
                 if (VanillaSourceClasses.Defines.TRANSLUCENT.equals(fi.name)) block.add(Trait.TRANSLUCENT);
                 else if (VanillaSourceClasses.Defines.ADDITIVE.equals(fi.name)) block.add(Trait.ADDITIVE);
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.PUTSTATIC && in instanceof FieldInsnNode fi) {
-                out.put(fi.name, block.isEmpty() ? Set.of() : Collections.unmodifiableSet(EnumSet.copyOf(block)));
-                if (blockDepthWrite == null)
-                    for (String snippet : blockSnippets) {
+            })
+            .commitAt(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC), fi -> {
+                List<Trait> traits = block.values();
+                out.put(fi.name, traits.isEmpty() ? Set.of() : Collections.unmodifiableSet(EnumSet.copyOf(traits)));
+                Boolean depthWrite = blockDepthWrite.get();
+                if (depthWrite == null)
+                    for (String snippet : blockSnippets.values()) {
                         Boolean inherited = this.pipelineDepthWrite.get(snippet);
                         if (inherited != null) {
-                            blockDepthWrite = inherited;
+                            depthWrite = inherited;
                             break;
                         }
                     }
-                if (blockDepthWrite != null) this.pipelineDepthWrite.put(fi.name, blockDepthWrite);
-                block = EnumSet.noneOf(Trait.class);
-                pendingDefine = null;
-                blockDepthWrite = null;
-                pendingBoolean = null;
-                blockSnippets.clear();
-            }
-        }
+                if (depthWrite != null) this.pipelineDepthWrite.put(fi.name, depthWrite);
+            })
+            .run();
         this.pipelineTraits = out;
         return out;
     }
