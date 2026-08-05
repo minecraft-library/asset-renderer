@@ -7,6 +7,7 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -515,14 +516,11 @@ public final class ArmorMeshIndex {
         @NotNull ClassNodeCache cache, @NotNull Handle lambda) {
         MethodNode node = AsmKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
         if (node == null) return null;
-        for (AbstractInsnNode in : node.instructions)
-            if (in.getOpcode() == Opcodes.GETSTATIC
-                && in instanceof FieldInsnNode fi
-                && VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF.equals(fi.desc)) {
-                BabyMeshTransform resolved = BabyMeshTransform.resolve(cache, fi.owner, fi.name);
-                if (resolved != null) return resolved;
-            }
-        return null;
+        return AsmWalker.over(node)
+            .ofType(FieldInsnNode.class)
+            .where(fi -> fi.getOpcode() == Opcodes.GETSTATIC
+                && VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF.equals(fi.desc))
+            .firstNotNull(fi -> BabyMeshTransform.resolve(cache, fi.owner, fi.name));
     }
 
     /**
@@ -579,23 +577,17 @@ public final class ArmorMeshIndex {
      * The {@code LayerDefinition.create(mesh, w, h)} dimensions in a method body, or {@code null}.
      */
     private static int @Nullable [] atlasIn(@NotNull MethodNode node) {
-        Integer prior = null;
-        Integer latest = null;
-        for (AbstractInsnNode in : node.instructions) {
-            Integer literal = AsmKit.readIntLiteral(in);
-            if (literal != null) {
-                prior = latest;
-                latest = literal;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.INVOKESTATIC
-                && in instanceof MethodInsnNode mi
-                && VanillaSourceClasses.Types.LAYER_DEFINITION.equals(mi.owner)
-                && VanillaSourceClasses.Methods.CREATE.equals(mi.name)
-                && prior != null && latest != null)
-                return new int[]{prior, latest};
-        }
-        return null;
+        // A create reached before two literals states no atlas and must not clear the pair it has,
+        // so the window is retained across commits and read only when full.
+        return AsmWalker.over(node)
+            .gather(AsmWalker::intLiteral)
+            .keep(2)
+            .retain()
+            .commitAt(Insn.invokeStatic(VanillaSourceClasses.Types.LAYER_DEFINITION,
+                VanillaSourceClasses.Methods.CREATE))
+            .firstNotNull(commit -> commit.values().size() == 2
+                ? new int[]{commit.values().getFirst(), commit.values().getLast()}
+                : null);
     }
 
     /**
