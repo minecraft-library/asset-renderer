@@ -5,6 +5,7 @@ import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -176,22 +177,18 @@ final class EntityRendererResolver {
      * {@code addLayer} construction.
      */
     private static @Nullable AbstractInsnNode findPrecedingLayerNew(@NotNull AbstractInsnNode addLayerInsn) {
-        AbstractInsnNode cursor = addLayerInsn.getPrevious();
-        int depth = 0;
-        int pendingInits = 0;
-        while (cursor != null && depth < 64) {
-            depth++;
+        int[] pendingInits = {0};
+        return AsmWalker.before(addLayerInsn).limit(64).firstNotNull(cursor -> {
             if (cursor.getOpcode() == Opcodes.INVOKESPECIAL
                 && cursor instanceof MethodInsnNode mi
                 && AsmKit.INIT.equals(mi.name))
-                pendingInits++;
+                pendingInits[0]++;
             if (cursor.getOpcode() == Opcodes.NEW && cursor instanceof TypeInsnNode) {
-                pendingInits--;
-                if (pendingInits == 0) return cursor;
+                pendingInits[0]--;
+                if (pendingInits[0] == 0) return cursor;
             }
-            cursor = cursor.getPrevious();
-        }
-        return null;
+            return null;
+        });
     }
 
 }
