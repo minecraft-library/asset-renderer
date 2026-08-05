@@ -1,21 +1,21 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
 import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
@@ -326,20 +326,21 @@ final class BlockCatalogResolver {
      * the {@code SHELL_TEXTURE} stem ({@code base}) -> {@code entity/conduit/base}.
      */
     private @NotNull String conduitTexture() {
-        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.CONDUIT_RENDERER);
-        if (clinit == null) return "";
-        String base = null;
-        String pendingStem = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                if (literal.contains("/")) base = literal; else pendingStem = literal;
-                continue;
-            }
-            if (base != null && pendingStem != null && AsmKit.isPutStatic(in, VanillaSourceClasses.Types.CONDUIT_RENDERER, "SHELL_TEXTURE"))
-                return base + "/" + pendingStem;
-        }
-        return "";
+        // The base path and the stem are each the last literal of their kind before the store, so
+        // the retained literal history replays both at every store; a store with either kind still
+        // missing probes null and the walk carries the literals onward.
+        String texture = AsmWalker.clinit(this.cache, VanillaSourceClasses.Types.CONDUIT_RENDERER)
+            .gather(AsmWalker::stringLiteral)
+            .retain()
+            .commitAt(Insn.putStatic(VanillaSourceClasses.Types.CONDUIT_RENDERER, "SHELL_TEXTURE"))
+            .firstNotNull(commit -> {
+                String base = null;
+                String pendingStem = null;
+                for (String literal : commit.values())
+                    if (literal.contains("/")) base = literal; else pendingStem = literal;
+                return base != null && pendingStem != null ? base + "/" + pendingStem : null;
+            });
+        return texture == null ? "" : texture;
     }
 
     /** BellRenderer: the {@code BELL_TEXTURE} stem ({@code bell/bell_body}) under the block-entities {@code entity/} prefix. */
@@ -359,29 +360,23 @@ final class BlockCatalogResolver {
      */
     private @NotNull List<String> dyeColorOrder() {
         List<String> order = new ArrayList<>();
-        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.DYE_COLOR);
-        if (clinit == null) return order;
-        String first = null;
-        String second = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (in.getOpcode() == Opcodes.NEW && in instanceof TypeInsnNode type
-                && type.desc.equals(VanillaSourceClasses.Types.DYE_COLOR)) {
-                first = null;
-                second = null;
-                continue;
-            }
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                if (first == null) first = literal;
-                else if (second == null) second = literal;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, VanillaSourceClasses.Types.DYE_COLOR) && second != null) {
-                order.add(second);
-                first = null;
-                second = null;
-            }
-        }
+        // The pair holds the literals since the constant's NEW - position 0 the constant name,
+        // position 1 the serialized name. The store hook manages its own reset: an emitting store
+        // clears the pair, a store with no second literal keeps it.
+        Cells.ListCell<String> pair = Cells.list();
+        AsmWalker.clinit(this.cache, VanillaSourceClasses.Types.DYE_COLOR)
+            .feed(pair)
+            .on(Insn.of(TypeInsnNode.class, type -> type.getOpcode() == Opcodes.NEW
+                && type.desc.equals(VanillaSourceClasses.Types.DYE_COLOR)), type -> pair.clear())
+            .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String), ldc -> pair.add((String) ldc.cst))
+            .on(Insn.putStatic(VanillaSourceClasses.Types.DYE_COLOR), put -> {
+                List<String> held = pair.values();
+                if (held.size() >= 2) {
+                    order.add(held.get(1));
+                    pair.clear();
+                }
+            })
+            .run();
         return order;
     }
 
