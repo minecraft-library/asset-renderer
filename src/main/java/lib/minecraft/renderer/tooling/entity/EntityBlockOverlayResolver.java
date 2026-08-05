@@ -7,6 +7,8 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.walk.Match;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -110,17 +112,12 @@ final class EntityBlockOverlayResolver {
      */
     private @NotNull BlockSource classifyBlockSource(@NotNull ClassNode cn, @NotNull MethodNode submit) {
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
-        String stateClass = null;
-        String blockField = null;
-        for (AbstractInsnNode in : submit.instructions)
-            if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi && stateRef.equals(fi.desc)) {
-                stateClass = fi.owner;
-                blockField = fi.name;
-                break;
-            }
-        if (stateClass == null) return new BlockSource(null, true);
+        FieldInsnNode stateRead = AsmWalker.over(submit)
+            .ofType(FieldInsnNode.class)
+            .first(fi -> fi.getOpcode() == Opcodes.GETFIELD && stateRef.equals(fi.desc));
+        if (stateRead == null) return new BlockSource(null, true);
 
-        ClassNode stateCn = this.cache.load(stateClass);
+        ClassNode stateCn = this.cache.load(stateRead.owner);
         if (stateCn != null) {
             String variantSuffix = EntityNamingPolicies.VARIANT_DESCRIPTOR_SUFFIX.stringValue();
             for (FieldNode field : stateCn.fields) {
@@ -130,7 +127,7 @@ final class EntityBlockOverlayResolver {
             }
         }
 
-        LiteralBlock literal = resolveLiteralBlock(blockField);
+        LiteralBlock literal = resolveLiteralBlock(stateRead.name);
         if (literal != null)
             // A presence-gated literal is a fixed always-present decoration; a
             // timer-gated one is a selectable held block.
@@ -182,21 +179,14 @@ final class EntityBlockOverlayResolver {
      */
     private static @Nullable String findLiteralBlockUpdate(@NotNull MethodNode method, @NotNull String blockFieldName) {
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
-        for (AbstractInsnNode in : method.instructions) {
-            if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE)) continue;
-            String blocksField = null;
-            boolean targetMatched = false;
-            for (AbstractInsnNode back = in.getPrevious(); back != null; back = back.getPrevious()) {
-                if (AsmKit.isInvokeVirtual(back, VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE)) break;
-                if (AsmKit.isGetStatic(back, VanillaSourceClasses.Types.BLOCKS))
-                    blocksField = ((FieldInsnNode) back).name;
-                if (back.getOpcode() == Opcodes.GETFIELD && back instanceof FieldInsnNode gf
-                    && blockFieldName.equals(gf.name) && stateRef.equals(gf.desc))
-                    targetMatched = true;
-            }
-            if (blocksField != null && targetMatched) return blocksField;
-        }
-        return null;
+        return AsmWalker.over(method)
+            .invokeVirtual(VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE)
+            .firstNotNull(update -> {
+                AsmWalker window = AsmWalker.before(update)
+                    .until(Insn.invokeVirtual(VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE));
+                String blocksField = window.getStatic(VanillaSourceClasses.Types.BLOCKS).names().last();
+                return blocksField != null && window.getField(blockFieldName, stateRef).any() ? blocksField : null;
+            });
     }
 
     /**
@@ -378,23 +368,20 @@ final class EntityBlockOverlayResolver {
     private static @Nullable String boneAssignedToField(@NotNull ClassNode model, @NotNull String field) {
         MethodNode init = AsmKit.findMethod(model, AsmKit.INIT);
         if (init == null) return null;
-        String pendingLiteral = null;
-        String lastGetChildArg = null;
-        for (AbstractInsnNode in : init.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                pendingLiteral = literal;
-                continue;
-            }
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.GET_CHILD)) {
-                lastGetChildArg = pendingLiteral;
-                pendingLiteral = null;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.PUTFIELD && in instanceof FieldInsnNode fi && field.equals(fi.name))
-                return lastGetChildArg;
-        }
-        return null;
+        Match<MethodInsnNode> getChild =
+            Insn.invokeVirtual(VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.GET_CHILD);
+        FieldInsnNode assignment = AsmWalker.over(init)
+            .ofType(FieldInsnNode.class)
+            .first(fi -> fi.getOpcode() == Opcodes.PUTFIELD && field.equals(fi.name));
+        if (assignment == null) return null;
+        // The assignment binds the most recent getChild - even one that consumed no literal
+        // of its own - so the literal search is scoped to that call's window alone.
+        MethodInsnNode lastGetChild = AsmWalker.before(assignment).first(getChild);
+        if (lastGetChild == null) return null;
+        return AsmWalker.before(lastGetChild)
+            .until(getChild)
+            .mapNotNull(AsmWalker::stringLiteral)
+            .first();
     }
 
 }
