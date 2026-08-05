@@ -5,6 +5,8 @@ import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -13,7 +15,6 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayDeque;
@@ -66,10 +67,14 @@ final class TintRegistrationResolver {
         }
     }
 
-    /** The {@code @age=0} provenance suffix on the stem source label (the eval-state note). */
+    /**
+     * The {@code @age=0} provenance suffix on the stem source label (the eval-state note).
+     */
     private static final @NotNull String STEM_LABEL = "@age=0";
 
-    /** The composed multi-source drop provenance label. */
+    /**
+     * The composed multi-source drop provenance label.
+     */
     private static final @NotNull String LIST_OF_LABEL = "List.of";
 
     /**
@@ -130,12 +135,9 @@ final class TintRegistrationResolver {
         if (sources == null) return null;
         MethodNode factory = AsmKit.findMethod(sources, factoryName);
         if (factory == null) return null;
-        for (AbstractInsnNode in : factory.instructions)
-            if (in.getOpcode() == Opcodes.NEW
-                && in instanceof TypeInsnNode type
-                && type.desc.startsWith(VanillaSourceClasses.Types.BLOCK_TINT_SOURCES))
-                return type.desc;
-        return null;
+        return AsmWalker.over(factory)
+            .new_(VanillaSourceClasses.Types.BLOCK_TINT_SOURCES)
+            .firstNotNull(type -> type.desc);
     }
 
     /**
@@ -147,14 +149,16 @@ final class TintRegistrationResolver {
         if (node == null) return null;
         for (MethodNode method : node.methods) {
             if (method.instructions == null) continue;
-            for (AbstractInsnNode in : method.instructions) {
+            Block.TintTarget target = AsmWalker.over(method).firstNotNull(in -> {
                 if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_GRASS_COLOR))
                     return Block.TintTarget.GRASS;
                 if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_FOLIAGE_COLOR))
                     return Block.TintTarget.FOLIAGE;
                 if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_DRY_FOLIAGE_COLOR))
                     return Block.TintTarget.DRY_FOLIAGE;
-            }
+                return null;
+            });
+            if (target != null) return target;
         }
         return null;
     }
@@ -180,8 +184,7 @@ final class TintRegistrationResolver {
                 getValue = in;
                 break;
             }
-        AbstractInsnNode store = getValue;
-        while (store != null && store.getOpcode() != Opcodes.ISTORE) store = store.getNext();
+        AbstractInsnNode store = AsmWalker.from(getValue).first(Insn.opcode(Opcodes.ISTORE));
         if (store == null) {
             diagnostics.error("stem source '%s' color body has no AGE istore to bind", innerClass);
             return null;
