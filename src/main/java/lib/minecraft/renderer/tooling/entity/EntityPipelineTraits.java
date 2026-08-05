@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -54,10 +55,14 @@ final class EntityPipelineTraits {
      */
     private static final int HELPER_HOPS = 2;
 
-    /** The {@code blend} token of a pipeline whose fragments are added to the destination. */
+    /**
+     * The {@code blend} token of a pipeline whose fragments are added to the destination.
+     */
     static final @NotNull String BLEND_ADDITIVE = "additive";
 
-    /** The {@code blend} token of a pipeline that blends its fragments against the destination. */
+    /**
+     * The {@code blend} token of a pipeline that blends its fragments against the destination.
+     */
     static final @NotNull String BLEND_TRANSLUCENT = "translucent";
 
     /**
@@ -66,27 +71,43 @@ final class EntityPipelineTraits {
      */
     static final @NotNull String BLEND_CUTOUT = "cutout";
 
-    /** Field descriptor of a {@code java.util.function.Function}-backed factory field (JDK name, kit-local). */
+    /**
+     * Field descriptor of a {@code java.util.function.Function}-backed factory field (JDK name, kit-local).
+     */
     private static final @NotNull String FUNCTION_DESC = "Ljava/util/function/Function;";
 
-    /** Field descriptor of a {@code java.util.function.BiFunction}-backed factory field (JDK name, kit-local). */
+    /**
+     * Field descriptor of a {@code java.util.function.BiFunction}-backed factory field (JDK name, kit-local).
+     */
     private static final @NotNull String BIFUNCTION_DESC = "Ljava/util/function/BiFunction;";
 
-    /** One walked pipeline trait - the two shader defines plus the two blend constants. */
+    /**
+     * One walked pipeline trait - the two shader defines plus the two blend constants.
+     */
     enum Trait {
-        /** {@code withShaderDefine("EMISSIVE")}. */
+        /**
+         * {@code withShaderDefine("EMISSIVE")}.
+         */
         EMISSIVE,
-        /** {@code withShaderDefine("NO_CARDINAL_LIGHTING")} - the renderer-semantic full-bright bit. */
+        /**
+         * {@code withShaderDefine("NO_CARDINAL_LIGHTING")} - the renderer-semantic full-bright bit.
+         */
         NO_CARDINAL_LIGHTING,
-        /** {@code BlendFunction.TRANSLUCENT} pushed in the build block. */
+        /**
+         * {@code BlendFunction.TRANSLUCENT} pushed in the build block.
+         */
         TRANSLUCENT,
-        /** {@code BlendFunction.ADDITIVE} pushed in the build block (energy swirl). */
+        /**
+         * {@code BlendFunction.ADDITIVE} pushed in the build block (energy swirl).
+         */
         ADDITIVE
     }
 
     private final @NotNull ClassNodeCache cache;
 
-    /** ClientAcquisition field name to build-block trait set - the ONE {@code RenderPipelines.<clinit>} walk, lazy. */
+    /**
+     * ClientAcquisition field name to build-block trait set - the ONE {@code RenderPipelines.<clinit>} walk, lazy.
+     */
     private @Nullable Map<String, Set<Trait>> pipelineTraits;
 
     /**
@@ -96,10 +117,14 @@ final class EntityPipelineTraits {
      */
     private final @NotNull Map<String, Boolean> pipelineDepthWrite = new LinkedHashMap<>();
 
-    /** Factory name to resolved trait set - the per-factory memo. */
+    /**
+     * Factory name to resolved trait set - the per-factory memo.
+     */
     private final @NotNull Map<String, Set<Trait>> factoryTraits = new LinkedHashMap<>();
 
-    /** Factory name to whether its {@code RenderSetup} declares {@code sortOnUpload} - the per-factory memo. */
+    /**
+     * Factory name to whether its {@code RenderSetup} declares {@code sortOnUpload} - the per-factory memo.
+     */
     private final @NotNull Map<String, Boolean> factorySorts = new LinkedHashMap<>();
 
     EntityPipelineTraits(@NotNull ClassNodeCache cache) {
@@ -225,13 +250,14 @@ final class EntityPipelineTraits {
             for (MethodNode method : renderTypes.methods) {
                 if (!name.equals(method.name)) continue;
                 if (declaresSortOnUpload(method)) return true;
-                for (AbstractInsnNode in : method.instructions) {
-                    if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
-                    if (!renderTypes.name.equals(fi.owner)) continue;
-                    if (!FUNCTION_DESC.equals(fi.desc) && !BIFUNCTION_DESC.equals(fi.desc)) continue;
-                    MethodNode lambda = chaseFunctionFieldLambda(renderTypes, fi.name);
-                    if (lambda != null && declaresSortOnUpload(lambda)) return true;
-                }
+                boolean viaLambda = AsmWalker.over(method)
+                    .getStatic(renderTypes.name)
+                    .where(fi -> FUNCTION_DESC.equals(fi.desc) || BIFUNCTION_DESC.equals(fi.desc))
+                    .any(fi -> {
+                        MethodNode lambda = chaseFunctionFieldLambda(renderTypes, fi.name);
+                        return lambda != null && declaresSortOnUpload(lambda);
+                    });
+                if (viaLambda) return true;
             }
             return false;
         });
@@ -274,13 +300,13 @@ final class EntityPipelineTraits {
         return sorts[0];
     }
 
-    /** Whether a method body invokes {@code RenderSetup$RenderSetupBuilder.sortOnUpload}. */
+    /**
+     * Whether a method body invokes {@code RenderSetup$RenderSetupBuilder.sortOnUpload}.
+     */
     private static boolean declaresSortOnUpload(@NotNull MethodNode method) {
-        for (AbstractInsnNode in : method.instructions)
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDER_SETUP_BUILDER,
-                                       VanillaSourceClasses.Defines.SORT_ON_UPLOAD))
-                return true;
-        return false;
+        return AsmWalker.over(method)
+            .invokeVirtual(VanillaSourceClasses.Types.RENDER_SETUP_BUILDER, VanillaSourceClasses.Defines.SORT_ON_UPLOAD)
+            .any();
     }
 
     /**
@@ -341,17 +367,19 @@ final class EntityPipelineTraits {
         if (renderTypes == null) return null;
         for (MethodNode method : renderTypes.methods) {
             if (!factoryName.equals(method.name)) continue;
-            for (AbstractInsnNode in : method.instructions) {
-                if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
-                if (VanillaSourceClasses.Types.RENDER_PIPELINES.equals(fi.owner)) return fi.name;
-                // Function/BiFunction-backed factory (entityTranslucent, outline): the field is
-                // bound in <clinit> by an indy lambda whose body references the pipeline.
-                if (renderTypes.name.equals(fi.owner)
-                    && (FUNCTION_DESC.equals(fi.desc) || BIFUNCTION_DESC.equals(fi.desc))) {
-                    String pipeline = chaseFunctionFieldPipeline(renderTypes, fi.name);
-                    if (pipeline != null) return pipeline;
-                }
-            }
+            String pipeline = AsmWalker.over(method)
+                .opcode(Opcodes.GETSTATIC)
+                .ofType(FieldInsnNode.class)
+                .firstNotNull(fi -> {
+                    if (VanillaSourceClasses.Types.RENDER_PIPELINES.equals(fi.owner)) return fi.name;
+                    // Function/BiFunction-backed factory (entityTranslucent, outline): the field is
+                    // bound in <clinit> by an indy lambda whose body references the pipeline.
+                    if (renderTypes.name.equals(fi.owner)
+                        && (FUNCTION_DESC.equals(fi.desc) || BIFUNCTION_DESC.equals(fi.desc)))
+                        return chaseFunctionFieldPipeline(renderTypes, fi.name);
+                    return null;
+                });
+            if (pipeline != null) return pipeline;
         }
         return null;
     }
@@ -363,10 +391,10 @@ final class EntityPipelineTraits {
     private static @Nullable String chaseFunctionFieldPipeline(@NotNull ClassNode renderTypes, @NotNull String fieldName) {
         MethodNode lambda = chaseFunctionFieldLambda(renderTypes, fieldName);
         if (lambda == null) return null;
-        for (AbstractInsnNode li : lambda.instructions)
-            if (AsmKit.isGetStatic(li, VanillaSourceClasses.Types.RENDER_PIPELINES))
-                return ((FieldInsnNode) li).name;
-        return null;
+        return AsmWalker.over(lambda)
+            .getStatic(VanillaSourceClasses.Types.RENDER_PIPELINES)
+            .names()
+            .first();
     }
 
     /**
