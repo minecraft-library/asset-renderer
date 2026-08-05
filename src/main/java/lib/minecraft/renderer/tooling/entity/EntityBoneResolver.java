@@ -9,12 +9,15 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
@@ -287,30 +290,28 @@ final class EntityBoneResolver {
      * builds.
      */
     private static void collectFieldToBoneNameMap(@NotNull ClassNode owner, @NotNull MethodNode ctor, @NotNull Map<String, String> out) {
-        String pendingBoneName = null;
-        boolean pendingChildCall = false;
-        for (AbstractInsnNode in : ctor.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                pendingBoneName = literal;
-                pendingChildCall = false;
-                continue;
-            }
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.GET_CHILD)
-                && pendingBoneName != null) {
-                pendingChildCall = true;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.PUTFIELD
-                && in instanceof FieldInsnNode put
-                && owner.name.equals(put.owner)
-                && pendingChildCall
-                && pendingBoneName != null) {
-                out.putIfAbsent(put.name, pendingBoneName);
-                pendingBoneName = null;
-                pendingChildCall = false;
-            }
-        }
+        Cells.Latch<String> pendingBoneName = Cells.latch();
+        Cells.Flag pendingChildCall = Cells.flag();
+        AsmWalker.over(ctor)
+            .feed(pendingBoneName)
+            .feed(pendingChildCall)
+            .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String), ldc -> {
+                pendingBoneName.set((String) ldc.cst);
+                pendingChildCall.clear();
+            })
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.GET_CHILD),
+                childCall -> {
+                    if (pendingBoneName.get() != null) pendingChildCall.set();
+                })
+            .on(Insn.of(FieldInsnNode.class, put -> put.getOpcode() == Opcodes.PUTFIELD && owner.name.equals(put.owner)),
+                put -> {
+                    String boneName = pendingBoneName.get();
+                    if (!pendingChildCall.get() || boneName == null) return;
+                    out.putIfAbsent(put.name, boneName);
+                    pendingBoneName.clear();
+                    pendingChildCall.clear();
+                })
+            .run();
     }
 
     // ------------------------------------------------------------------------------------
