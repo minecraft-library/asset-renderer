@@ -151,8 +151,9 @@ final class EntityLayersResolver {
      * allocation, so the walk also scans a bounded backward window).
      */
     static boolean consumesEquipmentLayerType(@NotNull EntityRendererResolver.LayerSite site) {
-        for (AbstractInsnNode in = site.allocation(); in != null && in != site.addLayer(); in = in.getNext())
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)) return true;
+        if (AsmWalker.from(site.allocation()).until(site.addLayer())
+            .getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
+            .any()) return true;
         return AsmWalker.before(site.allocation()).limit(16)
             .first(cursor -> AsmKit.isGetStatic(cursor, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE),
                 cursor -> !(cursor.getOpcode() == Opcodes.INVOKEVIRTUAL
@@ -383,12 +384,12 @@ final class EntityLayersResolver {
             if (!named.isEmpty()) return;
             for (MethodNode ctor : cn.methods) {
                 if (!AsmKit.INIT.equals(ctor.name)) continue;
-                for (AbstractInsnNode in : ctor.instructions) {
-                    if (in.getOpcode() != Opcodes.GETSTATIC) continue;
-                    if (!(in instanceof FieldInsnNode field)) continue;
-                    if (!VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc)) continue;
-                    named.add(field.name.toLowerCase(Locale.ROOT));
-                }
+                AsmWalker.over(ctor)
+                    .ofType(FieldInsnNode.class)
+                    .where(field -> field.getOpcode() == Opcodes.GETSTATIC
+                        && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
+                    .map(field -> field.name.toLowerCase(Locale.ROOT))
+                    .forEach(named::add);
                 if (!named.isEmpty()) return;
             }
         });
