@@ -3,8 +3,8 @@ package lib.minecraft.renderer.tooling.blockentity;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -24,7 +24,9 @@ final class BlockTintFlagResolver {
 
     private final @NotNull ClassNodeCache cache;
 
-    /** renderer internal name -> whether its hierarchy calls a tint accessor. */
+    /**
+     * renderer internal name -> whether its hierarchy calls a tint accessor.
+     */
     private final @NotNull Map<String, Boolean> tintBearing = new HashMap<>();
 
     BlockTintFlagResolver(@NotNull ClassNodeCache cache) {
@@ -43,7 +45,9 @@ final class BlockTintFlagResolver {
         return isFlagModel(factoryClass) && isRendererTintBearing(rendererClass);
     }
 
-    /** A {@code *FlagModel} mesh (banner / wall-banner flag) - the dye-taking sub-model. */
+    /**
+     * A {@code *FlagModel} mesh (banner / wall-banner flag) - the dye-taking sub-model.
+     */
     private static boolean isFlagModel(@NotNull String factoryClass) {
         return factoryClass.endsWith(BlockFamilyPolicies.dyeTargetModelSuffix());
     }
@@ -59,12 +63,12 @@ final class BlockTintFlagResolver {
      */
     private static boolean classCallsTintAccessor(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in : method.instructions) {
-                if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)) return true;
-                if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLORS)) return true;
-                if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.BANNER_PATTERN, VanillaSourceClasses.Methods.GET_COLOR)) return true;
-                if (in instanceof MethodInsnNode mi && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.BANNER_PATTERN_LAYERS)) return true;
-            }
+            if (AsmWalker.over(method).any(in ->
+                AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)
+                    || AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLORS)
+                    || AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.BANNER_PATTERN, VanillaSourceClasses.Methods.GET_COLOR)
+                    || (in instanceof MethodInsnNode mi && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.BANNER_PATTERN_LAYERS))))
+                return true;
         return false;
     }
 
