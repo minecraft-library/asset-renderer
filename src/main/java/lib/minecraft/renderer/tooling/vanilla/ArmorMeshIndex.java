@@ -7,13 +7,13 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
@@ -246,167 +246,161 @@ public final class ArmorMeshIndex {
 
         // Armor sets reach their registration through a local slot in every adult case, so the walk
         // tracks the ASTORE and re-reads it at the ALOAD that feeds putFrom.
-        AsmKit.SlotTracker<Set> slots = new AsmKit.SlotTracker<>();
+        Cells.Slots<Set> slots = Cells.slots();
         // A MeshTransformer.scaling(F) reaches its registration through a slot of its own, so the
         // factor is tracked the same way the set is and re-read at the ALOAD that feeds map().
-        AsmKit.SlotTracker<Float> scaleSlots = new AsmKit.SlotTracker<>();
+        Cells.Slots<Float> scaleSlots = Cells.slots();
         // The two most recent CubeDeformations pushed onto the operand stack. A set factory takes
-        // (inner, outer) adjacently, so at the call these are exactly its two arguments.
-        float[] priorGrow = null;
-        float[] latestGrow = null;
+        // (inner, outer) adjacently, so at the call these are exactly its two arguments. A shift
+        // survives an unreadable deformation as a cleared latch, which reads as the null the
+        // unreadable-deformations drop arm expects.
+        Cells.Latch<float[]> priorGrow = Cells.latch();
+        Cells.Latch<float[]> latestGrow = Cells.latch();
         // The pose most recently pushed - the third argument of a baby set factory, and nothing
         // else in createRoots reaches one.
-        float[] latestPose = null;
-        Float pendingFloat = null;
-        Float pendingScale = null;
-        Handle pendingLambda = null;
-        Set pendingSet = null;
-        String pendingSetField = null;
+        Cells.Latch<float[]> latestPose = Cells.latch();
+        Cells.Window<Float> pendingFloat = Cells.window(AsmWalker::floatLiteral, 1);
+        Cells.Latch<Float> pendingScale = Cells.latch();
+        Cells.Latch<Handle> pendingLambda = Cells.latch();
+        Cells.Latch<Set> pendingSet = Cells.latch();
+        Cells.Latch<String> pendingSetField = Cells.latch();
 
-        for (AbstractInsnNode in : createRoots.instructions) {
-            int opcode = in.getOpcode();
-
-            Float asFloat = AsmKit.readFloatLiteral(in);
-            if (asFloat != null) {
-                pendingFloat = asFloat;
-                continue;
-            }
-
+        AsmWalker.over(createRoots)
+            .feed(pendingFloat)
+            .feed(slots)
+            .feed(scaleSlots)
+            .feed(priorGrow)
+            .feed(latestGrow)
+            .feed(latestPose)
+            .feed(pendingScale)
+            .feed(pendingLambda)
+            .feed(pendingSet)
+            .feed(pendingSetField)
             // `new CubeDeformation(F); <init>` - the piglin's inline 1.02 outer.
-            if (in instanceof MethodInsnNode mi
-                && opcode == Opcodes.INVOKESPECIAL
-                && AsmKit.INIT.equals(mi.name)
-                && VanillaSourceClasses.Types.CUBE_DEFORMATION.equals(mi.owner)) {
-                if (mi.desc.startsWith("(F") && pendingFloat != null) {
-                    priorGrow = latestGrow;
-                    latestGrow = new float[]{pendingFloat, pendingFloat, pendingFloat};
+            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.CUBE_DEFORMATION, AsmKit.INIT), mi -> {
+                if (mi.desc.startsWith("(F") && pendingFloat.size() == 1) {
+                    float grow = pendingFloat.values().getFirst();
+                    float[] shifted = latestGrow.get();
+                    if (shifted != null) priorGrow.set(shifted); else priorGrow.clear();
+                    latestGrow.set(new float[]{grow, grow, grow});
                 }
-                pendingFloat = null;
-                continue;
-            }
-
+                pendingFloat.clear();
+            })
             // `GETSTATIC <owner>.<field>: CubeDeformation` - the named INNER / OUTER constants.
-            if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
-                && VanillaSourceClasses.Descs.CUBE_DEFORMATION_REF.equals(fi.desc)) {
-                priorGrow = latestGrow;
-                latestGrow = LayerDefinitionIndex.resolveDeformationField(cache, fi.owner, fi.name);
-                continue;
-            }
-
+            .on(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.GETSTATIC
+                && VanillaSourceClasses.Descs.CUBE_DEFORMATION_REF.equals(fi.desc)), fi -> {
+                float[] shifted = latestGrow.get();
+                if (shifted != null) priorGrow.set(shifted); else priorGrow.clear();
+                float[] resolved = LayerDefinitionIndex.resolveDeformationField(cache, fi.owner, fi.name);
+                if (resolved != null) latestGrow.set(resolved); else latestGrow.clear();
+            })
             // `GETSTATIC <owner>.<field>: PartPose` - the baby set factory's arm offset.
-            if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
-                && VanillaSourceClasses.Descs.PART_POSE_REF.equals(fi.desc)) {
-                latestPose = LayerDefinitionIndex.resolvePartPoseField(cache, fi.owner, fi.name);
-                continue;
-            }
-
+            .on(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.GETSTATIC
+                && VanillaSourceClasses.Descs.PART_POSE_REF.equals(fi.desc)), fi -> {
+                float[] resolved = LayerDefinitionIndex.resolvePartPoseField(cache, fi.owner, fi.name);
+                if (resolved != null) latestPose.set(resolved); else latestPose.clear();
+            })
             // `GETSTATIC ModelLayers.<X>_ARMOR: ArmorModelSet` - the registration target.
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
-                && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(((FieldInsnNode) in).desc)) {
-                pendingSetField = ((FieldInsnNode) in).name;
-                pendingSet = null;
-                continue;
-            }
-
+            .on(Insn.getStatic(VanillaSourceClasses.Types.MODEL_LAYERS)
+                .and(fi -> VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(fi.desc)), fi -> {
+                pendingSetField.set(fi.name);
+                pendingSet.clear();
+            })
             // `INVOKESTATIC <Model>.createArmorMeshSet|createArmorLayerSet(inner, outer)`.
-            if (in instanceof MethodInsnNode mi
-                && opcode == Opcodes.INVOKESTATIC
+            .on(Insn.of(MethodInsnNode.class, mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
                 && VanillaSourceClasses.Descs.ARMOR_MESH_SET_DESC.equals(mi.desc)
-                && isArmorSetFactory(mi.name)) {
-                pendingSet = resolveSet(cache, mi.owner, mi.name, mi.desc, priorGrow, latestGrow,
-                    Set.NO_ARM_OFFSET, diagnostics);
-                priorGrow = null;
-                latestGrow = null;
-                continue;
-            }
-
+                && isArmorSetFactory(mi.name)), mi -> {
+                Set resolved = resolveSet(cache, mi.owner, mi.name, mi.desc, priorGrow.get(),
+                    latestGrow.get(), Set.NO_ARM_OFFSET, diagnostics);
+                if (resolved != null) pendingSet.set(resolved); else pendingSet.clear();
+                priorGrow.clear();
+                latestGrow.clear();
+            })
             // `INVOKESTATIC <Model>.createBabyArmorMeshSet(inner, outer, armOffset)` - the same
             // shape one argument wider, and the argument is what makes the piglin family's baby
             // shell a distinct mesh rather than a distinct deformation.
-            if (in instanceof MethodInsnNode mi
-                && opcode == Opcodes.INVOKESTATIC
+            .on(Insn.of(MethodInsnNode.class, mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
                 && VanillaSourceClasses.Descs.BABY_ARMOR_MESH_SET_DESC.equals(mi.desc)
-                && VanillaSourceClasses.Methods.CREATE_BABY_ARMOR_MESH_SET.equals(mi.name)) {
-                pendingSet = resolveSet(cache, mi.owner, mi.name, mi.desc, priorGrow, latestGrow,
-                    latestPose, diagnostics);
-                priorGrow = null;
-                latestGrow = null;
-                latestPose = null;
-                continue;
-            }
-
+                && VanillaSourceClasses.Methods.CREATE_BABY_ARMOR_MESH_SET.equals(mi.name)), mi -> {
+                Set resolved = resolveSet(cache, mi.owner, mi.name, mi.desc, priorGrow.get(),
+                    latestGrow.get(), latestPose.get(), diagnostics);
+                if (resolved != null) pendingSet.set(resolved); else pendingSet.clear();
+                priorGrow.clear();
+                latestGrow.clear();
+                latestPose.clear();
+            })
             // `INVOKESTATIC MeshTransformer.scaling(F)` - the whole-mesh scale the giant, the husk
             // and the wither skeleton register the generic set through.
-            if (in instanceof MethodInsnNode mi
-                && opcode == Opcodes.INVOKESTATIC
-                && VanillaSourceClasses.Types.MESH_TRANSFORMER.equals(mi.owner)
-                && VanillaSourceClasses.Methods.SCALING.equals(mi.name)) {
-                pendingScale = pendingFloat;
-                pendingFloat = null;
-                continue;
-            }
-
+            .on(Insn.invokeStatic(VanillaSourceClasses.Types.MESH_TRANSFORMER,
+                VanillaSourceClasses.Methods.SCALING), mi -> {
+                if (pendingFloat.size() == 1) pendingScale.set(pendingFloat.values().getFirst());
+                else pendingScale.clear();
+                pendingFloat.clear();
+            })
             // The lambda a following `map` rewrites each slot through - the wrap that states the
             // atlas, or the transformer wrap that only re-applies a scale.
-            if (in instanceof InvokeDynamicInsnNode indy) {
-                pendingLambda = AsmKit.extractLambdaHandle(indy);
-                continue;
-            }
-
-            if (in instanceof VarInsnNode vi && opcode == Opcodes.ASTORE) {
-                if (pendingSet != null) slots.store(vi.var, pendingSet);
-                else if (pendingScale != null) scaleSlots.store(vi.var, pendingScale);
-                pendingSet = null;
-                pendingScale = null;
-                continue;
-            }
-
-            if (in instanceof VarInsnNode vi && opcode == Opcodes.ALOAD) {
+            .on(Insn.ofType(InvokeDynamicInsnNode.class), indy -> {
+                Handle handle = AsmKit.extractLambdaHandle(indy);
+                if (handle != null) pendingLambda.set(handle); else pendingLambda.clear();
+            })
+            .on(Insn.of(VarInsnNode.class, vi -> vi.getOpcode() == Opcodes.ASTORE), vi -> {
+                Set parked = pendingSet.get();
+                Float factor = pendingScale.get();
+                if (parked != null) slots.store(vi.var, parked);
+                else if (factor != null) scaleSlots.store(vi.var, factor);
+                pendingSet.clear();
+                pendingScale.clear();
+            })
+            .on(Insn.of(VarInsnNode.class, vi -> vi.getOpcode() == Opcodes.ALOAD), vi -> {
                 Set stored = slots.load(vi.var);
-                if (stored != null) pendingSet = stored;
+                if (stored != null) pendingSet.set(stored);
                 Float storedScale = scaleSlots.load(vi.var);
-                if (storedScale != null) pendingScale = storedScale;
-                continue;
-            }
-
+                if (storedScale != null) pendingScale.set(storedScale);
+            })
             // `INVOKEVIRTUAL ArmorModelSet.map(Function)` - the transformer stamps onto a COPY, so
             // the shared generic set the scaled wearers load is left unscaled for everyone else.
             // Only a map that follows a scaling() carries one: createRoots makes ten map calls and
             // three of them capture a transformer.
-            if (in instanceof MethodInsnNode mi
-                && opcode == Opcodes.INVOKEVIRTUAL
-                && VanillaSourceClasses.Types.ARMOR_MODEL_SET.equals(mi.owner)
-                && VanillaSourceClasses.Methods.MAP.equals(mi.name)) {
-                if (pendingSet != null && pendingScale != null) pendingSet = pendingSet.scaled(pendingScale);
-                if (pendingSet != null && pendingLambda != null) {
-                    int[] atlas = resolveWrapAtlas(cache, pendingLambda);
-                    if (atlas != null) pendingSet = pendingSet.wrappedAt(atlas[0], atlas[1]);
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.ARMOR_MODEL_SET,
+                VanillaSourceClasses.Methods.MAP), mi -> {
+                Set current = pendingSet.get();
+                Float factor = pendingScale.get();
+                if (current != null && factor != null) {
+                    current = current.scaled(factor);
+                    pendingSet.set(current);
+                }
+                Handle lambda = pendingLambda.get();
+                if (current != null && lambda != null) {
+                    int[] atlas = resolveWrapAtlas(cache, lambda);
+                    if (atlas != null) {
+                        current = current.wrappedAt(atlas[0], atlas[1]);
+                        pendingSet.set(current);
+                    }
                     // A wrap that applies a transformer rather than creating a LayerDefinition -
                     // the small armor stand's, and the only one in createRoots.
-                    BabyMeshTransform baby = resolveWrapBabyTransform(cache, pendingLambda);
-                    if (baby != null) pendingSet = pendingSet.transformed(baby);
+                    BabyMeshTransform baby = resolveWrapBabyTransform(cache, lambda);
+                    if (baby != null) pendingSet.set(current.transformed(baby));
                 }
-                pendingScale = null;
-                pendingLambda = null;
-                continue;
-            }
-
-            if (in instanceof MethodInsnNode mi
-                && opcode == Opcodes.INVOKEVIRTUAL
-                && VanillaSourceClasses.Methods.PUT_FROM.equals(mi.name)
-                && VanillaSourceClasses.Types.ARMOR_MODEL_SET.equals(mi.owner)
-                && mi.desc.startsWith(PUT_FROM_PREFIX)
-                && pendingSetField != null
-                && pendingSet != null) {
-                if (pendingSet.textureWidth() > 0 && pendingSet.textureHeight() > 0)
-                    out.put(pendingSetField.toLowerCase(Locale.ROOT), pendingSet);
+                pendingScale.clear();
+                pendingLambda.clear();
+            })
+            // The registration: an unarmed putFrom leaves every cell live, so the armed guards
+            // ride the recognizer and the reset touches nothing beyond the commit's own pair.
+            .commitAt(Insn.invokeVirtual(VanillaSourceClasses.Types.ARMOR_MODEL_SET,
+                    VanillaSourceClasses.Methods.PUT_FROM)
+                .and(mi -> mi.desc.startsWith(PUT_FROM_PREFIX)
+                    && pendingSetField.get() != null
+                    && pendingSet.get() != null), mi -> {
+                Set set = pendingSet.get();
+                String field = pendingSetField.get();
+                if (set.textureWidth() > 0 && set.textureHeight() > 0)
+                    out.put(field.toLowerCase(Locale.ROOT), set);
                 else
                     diagnostics.warn("armor set '%s' names no atlas through its slot wrap - set dropped",
-                        pendingSetField);
-                pendingSetField = null;
-                pendingSet = null;
-            }
-        }
+                        field);
+            })
+            .clearing(pendingSetField, pendingSet)
+            .run();
 
         diagnostics.info("indexed %d armor sets over %d distinct meshes", out.size(),
             out.values().stream().map(set -> set.meshClass() + '#' + set.meshMethod()).distinct().count());
