@@ -4,10 +4,11 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.LiteralStack;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import lib.minecraft.renderer.tooling.walk.Missing;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Opcodes;
@@ -63,50 +64,36 @@ public final class PotionColorWalk {
 
         Map<String, Integer> colors = new TreeMap<>();
 
-        String pendingEffectId = null;
-        Integer pendingColor = null;
-        LiteralStack intStack = new LiteralStack(8);
+        Cells.Latch<String> pendingEffectId = Cells.latch();
+        Cells.Latch<Integer> pendingColor = Cells.latch();
+        Cells.Window<Integer> intStack = Cells.window(AsmWalker::intLiteral, 8);
 
-        for (AbstractInsnNode node : clinit.toList()) {
-            Integer literal = AsmWalker.intLiteral(node);
-            if (literal != null) {
-                intStack.push(literal);
-                continue;
-            }
-
-            String string = AsmWalker.stringLiteral(node);
-            if (string != null) {
-                if (pendingEffectId == null) pendingEffectId = string;
-                continue;
-            }
-
-            if (AsmWalker.isNewInstance(node, VanillaSourceClasses.Types.EFFECT_PACKAGE_PREFIX)) {
-                intStack.reset();
-                continue;
-            }
-
-            if (node.getOpcode() == Opcodes.INVOKESPECIAL
-                && node instanceof MethodInsnNode init
+        clinit
+            .feed(intStack)
+            .feed(pendingEffectId)
+            .feed(pendingColor)
+            .on(Insn.of(AbstractInsnNode.class, node -> AsmWalker.stringLiteral(node) != null), node -> {
+                if (pendingEffectId.get() == null) pendingEffectId.set(AsmWalker.stringLiteral(node));
+            })
+            .on(Insn.new_(VanillaSourceClasses.Types.EFFECT_PACKAGE_PREFIX), instance -> intStack.clear())
+            .on(Insn.of(MethodInsnNode.class, init -> init.getOpcode() == Opcodes.INVOKESPECIAL
                 && init.name.equals(ClassKit.INIT)
                 && init.owner.startsWith(VanillaSourceClasses.Types.EFFECT_PACKAGE_PREFIX)
-                && init.desc.equals(colorCtorDesc)) {
-                Integer top = intStack.popInt();
-                if (top != null) pendingColor = top;
-                continue;
-            }
-
-            if (AsmWalker.isInvokeStatic(node, VanillaSourceClasses.Types.MOB_EFFECTS, VanillaSourceClasses.Methods.REGISTER)) {
-                if (pendingEffectId != null) {
-                    if (pendingColor != null)
-                        colors.put(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + pendingEffectId, pendingColor);
+                && init.desc.equals(colorCtorDesc)), init -> {
+                Integer top = intStack.takeLast();
+                if (top != null) pendingColor.set(top);
+            })
+            .commitAt(Insn.invokeStatic(VanillaSourceClasses.Types.MOB_EFFECTS, VanillaSourceClasses.Methods.REGISTER),
+                register -> {
+                    String effectId = pendingEffectId.get();
+                    if (effectId == null) return;
+                    Integer color = pendingColor.get();
+                    if (color != null)
+                        colors.put(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + effectId, color);
                     else
-                        diagnostics.warn("effect '%s' registered without a decodable (MobEffectCategory, int) colour ctor", pendingEffectId);
-                }
-                pendingEffectId = null;
-                pendingColor = null;
-                intStack.reset();
-            }
-        }
+                        diagnostics.warn("effect '%s' registered without a decodable (MobEffectCategory, int) colour ctor", effectId);
+                })
+            .run();
 
         JsonTree effects = root.child("effects");
         colors.forEach((effectId, color) -> effects.putHex(effectId, color | 0xFF000000));
