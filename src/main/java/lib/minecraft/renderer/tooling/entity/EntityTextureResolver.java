@@ -320,21 +320,14 @@ final class EntityTextureResolver {
      * (bee) - or {@code null} when none is reachable.
      */
     private static @Nullable String findPrimaryByDefaultPath(@NotNull MethodNode method) {
-        Set<AbstractInsnNode> visited = new HashSet<>();
-        AbstractInsnNode in = method.instructions.getFirst();
-        while (in != null && visited.add(in)) {
-            if (in.getOpcode() == Opcodes.GETSTATIC
+        // A revisited node ends the trace as a miss.
+        return AsmWalker.over(method).traceFirst(
+            in -> in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
-                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc))
-                return fi.name;
-            if (in instanceof JumpInsnNode jump
-                && (in.getOpcode() == Opcodes.IFEQ || in.getOpcode() == Opcodes.GOTO)) {
-                in = jump.label;
-                continue;
-            }
-            in = in.getNext();
-        }
-        return null;
+                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc) ? fi.name : null,
+            in -> in instanceof JumpInsnNode jump
+                && (in.getOpcode() == Opcodes.IFEQ || in.getOpcode() == Opcodes.GOTO)
+                ? jump.label : in.getNext());
     }
 
     /**
