@@ -14,7 +14,6 @@ import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
@@ -272,32 +271,32 @@ final class EntityAgeAxisResolver {
      * flags and falling through into the {@code isBaby}-true arm at the isBaby gate.
      */
     private static @Nullable String isBabyTrueArmIdentifierField(@NotNull MethodNode method) {
-        java.util.Set<AbstractInsnNode> visited = new java.util.HashSet<>();
-        AbstractInsnNode in = method.instructions.getFirst();
-        while (in != null && visited.add(in)) {
-            if (in.getOpcode() == Opcodes.GETFIELD
+        // The probe claims the isBaby gate before the advance hook sees the node, so the advance's
+        // flag arm only ever fires on the other flags; a revisited node ends the trace as a miss.
+        JumpInsnNode gate = AsmWalker.over(method).traceFirst(
+            in -> in.getOpcode() == Opcodes.GETFIELD
                 && in instanceof FieldInsnNode fi
                 && "Z".equals(fi.desc)
+                && VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)
                 && AsmKit.nextReal(in) instanceof JumpInsnNode jump
-                && jump.getOpcode() == Opcodes.IFEQ) {
-                if (VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)) {
-                    for (AbstractInsnNode arm = jump.getNext(); arm != null && arm != jump.label; arm = arm.getNext())
-                        if (arm.getOpcode() == Opcodes.GETSTATIC
-                            && arm instanceof FieldInsnNode texture
-                            && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(texture.desc))
-                            return texture.name;
-                    return null;
-                }
-                in = jump.label;                      // a non-isBaby flag: take its false arm
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.GOTO && in instanceof JumpInsnNode goTo) {
-                in = goTo.label;
-                continue;
-            }
-            in = in.getNext();
-        }
-        return null;
+                && jump.getOpcode() == Opcodes.IFEQ ? jump : null,
+            in -> {
+                if (in.getOpcode() == Opcodes.GETFIELD
+                    && in instanceof FieldInsnNode fi
+                    && "Z".equals(fi.desc)
+                    && AsmKit.nextReal(in) instanceof JumpInsnNode jump
+                    && jump.getOpcode() == Opcodes.IFEQ) return jump.label; // a non-isBaby flag: take its false arm
+                if (in.getOpcode() == Opcodes.GOTO && in instanceof JumpInsnNode goTo) return goTo.label;
+                return in.getNext();
+            });
+        if (gate == null) return null;
+        // The true arm, bounded by the gate's own false-arm label; a miss here is the member's
+        // answer - the trace does not resume.
+        FieldInsnNode texture = AsmWalker.from(gate.getNext())
+            .until(gate.label)
+            .first(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.GETSTATIC
+                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)));
+        return texture == null ? null : texture.name;
     }
 
     /**
