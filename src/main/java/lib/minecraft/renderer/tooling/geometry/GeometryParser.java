@@ -11,8 +11,10 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Exit;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -552,7 +554,8 @@ public final class GeometryParser {
     /**
      * Walks {@code [first, endExclusive)} of {@code instructions} via repeated
      * {@link #handleInstruction} dispatch. When {@code endExclusive} is {@code null} the
-     * walk continues until {@code node.getNext()} returns null (i.e. end of the list).
+     * walk runs to the end of the list. A revisited instruction aborts loudly - the
+     * forward-jump guard keeps the walk monotonic, so a revisit is a parser bug.
      *
      * <p>{@link #handleInstruction} returns the node to advance from - normally that's the
      * original {@code node} (caller advances to its next), but for taken jumps / switch
@@ -571,10 +574,13 @@ public final class GeometryParser {
         @NotNull WalkState state,
         @NotNull ClassNodeCache cache
     ) {
-        AbstractInsnNode node = first;
-        while (node != null && node != endExclusive) {
-            AbstractInsnNode advanceFrom = handleInstruction(instructions, node, state, cache);
-            node = advanceFrom.getNext();
+        Exit exit = AsmWalker.from(first)
+            .until(endExclusive)
+            .trace(in -> handleInstruction(instructions, in, state, cache).getNext());
+        if (exit == Exit.CYCLE) {
+            throw new ToolingException(
+                "Geometry walk of '%s' revisited an instruction - a backward jump escaped the forward-jump guard",
+                state.currentSource != null ? state.currentSource.subjectId() : "unknown subject");
         }
     }
 
