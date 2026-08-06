@@ -120,7 +120,10 @@ public final class Cells {
 
     }
 
-    /** An ordered append list written from hooks. */
+    /**
+     * An ordered append list written from hooks; {@link #takeLast} is the stack-shaped
+     * destructive read.
+     */
     public static final class ListCell<G> extends Cell<G> {
 
         private final @NotNull List<G> entries = new ArrayList<>();
@@ -139,6 +142,21 @@ public final class Cells {
         /** The appended values, in append order. */
         public @NotNull List<G> values() {
             return List.copyOf(this.entries);
+        }
+
+        /** The current entry count. */
+        public int size() {
+            return this.entries.size();
+        }
+
+        /**
+         * Removes and returns the newest entry - the stack-shaped pop. An empty list answers
+         * {@code null} and consumes nothing.
+         *
+         * @return the newest entry, or {@code null} when the list is empty
+         */
+        public @Nullable G takeLast() {
+            return this.entries.isEmpty() ? null : this.entries.removeLast();
         }
 
         @Override

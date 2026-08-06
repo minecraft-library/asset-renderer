@@ -116,6 +116,29 @@ class WalkFoldTokenTest {
     }
 
     @Test
+    @DisplayName("list takeLast() pops the newest for good - takes step down the appends and an empty take answers null consuming nothing")
+    void listTakeLastConsumes() {
+        MethodNode m = method(
+            new LdcInsnNode(1), new LdcInsnNode(2), nop(), nop(), nop(),
+            new LdcInsnNode(3), nop(), commit());
+        Cells.ListCell<Integer> values = Cells.list();
+        List<Integer> takes = new ArrayList<>();
+        List<Integer> sizes = new ArrayList<>();
+        AsmWalker.over(m)
+            .feed(values)
+            .on(Insn.of(AbstractInsnNode.class, node -> AsmWalker.intLiteral(node) != null),
+                node -> values.add(AsmWalker.intLiteral(node)))
+            .on(TAKE, n -> {
+                sizes.add(values.size());
+                takes.add(values.takeLast());
+            })
+            .commitAt(COMMIT, c -> { })
+            .run();
+        assertEquals(Arrays.asList(2, 1, null, 3), takes);
+        assertEquals(List.of(2, 1, 0, 1), sizes);
+    }
+
+    @Test
     @DisplayName("sticky default holds across an unconsumed node; strict() clears; firstWins() keeps the first decode")
     void latchDisciplines() {
         MethodNode m = method(new LdcInsnNode("one"), new LdcInsnNode("two"), nop(), commit());
