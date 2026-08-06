@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tooling.geometry;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
@@ -41,7 +40,7 @@ final class GeometryCullResolver {
         if (modelClass == null) return false;
         for (MethodNode method : modelClass.methods)
             if (AsmWalker.over(method).any(insn ->
-                (insn instanceof InvokeDynamicInsnNode indy && AsmKit.findBsmHandleByName(indy, ENTITY_CUTOUT_CULL) != null)
+                (insn instanceof InvokeDynamicInsnNode indy && AsmWalker.findBsmHandleByName(indy, ENTITY_CUTOUT_CULL) != null)
                     || (insn instanceof MethodInsnNode call && ENTITY_CUTOUT_CULL.equals(call.name))))
                 return true;
         return false;

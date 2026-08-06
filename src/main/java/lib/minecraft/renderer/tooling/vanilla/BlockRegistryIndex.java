@@ -117,9 +117,9 @@ public final class BlockRegistryIndex {
             })
             .on(Insn.of(InvokeDynamicInsnNode.class, indy -> indy.desc.endsWith(FUNCTION_RETURN_SUFFIX)), indy -> {
                 String id = pendingId.get();
-                if (id == null || !isPendingIdSource(AsmKit.previousReal(indy), id, blockIdsNames)) return;
+                if (id == null || !isPendingIdSource(AsmWalker.previousReal(indy), id, blockIdsNames)) return;
                 ctorClass.clear();
-                String resolved = AsmKit.resolveLambdaTargetClass(indy, blocks);
+                String resolved = AsmWalker.resolveLambdaTargetClass(indy, blocks);
                 if (resolved != null) ctorClass.set(resolved);
             })
             .commitAt(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKESTATIC
@@ -215,7 +215,7 @@ public final class BlockRegistryIndex {
         String resolved = helper == null ? null : AsmWalker.over(helper)
             .ofType(InvokeDynamicInsnNode.class)
             .where(indy -> indy.desc.endsWith(FUNCTION_RETURN_SUFFIX))
-            .mapNotNull(indy -> AsmKit.resolveLambdaTargetClass(indy, blocks))
+            .mapNotNull(indy -> AsmWalker.resolveLambdaTargetClass(indy, blocks))
             .first();
         helperClassCache.put(helperName, resolved);
         return resolved;

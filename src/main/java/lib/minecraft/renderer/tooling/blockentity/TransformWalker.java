@@ -425,7 +425,7 @@ final class TransformWalker {
 
         @Override
         public @Nullable Val decode(@NotNull AbstractInsnNode node) {
-            Float literal = AsmKit.readFloatLiteral(node);
+            Float literal = AsmWalker.floatLiteral(node);
             return literal == null ? null : Val.number(literal);
         }
 

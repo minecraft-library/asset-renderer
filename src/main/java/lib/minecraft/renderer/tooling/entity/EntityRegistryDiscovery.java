@@ -231,7 +231,7 @@ public final class EntityRegistryDiscovery {
         @NotNull InvokeDynamicInsnNode indy,
         @NotNull ClassNode ownerClass
     ) {
-        Handle handle = AsmKit.extractLambdaHandle(indy);
+        Handle handle = AsmWalker.extractLambdaHandle(indy);
         if (handle == null) return null;
 
         if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && AsmKit.INIT.equals(handle.getName()))
@@ -241,7 +241,7 @@ public final class EntityRegistryDiscovery {
             Set<String> layerFields = new LinkedHashSet<>();
             Set<EntitySubject.TypeFieldRef> typeArgs = new LinkedHashSet<>();
             Set<String> equipmentLayerTypes = new LinkedHashSet<>();
-            String rendererClass = AsmKit.walkLambdaBody(indy, ownerClass, node -> {
+            String rendererClass = AsmWalker.walkLambdaBody(indy, ownerClass, node -> {
                 if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.MODEL_LAYERS))
                     layerFields.add(((FieldInsnNode) node).name);
                 else if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))

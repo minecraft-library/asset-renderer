@@ -252,10 +252,10 @@ final class VariantIndex {
         Cells.Flag pendingCreateKey = Cells.flag();
         AsmWalker.over(clinit)
             .on(Insn.of(AbstractInsnNode.class, in -> {
-                String literal = AsmKit.readStringLiteral(in);
+                String literal = AsmWalker.stringLiteral(in);
                 return literal != null && !literal.contains(":") && !literal.contains("/");
             }), in -> {
-                String literal = AsmKit.readStringLiteral(in);
+                String literal = AsmWalker.stringLiteral(in);
                 if (literal == null) return;
                 pendingId.set(literal);
                 pendingCreateKey.clear();

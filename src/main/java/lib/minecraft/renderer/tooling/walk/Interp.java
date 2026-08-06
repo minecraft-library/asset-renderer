@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tooling.walk;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
@@ -479,7 +478,21 @@ public final class Interp<V> {
      * @return {@code true} when the comparison takes the branch
      */
     public static boolean evaluateIntComparison(int opcode, int lhs, int rhs) {
-        return AsmKit.evaluateIntComparison(opcode, lhs, rhs);
+        return switch (opcode) {
+            case Opcodes.IFEQ -> lhs == 0;
+            case Opcodes.IFNE -> lhs != 0;
+            case Opcodes.IFLT -> lhs < 0;
+            case Opcodes.IFGE -> lhs >= 0;
+            case Opcodes.IFGT -> lhs > 0;
+            case Opcodes.IFLE -> lhs <= 0;
+            case Opcodes.IF_ICMPEQ -> lhs == rhs;
+            case Opcodes.IF_ICMPNE -> lhs != rhs;
+            case Opcodes.IF_ICMPLT -> lhs < rhs;
+            case Opcodes.IF_ICMPGE -> lhs >= rhs;
+            case Opcodes.IF_ICMPGT -> lhs > rhs;
+            case Opcodes.IF_ICMPLE -> lhs <= rhs;
+            default -> false;
+        };
     }
 
 }

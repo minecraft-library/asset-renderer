@@ -250,7 +250,7 @@ final class EntityOverlayResolver {
                 back.getOpcode() == Opcodes.GETSTATIC && back instanceof FieldInsnNode map
                     && cn.name.equals(map.owner) && MAP_DESC.equals(map.desc) ? map.name : null);
             if (stateField == null || mapField == null) return null;
-            Map<String, String> textures = AsmKit.readStaticEnumMap(cache, cn.name, mapField,
+            Map<String, String> textures = AsmWalker.readStaticEnumMap(cache, cn.name, mapField,
                 EntityOverlayResolver::readEntityTextureLiteral);
             return textures.isEmpty() ? null : new EnumMapOverlay(stateField, textures);
         });
@@ -353,7 +353,7 @@ final class EntityOverlayResolver {
      * A raw {@code textures/entity/...png} literal without a format placeholder, or {@code null}.
      */
     private static @Nullable String readEntityTextureLiteral(@NotNull AbstractInsnNode in) {
-        String literal = AsmKit.readStringLiteral(in);
+        String literal = AsmWalker.stringLiteral(in);
         if (literal == null) return null;
         if (!literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY) || !literal.endsWith(".png")) return null;
         return literal.contains("%") ? null : literal;
@@ -629,9 +629,9 @@ final class EntityOverlayResolver {
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
         JsonTree tinted = AsmWalker.over(submit).firstNotNull(in -> {
             if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR)) return null;
-            AbstractInsnNode next = AsmKit.nextReal(in);
+            AbstractInsnNode next = AsmWalker.nextReal(in);
             if (next != null && (next.getOpcode() == Opcodes.IF_ACMPEQ || next.getOpcode() == Opcodes.IF_ACMPNE)) {
-                AbstractInsnNode before = AsmKit.previousReal(in);
+                AbstractInsnNode before = AsmWalker.previousReal(in);
                 if (before instanceof FieldInsnNode read && dyeRef.equals(read.desc))
                     return JsonTree.object().put("tinted", true);
             }
@@ -641,9 +641,9 @@ final class EntityOverlayResolver {
         return AsmWalker.over(submit).firstNotNull(in -> {
             if (in.getOpcode() != Opcodes.GETFIELD || !(in instanceof FieldInsnNode fi)) return null;
             if (!"Z".equals(fi.desc) || !fi.name.startsWith("is")) return null;
-            AbstractInsnNode branch = AsmKit.nextReal(in);
+            AbstractInsnNode branch = AsmWalker.nextReal(in);
             if (branch == null || (branch.getOpcode() != Opcodes.IFEQ && branch.getOpcode() != Opcodes.IFNE)) return null;
-            AbstractInsnNode body = AsmKit.nextReal(branch);
+            AbstractInsnNode body = AsmWalker.nextReal(branch);
             if (body == null || body.getOpcode() != Opcodes.RETURN) return null;
             String token = axisToken(fi.name.substring(2));
             if (!EntityAxisPolicies.AXIS_NAME_VOCABULARY.strings().contains(token)) return null;
@@ -759,8 +759,8 @@ final class EntityOverlayResolver {
                 Integer literal = AsmWalker.over(method).firstNotNull(in -> {
                     if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.OVERLAY_TEXTURE)
                         || !VanillaSourceClasses.Fields.NO_OVERLAY.equals(((FieldInsnNode) in).name)) return null;
-                    AbstractInsnNode color = AsmKit.nextReal(in);
-                    return color == null ? null : AsmKit.readIntLiteral(color);
+                    AbstractInsnNode color = AsmWalker.nextReal(in);
+                    return color == null ? null : AsmWalker.intLiteral(color);
                 });
                 if (literal != null) {
                     argb[0] = literal;
@@ -862,14 +862,14 @@ final class EntityOverlayResolver {
         if (method == null) return null;
         AbstractInsnNode compare = AsmWalker.over(method).first(in -> {
             if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR, "WHITE")) return false;
-            AbstractInsnNode branch = AsmKit.nextReal(in);
+            AbstractInsnNode branch = AsmWalker.nextReal(in);
             return branch != null && (branch.getOpcode() == Opcodes.IF_ACMPNE || branch.getOpcode() == Opcodes.IF_ACMPEQ);
         });
         if (compare == null) return null;
         return AsmWalker.after(compare).firstNotNull(in -> {
-            Integer literal = AsmKit.readIntLiteral(in);
+            Integer literal = AsmWalker.intLiteral(in);
             if (literal == null) return null;
-            AbstractInsnNode ret = AsmKit.nextReal(in);
+            AbstractInsnNode ret = AsmWalker.nextReal(in);
             return ret != null && ret.getOpcode() == Opcodes.IRETURN ? literal : null;
         });
     }
@@ -991,7 +991,7 @@ final class EntityOverlayResolver {
         AsmWalker.from(site.allocation())
             .until(site.addLayer())
             .on(Insn.lambdaIndy(), indy -> {
-                Handle handle = AsmKit.extractLambdaHandle(indy);
+                Handle handle = AsmWalker.extractLambdaHandle(indy);
                 if (handle != null) providerCell.add(handle);
             })
             .on(Insn.of(MethodInsnNode.class, mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
@@ -1104,8 +1104,8 @@ final class EntityOverlayResolver {
         MethodNode method = owner == null ? null : AsmKit.findMethod(owner, factoryCall.name, factoryCall.desc);
         if (method == null) return null;
         return AsmWalker.over(method).firstNotNull(in ->
-            AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
-                ? AsmKit.extractLambdaHandle(indy) : null);
+            AsmWalker.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
+                ? AsmWalker.extractLambdaHandle(indy) : null);
     }
 
     /**
@@ -1228,8 +1228,8 @@ final class EntityOverlayResolver {
             : AsmKit.findMethod(factoryOwner, entry.factoryMethod(), entry.factoryDesc());
         if (factory == null) return null;
         Handle transformer = AsmWalker.over(factory).firstNotNull(in ->
-            AsmKit.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
-                ? AsmKit.extractLambdaHandle(indy) : null);
+            AsmWalker.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
+                ? AsmWalker.extractLambdaHandle(indy) : null);
         if (transformer == null) return null;
         MethodNode lambda = AsmKit.findMethod(factoryOwner, transformer.getName(), transformer.getDesc());
         if (lambda == null) return null;
@@ -1269,7 +1269,7 @@ final class EntityOverlayResolver {
             .drive(machine)
             .firstNotNull(in -> {
                 int op = in.getOpcode();
-                if (AsmKit.readFloatLiteral(in) != null) return null;
+                if (AsmWalker.floatLiteral(in) != null) return null;
                 switch (op) {
                     case Opcodes.FLOAD, Opcodes.ALOAD, Opcodes.GETFIELD -> {
                         machine.pop();
@@ -1311,7 +1311,7 @@ final class EntityOverlayResolver {
     }
 
     /**
-     * The frozen-alpha value model: float literals via {@link AsmKit#readFloatLiteral} widened
+     * The frozen-alpha value model: float literals via {@link AsmWalker#floatLiteral} widened
      * to double, the {@code fmul} / {@code fadd} / {@code fsub} arithmetic, the four
      * pass-through width conversions, and a zero for every empty pop - the un-evaluable
      * answer, never a fault.
@@ -1328,7 +1328,7 @@ final class EntityOverlayResolver {
 
         @Override
         public @Nullable Double decode(@NotNull AbstractInsnNode node) {
-            Float constant = AsmKit.readFloatLiteral(node);
+            Float constant = AsmWalker.floatLiteral(node);
             return constant == null ? null : (double) constant;
         }
 
@@ -1541,13 +1541,13 @@ final class EntityOverlayResolver {
         Cells.Latch<String> substituted = Cells.latch();
         AsmWalker.over(submit)
             .on(Insn.of(AbstractInsnNode.class, in -> {
-                String literal = AsmKit.readStringLiteral(in);
+                String literal = AsmWalker.stringLiteral(in);
                 return literal != null && isCategoryToken(literal);
             }), in -> {
-                String literal = AsmKit.readStringLiteral(in);
+                String literal = AsmWalker.stringLiteral(in);
                 if (literal == null) return;
-                AbstractInsnNode branch = AsmKit.previousReal(in);
-                AbstractInsnNode read = branch == null ? null : AsmKit.previousReal(branch);
+                AbstractInsnNode branch = AsmWalker.previousReal(in);
+                AbstractInsnNode read = branch == null ? null : AsmWalker.previousReal(branch);
                 boolean babyArm = branch != null && (branch.getOpcode() == Opcodes.IFEQ || branch.getOpcode() == Opcodes.IFNE)
                     && read instanceof FieldInsnNode fi && VanillaSourceClasses.Fields.IS_BABY.equals(fi.name);
                 if (!babyArm) {
@@ -1574,10 +1574,10 @@ final class EntityOverlayResolver {
      *     literal ternary
      */
     private static @Nullable String elseArmLiteral(@NotNull AbstractInsnNode babyLiteral) {
-        AbstractInsnNode skip = AsmKit.nextReal(babyLiteral);
+        AbstractInsnNode skip = AsmWalker.nextReal(babyLiteral);
         if (skip == null || skip.getOpcode() != Opcodes.GOTO) return null;
-        AbstractInsnNode elseArm = AsmKit.nextReal(skip);
-        return elseArm == null ? null : AsmKit.readStringLiteral(elseArm);
+        AbstractInsnNode elseArm = AsmWalker.nextReal(skip);
+        return elseArm == null ? null : AsmWalker.stringLiteral(elseArm);
     }
 
     /**
@@ -1617,11 +1617,11 @@ final class EntityOverlayResolver {
         return AsmWalker.over(submit).first(
             in -> {
                 if (in.getOpcode() != Opcodes.IFEQ) return false;
-                AbstractInsnNode thenArm = AsmKit.nextReal(in);
+                AbstractInsnNode thenArm = AsmWalker.nextReal(in);
                 if (thenArm == null || thenArm.getOpcode() != Opcodes.ALOAD) return false;
-                AbstractInsnNode skip = AsmKit.nextReal(thenArm);
+                AbstractInsnNode skip = AsmWalker.nextReal(thenArm);
                 if (skip == null || skip.getOpcode() != Opcodes.GOTO) return false;
-                AbstractInsnNode elseArm = AsmKit.nextReal(skip);
+                AbstractInsnNode elseArm = AsmWalker.nextReal(skip);
                 return elseArm != null && elseArm.getOpcode() == Opcodes.ALOAD;
             },
             in -> !(in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi
@@ -1669,8 +1669,8 @@ final class EntityOverlayResolver {
         String direct = clearedChildInBody(factory);
         if (direct != null) return direct;
         return AsmWalker.over(factory).firstNotNull(in -> {
-            if (!AsmKit.isLambdaInvokeDynamic(in) || !(in instanceof InvokeDynamicInsnNode indy)) return null;
-            Handle handle = AsmKit.extractLambdaHandle(indy);
+            if (!AsmWalker.isLambdaInvokeDynamic(in) || !(in instanceof InvokeDynamicInsnNode indy)) return null;
+            Handle handle = AsmWalker.extractLambdaHandle(indy);
             MethodNode lambda = handle == null || !handle.getOwner().equals(factoryOwner.name) ? null
                 : AsmKit.findMethod(factoryOwner, handle.getName(), handle.getDesc());
             return lambda == null ? null : clearedChildInBody(lambda);
@@ -1798,7 +1798,7 @@ final class EntityOverlayResolver {
             int location = locationSlot;
             if (AsmWalker.over(method).any(in -> {
                 if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER)) return false;
-                AbstractInsnNode prev = AsmKit.previousReal(in);
+                AbstractInsnNode prev = AsmWalker.previousReal(in);
                 return prev instanceof VarInsnNode load && prev.getOpcode() == Opcodes.ALOAD && load.var == location;
             })) return true;
         }

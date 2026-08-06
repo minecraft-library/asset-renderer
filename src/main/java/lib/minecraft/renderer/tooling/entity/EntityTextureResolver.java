@@ -300,7 +300,7 @@ final class EntityTextureResolver {
         return AsmWalker.over(method).any(in -> in.getOpcode() == Opcodes.GETFIELD
             && in instanceof FieldInsnNode fi
             && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
-            && AsmKit.previousReal(in) instanceof VarInsnNode load
+            && AsmWalker.previousReal(in) instanceof VarInsnNode load
             && load.getOpcode() == Opcodes.ALOAD
             && load.var == 0) ? "instance-field" : null;
     }
@@ -506,7 +506,7 @@ final class EntityTextureResolver {
         // local rather than a per-walk cell.
         String[] variantClass = {null};
         for (MethodNode m : cn.methods) {
-            if (!m.name.startsWith(AsmKit.LAMBDA_STATIC_PREFIX) && !AsmKit.CLINIT.equals(m.name)) continue;
+            if (!m.name.startsWith(AsmWalker.LAMBDA_STATIC_PREFIX) && !AsmKit.CLINIT.equals(m.name)) continue;
             Cells.Latch<String> pendingVariantName = Cells.latch();
             AsmWalker.over(m)
                 .feed(pendingVariantName)
@@ -526,7 +526,7 @@ final class EntityTextureResolver {
                 .run();
         }
         if (variantClass[0] == null || variantToTexture.isEmpty()) return null;
-        String defaultName = AsmKit.findEnumDefaultName(this.cache, variantClass[0], DEFAULT_FIELD);
+        String defaultName = AsmWalker.findEnumDefaultName(this.cache, variantClass[0], DEFAULT_FIELD);
         if (defaultName == null) return null;
         return variantToTexture.get(defaultName);
     }
@@ -542,7 +542,7 @@ final class EntityTextureResolver {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit != null) collectTextureLiteralsFromMethod(clinit, out);
         for (MethodNode m : cn.methods)
-            if (m.name.startsWith(AsmKit.LAMBDA_STATIC_PREFIX))
+            if (m.name.startsWith(AsmWalker.LAMBDA_STATIC_PREFIX))
                 collectTextureLiteralsFromMethod(m, out);
         return out;
     }
@@ -612,7 +612,7 @@ final class EntityTextureResolver {
         String variantClass = AsmKit.internalNameOfRef(variantRead.desc);
         if (variantClass == null) return null;
 
-        String defaultName = AsmKit.findEnumDefaultName(this.cache, variantClass, DEFAULT_FIELD);
+        String defaultName = AsmWalker.findEnumDefaultName(this.cache, variantClass, DEFAULT_FIELD);
         return defaultName == null ? null : defaultName.toLowerCase(java.util.Locale.ROOT);
     }
 
@@ -727,7 +727,7 @@ final class EntityTextureResolver {
             .ofType(FieldInsnNode.class)
             .where(fi -> fi.getOpcode() == Opcodes.GETSTATIC
                 && spriteIdDesc.equals(fi.desc)
-                && AsmKit.nextReal(fi) instanceof MethodInsnNode mi
+                && AsmWalker.nextReal(fi) instanceof MethodInsnNode mi
                 && mi.getOpcode() == Opcodes.INVOKEVIRTUAL
                 && VanillaSourceClasses.Types.SPRITE_ID.equals(mi.owner)
                 && VanillaSourceClasses.Methods.TEXTURE.equals(mi.name))
@@ -741,15 +741,15 @@ final class EntityTextureResolver {
 
         FieldInsnNode spriteIdPut = AsmWalker.over(sheetsClinit).putStatic(sheetsOwner, spriteIdField).first();
         if (spriteIdPut == null) return null;
-        AbstractInsnNode invoke = AsmKit.previousReal(spriteIdPut);
+        AbstractInsnNode invoke = AsmWalker.previousReal(spriteIdPut);
         if (!(invoke instanceof MethodInsnNode mi
             && mi.getOpcode() == Opcodes.INVOKEVIRTUAL
             && VanillaSourceClasses.Types.SPRITE_MAPPER.equals(mi.owner)
             && VanillaSourceClasses.Methods.DEFAULT_NAMESPACE_APPLY.equals(mi.name))) return null;
-        AbstractInsnNode nameLdc = AsmKit.previousReal(invoke);
-        String name = AsmKit.readStringLiteral(nameLdc);
+        AbstractInsnNode nameLdc = AsmWalker.previousReal(invoke);
+        String name = AsmWalker.stringLiteral(nameLdc);
         if (name == null) return null;
-        if (!(AsmKit.previousReal(nameLdc) instanceof FieldInsnNode mapperGet
+        if (!(AsmWalker.previousReal(nameLdc) instanceof FieldInsnNode mapperGet
             && mapperGet.getOpcode() == Opcodes.GETSTATIC
             && sheetsOwner.equals(mapperGet.owner)
             && spriteMapperDesc.equals(mapperGet.desc))) return null;
@@ -757,12 +757,12 @@ final class EntityTextureResolver {
 
         FieldInsnNode mapperPut = AsmWalker.over(sheetsClinit).putStatic(sheetsOwner, mapperField).first();
         if (mapperPut == null) return null;
-        AbstractInsnNode init = AsmKit.previousReal(mapperPut);
+        AbstractInsnNode init = AsmWalker.previousReal(mapperPut);
         if (!(init instanceof MethodInsnNode ctor
             && ctor.getOpcode() == Opcodes.INVOKESPECIAL
             && VanillaSourceClasses.Types.SPRITE_MAPPER.equals(ctor.owner)
             && AsmKit.INIT.equals(ctor.name))) return null;
-        String prefix = AsmKit.readStringLiteral(AsmKit.previousReal(init));
+        String prefix = AsmWalker.stringLiteral(AsmWalker.previousReal(init));
         if (prefix == null) return null;
 
         String stem = prefix + "/" + name;

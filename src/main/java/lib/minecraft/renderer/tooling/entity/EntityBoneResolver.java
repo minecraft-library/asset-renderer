@@ -9,6 +9,7 @@ import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.BooleanStores;
 import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
@@ -202,7 +203,7 @@ final class EntityBoneResolver {
      * @param targetInsn the instruction pushing the {@code ModelPart} being written
      * @param value the decoded boolean r-value
      */
-    private record VisibleWrite(@NotNull AbstractInsnNode targetInsn, @NotNull AsmKit.BooleanStore value) {}
+    private record VisibleWrite(@NotNull AbstractInsnNode targetInsn, @NotNull BooleanStores.BooleanStore value) {}
 
     /**
      * Matches a {@code PUTFIELD ModelPart.visible:Z} at {@code in} and decodes its r-value +
@@ -211,11 +212,11 @@ final class EntityBoneResolver {
     private static @Nullable VisibleWrite matchVisibleWrite(@NotNull AbstractInsnNode in) {
         if (!AsmKit.isPutField(in, VanillaSourceClasses.Types.MODEL_PART, "visible")) return null;
         if (!(in instanceof FieldInsnNode put) || !"Z".equals(put.desc)) return null;
-        AbstractInsnNode valueInsn = AsmKit.previousReal(in);
+        AbstractInsnNode valueInsn = AsmWalker.previousReal(in);
         if (valueInsn == null) return null;
-        AsmKit.BooleanStore value = AsmKit.decodeBooleanStore(valueInsn);
+        BooleanStores.BooleanStore value = BooleanStores.decodeBooleanStore(valueInsn);
         if (value == null) return null;
-        AbstractInsnNode target = AsmKit.previousReal(value.valueStart());
+        AbstractInsnNode target = AsmWalker.previousReal(value.valueStart());
         if (target == null) return null;
         return new VisibleWrite(target, value);
     }
@@ -232,12 +233,12 @@ final class EntityBoneResolver {
         AsmWalker.over(method)
             .mapNotNull(EntityBoneResolver::matchVisibleWrite)
             .forEach(write -> {
-                if (!(write.value() instanceof AsmKit.FieldStore flag)) return;
+                if (!(write.value() instanceof BooleanStores.FieldStore flag)) return;
                 FieldInsnNode flagGet = flag.field();
                 if (owner.name.equals(flagGet.owner)) return;
                 if (!(flag.receiver() instanceof VarInsnNode receiver) || receiver.getOpcode() != Opcodes.ALOAD || receiver.var == 0) return;
 
-                if (flag.polarity() == AsmKit.Polarity.POSITIVE) {
+                if (flag.polarity() == BooleanStores.Polarity.POSITIVE) {
                     if (write.targetInsn() instanceof FieldInsnNode get
                         && get.getOpcode() == Opcodes.GETFIELD
                         && owner.name.equals(get.owner)) {
@@ -250,8 +251,8 @@ final class EntityBoneResolver {
                         && VanillaSourceClasses.Methods.GET_CHILD.equals(childCall.name)
                         && childCall.desc != null
                         && AsmKit.descriptorReturns(childCall.desc, VanillaSourceClasses.Types.MODEL_PART)) {
-                        AbstractInsnNode boneLdc = AsmKit.previousReal(childCall);
-                        String boneName = boneLdc == null ? null : AsmKit.readStringLiteral(boneLdc);
+                        AbstractInsnNode boneLdc = AsmWalker.previousReal(childCall);
+                        String boneName = boneLdc == null ? null : AsmWalker.stringLiteral(boneLdc);
                         if (boneName != null) scan.inlineGatedBones().add(boneName);
                     }
                     return;
@@ -277,7 +278,7 @@ final class EntityBoneResolver {
     private static void collectUnconditionalHidden(@NotNull ClassNode owner, @NotNull MethodNode ctor, @NotNull LinkedHashSet<String> out) {
         AsmWalker.over(ctor)
             .mapNotNull(EntityBoneResolver::matchVisibleWrite)
-            .where(write -> write.value() instanceof AsmKit.ConstantStore constant && !constant.value())
+            .where(write -> write.value() instanceof BooleanStores.ConstantStore constant && !constant.value())
             .mapNotNull(write -> write.targetInsn() instanceof FieldInsnNode get
                 && get.getOpcode() == Opcodes.GETFIELD
                 && owner.name.equals(get.owner) ? get.name : null)
@@ -331,7 +332,7 @@ final class EntityBoneResolver {
         if (ctor == null) return out;
         AsmWalker.over(ctor)
             .mapNotNull(EntityBoneResolver::matchVisibleWrite)
-            .where(write -> write.value() instanceof AsmKit.ConstantStore constant && constant.value())
+            .where(write -> write.value() instanceof BooleanStores.ConstantStore constant && constant.value())
             .mapNotNull(write -> extractBoneName(write.targetInsn()))
             .forEach(out::add);
         return out;

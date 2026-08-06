@@ -211,7 +211,7 @@ final class TintRegistrationResolver {
         Integer result = AsmWalker.from(start)
             .drive(machine)
             .firstNotNull(in -> {
-                if (AsmKit.isPseudoNode(in) || AsmKit.readIntLiteral(in) != null) return null;
+                if (AsmWalker.isPseudoNode(in) || AsmWalker.intLiteral(in) != null) return null;
                 switch (in.getOpcode()) {
                     case Opcodes.ILOAD -> {
                         if (machine.slot(((VarInsnNode) in).var) == null)
@@ -251,7 +251,7 @@ final class TintRegistrationResolver {
     }
 
     /**
-     * The int-expression value model: literals via {@link AsmKit#readIntLiteral}, the int
+     * The int-expression value model: literals via {@link AsmWalker#intLiteral}, the int
      * arithmetic and bitwise set, and a loud {@link IllegalStateException} - never a fallback
      * value - for anything outside it. The decode latches the opcode being stepped so an
      * underflow met while the machine steps an instruction the dispatch rejects reports that
@@ -272,7 +272,7 @@ final class TintRegistrationResolver {
         @Override
         public @Nullable Integer decode(@NotNull AbstractInsnNode node) {
             this.currentOpcode = node.getOpcode();
-            return AsmKit.readIntLiteral(node);
+            return AsmWalker.intLiteral(node);
         }
 
         @Override

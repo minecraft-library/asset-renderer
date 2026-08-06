@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tooling.kernel;
 
-import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -135,8 +134,8 @@ class AsmKitTest {
     @Test
     @DisplayName("readStaticEnumMap pairs enum keys with first decoded values, committing at the map store")
     void enumMap() {
-        Map<String, String> map = AsmWalker.readStaticEnumMap(
-            cache, COAT_MAP, "MAP", AsmWalker::stringLiteral);
+        Map<String, String> map = AsmKit.readStaticEnumMap(
+            cache, COAT_MAP, "MAP", AsmKit::readStringLiteral);
         assertEquals(2, map.size());
         assertEquals(List.of("WHITE", "BLACK"), List.copyOf(map.keySet()), "clinit encounter order");
         assertEquals("horse_white", map.get("WHITE"));
@@ -148,21 +147,21 @@ class AsmKitTest {
     @Test
     @DisplayName("resolveStaticScalingFactor binds canonical triplets; intervening literal clears; memo hits")
     void scalingFactor() {
-        Float small = AsmWalker.resolveStaticScalingFactor(cache, SCALES, "SMALL", TRANSFORMER, "scaling", TRANSFORMER_DESC);
+        Float small = AsmKit.resolveStaticScalingFactor(cache, SCALES, "SMALL", TRANSFORMER, "scaling", TRANSFORMER_DESC);
         assertNotNull(small);
         assertEquals(1.5f, small);
         // LARGE has an intervening LDC between scaling() and its PUTSTATIC, so the stricter
         // reset resolves it null.
-        assertNull(AsmWalker.resolveStaticScalingFactor(cache, SCALES, "LARGE", TRANSFORMER, "scaling", TRANSFORMER_DESC));
+        assertNull(AsmKit.resolveStaticScalingFactor(cache, SCALES, "LARGE", TRANSFORMER, "scaling", TRANSFORMER_DESC));
         // memo: the sibling field bound during the first walk resolves without a re-walk
-        assertEquals(1.5f, AsmWalker.resolveStaticScalingFactor(cache, SCALES, "SMALL", TRANSFORMER, "scaling", TRANSFORMER_DESC));
+        assertEquals(1.5f, AsmKit.resolveStaticScalingFactor(cache, SCALES, "SMALL", TRANSFORMER, "scaling", TRANSFORMER_DESC));
     }
 
     @Test
     @DisplayName("findEnumDefaultName reads the policy-supplied default field (P15 parameter)")
     void enumDefault() {
-        assertEquals("RED", AsmWalker.findEnumDefaultName(cache, VARIANT, "DEFAULT"));
-        assertNull(AsmWalker.findEnumDefaultName(cache, VARIANT, "OTHER_DEFAULT"));
+        assertEquals("RED", AsmKit.findEnumDefaultName(cache, VARIANT, "DEFAULT"));
+        assertNull(AsmKit.findEnumDefaultName(cache, VARIANT, "OTHER_DEFAULT"));
     }
 
     // ------------------------------------------------------------------------------------

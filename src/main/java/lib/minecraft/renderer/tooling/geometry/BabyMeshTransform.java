@@ -168,12 +168,12 @@ public record BabyMeshTransform(
                     strings.clear();
                     pending.clear();
                 })
-            .on(Insn.of(AbstractInsnNode.class, in -> AsmKit.readIntLiteral(in) != null), in -> {
-                Integer asInt = AsmKit.readIntLiteral(in);
+            .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.intLiteral(in) != null), in -> {
+                Integer asInt = AsmWalker.intLiteral(in);
                 if (asInt != null) ints.add(asInt);
             })
-            .on(Insn.of(AbstractInsnNode.class, in -> AsmKit.readFloatLiteral(in) != null), in -> {
-                Float asFloat = AsmKit.readFloatLiteral(in);
+            .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.floatLiteral(in) != null), in -> {
+                Float asFloat = AsmWalker.floatLiteral(in);
                 if (asFloat != null) floats.add(asFloat);
             })
             .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String),

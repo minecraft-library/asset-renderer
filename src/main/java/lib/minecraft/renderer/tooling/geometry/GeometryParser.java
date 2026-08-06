@@ -16,6 +16,7 @@ import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Exit;
 import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.walk.Interp;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -237,7 +238,7 @@ public final class GeometryParser {
      * reach the scaling-invokestatic branch, so their field maps to {@code null} and the
      * caller defaults to no scale.
      * <p>
-     * Memoised per cache instance inside {@link AsmKit#resolveStaticScalingFactor} so repeat
+     * Memoised per cache instance inside {@link AsmWalker#resolveStaticScalingFactor} so repeat
      * references across the whole session don't re-walk. The walk binds <b>every</b>
      * canonical {@code MeshTransformer} field it sees in the {@code <clinit>}, not just the
      * requested one, so sibling fields resolve without re-walking.
@@ -251,7 +252,7 @@ public final class GeometryParser {
     private static @Nullable Float resolveStaticMeshTransformer(
         @NotNull String owner, @NotNull String name, @NotNull ClassNodeCache cache
     ) {
-        return AsmKit.resolveStaticScalingFactor(cache, owner, name,
+        return AsmWalker.resolveStaticScalingFactor(cache, owner, name,
             VanillaSourceClasses.Types.MESH_TRANSFORMER, VanillaSourceClasses.Methods.SCALING, MESH_TRANSFORMER_DESC);
     }
 
@@ -298,8 +299,8 @@ public final class GeometryParser {
 
         InvokeDynamicInsnNode pendingIndy = null;
         for (AbstractInsnNode in : clinit.instructions) {
-            if (AsmKit.isPseudoNode(in)) continue;
-            if (in instanceof InvokeDynamicInsnNode indy && AsmKit.isLambdaInvokeDynamic(indy)) {
+            if (AsmWalker.isPseudoNode(in)) continue;
+            if (in instanceof InvokeDynamicInsnNode indy && AsmWalker.isLambdaInvokeDynamic(indy)) {
                 pendingIndy = indy;
                 continue;
             }
@@ -309,7 +310,7 @@ public final class GeometryParser {
                 && fi.owner.equals(owner)
                 && fi.name.equals(fieldName)
                 && pendingIndy != null) {
-                Handle handle = AsmKit.extractLambdaHandle(pendingIndy);
+                Handle handle = AsmWalker.extractLambdaHandle(pendingIndy);
                 if (handle == null
                     || handle.getTag() != Opcodes.H_INVOKESTATIC
                     || !handle.getOwner().equals(owner)) return null;
@@ -626,7 +627,7 @@ public final class GeometryParser {
         // {@code .getNext()} lands on {@code firstInsnAfterLoop} - i.e. the parser
         // resumes at the first real instruction after the loop.
         if (state.mode == Mode.EVALUATING) {
-            AsmKit.IntForLoop loop = AsmKit.detectIntForLoop(node);
+            AsmWalker.IntForLoop loop = AsmWalker.detectIntForLoop(node);
             if (loop != null) {
                 int slot = loop.iteratorSlot();
                 int[] previousInts = state.frame.paramIntValues;
@@ -716,7 +717,7 @@ public final class GeometryParser {
                     // body (e.g. MagmaCubeModel's per-iteration `if (i > 0 && i < 4)`)
                     // need full follow so each iteration takes the correct branch.
                     if (canFollow && value != null
-                        && AsmKit.evaluateIntComparison(opcode, value, 0)
+                        && Interp.evaluateIntComparison(opcode, value, 0)
                         && isForwardJump(instructions, node, jumpInsn.label)) {
                         return jumpInsn.label;
                     }
@@ -747,7 +748,7 @@ public final class GeometryParser {
                         }
                     }
                     if (canFollow && lhs != null && rhs != null
-                        && AsmKit.evaluateIntComparison(opcode, lhs, rhs)
+                        && Interp.evaluateIntComparison(opcode, lhs, rhs)
                         && isForwardJump(instructions, node, jumpInsn.label)) {
                         return jumpInsn.label;
                     }
@@ -996,9 +997,9 @@ public final class GeometryParser {
                 Number idx = state.numStack.isEmpty() ? null : state.numStack.popLiteralNumber();
                 if (value != null && idx != null) {
                     // Walk back: prev1 = value insn, prev2 = idx insn, prev3 = ALOAD slot.
-                    AbstractInsnNode v = AsmKit.previousReal(node);
-                    AbstractInsnNode i = v != null ? AsmKit.previousReal(v) : null;
-                    AbstractInsnNode a = i != null ? AsmKit.previousReal(i) : null;
+                    AbstractInsnNode v = AsmWalker.previousReal(node);
+                    AbstractInsnNode i = v != null ? AsmWalker.previousReal(v) : null;
+                    AbstractInsnNode a = i != null ? AsmWalker.previousReal(i) : null;
                     if (a instanceof VarInsnNode aload && aload.getOpcode() == Opcodes.ALOAD) {
                         float[] arr = state.frame.localFloatArrays.get(aload.var);
                         int idxInt = idx.intValue();
@@ -1200,7 +1201,7 @@ public final class GeometryParser {
             case InvokeDynamicInsnNode indy when state.mode == Mode.EVALUATING
                 && indy.desc.equals("(I)Ljava/lang/String;")
                 && !state.numStack.isEmpty() -> {
-                String recipe = AsmKit.resolveStringConcatRecipe(indy);
+                String recipe = AsmWalker.resolveStringConcatRecipe(indy);
                 if (recipe != null) {
                     int i = state.numStack.popNumber().intValue();
                     state.frame.pendingPartName = AsmKit.applyStringConcatRecipeWithInt(recipe, i);
@@ -1414,7 +1415,7 @@ public final class GeometryParser {
         // {@code SquidModel.createTentacleName} - {@code "tentacle" + i};
         // {@code BlazeModel.getPartName} - {@code "part" + i}). Walks the helper's
         // instructions for the inner {@code makeConcatWithConstants} invokedynamic via
-        // {@link AsmKit#findStringConcatRecipeIn}, pops the int from numStack, applies the
+        // {@link AsmWalker#findStringConcatRecipeIn}, pops the int from numStack, applies the
         // recipe's dynamic-placeholder substitution and stashes the result in
         // {@code pendingPartName}. The general helper-walk approach subsumes the
         // PartNames-specific hack below (the helper name was the literal recipe prefix)
@@ -1431,7 +1432,7 @@ public final class GeometryParser {
             && !state.numStack.isEmpty()) {
             MethodNode helper = AsmKit.findMethodInHierarchy(cache, methodInsn.owner, methodInsn.name, methodInsn.desc);
             if (helper != null) {
-                String recipe = AsmKit.findStringConcatRecipeIn(helper);
+                String recipe = AsmWalker.findStringConcatRecipeIn(helper);
                 if (recipe != null) {
                     int i = state.numStack.popNumber().intValue();
                     state.frame.pendingPartName = AsmKit.applyStringConcatRecipeWithInt(recipe, i);
@@ -1565,9 +1566,9 @@ public final class GeometryParser {
                 VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RANDOM_SOURCE), "J"))) {
             // The long seed isn't tracked on numStack (the parser's literal walk handles
             // int / float / double only). Walk back to the preceding {@code LDC2_W} or
-            // {@code LCONST_0} / {@code LCONST_1} directly via {@link AsmKit#readLongLiteral}.
-            AbstractInsnNode seedNode = AsmKit.previousReal(methodInsn);
-            Long seed = seedNode != null ? AsmKit.readLongLiteral(seedNode) : null;
+            // {@code LCONST_0} / {@code LCONST_1} directly via {@link AsmWalker#longLiteral}.
+            AbstractInsnNode seedNode = AsmWalker.previousReal(methodInsn);
+            Long seed = seedNode != null ? AsmWalker.longLiteral(seedNode) : null;
             if (seed != null) {
                 state.frame.pendingRandomSource = new Random(seed);
             }
@@ -1587,8 +1588,8 @@ public final class GeometryParser {
             && !state.numStack.isEmpty()) {
             Number bound = state.numStack.popLiteralNumber();
             if (bound != null) {
-                AbstractInsnNode boundNode = AsmKit.previousReal(methodInsn);
-                AbstractInsnNode aloadNode = boundNode != null ? AsmKit.previousReal(boundNode) : null;
+                AbstractInsnNode boundNode = AsmWalker.previousReal(methodInsn);
+                AbstractInsnNode aloadNode = boundNode != null ? AsmWalker.previousReal(boundNode) : null;
                 if (aloadNode instanceof VarInsnNode aload && aload.getOpcode() == Opcodes.ALOAD) {
                     Random rng = state.frame.localRandomSources.get(aload.var);
                     if (rng != null && bound.intValue() > 0) {
@@ -1784,7 +1785,7 @@ public final class GeometryParser {
         while (prev != null && collected.size() < expectedCount) {
             if (prev instanceof LdcInsnNode ldc && ldc.cst instanceof String s) {
                 collected.addFirst(s);
-            } else if (AsmKit.isPseudoNode(prev)) {
+            } else if (AsmWalker.isPseudoNode(prev)) {
                 // line number / frame / label nodes - skip silently
             } else {
                 return null;
@@ -2841,19 +2842,19 @@ public final class GeometryParser {
         @NotNull ClassNodeCache cache
     ) {
         int loadOp = loadNode.getOpcode();
-        AbstractInsnNode prev1 = AsmKit.previousReal(loadNode);
+        AbstractInsnNode prev1 = AsmWalker.previousReal(loadNode);
         if (prev1 == null) return null;
 
         if (loadOp == Opcodes.IALOAD) {
             // 2D shape: <field>:[[I; <row expr>; AALOAD; <int lit col>; IALOAD
-            Integer colIdx = AsmKit.readIntLiteral(prev1);
+            Integer colIdx = AsmWalker.intLiteral(prev1);
             if (colIdx != null) {
-                AbstractInsnNode aaload = AsmKit.previousReal(prev1);
+                AbstractInsnNode aaload = AsmWalker.previousReal(prev1);
                 if (aaload != null && aaload.getOpcode() == Opcodes.AALOAD) {
-                    AbstractInsnNode beforeAaload = AsmKit.previousReal(aaload);
+                    AbstractInsnNode beforeAaload = AsmWalker.previousReal(aaload);
                     RowResolution rr = resolveRowExpression(beforeAaload, state);
                     if (rr != null) {
-                        AbstractInsnNode getstaticNode = AsmKit.previousReal(rr.startNode());
+                        AbstractInsnNode getstaticNode = AsmWalker.previousReal(rr.startNode());
                         if (getstaticNode instanceof FieldInsnNode field
                             && field.getOpcode() == Opcodes.GETSTATIC
                             && "[[I".equals(field.desc)) {
@@ -2869,7 +2870,7 @@ public final class GeometryParser {
             // 1D shape: <field>:[I; <row expr>; IALOAD
             RowResolution rr1d = resolveRowExpression(prev1, state);
             if (rr1d != null) {
-                AbstractInsnNode getstaticNode = AsmKit.previousReal(rr1d.startNode());
+                AbstractInsnNode getstaticNode = AsmWalker.previousReal(rr1d.startNode());
                 if (getstaticNode instanceof FieldInsnNode field
                     && field.getOpcode() == Opcodes.GETSTATIC
                     && "[I".equals(field.desc)) {
@@ -2884,7 +2885,7 @@ public final class GeometryParser {
             // 1D static shape: <field>:[F; <row expr>; FALOAD
             RowResolution rr = resolveRowExpression(prev1, state);
             if (rr != null) {
-                AbstractInsnNode getstaticNode = AsmKit.previousReal(rr.startNode());
+                AbstractInsnNode getstaticNode = AsmWalker.previousReal(rr.startNode());
                 if (getstaticNode instanceof FieldInsnNode field
                     && field.getOpcode() == Opcodes.GETSTATIC
                     && "[F".equals(field.desc)) {
@@ -2899,7 +2900,7 @@ public final class GeometryParser {
             // sequence. Silverfish's post-loop layer bones use
             // {@code aload_2; iconst_<idx>; faload} to read its cumulative-pivot cache.
             if (rr != null) {
-                AbstractInsnNode aloadNode = AsmKit.previousReal(rr.startNode());
+                AbstractInsnNode aloadNode = AsmWalker.previousReal(rr.startNode());
                 if (aloadNode instanceof VarInsnNode aload && aload.getOpcode() == Opcodes.ALOAD) {
                     float[] arr = state.frame.localFloatArrays.get(aload.var);
                     if (arr != null && rr.value() >= 0 && rr.value() < arr.length) {
@@ -2948,7 +2949,7 @@ public final class GeometryParser {
         if (endNode == null) return null;
         // Literal int row: silverfish's post-loop layer bones use ICONST_2 / ICONST_4 /
         // ICONST_1 as direct row indices into BODY_SIZES.
-        Integer literalRow = AsmKit.readIntLiteral(endNode);
+        Integer literalRow = AsmWalker.intLiteral(endNode);
         if (literalRow != null) {
             return new RowResolution(literalRow, endNode);
         }
@@ -2957,10 +2958,10 @@ public final class GeometryParser {
             if (v != null) return new RowResolution(v, iload);
         }
         if (endNode.getOpcode() == Opcodes.IADD || endNode.getOpcode() == Opcodes.ISUB) {
-            AbstractInsnNode rhs = AsmKit.previousReal(endNode);
-            AbstractInsnNode lhs = rhs == null ? null : AsmKit.previousReal(rhs);
+            AbstractInsnNode rhs = AsmWalker.previousReal(endNode);
+            AbstractInsnNode lhs = rhs == null ? null : AsmWalker.previousReal(rhs);
             if (rhs != null && lhs instanceof VarInsnNode iload && iload.getOpcode() == Opcodes.ILOAD) {
-                Integer rhsLit = AsmKit.readIntLiteral(rhs);
+                Integer rhsLit = AsmWalker.intLiteral(rhs);
                 Integer base = resolveSlotInt(state, iload.var);
                 if (rhsLit != null && base != null) {
                     int v = endNode.getOpcode() == Opcodes.IADD ? base + rhsLit : base - rhsLit;
@@ -3007,11 +3008,11 @@ public final class GeometryParser {
      *     a compile-time numeric push
      */
     private static @Nullable Number readNumericLiteral(@NotNull AbstractInsnNode node) {
-        Integer asInt = AsmKit.readIntLiteral(node);
+        Integer asInt = AsmWalker.intLiteral(node);
         if (asInt != null) return asInt;
-        Float asFloat = AsmKit.readFloatLiteral(node);
+        Float asFloat = AsmWalker.floatLiteral(node);
         if (asFloat != null) return asFloat;
-        return AsmKit.readDoubleLiteral(node);
+        return AsmWalker.doubleLiteral(node);
     }
 
     /**
@@ -3121,11 +3122,11 @@ public final class GeometryParser {
      */
     private static @Nullable PrimitiveNewArray findPrimitiveNewArrayBefore(@NotNull FieldInsnNode putstatic, int newArrayOperand) {
         for (AbstractInsnNode cursor = putstatic.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
-            if (AsmKit.isPseudoNode(cursor)) continue;
+            if (AsmWalker.isPseudoNode(cursor)) continue;
             if (cursor instanceof IntInsnNode intInsn && intInsn.getOpcode() == Opcodes.NEWARRAY && intInsn.operand == newArrayOperand) {
-                AbstractInsnNode lenNode = AsmKit.previousReal(cursor);
+                AbstractInsnNode lenNode = AsmWalker.previousReal(cursor);
                 if (lenNode == null) return null;
-                Integer length = AsmKit.readIntLiteral(lenNode);
+                Integer length = AsmWalker.intLiteral(lenNode);
                 if (length == null || length < 0) return null;
                 return new PrimitiveNewArray(cursor, length);
             }
@@ -3171,20 +3172,20 @@ public final class GeometryParser {
         boolean skipUnknownNodes,
         @NotNull DupStoreEntryHandler handler
     ) {
-        Exit exit = AsmWalker.from(AsmKit.nextReal(newArrayNode))
+        Exit exit = AsmWalker.from(AsmWalker.nextReal(newArrayNode))
             .until(stopAt)
             .trace(cursor -> {
                 if (cursor.getOpcode() != Opcodes.DUP)
-                    return skipUnknownNodes ? AsmKit.nextReal(cursor) : null;
-                AbstractInsnNode idxNode = AsmKit.nextReal(cursor);
-                AbstractInsnNode valueNode = AsmKit.nextReal(idxNode);
-                AbstractInsnNode storeNode = AsmKit.nextReal(valueNode);
+                    return skipUnknownNodes ? AsmWalker.nextReal(cursor) : null;
+                AbstractInsnNode idxNode = AsmWalker.nextReal(cursor);
+                AbstractInsnNode valueNode = AsmWalker.nextReal(idxNode);
+                AbstractInsnNode storeNode = AsmWalker.nextReal(valueNode);
                 if (idxNode == null || valueNode == null || storeNode == null) return null;
                 if (storeNode.getOpcode() != storeOpcode) return null;
-                Integer idx = AsmKit.readIntLiteral(idxNode);
+                Integer idx = AsmWalker.intLiteral(idxNode);
                 if (idx == null || idx < 0 || idx >= length) return null;
                 if (!handler.handleEntry(idx, valueNode)) return null;
-                return AsmKit.nextReal(storeNode);
+                return AsmWalker.nextReal(storeNode);
             });
         if (exit == Exit.CYCLE) {
             throw new ToolingException(
@@ -3206,7 +3207,7 @@ public final class GeometryParser {
         if (loc == null) return null;
         int[] out = new int[loc.length()];
         boolean ok = walkDupStoreEntries(loc.newArrayNode(), put, Opcodes.IASTORE, loc.length(), true, (idx, valueNode) -> {
-            Integer value = AsmKit.readIntLiteral(valueNode);
+            Integer value = AsmWalker.intLiteral(valueNode);
             if (value == null) return false;
             out[idx] = value;
             return true;
@@ -3226,32 +3227,32 @@ public final class GeometryParser {
         AbstractInsnNode aNewArrayNode = null;
         AbstractInsnNode lengthNode = null;
         for (AbstractInsnNode cursor = put.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
-            if (AsmKit.isPseudoNode(cursor)) continue;
+            if (AsmWalker.isPseudoNode(cursor)) continue;
             if (cursor instanceof TypeInsnNode typeInsn && typeInsn.getOpcode() == Opcodes.ANEWARRAY && "[I".equals(typeInsn.desc)) {
                 aNewArrayNode = cursor;
-                lengthNode = AsmKit.previousReal(cursor);
+                lengthNode = AsmWalker.previousReal(cursor);
                 break;
             }
         }
         if (aNewArrayNode == null || lengthNode == null) return null;
-        Integer outerLength = AsmKit.readIntLiteral(lengthNode);
+        Integer outerLength = AsmWalker.intLiteral(lengthNode);
         if (outerLength == null || outerLength < 0) return null;
         int[][] out = new int[outerLength][];
         boolean[] malformed = new boolean[1];
-        Exit exit = AsmWalker.from(AsmKit.nextReal(aNewArrayNode))
+        Exit exit = AsmWalker.from(AsmWalker.nextReal(aNewArrayNode))
             .until(put)
             .trace(cursor -> {
-                if (cursor.getOpcode() != Opcodes.DUP) return AsmKit.nextReal(cursor);
+                if (cursor.getOpcode() != Opcodes.DUP) return AsmWalker.nextReal(cursor);
                 // DUP; <row>; <inner-len>; NEWARRAY int; ... AASTORE
-                AbstractInsnNode rowNode = AsmKit.nextReal(cursor);
-                AbstractInsnNode innerLenNode = AsmKit.nextReal(rowNode);
-                AbstractInsnNode innerNewArrayNode = AsmKit.nextReal(innerLenNode);
+                AbstractInsnNode rowNode = AsmWalker.nextReal(cursor);
+                AbstractInsnNode innerLenNode = AsmWalker.nextReal(rowNode);
+                AbstractInsnNode innerNewArrayNode = AsmWalker.nextReal(innerLenNode);
                 if (rowNode == null || innerLenNode == null || innerNewArrayNode == null) {
                     malformed[0] = true;
                     return null;
                 }
-                Integer row = AsmKit.readIntLiteral(rowNode);
-                Integer innerLen = AsmKit.readIntLiteral(innerLenNode);
+                Integer row = AsmWalker.intLiteral(rowNode);
+                Integer innerLen = AsmWalker.intLiteral(innerLenNode);
                 if (row == null || innerLen == null || row < 0 || row >= outerLength) {
                     malformed[0] = true;
                     return null;
@@ -3269,7 +3270,7 @@ public final class GeometryParser {
                 }
                 int[] inner = new int[innerLen];
                 boolean ok = walkDupStoreEntries(innerNewArrayNode, aastore, Opcodes.IASTORE, innerLen, false, (innerIdx, valueNode) -> {
-                    Integer value = AsmKit.readIntLiteral(valueNode);
+                    Integer value = AsmWalker.intLiteral(valueNode);
                     if (value == null) return false;
                     inner[innerIdx] = value;
                     return true;
@@ -3279,7 +3280,7 @@ public final class GeometryParser {
                     return null;
                 }
                 out[row] = inner;
-                return AsmKit.nextReal(aastore);
+                return AsmWalker.nextReal(aastore);
             });
         if (exit == Exit.CYCLE) {
             throw new ToolingException(
@@ -3313,7 +3314,7 @@ public final class GeometryParser {
         if (loc == null) return null;
         float[] out = new float[loc.length()];
         boolean ok = walkDupStoreEntries(loc.newArrayNode(), put, Opcodes.FASTORE, loc.length(), true, (idx, valueNode) -> {
-            Float value = AsmKit.readFloatLiteral(valueNode);
+            Float value = AsmWalker.floatLiteral(valueNode);
             if (value == null) return false;
             out[idx] = value;
             return true;

@@ -255,7 +255,7 @@ final class EntityVariantAxisResolver {
             if (coats == null) continue;
 
             Map<String, String> ids = enumSerializedIds(enumInternal);
-            String defaultConstant = AsmKit.findEnumDefaultName(this.cache, enumInternal,
+            String defaultConstant = AsmWalker.findEnumDefaultName(this.cache, enumInternal,
                 EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue());
             String firstConstant = coats.byConstant().keySet().iterator().next();
             String dflt = variantId(defaultConstant != null ? defaultConstant : firstConstant, ids);
@@ -329,7 +329,7 @@ final class EntityVariantAxisResolver {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit != null) bodies.add(clinit);
         for (MethodNode method : cn.methods)
-            if (method.name.startsWith(AsmKit.LAMBDA_STATIC_PREFIX)) bodies.add(method);
+            if (method.name.startsWith(AsmWalker.LAMBDA_STATIC_PREFIX)) bodies.add(method);
 
         for (MethodNode body : bodies) {
             Cells.Latch<String> pendingConstant = Cells.latch();

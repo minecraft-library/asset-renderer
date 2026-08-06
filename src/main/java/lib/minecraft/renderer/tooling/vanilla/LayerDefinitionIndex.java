@@ -224,7 +224,7 @@ public final class LayerDefinitionIndex {
             // as a scaling while a fourth spells it as a BabyModelTransform.
             .on(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.GETSTATIC
                 && VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF.equals(fi.desc)), fi -> {
-                Float scale = AsmKit.resolveStaticScalingFactor(cache, fi.owner, fi.name,
+                Float scale = AsmWalker.resolveStaticScalingFactor(cache, fi.owner, fi.name,
                     VanillaSourceClasses.Types.MESH_TRANSFORMER, VanillaSourceClasses.Methods.SCALING,
                     VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF);
                 if (scale != null) {

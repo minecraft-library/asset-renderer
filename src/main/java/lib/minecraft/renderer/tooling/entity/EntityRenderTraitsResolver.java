@@ -112,16 +112,16 @@ final class EntityRenderTraitsResolver {
             .ofType(MethodInsnNode.class)
             .where(mi -> VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(mi.name))
             .firstNotNull(mi -> {
-                AbstractInsnNode scaleLoad = AsmKit.previousReal(mi);
+                AbstractInsnNode scaleLoad = AsmWalker.previousReal(mi);
                 if (!isFloadOf(scaleLoad, scaleSlot)) return 0f;
-                AbstractInsnNode beforeScale = AsmKit.previousReal(scaleLoad);
+                AbstractInsnNode beforeScale = AsmWalker.previousReal(scaleLoad);
                 // Pass-through shape: FLOAD bodyRot; FLOAD scale; INVOKESPECIAL super.
                 if (isFloadOf(beforeScale, bodyRotSlot)) return 0f;
                 // Addend shape: FLOAD bodyRot; LDC C; FADD; FLOAD scale; INVOKESPECIAL super.
                 if (beforeScale != null && beforeScale.getOpcode() == Opcodes.FADD) {
-                    AbstractInsnNode constInsn = AsmKit.previousReal(beforeScale);
-                    Float addend = constInsn == null ? null : AsmKit.readFloatLiteral(constInsn);
-                    AbstractInsnNode bodyRotLoad = constInsn == null ? null : AsmKit.previousReal(constInsn);
+                    AbstractInsnNode constInsn = AsmWalker.previousReal(beforeScale);
+                    Float addend = constInsn == null ? null : AsmWalker.floatLiteral(constInsn);
+                    AbstractInsnNode bodyRotLoad = constInsn == null ? null : AsmWalker.previousReal(constInsn);
                     if (addend != null && isFloadOf(bodyRotLoad, bodyRotSlot)) {
                         this.diagnostics.info("yaw addend %.1f from setupRotations override", addend);
                         return addend;
@@ -263,23 +263,23 @@ final class EntityRenderTraitsResolver {
      */
     private static @Nullable AgeOperand readAgeOperand(@Nullable AbstractInsnNode tail) {
         if (tail == null) return null;
-        Float direct = AsmKit.readFloatLiteral(tail);
+        Float direct = AsmWalker.floatLiteral(tail);
 
         // Select shape, read backwards: <adult literal>; GOTO; <baby literal>; IF; GETFIELD isBaby.
-        AbstractInsnNode jump = AsmKit.previousReal(tail);
+        AbstractInsnNode jump = AsmWalker.previousReal(tail);
         if (direct != null && jump != null && jump.getOpcode() == Opcodes.GOTO) {
-            AbstractInsnNode fallThrough = AsmKit.previousReal(jump);
-            Float taken = fallThrough == null ? null : AsmKit.readFloatLiteral(fallThrough);
-            AbstractInsnNode branch = fallThrough == null ? null : AsmKit.previousReal(fallThrough);
+            AbstractInsnNode fallThrough = AsmWalker.previousReal(jump);
+            Float taken = fallThrough == null ? null : AsmWalker.floatLiteral(fallThrough);
+            AbstractInsnNode branch = fallThrough == null ? null : AsmWalker.previousReal(fallThrough);
             int opcode = branch == null ? Opcodes.NOP : branch.getOpcode();
             if (taken != null && (opcode == Opcodes.IFEQ || opcode == Opcodes.IFNE)) {
-                AbstractInsnNode read = AsmKit.previousReal(branch);
+                AbstractInsnNode read = AsmWalker.previousReal(branch);
                 if (read != null && read.getOpcode() == Opcodes.GETFIELD
                     && read instanceof FieldInsnNode field
                     && VanillaSourceClasses.Fields.IS_BABY.equals(field.name)
                     && "Z".equals(field.desc)) {
                     // IFEQ jumps when the flag is false, so the fall-through arm is the baby's.
-                    AbstractInsnNode receiver = AsmKit.previousReal(read);
+                    AbstractInsnNode receiver = AsmWalker.previousReal(read);
                     if (receiver == null) return null;
                     return opcode == Opcodes.IFEQ
                         ? new AgeOperand(direct, taken, receiver)
@@ -304,8 +304,8 @@ final class EntityRenderTraitsResolver {
             .getStatic(VanillaSourceClasses.Types.MATH_AXIS)
             .where(field -> !field.name.startsWith("Y"))
             .any(field -> {
-                AbstractInsnNode angle = AsmKit.nextReal(field);
-                Float literal = angle == null ? null : AsmKit.readFloatLiteral(angle);
+                AbstractInsnNode angle = AsmWalker.nextReal(field);
+                Float literal = angle == null ? null : AsmWalker.floatLiteral(angle);
                 return literal != null && literal != 0f;
             });
     }
@@ -398,13 +398,13 @@ final class EntityRenderTraitsResolver {
      * map; {@code null} when any arg is unresolvable or the triple is non-uniform.
      */
     private static @Nullable Float readUniformScaleArgs(@NotNull AbstractInsnNode invoke, @NotNull Map<Integer, Float> slotLiterals) {
-        AbstractInsnNode z = AsmKit.previousReal(invoke);
+        AbstractInsnNode z = AsmWalker.previousReal(invoke);
         Float zValue = resolveFloatArg(z, slotLiterals);
         if (zValue == null) return null;
-        AbstractInsnNode y = AsmKit.previousReal(z);
+        AbstractInsnNode y = AsmWalker.previousReal(z);
         Float yValue = resolveFloatArg(y, slotLiterals);
         if (yValue == null) return null;
-        Float xValue = resolveFloatArg(AsmKit.previousReal(y), slotLiterals);
+        Float xValue = resolveFloatArg(AsmWalker.previousReal(y), slotLiterals);
         if (xValue == null) return null;
         if (Math.abs(xValue - yValue) > UNIFORM_SCALE_TOLERANCE || Math.abs(yValue - zValue) > UNIFORM_SCALE_TOLERANCE) return null;
         return xValue;
@@ -415,7 +415,7 @@ final class EntityRenderTraitsResolver {
      */
     private static @Nullable Float resolveFloatArg(@Nullable AbstractInsnNode node, @NotNull Map<Integer, Float> slotLiterals) {
         if (node == null) return null;
-        Float literal = AsmKit.readFloatLiteral(node);
+        Float literal = AsmWalker.floatLiteral(node);
         if (literal != null) return literal;
         if (node.getOpcode() == Opcodes.FLOAD && node instanceof VarInsnNode load) return slotLiterals.get(load.var);
         return null;
@@ -466,8 +466,8 @@ final class EntityRenderTraitsResolver {
         Cells.Latch<Integer> diffuse = Cells.latch();
         AsmWalker.from(open).until(init)
             .on(allocation, alloc -> lastInt.clear())
-            .on(Insn.of(AbstractInsnNode.class, in -> AsmKit.readIntLiteral(in) != null), in -> {
-                Integer literal = AsmKit.readIntLiteral(in);
+            .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.intLiteral(in) != null), in -> {
+                Integer literal = AsmWalker.intLiteral(in);
                 if (literal != null) lastInt.set(literal);
             })
             .on(Insn.getStatic(VanillaSourceClasses.Types.MAP_COLOR), read -> {

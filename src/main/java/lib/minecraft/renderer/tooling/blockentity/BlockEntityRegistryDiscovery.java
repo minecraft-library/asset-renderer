@@ -170,7 +170,7 @@ public final class BlockEntityRegistryDiscovery {
             .forEach(commit -> {
                 String typeField = commit.value();
                 if (typeField == null) return;
-                String rendererClass = AsmKit.resolveLambdaTargetClass(commit.node(), registryClass);
+                String rendererClass = AsmWalker.resolveLambdaTargetClass(commit.node(), registryClass);
                 if (rendererClass != null)
                     out.put(typeField, rendererClass);
                 else

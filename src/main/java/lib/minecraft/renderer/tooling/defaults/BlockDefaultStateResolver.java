@@ -156,8 +156,8 @@ final class BlockDefaultStateResolver {
             return BlockStatePolicies.booleanDefault();
 
         // EnumProperty - the class arg is the nearest preceding class literal.
-        AbstractInsnNode classNode = AsmKit.findPreceding(create, n -> AsmKit.readTypeLiteral(n) != null, op -> true);
-        Type classLiteral = classNode == null ? null : AsmKit.readTypeLiteral(classNode);
+        AbstractInsnNode classNode = AsmKit.findPreceding(create, n -> AsmWalker.typeLiteral(n) != null, op -> true);
+        Type classLiteral = classNode == null ? null : AsmWalker.typeLiteral(classNode);
         if (classLiteral == null) return null;
         String enumOwner = classLiteral.getInternalName();
 
@@ -175,7 +175,7 @@ final class BlockDefaultStateResolver {
         if (create.desc.endsWith(ENUM_PREDICATE_CREATE_TAIL)) {
             // create(name, class, predicate): a Direction.Plane filter resolves to the first direction
             // in that plane (derived from the Plane construction); any other predicate falls back.
-            AbstractInsnNode predicate = AsmKit.previousReal(create);
+            AbstractInsnNode predicate = AsmWalker.previousReal(create);
             if (predicate != null && predicate.getOpcode() == Opcodes.GETSTATIC && predicate instanceof FieldInsnNode plane) {
                 String planeFirst = resolvePlaneFirstDirection(plane, enumOwner);
                 if (planeFirst != null) return planeFirst;

@@ -263,10 +263,10 @@ final class EntityGeometryRefResolver {
                 }
             }
             if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDERER_PROVIDER_CONTEXT, VanillaSourceClasses.Methods.BAKE_LAYER)) continue;
-            AbstractInsnNode next = AsmKit.nextReal(in);
+            AbstractInsnNode next = AsmWalker.nextReal(in);
             if (!(next instanceof MethodInsnNode init) || next.getOpcode() != Opcodes.INVOKESPECIAL
                 || !AsmKit.INIT.equals(init.name) || !isModelClass(init.owner)) continue;
-            String field = resolveLayerSource(AsmKit.previousReal(in), args, pushes, bindings);
+            String field = resolveLayerSource(AsmWalker.previousReal(in), args, pushes, bindings);
             if (field != null) {
                 sites.add(field);
                 freshTriples.add(field);
@@ -327,7 +327,7 @@ final class EntityGeometryRefResolver {
             && source instanceof FieldInsnNode typeField
             && typeField.owner.endsWith("$Type")
             && VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION).equals(typeField.desc)
-            && AsmKit.previousReal(source) instanceof VarInsnNode receiver
+            && AsmWalker.previousReal(source) instanceof VarInsnNode receiver
             && receiver.getOpcode() == Opcodes.ALOAD) {
             EntitySubject.TypeFieldRef constant = typeArgAtSlot(receiver.var, ctorArgs, typeField.owner);
             if (constant == null) return null;

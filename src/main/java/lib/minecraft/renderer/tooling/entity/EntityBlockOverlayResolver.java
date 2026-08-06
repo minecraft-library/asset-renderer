@@ -221,7 +221,7 @@ final class EntityBlockOverlayResolver {
         int opCount = 0;
 
         for (AbstractInsnNode in : submit.instructions) {
-            Float literal = AsmKit.readFloatLiteral(in);
+            Float literal = AsmWalker.floatLiteral(in);
             if (literal != null) {
                 floats.add(literal);
                 continue;

@@ -123,7 +123,7 @@ public final class BlockItemAliasWalk {
         @NotNull InvokeDynamicInsnNode indy,
         @NotNull String primaryField
     ) {
-        Handle handle = AsmKit.extractLambdaHandle(indy);
+        Handle handle = AsmWalker.extractLambdaHandle(indy);
         if (handle == null || handle.getTag() != Opcodes.H_INVOKESTATIC || !handle.getOwner().equals(items.name))
             return;
         MethodNode lambda = AsmKit.findMethod(items, handle.getName(), handle.getDesc());
@@ -140,8 +140,8 @@ public final class BlockItemAliasWalk {
      * array's length push.
      */
     private void collectVarargsSecondaries(@NotNull AbstractInsnNode anewarray) {
-        AbstractInsnNode lengthPush = AsmKit.previousReal(anewarray);
-        AbstractInsnNode primary = AsmKit.previousReal(lengthPush);
+        AbstractInsnNode lengthPush = AsmWalker.previousReal(anewarray);
+        AbstractInsnNode primary = AsmWalker.previousReal(lengthPush);
         if (!(primary instanceof FieldInsnNode field) || !AsmKit.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
             return;
 

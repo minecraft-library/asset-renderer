@@ -340,7 +340,7 @@ public final class ArmorMeshIndex {
             // The lambda a following `map` rewrites each slot through - the wrap that states the
             // atlas, or the transformer wrap that only re-applies a scale.
             .on(Insn.ofType(InvokeDynamicInsnNode.class), indy -> {
-                Handle handle = AsmKit.extractLambdaHandle(indy);
+                Handle handle = AsmWalker.extractLambdaHandle(indy);
                 if (handle != null) pendingLambda.set(handle); else pendingLambda.clear();
             })
             .on(Insn.of(VarInsnNode.class, vi -> vi.getOpcode() == Opcodes.ASTORE), vi -> {
@@ -543,7 +543,7 @@ public final class ArmorMeshIndex {
 
         int[] wrapped = AsmWalker.over(node)
             .ofType(InvokeDynamicInsnNode.class)
-            .mapNotNull(AsmKit::extractLambdaHandle)
+            .mapNotNull(AsmWalker::extractLambdaHandle)
             .firstNotNull(handle -> resolveWrapAtlas(cache, handle));
         if (wrapped != null) return wrapped;
 
@@ -619,7 +619,7 @@ public final class ArmorMeshIndex {
         return AsmWalker.over(node)
             .ofType(InvokeDynamicInsnNode.class)
             .firstNotNull(indy -> {
-                Handle handle = AsmKit.extractLambdaHandle(indy);
+                Handle handle = AsmWalker.extractLambdaHandle(indy);
                 if (handle == null
                     || !AsmKit.descriptorReturns(handle.getDesc(), VanillaSourceClasses.Types.MESH_DEFINITION))
                     return null;

@@ -149,7 +149,7 @@ final class EntityRendererResolver {
      * the region.
      */
     private static @Nullable LayerSite resolveSite(@NotNull MethodNode ctor, @NotNull AbstractInsnNode addLayer) {
-        AbstractInsnNode previous = AsmKit.previousReal(addLayer);
+        AbstractInsnNode previous = AsmWalker.previousReal(addLayer);
         if (previous instanceof MethodInsnNode ctorCall
             && previous.getOpcode() == Opcodes.INVOKESPECIAL
             && AsmKit.INIT.equals(ctorCall.name)) {

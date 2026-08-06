@@ -7,6 +7,7 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -72,7 +73,7 @@ public final class TintWalk {
         AsmKit.LiteralStack intStack = new AsmKit.LiteralStack(4);
 
         for (AbstractInsnNode node : createDefault.instructions) {
-            Integer literal = AsmKit.readIntLiteral(node);
+            Integer literal = AsmWalker.intLiteral(node);
             if (literal != null) {
                 intStack.push(literal);
                 continue;

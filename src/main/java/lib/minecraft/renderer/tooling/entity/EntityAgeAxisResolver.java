@@ -278,13 +278,13 @@ final class EntityAgeAxisResolver {
                 && in instanceof FieldInsnNode fi
                 && "Z".equals(fi.desc)
                 && VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)
-                && AsmKit.nextReal(in) instanceof JumpInsnNode jump
+                && AsmWalker.nextReal(in) instanceof JumpInsnNode jump
                 && jump.getOpcode() == Opcodes.IFEQ ? jump : null,
             in -> {
                 if (in.getOpcode() == Opcodes.GETFIELD
                     && in instanceof FieldInsnNode fi
                     && "Z".equals(fi.desc)
-                    && AsmKit.nextReal(in) instanceof JumpInsnNode jump
+                    && AsmWalker.nextReal(in) instanceof JumpInsnNode jump
                     && jump.getOpcode() == Opcodes.IFEQ) return jump.label; // a non-isBaby flag: take its false arm
                 if (in.getOpcode() == Opcodes.GOTO && in instanceof JumpInsnNode goTo) return goTo.label;
                 return in.getNext();

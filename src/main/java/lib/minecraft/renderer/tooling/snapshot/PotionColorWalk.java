@@ -67,13 +67,13 @@ public final class PotionColorWalk {
         AsmKit.LiteralStack intStack = new AsmKit.LiteralStack(8);
 
         for (AbstractInsnNode node : clinit.toList()) {
-            Integer literal = AsmKit.readIntLiteral(node);
+            Integer literal = AsmWalker.intLiteral(node);
             if (literal != null) {
                 intStack.push(literal);
                 continue;
             }
 
-            String string = AsmKit.readStringLiteral(node);
+            String string = AsmWalker.stringLiteral(node);
             if (string != null) {
                 if (pendingEffectId == null) pendingEffectId = string;
                 continue;

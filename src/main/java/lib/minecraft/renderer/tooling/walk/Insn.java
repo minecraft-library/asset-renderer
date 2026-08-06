@@ -173,7 +173,7 @@ public final class Insn {
      * @return the recognizer
      */
     public static @NotNull Match<InvokeDynamicInsnNode> lambdaIndy() {
-        return of(InvokeDynamicInsnNode.class, AsmKit::isLambdaInvokeDynamic);
+        return of(InvokeDynamicInsnNode.class, AsmWalker::isLambdaInvokeDynamic);
     }
 
     /**

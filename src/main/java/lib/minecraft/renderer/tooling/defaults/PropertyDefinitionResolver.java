@@ -97,9 +97,9 @@ final class PropertyDefinitionResolver {
         if (opcode == Opcodes.GETSTATIC && node instanceof FieldInsnNode field) {
             if (isPropertyFieldRef(field.desc)) {
                 if (field.desc.charAt(0) == '[') {                                        // (b) Property[] element
-                    AbstractInsnNode index = AsmKit.nextReal(node);
-                    AbstractInsnNode aaload = AsmKit.nextReal(index);
-                    Integer idx = index == null ? null : AsmKit.readIntLiteral(index);
+                    AbstractInsnNode index = AsmWalker.nextReal(node);
+                    AbstractInsnNode aaload = AsmWalker.nextReal(index);
+                    Integer idx = index == null ? null : AsmWalker.intLiteral(index);
                     if (idx != null && aaload != null && aaload.getOpcode() == Opcodes.AALOAD)
                         addDeclared(declared, readStaticPropertyArrayElement(field.owner, field.name, idx));
                 } else {                                                                  // (a) direct GETSTATIC
@@ -224,7 +224,7 @@ final class PropertyDefinitionResolver {
     private @NotNull List<FieldRef> resolvePropertyListElements(@NotNull String owner, @NotNull String field) {
         List<FieldRef> out = new ArrayList<>();
         FieldInsnNode put = findPutStaticNode(owner, field);
-        AbstractInsnNode of = put == null ? null : AsmKit.previousReal(put);
+        AbstractInsnNode of = put == null ? null : AsmWalker.previousReal(put);
         if (!(of instanceof MethodInsnNode build) || of.getOpcode() != Opcodes.INVOKESTATIC || !build.desc.endsWith(LIST_RETURN_SUFFIX))
             return out;
         List<FieldRef> backward = AsmWalker.before(of).real()
@@ -263,8 +263,8 @@ final class PropertyDefinitionResolver {
         if (value.getOpcode() == Opcodes.GETSTATIC && value instanceof FieldInsnNode src && isPropertyFieldRef(src.desc))
             return resolvePropertyName(src.owner, src.name);                              // redirect
         if (value instanceof MethodInsnNode call && VanillaSourceClasses.Methods.PROPERTY_CREATE.equals(call.name)) {
-            AbstractInsnNode name = AsmKit.findPreceding(call, n -> AsmKit.readStringLiteral(n) != null, op -> true);
-            return name == null ? null : AsmKit.readStringLiteral(name);
+            AbstractInsnNode name = AsmKit.findPreceding(call, n -> AsmWalker.stringLiteral(n) != null, op -> true);
+            return name == null ? null : AsmWalker.stringLiteral(name);
         }
         return null;
     }
@@ -274,7 +274,7 @@ final class PropertyDefinitionResolver {
      */
     @Nullable AbstractInsnNode findFieldInitValue(@NotNull String owner, @NotNull String field) {
         FieldInsnNode put = findPutStaticNode(owner, field);
-        return put == null ? null : AsmKit.previousReal(put);
+        return put == null ? null : AsmWalker.previousReal(put);
     }
 
     /**
