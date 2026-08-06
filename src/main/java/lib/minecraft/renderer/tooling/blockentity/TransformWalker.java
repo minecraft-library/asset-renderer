@@ -6,6 +6,8 @@ import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Exit;
+import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.walk.Interp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -17,14 +19,9 @@ import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
-import org.objectweb.asm.tree.VarInsnNode;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * The {@code inventory.transform} symbolic executor, cache-fed. Interprets a renderer's
@@ -85,7 +82,7 @@ final class TransformWalker {
             String field = entry.substring(BlockTransformPolicies.FIELD_ENTRY_PREFIX.length());
             MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
             if (clinit == null) return null;
-            Frame frame = new Frame(0);
+            Frame frame = new Frame(rootMachine());
             frame.run(cn, clinit, field);
             // Only the Transformation live at the stop field's PUTSTATIC counts - a <clinit> may
             // construct other Transformations before (or instead of) the target field's.
@@ -94,7 +91,7 @@ final class TransformWalker {
 
         MethodNode method = findTransformMethod(cn, entry);
         if (method == null) return null;
-        Frame frame = new Frame(0);
+        Frame frame = new Frame(rootMachine());
         frame.seedParameters(method, attachment);
         frame.run(cn, method, null);
         return frame.finalTransform == null ? null : canonicalise(frame.finalTransform);
@@ -115,28 +112,30 @@ final class TransformWalker {
     // symbolic execution frame
     // ------------------------------------------------------------------------------------
 
-    /** One method activation: an operand stack of {@link Val}s, seeded locals, and the depth guard. */
+    /** A root activation's machine: poison-on-unknown {@link Val}s, float-carried arithmetic, the full inline budget. */
+    private static @NotNull Interp<Val> rootMachine() {
+        return Interp.of(new TransformDomain(), Interp.OnUnknown.POISON, Interp.Width.FLOAT_AS_FLOAT).child(MAX_INLINE_DEPTH);
+    }
+
+    /** One method activation: an operand stack of {@link Val}s and seeded slots, carried by the machine. */
     private final class Frame {
 
-        private final @NotNull Deque<Val> stack = new ArrayDeque<>();
-        private final @NotNull Map<Integer, Val> locals = new HashMap<>();
-        private final int depth;
+        private final @NotNull Interp<Val> machine;
         private @Nullable State finalTransform;
         private @Nullable Val returnValue;
-        private boolean poisoned;
         private boolean stopReached;
 
-        private Frame(int depth) {
-            this.depth = depth;
+        private Frame(@NotNull Interp<Val> machine) {
+            this.machine = machine;
         }
 
         /** Seeds float params with the reference yaw and any attachment-typed param with {@code attachment}. */
         private void seedParameters(@NotNull MethodNode method, @Nullable String attachment) {
             int slot = 0;
             for (Type arg : Type.getArgumentTypes(method.desc)) {
-                if (arg.getSort() == Type.FLOAT) this.locals.put(slot, Val.yaw());
+                if (arg.getSort() == Type.FLOAT) this.machine.store(slot, Val.yaw());
                 else if (attachment != null && arg.getInternalName().endsWith(ATTACHMENT_SUFFIX))
-                    this.locals.put(slot, Val.enumConst(attachment));
+                    this.machine.store(slot, Val.enumConst(attachment));
                 slot += arg.getSize();
             }
         }
@@ -147,13 +146,10 @@ final class TransformWalker {
          * transform bodies never jump backward.
          */
         private void run(@NotNull ClassNode owner, @NotNull MethodNode method, @Nullable String stopField) {
-            if (this.depth > MAX_INLINE_DEPTH) {
-                this.poisoned = true;
-                return;
-            }
+            if (this.machine.poisoned()) return;   // born past the inline budget - resolves nothing
             Exit exit = AsmWalker.over(method).trace(in -> {
                 AbstractInsnNode jump = step(owner, in, stopField);
-                if (this.returnValue != null || this.stopReached || this.poisoned) return null;
+                if (this.returnValue != null || this.stopReached || this.machine.poisoned()) return null;
                 return jump != null ? jump : in.getNext();
             });
             if (exit == Exit.CYCLE) {
@@ -163,44 +159,36 @@ final class TransformWalker {
             }
         }
 
-        /** Executes one instruction; returns a jump target when it diverts control, else {@code null}. */
+        /**
+         * Executes one instruction; returns a jump target when it diverts control, else
+         * {@code null}. Literals, {@code DUP} / {@code POP}, loads, stores, {@code GOTO} and the
+         * float arithmetic ride the machine; the remaining arms are what this walker recognises.
+         */
         private @Nullable AbstractInsnNode step(@NotNull ClassNode owner, @NotNull AbstractInsnNode in, @Nullable String stopField) {
             int op = in.getOpcode();
-            Float literal = AsmKit.readFloatLiteral(in);
-            if (literal != null) {
-                push(Val.number(literal));
-                return null;
-            }
             switch (op) {
-                case Opcodes.NEW -> push(Val.other());
-                case Opcodes.DUP -> push(peek());
-                case Opcodes.ACONST_NULL -> push(Val.nul());
-                case Opcodes.POP -> pop();
-                case Opcodes.FNEG -> push(neg(pop()));
-                case Opcodes.FADD -> push(Val.number(popFloat() + popFloat()));
-                case Opcodes.FSUB -> {
-                    float subtrahend = popFloat();
-                    push(Val.number(popFloat() - subtrahend));
+                case Opcodes.FCONST_0, Opcodes.FCONST_1, Opcodes.FCONST_2, Opcodes.LDC,
+                     Opcodes.DUP, Opcodes.POP, Opcodes.FNEG, Opcodes.FADD, Opcodes.FSUB,
+                     Opcodes.FLOAD, Opcodes.ALOAD, Opcodes.ILOAD,
+                     Opcodes.FSTORE, Opcodes.ASTORE, Opcodes.ISTORE, Opcodes.GOTO -> {
+                    return this.machine.step(in);
                 }
+                case Opcodes.NEW -> this.machine.push(Val.other());
+                case Opcodes.ACONST_NULL -> this.machine.push(Val.nul());
                 case Opcodes.ICONST_M1, Opcodes.ICONST_0, Opcodes.ICONST_1, Opcodes.ICONST_2,
-                     Opcodes.ICONST_3, Opcodes.ICONST_4, Opcodes.ICONST_5, Opcodes.BIPUSH, Opcodes.SIPUSH -> push(Val.other());
-                case Opcodes.FLOAD, Opcodes.ALOAD, Opcodes.ILOAD -> push(this.locals.getOrDefault(((VarInsnNode) in).var, Val.other()));
-                case Opcodes.FSTORE, Opcodes.ASTORE, Opcodes.ISTORE -> this.locals.put(((VarInsnNode) in).var, pop());
+                     Opcodes.ICONST_3, Opcodes.ICONST_4, Opcodes.ICONST_5, Opcodes.BIPUSH, Opcodes.SIPUSH -> this.machine.push(Val.other());
                 case Opcodes.GETSTATIC -> getStatic((FieldInsnNode) in);
                 case Opcodes.PUTSTATIC -> {
                     if (((FieldInsnNode) in).name.equals(stopField)) {
                         this.stopReached = true;
                         return null;
                     }
-                    pop();
+                    this.machine.pop();
                 }
                 case Opcodes.IF_ACMPEQ, Opcodes.IF_ACMPNE -> {
                     return branch((JumpInsnNode) in, op);
                 }
-                case Opcodes.GOTO -> {
-                    return ((JumpInsnNode) in).label;
-                }
-                case Opcodes.ARETURN -> this.returnValue = this.stack.isEmpty() ? Val.other() : pop();
+                case Opcodes.ARETURN -> this.returnValue = this.machine.pop();
                 case Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL, Opcodes.INVOKEINTERFACE, Opcodes.INVOKESPECIAL ->
                     invoke(owner, (MethodInsnNode) in);
                 default -> { /* pseudo-nodes, labels, frames - no stack effect */ }
@@ -210,10 +198,10 @@ final class TransformWalker {
 
         /** Evaluates an {@code IF_ACMP} on two enum values (else poisons); returns the jump target when taken. */
         private @Nullable AbstractInsnNode branch(@NotNull JumpInsnNode in, int op) {
-            Val rhs = pop();
-            Val lhs = pop();
+            Val rhs = this.machine.pop();
+            Val lhs = this.machine.pop();
             if (lhs.kind != Kind.ENUM || rhs.kind != Kind.ENUM) {
-                this.poisoned = true;
+                this.machine.poison();
                 return null;
             }
             boolean equal = lhs.text.equals(rhs.text);
@@ -224,19 +212,19 @@ final class TransformWalker {
         private void getStatic(@NotNull FieldInsnNode field) {
             if (field.owner.equals(VanillaSourceClasses.Types.MATH_AXIS)) {
                 // XP / YP / ZP -> X / Y / Z; the N constants (XN...) carry a negated rotation sense.
-                push(Val.axis(field.name.charAt(0), field.name.length() > 1 && field.name.charAt(1) == 'N'));
+                this.machine.push(Val.axis(field.name.charAt(0), field.name.length() > 1 && field.name.charAt(1) == 'N'));
                 return;
             }
             if (field.name.endsWith(WALL_CONSTANT) || field.name.equals(FLOOR_CONSTANT) || field.owner.endsWith(ATTACHMENT_SUFFIX)) {
-                push(Val.enumConst(field.name));
+                this.machine.push(Val.enumConst(field.name));
                 return;
             }
             if (field.desc.equals("Lorg/joml/Vector3fc;") || field.desc.equals("Lorg/joml/Vector3f;")) {
                 float[] vec = resolveStaticVector(field.owner, field.name);
-                push(vec == null ? Val.other() : Val.vector(vec));
+                this.machine.push(vec == null ? Val.other() : Val.vector(vec));
                 return;
             }
-            push(Val.other());
+            this.machine.push(Val.other());
         }
 
         private void invoke(@NotNull ClassNode owner, @NotNull MethodInsnNode call) {
@@ -250,31 +238,31 @@ final class TransformWalker {
             }
             if (call.owner.equals(VECTOR3F) && AsmKit.INIT.equals(call.name) && call.desc.equals("(FFF)V")) {
                 float[] vec = popVec3();
-                pop();                       // the invokespecial receiver ref
-                pop();                       // the NEW placeholder underneath the dup
-                push(Val.vector(vec));
+                this.machine.pop();          // the invokespecial receiver ref
+                this.machine.pop();          // the NEW placeholder underneath the dup
+                this.machine.push(Val.vector(vec));
                 return;
             }
             if (call.owner.equals(VanillaSourceClasses.Types.MATH_AXIS) && "rotationDegrees".equals(call.name)) {
                 float angle = popFloat();
-                Val axis = pop();
-                if (axis.kind == Kind.AXIS) push(Val.quat(axis.axis, axis.number * angle));   // number = +-1 sense
-                else push(Val.quat('X', angle));
+                Val axis = this.machine.pop();
+                if (axis.kind == Kind.AXIS) this.machine.push(Val.quat(axis.axis, axis.number * angle));   // number = +-1 sense
+                else this.machine.push(Val.quat('X', angle));
                 return;
             }
             if (call.owner.equals(VanillaSourceClasses.Types.DIRECTION) && "toYRot".equals(call.name)) {
-                pop();
-                push(Val.yaw());
+                this.machine.pop();
+                this.machine.push(Val.yaw());
                 return;
             }
             if (call.owner.equals(VanillaSourceClasses.Types.DIRECTION) && "getRotation".equals(call.name)) {
-                pop();
-                push(Val.quat('I', 0f));
+                this.machine.pop();
+                this.machine.push(Val.quat('I', 0f));
                 return;
             }
             if (call.owner.equals(VanillaSourceClasses.Types.ROTATION_SEGMENT) && "convertToDegrees".equals(call.name)) {
-                pop();
-                push(Val.yaw());
+                this.machine.pop();
+                this.machine.push(Val.yaw());
                 return;
             }
             if (call.getOpcode() == Opcodes.INVOKESTATIC && call.owner.equals(owner.name)) {
@@ -292,9 +280,9 @@ final class TransformWalker {
          */
         private void matrixInvoke(@NotNull MethodInsnNode call) {
             if (AsmKit.INIT.equals(call.name)) {
-                pop();                       // the invokespecial receiver ref
-                pop();                       // the NEW placeholder underneath the dup
-                push(Val.matrix(new State()));
+                this.machine.pop();          // the invokespecial receiver ref
+                this.machine.pop();          // the NEW placeholder underneath the dup
+                this.machine.push(Val.matrix(new State()));
                 return;
             }
             String name = call.name;
@@ -308,22 +296,22 @@ final class TransformWalker {
                         case "translate" -> state.postTranslate(v);
                         default -> state.postScale(v);
                     }
-                push(Val.matrix(state));
+                this.machine.push(Val.matrix(state));
                 return;
             }
             if ("rotate".equals(name) && call.desc.startsWith(QUAT_PARAM)) {
-                Val q = pop();
+                Val q = this.machine.pop();
                 State state = popMatrix();
                 if (state != null && q.kind == Kind.QUAT) state.postRotate(q.axis, q.angle);
-                push(Val.matrix(state));
+                this.machine.push(Val.matrix(state));
                 return;
             }
             if ("rotateAround".equals(name) && call.desc.startsWith(QUAT_VEC3_PARAMS)) {
                 float[] c = popVec3();
-                Val q = pop();
+                Val q = this.machine.pop();
                 State state = popMatrix();
                 if (state != null) state.postRotateAround(q, c);
-                push(Val.matrix(state));
+                this.machine.push(Val.matrix(state));
                 return;
             }
             passThrough(call);
@@ -333,20 +321,20 @@ final class TransformWalker {
         private void transformationInit(@NotNull MethodInsnNode call) {
             if (call.desc.equals(TRANSFORMATION_CTOR_MATRIX)) {
                 State state = popMatrix();
-                pop();                       // the Transformation receiver ref
+                this.machine.pop();          // the Transformation receiver ref
                 this.finalTransform = state;
                 return;
             }
             if (call.desc.equals(TRANSFORMATION_CTOR_COMPONENTS)) {
-                Val rightRot = pop();
-                Val scale = pop();
-                Val leftRot = pop();
-                Val translation = pop();
-                pop();                       // the Transformation receiver ref
+                Val rightRot = this.machine.pop();
+                Val scale = this.machine.pop();
+                Val leftRot = this.machine.pop();
+                Val translation = this.machine.pop();
+                this.machine.pop();          // the Transformation receiver ref
                 this.finalTransform = composeComponents(translation, leftRot, scale, rightRot);
                 return;
             }
-            for (int i = 0; i < Type.getArgumentTypes(call.desc).length + 1; i++) pop();
+            for (int i = 0; i < Type.getArgumentTypes(call.desc).length + 1; i++) this.machine.pop();
         }
 
         /** Inlines a same-class static factory ({@code baseTransformation}); pushes its returned value. */
@@ -357,30 +345,29 @@ final class TransformWalker {
                 return;
             }
             Type[] args = Type.getArgumentTypes(call.desc);
-            Val[] popped = new Val[args.length];
-            for (int i = args.length - 1; i >= 0; i--) popped[i] = pop();
+            List<Val> popped = this.machine.popArguments(args.length);
 
-            Frame sub = new Frame(this.depth + 1);
+            Frame sub = new Frame(this.machine.child(this.machine.depth() - 1));
             int slot = 0;
             for (int i = 0; i < args.length; i++) {
-                sub.locals.put(slot, popped[i]);
+                sub.machine.store(slot, popped.get(i));
                 slot += args[i].getSize();
             }
             sub.run(owner, callee, null);
-            if (sub.poisoned) {
-                this.poisoned = true;
+            if (sub.machine.poisoned()) {
+                this.machine.poison();
                 return;
             }
-            if (sub.finalTransform != null) push(Val.matrix(sub.finalTransform));
-            else if (sub.returnValue != null) push(sub.returnValue);
-            else push(Val.other());
+            if (sub.finalTransform != null) this.machine.push(Val.matrix(sub.finalTransform));
+            else if (sub.returnValue != null) this.machine.push(sub.returnValue);
+            else this.machine.push(Val.other());
         }
 
         /** A foreign call: drops its args (+ receiver for instance calls) and pushes a placeholder for a non-void return. */
         private void passThrough(@NotNull MethodInsnNode call) {
             int pops = Type.getArgumentTypes(call.desc).length + (call.getOpcode() == Opcodes.INVOKESTATIC ? 0 : 1);
-            for (int i = 0; i < pops; i++) pop();
-            if (!Type.getReturnType(call.desc).equals(Type.VOID_TYPE)) push(Val.other());
+            for (int i = 0; i < pops; i++) this.machine.pop();
+            if (!Type.getReturnType(call.desc).equals(Type.VOID_TYPE)) this.machine.push(Val.other());
         }
 
         /** Assembles the 4-component {@code Transformation} ctor into a {@link State}. */
@@ -400,23 +387,11 @@ final class TransformWalker {
             else if (rot.kind != Kind.QUAT && rot.kind != Kind.NULL) state.poisoned = true;
         }
 
-        private void push(@NotNull Val value) {
-            this.stack.push(value);
-        }
-
-        private @NotNull Val pop() {
-            return this.stack.isEmpty() ? Val.other() : this.stack.pop();
-        }
-
-        private @NotNull Val peek() {
-            return this.stack.isEmpty() ? Val.other() : this.stack.peek();
-        }
-
         private float popFloat() {
-            Val v = pop();
+            Val v = this.machine.pop();
             if (v.kind == Kind.NUMBER) return v.number;
             if (v.kind == Kind.YAW) return 0f;
-            this.poisoned = true;
+            this.machine.poison();
             return 0f;
         }
 
@@ -428,39 +403,81 @@ final class TransformWalker {
         }
 
         private @Nullable State popMatrix() {
-            Val v = pop();
+            Val v = this.machine.pop();
             if (v.kind == Kind.MATRIX) return v.matrix;
-            this.poisoned = true;
+            this.machine.poison();
             return null;
         }
+    }
 
-        private @NotNull Val neg(@NotNull Val v) {
-            if (v.kind == Kind.NUMBER) return Val.number(-v.number);
-            if (v.kind == Kind.YAW) return v;   // -0 reference yaw stays 0
-            this.poisoned = true;
-            return v;
+    /**
+     * The {@link Val} model: float literals decode to numbers, and {@code FNEG} / {@code FADD} /
+     * {@code FSUB} evaluate with the reference yaw read as zero. Every other operation is
+     * unmodelled, which the machine's poison policy turns into a poisoned frame.
+     */
+    private static final class TransformDomain implements Interp.Domain<Val> {
+
+        /**
+         * The placeholder for an unmodellable value, doubling as the pop-on-empty answer -
+         * kind-tests read both as {@link Kind#OTHER}.
+         */
+        private static final @NotNull Val UNKNOWN = Val.other();
+
+        @Override
+        public @Nullable Val decode(@NotNull AbstractInsnNode node) {
+            Float literal = AsmKit.readFloatLiteral(node);
+            return literal == null ? null : Val.number(literal);
         }
+
+        @Override
+        public @NotNull Val unknown() {
+            return UNKNOWN;
+        }
+
+        @Override
+        public @NotNull Val underflow() {
+            return UNKNOWN;
+        }
+
+        @Override
+        public @Nullable Val binary(int opcode, @NotNull Val left, @NotNull Val right) {
+            Float a = asFloat(left);
+            Float b = asFloat(right);
+            if (a == null || b == null) return null;
+            return switch (opcode) {
+                case Opcodes.FADD -> Val.number(a + b);
+                case Opcodes.FSUB -> Val.number(a - b);
+                default -> null;
+            };
+        }
+
+        @Override
+        public @Nullable Val unary(int opcode, @NotNull Val operand) {
+            if (opcode != Opcodes.FNEG) return null;
+            if (operand.kind == Kind.NUMBER) return Val.number(-operand.number);
+            return operand.kind == Kind.YAW ? operand : null;   // -0 reference yaw stays 0
+        }
+
+        private static @Nullable Float asFloat(@NotNull Val v) {
+            if (v.kind == Kind.NUMBER) return v.number;
+            return v.kind == Kind.YAW ? 0f : null;
+        }
+
     }
 
     /** Resolves a static {@code Vector3f} field to its {@code (x, y, z)} via the owner's {@code <clinit>}. */
     private float @Nullable [] resolveStaticVector(@NotNull String owner, @NotNull String fieldName) {
-        MethodNode clinit = AsmKit.findClinit(this.cache, owner);
-        if (clinit == null) return null;
-        List<Float> pending = new ArrayList<>();
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (in.getOpcode() == Opcodes.NEW && in instanceof TypeInsnNode type && type.desc.equals(VECTOR3F)) {
-                pending.clear();
-                continue;
-            }
-            Float literal = AsmKit.readFloatLiteral(in);
-            if (literal != null) {
-                pending.add(literal);
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, owner, fieldName) && pending.size() >= 3)
-                return new float[]{pending.getFirst(), pending.get(1), pending.get(2)};
-        }
-        return null;
+        return AsmWalker.clinit(this.cache, owner)
+            .gather(AsmWalker::floatLiteral)
+            .retain()
+            .resetAt(Insn.of(TypeInsnNode.class, type -> type.getOpcode() == Opcodes.NEW && type.desc.equals(VECTOR3F)))
+            .commitAt(Insn.putStatic(owner, fieldName))
+            .firstNotNull(commit -> {
+                List<Float> pending = commit.values();
+                return pending.size() >= 3
+                    ? new float[]{pending.getFirst(), pending.get(1), pending.get(2)}
+                    : null;
+            });
     }
 
     // ------------------------------------------------------------------------------------
