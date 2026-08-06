@@ -3216,17 +3216,12 @@ public final class GeometryParser {
     private static int @Nullable [] @Nullable [] findIntArray2DInitializer(@NotNull MethodNode clinit, @NotNull String fieldName) {
         FieldInsnNode put = findPutstatic(clinit, fieldName, "[[I");
         if (put == null) return null;
-        AbstractInsnNode aNewArrayNode = null;
-        AbstractInsnNode lengthNode = null;
-        for (AbstractInsnNode cursor = put.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
-            if (AsmWalker.isPseudoNode(cursor)) continue;
-            if (cursor instanceof TypeInsnNode typeInsn && typeInsn.getOpcode() == Opcodes.ANEWARRAY && "[I".equals(typeInsn.desc)) {
-                aNewArrayNode = cursor;
-                lengthNode = AsmWalker.previousReal(cursor);
-                break;
-            }
-        }
-        if (aNewArrayNode == null || lengthNode == null) return null;
+        TypeInsnNode aNewArrayNode = AsmWalker.before(put).real()
+            .ofType(TypeInsnNode.class)
+            .first(typeInsn -> typeInsn.getOpcode() == Opcodes.ANEWARRAY && "[I".equals(typeInsn.desc));
+        if (aNewArrayNode == null) return null;
+        AbstractInsnNode lengthNode = AsmWalker.previousReal(aNewArrayNode);
+        if (lengthNode == null) return null;
         Integer outerLength = AsmWalker.intLiteral(lengthNode);
         if (outerLength == null || outerLength < 0) return null;
         int[][] out = new int[outerLength][];
