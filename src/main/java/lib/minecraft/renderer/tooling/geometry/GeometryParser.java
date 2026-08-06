@@ -3115,17 +3115,15 @@ public final class GeometryParser {
      * is non-literal / negative.
      */
     private static @Nullable PrimitiveNewArray findPrimitiveNewArrayBefore(@NotNull FieldInsnNode putstatic, int newArrayOperand) {
-        for (AbstractInsnNode cursor = putstatic.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
-            if (AsmWalker.isPseudoNode(cursor)) continue;
-            if (cursor instanceof IntInsnNode intInsn && intInsn.getOpcode() == Opcodes.NEWARRAY && intInsn.operand == newArrayOperand) {
-                AbstractInsnNode lenNode = AsmWalker.previousReal(cursor);
-                if (lenNode == null) return null;
-                Integer length = AsmWalker.intLiteral(lenNode);
-                if (length == null || length < 0) return null;
-                return new PrimitiveNewArray(cursor, length);
-            }
-        }
-        return null;
+        IntInsnNode newArray = AsmWalker.before(putstatic).real()
+            .ofType(IntInsnNode.class)
+            .first(intInsn -> intInsn.getOpcode() == Opcodes.NEWARRAY && intInsn.operand == newArrayOperand);
+        if (newArray == null) return null;
+        AbstractInsnNode lenNode = AsmWalker.previousReal(newArray);
+        if (lenNode == null) return null;
+        Integer length = AsmWalker.intLiteral(lenNode);
+        if (length == null || length < 0) return null;
+        return new PrimitiveNewArray(newArray, length);
     }
 
     /**
