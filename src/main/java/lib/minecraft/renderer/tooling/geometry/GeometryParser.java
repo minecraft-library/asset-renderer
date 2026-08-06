@@ -298,37 +298,30 @@ public final class GeometryParser {
         MethodNode clinit = cls != null ? ClassKit.findMethod(cls, ClassKit.CLINIT) : null;
         if (clinit == null) return null;
 
-        InvokeDynamicInsnNode pendingIndy = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (AsmWalker.isPseudoNode(in)) continue;
-            if (in instanceof InvokeDynamicInsnNode indy && AsmWalker.isLambdaInvokeDynamic(indy)) {
-                pendingIndy = indy;
-                continue;
-            }
-            if (in instanceof FieldInsnNode fi
-                && in.getOpcode() == Opcodes.PUTSTATIC
+        InvokeDynamicInsnNode indy = AsmWalker.over(clinit).real()
+            .latch(in -> in instanceof InvokeDynamicInsnNode pending && AsmWalker.isLambdaInvokeDynamic(pending) ? pending : null)
+            .strict()
+            .commitAt(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC
                 && MESH_TRANSFORMER_DESC.equals(fi.desc)
                 && fi.owner.equals(owner)
-                && fi.name.equals(fieldName)
-                && pendingIndy != null) {
-                Handle handle = AsmWalker.extractLambdaHandle(pendingIndy);
-                if (handle == null
-                    || handle.getTag() != Opcodes.H_INVOKESTATIC
-                    || !handle.getOwner().equals(owner)) return null;
-                MethodNode lambda = ClassKit.findMethod(cls, handle.getName(), handle.getDesc());
-                if (lambda == null) return null;
-                // The lambda body is the canonical `mesh.getRoot(); modifyMesh(...);
-                // aload_0; areturn` pattern. Find the first INVOKESTATIC whose descriptor is
-                // (Lnet/.../PartDefinition;)V - that's the modifyMesh-style callback.
-                MethodInsnNode target = AsmWalker.over(lambda).real()
-                    .ofType(MethodInsnNode.class)
-                    .first(mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
-                        && mi.desc.startsWith("(L" + VanillaSourceClasses.Types.PART_DEFINITION + ";)V"));
-                return target == null ? null : ClassKit.findMethodInHierarchy(cache, target.owner, target.name, target.desc);
-            }
-            pendingIndy = null;
-        }
-        return null;
+                && fi.name.equals(fieldName))
+            .firstNotNull(commit -> commit.value());
+        if (indy == null) return null;
+
+        Handle handle = AsmWalker.extractLambdaHandle(indy);
+        if (handle == null
+            || handle.getTag() != Opcodes.H_INVOKESTATIC
+            || !handle.getOwner().equals(owner)) return null;
+        MethodNode lambda = ClassKit.findMethod(cls, handle.getName(), handle.getDesc());
+        if (lambda == null) return null;
+        // The lambda body is the canonical `mesh.getRoot(); modifyMesh(...);
+        // aload_0; areturn` pattern. Find the first INVOKESTATIC whose descriptor is
+        // (Lnet/.../PartDefinition;)V - that's the modifyMesh-style callback.
+        MethodInsnNode target = AsmWalker.over(lambda).real()
+            .ofType(MethodInsnNode.class)
+            .first(mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
+                && mi.desc.startsWith("(L" + VanillaSourceClasses.Types.PART_DEFINITION + ";)V"));
+        return target == null ? null : ClassKit.findMethodInHierarchy(cache, target.owner, target.name, target.desc);
     }
 
     /**
