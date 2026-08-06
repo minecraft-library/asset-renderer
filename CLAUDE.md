@@ -53,10 +53,22 @@ version bump.
 - Do not delete `tooling/policy/` for having no callers - `Navigation`'s javadoc is the only written
   statement of how generator hard-coding is sanctioned, and `PolicyPurityTest` reflects on a
   `provenance` field of every `*Policies` class, so they cannot share a superclass.
-- The whole-method forward walk is `for (AbstractInsnNode in : method.instructions)`. Do not propose
-  an `AsmKit` helper - it cannot hold a body that `break`s or `return`s out, and the equivalence is
-  void for any body gaining an `InsnList` mutator. Bounded, backward, mid-list and branch-following
-  walks stay hand-written.
+- **Every instruction walk in `tooling/` is an `AsmWalker` chain** - the hand-written instruction
+  loops left are the fenced decline `EntityGeometryRefResolver.collectBakedModelLayers` (see
+  `notes/asm-walk/DESIGN.md` section 14) and three interpreter-family holdouts awaiting
+  machine-view tokens: `TintWalk.run`, `PotionColorWalk.run` and
+  `EntityBlockOverlayResolver.extractPoseBlocks` (witnesses in the walk-batch-F4/F5 commit
+  bodies). The walker is a reusable descriptor: sources `over`/`clinit`/`from`/`after`/`before`,
+  geometry `real()`/`until`/`limit`, match stages that narrow, fold stages (`gather`/`latch` +
+  `commitAt`) that replace the old `pending*` locals, and eager terminals; branch-following is
+  `trace` with an always-on cycle guard; three of the four bytecode interpreters ride one
+  `Interp<V>` chassis, and `GeometryParser`'s stack/slot half stays site-owned pending the same
+  machine-view tokens. Do NOT reintroduce a `for (AbstractInsnNode ...)` loop - the engine's
+  cascade rules (claiming, commit-before-reset, strict-adjacency) are pinned by the F0 test
+  suite, and a hand loop silently re-derives them. One-hop neighbour reads
+  (`AsmWalker.nextReal`/`previousReal`) are expressions, not walks, and stay statics. The
+  `notes/asm-walk/` design records every declined site; the fence there is keyed by member name
+  and its only permitted edit is the owner-token rename.
 
 Every gate here reads the **shipped** JSON, which a generator refactor does not regenerate, so a
 green gate is no evidence about a `tooling/` change. Compare emitted bytes A/B against a capture from
