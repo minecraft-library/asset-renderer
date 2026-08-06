@@ -20,9 +20,13 @@ import java.util.Map;
  * The one interpreter chassis: an operand stack, a slot table and the arithmetic mechanism,
  * parameterised by a {@link Domain} that owns the values. The chassis owns pop order - the
  * first pop is the right operand, and argument lists fill in reverse - the divide-by-zero
- * guard, width crossing, capacity eviction with its one-shot overflow warning, and the typed
- * pop family's exact consume-or-leave rules. The domain owns what values mean; the walk site
- * owns which calls, fields and returns matter to its flow.
+ * guard, width crossing, capacity eviction with its one-shot overflow warning - automatic at
+ * first eviction, or site-owned through {@link #willOverflow} and {@link #overflowWarnOnce}
+ * when the warning discipline counts only some pushes - and the typed pop family's exact
+ * consume-or-leave rules. Depth reads ({@link #size}, {@link #isEmpty}) are non-destructive,
+ * a slot unbinds by {@link #removeSlot removal} rather than a stored placeholder, and a slot
+ * frame gives an inlined callee fresh locals over the same stack. The domain owns what values
+ * mean; the walk site owns which calls, fields and returns matter to its flow.
  *
  * @param <V> the interpreted value type
  */
@@ -92,6 +96,7 @@ public final class Interp<V> {
     private final @NotNull Width width;
     private final @NotNull Deque<V> stack = new ArrayDeque<>();
     private final @NotNull Map<Integer, V> slots = new LinkedHashMap<>();
+    private final @NotNull Deque<Map<Integer, V>> slotFrames = new ArrayDeque<>();
     private int capacity = -1;
     private @Nullable Runnable overflowWarning;
     private boolean @NotNull [] overflowWarned = {false};
@@ -181,11 +186,36 @@ public final class Interp<V> {
         this.stack.addLast(value);
         if (this.capacity >= 0 && this.stack.size() > this.capacity) {
             this.stack.removeFirst();
-            if (!this.overflowWarned[0]) {
+            if (this.overflowWarning != null && !this.overflowWarned[0]) {
                 this.overflowWarned[0] = true;
-                if (this.overflowWarning != null) this.overflowWarning.run();
+                this.overflowWarning.run();
             }
         }
+    }
+
+    /**
+     * Whether the next push would evict - the overflow event read before the push, so a site
+     * whose warning discipline counts only some pushes can own the event while the chassis
+     * keeps the once-only firing through {@link #overflowWarnOnce}.
+     *
+     * @return {@code true} when the stack stands at a set capacity bound
+     */
+    public boolean willOverflow() {
+        return this.capacity >= 0 && this.stack.size() >= this.capacity;
+    }
+
+    /**
+     * Fires {@code warning} once for the machine and all its children - the site-owned arm of
+     * the one-shot overflow warning, for a discipline that warns on a narrower event than
+     * any-push eviction. The once-latch is shared with the automatic arm; a machine with no
+     * installed warning evicts silently, leaving the event wholly site-owned.
+     *
+     * @param warning the warning emission
+     */
+    public void overflowWarnOnce(@NotNull Runnable warning) {
+        if (this.overflowWarned[0]) return;
+        this.overflowWarned[0] = true;
+        warning.run();
     }
 
     /**
@@ -208,6 +238,16 @@ public final class Interp<V> {
     public @NotNull V peek() {
         if (this.stack.isEmpty()) return this.domain.underflow();
         return this.stack.getLast();
+    }
+
+    /** The current operand-stack depth - a non-destructive read for guards that skip without consuming. */
+    public int size() {
+        return this.stack.size();
+    }
+
+    /** Whether the operand stack is empty. */
+    public boolean isEmpty() {
+        return this.stack.isEmpty();
     }
 
     /**
@@ -272,6 +312,41 @@ public final class Interp<V> {
      */
     public void store(int var, @NotNull V value) {
         this.slots.put(var, value);
+    }
+
+    /**
+     * Unbinds a local-variable slot - removal, not a stored placeholder: an unbound slot
+     * answers {@code null} where a stored unknown answers the placeholder, and the two route
+     * a load differently at every site that falls back past the slot table.
+     *
+     * @param var the slot index
+     */
+    public void removeSlot(int var) {
+        this.slots.remove(var);
+    }
+
+    /**
+     * Opens a fresh slot frame over the same stack - an inlined callee's locals start unbound
+     * while the operand stack, the capacity bound, the shared overflow latch and the poison
+     * state stay this machine's own. Frames nest; {@link #closeSlotFrame} restores the
+     * caller's bindings untouched.
+     */
+    public void openSlotFrame() {
+        this.slotFrames.addLast(new LinkedHashMap<>(this.slots));
+        this.slots.clear();
+    }
+
+    /**
+     * Closes the innermost slot frame, restoring the caller's bindings exactly as
+     * {@link #openSlotFrame} saved them.
+     *
+     * @throws ToolingException when no frame is open
+     */
+    public void closeSlotFrame() {
+        Map<Integer, V> saved = this.slotFrames.pollLast();
+        if (saved == null) throw new ToolingException("closeSlotFrame without an open frame");
+        this.slots.clear();
+        this.slots.putAll(saved);
     }
 
     /** Whether the machine has met something it refuses to reason past. */

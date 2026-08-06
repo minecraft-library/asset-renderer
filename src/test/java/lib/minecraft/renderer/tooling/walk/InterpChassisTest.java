@@ -364,4 +364,77 @@ class InterpChassisTest {
         assertNull(machine.step(new JumpInsnNode(Opcodes.IF_ICMPGE, target)), "an unknown operand falls through");
     }
 
+    @Test
+    @DisplayName("size()/isEmpty() are non-destructive - a guard reads depth and the pops still see every entry")
+    void sizeReadsAreNonDestructive() {
+        Interp<Number> machine = machine(new NumberDomain());
+        assertTrue(machine.isEmpty());
+        assertEquals(0, machine.size());
+        machine.push(1);
+        machine.push(2);
+        assertEquals(2, machine.size());
+        assertFalse(machine.isEmpty());
+        assertEquals(2, machine.pop());
+        assertEquals(1, machine.pop());
+    }
+
+    @Test
+    @DisplayName("willOverflow() reads the bound before the push; an unbounded machine never overflows")
+    void willOverflowReadsTheBound() {
+        Interp<Number> unbounded = machine(new NumberDomain());
+        unbounded.push(1);
+        assertFalse(unbounded.willOverflow());
+        Interp<Number> bounded = machine(new NumberDomain()).capacity(2);
+        bounded.push(1);
+        assertFalse(bounded.willOverflow());
+        bounded.push(2);
+        assertTrue(bounded.willOverflow());
+        bounded.pop();
+        assertFalse(bounded.willOverflow());
+    }
+
+    @Test
+    @DisplayName("overflowWarnOnce() shares the one-shot latch across machine and child; no installed warning means silent eviction")
+    void siteOwnedOverflowEvent() {
+        int[] fired = {0};
+        Interp<Number> machine = machine(new NumberDomain()).capacity(1);
+        machine.push(1);
+        machine.push(2);
+        assertEquals(0, fired[0], "eviction with no installed warning is silent");
+        machine.overflowWarnOnce(() -> fired[0]++);
+        machine.child(1).overflowWarnOnce(() -> fired[0]++);
+        machine.overflowWarnOnce(() -> fired[0]++);
+        assertEquals(1, fired[0], "the once-latch holds across the machine and its children");
+    }
+
+    @Test
+    @DisplayName("removeSlot() unbinds - a removed slot answers null where a stored unknown answers the placeholder")
+    void slotRemovalIsNotAStoredPlaceholder() {
+        Interp<Number> machine = machine(new NumberDomain());
+        machine.store(3, 5);
+        machine.store(4, UNKNOWN);
+        machine.removeSlot(3);
+        assertNull(machine.slot(3));
+        assertSame(UNKNOWN, machine.slot(4));
+    }
+
+    @Test
+    @DisplayName("slot frames nest over the same stack - fresh locals per frame, caller bindings restored exactly")
+    void slotFramesShareTheStack() {
+        Interp<Number> machine = machine(new NumberDomain());
+        machine.store(1, 7);
+        machine.push(9);
+        machine.openSlotFrame();
+        assertNull(machine.slot(1), "a fresh frame starts unbound");
+        assertEquals(1, machine.size(), "the operand stack is the caller's own");
+        machine.store(1, 8);
+        machine.openSlotFrame();
+        assertNull(machine.slot(1));
+        machine.closeSlotFrame();
+        assertEquals(8, machine.slot(1));
+        machine.closeSlotFrame();
+        assertEquals(7, machine.slot(1));
+        assertEquals(9, machine.pop());
+    }
+
 }
