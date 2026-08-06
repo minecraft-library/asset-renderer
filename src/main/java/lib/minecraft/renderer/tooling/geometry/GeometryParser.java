@@ -15,6 +15,7 @@ import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Exit;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -3154,7 +3155,9 @@ public final class GeometryParser {
      * Walks the canonical {@code (DUP; <idx>; <value>; storeOpcode)*} entry sequence between
      * {@code newArrayNode} and {@code stopAt}, invoking {@code handler} per matched entry.
      * Returns {@code true} when every encountered DUP-rooted tuple matches the expected shape
-     * and the cursor lands exactly at {@code stopAt}; {@code false} on any malformed tuple.
+     * and the cursor lands exactly at {@code stopAt}; {@code false} on any malformed tuple. A
+     * revisited instruction aborts loudly - every stride is a forward real-node hop, so a
+     * revisit is a parser bug.
      *
      * <p>When {@code skipUnknownNodes} is {@code true}, non-DUP nodes between entries are
      * silently skipped (1D usage). When {@code false}, any non-DUP node aborts the walk (the
@@ -3168,24 +3171,27 @@ public final class GeometryParser {
         boolean skipUnknownNodes,
         @NotNull DupStoreEntryHandler handler
     ) {
-        AbstractInsnNode cursor = AsmKit.nextReal(newArrayNode);
-        while (cursor != null && cursor != stopAt) {
-            if (cursor.getOpcode() != Opcodes.DUP) {
-                if (!skipUnknownNodes) return false;
-                cursor = AsmKit.nextReal(cursor);
-                continue;
-            }
-            AbstractInsnNode idxNode = AsmKit.nextReal(cursor);
-            AbstractInsnNode valueNode = AsmKit.nextReal(idxNode);
-            AbstractInsnNode storeNode = AsmKit.nextReal(valueNode);
-            if (idxNode == null || valueNode == null || storeNode == null) return false;
-            if (storeNode.getOpcode() != storeOpcode) return false;
-            Integer idx = AsmKit.readIntLiteral(idxNode);
-            if (idx == null || idx < 0 || idx >= length) return false;
-            if (!handler.handleEntry(idx, valueNode)) return false;
-            cursor = AsmKit.nextReal(storeNode);
+        Exit exit = AsmWalker.from(AsmKit.nextReal(newArrayNode))
+            .until(stopAt)
+            .trace(cursor -> {
+                if (cursor.getOpcode() != Opcodes.DUP)
+                    return skipUnknownNodes ? AsmKit.nextReal(cursor) : null;
+                AbstractInsnNode idxNode = AsmKit.nextReal(cursor);
+                AbstractInsnNode valueNode = AsmKit.nextReal(idxNode);
+                AbstractInsnNode storeNode = AsmKit.nextReal(valueNode);
+                if (idxNode == null || valueNode == null || storeNode == null) return null;
+                if (storeNode.getOpcode() != storeOpcode) return null;
+                Integer idx = AsmKit.readIntLiteral(idxNode);
+                if (idx == null || idx < 0 || idx >= length) return null;
+                if (!handler.handleEntry(idx, valueNode)) return null;
+                return AsmKit.nextReal(storeNode);
+            });
+        if (exit == Exit.CYCLE) {
+            throw new ToolingException(
+                "Dup-store entry walk of '%s' revisited an instruction - the tuple stride answered an earlier node",
+                stopAt instanceof FieldInsnNode put ? put.name : "inner row");
         }
-        return cursor == stopAt;
+        return exit == Exit.SENTINEL;
     }
 
     /**
@@ -3211,7 +3217,8 @@ public final class GeometryParser {
     /**
      * Walks {@code clinit} for a {@code PUTSTATIC <fieldName>:[[I} matching the canonical
      * literal-int-2D-array initializer. Returns the values when the shape matches;
-     * {@code null} otherwise.
+     * {@code null} otherwise. A revisited instruction aborts loudly - the row stride only
+     * moves forward, so a revisit is a parser bug.
      */
     private static int @Nullable [] @Nullable [] findIntArray2DInitializer(@NotNull MethodNode clinit, @NotNull String fieldName) {
         FieldInsnNode put = findPutstatic(clinit, fieldName, "[[I");
@@ -3230,37 +3237,56 @@ public final class GeometryParser {
         Integer outerLength = AsmKit.readIntLiteral(lengthNode);
         if (outerLength == null || outerLength < 0) return null;
         int[][] out = new int[outerLength][];
-        AbstractInsnNode cursor = AsmKit.nextReal(aNewArrayNode);
-        while (cursor != null && cursor != put) {
-            if (cursor.getOpcode() != Opcodes.DUP) {
-                cursor = AsmKit.nextReal(cursor);
-                continue;
-            }
-            // DUP; <row>; <inner-len>; NEWARRAY int; ... AASTORE
-            AbstractInsnNode rowNode = AsmKit.nextReal(cursor);
-            AbstractInsnNode innerLenNode = AsmKit.nextReal(rowNode);
-            AbstractInsnNode innerNewArrayNode = AsmKit.nextReal(innerLenNode);
-            if (rowNode == null || innerLenNode == null || innerNewArrayNode == null) return null;
-            Integer row = AsmKit.readIntLiteral(rowNode);
-            Integer innerLen = AsmKit.readIntLiteral(innerLenNode);
-            if (row == null || innerLen == null || row < 0 || row >= outerLength) return null;
-            if (!(innerNewArrayNode instanceof IntInsnNode innerNewArray)
-                || innerNewArray.getOpcode() != Opcodes.NEWARRAY
-                || innerNewArray.operand != Opcodes.T_INT) return null;
-            AbstractInsnNode aastore = findFollowingAastore(innerNewArrayNode, put);
-            if (aastore == null) return null;
-            int[] inner = new int[innerLen];
-            boolean ok = walkDupStoreEntries(innerNewArrayNode, aastore, Opcodes.IASTORE, innerLen, false, (innerIdx, valueNode) -> {
-                Integer value = AsmKit.readIntLiteral(valueNode);
-                if (value == null) return false;
-                inner[innerIdx] = value;
-                return true;
+        boolean[] malformed = new boolean[1];
+        Exit exit = AsmWalker.from(AsmKit.nextReal(aNewArrayNode))
+            .until(put)
+            .trace(cursor -> {
+                if (cursor.getOpcode() != Opcodes.DUP) return AsmKit.nextReal(cursor);
+                // DUP; <row>; <inner-len>; NEWARRAY int; ... AASTORE
+                AbstractInsnNode rowNode = AsmKit.nextReal(cursor);
+                AbstractInsnNode innerLenNode = AsmKit.nextReal(rowNode);
+                AbstractInsnNode innerNewArrayNode = AsmKit.nextReal(innerLenNode);
+                if (rowNode == null || innerLenNode == null || innerNewArrayNode == null) {
+                    malformed[0] = true;
+                    return null;
+                }
+                Integer row = AsmKit.readIntLiteral(rowNode);
+                Integer innerLen = AsmKit.readIntLiteral(innerLenNode);
+                if (row == null || innerLen == null || row < 0 || row >= outerLength) {
+                    malformed[0] = true;
+                    return null;
+                }
+                if (!(innerNewArrayNode instanceof IntInsnNode innerNewArray)
+                    || innerNewArray.getOpcode() != Opcodes.NEWARRAY
+                    || innerNewArray.operand != Opcodes.T_INT) {
+                    malformed[0] = true;
+                    return null;
+                }
+                AbstractInsnNode aastore = findFollowingAastore(innerNewArrayNode, put);
+                if (aastore == null) {
+                    malformed[0] = true;
+                    return null;
+                }
+                int[] inner = new int[innerLen];
+                boolean ok = walkDupStoreEntries(innerNewArrayNode, aastore, Opcodes.IASTORE, innerLen, false, (innerIdx, valueNode) -> {
+                    Integer value = AsmKit.readIntLiteral(valueNode);
+                    if (value == null) return false;
+                    inner[innerIdx] = value;
+                    return true;
+                });
+                if (!ok) {
+                    malformed[0] = true;
+                    return null;
+                }
+                out[row] = inner;
+                return AsmKit.nextReal(aastore);
             });
-            if (!ok) return null;
-            out[row] = inner;
-            cursor = AsmKit.nextReal(aastore);
+        if (exit == Exit.CYCLE) {
+            throw new ToolingException(
+                "Array initializer walk of '%s' revisited an instruction - the row stride answered an earlier node",
+                fieldName);
         }
-        return out;
+        return malformed[0] ? null : out;
     }
 
     /**
@@ -3269,9 +3295,10 @@ public final class GeometryParser {
      * the 2D walker to bracket each row's inner-entry pack.
      */
     private static @Nullable AbstractInsnNode findFollowingAastore(@NotNull AbstractInsnNode from, @NotNull AbstractInsnNode stopAt) {
-        for (AbstractInsnNode cursor = AsmKit.nextReal(from); cursor != null && cursor != stopAt; cursor = AsmKit.nextReal(cursor))
-            if (cursor.getOpcode() == Opcodes.AASTORE) return cursor;
-        return null;
+        return AsmWalker.after(from)
+            .real()
+            .until(Insn.of(AbstractInsnNode.class, node -> node == stopAt))
+            .first(node -> node.getOpcode() == Opcodes.AASTORE);
     }
 
     /**
