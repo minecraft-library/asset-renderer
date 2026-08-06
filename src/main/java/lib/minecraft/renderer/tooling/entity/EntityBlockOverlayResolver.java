@@ -7,6 +7,7 @@ import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.Insn;
 import lib.minecraft.renderer.tooling.walk.Match;
 import org.jetbrains.annotations.NotNull;
@@ -214,69 +215,50 @@ final class EntityBlockOverlayResolver {
      */
     private @NotNull List<JsonTree> extractPoseBlocks(@NotNull MethodNode submit) {
         List<JsonTree> out = new ArrayList<>();
-        boolean insideBlock = false;
-        JsonTree transforms = null;
-        String attachedBone = null;
-        List<Float> floats = new ArrayList<>();
-        int opCount = 0;
+        Cells.Flag insideBlock = Cells.flag();
+        Cells.Latch<String> attachedBone = Cells.latch();
+        Cells.ListCell<Float> floats = Cells.list();
+        Cells.ListCell<JsonTree> ops = Cells.list();
 
-        for (AbstractInsnNode in : submit.instructions) {
-            Float literal = AsmWalker.floatLiteral(in);
-            if (literal != null) {
-                floats.add(literal);
-                continue;
-            }
-            if (!(in instanceof MethodInsnNode call)) continue;
-
-            if (AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.PUSH_POSE)) {
-                insideBlock = true;
-                transforms = JsonTree.array();
-                attachedBone = null;
+        AsmWalker.over(submit)
+            .feed(insideBlock)
+            .feed(attachedBone)
+            .feed(floats)
+            .feed(ops)
+            .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.floatLiteral(in) != null),
+                in -> floats.add(AsmWalker.floatLiteral(in)))
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.PUSH_POSE), call -> {
+                // The opener manages its own arming: a fresh segment wholesale-clears the
+                // carried cells whatever the previous segment left behind.
+                insideBlock.set();
+                attachedBone.clear();
                 floats.clear();
-                opCount = 0;
-                continue;
-            }
-            if (AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.POP_POSE)) {
-                if (insideBlock && opCount > 0) {
-                    JsonTree carrier = JsonTree.object();
-                    carrier.putIf("attached_bone", attachedBone);
-                    carrier.put("transforms", transforms);
-                    out.add(carrier);
-                }
-                insideBlock = false;
-                transforms = null;
-                attachedBone = null;
-                floats.clear();
-                continue;
-            }
-            if (!insideBlock || transforms == null) continue;
-
-            if (AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.TRANSLATE)
-                && call.desc.startsWith("(FFF") && floats.size() >= 3) {
-                float z = floats.removeLast();
-                float y = floats.removeLast();
-                float x = floats.removeLast();
-                transforms.add(JsonTree.object().put("op", "translate").put("x", x).put("y", y).put("z", z));
-                opCount++;
-                continue;
-            }
-            if (AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE)
-                && call.desc.startsWith("(FFF") && floats.size() >= 3) {
-                float z = floats.removeLast();
-                float y = floats.removeLast();
-                float x = floats.removeLast();
-                transforms.add(JsonTree.object().put("op", "scale").put("x", x).put("y", y).put("z", z));
-                opCount++;
-                continue;
-            }
+                ops.clear();
+            })
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.TRANSLATE)
+                .and(call -> call.desc.startsWith("(FFF")), call -> {
+                if (!insideBlock.get() || floats.size() < 3) return;
+                float z = floats.takeLast();
+                float y = floats.takeLast();
+                float x = floats.takeLast();
+                ops.add(JsonTree.object().put("op", "translate").put("x", x).put("y", y).put("z", z));
+            })
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE)
+                .and(call -> call.desc.startsWith("(FFF")), call -> {
+                if (!insideBlock.get() || floats.size() < 3) return;
+                float z = floats.takeLast();
+                float y = floats.takeLast();
+                float x = floats.takeLast();
+                ops.add(JsonTree.object().put("op", "scale").put("x", x).put("y", y).put("z", z));
+            })
             // Axis is an interface, so rotationDegrees dispatches INVOKEINTERFACE - match
             // by owner + name, opcode-agnostic.
-            if (VanillaSourceClasses.Types.MATH_AXIS.equals(call.owner)
-                && VanillaSourceClasses.Methods.ROTATION_DEGREES.equals(call.name)) {
-                if (floats.isEmpty()) continue;
-                float degrees = floats.removeLast();
+            .on(Insn.of(MethodInsnNode.class, call -> VanillaSourceClasses.Types.MATH_AXIS.equals(call.owner)
+                && VanillaSourceClasses.Methods.ROTATION_DEGREES.equals(call.name)), call -> {
+                if (!insideBlock.get() || floats.size() == 0) return;
+                float degrees = floats.takeLast();
                 String axis = findPrecedingAxisField(call);
-                if (axis == null || axis.length() < 2) continue;
+                if (axis == null || axis.length() < 2) return;
                 // `?P` is a positive rotation about the axis, `?N` negates the angle; a Z
                 // axis is emitted.
                 if (axis.charAt(1) == 'N') degrees = -degrees;
@@ -288,17 +270,25 @@ final class EntityBlockOverlayResolver {
                 };
                 if (op == null) {
                     this.diagnostics.warn("unrecognised rotation axis field '%s' - op skipped", axis);
-                    continue;
+                    return;
                 }
-                transforms.add(JsonTree.object().put("op", op).put("degrees", degrees));
-                opCount++;
-                continue;
-            }
-            if (AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.TRANSLATE_AND_ROTATE)) {
+                ops.add(JsonTree.object().put("op", op).put("degrees", degrees));
+            })
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.TRANSLATE_AND_ROTATE), call -> {
+                if (!insideBlock.get()) return;
                 String bone = findPrecedingBoneAccessor(call);
-                if (bone != null) attachedBone = bone;
-            }
-        }
+                if (bone != null) attachedBone.set(bone);
+            })
+            .commitAt(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.POP_POSE), pop -> {
+                if (!insideBlock.get() || ops.size() == 0) return;
+                JsonTree transforms = JsonTree.array();
+                for (JsonTree row : ops.values()) transforms.add(row);
+                JsonTree carrier = JsonTree.object();
+                carrier.putIf("attached_bone", attachedBone.get());
+                carrier.put("transforms", transforms);
+                out.add(carrier);
+            })
+            .run();
         return out;
     }
 

@@ -53,11 +53,10 @@ version bump.
 - Do not delete `tooling/policy/` for having no callers - `Navigation`'s javadoc is the only written
   statement of how generator hard-coding is sanctioned, and `PolicyPurityTest` reflects on a
   `provenance` field of every `*Policies` class, so they cannot share a superclass.
-- **Every instruction walk in `tooling/` is an `AsmWalker` chain** - the hand-written instruction
-  loops left are the fenced decline `EntityGeometryRefResolver.collectBakedModelLayers` (see
-  `notes/asm-walk/DESIGN.md` section 14) and one interpreter-family holdout awaiting
-  machine-view tokens: `EntityBlockOverlayResolver.extractPoseBlocks` (witness in the
-  walk-batch-F4/F5 commit bodies). The walker is a reusable descriptor: sources `over`/`clinit`/`from`/`after`/`before`,
+- **Every instruction walk in `tooling/` is an `AsmWalker` chain** - the one hand-written
+  instruction loop left is the fenced decline
+  `EntityGeometryRefResolver.collectBakedModelLayers` (see `notes/asm-walk/DESIGN.md`
+  section 14). The walker is a reusable descriptor: sources `over`/`clinit`/`from`/`after`/`before`,
   geometry `real()`/`until`/`limit`, match stages that narrow, fold stages (`gather`/`latch` +
   `commitAt`) that replace the old `pending*` locals, and eager terminals; branch-following is
   `trace` with an always-on cycle guard; three of the four bytecode interpreters ride one
