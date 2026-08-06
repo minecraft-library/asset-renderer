@@ -15,7 +15,7 @@ Gradle build on any non-zero code, so this is what a red build means.
 | 2 | USAGE | argparse rejected the argv. A malformed invocation, never a verdict about the code. |
 | 3 | MISSING_INPUT | Something the command had to read was absent or unreadable - a producer directory, a declared manifest member, a baseline under `--bootstrap`. |
 | 4 | MISSING_DEPENDENCY | An optional Python package a `lab/` probe needs. Never reachable from the Gradle tasks. |
-| 5 | REFUSED | The command declined to answer: an uncovered path (R1), a side of a comparison carrying no provenance, an expected-diff registration naming no row or no value, a clear and a registration in one `expect`, a promotion with no reason, a promotion below a determinism floor, a working root outside `cache/`. |
+| 5 | REFUSED | The command declined to answer: an uncovered path (refusal R1), a side of a comparison carrying no provenance, an expected-diff registration naming no row or no value, a clear and a registration in one `expect`, a promotion with no reason, a promotion below a determinism floor, a working root outside `cache/`. |
 
 The separation of 1 from 3 and 5 is the point, and the corpus conflated them twice. **Do not read a
 3 or a 5 as "the gate failed"** - it means the gate could not run, which needs a different fix.

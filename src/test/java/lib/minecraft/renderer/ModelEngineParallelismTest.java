@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
  * drifts output will break the pin even if determinism still holds.
  * <p>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew :asset-renderer:slowTest}.
+ * {@code ./gradlew slowTest}.
  */
 @Tag("slow")
 @DisplayName("ModelEngine parallel Pass 1 + tiled Pass 2 determinism")

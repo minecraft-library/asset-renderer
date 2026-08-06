@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.*;
  * populated.
  * <p>
  * This test is tagged {@code slow} and is skipped by the default {@code test} task. Run it
- * explicitly with {@code ./gradlew :asset-renderer:slowTest}. The first run downloads ~25MB
+ * explicitly with {@code ./gradlew slowTest}. The first run downloads ~25MB
  * from {@code piston-data.mojang.com}; subsequent runs reuse the cached copy in
  * {@code asset-renderer/cache/it} and complete in seconds.
  * <p>

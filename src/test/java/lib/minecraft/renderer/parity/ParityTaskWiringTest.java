@@ -150,12 +150,61 @@ final class ParityTaskWiringTest {
     private static final Pattern SKILL_TASK_COUNT =
         Pattern.compile("The skill runs exactly the (\\w+) Gradle tasks in group `parity`");
 
-    /** One task the skill tells an operator to run. */
+    /** One task a command line names. */
     private static final Pattern SKILL_INVOCATION = Pattern.compile("\\./gradlew (\\w+)");
+
+    /** One fenced block of the skill, which is where a command an operator is handed to run lives. */
+    private static final Pattern SKILL_FENCED_BLOCK =
+        Pattern.compile("(?s)\n```[a-z]*\n(.*?)\n```\n");
 
     /** The words that invariant can spell its count with, each at the index it names. */
     private static final List<String> COUNT_WORDS = List.of(
         "no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten");
+
+    /** The condition cell of the decision-table row that refuses a gate on stale references. */
+    private static final String STALE_REFERENCES_CONDITION = "| References stale or partial |";
+
+    /**
+     * That row whole, the behaviour cell included.
+     *
+     * <p>The behaviour as well as the condition, because the whole content of this row is that the
+     * command is <b>printed</b>: it hands a reader the most expensive single command in this
+     * repository, and reworded to an imperative it licenses running the oracle refresh as a side
+     * effect of gating the change measured against it. The tolerance below is read out of this text
+     * and a set of task names cannot tell a print from a run, so what makes the name admissible is
+     * pinned here rather than argued in a sentence nothing reads back.
+     */
+    private static final String REFUSING_ON_STALE_REFERENCES = STALE_REFERENCES_CONDITION
+        + " Refuse (R6). Print `./gradlew renderVanillaAllReferences` and stop. Refreshing the "
+        + "oracle is the operator's call, taken before the work, never a side effect of gating the "
+        + "change measured against it. |";
+
+    /**
+     * The decision-table rows that hand a reader a command line rather than run one, by condition.
+     *
+     * <p>Two, and each earns it a different way. The refusal above prints the whole-tree re-render
+     * and stops, refreshing the oracle being the operator's own act and taken before the work. The
+     * row that proceeds on a rule declaring an empty {@code sees} names the gate that rule asks for
+     * instead, and for the test tree and for a hand-edited baseline that gate is the fast suite.
+     *
+     * <p>Conditions rather than task names, because the tolerance is then read out of the rows
+     * rather than typed beside them: what may carry a command outside a fenced block is one of
+     * these rows, not a name one of them happens to mention, and each is held to its own text - the
+     * first by the constant above, the second where the files it speaks for are counted. A row
+     * reworded to run what it prints fails that pin instead of going on vouching for the name it
+     * hands out.
+     */
+    private static final List<String> ROWS_HANDING_A_COMMAND_OVER = List.of(
+        STALE_REFERENCES_CONDITION,
+        "| SEES empty, and one of the fired rules declares `sees: []` |");
+
+    /** The one value the task registry reaches this suite as: read after configuration, forwarded. */
+    private static final String FORWARDS_THE_REGISTRY =
+        "val parityTaskNames = provider { tasks.names.joinToString(\",\") } "
+            + "doFirst { systemProperty(\"asset.parity.task.names\", parityTaskNames.get()) }";
+
+    /** The flag the registry is forwarded on, which is what a guard reads it back through. */
+    private static final String NAMES_THE_TASK_REGISTRY = "asset.parity.task.names";
 
     /** What a task declares to join the group the skill's entry points live in. */
     private static final String DECLARES_THE_PARITY_GROUP = "group = \"parity\"";
@@ -311,14 +360,159 @@ final class ParityTaskWiringTest {
                 + "are, so a sixth entry point leaves the shipped sentence false with every suite "
                 + "green", registered.size(), is(equalTo(COUNT_WORDS.indexOf(stated.group(1)))));
 
+        // The fenced blocks and not the whole file, which is the difference between a command the
+        // skill RUNS and one it is told to print. The refusal on stale references names the
+        // whole-tree re-render and stops: refreshing the oracle is the operator's own act, taken
+        // before the work, and the most expensive single command in this repository. Handing it to a
+        // reader inside a runnable block is what that row exists to prevent, so a fenced block is
+        // exactly the operand.
         Set<String> invoked = new TreeSet<>();
-        Matcher runs = SKILL_INVOCATION.matcher(skill);
-        while (runs.find()) invoked.add(runs.group(1));
-        assertThat("and the tasks it tells an operator to run are those same tasks. `and no "
+        Matcher block = SKILL_FENCED_BLOCK.matcher(skill);
+        while (block.find()) {
+            Matcher runs = SKILL_INVOCATION.matcher(block.group(1));
+            while (runs.find()) invoked.add(runs.group(1));
+        }
+        assertThat("and the tasks it hands an operator to run are those same tasks. `and no "
                 + "others` is the rest of that sentence, and a count on its own is satisfied by a "
                 + "skill naming a different five - or by a registration the skill never mentions "
                 + "arriving as one it does",
             invoked, equalTo(registered));
+
+        Set<String> mentioned = new TreeSet<>();
+        Matcher anywhere = SKILL_INVOCATION.matcher(skill);
+        while (anywhere.find()) mentioned.add(anywhere.group(1));
+        Set<String> unregistered = new TreeSet<>(mentioned);
+        unregistered.removeAll(registeredTaskNames());
+
+        assertThat("the refusal on stale references, whole. It is where the whole-tree re-render is "
+                + "handed over, so what the tolerance below rests on is a row that PRINTS a command "
+                + "and stops: reworded to run it, the name it hands out is the same name, and a set "
+                + "of names goes on vouching for a licence where it meant to vouch for a refusal",
+            tableRow(skill, STALE_REFERENCES_CONDITION), equalTo(REFUSING_ON_STALE_REFERENCES));
+
+        // Whole lines rather than the names on them. Narrowing the clause above to fenced blocks
+        // bought the difference between a command the skill runs and one it hands to a reader, and a
+        // name is exactly what those two have in common: the whole-tree re-render is already a name
+        // the refusal hands over, so a sentence anywhere else telling a reader to run it adds no
+        // name and moves no set of them. What it adds is a LINE, and the lines that may carry a
+        // command outside a block are the rows that hand one over - each pinned whole, here and
+        // where the files the other speaks for are counted.
+        List<String> handingOver = ROWS_HANDING_A_COMMAND_OVER.stream()
+            .map(condition -> tableRow(skill, condition))
+            .sorted()
+            .toList();
+        List<String> handedToTheReader = commandLinesOutsideAFencedBlock(skill);
+
+        assertThat("the build forwarded no task names, so the clause below has no operand and holds "
+            + "over an empty registry whatever the skill says", registeredTaskNames(),
+            is(not(empty())));
+        assertThat("and every task named on a command line anywhere in the file is one this build "
+            + "registers, fenced or not. Outside a block the skill quotes a command for a reader to "
+            + "run themselves, which is a name that has to resolve even though the skill will not "
+            + "run it", unregistered, is(empty()));
+        assertThat("a condition below reads a row the table no longer carries, so the comparison "
+            + "after it would be answered by an absence on both sides", handingOver,
+            not(hasItem("")));
+        assertThat("every line outside a fenced block that hands a command over, against the rows "
+                + "that are allowed to. The most expensive single command in this repository is "
+                + "handed over by a refusal, and a sentence in prose telling a reader to run it is "
+                + "the licence that refusal exists to withhold - which a set of task names cannot "
+                + "see, the name being one the refusal itself already carries. So what is admitted "
+                + "outside a block is a row, never a name a row happens to mention. That task is "
+                + "collected however it is spelled, prefix or none, because the spelling without "
+                + "the prefix is the one this file used for it and adds no `./gradlew` line",
+            handedToTheReader, equalTo(handingOver));
+    }
+
+    /**
+     * Every line outside a fenced block that hands the reader a command.
+     *
+     * <p>Lines rather than the names on them, because a name is all a licence and a refusal have in
+     * common: the row refusing a gate on stale references prints the whole-tree re-render, so that
+     * name is one the file already carries and a second sentence naming it moves no set of names.
+     *
+     * <p>A {@code ./gradlew} command line is one way to hand one over and not the only one. The
+     * task the refusal withholds is the most expensive single command in this repository, and a
+     * sentence telling a reader to run it by its bare name is the same licence spelled without the
+     * prefix - which is the spelling this file used for it before the refusal was written. So that
+     * name is collected wherever it is written, and the prefix is what admits every other task.
+     *
+     * @param skill the skill body
+     * @return the lines, sorted
+     */
+    private static List<String> commandLinesOutsideAFencedBlock(String skill) {
+        String withheld = theTaskTheRefusalWithholds();
+        List<String> out = new ArrayList<>();
+        boolean fenced = false;
+        for (String line : skill.lines().toList()) {
+            if (line.startsWith("```")) fenced = !fenced;
+            else if (!fenced && (SKILL_INVOCATION.matcher(line).find() || line.contains(withheld)))
+                out.add(line);
+        }
+        return out.stream().sorted().toList();
+    }
+
+    /**
+     * The task the stale-references refusal prints rather than runs.
+     *
+     * <p>Read off the pinned row rather than typed again, so the name the tolerance is written for
+     * and the name the refusal hands over cannot become two names. That row is held to its shipped
+     * text where the refusal itself is checked, which is what makes reading it here safe.
+     *
+     * @return the task name
+     */
+    private static String theTaskTheRefusalWithholds() {
+        Matcher named = SKILL_INVOCATION.matcher(REFUSING_ON_STALE_REFERENCES);
+        if (!named.find())
+            throw new AssertionError("the stale-references refusal names no task to withhold");
+        return named.group(1);
+    }
+
+    /**
+     * The decision-table row whose condition cell is the given text.
+     *
+     * <p>The row rather than the whole file, so a failure prints the line that moved instead of the
+     * skill, and so a reworded condition comes back as an absent row rather than as a match on
+     * whatever else the table happens to say.
+     *
+     * @param skill the skill body
+     * @param condition the condition cell, pipes included
+     * @return the whole row, or the empty string when the table carries no row with that condition
+     */
+    private static String tableRow(String skill, String condition) {
+        return skill.lines().filter(line -> line.startsWith(condition)).findFirst().orElse("");
+    }
+
+    @Test
+    @DisplayName("the task registry reaches the suite as one value, read after configuration")
+    void theTaskRegistryReachesTheSuiteAsOneValue() {
+        String build = buildFile();
+
+        assertThat("one value, read once and forwarded. Two guards resolve a name against this "
+                + "registry and both read it out of the flag the doFirst sets, so the two "
+                + "statements are read as one because they have to be the same value: a doFirst "
+                + "forwarding an expression of its own is a fork whose halves part company exactly "
+                + "when something moved. A provider rather than a direct read, so that one read "
+                + "lands after configuration, when nothing further can register a task. What "
+                + "re-runs the two guards when the registry moves is measured elsewhere and is "
+                + "route-dependent: the declared input covering the file a registration arrived in, "
+                + "which BlindnessMapTest holds against the files one can arrive in, or - for a "
+                + "registration arriving from an init script, which edits no declared file - "
+                + "Gradle's own fingerprint of this action",
+            collapsed(build), containsString(FORWARDS_THE_REGISTRY));
+        assertThat("and written in one place, so the two readers cannot be reading two registries",
+            occurrences(build, NAMES_THE_TASK_REGISTRY), is(equalTo(1)));
+    }
+
+    /**
+     * Every task name this build registers, as the build itself answers.
+     *
+     * @return the names
+     */
+    private static Set<String> registeredTaskNames() {
+        String forwarded = System.getProperty("asset.parity.task.names", "");
+        if (forwarded.isBlank()) return Set.of();
+        return Set.of(forwarded.split(","));
     }
 
     @Test
@@ -704,12 +898,12 @@ final class ParityTaskWiringTest {
      * <p>The roster is a deliberate second copy of the taxonomy, so resolving a build-file rule
      * against it relates two independently maintained statements rather than restating one.
      *
-     * @param producer what the producing task's name has to satisfy
+     * @param producer what at least one of the producing tasks' names has to satisfy
      * @return the matching artifact ids
      */
     private static Set<String> idsWhoseProducerSatisfies(Predicate<String> producer) {
         return ParityArtifacts.ALL.stream()
-            .filter(registration -> producer.test(registration.producer()))
+            .filter(registration -> registration.producers().stream().anyMatch(producer))
             .map(ParityArtifacts.Registration::id)
             .collect(Collectors.toCollection(TreeSet::new));
     }

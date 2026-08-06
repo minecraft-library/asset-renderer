@@ -29,7 +29,7 @@ import java.nio.file.Path;
  * ignores it; {@code -PantiAlias} (FXAA) applies to both. Held renders are written with a
  * {@code _held} filename suffix so they never overwrite a GUI icon of the same item.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:itemRender2D [-PitemId=minecraft:diamond_sword]
+ * Usage: {@code ./gradlew itemRender2D [-PitemId=minecraft:diamond_sword]
  * [-PrenderSize=256] [-Ptype=gui|held] [-Psupersample=2] [-PantiAlias=true]}.
  */
 @UtilityClass

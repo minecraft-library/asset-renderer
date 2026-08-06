@@ -1,6 +1,6 @@
 ---
 name: parity-gate
-description: Gate a change against the parity store immediately before a commit. Auto-invoked when the next act is a commit ("commit this", "land this", "ready to commit", "gate this", "run the gate", "is this byte-neutral", "did anything move", "re-baseline", "promote the baseline") AND the working tree touches src/main/java/lib/minecraft/renderer/**, src/test/java/lib/minecraft/renderer/**, src/main/resources/lib/minecraft/renderer/*.json, build.gradle.kts or harness/**. Resolves which artifacts in the parity store can SEE the change and which are structurally BLIND, runs the cheapest sufficient bundle via parityPlan / parityCapture / parityCompare, and reports moved rows against the last known baseline. Do NOT invoke mid-edit, mid-diagnosis, for a scoped single-subject sweep (-PentityId / -PblockId / -PitemId), for a reference re-render, or for a docs-only / notes-only / CLAUDE.md-only commit.
+description: Gate a change against the parity store immediately before a commit. Auto-invoked when the next act is a commit ("commit this", "land this", "ready to commit", "gate this", "run the gate", "is this byte-neutral", "did anything move", "re-baseline", "promote the baseline") AND the working tree touches src/main/java/lib/minecraft/renderer/**, src/test/java/lib/minecraft/renderer/**, src/main/resources/lib/minecraft/renderer/*.json, src/main/resources/META-INF/services/**, build.gradle.kts, scripts/parity/manifest.py or harness/**. Resolves which artifacts in the parity store can SEE the change and which are structurally BLIND, runs the cheapest sufficient bundle via parityPlan / parityCapture / parityCompare, and reports moved rows against the last known baseline. Do NOT invoke mid-edit, mid-diagnosis, for a scoped single-subject sweep (-PentityId / -PblockId / -PitemId), for a reference re-render, or for a docs-only / notes-only / CLAUDE.md-only commit.
 auto_invoke: true
 tags: [parity, gate, baseline, verification, pre-commit, asset-renderer]
 ---
@@ -17,8 +17,16 @@ All three must hold:
 1. **The next act is a commit.** Said out loud, or a `git commit` is about to run.
 2. **The tree touches a trigger path** - `src/main/java/lib/minecraft/renderer/**`,
    `src/test/java/lib/minecraft/renderer/**`, `src/main/resources/lib/minecraft/renderer/*.json`,
-   `build.gradle.kts`, `scripts/parity/**`, or `harness/**`. The map holds the authoritative list;
-   `parityPlan` answers from it and never from this paragraph.
+   `src/main/resources/META-INF/services/**`, `build.gradle.kts`, `scripts/parity/manifest.py`, or
+   `harness/**` - the same list the frontmatter carries, and a `BlindnessMapTest` case holds the two
+   to each other and to the map. It is a coarse prefix list and not an exact one: every path some
+   rule gives a non-empty `sees` is under one of these, and the converse does not hold - a path
+   under one of these can reach nothing. The build file and the manifest module are announced for
+   what they declare rather than for being build and toolkit files: the member list that separates
+   the two `cache/visual` manifests is typed in exactly those two, so editing either redefines what
+   a manifest holds with no producer having run, and the rest of `scripts/parity/**` reaches nothing
+   and is not announced. The map holds the authoritative answer; `parityPlan` resolves from it and
+   never from this paragraph.
 3. **No verdict already exists for this tree state.** `_run/last-verdict.json` - written by
    `parityCompare`, carrying `asset_sha`, `asset_dirty_digest` and `artifacts[]` - records which
    bytes were gated. A `cache/` clean re-arms the gate.
@@ -153,12 +161,13 @@ owns `--dry-run` for itself.
 | COVERED non-empty | Nothing owed. The capture that writes each container writes that value with it, and the compare joins that node, so a move in it is already a mover on the container. |
 | MANUAL row saying `capture <id>` | Widen the capture: add `<id>` to `-Partifacts` and gate it like any other row. Do not read it at the location beside it - that is the last **promoted** value, so it reports a stale baseline as a finding. |
 | MANUAL row saying `read it there` | Read it at the location the plan printed beside it, and say what you found. No verdict reports it: either no capture writes it, or a capture writes it into a node the compare does not join. Widening `-Partifacts` does not help - reading is the only answer. |
-| A changed path matches no rule | Refuse (R1). Add the rule or declare `no_reach`. |
-| SEES empty | Refuse (R2). Build a gate first, or drop the change. |
+| A changed path matches no rule and no `no_reach` glob | Refuse (R1). Add the rule or declare `no_reach`. |
+| SEES empty, and one of the fired rules declares `sees: []` | Proceed on that rule's own terms, which its `reason` states: print the rule id and that reason, do what it says, and report the answer. Several name another gate - `paritySelfTest` for the toolkit, `./gradlew test` for the test tree and for a hand-edited baseline, the resolved argv of the tasks a build edit rewires - and naming one makes it the thing to run. A reason that names none has already said what an empty `sees` means: no artifact this store holds answers, so say so and gate nothing. |
+| SEES empty, and no fired rule declares `sees: []` | Refuse (R2). No rule fired on any changed path at all, R1 above having already refused the paths no `no_reach` entry excuses, so the plan listed every one of them under `NO REACH` and the map answered ahead of the run rather than as a finding that no artifact this store holds moves. Gate nothing, and report that list. If the change does move something, the excuse absorbing its path is what is wrong - replace it with a rule, and name it. |
 | Baseline missing | Refuse (R3). Bootstrap: prove determinism, capture clean, promote. |
 | Promote from a dirty tree | Refuse (R4). `parityPromote` refuses it, naming the recorded `asset_dirty`. Land the change and re-capture; `-PallowDirty=true` records the exception instead. |
 | `determinism_runs` below floor | Refuse (R5). |
-| References stale or partial | Refuse (R6). Run `renderVanillaAllReferences` - the whole tree, never a narrow task. |
+| References stale or partial | Refuse (R6). Print `./gradlew renderVanillaAllReferences` and stop. Refreshing the oracle is the operator's call, taken before the work, never a side effect of gating the change measured against it. |
 | Capture partial / producer non-zero / count mismatch | Refuse (R7). |
 | Promote what this capture's compare did not cover | Refuse (R8). `parityPromote` requires `_run/compare.json` stamped with this capture's digest and naming every artifact it would write, so run `parityCompare` between the capture and the promotion and widen its `-Partifacts` to match. `-Pbootstrap=true` is the one exemption - a first baseline has nothing to be diffed against - and it exempts the whole invocation, so narrow that promotion with `-Partifacts`. |
 

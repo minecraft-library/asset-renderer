@@ -166,7 +166,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ./gradlew playerRender      -PrenderSize=256
 ./gradlew entityRender3D    -PentityId=minecraft:zombie -PrenderSize=512 -Pprojection=ISOMETRIC
 ./gradlew entityProjections -PentityId=minecraft:zombie -PrenderSize=256   # one entity under every projection
-./gradlew bedParity         -PrenderSize=1024
+./gradlew bedCompare        -PrenderSize=1024
 ./gradlew loreTooltip
 ./gradlew stackCountBadge   -Plabel=experiment1                            # or -Pdiff=A,B to pixel-diff two labels
 ./gradlew fluidRenderer
@@ -178,7 +178,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 > [!TIP]
 > `entityRender3D` selects per-entity `EntityAppearance` axes through `-Dasset.entity.*` system properties, e.g. `-Dasset.entity.state=tame`, `-Dasset.entity.age=baby`, `-Dasset.entity.collar=magenta`, `-Dasset.entity.wool=lime`, `-Dasset.entity.base_color=orange`, `-Dasset.entity.pattern=clayfish`, `-Dasset.entity.pattern_color=white`, `-Dasset.entity.sheared=true`, `-Dasset.entity.toggles=horn`, `-Dasset.entity.equipment=body:diamond`. All `-Dasset.*` flags auto-forward to the fork.
 
-**Parity** - diff the pipeline against pixel-perfect ground truth from the sibling [vanilla-reference-harness] (a headless Fabric mod that drives the actual MC client to render every block, item, and living entity at a locked iso pose). Reference PNGs live under `cache/asset-renderer/vanilla/<mc-version>/references/{blocks,items,entities,glint}/`; each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
+**Parity** - diff the pipeline against pixel-perfect ground truth from the [vanilla-reference-harness] in `harness/` (a headless Fabric mod that drives the actual MC client to render every block, item, and living entity at a locked iso pose). Reference PNGs live under `cache/asset-renderer/vanilla/<mc-version>/references/{blocks,items,entities,glint}/`; each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
 
 ```bash
 ./gradlew entityParityVanilla -PentityId=minecraft:zombie          # omit -P for the full sweep
@@ -264,8 +264,9 @@ The library ships pre-generated JSON snapshots under `src/main/resources/lib/min
 
 | Resource | Purpose | Task | Source |
 |----------|---------|------|--------|
-| `block_defaults.json` | Per-block default blockstate (read by `BlockStateLoader`) | `blockDefaults` | ASM bytewalk of each block's `registerDefaultState` |
-| `block_models.json` | Block-entity / block-model metadata (chest, sign, bed, banner, ...) | `blockModels` | ASM scan of block-entity model classes |
+| `block_defaults.json` | Per-block default blockstate (read by `BlockDefaultsLoader`) | `blockDefaults` | ASM bytewalk of each block's `registerDefaultState` |
+| `block_items.json` | Secondary block to standing block-item alias map | `blockItems` | ASM walk of `Items.<clinit>` |
+| `block_models.json` + `block_geometry.json` | Block-entity / block-model metadata (chest, sign, bed, banner, ...) + the bone trees it points at | `blockModels` | ASM scan of block-entity model classes |
 | `block_tints.json` | Block-colour tint hooks | `blockTints` | ASM scan of `BlockColors` |
 | `color_maps.json` | Grass / foliage / water biome tint maps | `colorMaps` | Vanilla biome colormap PNGs |
 | `entity_models.json` + `entity_geometry.json` | Entity family form + geometry | `entityModels` | ASM scan of vanilla client-jar entity `Model` factories |
@@ -273,7 +274,7 @@ The library ships pre-generated JSON snapshots under `src/main/resources/lib/min
 | `potion_colors.json` | Vanilla `MobEffects` colour values | `potionColors` | ASM scan of `MobEffects` |
 
 > [!NOTE]
-> These tasks fetch the client JAR automatically on first run through `Pipeline`, then reuse `<cacheRoot>/vanilla/<version>/client.jar`. `entityModels` output is guarded by the `JsonResourceShaTest` fixtures - re-run it, paste the printed SHA into the matching `*.sha256`, and commit both.
+> These tasks fetch the client JAR automatically on first run through `Pipeline`, then reuse `<cacheRoot>/vanilla/<version>/client.jar`. Every table above is guarded by `manifest.tooling-tables` in the parity store, which takes that whole directory as its source and holds a digest per shipped table beside a digest per flow log. Re-run the flow, then `./gradlew parityCapture -Partifacts=manifest.tooling-tables` and `./gradlew parityCompare` to see what moved; `./gradlew parityPromote` is what makes a moved value the new baseline, and it takes a reason.
 
 The single `generateAtlas` task dumps every block + item into `build/atlas/atlas.png` (+ `atlas.json`). It sits in the `build` group rather than `tooling` and runs from the test sourceset as a worked example of driving `AtlasRenderer`: `-Pdiagnose` also scans the atlas for blank and sparse tiles into `missing.json`, `-PsourceFilter=<source>` also writes a mini-atlas of that one source, and `-PskipRender` reads the atlas already on disk instead of re-rendering it. A build diagnostic, not a bundled resource.
 
@@ -287,7 +288,7 @@ Created during execution and excluded from version control:
 | `texturepacks/` | User-supplied overlay packs discovered by `TexturePackLoader` |
 | `build/` | Gradle outputs and `generateAtlas` task products |
 
-[vanilla-reference-harness]: https://github.com/minecraft-library/vanilla-reference-harness
+[vanilla-reference-harness]: harness
 
 ## Contributing
 

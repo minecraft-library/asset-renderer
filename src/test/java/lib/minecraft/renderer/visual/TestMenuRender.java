@@ -26,7 +26,7 @@ import java.nio.file.Path;
  * a filled border and a {@link MenuOptions.Type#VANILLA_CRAFTING} 3x3 table. This is a
  * <b>functional / visual</b> tool ("does it render") - there is no parity gate.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:menuRender}. Outputs land in {@code cache/visual/menu-render/}.
+ * Usage: {@code ./gradlew menuRender}. Outputs land in {@code cache/visual/menu-render/}.
  */
 @UtilityClass
 public final class TestMenuRender {

@@ -34,7 +34,7 @@ import java.nio.file.Path;
  * immediate. The companion {@code RedstoneTintTest} pins the same path with strict pixel
  * assertions in the regular test suite.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:redstoneTints [-PrenderSize=64]}
+ * Usage: {@code ./gradlew redstoneTints [-PrenderSize=64]}
  */
 @UtilityClass
 public final class TestRedstoneTints {

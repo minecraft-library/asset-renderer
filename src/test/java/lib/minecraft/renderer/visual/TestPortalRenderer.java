@@ -31,7 +31,7 @@ import java.util.Locale;
  * {@code x} {@link PortalOptions.Type} ({@link PortalOptions.Type#ISOMETRIC_3D} / 2D) {@code x}
  * (static / animated / animated-smooth) - 12 outputs.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:portalRenderer}. Takes no {@code -P} flags; sizes are
+ * Usage: {@code ./gradlew portalRenderer}. Takes no {@code -P} flags; sizes are
  * fixed at {@link #STATIC_SIZE} / {@link #ANIMATED_SIZE}.
  */
 @UtilityClass

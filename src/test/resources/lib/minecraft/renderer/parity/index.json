@@ -305,8 +305,11 @@
       "test_class": "lib.minecraft.renderer.visual.AppearanceKey"
     },
     "roster.armor-subjects": {
+      "anchor": [
+        "SUBJECTS = List.of("
+      ],
       "cross_repo": true,
-      "lines": "127-134",
+      "lines": "129-136",
       "re_derive": "must match the harness ArmorSweep roster byte for byte or the sweep finds no reference",
       "test_class": "lib.minecraft.renderer.visual.TestArmorParityVanilla"
     },
@@ -326,18 +329,28 @@
       "test_class": "lib.minecraft.renderer.face.FrameTurnTest"
     },
     "roster.glint-subjects": {
+      "anchor": [
+        "GUI_GLINT_ITEMS = List.of(",
+        "LEATHER_ARMOR_ITEMS = List.of("
+      ],
       "cross_repo": true,
-      "lines": "106-114, 124-129",
+      "lines": "107-115, 125-130",
       "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
       "test_class": "lib.minecraft.renderer.visual.TestGlintParityVanilla"
     },
     "roster.humanoid-armor": {
+      "anchor": [
+        "EXPECTED = Set.of("
+      ],
       "cross_repo": false,
       "lines": "30-34",
       "re_derive": "EntityModelLoader.load() filtered on humanoidArmor().isPresent()",
       "test_class": "lib.minecraft.renderer.pipeline.loader.HumanoidArmorRosterTest"
     },
     "roster.humanoid-part-crop": {
+      "anchor": [
+        "ORIGINS = {"
+      ],
       "cross_repo": false,
       "lines": "35-48",
       "re_derive": "Unwrap.Atlas.rect at each part's atlas origin under Turn.HALF_X",
@@ -354,8 +367,11 @@
       "test_class": "lib.minecraft.renderer.pipeline.dump.PipelineParityDump"
     },
     "roster.player-scopes": {
+      "anchor": [
+        "List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL)"
+      ],
       "cross_repo": false,
-      "lines": "100",
+      "lines": "102",
       "re_derive": "the scopes the harness PlayerSweep renders",
       "test_class": "lib.minecraft.renderer.visual.TestPlayerParityVanilla"
     },

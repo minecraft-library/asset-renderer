@@ -29,7 +29,7 @@ import java.nio.file.Path;
  * at 512px with 2x supersampling. The TNT block ({@link #BLOCK_TEST_1}) has text and distinct
  * top / side / bottom faces that make orientation issues immediately obvious.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:blockRender3D [-PblockId=minecraft:tnt] [-PrenderSize=512] [-Pssaa=2]}.
+ * Usage: {@code ./gradlew blockRender3D [-PblockId=minecraft:tnt] [-PrenderSize=512] [-Pssaa=2]}.
  * Note the Gradle wiring only forwards {@code -PrenderSize} / {@code -Pssaa} when {@code -PblockId}
  * is also supplied; without a block id the task runs the default list at the built-in defaults.
  */

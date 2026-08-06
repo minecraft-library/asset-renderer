@@ -51,7 +51,7 @@ import java.util.TreeSet;
  * the entity's facing applied as a model-to-world placement, so any projection in the catalog
  * presents the subject's front upright.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:entityRender3D [-PrenderSize=512] [-PentityId=minecraft:zombie] [-Pprojection=ISOMETRIC]}.
+ * Usage: {@code ./gradlew entityRender3D [-PrenderSize=512] [-PentityId=minecraft:zombie] [-Pprojection=ISOMETRIC]}.
  */
 @UtilityClass
 public final class TestEntityRender3D {
@@ -88,7 +88,7 @@ public final class TestEntityRender3D {
         PipelineRendererContext context = PipelineRendererContext.of(result);
         ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
-            System.err.println("entity_models.json / entity_geometry.json not present on the classpath - run ./gradlew :asset-renderer:entityModelsJava first");
+            System.err.println("entity_models.json / entity_geometry.json not present on the classpath - run ./gradlew entityModels first");
             return;
         }
         EntityRenderer renderer = new EntityRenderer(context, javaEntities);

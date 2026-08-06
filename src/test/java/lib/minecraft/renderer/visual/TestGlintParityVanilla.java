@@ -58,7 +58,7 @@ import java.util.stream.Stream;
  * phase-aligned with frame {@code N} of the harness, and a per-frame diff becomes meaningful.
  *
  * <p>The harness references are produced by {@code renderVanillaGlintReferences} (the
- * {@code GlintSweeper} glint-only sweep) into
+ * {@code GlintSweep} glint-only sweep) into
  * the harness reference tree's {@code glint/<id>/frame_NNN.png}, with the harness's
  * {@code GlintTexturingMixin} forcing the same {@code t_N} per frame. This side renders the base item
  * icon with the glint suppressed ({@link ItemOptions#getGlintOverride()} = {@code false}), then
@@ -74,7 +74,7 @@ import java.util.stream.Stream;
  * icon coordinate. The time alignment is exact; the spatial band pattern carries a residual the
  * delta will not drive to zero (see {@code notes/glint-parity.md}).
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:glintParityVanilla [-PitemId=minecraft:nether_star]}.
+ * <p>Usage: {@code ./gradlew glintParityVanilla [-PitemId=minecraft:nether_star]}.
  */
 @UtilityClass
 public final class TestGlintParityVanilla {
@@ -91,10 +91,10 @@ public final class TestGlintParityVanilla {
     /** Square render size - matches the harness {@code refharness.size} default. */
     private static final int RENDER_SIZE = 512;
 
-    /** Frames per subject. MUST match the harness {@code GlintSweeper.FRAME_COUNT}. */
+    /** Frames per subject. MUST match the harness {@code GlintSweep.FRAME_COUNT}. */
     private static final int FRAME_COUNT = 30;
 
-    /** Glint-time step (vanilla post-{@code glintSpeed} millis) per frame. MUST match {@code GlintSweeper.STEP_MILLIS}. */
+    /** Glint-time step (vanilla post-{@code glintSpeed} millis) per frame. MUST match the harness {@code GlintSweep.STEP_MILLIS}. */
     private static final long STEP_MILLIS = 1_000L;
 
     /** Display delay per GIF frame - decoupled from the glint-time schedule, just a watchable speed. */
@@ -152,7 +152,7 @@ public final class TestGlintParityVanilla {
 
         boolean haveVanilla = Files.isDirectory(VANILLA_DIR);
         if (!haveVanilla)
-            System.err.printf("Glint reference directory missing: %s%n  Run :asset-renderer:renderVanillaGlintReferences first."
+            System.err.printf("Glint reference directory missing: %s%n  Run renderVanillaGlintReferences first."
                 + " Rendering Java-only frames + GIFs.%n", VANILLA_DIR.toAbsolutePath());
         Files.createDirectories(OUTPUT_DIR);
 

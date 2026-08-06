@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -122,6 +123,19 @@ final class ParityIndexTest {
     private static final Set<String> POINTERS_THAT_REACH_NOTHING = new TreeSet<>(List.of(
         "report.buckets", "report.canvas-mismatch", "report.coverage-gaps", "report.glint-frames",
         "report.panel-stats", "report.sum", "report.wall-time", "report.worst-list"));
+
+    /**
+     * What writes each of the store's own two root files, which no capture step covers.
+     *
+     * <p>The build file's capture table is the second operand for every other stored row and holds
+     * no row for either of these, so the two are typed here: a promotion stamps the index in the
+     * same act as the baseline it writes, and nothing writes the hand-authored rule roster. The
+     * values rather than an exemption, because exempting the pair is what left the one of them that
+     * does name a task unread, beside a sentence saying no producer writes either.
+     */
+    private static final Map<String, List<String>> ROOT_FILE_PRODUCERS = Map.of(
+        "report.oracle-index", List.of("parityPromote"),
+        "roster.blindness-rules", List.of());
 
     @Test
     @DisplayName("every registered artifact appears in exactly one map, and in the one its home names")
@@ -238,6 +252,225 @@ final class ParityIndexTest {
             + "ids no longer reach - a rename promotes the new path and leaves the old one behind, "
             + "and every id-keyed check passes over it without ever opening the directory",
             orphans, is(empty()));
+    }
+
+    @Test
+    @DisplayName("the roster and the build file name the same producers for every stored artifact")
+    void theRosterAndTheBuildTableAgreeOnProducers() {
+        Map<String, List<String>> build = buildFileArtifactRows();
+        Map<String, List<String>> expected = new TreeMap<>(build);
+        expected.putAll(ROOT_FILE_PRODUCERS);
+        Map<String, List<String>> roster = ParityArtifacts.ALL.stream()
+            .filter(registration -> registration.home() == ParityArtifacts.Home.STORE)
+            .collect(Collectors.toMap(ParityArtifacts.Registration::id,
+                ParityArtifacts.Registration::producers, (first, second) -> first, TreeMap::new));
+        List<String> capturedRootFiles = ROOT_FILE_PRODUCERS.keySet().stream()
+            .filter(build::containsKey)
+            .sorted()
+            .toList();
+
+        assertThat("build.gradle.kts declares no artifact rows, which would leave this check vacuous",
+            build.keySet(), is(not(empty())));
+        assertThat("the edge a row's capture step takes on the producers below. The column these "
+            + "rows fill is rendered into the skill under a sentence saying what a capture of the "
+            + "row runs, and the two edges are not one thing: parityCapture depends on the "
+            + "producers of every row it captures, and the step only orders itself after them. A "
+            + "step that DEPENDED on its producers would widen a hand run of one of them into all "
+            + "of them: a tooling flow is finalized by its row's step, so running one flow of an "
+            + "eight-flow row would run the other seven", read(Path.of("build.gradle.kts")),
+            containsString("mustRunAfter(spec.producers)"));
+        assertThat("root files the build file's capture table now holds a row for. The pair below is "
+            + "merged over that table, so a row arriving for one would be silently overwritten by the "
+            + "typed value and the comparison would stop reading the build file for it", capturedRootFiles,
+            is(empty()));
+        assertThat("what the Java roster says writes each stored artifact, against the rows the "
+            + "build file runs. The roster's whole value is being an independently written second "
+            + "opinion, and the producer column is rendered into the skill's artifact reference - "
+            + "which is the column a reader with a zero-second budget is told to read. A row naming "
+            + "one flow where the build runs eight sends that reader to a task that rewrites part of "
+            + "the artifact and captures the rest stale, and the capture still hashes cleanly "
+            + "because every declared member exists. The store's own two root files have no capture "
+            + "step and no row in that table, so each is held to what writes it instead", roster,
+            equalTo(expected));
+    }
+
+    @Test
+    @DisplayName("every lines citation brackets the one site its anchor names")
+    void everyLinesCitationBracketsItsRoster() {
+        JsonObject sources = ParityStore.read("report.oracle-index").getAsJsonObject("sources");
+
+        List<String> cited = new ArrayList<>();
+        List<String> unpaired = new ArrayList<>();
+        List<String> drifted = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : sources.entrySet()) {
+            JsonObject row = entry.getValue().getAsJsonObject();
+            List<String> ranges = citedRanges(row);
+            List<String> anchors = citedAnchors(row);
+            if (ranges.isEmpty() && anchors.isEmpty()) continue;
+            if (ranges.size() != anchors.size()) {
+                unpaired.add(entry.getKey() + " cites " + ranges.size() + " ranges against "
+                    + anchors.size() + " anchors");
+                continue;
+            }
+            List<String> lines = sourceLines(row.get("test_class").getAsString());
+            for (int position = 0; position < ranges.size(); position++) {
+                String anchor = anchors.get(position);
+                cited.add(entry.getKey() + " " + ranges.get(position) + " -> `" + anchor + "`");
+                citationFault(lines, ranges.get(position), anchor)
+                    .ifPresent(fault -> drifted.add(cited.getLast() + ": " + fault));
+            }
+        }
+
+        assertThat("no sources row carries a lines citation, so this case has no operand; it needs a "
+            + "different shape rather than deleting", cited, is(not(empty())));
+        assertThat("rows whose ranges and anchors do not pair off one for one. A range with no "
+            + "anchor beside it is a number nothing can be checked against, which is the state every "
+            + "one of these was in while three of the five pointed somewhere else", unpaired,
+            is(empty()));
+        assertThat("lines citations that do not bracket the site their anchor names. A range is a "
+            + "reader's only pointer at the roster inside a file and nothing renders it, so it "
+            + "drifts in silence: three of five opened on a closing brace, a javadoc terminator and "
+            + "a blank line, and one of those cut two of seven armour subjects off the end of the "
+            + "roster it claims to bracket. The anchor is what makes the range checkable - it has to "
+            + "occur once in the file, the range has to open on the line carrying it, and the range "
+            + "has to close what that line opens. Bracket balance alone is not that: every method "
+            + "and every statement in the file balances, so a citation that slid onto a neighbouring "
+            + "declaration would read as sound", drifted, is(empty()));
+    }
+
+    /**
+     * Returns the line ranges one {@code sources} row cites, if any.
+     *
+     * @param row the index row
+     * @return the ranges, each as {@code "N"} or {@code "N-M"}
+     */
+    private static List<String> citedRanges(JsonObject row) {
+        if (!row.has("lines")) return List.of();
+        return Stream.of(row.get("lines").getAsString().split(",")).map(String::trim).toList();
+    }
+
+    /**
+     * Returns the anchors one {@code sources} row cites, in the order its ranges name them.
+     *
+     * @param row the index row
+     * @return the anchors, each the text its range's first line carries
+     */
+    private static List<String> citedAnchors(JsonObject row) {
+        if (!row.has("anchor")) return List.of();
+        return row.getAsJsonArray("anchor").asList().stream().map(JsonElement::getAsString).toList();
+    }
+
+    /**
+     * Returns what is wrong with one citation, or empty when it points where it says it does.
+     *
+     * <p>Three things have to hold and each is a way a shipped citation was already wrong. The
+     * anchor occurs once in the file, so it names a site rather than a shape; the range opens on the
+     * line carrying it, so it starts where the roster starts; and the range closes what that line
+     * opened, so it ends where the roster ends.
+     *
+     * @param lines the source file's lines
+     * @param range the citation, as {@code "N"} or {@code "N-M"}
+     * @param anchor the text the range's first line has to carry
+     * @return the fault, or empty
+     */
+    private static Optional<String> citationFault(List<String> lines, String range, String anchor) {
+        List<Integer> sites = new ArrayList<>();
+        for (int line = 1; line <= lines.size(); line++)
+            if (lines.get(line - 1).contains(anchor)) sites.add(line);
+        if (sites.size() != 1)
+            return Optional.of("the anchor is on " + sites.size() + " lines, so it names no one site");
+
+        int dash = range.indexOf('-');
+        int from = Integer.parseInt(dash < 0 ? range : range.substring(0, dash));
+        if (from < 1 || from > lines.size()) return Optional.of("the range opens outside the file");
+        if (from != sites.getFirst()) {
+            return Optional.of("line " + from + " is `" + lines.get(from - 1).trim()
+                + "`, and the anchor is on line " + sites.getFirst());
+        }
+        if (!bracketsOneConstruct(lines, range))
+            return Optional.of("the range does not close what line " + from + " opens");
+        return Optional.empty();
+    }
+
+    /**
+     * Returns whether a cited line range opens and closes exactly one bracketed construct.
+     *
+     * <p>A multi-line range has to open one on its first line, stay inside it through the middle, and
+     * close it on its last; a one-line range has to be a non-blank line that opens and closes
+     * whatever it opens. That is what the END of a citation of a declaration is, the anchor having
+     * fixed where it starts.
+     *
+     * @param lines the source file's lines
+     * @param range the citation, as {@code "N"} or {@code "N-M"}
+     * @return whether the range brackets one construct
+     */
+    private static boolean bracketsOneConstruct(List<String> lines, String range) {
+        int dash = range.indexOf('-');
+        int from = Integer.parseInt(dash < 0 ? range : range.substring(0, dash));
+        int to = dash < 0 ? from : Integer.parseInt(range.substring(dash + 1));
+        if (from < 1 || to < from || to > lines.size()) return false;
+        if (from == to) return !lines.get(from - 1).isBlank() && bracketDepth(lines.get(from - 1)) == 0;
+
+        int depth = bracketDepth(lines.get(from - 1));
+        if (depth <= 0) return false;
+        for (int line = from + 1; line < to; line++) {
+            depth += bracketDepth(lines.get(line - 1));
+            if (depth <= 0) return false;
+        }
+        return depth + bracketDepth(lines.get(to - 1)) == 0;
+    }
+
+    /**
+     * Returns how much deeper one line leaves the bracket nesting.
+     *
+     * @param line the source line
+     * @return openers minus closers, over round, square and curly brackets alike
+     */
+    private static int bracketDepth(String line) {
+        int depth = 0;
+        for (char character : line.toCharArray()) {
+            if (character == '(' || character == '[' || character == '{') depth++;
+            if (character == ')' || character == ']' || character == '}') depth--;
+        }
+        return depth;
+    }
+
+    /**
+     * Returns the lines of the source file a fully-qualified class name resolves to.
+     *
+     * @param className the fully-qualified name
+     * @return its lines, in file order
+     */
+    private static List<String> sourceLines(String className) {
+        Path file = SOURCE_ROOTS.stream()
+            .map(root -> root.resolve(className.replace('.', '/') + ".java"))
+            .filter(Files::isRegularFile)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError(className + " resolves under none of " + SOURCE_ROOTS));
+        try {
+            return Files.readAllLines(file);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    /**
+     * Returns the build file's artifact table, each id against the producers its row runs.
+     *
+     * <p>Read as text because the table is Kotlin DSL, the same way this suite reads the two member
+     * lists: a generated third copy would itself need a gate.
+     *
+     * @return the producers by artifact id
+     */
+    private static Map<String, List<String>> buildFileArtifactRows() {
+        Map<String, List<String>> rows = new TreeMap<>();
+        Matcher row = Pattern.compile("ParityArtifact\\(\"([^\"]+)\",\\s*listOf\\(([^)]*)\\)")
+            .matcher(read(Path.of("build.gradle.kts")));
+        while (row.find()) {
+            rows.put(row.group(1), Pattern.compile("\"([^\"]+)\"").matcher(row.group(2))
+                .results().map(hit -> hit.group(1)).toList());
+        }
+        return rows;
     }
 
     @Test

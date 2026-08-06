@@ -43,7 +43,7 @@ import java.util.concurrent.TimeUnit;
  * arithmetic, so it extends {@code Scope.Benchmark} state directly like
  * {@link IsInsideTriangleBenchmark}. Run:
  * <pre>{@code
- * ./gradlew :asset-renderer:jmh -PjmhInclude=TextureSampleIndirectionBenchmark -PjmhProfilers=stack
+ * ./gradlew jmh -PjmhInclude=TextureSampleIndirectionBenchmark -PjmhProfilers=stack
  * }</pre>
  */
 @BenchmarkMode(Mode.AverageTime)

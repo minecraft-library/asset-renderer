@@ -45,7 +45,7 @@ import java.util.stream.Stream;
  *
  * <p>Buckets follow the convention {@code <0.25 / <0.50 / <0.75 / <1.0}.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:itemParityVanilla [-PitemId=minecraft:diamond_sword]}.
+ * <p>Usage: {@code ./gradlew itemParityVanilla [-PitemId=minecraft:diamond_sword]}.
  */
 @UtilityClass
 public final class TestItemParityVanilla {
@@ -78,7 +78,7 @@ public final class TestItemParityVanilla {
             : List.of();
 
         if (!Files.isDirectory(VANILLA_DIR)) {
-            System.err.printf("Vanilla reference directory missing: %s%n  Run :asset-renderer:renderVanillaReferences first.%n",
+            System.err.printf("Vanilla reference directory missing: %s%n  Run renderVanillaReferences first.%n",
                 VANILLA_DIR.toAbsolutePath());
             return;
         }

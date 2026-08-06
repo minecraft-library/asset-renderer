@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
  * hoisting would help most. {@code ticksPerFrame = 1} makes consecutive frames sample distinct strip
  * frames, so the per-frame texture resolution is genuinely exercised (not a repeated cache hit). Run:
  * <pre>{@code
- * ./gradlew :asset-renderer:jmh -PjmhInclude=AnimatedBlockRebuildBenchmark -PjmhProfilers=gc,stack
+ * ./gradlew jmh -PjmhInclude=AnimatedBlockRebuildBenchmark -PjmhProfilers=gc,stack
  * }</pre>
  */
 @BenchmarkMode(Mode.AverageTime)

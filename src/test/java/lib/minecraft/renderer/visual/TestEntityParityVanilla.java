@@ -50,7 +50,7 @@ import java.util.stream.Stream;
  * - each contains {@code vanilla.png}, {@code java.png}, {@code diff.png}. A top-level
  * {@code parity-report.tsv} ranks entities by mean ARGB delta ascending.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:entityParityVanilla [-PentityId=minecraft:zombie]}.
+ * <p>Usage: {@code ./gradlew entityParityVanilla [-PentityId=minecraft:zombie]}.
  */
 @UtilityClass
 public final class TestEntityParityVanilla {
@@ -80,7 +80,7 @@ public final class TestEntityParityVanilla {
             : List.of();
 
         if (!Files.isDirectory(VANILLA_DIR)) {
-            System.err.printf("Vanilla reference directory missing: %s%n  Run :asset-renderer:renderVanillaReferences first.%n",
+            System.err.printf("Vanilla reference directory missing: %s%n  Run renderVanillaReferences first.%n",
                 VANILLA_DIR.toAbsolutePath());
             return;
         }
@@ -97,7 +97,7 @@ public final class TestEntityParityVanilla {
         PipelineRendererContext context = PipelineRendererContext.of(result);
         ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
-            System.err.println("entity_models.json missing - run :asset-renderer:entityModelsJava first");
+            System.err.println("entity_models.json missing - run entityModels first");
             return;
         }
         EntityRenderer javaRenderer = new EntityRenderer(context, javaEntities);

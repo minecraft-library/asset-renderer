@@ -119,7 +119,7 @@ BlockStateLoader.LoadResult is consumed by BlockIndexBuilder and never serialise
 - **triggers** `src/test/java/lib/minecraft/renderer/visual/TestPlayerParityVanilla.java`
 - **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`
 - **blind** `sweep.player`
-- **source** 07/blindness#8; CLAUDE.md 'Which gate sees what'
+- **source** 07/blindness#8; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
 TestPlayerParityVanilla is a main that alpha-crops AND rescales both sides to a common box before diffing, so it cannot detect a part-placement or fit change of any size. Its number is a LOOK gauge; the byte gates are the CRC pin, the contact-sheet manifest and the raw pair the sweep writes beside its rescaled one.
 
@@ -131,9 +131,9 @@ TestPlayerParityVanilla is a main that alpha-crops AND rescales both sides to a 
 - **triggers** `src/main/java/lib/minecraft/renderer/PlayerRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/option/*Player*.java`, `src/main/java/lib/minecraft/renderer/face/HumanoidPart.java`
 - **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`
 - **blind** `sweep.player`
-- **source** 07/blindness#8,#9,#12; CLAUDE.md 'Which gate sees what'
+- **source** 07/blindness#8,#9,#12; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
-The player byte pin is PlayerRasterizeFittedGoldenTest's two CRC32 constants, which cover FULL and SKULL with no cape and no armour. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.
+The player byte pin is the three CRC32 values PlayerRasterizeFittedGoldenTest reads out of the store and compares its own renders against: FULL and SKULL bare, and FULL again in a full iron set. None of the three wears a cape. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.
 
 *Probe:* perturb the wing build's fit frame and re-render -Psheets=toggles: elytra_only_3_4_ and elytra_cape_3_4_ move and none of the other eleven cells do
 
@@ -143,9 +143,9 @@ The player byte pin is PlayerRasterizeFittedGoldenTest's two CRC32 constants, wh
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java`
 - **sees** `sweep.entity`, `sweep.armor`, `pin.player-crc`, `manifest.player-sheets`, `manifest.portal`, `manifest.player-raw`
 - **blind** `sweep.block`, `sweep.item`
-- **source** 07/blindness#10; CLAUDE.md 'Which gate sees what'
+- **source** 07/blindness#10; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
-The block and item parity sums are structurally blind to the box BUILDER, so a clean block sum is not evidence about buildBox. The gates that see it are the 14 armoured entity rows, the player CRC pin and the player contact sheets. The blindness is to that one method: the same file also holds the block element path and the single fan emitter, which BlockRenderer does reach, so B19 correctly keeps the block and item sums in SEES for a change anywhere else in it and this rule's blind list surfaces only when nothing else selects them.
+The block and item parity sums are structurally blind to the box BUILDER, so a clean block sum is not evidence about buildBox. The gates that see it are the 14 armoured entity rows, the armour sweep, the player CRC pin, the player contact sheets, the raw player and armour renders, the portal manifest - PortalRenderer builds its end-portal slab with buildBox and its gateway cube through unitCube, which is a buildBox call - and QuadFanTest, which calls buildBox directly and is the only one of them that runs in the fast suite. The blindness is to that one method: the same file also holds the block element path and the single fan emitter, which BlockRenderer does reach, so B19 correctly keeps the block and item sums in SEES for a change anywhere else in it and this rule's blind list surfaces only when nothing else selects them.
 
 *Probe:* ./gradlew playerRender -Psheets=core-matrix,toggles,armor-per-slot and hash either side with git stash push -- src between the two renders
 
@@ -155,7 +155,7 @@ The block and item parity sums are structurally blind to the box BUILDER, so a c
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`
 - **sees** -
 - **blind** `sweep.block`, `sweep.item`
-- **source** 07/blindness#11; CLAUDE.md depth section
+- **source** 07/blindness#11; CLAUDE.md 'Depth: the contract'
 
 Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.
 
@@ -167,7 +167,7 @@ Their coplanar pairs are exactly coincident, so both interpolation forms agree b
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `pin.player-crc`, `manifest.player-raw`
 - **blind** -
-- **source** 07/blindness#11; audit 09/G7; CLAUDE.md depth section
+- **source** 07/blindness#11; audit 09/G7; CLAUDE.md 'Depth: the contract'
 
 A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.
 
@@ -179,7 +179,7 @@ A coverage or texel-fetch change in the same file reaches blocks like anything e
 - **triggers** `src/test/java/lib/minecraft/renderer/visual/TestPlayerRender.java`
 - **sees** `manifest.player-sheets`
 - **blind** -
-- **source** 07/blindness#12; CLAUDE.md 'Which gate sees what'
+- **source** 07/blindness#12; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
 The ten offline sheet groups hash as 104 files and the elytra and both cape views appear in toggles alone, so a list naming the armour and trim groups but not toggles is blind to the wing build and to both cape views and reads as a clean pass. The capture is suppressed on -Psheets for exactly this reason.
 
@@ -191,7 +191,7 @@ The ten offline sheet groups hash as 104 files and the elytra and both cape view
 - **triggers** `src/main/java/lib/minecraft/renderer/tooling/**`
 - **sees** `manifest.tooling-tables`, `report.diagnostics-log`
 - **blind** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `pin.player-crc`, `pin.block-crc`, `pin.portal-crc`, `manifest.player-raw`
-- **source** 07/blindness#13,#14; CLAUDE.md 'The gate for a tooling change'
+- **source** 07/blindness#13,#14; CLAUDE.md 'Tooling'
 
 They all read the SHIPPED JSON that a generator refactor does not regenerate, so a green test plus five green sums says nothing either way. The only gate is re-running the flow and comparing emitted bytes and the diagnostics log.
 
@@ -203,7 +203,7 @@ They all read the SHIPPED JSON that a generator refactor does not regenerate, so
 - **triggers** `src/main/java/lib/minecraft/renderer/tooling/**`
 - **sees** `report.diagnostics-log`, `manifest.tooling-tables`
 - **blind** -
-- **source** 07/blindness#14; CLAUDE.md 'The gate for a tooling change'
+- **source** 07/blindness#14; CLAUDE.md 'Tooling'
 
 Each index build records its own INFO entries, so reordering two of them is invisible in every emitted table and plainly visible in the log. That is what caught an accidental reordering in the entityModels flow: the JSON matched byte for byte while one line moved from position 9 to 6.
 
@@ -215,7 +215,7 @@ Each index build records its own INFO entries, so reordering two of them is invi
 - **triggers** `src/main/java/lib/minecraft/renderer/AtlasRenderer.java`, `src/main/java/lib/minecraft/renderer/option/Atlas*.java`, `src/test/java/lib/minecraft/renderer/example/**`
 - **sees** -
 - **blind** -
-- **source** 07/blindness#15; CLAUDE.md 'atlas parallel non-deterministic'
+- **source** 07/blindness#15; CLAUDE.md 'Gates'
 
 AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it. The entry point that drives it sits in the test tree and emits, so B33's claim that those sources only assert is false for it; this rule is where the same answer is written down rather than inferred from an excuse.
 
@@ -275,7 +275,7 @@ An identical dump proves the render INPUTS are identical, which implies identica
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/**`, `src/main/java/lib/minecraft/renderer/tooling/kernel/Diagnostics.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `report.diagnostics-log`
 - **blind** -
-- **source** 07/blindness#20; CLAUDE.md 'The gate for a tooling change'
+- **source** 07/blindness#20; CLAUDE.md 'Tooling'
 
 A read layer that lost its child(name) scoping would move no dumped byte, because the scope tree is a property of how the diagnostics were recorded rather than of the data that was read.
 
@@ -287,7 +287,7 @@ A read layer that lost its child(name) scoping would move no dumped byte, becaus
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java`
 - **sees** `sweep.block`, `sweep.entity`
 - **blind** `sweep.item`
-- **source** CLAUDE.md 'The item sum is structurally blind to BlockIndexBuilder'
+- **source** the item sum's blindness to the block index moved out of CLAUDE.md and this map is its home
 
 ItemIndexBuilder.load takes its beEntries from BlockModelLoader directly, a sibling of the block index rather than its output, so no product of BlockIndexBuilder is an input. And ItemRenderer's only findBlock sits inside its GuiIcon sub-renderer, which the item sweep does not render.
 
@@ -299,7 +299,7 @@ ItemIndexBuilder.load takes its beEntries from BlockModelLoader directly, a sibl
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java`
 - **sees** `sweep.block`, `sweep.entity`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** CLAUDE.md 'PipelineParityDump is the right gate for an index or decode change'
+- **source** the dump carrying no key for either field is stated here and nowhere else
 
 blocks.json carries every block row's id, digest, textures, variants, tags, tint and source and no modelIcon, so a change flipping it on hundreds of blocks leaves all 30 dump files identical and its only gate is the block sum. noPosition's only reader is EntityRenderer's carried-block path, so its only gate is enderman~carried=grass_block in the entity sweep.
 
@@ -311,7 +311,7 @@ blocks.json carries every block row's id, digest, textures, variants, tags, tint
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/kit/TrimKit.java`
 - **sees** `manifest.player-sheets`, `pin.armor-span`
 - **blind** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.player-raw`
-- **source** CLAUDE.md 'No parity sweep reaches the paletted trim permutation'
+- **source** the trim permutation's reach moved out of CLAUDE.md and this map is its home
 
 A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the item sweep renders untrimmed icons and its 18 trim-named rows are flat smithing-template sprites that permute nothing, and the armour sweep's seven subjects carry no trim. The gates are ArmorKitCitCompositeTest and the trims sheet group's 11 cells.
 
@@ -383,7 +383,7 @@ These are message and constructor shapes on throwables. Nothing renders differen
 - **triggers** `harness/src/**`, `harness/build.gradle`, `harness/settings.gradle`, `harness/gradle.properties`, `harness/gradle/**`, `harness/gradlew`, `harness/gradlew.bat`, `harness/run-profile/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.references`, `manifest.player-raw`
 - **blind** -
-- **source** reach baseline; CLAUDE.md 'renderVanillaReferences is not a full sweep'
+- **source** reach baseline; CLAUDE.md 'Parity: the harness contract'
 
 The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix. The triggers are the harness's SOURCE and the wiring that boots it, enumerated rather than written as one glob over the tree: the claim is about a render, and a markdown file under harness/ cannot move a reference byte while a rule matching it costs a whole-client re-render.
 
@@ -491,7 +491,7 @@ Editing a stored artifact by hand does not change what a producer emits; it chan
 - **triggers** `src/main/resources/lib/minecraft/renderer/*.json`
 - **sees** `manifest.tooling-tables`, `digest.shipped-tables`, `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.corpus-count`, `manifest.player-raw`, `manifest.dump.vanilla`, `manifest.dump.packs`
 - **blind** -
-- **source** P15; the gap R1 refused on - no rule covered the files two artifacts are defined over
+- **source** P15; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over
 
 src/main/resources/lib/minecraft/renderer/ holds exactly the ten ASM-derived tables the tooling flows emit and the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files and digest.shipped-tables digests the same ten, so both see any edit directly; the sweeps and the dumps see it through the index the loaders build. Two of the ten are counted as well as read - block_defaults.json and glint_items.json - and pin.corpus-count holds exactly those two sizes, so adding or dropping a row moves it directly rather than through an index. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything.
 

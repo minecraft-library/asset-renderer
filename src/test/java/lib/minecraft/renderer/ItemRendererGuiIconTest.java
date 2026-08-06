@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * <li>an id backing neither an item nor a block raises {@link RenderException}.</li>
  * </ul>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew :asset-renderer:slowTest}.
+ * {@code ./gradlew slowTest}.
  */
 @Tag("slow")
 @DisplayName("ItemRenderer GUI_ICON faithful-icon dispatch")

@@ -908,6 +908,28 @@ tasks.withType<Test>().configureEach {
     // UP-TO-DATE. The cost is that any git operation rewriting the index re-runs the fast suite,
     // which is the same trade the whole-file build declaration above already makes.
     inputs.file(".git/index").withPropertyName("parityGitIndex").optional()
+    // CLAUDE.md, because the blindness map's `source` fields cite its headings by name and
+    // BlindnessMapTest reads them back: a heading renamed there turns a citation into a dead one
+    // with nothing in this file having moved.
+    inputs.file("CLAUDE.md").withPropertyName("parityClaudeMd")
+    // The task registry itself, as this build answers it. ParityReferencesTest holds the generated
+    // artifact reference's "tasks that carry no artifact id" table to real task names, and two of
+    // those rows are tasks a plugin registers and this file never spells - so a check parsing the
+    // registrations below would answer with a subset and pass by not looking at them. A provider,
+    // so the one read lands after configuration, when nothing further can register a task.
+    //
+    // Forwarded, and not also declared as an input. Measured by deleting each candidate in turn and
+    // moving the registry behind it, `test` re-runs on three routes for three different reasons: a
+    // registration typed into this file as "Input property 'parityBuildFile' ... has changed"; an
+    // edit under gradle/ as "Input property 'parityTriggerRoots' ... has changed"; and a
+    // registration arriving from an init script - the one route that edits no declared file - as
+    // "One or more additional actions for task ':test' have changed", which is Gradle
+    // re-fingerprinting the action below rather than reading any declaration. Only with the
+    // forwarding gone as well does that third move leave the task UP-TO-DATE at an unchanged cache
+    // key, so the forwarding is what carries it. BlindnessMapTest keeps the two file declarations
+    // in place; the third route rests on the action fingerprint and on nothing written down here.
+    val parityTaskNames = provider { tasks.names.joinToString(",") }
+    doFirst { systemProperty("asset.parity.task.names", parityTaskNames.get()) }
 }
 tasks.withType<JavaExec>().configureEach {
     jvmArgs(addVectorModuleArg)
@@ -1269,7 +1291,7 @@ tasks {
     }
 
     register<JavaExec>("entityParityVanilla") {
-        description = "Per-entity parity report comparing Java pipeline vs vanilla-reference-harness ground truth (mean ARGB delta + per-entity vanilla/java/diff PNGs). Output -> cache/visual/entity-parity-vanilla/<entity>/. Run :asset-renderer:renderVanillaReferences first if the cache is missing. -PentityId=minecraft:zombie"
+        description = "Per-entity parity report comparing Java pipeline vs vanilla-reference-harness ground truth (mean ARGB delta + per-entity vanilla/java/diff PNGs). Output -> cache/visual/entity-parity-vanilla/<entity>/. Run renderVanillaReferences first if the cache is missing. -PentityId=minecraft:zombie"
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestEntityParityVanilla")
         classpath = sourceSets["test"].runtimeClasspath
@@ -1280,7 +1302,7 @@ tasks {
     }
 
     register<JavaExec>("blockParityVanilla") {
-        description = "Per-block parity report comparing Java pipeline vs vanilla-reference-harness ground truth. Output -> cache/visual/block-parity-vanilla/<block>/. Run :asset-renderer:renderVanillaReferences first if the cache is missing. -PblockId=minecraft:tnt"
+        description = "Per-block parity report comparing Java pipeline vs vanilla-reference-harness ground truth. Output -> cache/visual/block-parity-vanilla/<block>/. Run renderVanillaReferences first if the cache is missing. -PblockId=minecraft:tnt"
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestBlockParityVanilla")
         classpath = sourceSets["test"].runtimeClasspath
@@ -1291,7 +1313,7 @@ tasks {
     }
 
     register<JavaExec>("itemParityVanilla") {
-        description = "Per-item parity report comparing Java pipeline vs vanilla-reference-harness ground truth. Output -> cache/visual/item-parity-vanilla/<item>/. Run :asset-renderer:renderVanillaReferences first if the cache is missing. -PitemId=minecraft:diamond_sword"
+        description = "Per-item parity report comparing Java pipeline vs vanilla-reference-harness ground truth. Output -> cache/visual/item-parity-vanilla/<item>/. Run renderVanillaReferences first if the cache is missing. -PitemId=minecraft:diamond_sword"
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestItemParityVanilla")
         classpath = sourceSets["test"].runtimeClasspath
@@ -1300,21 +1322,21 @@ tasks {
     }
 
     register<JavaExec>("playerParityVanilla") {
-        description = "Per-scope player parity report (FULL + SKULL) comparing Java PlayerRenderer 3D vs vanilla-reference-harness ground truth (ENTITY_IN_UI lighting). Bbox-aligned diff panels -> cache/visual/player-parity-vanilla/<scope>/. Run :asset-renderer:renderVanillaPlayerReferences first if the cache is missing."
+        description = "Per-scope player parity report (FULL + SKULL) comparing Java PlayerRenderer 3D vs vanilla-reference-harness ground truth (ENTITY_IN_UI lighting). Bbox-aligned diff panels -> cache/visual/player-parity-vanilla/<scope>/. Run renderVanillaPlayerReferences first if the cache is missing."
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestPlayerParityVanilla")
         classpath = sourceSets["test"].runtimeClasspath
     }
 
     register<JavaExec>("armorParityVanilla") {
-        description = "Per-subject worn-armor parity report (adult + baby zombie / piglin, iron + dyed leather) comparing Java EntityRenderer vs the vanilla-reference-harness armor references. Bbox-aligned diff panels -> cache/visual/armor-parity-vanilla/<subject>/. Run :asset-renderer:renderVanillaArmorReferences first if the cache is missing."
+        description = "Per-subject worn-armor parity report (adult + baby zombie / piglin, iron + dyed leather) comparing Java EntityRenderer vs the vanilla-reference-harness armor references. Bbox-aligned diff panels -> cache/visual/armor-parity-vanilla/<subject>/. Run renderVanillaArmorReferences first if the cache is missing."
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestArmorParityVanilla")
         classpath = sourceSets["test"].runtimeClasspath
     }
 
     register<JavaExec>("glintParityVanilla") {
-        description = "Animated enchantment-glint parity: renders the 7 always-foil GUI items (+ 4 worn leather-armor diagnostics) frame-by-frame against the harness glint references at cache/.../references/glint/. Writes per-frame diffs, contact sheets, GIFs, and a TSV to cache/visual/glint-parity-vanilla/. Run :asset-renderer:renderVanillaGlintReferences first. -PitemId=minecraft:nether_star"
+        description = "Animated enchantment-glint parity: renders the 7 always-foil GUI items (+ 4 worn leather-armor diagnostics) frame-by-frame against the harness glint references at cache/.../references/glint/. Writes per-frame diffs, contact sheets, GIFs, and a TSV to cache/visual/glint-parity-vanilla/. Run renderVanillaGlintReferences first. -PitemId=minecraft:nether_star"
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestGlintParityVanilla")
         classpath = sourceSets["test"].runtimeClasspath
@@ -1731,7 +1753,7 @@ tasks {
 }
 
 // JMH benchmark harness. Benchmarks live in src/jmh/java and are run with
-// `./gradlew :asset-renderer:jmh`. Each Tier 1-3 parallelization task records
+// `./gradlew jmh`. Each Tier 1-3 parallelization task records
 // before/after results against the benchmarks in lib.minecraft.renderer.bench.
 dependencies {
     jmh(libs.jmh.core)

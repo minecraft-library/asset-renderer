@@ -99,6 +99,10 @@ public class EntityOptions implements RenderOptions {
      * {@code BOUNDS} {@link FitMode}s to size the canvas (the per-axis ratio is
      * {@code pixelsPerBlock / 16} since vanilla authors cubes in entity-pixels). Ignored by
      * {@link FitMode#OUTPUT_SIZE}. Defaults to {@code 256}.
+     *
+     * <p>The vanilla-reference-harness's {@code HarnessConfig.PIXELS_PER_BLOCK} holds this same
+     * number and sizes the same canvas from the other side, so changing it means editing both
+     * constants in one commit.
      */
     @lombok.Builder.Default
     private final int pixelsPerBlock = 256;
@@ -108,6 +112,10 @@ public class EntityOptions implements RenderOptions {
      * An entity whose bounds would exceed this (ender_dragon, giant) is scaled down uniformly so
      * the longer side equals the cap. Ignored by {@link FitMode#OUTPUT_SIZE}. Defaults to
      * {@code 1024}.
+     *
+     * <p>The vanilla-reference-harness's {@code HarnessConfig.MAX_CANVAS_SIZE} holds this same number
+     * and applies the same cap from the other side, so changing it means editing both constants in
+     * one commit.
      */
     @lombok.Builder.Default
     private final int maxCanvasSize = 1024;

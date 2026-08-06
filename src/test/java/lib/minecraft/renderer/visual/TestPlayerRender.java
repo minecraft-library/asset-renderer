@@ -67,7 +67,7 @@ import java.util.Optional;
  * (not fatal) when offline. 3D cells render at {@link #SSAA}x supersampling for crisp edges.
  *
  * <p>Usage:
- * {@code ./gradlew :asset-renderer:playerRender [-PrenderSize=256] [-Psheets=core-matrix,toggles,account,...] [-Ppack[=<url>]] [-Paccount=<username>]}.
+ * {@code ./gradlew playerRender [-PrenderSize=256] [-Psheets=core-matrix,toggles,account,...] [-Ppack[=<url>]] [-Paccount=<username>]}.
  */
 @UtilityClass
 public final class TestPlayerRender {

@@ -30,8 +30,8 @@ writes a capture, `parityCompare` reports movers, `parityPromote` makes a captur
 - What a value reaches is provable: perturb it, re-render, and the outputs that move name the reach.
 - Scope an already-red task's output to the package you touched and compare; never read its exit
   code.
-- `BlockGeometryKitTest` and `FrameTurnTest` build fixtures by reflection into private
-  parser-populated fields, so a rename compiles clean and fails at runtime.
+- `BlockGeometryKitTest` builds fixtures by reflection into private parser-populated fields, so a
+  rename compiles clean and fails at runtime.
 
 Task inventories: `./gradlew tasks --group visual`, `--group tooling`, `--group parity`, `--group
 build`. The last holds `generateAtlas`, a worked example of driving a renderer rather than a
@@ -286,9 +286,10 @@ vanilla's `display.gui` pose and scale. It is facing-neutral, presents the model
   opposite face from the GPU.
 - A fetch may not step outside the face's own UV rectangle; `ModelEngine.lastTexel` bounds it via
   `ceil(uMax * w) - 1`.
-- The reference set's own depth range is part of the contract, and both harness frame renderers are at
-  `1000`. A change emulating the reference's rounding cannot be evaluated against a coarser reference
-  - fix the ground truth first.
+- The reference set's own depth range is part of the contract, and every harness `FrameRenderer` is
+  at `1000` - the depth-quantum probe, which drives two ranges and refreshes no reference, is not one.
+  A change emulating the reference's rounding cannot be evaluated against a coarser reference - fix
+  the ground truth first.
 
 ## Armour
 

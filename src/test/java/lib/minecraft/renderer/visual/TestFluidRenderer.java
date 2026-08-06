@@ -43,7 +43,7 @@ import java.util.Optional;
  * {@link Block.TintTarget#WATER} is wired; the override path works today.</li>
  * </ul>
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:fluidRenderer}. Takes no {@code -P} flags; sizes are
+ * Usage: {@code ./gradlew fluidRenderer}. Takes no {@code -P} flags; sizes are
  * fixed at {@link #STATIC_SIZE} / {@link #ANIMATED_SIZE}.
  */
 @UtilityClass

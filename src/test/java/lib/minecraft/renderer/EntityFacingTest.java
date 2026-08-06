@@ -61,7 +61,7 @@ class EntityFacingTest {
         ClientAssets result = ClientAcquisition.acquire(
             ClientOptions.builder().version("26.1").cacheRoot(CACHE_ROOT).build());
         ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
-        assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModelsJava first");
+        assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
         entityRenderer = new EntityRenderer(PipelineRendererContext.of(result), entities);
     }
 

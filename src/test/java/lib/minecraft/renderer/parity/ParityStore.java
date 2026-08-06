@@ -94,10 +94,11 @@ public final class ParityStore {
      * Returns whether this artifact is one of the store's own two root files.
      *
      * <p>The index and the blindness roster sit at the store root under names that predate the id
-     * grammar, and they are the store's scaffolding rather than measured values: no producer writes
-     * one, no capture holds one and no promotion baselines one. A rule about baselines has to say
-     * so, because both files exist unconditionally and would otherwise read as promoted values that
-     * nobody promoted.
+     * grammar, and they are the store's scaffolding rather than measured values: no capture step
+     * covers one, no capture holds one and no promotion baselines one. What writes each is outside
+     * that loop - a promotion stamps the index in the same act as the baseline it writes, and the
+     * roster is hand-authored. A rule about baselines has to say so, because both files exist
+     * unconditionally and would otherwise read as promoted values that nobody promoted.
      *
      * @param artifactId the artifact id
      * @return whether it is a root file

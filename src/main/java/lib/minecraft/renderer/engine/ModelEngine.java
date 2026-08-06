@@ -122,6 +122,12 @@ public class ModelEngine {
      * <p>Overridable via {@code -Dasset.depth.range=N} for empirical sweeps; {@code N <= 0} compares raw
      * camera-space depth. Swept over {@code 125} to {@code 4000}, fleet parity is a broad shallow basin
      * whose floor sits on this value.
+     *
+     * <p>Every {@code FrameRenderer} in the vanilla-reference-harness declares its own
+     * {@code DEPTH_RANGE} holding this same value, which is what puts both sides of a comparison on
+     * one window-depth grid. Changing it means editing this constant and each of theirs in one
+     * commit. The harness's depth-quantum probe is deliberately outside that set - it drives two
+     * ranges at once and refreshes no reference.
      */
     private static final float VANILLA_DEPTH_RANGE = Float.parseFloat(System.getProperty("asset.depth.range", "1000"));
 

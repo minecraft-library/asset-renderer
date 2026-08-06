@@ -172,7 +172,7 @@
         "manifest.player-sheets",
         "manifest.player-raw"
       ],
-      "source": "07/blindness#8; CLAUDE.md 'Which gate sees what'",
+      "source": "07/blindness#8; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/test/java/lib/minecraft/renderer/visual/TestPlayerParityVanilla.java"
       ]
@@ -185,13 +185,13 @@
       "id": "B9",
       "mode": "select",
       "probe": "perturb the wing build's fit frame and re-render -Psheets=toggles: elytra_only_3_4_ and elytra_cape_3_4_ move and none of the other eleven cells do",
-      "reason": "The player byte pin is PlayerRasterizeFittedGoldenTest's two CRC32 constants, which cover FULL and SKULL with no cape and no armour. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.",
+      "reason": "The player byte pin is the three CRC32 values PlayerRasterizeFittedGoldenTest reads out of the store and compares its own renders against: FULL and SKULL bare, and FULL again in a full iron set. None of the three wears a cape. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.",
       "sees": [
         "pin.player-crc",
         "manifest.player-sheets",
         "manifest.player-raw"
       ],
-      "source": "07/blindness#8,#9,#12; CLAUDE.md 'Which gate sees what'",
+      "source": "07/blindness#8,#9,#12; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/PlayerRenderer.java",
         "src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java",
@@ -208,7 +208,7 @@
       "id": "B10",
       "mode": "select",
       "probe": "./gradlew playerRender -Psheets=core-matrix,toggles,armor-per-slot and hash either side with git stash push -- src between the two renders",
-      "reason": "The block and item parity sums are structurally blind to the box BUILDER, so a clean block sum is not evidence about buildBox. The gates that see it are the 14 armoured entity rows, the player CRC pin and the player contact sheets. The blindness is to that one method: the same file also holds the block element path and the single fan emitter, which BlockRenderer does reach, so B19 correctly keeps the block and item sums in SEES for a change anywhere else in it and this rule's blind list surfaces only when nothing else selects them.",
+      "reason": "The block and item parity sums are structurally blind to the box BUILDER, so a clean block sum is not evidence about buildBox. The gates that see it are the 14 armoured entity rows, the armour sweep, the player CRC pin, the player contact sheets, the raw player and armour renders, the portal manifest - PortalRenderer builds its end-portal slab with buildBox and its gateway cube through unitCube, which is a buildBox call - and QuadFanTest, which calls buildBox directly and is the only one of them that runs in the fast suite. The blindness is to that one method: the same file also holds the block element path and the single fan emitter, which BlockRenderer does reach, so B19 correctly keeps the block and item sums in SEES for a change anywhere else in it and this rule's blind list surfaces only when nothing else selects them.",
       "sees": [
         "sweep.entity",
         "sweep.armor",
@@ -217,7 +217,7 @@
         "manifest.portal",
         "manifest.player-raw"
       ],
-      "source": "07/blindness#10; CLAUDE.md 'Which gate sees what'",
+      "source": "07/blindness#10; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java"
       ]
@@ -233,7 +233,7 @@
       "probe": "-Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved",
       "reason": "Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.",
       "sees": [],
-      "source": "07/blindness#11; CLAUDE.md depth section",
+      "source": "07/blindness#11; CLAUDE.md 'Depth: the contract'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
       ]
@@ -253,7 +253,7 @@
         "pin.player-crc",
         "manifest.player-raw"
       ],
-      "source": "07/blindness#11; audit 09/G7; CLAUDE.md depth section",
+      "source": "07/blindness#11; audit 09/G7; CLAUDE.md 'Depth: the contract'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
       ]
@@ -268,7 +268,7 @@
       "sees": [
         "manifest.player-sheets"
       ],
-      "source": "07/blindness#12; CLAUDE.md 'Which gate sees what'",
+      "source": "07/blindness#12; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/test/java/lib/minecraft/renderer/visual/TestPlayerRender.java"
       ]
@@ -298,7 +298,7 @@
         "manifest.tooling-tables",
         "report.diagnostics-log"
       ],
-      "source": "07/blindness#13,#14; CLAUDE.md 'The gate for a tooling change'",
+      "source": "07/blindness#13,#14; CLAUDE.md 'Tooling'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/tooling/**"
       ]
@@ -314,7 +314,7 @@
         "report.diagnostics-log",
         "manifest.tooling-tables"
       ],
-      "source": "07/blindness#14; CLAUDE.md 'The gate for a tooling change'",
+      "source": "07/blindness#14; CLAUDE.md 'Tooling'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/tooling/**"
       ]
@@ -327,7 +327,7 @@
       "probe": "run generateAtlas twice with --rerun-tasks and hash build/atlas/atlas.png; the two differ",
       "reason": "AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it. The entry point that drives it sits in the test tree and emits, so B33's claim that those sources only assert is false for it; this rule is where the same answer is written down rather than inferred from an excuse.",
       "sees": [],
-      "source": "07/blindness#15; CLAUDE.md 'atlas parallel non-deterministic'",
+      "source": "07/blindness#15; CLAUDE.md 'Gates'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/AtlasRenderer.java",
         "src/main/java/lib/minecraft/renderer/option/Atlas*.java",
@@ -431,7 +431,7 @@
         "manifest.dump.packs",
         "report.diagnostics-log"
       ],
-      "source": "07/blindness#20; CLAUDE.md 'The gate for a tooling change'",
+      "source": "07/blindness#20; CLAUDE.md 'Tooling'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/**",
         "src/main/java/lib/minecraft/renderer/tooling/kernel/Diagnostics.java"
@@ -450,7 +450,7 @@
         "sweep.block",
         "sweep.entity"
       ],
-      "source": "CLAUDE.md 'The item sum is structurally blind to BlockIndexBuilder'",
+      "source": "the item sum's blindness to the block index moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java"
       ]
@@ -469,7 +469,7 @@
         "sweep.block",
         "sweep.entity"
       ],
-      "source": "CLAUDE.md 'PipelineParityDump is the right gate for an index or decode change'",
+      "source": "the dump carrying no key for either field is stated here and nowhere else",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java"
       ]
@@ -493,7 +493,7 @@
         "manifest.player-sheets",
         "pin.armor-span"
       ],
-      "source": "CLAUDE.md 'No parity sweep reaches the paletted trim permutation'",
+      "source": "the trim permutation's reach moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/kit/TrimKit.java"
       ]
@@ -654,7 +654,7 @@
         "manifest.references",
         "manifest.player-raw"
       ],
-      "source": "reach baseline; CLAUDE.md 'renderVanillaReferences is not a full sweep'",
+      "source": "reach baseline; CLAUDE.md 'Parity: the harness contract'",
       "trigger_paths": [
         "harness/src/**",
         "harness/build.gradle",
@@ -859,7 +859,7 @@
         "manifest.dump.vanilla",
         "manifest.dump.packs"
       ],
-      "source": "P15; the gap R1 refused on - no rule covered the files two artifacts are defined over",
+      "source": "P15; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over",
       "trigger_paths": [
         "src/main/resources/lib/minecraft/renderer/*.json"
       ]

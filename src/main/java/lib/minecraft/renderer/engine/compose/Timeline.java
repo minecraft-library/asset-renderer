@@ -25,7 +25,7 @@ import java.util.stream.IntStream;
  * Each frame carries a sample instant (the world moment it depicts - {@link #millisAt} as the exact
  * instant, {@link TickTimeline#tickAt} as the integer tick on tick-native timelines) and a playback
  * delay ({@link #delayMs}, with running sum {@link #playbackMsAt}). Implementations own their
- * schedule data and the constants that derive it; the terminal methods {@link TickTimeline#bake} and
+ * schedule data and the constants that derive it; the terminal methods {@link #bake} and
  * {@link #wrap} own the final render call.
  */
 public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop, Timeline.SubTickLoop {

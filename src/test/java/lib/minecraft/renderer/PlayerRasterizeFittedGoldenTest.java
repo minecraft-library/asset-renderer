@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.is;
  * fitted output breaks the pin.
  *
  * <p>Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew :asset-renderer:slowTest}. Uses the offline, pack-resolvable vanilla skin so no
+ * {@code ./gradlew slowTest}. Uses the offline, pack-resolvable vanilla skin so no
  * network is required once the client jar is cached.
  */
 @Tag("slow")

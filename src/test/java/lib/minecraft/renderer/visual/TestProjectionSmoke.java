@@ -29,7 +29,7 @@ import java.util.Map;
  * {@code minecraft:tnt} - a complete cube with distinct top/side/bottom faces that make orientation
  * and clipping issues obvious.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:projectionSmoke [-PblockId=minecraft:tnt] [-PrenderSize=512]}
+ * Usage: {@code ./gradlew projectionSmoke [-PblockId=minecraft:tnt] [-PrenderSize=512]}
  */
 @UtilityClass
 public final class TestProjectionSmoke {
