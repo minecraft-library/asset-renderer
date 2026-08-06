@@ -22,7 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * order and the first that fires claims the element; a commit reads its payload before any
  * reset; the engine-owned commit-reset is unconditional while {@code retain()} and
  * {@code clearing(subset)} are the declared deviations; an element no stage consumed is the
- * fall-through event strict cells clear on.
+ * fall-through event strict cells clear on; an armed commit recognizer that fails its own
+ * cell-reading match raises no event and therefore no reset.
  */
 @DisplayName("walk cascade - claiming, commit, reset, fall-through")
 class WalkCascadeTest {
@@ -218,6 +219,33 @@ class WalkCascadeTest {
         assertNotNull(strict, "the commit still fires; only the payload was lost");
         assertNull(strict.value());
         assertEquals(List.of(), strict.values());
+    }
+
+    @Test
+    @DisplayName("armed commit recognizer - a failed recognizer raises no event and no reset; the armed one commits and resets")
+    void armedCommitRecognizer() {
+        MethodNode m = method(
+            new LdcInsnNode(7),
+            new FieldInsnNode(Opcodes.PUTSTATIC, "test/T", "SLOT", "Ltest/T;"),
+            new LdcInsnNode("id"),
+            new FieldInsnNode(Opcodes.PUTSTATIC, "test/T", "SLOT", "Ltest/T;"));
+        Cells.Latch<String> id = Cells.latch();
+        Cells.ListCell<Integer> blocks = Cells.list();
+        List<String> committed = new ArrayList<>();
+        AsmWalker.over(m)
+            .feed(id)
+            .feed(blocks)
+            .on(Insn.of(AbstractInsnNode.class, node -> AsmWalker.intLiteral(node) != null),
+                node -> blocks.add(AsmWalker.intLiteral(node)))
+            .on(Insn.of(AbstractInsnNode.class, node -> AsmWalker.stringLiteral(node) != null),
+                node -> id.set(AsmWalker.stringLiteral(node)))
+            .commitAt(Insn.putStatic("test/T").and(put -> id.get() != null),
+                put -> committed.add(id.get() + blocks.values()))
+            .run();
+        assertEquals(List.of("id[7]"), committed,
+            "the unarmed PUTSTATIC raised no event and reset nothing - the block list survived it");
+        assertNull(id.get(), "the armed commit's default reset cleared the latch");
+        assertEquals(List.of(), blocks.values(), "and the list");
     }
 
 }
