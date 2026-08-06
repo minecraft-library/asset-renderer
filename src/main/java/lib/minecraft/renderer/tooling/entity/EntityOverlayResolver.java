@@ -12,6 +12,7 @@ import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
 import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.walk.Interp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -25,9 +26,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -1258,47 +1257,53 @@ final class EntityOverlayResolver {
             : AsmKit.findMethod(owner, alphaProvider.getName(), alphaProvider.getDesc());
         if (lambda == null) return 0f;
         float frozen = EntityOverlayPolicies.FROZEN_FRAME.floatValue();
-        Deque<Double> stack = new ArrayDeque<>();
-        for (AbstractInsnNode in : lambda.instructions) {
-            int op = in.getOpcode();
-            Float constant = AsmKit.readFloatLiteral(in);
-            if (constant != null) {
-                stack.push((double) constant);
-                continue;
-            }
-            switch (op) {
-                case Opcodes.FLOAD, Opcodes.ALOAD -> stack.push((double) frozen);
-                case Opcodes.GETFIELD -> { popOrZero(stack); stack.push((double) frozen); }
-                case Opcodes.FMUL -> { double b = popOrZero(stack), a = popOrZero(stack); stack.push(a * b); }
-                case Opcodes.FADD -> { double b = popOrZero(stack), a = popOrZero(stack); stack.push(a + b); }
-                case Opcodes.FSUB -> { double b = popOrZero(stack), a = popOrZero(stack); stack.push(a - b); }
-                case Opcodes.F2D, Opcodes.D2F, Opcodes.I2F, Opcodes.F2I -> { }
-                case Opcodes.INVOKESTATIC -> {
-                    if (!(in instanceof MethodInsnNode mi) || !applyFloatIntrinsic(mi.name, stack)) return 0f;
+        Interp<Double> machine = Interp.of(new FrozenAlphaDomain(), Interp.OnUnknown.ZERO, Interp.Width.FLOAT_AS_DOUBLE);
+        // The machine owns the stack - float-constant pushes, the fmul / fadd / fsub arithmetic
+        // and the four pass-through width conversions all land in its step (an empty pop answers
+        // the domain's zero) before the dispatch below sees the node. The dispatch recognises
+        // what matters to the flow: the frozen value standing in for every load and field read -
+        // a load swaps out the slot view the step pushed, a field read pops its receiver - the
+        // name-matched intrinsics, the frozen-frame return off the stack top, and the 0f abort
+        // for every other real opcode.
+        Float alpha = AsmWalker.over(lambda)
+            .drive(machine)
+            .firstNotNull(in -> {
+                int op = in.getOpcode();
+                if (AsmKit.readFloatLiteral(in) != null) return null;
+                switch (op) {
+                    case Opcodes.FLOAD, Opcodes.ALOAD, Opcodes.GETFIELD -> {
+                        machine.pop();
+                        machine.push((double) frozen);
+                    }
+                    case Opcodes.FMUL, Opcodes.FADD, Opcodes.FSUB,
+                         Opcodes.F2D, Opcodes.D2F, Opcodes.I2F, Opcodes.F2I -> { }
+                    case Opcodes.INVOKESTATIC -> {
+                        if (!(in instanceof MethodInsnNode mi) || !applyFloatIntrinsic(mi.name, machine)) return 0f;
+                    }
+                    case Opcodes.FRETURN, Opcodes.DRETURN -> {
+                        return (float) (double) machine.peek();
+                    }
+                    default -> {
+                        if (op >= 0) return 0f;
+                    }
                 }
-                case Opcodes.FRETURN, Opcodes.DRETURN -> {
-                    return stack.isEmpty() ? 0f : (float) (double) stack.peek();
-                }
-                default -> {
-                    if (op >= 0) return 0f;
-                }
-            }
-        }
-        return 0f;
+                return null;
+            });
+        return alpha == null ? 0f : alpha;
     }
 
     /**
-     * Applies a recognised float intrinsic to the interpreter stack, or reports an unknown call.
+     * Applies a recognised float intrinsic to the machine's stack, or reports an unknown call.
      */
-    private static boolean applyFloatIntrinsic(@NotNull String name, @NotNull Deque<Double> stack) {
+    private static boolean applyFloatIntrinsic(@NotNull String name, @NotNull Interp<Double> machine) {
         switch (name) {
-            case "cos" -> stack.push(Math.cos(popOrZero(stack)));
-            case "sin" -> stack.push(Math.sin(popOrZero(stack)));
-            case "max" -> { double b = popOrZero(stack), a = popOrZero(stack); stack.push(Math.max(a, b)); }
-            case "min" -> { double b = popOrZero(stack), a = popOrZero(stack); stack.push(Math.min(a, b)); }
+            case "cos" -> machine.push(Math.cos(machine.pop()));
+            case "sin" -> machine.push(Math.sin(machine.pop()));
+            case "max" -> { double b = machine.pop(), a = machine.pop(); machine.push(Math.max(a, b)); }
+            case "min" -> { double b = machine.pop(), a = machine.pop(); machine.push(Math.min(a, b)); }
             case "clamp" -> {
-                double hi = popOrZero(stack), lo = popOrZero(stack), v = popOrZero(stack);
-                stack.push(Math.max(lo, Math.min(hi, v)));
+                double hi = machine.pop(), lo = machine.pop(), v = machine.pop();
+                machine.push(Math.max(lo, Math.min(hi, v)));
             }
             default -> { return false; }
         }
@@ -1306,11 +1311,55 @@ final class EntityOverlayResolver {
     }
 
     /**
-     * Pops a value from the interpreter stack, treating an underflow as {@code 0}.
+     * The frozen-alpha value model: float literals via {@link AsmKit#readFloatLiteral} widened
+     * to double, the {@code fmul} / {@code fadd} / {@code fsub} arithmetic, the four
+     * pass-through width conversions, and a zero for every empty pop - the un-evaluable
+     * answer, never a fault.
      */
-    private static double popOrZero(@NotNull Deque<Double> stack) {
-        Double value = stack.poll();
-        return value == null ? 0.0 : value;
+    private static final class FrozenAlphaDomain implements Interp.Domain<Double> {
+
+        /**
+         * The unknown placeholder, recognised by identity - a distinct box no evaluated value
+         * can alias. It reaches the stack only where the dispatch aborts the evaluation at the
+         * same node, or under a load whose dispatch arm swaps it for the frozen value, so it
+         * never survives into a completing evaluation.
+         */
+        private static final @NotNull Double UNKNOWN = Double.valueOf(Double.NaN);
+
+        @Override
+        public @Nullable Double decode(@NotNull AbstractInsnNode node) {
+            Float constant = AsmKit.readFloatLiteral(node);
+            return constant == null ? null : (double) constant;
+        }
+
+        @Override
+        public @NotNull Double unknown() {
+            return UNKNOWN;
+        }
+
+        @Override
+        public @NotNull Double underflow() {
+            return 0.0;
+        }
+
+        @Override
+        public @Nullable Double binary(int opcode, @NotNull Double left, @NotNull Double right) {
+            return switch (opcode) {
+                case Opcodes.FMUL -> left * right;
+                case Opcodes.FADD -> left + right;
+                case Opcodes.FSUB -> left - right;
+                default -> null;
+            };
+        }
+
+        @Override
+        public @Nullable Double unary(int opcode, @NotNull Double operand) {
+            return switch (opcode) {
+                case Opcodes.F2D, Opcodes.D2F, Opcodes.I2F, Opcodes.F2I -> operand;
+                default -> null;
+            };
+        }
+
     }
 
     // ------------------------------------------------------------------------------------
