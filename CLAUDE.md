@@ -55,12 +55,11 @@ version bump.
   `provenance` field of every `*Policies` class, so they cannot share a superclass.
 - **Every instruction walk in `tooling/` is an `AsmWalker` chain** - the hand-written instruction
   loops left are the fenced decline `EntityGeometryRefResolver.collectBakedModelLayers` (see
-  `notes/asm-walk/DESIGN.md` section 14) and three interpreter-family holdouts awaiting
-  machine-view tokens: `TintWalk.run`, `PotionColorWalk.run` and
-  `EntityBlockOverlayResolver.extractPoseBlocks` (witnesses in the walk-batch-F4/F5 commit
-  bodies), plus three small `GeometryParser` finds the F5 stages classified out of their
-  families (`findStaticModifyMeshTarget` and the two backward array-shape finds - unabsorbed,
-  not declined). The walker is a reusable descriptor: sources `over`/`clinit`/`from`/`after`/`before`,
+  `notes/asm-walk/DESIGN.md` section 14) and one interpreter-family holdout awaiting
+  machine-view tokens: `EntityBlockOverlayResolver.extractPoseBlocks` (witness in the
+  walk-batch-F4/F5 commit bodies), plus three small `GeometryParser` finds the F5 stages
+  classified out of their families (`findStaticModifyMeshTarget` and the two backward
+  array-shape finds - unabsorbed, not declined). The walker is a reusable descriptor: sources `over`/`clinit`/`from`/`after`/`before`,
   geometry `real()`/`until`/`limit`, match stages that narrow, fold stages (`gather`/`latch` +
   `commitAt`) that replace the old `pending*` locals, and eager terminals; branch-following is
   `trace` with an always-on cycle guard; three of the four bytecode interpreters ride one
