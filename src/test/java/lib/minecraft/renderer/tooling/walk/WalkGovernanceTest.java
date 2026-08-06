@@ -86,7 +86,7 @@ class WalkGovernanceTest {
         "Cells.Latch.clear(0)", "Cells.Latch.get(0)", "Cells.Latch.set(1)",
         "Cells.ListCell.add(1)", "Cells.ListCell.clear(0)", "Cells.ListCell.values(0)",
         "Cells.Slots.clear(0)", "Cells.Slots.clear(1)", "Cells.Slots.load(1)", "Cells.Slots.store(2)",
-        "Cells.Window.clear(0)", "Cells.Window.size(0)", "Cells.Window.values(0)",
+        "Cells.Window.clear(0)", "Cells.Window.size(0)", "Cells.Window.takeLast(0)", "Cells.Window.values(0)",
         "Cells.flag(0)", "Cells.latch(0)", "Cells.list(0)", "Cells.slots(0)", "Cells.window(2)",
         "CommitWalk.Commit.node(0)", "CommitWalk.Commit.value(0)", "CommitWalk.Commit.values(0)",
         "CommitWalk.any(0)", "CommitWalk.count(0)", "CommitWalk.first(0)", "CommitWalk.firstNotNull(1)",

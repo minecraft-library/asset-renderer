@@ -10,6 +10,7 @@ import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -21,10 +22,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins for the fold-token disciplines over synthetic bodies - the gather buffer's keep window,
- * the latch's sticky / strict / first-wins split, the open-seal segment gate, promotion via
- * {@code takeAt}, and the retain deviation from the commit reset.
+ * the feed window's destructive take, the latch's sticky / strict / first-wins split, the
+ * open-seal segment gate, promotion via {@code takeAt}, and the retain deviation from the
+ * commit reset.
  */
-@DisplayName("fold-token discipline - keep window, latch stickiness, segment gate, promotion, retain")
+@DisplayName("fold-token discipline - keep window, window take, latch stickiness, segment gate, promotion, retain")
 class WalkFoldTokenTest {
 
     private static final Match<FieldInsnNode> COMMIT = Insn.putStatic("test/T");
@@ -77,6 +79,40 @@ class WalkFoldTokenTest {
             .gather(AsmWalker::intLiteral).keep(3).retain()
             .commitAt(COMMIT));
         assertEquals(List.of(List.of(1, 2), List.of(2, 3, 4), List.of(4, 5, 6)), seen);
+    }
+
+    @Test
+    @DisplayName("takeLast() pops the newest for good - successive takes step down the stack, an empty take answers null consuming nothing")
+    void windowTakeLastConsumes() {
+        MethodNode m = method(new LdcInsnNode(1), new LdcInsnNode(2), nop(), nop(), nop(), commit());
+        Cells.Window<Integer> ints = Cells.window(AsmWalker::intLiteral, 4);
+        List<Integer> takes = new ArrayList<>();
+        List<List<Integer>> atCommit = new ArrayList<>();
+        AsmWalker.over(m)
+            .feed(ints)
+            .on(TAKE, n -> takes.add(ints.takeLast()))
+            .commitAt(COMMIT, c -> atCommit.add(ints.values()))
+            .run();
+        assertEquals(Arrays.asList(2, 1, null), takes);
+        assertEquals(List.of(List.of()), atCommit);
+    }
+
+    @Test
+    @DisplayName("push count is the eviction history under takes - a take frees a slot, an evicted entry is gone for good")
+    void windowTakeLastNeverUnEvicts() {
+        MethodNode m = method(
+            new LdcInsnNode(1), new LdcInsnNode(2), new LdcInsnNode(3), nop(),
+            new LdcInsnNode(4), nop(), nop(), nop(), commit());
+        Cells.Window<Integer> ints = Cells.window(AsmWalker::intLiteral, 2);
+        List<Integer> takes = new ArrayList<>();
+        List<List<Integer>> atCommit = new ArrayList<>();
+        AsmWalker.over(m)
+            .feed(ints)
+            .on(TAKE, n -> takes.add(ints.takeLast()))
+            .commitAt(COMMIT, c -> atCommit.add(ints.values()))
+            .run();
+        assertEquals(Arrays.asList(3, 4, 2, null), takes);
+        assertEquals(List.of(List.of()), atCommit);
     }
 
     @Test

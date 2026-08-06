@@ -60,7 +60,9 @@ public final class Cells {
     /**
      * A bounded FIFO of decoded values: push always, evict the oldest past capacity. The
      * two-deep sliding window is {@code window(dec, 2)} read positionally -
-     * {@code values().getFirst()} is the older entry, {@code values().getLast()} the newer.
+     * {@code values().getFirst()} is the older entry, {@code values().getLast()} the newer -
+     * and the stack-shaped sites read destructively with {@link #takeLast}, which never
+     * recovers what a push already evicted.
      */
     public static final class Window<G> extends Cell<G> {
 
@@ -93,6 +95,17 @@ public final class Cells {
         /** The current entry count. */
         public int size() {
             return this.entries.size();
+        }
+
+        /**
+         * Removes and returns the newest entry - the stack-shaped pop. An empty window answers
+         * {@code null} and consumes nothing. A take frees a slot against later eviction, and
+         * never recovers what a push already evicted.
+         *
+         * @return the newest entry, or {@code null} when the window is empty
+         */
+        public @Nullable G takeLast() {
+            return this.entries.pollLast();
         }
 
         @Override
