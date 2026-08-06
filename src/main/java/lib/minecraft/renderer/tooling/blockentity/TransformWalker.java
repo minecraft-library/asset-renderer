@@ -2,7 +2,10 @@ package lib.minecraft.renderer.tooling.blockentity;
 
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Exit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -138,16 +141,25 @@ final class TransformWalker {
             }
         }
 
-        /** Runs the method body, following branches; stops at ARETURN, poison, or {@code stopField}'s PUTSTATIC. */
+        /**
+         * Runs the method body, following branches; stops at ARETURN, poison, or
+         * {@code stopField}'s PUTSTATIC. A revisited instruction aborts loudly - vanilla
+         * transform bodies never jump backward.
+         */
         private void run(@NotNull ClassNode owner, @NotNull MethodNode method, @Nullable String stopField) {
             if (this.depth > MAX_INLINE_DEPTH) {
                 this.poisoned = true;
                 return;
             }
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null && !this.poisoned; in = in.getNext()) {
+            Exit exit = AsmWalker.over(method).trace(in -> {
                 AbstractInsnNode jump = step(owner, in, stopField);
-                if (this.returnValue != null || this.stopReached) return;
-                if (jump != null) in = jump;
+                if (this.returnValue != null || this.stopReached || this.poisoned) return null;
+                return jump != null ? jump : in.getNext();
+            });
+            if (exit == Exit.CYCLE) {
+                throw new ToolingException(
+                    "Transform walk of '%s.%s' revisited an instruction - a backward jump is not decomposable",
+                    owner.name, method.name);
             }
         }
 
