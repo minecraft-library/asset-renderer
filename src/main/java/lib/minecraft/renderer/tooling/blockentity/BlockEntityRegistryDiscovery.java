@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -107,7 +107,7 @@ public final class BlockEntityRegistryDiscovery {
             diagnostics.error("'%s' class missing - cannot discover block-entity types", VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE);
             return Map.of();
         }
-        MethodNode clinit = AsmKit.findMethod(blockEntityType, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(blockEntityType, ClassKit.CLINIT);
         if (clinit == null) {
             diagnostics.error("'%s.<clinit>' missing - cannot discover block-entity types", VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE);
             return Map.of();
@@ -156,7 +156,7 @@ public final class BlockEntityRegistryDiscovery {
             diagnostics.error("'%s' class missing - cannot discover block-entity renderers", VanillaSourceClasses.Types.BLOCK_ENTITY_RENDERERS);
             return Map.of();
         }
-        MethodNode clinit = AsmKit.findMethod(registryClass, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(registryClass, ClassKit.CLINIT);
         if (clinit == null) {
             diagnostics.error("'%s.<clinit>' missing - cannot discover block-entity renderers", VanillaSourceClasses.Types.BLOCK_ENTITY_RENDERERS);
             return Map.of();

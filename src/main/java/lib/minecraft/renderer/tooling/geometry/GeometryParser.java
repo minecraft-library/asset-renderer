@@ -8,7 +8,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.LiteralStack;
@@ -109,7 +109,7 @@ public final class GeometryParser {
             diagnostics.error("%s: class '%s' not found in client jar (renamed in MC version bump?)", request.subjectId(), request.factoryClass());
             return null;
         }
-        MethodNode method = AsmKit.findMethod(classNode, request.factoryMethod());
+        MethodNode method = ClassKit.findMethod(classNode, request.factoryMethod());
         if (method == null) {
             diagnostics.error("%s: method '%s' not found on class '%s' (renamed in MC version bump?)", request.subjectId(), request.factoryMethod(), request.factoryClass());
             return null;
@@ -295,7 +295,7 @@ public final class GeometryParser {
         @NotNull String owner, @NotNull String fieldName, @NotNull ClassNodeCache cache
     ) {
         ClassNode cls = cache.load(owner);
-        MethodNode clinit = cls != null ? AsmKit.findMethod(cls, AsmKit.CLINIT) : null;
+        MethodNode clinit = cls != null ? ClassKit.findMethod(cls, ClassKit.CLINIT) : null;
         if (clinit == null) return null;
 
         InvokeDynamicInsnNode pendingIndy = null;
@@ -315,7 +315,7 @@ public final class GeometryParser {
                 if (handle == null
                     || handle.getTag() != Opcodes.H_INVOKESTATIC
                     || !handle.getOwner().equals(owner)) return null;
-                MethodNode lambda = AsmKit.findMethod(cls, handle.getName(), handle.getDesc());
+                MethodNode lambda = ClassKit.findMethod(cls, handle.getName(), handle.getDesc());
                 if (lambda == null) return null;
                 // The lambda body is the canonical `mesh.getRoot(); modifyMesh(...);
                 // aload_0; areturn` pattern. Find the first INVOKESTATIC whose descriptor is
@@ -324,7 +324,7 @@ public final class GeometryParser {
                     .ofType(MethodInsnNode.class)
                     .first(mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
                         && mi.desc.startsWith("(L" + VanillaSourceClasses.Types.PART_DEFINITION + ";)V"));
-                return target == null ? null : AsmKit.findMethodInHierarchy(cache, target.owner, target.name, target.desc);
+                return target == null ? null : ClassKit.findMethodInHierarchy(cache, target.owner, target.name, target.desc);
             }
             pendingIndy = null;
         }
@@ -1205,7 +1205,7 @@ public final class GeometryParser {
                 String recipe = AsmWalker.resolveStringConcatRecipe(indy);
                 if (recipe != null) {
                     int i = state.numStack.popNumber().intValue();
-                    state.frame.pendingPartName = AsmKit.applyStringConcatRecipeWithInt(recipe, i);
+                    state.frame.pendingPartName = ClassKit.applyStringConcatRecipeWithInt(recipe, i);
                 }
             }
             // Track local-variable slot -> bone mapping so child bones inherit their
@@ -1431,12 +1431,12 @@ public final class GeometryParser {
             && methodInsn.desc.equals("(I)Ljava/lang/String;")
             && state.mode == Mode.EVALUATING
             && !state.numStack.isEmpty()) {
-            MethodNode helper = AsmKit.findMethodInHierarchy(cache, methodInsn.owner, methodInsn.name, methodInsn.desc);
+            MethodNode helper = ClassKit.findMethodInHierarchy(cache, methodInsn.owner, methodInsn.name, methodInsn.desc);
             if (helper != null) {
                 String recipe = AsmWalker.findStringConcatRecipeIn(helper);
                 if (recipe != null) {
                     int i = state.numStack.popNumber().intValue();
-                    state.frame.pendingPartName = AsmKit.applyStringConcatRecipeWithInt(recipe, i);
+                    state.frame.pendingPartName = ClassKit.applyStringConcatRecipeWithInt(recipe, i);
                     return;
                 }
             }
@@ -1604,12 +1604,12 @@ public final class GeometryParser {
         }
         // Invokestatic-follow: recurse into model-building statics outside the builder/geom
         // package (e.g. PiglinHeadModel.createHeadModel -> PiglinModel.addHead). The JVM
-        // resolves invokestatic through the superclass chain, so {@link AsmKit#findMethodInHierarchy}
+        // resolves invokestatic through the superclass chain, so {@link ClassKit#findMethodInHierarchy}
         // walks {@code superName} until the method is found.
         if (opcode == Opcodes.INVOKESTATIC
             && methodInsn.owner.startsWith(GeometryParsePolicies.INVOKESTATIC_FOLLOW_PACKAGE_GATE.value())
             && !methodInsn.owner.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_GEOM_ROOT)) {
-            MethodNode inlined = AsmKit.findMethodInHierarchy(cache, methodInsn.owner, methodInsn.name, methodInsn.desc);
+            MethodNode inlined = ClassKit.findMethodInHierarchy(cache, methodInsn.owner, methodInsn.name, methodInsn.desc);
             if (inlined != null) inlineStaticMethodBody(inlined, methodInsn.desc, state, cache);
         }
     }
@@ -1750,7 +1750,7 @@ public final class GeometryParser {
      * @return the arg-type characters in source order
      */
     private static char @NotNull [] parseArgTypes(@NotNull String descriptor) {
-        Type[] args = AsmKit.argTypes(descriptor);
+        Type[] args = ClassKit.argTypes(descriptor);
         char[] chars = new char[args.length];
         for (int i = 0; i < args.length; i++) chars[i] = args[i].getDescriptor().charAt(0);
         return chars;
@@ -2065,7 +2065,7 @@ public final class GeometryParser {
         // antenna cubes use {@code new CubeDeformation(0.015F)} / {@code (-0.015F)}); before it,
         // block-entity models only referenced {@code CubeDeformation.NONE}. emitCube applies
         // pendingInflate in both pipelines, so the inflate is now also baked into those cubes.
-        if (AsmKit.INIT.equals(methodInsn.name)) {
+        if (ClassKit.INIT.equals(methodInsn.name)) {
             if (methodInsn.desc.startsWith("(FFF")) {
                 requireStack(state, 3, "CubeDeformation.<init>(FFF)");
                 float dz = popFloatWithDiagnostics(state, "CubeDeformation.<init>(FFF) z");
@@ -3067,7 +3067,7 @@ public final class GeometryParser {
     private static int @Nullable [] readStaticIntArray1D(@NotNull ClassNodeCache cache, @NotNull String ownerInternalName, @NotNull String fieldName) {
         ClassNode owner = cache.load(ownerInternalName);
         if (owner == null) return null;
-        MethodNode clinit = AsmKit.findMethod(owner, AsmKit.CLINIT, "()V");
+        MethodNode clinit = ClassKit.findMethod(owner, ClassKit.CLINIT, "()V");
         if (clinit == null) return null;
         return findIntArray1DInitializer(clinit, fieldName);
     }
@@ -3079,7 +3079,7 @@ public final class GeometryParser {
     private static int @Nullable [] @Nullable [] readStaticIntArray2D(@NotNull ClassNodeCache cache, @NotNull String ownerInternalName, @NotNull String fieldName) {
         ClassNode owner = cache.load(ownerInternalName);
         if (owner == null) return null;
-        MethodNode clinit = AsmKit.findMethod(owner, AsmKit.CLINIT, "()V");
+        MethodNode clinit = ClassKit.findMethod(owner, ClassKit.CLINIT, "()V");
         if (clinit == null) return null;
         return findIntArray2DInitializer(clinit, fieldName);
     }
@@ -3091,7 +3091,7 @@ public final class GeometryParser {
     private static float @Nullable [] readStaticFloatArray1D(@NotNull ClassNodeCache cache, @NotNull String ownerInternalName, @NotNull String fieldName) {
         ClassNode owner = cache.load(ownerInternalName);
         if (owner == null) return null;
-        MethodNode clinit = AsmKit.findMethod(owner, AsmKit.CLINIT, "()V");
+        MethodNode clinit = ClassKit.findMethod(owner, ClassKit.CLINIT, "()V");
         if (clinit == null) return null;
         return findFloatArray1DInitializer(clinit, fieldName);
     }

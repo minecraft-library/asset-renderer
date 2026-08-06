@@ -250,7 +250,7 @@ asset-renderer/
 │   │       ├── blockentity/ # block-entity / block-model ASM emitters
 │   │       ├── entity/      # entity model / geometry / family ASM emitters
 │   │       ├── parser/      # GeometryParser
-│   │       └── util/        # AsmKit, ClassNodeCache, VanillaSourceClasses, ...
+│   │       └── util/        # ClassKit, ClassNodeCache, VanillaSourceClasses, ...
 │   ├── main/resources/lib/minecraft/renderer/    # Bundled JSON snapshots
 │   ├── test/java/           # JUnit 5 tests (fast + @Tag("slow")) + visual/ and example/ main() entry points
 │   └── jmh/java/lib/minecraft/renderer/bench/    # JMH benchmarks

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -221,12 +221,12 @@ final class EntityTextureResolver {
      */
     private @Nullable ResolvedMethod findGetTextureLocation() {
         String current = this.subject.rendererClass();
-        while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
+        while (current != null && !ClassKit.OBJECT_INTERNAL.equals(current)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) return null;
             for (MethodNode m : cn.methods) {
                 if (!VanillaSourceClasses.Methods.GET_TEXTURE_LOCATION.equals(m.name)) continue;
-                if (!AsmKit.descriptorReturns(m.desc, VanillaSourceClasses.Types.IDENTIFIER)) continue;
+                if (!ClassKit.descriptorReturns(m.desc, VanillaSourceClasses.Types.IDENTIFIER)) continue;
                 if (isBridgeMethod(m)) continue;
                 return new ResolvedMethod(m, current);
             }
@@ -293,7 +293,7 @@ final class EntityTextureResolver {
             && "get".equals(mi.name));
         boolean sawIdentifierReturningCall = body.any(in -> in instanceof MethodInsnNode mi
             && (in.getOpcode() == Opcodes.INVOKESTATIC || in.getOpcode() == Opcodes.INVOKEVIRTUAL)
-            && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.IDENTIFIER)
+            && ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.IDENTIFIER)
             && !isWithDefaultNamespace(mi));
         if (sawStaticMap && sawMapGet) return "enum-map";
         if (sawIdentifierReturningCall) return "method-dispatch";
@@ -353,7 +353,7 @@ final class EntityTextureResolver {
     private @NotNull Map<String, String> collectStaticTextureFields(@NotNull String classInternalName) {
         ClassNode cn = this.cache.load(classInternalName);
         if (cn == null) return Map.of();
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit == null) return Map.of();
 
         Map<String, String> out = new LinkedHashMap<>();
@@ -407,14 +407,14 @@ final class EntityTextureResolver {
         MethodInsnNode dispatch = AsmWalker.over(method)
             .ofType(MethodInsnNode.class)
             .where(mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
-                && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.IDENTIFIER)
+                && ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.IDENTIFIER)
                 && !isWithDefaultNamespace(mi))
             .first();
         if (dispatch == null) return null;
 
         ClassNode targetCn = this.cache.load(dispatch.owner);
         if (targetCn == null) return null;
-        MethodNode target = AsmKit.findMethod(targetCn, dispatch.name, dispatch.desc);
+        MethodNode target = ClassKit.findMethod(targetCn, dispatch.name, dispatch.desc);
         if (target == null) return null;
 
         String primaryField = findPrimaryByDefaultPath(target);
@@ -449,7 +449,7 @@ final class EntityTextureResolver {
     private @NotNull Map<String, String> typeConstantTextureMap(@NotNull String typeOwner) {
         ClassNode cn = this.cache.load(typeOwner);
         if (cn == null) return Map.of();
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit == null) return Map.of();
 
         Map<String, String> out = new LinkedHashMap<>();
@@ -506,7 +506,7 @@ final class EntityTextureResolver {
         // local rather than a per-walk cell.
         String[] variantClass = {null};
         for (MethodNode m : cn.methods) {
-            if (!m.name.startsWith(AsmWalker.LAMBDA_STATIC_PREFIX) && !AsmKit.CLINIT.equals(m.name)) continue;
+            if (!m.name.startsWith(AsmWalker.LAMBDA_STATIC_PREFIX) && !ClassKit.CLINIT.equals(m.name)) continue;
             Cells.Latch<String> pendingVariantName = Cells.latch();
             AsmWalker.over(m)
                 .feed(pendingVariantName)
@@ -539,7 +539,7 @@ final class EntityTextureResolver {
         List<String> out = new ArrayList<>();
         ClassNode cn = this.cache.load(classInternalName);
         if (cn == null) return out;
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit != null) collectTextureLiteralsFromMethod(clinit, out);
         for (MethodNode m : cn.methods)
             if (m.name.startsWith(AsmWalker.LAMBDA_STATIC_PREFIX))
@@ -609,7 +609,7 @@ final class EntityTextureResolver {
             .where(fi -> fi.getOpcode() == Opcodes.GETFIELD && VARIANT_FIELD.equals(fi.name))
             .first();
         if (variantRead == null) return null;
-        String variantClass = AsmKit.internalNameOfRef(variantRead.desc);
+        String variantClass = ClassKit.internalNameOfRef(variantRead.desc);
         if (variantClass == null) return null;
 
         String defaultName = AsmWalker.findEnumDefaultName(this.cache, variantClass, DEFAULT_FIELD);
@@ -632,7 +632,7 @@ final class EntityTextureResolver {
                 bridge = m;
                 continue;
             }
-            if (AsmKit.descriptorReturns(m.desc, VanillaSourceClasses.Types.IDENTIFIER)) return m;
+            if (ClassKit.descriptorReturns(m.desc, VanillaSourceClasses.Types.IDENTIFIER)) return m;
         }
         return bridge;
     }
@@ -717,7 +717,7 @@ final class EntityTextureResolver {
      * {@code new SpriteMapper(sheet, LDC prefix)}. Returns {@code null} on any mismatch.
      */
     private @Nullable String findSheetsTextureFallback() {
-        MethodNode rendererClinit = AsmKit.findClinit(this.cache, this.subject.rendererClass());
+        MethodNode rendererClinit = ClassKit.findClinit(this.cache, this.subject.rendererClass());
         if (rendererClinit == null) return null;
 
         String spriteIdDesc = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.SPRITE_ID);
@@ -736,7 +736,7 @@ final class EntityTextureResolver {
         String sheetsOwner = spriteIdGet.owner;
         String spriteIdField = spriteIdGet.name;
 
-        MethodNode sheetsClinit = AsmKit.findClinit(this.cache, sheetsOwner);
+        MethodNode sheetsClinit = ClassKit.findClinit(this.cache, sheetsOwner);
         if (sheetsClinit == null) return null;
 
         FieldInsnNode spriteIdPut = AsmWalker.over(sheetsClinit).putStatic(sheetsOwner, spriteIdField).first();
@@ -761,7 +761,7 @@ final class EntityTextureResolver {
         if (!(init instanceof MethodInsnNode ctor
             && ctor.getOpcode() == Opcodes.INVOKESPECIAL
             && VanillaSourceClasses.Types.SPRITE_MAPPER.equals(ctor.owner)
-            && AsmKit.INIT.equals(ctor.name))) return null;
+            && ClassKit.INIT.equals(ctor.name))) return null;
         String prefix = AsmWalker.stringLiteral(AsmWalker.previousReal(init));
         if (prefix == null) return null;
 

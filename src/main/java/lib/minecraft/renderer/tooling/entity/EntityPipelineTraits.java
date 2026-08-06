@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -161,7 +161,7 @@ final class EntityPipelineTraits {
      */
     boolean layerInvokes(@NotNull String layerClass, @NotNull Trait trait) {
         boolean[] found = {false};
-        AsmKit.walkSuperChain(this.cache, layerClass, cn -> {
+        ClassKit.walkSuperChain(this.cache, layerClass, cn -> {
             if (found[0]) return;
             for (String factory : instanceFactoryCalls(cn))
                 if (traitsOf(factory).contains(trait)) {
@@ -182,7 +182,7 @@ final class EntityPipelineTraits {
      */
     @Nullable String classifyBlend(@NotNull String layerClass) {
         String[] blend = {null};
-        AsmKit.walkSuperChain(this.cache, layerClass, cn -> {
+        ClassKit.walkSuperChain(this.cache, layerClass, cn -> {
             for (String factory : instanceFactoryCalls(cn)) {
                 String token = blendTokenOf(factory);
                 if (blendRank(token) > blendRank(blend[0])) blend[0] = token;
@@ -275,7 +275,7 @@ final class EntityPipelineTraits {
      */
     boolean layerWritesDepth(@NotNull String layerClass) {
         boolean[] writes = {true};
-        AsmKit.walkSuperChain(this.cache, layerClass, cn -> {
+        ClassKit.walkSuperChain(this.cache, layerClass, cn -> {
             for (String factory : instanceFactoryCalls(cn))
                 if (!factoryWritesDepth(factory)) writes[0] = false;
         });
@@ -291,7 +291,7 @@ final class EntityPipelineTraits {
      */
     boolean layerSortsQuads(@NotNull String layerClass) {
         boolean[] sorts = {false};
-        AsmKit.walkSuperChain(this.cache, layerClass, cn -> {
+        ClassKit.walkSuperChain(this.cache, layerClass, cn -> {
             if (sorts[0]) return;
             for (String factory : instanceFactoryCalls(cn))
                 if (factorySortsQuads(factory)) {
@@ -333,7 +333,7 @@ final class EntityPipelineTraits {
         List<String> out = new ArrayList<>();
         for (MethodNode method : cn.methods) {
             if ((method.access & Opcodes.ACC_STATIC) != 0) continue;
-            if (AsmKit.INIT.equals(method.name)) continue;
+            if (ClassKit.INIT.equals(method.name)) continue;
             collectFactoryCalls(method, out, new HashSet<>(), HELPER_HOPS);
         }
         return out;
@@ -357,7 +357,7 @@ final class EntityPipelineTraits {
                     return;
                 }
                 if (hops <= 0 || !visited.add(mi.owner + '.' + mi.name + mi.desc)) return;
-                MethodNode helper = AsmKit.findMethodInHierarchy(this.cache, mi.owner, mi.name, mi.desc);
+                MethodNode helper = ClassKit.findMethodInHierarchy(this.cache, mi.owner, mi.name, mi.desc);
                 if (helper != null) collectFactoryCalls(helper, out, visited, hops - 1);
             });
     }
@@ -407,14 +407,14 @@ final class EntityPipelineTraits {
      * resolves the captured handle back to its synthetic method.
      */
     private static @Nullable MethodNode chaseFunctionFieldLambda(@NotNull ClassNode renderTypes, @NotNull String fieldName) {
-        MethodNode clinit = AsmKit.findMethod(renderTypes, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(renderTypes, ClassKit.CLINIT);
         if (clinit == null) return null;
         Handle bound = AsmWalker.over(clinit)
             .latch(in -> AsmWalker.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
                 ? AsmWalker.extractLambdaHandle(indy) : null)
             .commitAt(Insn.putStatic(renderTypes.name, fieldName))
             .firstNotNull(CommitWalk.Commit::value);
-        return bound == null ? null : AsmKit.findMethod(renderTypes, bound.getName(), bound.getDesc());
+        return bound == null ? null : ClassKit.findMethod(renderTypes, bound.getName(), bound.getDesc());
     }
 
     // ------------------------------------------------------------------------------------
@@ -424,7 +424,7 @@ final class EntityPipelineTraits {
     private @NotNull Map<String, Set<Trait>> pipelines() {
         if (this.pipelineTraits != null) return this.pipelineTraits;
         Map<String, Set<Trait>> out = new LinkedHashMap<>();
-        MethodNode clinit = AsmKit.findClinit(this.cache, VanillaSourceClasses.Types.RENDER_PIPELINES);
+        MethodNode clinit = ClassKit.findClinit(this.cache, VanillaSourceClasses.Types.RENDER_PIPELINES);
         if (clinit == null) {
             this.pipelineTraits = out;
             return out;
@@ -449,7 +449,7 @@ final class EntityPipelineTraits {
             .feed(pendingBoolean)
             .on(Insn.getStatic(VanillaSourceClasses.Types.DEPTH_STENCIL_STATE, VanillaSourceClasses.Defines.DEPTH_STENCIL_DEFAULT),
                 dsf -> blockDepthWrite.set(Boolean.TRUE))
-            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.DEPTH_STENCIL_STATE, AsmKit.INIT), mi -> {
+            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.DEPTH_STENCIL_STATE, ClassKit.INIT), mi -> {
                 if (pendingBoolean.size() == 0) return;
                 blockDepthWrite.set(pendingBoolean.values().getFirst());
                 pendingBoolean.clear();

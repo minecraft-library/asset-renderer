@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.walk;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -72,7 +72,7 @@ public final class AsmWalker extends Walk<AbstractInsnNode> {
     public static @NotNull AsmWalker over(@NotNull ClassNodeCache cache, @NotNull String owner, @NotNull String methodName) {
         ClassNode classNode = cache.load(owner);
         if (classNode == null) return new AsmWalker(new Descriptor(Descriptor.Source.missing(Missing.CLASS)));
-        MethodNode method = AsmKit.findMethod(classNode, methodName);
+        MethodNode method = ClassKit.findMethod(classNode, methodName);
         if (method == null) return new AsmWalker(new Descriptor(Descriptor.Source.missing(Missing.MEMBER)));
         return new AsmWalker(new Descriptor(Descriptor.Source.over(method)));
     }
@@ -85,7 +85,7 @@ public final class AsmWalker extends Walk<AbstractInsnNode> {
      * @return the root walk
      */
     public static @NotNull AsmWalker clinit(@NotNull ClassNodeCache cache, @NotNull String owner) {
-        return over(cache, owner, AsmKit.CLINIT);
+        return over(cache, owner, ClassKit.CLINIT);
     }
 
     /**
@@ -929,10 +929,10 @@ public final class AsmWalker extends Walk<AbstractInsnNode> {
     public static @Nullable String resolveLambdaTargetClass(@NotNull InvokeDynamicInsnNode indy, @NotNull ClassNode ownerClass) {
         Handle handle = extractLambdaHandle(indy);
         if (handle == null) return null;
-        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && AsmKit.INIT.equals(handle.getName()))
+        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && ClassKit.INIT.equals(handle.getName()))
             return handle.getOwner();
         if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
-            MethodNode lambda = AsmKit.findMethod(ownerClass, handle.getName(), handle.getDesc());
+            MethodNode lambda = ClassKit.findMethod(ownerClass, handle.getName(), handle.getDesc());
             if (lambda == null) return null;
             return AsmWalker.over(lambda)
                 .firstNotNull(node -> node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW ? type.desc : null);
@@ -963,10 +963,10 @@ public final class AsmWalker extends Walk<AbstractInsnNode> {
     ) {
         Handle handle = extractLambdaHandle(indy);
         if (handle == null) return null;
-        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && AsmKit.INIT.equals(handle.getName()))
+        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && ClassKit.INIT.equals(handle.getName()))
             return handle.getOwner();
         if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
-            MethodNode lambda = AsmKit.findMethod(ownerClass, handle.getName(), handle.getDesc());
+            MethodNode lambda = ClassKit.findMethod(ownerClass, handle.getName(), handle.getDesc());
             if (lambda == null) return null;
             AsmWalker body = AsmWalker.over(lambda);
             body.forEach(visitor);

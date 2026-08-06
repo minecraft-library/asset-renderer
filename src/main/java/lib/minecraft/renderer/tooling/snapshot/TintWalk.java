@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.LiteralStack;
@@ -60,7 +60,7 @@ public final class TintWalk {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("tints");
 
-        MethodNode createDefault = AsmKit.findMethodOrError(cache, diagnostics,
+        MethodNode createDefault = ClassKit.findMethodOrError(cache, diagnostics,
             VanillaSourceClasses.Types.BLOCK_COLORS, VanillaSourceClasses.Methods.CREATE_DEFAULT, "tint table");
         if (createDefault == null) return;
 
@@ -92,7 +92,7 @@ public final class TintWalk {
                 if (call.owner.equals(VanillaSourceClasses.Types.BLOCK_TINT_SOURCES)) {
                     pendingSource = call.name;
                     if (call.name.equals(VanillaSourceClasses.Methods.CONSTANT))
-                        pendingInHand = pickInHand(intStack, AsmKit.argTypes(call.desc).length);
+                        pendingInHand = pickInHand(intStack, ClassKit.argTypes(call.desc).length);
                     continue;
                 }
                 if (call.owner.equals(LIST_INTERNAL) && call.name.equals(LIST_OF) && !call.desc.equals(LIST_OF_SINGLE_DESC)) {

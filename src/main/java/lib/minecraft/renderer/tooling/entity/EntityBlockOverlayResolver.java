@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -157,7 +157,7 @@ final class EntityBlockOverlayResolver {
     private @Nullable LiteralBlock resolveLiteralBlock(@Nullable String blockFieldName) {
         if (blockFieldName == null) return null;
         LiteralBlock[] out = new LiteralBlock[1];
-        AsmKit.walkSuperChain(this.cache, this.subject.rendererClass(), cn -> {
+        ClassKit.walkSuperChain(this.cache, this.subject.rendererClass(), cn -> {
             if (out[0] != null) return;
             for (MethodNode method : cn.methods) {
                 if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
@@ -195,7 +195,7 @@ final class EntityBlockOverlayResolver {
      * timer / runtime gate (selectable).
      */
     private static boolean hasEntityBooleanGuard(@NotNull MethodNode method) {
-        Type[] args = AsmKit.argTypes(method.desc);
+        Type[] args = ClassKit.argTypes(method.desc);
         if (args.length == 0 || args[0].getSort() != Type.OBJECT) return false;
         String entityClass = args[0].getInternalName();
         return AsmWalker.over(method).any(in -> in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
@@ -326,7 +326,7 @@ final class EntityBlockOverlayResolver {
             in instanceof MethodInsnNode accessor
                 && accessor.getOpcode() == Opcodes.INVOKEVIRTUAL
                 && accessor.name.startsWith("get")
-                && AsmKit.descriptorReturns(accessor.desc, VanillaSourceClasses.Types.MODEL_PART));
+                && ClassKit.descriptorReturns(accessor.desc, VanillaSourceClasses.Types.MODEL_PART));
         if (!(hit instanceof MethodInsnNode accessor)) return null;
         String resolved = resolveAccessorBone(accessor.owner, accessor.name);
         if (resolved != null) return resolved;
@@ -369,7 +369,7 @@ final class EntityBlockOverlayResolver {
      * The {@code getChild} string a model {@code <init>} assigns into {@code field}, or {@code null}.
      */
     private static @Nullable String boneAssignedToField(@NotNull ClassNode model, @NotNull String field) {
-        MethodNode init = AsmKit.findMethod(model, AsmKit.INIT);
+        MethodNode init = ClassKit.findMethod(model, ClassKit.INIT);
         if (init == null) return null;
         Match<MethodInsnNode> getChild =
             Insn.invokeVirtual(VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.GET_CHILD);

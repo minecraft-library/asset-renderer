@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
 import dev.simplified.util.StringUtil;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -240,7 +240,7 @@ final class VariantIndex {
     private static @Nullable String findHolderDefaultId(@NotNull ClassNodeCache cache, @NotNull String holderInternal) {
         ClassNode cn = cache.load(holderInternal);
         if (cn == null) return null;
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit == null) return null;
 
         // First pass: (FIELD -> id) from the LDC + createKey + PUTSTATIC chain. The literal

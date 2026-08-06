@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -92,7 +92,7 @@ public final class BlockItemAliasWalk {
             writeAliases(root);
             return;
         }
-        MethodNode clinit = AsmKit.findMethod(items, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(items, ClassKit.CLINIT);
         if (clinit == null) {
             this.diagnostics.error("'%s.<clinit>' missing - block-item alias map unresolved", VanillaSourceClasses.Types.ITEMS);
             writeAliases(root);
@@ -126,7 +126,7 @@ public final class BlockItemAliasWalk {
         Handle handle = AsmWalker.extractLambdaHandle(indy);
         if (handle == null || handle.getTag() != Opcodes.H_INVOKESTATIC || !handle.getOwner().equals(items.name))
             return;
-        MethodNode lambda = AsmKit.findMethod(items, handle.getName(), handle.getDesc());
+        MethodNode lambda = ClassKit.findMethod(items, handle.getName(), handle.getDesc());
         if (lambda == null) return;
         AsmWalker.over(lambda)
             .getStatic(VanillaSourceClasses.Types.BLOCKS)

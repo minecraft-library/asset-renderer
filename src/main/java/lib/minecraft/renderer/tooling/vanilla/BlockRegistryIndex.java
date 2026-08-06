@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -86,7 +86,7 @@ public final class BlockRegistryIndex {
             diagnostics.error("'%s' class missing - block registry index unresolved", VanillaSourceClasses.Types.BLOCKS);
             return new BlockRegistryIndex(byField);
         }
-        MethodNode clinit = AsmKit.findMethod(blocks, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(blocks, ClassKit.CLINIT);
         if (clinit == null) {
             diagnostics.error("'%s.<clinit>' missing - block registry index unresolved", VanillaSourceClasses.Types.BLOCKS);
             return new BlockRegistryIndex(byField);
@@ -211,7 +211,7 @@ public final class BlockRegistryIndex {
         if (helperName.equals(REGISTER_PREFIX)) return null;
         if (helperClassCache.containsKey(helperName)) return helperClassCache.get(helperName);
 
-        MethodNode helper = AsmKit.findMethod(blocks, helperName);
+        MethodNode helper = ClassKit.findMethod(blocks, helperName);
         String resolved = helper == null ? null : AsmWalker.over(helper)
             .ofType(InvokeDynamicInsnNode.class)
             .where(indy -> indy.desc.endsWith(FUNCTION_RETURN_SUFFIX))

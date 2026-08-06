@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -380,10 +380,10 @@ final class EntityLayersResolver {
      */
     private @NotNull List<String> resolveArmorMeshes() {
         List<String> named = new ArrayList<>();
-        AsmKit.walkSuperChain(this.cache, this.rendererClass, cn -> {
+        ClassKit.walkSuperChain(this.cache, this.rendererClass, cn -> {
             if (!named.isEmpty()) return;
             for (MethodNode ctor : cn.methods) {
-                if (!AsmKit.INIT.equals(ctor.name)) continue;
+                if (!ClassKit.INIT.equals(ctor.name)) continue;
                 AsmWalker.over(ctor)
                     .ofType(FieldInsnNode.class)
                     .where(field -> field.getOpcode() == Opcodes.GETSTATIC
@@ -398,7 +398,7 @@ final class EntityLayersResolver {
         ClassNode modelLayers = this.cache.load(VanillaSourceClasses.Types.MODEL_LAYERS);
         if (modelLayers == null) return named;
         for (String layerField : this.registrationLayerFields) {
-            FieldNode field = AsmKit.findField(modelLayers, layerField);
+            FieldNode field = ClassKit.findField(modelLayers, layerField);
             if (field != null && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
                 named.add(layerField.toLowerCase(Locale.ROOT));
         }

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -51,7 +51,7 @@ public final class GlintItemsWalk {
             return;
         }
         if (missing == Missing.MEMBER) {
-            diagnostics.error("'%s.%s' missing - %s unresolved", VanillaSourceClasses.Types.ITEMS, AsmKit.CLINIT, "glint set");
+            diagnostics.error("'%s.%s' missing - %s unresolved", VanillaSourceClasses.Types.ITEMS, ClassKit.CLINIT, "glint set");
             return;
         }
 

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.LiteralStack;
@@ -48,13 +48,13 @@ public final class PotionColorWalk {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("effects");
 
-        AsmWalker clinit = AsmWalker.over(cache, VanillaSourceClasses.Types.MOB_EFFECTS, AsmKit.CLINIT);
+        AsmWalker clinit = AsmWalker.over(cache, VanillaSourceClasses.Types.MOB_EFFECTS, ClassKit.CLINIT);
         Missing missing = clinit.missing();
         if (missing != null) {
             if (missing == Missing.CLASS)
                 diagnostics.error("'%s' class missing - %s unresolved", VanillaSourceClasses.Types.MOB_EFFECTS, "effect colour table");
             else
-                diagnostics.error("'%s.%s' missing - %s unresolved", VanillaSourceClasses.Types.MOB_EFFECTS, AsmKit.CLINIT, "effect colour table");
+                diagnostics.error("'%s.%s' missing - %s unresolved", VanillaSourceClasses.Types.MOB_EFFECTS, ClassKit.CLINIT, "effect colour table");
             return;
         }
 
@@ -87,7 +87,7 @@ public final class PotionColorWalk {
 
             if (node.getOpcode() == Opcodes.INVOKESPECIAL
                 && node instanceof MethodInsnNode init
-                && init.name.equals(AsmKit.INIT)
+                && init.name.equals(ClassKit.INIT)
                 && init.owner.startsWith(VanillaSourceClasses.Types.EFFECT_PACKAGE_PREFIX)
                 && init.desc.equals(colorCtorDesc)) {
                 Integer top = intStack.popInt();

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.defaults;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -71,7 +71,7 @@ final class BlockDefaultStateResolver {
         // Explicit setValue overrides across the whole ctor chain; the leaf class is visited first,
         // so putIfAbsent gives it precedence over parent defaults.
         Map<String, String> explicit = new HashMap<>();
-        AsmKit.walkConstructorChain(this.cache, blockClass,
+        ClassKit.walkConstructorChain(this.cache, blockClass,
             ctor -> extractSetValues(ctor).forEach(explicit::putIfAbsent));
 
         Map<String, String> resolved = new TreeMap<>();

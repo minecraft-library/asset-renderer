@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
 import lib.minecraft.renderer.tooling.geometry.BabyMeshTransform;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -43,7 +43,7 @@ public final class LayerDefinitionIndex {
     /** The Guava builder the createRoots map is assembled on (JDK/Guava name, not vanilla - stays local). */
     private static final @NotNull String IMMUTABLE_MAP_BUILDER_SUFFIX = "ImmutableMap$Builder";
 
-    /** {@code ImmutableMap$Builder.put} (Guava member name - stays local, like AsmKit's JDK constants). */
+    /** {@code ImmutableMap$Builder.put} (Guava member name - stays local, like ClassKit's JDK constants). */
     private static final @NotNull String BUILDER_PUT = "put";
 
     /** Method descriptor of {@code LayerDefinition.apply(MeshTransformer)LayerDefinition}. */
@@ -136,7 +136,7 @@ public final class LayerDefinitionIndex {
             diagnostics.error("'%s' class missing - layer-definition index unresolved", VanillaSourceClasses.Types.LAYER_DEFINITIONS);
             return new LayerDefinitionIndex(out);
         }
-        MethodNode createRoots = AsmKit.findMethod(cn, VanillaSourceClasses.Methods.CREATE_ROOTS);
+        MethodNode createRoots = ClassKit.findMethod(cn, VanillaSourceClasses.Methods.CREATE_ROOTS);
         if (createRoots == null) {
             diagnostics.error("'%s.%s' missing - layer-definition index unresolved",
                 VanillaSourceClasses.Types.LAYER_DEFINITIONS, VanillaSourceClasses.Methods.CREATE_ROOTS);
@@ -189,7 +189,7 @@ public final class LayerDefinitionIndex {
             // into pendingDeformationGrow so the next factory call that consumes the
             // deformation picks it up. Only the single-float ctor appears inline in
             // createRoots on 26.1; the FFF ctor never does.
-            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.CUBE_DEFORMATION, AsmKit.INIT), mi -> {
+            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.CUBE_DEFORMATION, ClassKit.INIT), mi -> {
                 Float held = pendingFloat.get();
                 if (mi.desc.startsWith("(F") && held != null)
                     pendingDeformationGrow.set(new float[]{held, held, held});
@@ -253,7 +253,7 @@ public final class LayerDefinitionIndex {
                 pendingFloat.clear();
             })
             .on(Insn.of(MethodInsnNode.class, mi -> mi.getOpcode() == Opcodes.INVOKESTATIC), mi -> {
-                if (AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION)) {
+                if (ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION)) {
                     String layerField = pendingLayerField.get();
                     pendingMesh.set(new Entry(mi.owner, mi.name, mi.desc, null, null,
                         layerField == null ? "" : layerField,
@@ -273,7 +273,7 @@ public final class LayerDefinitionIndex {
                     pendingMesh.clear();
                     return;
                 }
-                if (AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.LAYER_DEFINITION)
+                if (ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.LAYER_DEFINITION)
                     && !VanillaSourceClasses.Types.LAYER_DEFINITION.equals(mi.owner)) {
                     // A single-float factory (`DonkeyModel.createBodyLayer(F)`) captures the
                     // call-site literal so the parser can substitute it via slot 0; other
@@ -480,7 +480,7 @@ public final class LayerDefinitionIndex {
     private static @NotNull Entry unaliasDelegate(@NotNull ClassNodeCache cache, @NotNull Entry entry) {
         ClassNode cn = cache.load(entry.factoryClass());
         if (cn == null) return entry;
-        MethodNode method = AsmKit.findMethod(cn, entry.factoryMethod(), entry.factoryDesc());
+        MethodNode method = ClassKit.findMethod(cn, entry.factoryMethod(), entry.factoryDesc());
         if (method == null) return entry;
         AbstractInsnNode found = AsmWalker.over(method).real()
             .first(in -> in.getOpcode() == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode,

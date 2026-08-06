@@ -8,7 +8,7 @@ import java.util.List;
  * The only home for vanilla class / ASM / member-name strings in tooling - one class, nested
  * static groups.
  *
- * <p>Stays elsewhere by design: JVM/JDK-spec constants in {@link AsmKit}, FastTrig constants
+ * <p>Stays elsewhere by design: JVM/JDK-spec constants in {@link ClassKit}, FastTrig constants
  * nested in the geometry parser, the JOML/math surface in the transform walker - none are
  * vanilla names. Entity- and block-specific constants that are derivable do not live here
  * either - they are derivations or policy rows.

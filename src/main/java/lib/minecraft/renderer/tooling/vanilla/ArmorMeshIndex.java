@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
 import lib.minecraft.renderer.tooling.geometry.BabyMeshTransform;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -237,7 +237,7 @@ public final class ArmorMeshIndex {
                 VanillaSourceClasses.Types.LAYER_DEFINITIONS);
             return new ArmorMeshIndex(out);
         }
-        MethodNode createRoots = AsmKit.findMethod(cn, VanillaSourceClasses.Methods.CREATE_ROOTS);
+        MethodNode createRoots = ClassKit.findMethod(cn, VanillaSourceClasses.Methods.CREATE_ROOTS);
         if (createRoots == null) {
             diagnostics.error("'%s.%s' missing - armor-mesh index unresolved",
                 VanillaSourceClasses.Types.LAYER_DEFINITIONS, VanillaSourceClasses.Methods.CREATE_ROOTS);
@@ -277,7 +277,7 @@ public final class ArmorMeshIndex {
             .feed(pendingSet)
             .feed(pendingSetField)
             // `new CubeDeformation(F); <init>` - the piglin's inline 1.02 outer.
-            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.CUBE_DEFORMATION, AsmKit.INIT), mi -> {
+            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.CUBE_DEFORMATION, ClassKit.INIT), mi -> {
                 if (mi.desc.startsWith("(F") && pendingFloat.size() == 1) {
                     float grow = pendingFloat.values().getFirst();
                     float[] shifted = latestGrow.get();
@@ -481,7 +481,7 @@ public final class ArmorMeshIndex {
         int depth
     ) {
         if (depth > MAX_DELEGATE_DEPTH) return false;
-        MethodNode node = AsmKit.findMethodInHierarchy(cache, owner, method, desc);
+        MethodNode node = ClassKit.findMethodInHierarchy(cache, owner, method, desc);
         if (node == null) return false;
 
         FieldInsnNode parts = AsmWalker.over(node)
@@ -508,7 +508,7 @@ public final class ArmorMeshIndex {
      */
     private static @Nullable BabyMeshTransform resolveWrapBabyTransform(
         @NotNull ClassNodeCache cache, @NotNull Handle lambda) {
-        MethodNode node = AsmKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
+        MethodNode node = ClassKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
         if (node == null) return null;
         return AsmWalker.over(node)
             .ofType(FieldInsnNode.class)
@@ -535,7 +535,7 @@ public final class ArmorMeshIndex {
         int depth
     ) {
         if (depth > MAX_DELEGATE_DEPTH) return null;
-        MethodNode node = AsmKit.findMethodInHierarchy(cache, owner, method, desc);
+        MethodNode node = ClassKit.findMethodInHierarchy(cache, owner, method, desc);
         if (node == null) return null;
 
         int[] direct = atlasIn(node);
@@ -563,7 +563,7 @@ public final class ArmorMeshIndex {
      * wrapped ({@code LayerDefinition.apply}) and so states no atlas of its own.
      */
     private static int @Nullable [] resolveWrapAtlas(@NotNull ClassNodeCache cache, @NotNull Handle lambda) {
-        MethodNode node = AsmKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
+        MethodNode node = ClassKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
         return node == null ? null : atlasIn(node);
     }
 
@@ -604,7 +604,7 @@ public final class ArmorMeshIndex {
         int depth
     ) {
         if (depth > MAX_DELEGATE_DEPTH) return null;
-        MethodNode node = AsmKit.findMethodInHierarchy(cache, owner, method, desc);
+        MethodNode node = ClassKit.findMethodInHierarchy(cache, owner, method, desc);
         if (node == null) return null;
 
         MethodInsnNode delegate = AsmWalker.over(node)
@@ -621,7 +621,7 @@ public final class ArmorMeshIndex {
             .firstNotNull(indy -> {
                 Handle handle = AsmWalker.extractLambdaHandle(indy);
                 if (handle == null
-                    || !AsmKit.descriptorReturns(handle.getDesc(), VanillaSourceClasses.Types.MESH_DEFINITION))
+                    || !ClassKit.descriptorReturns(handle.getDesc(), VanillaSourceClasses.Types.MESH_DEFINITION))
                     return null;
                 if (VanillaSourceClasses.Descs.BASE_ARMOR_MESH_DESC.equals(handle.getDesc())) return handle;
                 return resolveForwardedMeshFactory(cache, handle);
@@ -634,12 +634,12 @@ public final class ArmorMeshIndex {
      */
     private static @Nullable Handle resolveForwardedMeshFactory(
         @NotNull ClassNodeCache cache, @NotNull Handle lambda) {
-        MethodNode node = AsmKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
+        MethodNode node = ClassKit.findMethodInHierarchy(cache, lambda.getOwner(), lambda.getName(), lambda.getDesc());
         if (node == null) return null;
         MethodInsnNode forward = AsmWalker.over(node)
             .opcode(Opcodes.INVOKESTATIC)
             .ofType(MethodInsnNode.class)
-            .where(mi -> AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION))
+            .where(mi -> ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MESH_DEFINITION))
             .first();
         return forward == null ? null
             : new Handle(Opcodes.H_INVOKESTATIC, forward.owner, forward.name, forward.desc, false);

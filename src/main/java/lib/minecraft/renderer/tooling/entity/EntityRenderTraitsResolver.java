@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -241,7 +241,7 @@ final class EntityRenderTraitsResolver {
     private @Nullable ClassNode findSetupRotationsDeclarer() {
         String current = this.subject.rendererClass();
         while (current != null
-            && !AsmKit.OBJECT_INTERNAL.equals(current)
+            && !ClassKit.OBJECT_INTERNAL.equals(current)
             && !VanillaSourceClasses.Types.LIVING_ENTITY_RENDERER.equals(current)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) return null;
@@ -317,7 +317,7 @@ final class EntityRenderTraitsResolver {
     private static int floatArgSlot(@NotNull String desc, int floatIndex) {
         int slot = 1;   // slot 0 = this
         int seen = 0;
-        for (Type arg : AsmKit.argTypes(desc)) {
+        for (Type arg : ClassKit.argTypes(desc)) {
             if (arg.getSort() == Type.FLOAT) {
                 if (seen == floatIndex) return slot;
                 seen++;
@@ -448,7 +448,7 @@ final class EntityRenderTraitsResolver {
      * convention. {@code NO_TINT} on any pattern miss.
      */
     static int whiteTextureDiffuseColor(@NotNull ClassNodeCache cache) {
-        MethodNode clinit = AsmKit.findClinit(cache, VanillaSourceClasses.Types.DYE_COLOR);
+        MethodNode clinit = ClassKit.findClinit(cache, VanillaSourceClasses.Types.DYE_COLOR);
         if (clinit == null) return NO_TINT;
 
         // The allocation is matched on desc equality, never as a prefix.
@@ -457,7 +457,7 @@ final class EntityRenderTraitsResolver {
         TypeInsnNode open = AsmWalker.over(clinit).first(allocation);
         if (open == null) return NO_TINT;
         MethodInsnNode init = AsmWalker.after(open)
-            .first(Insn.invokeSpecial(VanillaSourceClasses.Types.DYE_COLOR, AsmKit.INIT));
+            .first(Insn.invokeSpecial(VanillaSourceClasses.Types.DYE_COLOR, ClassKit.INIT));
         if (init == null) return NO_TINT;
 
         // Between the allocation and its constructor call, the last int literal rides a latch a
@@ -487,7 +487,7 @@ final class EntityRenderTraitsResolver {
      * Reports whether the constructor descriptor pairs an {@code int} directly before {@code MapColor}.
      */
     private static boolean hasIntBeforeMapColor(@NotNull String desc) {
-        Type[] args = AsmKit.argTypes(desc);
+        Type[] args = ClassKit.argTypes(desc);
         for (int i = 1; i < args.length; i++)
             if (args[i].getSort() == Type.OBJECT
                 && VanillaSourceClasses.Types.MAP_COLOR.equals(args[i].getInternalName())

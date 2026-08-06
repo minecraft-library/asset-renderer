@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling.snapshot;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -100,7 +100,7 @@ class SnapshotOpenerMissingTest {
         Diagnostics memberArm = Diagnostics.root("snapshot", Diagnostics.Output.NONE, null);
         GlintItemsWalk.run(session(memberAbsent, memberArm), JsonTree.object());
         assertSoleError(memberArm,
-            "'" + VanillaSourceClasses.Types.ITEMS + "." + AsmKit.CLINIT + "' missing - glint set unresolved");
+            "'" + VanillaSourceClasses.Types.ITEMS + "." + ClassKit.CLINIT + "' missing - glint set unresolved");
     }
 
     @Test
@@ -114,7 +114,7 @@ class SnapshotOpenerMissingTest {
         Diagnostics memberArm = Diagnostics.root("snapshot", Diagnostics.Output.NONE, null);
         PotionColorWalk.run(session(memberAbsent, memberArm), JsonTree.object());
         assertSoleError(memberArm,
-            "'" + VanillaSourceClasses.Types.MOB_EFFECTS + "." + AsmKit.CLINIT + "' missing - effect colour table unresolved");
+            "'" + VanillaSourceClasses.Types.MOB_EFFECTS + "." + ClassKit.CLINIT + "' missing - effect colour table unresolved");
     }
 
     // ------------------------------------------------------------------------------------

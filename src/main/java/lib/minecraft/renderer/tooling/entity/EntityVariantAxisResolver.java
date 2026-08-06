@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -326,7 +326,7 @@ final class EntityVariantAxisResolver {
         Map<String, List<String>> byConstant = new LinkedHashMap<>();
         List<String> templates = new ArrayList<>();
         List<MethodNode> bodies = new ArrayList<>();
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit != null) bodies.add(clinit);
         for (MethodNode method : cn.methods)
             if (method.name.startsWith(AsmWalker.LAMBDA_STATIC_PREFIX)) bodies.add(method);

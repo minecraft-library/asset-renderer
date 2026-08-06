@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -54,7 +54,7 @@ final class BlockTintFlagResolver {
 
     private boolean isRendererTintBearing(@NotNull String rendererClass) {
         return this.tintBearing.computeIfAbsent(rendererClass,
-            renderer -> AsmKit.walkSuperChainUntil(this.cache, renderer, BlockTintFlagResolver::classCallsTintAccessor) != null);
+            renderer -> ClassKit.walkSuperChainUntil(this.cache, renderer, BlockTintFlagResolver::classCallsTintAccessor) != null);
     }
 
     /**
@@ -67,7 +67,7 @@ final class BlockTintFlagResolver {
                 AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)
                     || AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLORS)
                     || AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.BANNER_PATTERN, VanillaSourceClasses.Methods.GET_COLOR)
-                    || (in instanceof MethodInsnNode mi && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.BANNER_PATTERN_LAYERS))))
+                    || (in instanceof MethodInsnNode mi && ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.BANNER_PATTERN_LAYERS))))
                 return true;
         return false;
     }

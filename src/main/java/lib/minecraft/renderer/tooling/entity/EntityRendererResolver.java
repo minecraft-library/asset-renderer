@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -116,10 +116,10 @@ final class EntityRendererResolver {
      */
     private @NotNull List<LayerSite> scanLayerRoster(@NotNull ToolingSession session) {
         List<List<LayerSite>> perClass = new ArrayList<>();
-        AsmKit.walkSuperChain(session.cache(), this.subject.rendererClass(), cn -> {
+        ClassKit.walkSuperChain(session.cache(), this.subject.rendererClass(), cn -> {
             List<LayerSite> level = new ArrayList<>();
             for (MethodNode ctor : cn.methods) {
-                if (!AsmKit.INIT.equals(ctor.name)) continue;
+                if (!ClassKit.INIT.equals(ctor.name)) continue;
                 // Owner-agnostic addLayer match - the renderer's super may be any of
                 // several LivingEntityRenderer subclasses; gate on the canonical
                 // descriptor shape (single Layer arg, boolean return).
@@ -152,13 +152,13 @@ final class EntityRendererResolver {
         AbstractInsnNode previous = AsmWalker.previousReal(addLayer);
         if (previous instanceof MethodInsnNode ctorCall
             && previous.getOpcode() == Opcodes.INVOKESPECIAL
-            && AsmKit.INIT.equals(ctorCall.name)) {
+            && ClassKit.INIT.equals(ctorCall.name)) {
             AbstractInsnNode alloc = findPrecedingLayerNew(addLayer);
             return alloc == null ? null : new LayerSite(ctorCall.owner, 0, ctor, alloc, addLayer);
         }
         if (previous instanceof MethodInsnNode factory
             && (previous.getOpcode() == Opcodes.INVOKESTATIC || previous.getOpcode() == Opcodes.INVOKEVIRTUAL)) {
-            Type returned = AsmKit.returnType(factory.desc);
+            Type returned = ClassKit.returnType(factory.desc);
             if (returned.getSort() == Type.OBJECT)
                 return new LayerSite(returned.getInternalName(), 0, ctor, previous, addLayer);
         }
@@ -180,7 +180,7 @@ final class EntityRendererResolver {
         return AsmWalker.before(addLayerInsn).limit(64).firstNotNull(cursor -> {
             if (cursor.getOpcode() == Opcodes.INVOKESPECIAL
                 && cursor instanceof MethodInsnNode mi
-                && AsmKit.INIT.equals(mi.name))
+                && ClassKit.INIT.equals(mi.name))
                 pendingInits[0]++;
             if (cursor.getOpcode() == Opcodes.NEW && cursor instanceof TypeInsnNode) {
                 pendingInits[0]--;

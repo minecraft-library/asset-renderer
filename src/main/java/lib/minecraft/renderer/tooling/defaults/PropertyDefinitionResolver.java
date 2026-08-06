@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.defaults;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -36,7 +36,7 @@ import java.util.function.Function;
  *
  * <p>The three class-graph BFS walkers ({@code findPutStaticNode} / {@code resolveMethodReturnedProperty} /
  * {@code findAccessorMapField}) collapse to ONE probe-parameterised {@link #bfsClassGraph} (a private
- * helper, promoted to AsmKit only if a second flow needs it). The {@code "Property;"} suffix match
+ * helper, promoted to ClassKit only if a second flow needs it). The {@code "Property;"} suffix match
  * is tightened to the properties-package prefix to avoid over-broad matches.
  */
 final class PropertyDefinitionResolver {
@@ -81,8 +81,8 @@ final class PropertyDefinitionResolver {
      */
     @NotNull Map<String, FieldRef> collectDeclaredProperties(@NotNull String blockClass) {
         Map<String, FieldRef> declared = new LinkedHashMap<>();
-        AsmKit.walkSuperChain(this.cache, blockClass, cn -> {
-            MethodNode method = AsmKit.findMethod(cn, VanillaSourceClasses.Methods.CREATE_BLOCK_STATE_DEFINITION);
+        ClassKit.walkSuperChain(this.cache, blockClass, cn -> {
+            MethodNode method = ClassKit.findMethod(cn, VanillaSourceClasses.Methods.CREATE_BLOCK_STATE_DEFINITION);
             if (method == null) return;
             AsmWalker.over(method).forEach(node -> scanDeclarationNode(blockClass, node, declared));
         });
@@ -162,7 +162,7 @@ final class PropertyDefinitionResolver {
      */
     private @Nullable FieldRef resolveMethodReturnedProperty(@NotNull String startClass, @NotNull String method, @NotNull String desc) {
         return bfsClassGraph(startClass, cn -> {
-            MethodNode body = AsmKit.findMethod(cn, method, desc);
+            MethodNode body = ClassKit.findMethod(cn, method, desc);
             if (body == null || body.instructions.size() == 0) return null;
             return AsmWalker.over(body).firstNotNull(node -> {
                 FieldInsnNode prop = scalarPropertyRef(node);
@@ -191,7 +191,7 @@ final class PropertyDefinitionResolver {
         List<FieldRef> out = new ArrayList<>();
         if (mapField == null) return out;
         ClassNode owner = this.cache.load(mapField.owner);
-        MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
+        MethodNode clinit = owner == null ? null : ClassKit.findMethod(owner, ClassKit.CLINIT);
         if (clinit == null) return out;
         Set<String> byName = new HashSet<>();
         AsmWalker.over(clinit)
@@ -208,7 +208,7 @@ final class PropertyDefinitionResolver {
      */
     private @Nullable FieldInsnNode findAccessorMapField(@NotNull String startClass, @NotNull String method, @NotNull String desc) {
         return bfsClassGraph(startClass, cn -> {
-            MethodNode body = AsmKit.findMethod(cn, method, desc);
+            MethodNode body = ClassKit.findMethod(cn, method, desc);
             if (body == null || body.instructions.size() == 0) return null;
             return AsmWalker.over(body)
                 .ofType(FieldInsnNode.class)
@@ -282,7 +282,7 @@ final class PropertyDefinitionResolver {
      */
     private @Nullable FieldInsnNode findPutStaticNode(@NotNull String owner, @NotNull String field) {
         return bfsClassGraph(owner, cn -> {
-            MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+            MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
             if (clinit == null) return null;
             return AsmWalker.over(clinit).first(Insn.putStatic(cn.name, field));
         });
@@ -298,7 +298,7 @@ final class PropertyDefinitionResolver {
         queue.add(start);
         while (!queue.isEmpty()) {
             String current = queue.poll();
-            if (AsmKit.OBJECT_INTERNAL.equals(current) || !visited.add(current)) continue;
+            if (ClassKit.OBJECT_INTERNAL.equals(current) || !visited.add(current)) continue;
             ClassNode cn = this.cache.load(current);
             if (cn == null) continue;
             T result = probe.apply(cn);
@@ -344,7 +344,7 @@ final class PropertyDefinitionResolver {
         return AsmWalker.clinit(this.cache, enumOwner)
             .gather(AsmWalker::stringLiteral)
             .openAt(Insn.of(TypeInsnNode.class, type -> type.getOpcode() == Opcodes.NEW && type.desc.equals(enumOwner)))
-            .sealAt(Insn.invokeSpecial(enumOwner, AsmKit.INIT))
+            .sealAt(Insn.invokeSpecial(enumOwner, ClassKit.INIT))
             .commitAt(Insn.putStatic(enumOwner))
             .toMap(put -> put.name, (put, pending) -> pending.size() >= 2 ? pending.get(1)
                 : pending.isEmpty() ? put.name.toLowerCase(Locale.ROOT)
@@ -383,7 +383,7 @@ final class PropertyDefinitionResolver {
      * Reports whether a field descriptor references a block-state property (scalar or array).
      */
     static boolean isPropertyFieldRef(@NotNull String desc) {
-        String internal = AsmKit.internalNameOfRef(desc);
+        String internal = ClassKit.internalNameOfRef(desc);
         return internal != null && internal.startsWith(VanillaSourceClasses.Types.STATE_PROPERTIES_PACKAGE) && internal.endsWith("Property");
     }
 
@@ -402,7 +402,7 @@ final class PropertyDefinitionResolver {
      * Reports whether a method descriptor returns a (non-array) block-state property.
      */
     private static boolean isPropertyReturnRef(@NotNull String methodDesc) {
-        Type returned = AsmKit.returnType(methodDesc);
+        Type returned = ClassKit.returnType(methodDesc);
         return returned.getSort() == Type.OBJECT
             && returned.getInternalName().startsWith(VanillaSourceClasses.Types.STATE_PROPERTIES_PACKAGE)
             && returned.getInternalName().endsWith("Property");

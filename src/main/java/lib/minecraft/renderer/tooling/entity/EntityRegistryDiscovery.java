@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -68,7 +68,7 @@ public final class EntityRegistryDiscovery {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("discovery");
 
-        ClassNode entityType = AsmKit.requireClass(cache, VanillaSourceClasses.Types.ENTITY_TYPE, "EntityType discovery");
+        ClassNode entityType = ClassKit.requireClass(cache, VanillaSourceClasses.Types.ENTITY_TYPE, "EntityType discovery");
         Map<String, String> fieldToClass = collectEntityTypeFieldClasses(entityType);
         Map<String, String> mobRegistrations = collectMobRegistrations(entityType, diagnostics);
         Map<String, RendererRegistration> rendererRegistrations = collectRendererRegistrations(cache, diagnostics);
@@ -85,7 +85,7 @@ public final class EntityRegistryDiscovery {
                 continue;
             }
 
-            if (!AsmKit.extendsClass(cache, entityClass, VanillaSourceClasses.Types.LIVING_ENTITY)) continue;
+            if (!ClassKit.extendsClass(cache, entityClass, VanillaSourceClasses.Types.LIVING_ENTITY)) continue;
 
             totalMobs++;
             RendererRegistration renderer = rendererRegistrations.get(fieldName);
@@ -119,7 +119,7 @@ public final class EntityRegistryDiscovery {
         for (FieldNode field : entityType.fields) {
             if (!VanillaSourceClasses.Descs.ENTITY_TYPE_REF.equals(field.desc)) continue;
             if (field.signature == null) continue;
-            String concrete = AsmKit.extractGenericTypeParameter(field.signature, VanillaSourceClasses.Types.ENTITY_TYPE);
+            String concrete = ClassKit.extractGenericTypeParameter(field.signature, VanillaSourceClasses.Types.ENTITY_TYPE);
             if (concrete != null) out.put(field.name, concrete);
         }
         return out;
@@ -134,7 +134,7 @@ public final class EntityRegistryDiscovery {
         @NotNull ClassNode entityType,
         @NotNull Diagnostics diagnostics
     ) {
-        MethodNode clinit = AsmKit.findMethod(entityType, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(entityType, ClassKit.CLINIT);
         if (clinit == null) {
             diagnostics.error("%s has no <clinit> method", VanillaSourceClasses.Types.ENTITY_TYPE);
             return Map.of();
@@ -194,7 +194,7 @@ public final class EntityRegistryDiscovery {
             diagnostics.error("'%s' class missing from jar - cannot discover entity renderers", VanillaSourceClasses.Types.ENTITY_RENDERERS);
             return Map.of();
         }
-        MethodNode registryInit = AsmKit.findMethod(registryClass, AsmKit.CLINIT);
+        MethodNode registryInit = ClassKit.findMethod(registryClass, ClassKit.CLINIT);
         if (registryInit == null) {
             diagnostics.error("'%s.<clinit>' missing - cannot discover entity renderers", VanillaSourceClasses.Types.ENTITY_RENDERERS);
             return Map.of();
@@ -234,7 +234,7 @@ public final class EntityRegistryDiscovery {
         Handle handle = AsmWalker.extractLambdaHandle(indy);
         if (handle == null) return null;
 
-        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && AsmKit.INIT.equals(handle.getName()))
+        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && ClassKit.INIT.equals(handle.getName()))
             return new RendererRegistration(handle.getOwner(), Set.of(), Set.of(), Set.of());
 
         if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {

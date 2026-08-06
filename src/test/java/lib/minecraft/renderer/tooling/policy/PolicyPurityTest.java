@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The mechanical no-fetch contract of the policy SPI: every {@code NavigationPolicy}
  * implementor - the flow-local {@code *Policies} enums - may declare facts and coordinates
- * but never fetch, so their sources may not import AsmKit, ClassNodeCache, or any
+ * but never fetch, so their sources may not import ClassKit, ClassNodeCache, or any
  * {@code org.objectweb.asm} type.
  *
  * <p>The roster grows one enum per flow as new policy sources are added; anything hard-coded
@@ -36,7 +36,7 @@ class PolicyPurityTest {
     /** Import prefixes a policy source may never reference (the fetch surface). */
     private static final @NotNull List<String> BANNED_IMPORTS = List.of(
         "import org.objectweb.asm",
-        "import lib.minecraft.renderer.tooling.kernel.AsmKit",
+        "import lib.minecraft.renderer.tooling.kernel.ClassKit",
         "import lib.minecraft.renderer.tooling.kernel.ClassNodeCache");
 
     /** String-literal fragments legal only inside the two sanctioned hard-coding homes. */
@@ -56,7 +56,7 @@ class PolicyPurityTest {
             """;
         String dirty = """
             package lib.minecraft.renderer.tooling.entity;
-            import lib.minecraft.renderer.tooling.kernel.AsmKit;
+            import lib.minecraft.renderer.tooling.kernel.ClassKit;
             import org.objectweb.asm.tree.ClassNode;
             enum DummyPolicies implements NavigationPolicy { ROW; }
             """;

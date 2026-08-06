@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -80,7 +80,7 @@ final class TransformWalker {
 
         if (entry.startsWith(BlockTransformPolicies.FIELD_ENTRY_PREFIX)) {
             String field = entry.substring(BlockTransformPolicies.FIELD_ENTRY_PREFIX.length());
-            MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+            MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
             if (clinit == null) return null;
             Frame frame = new Frame(rootMachine());
             frame.run(cn, clinit, field);
@@ -102,7 +102,7 @@ final class TransformWalker {
         MethodNode fallback = null;
         for (MethodNode method : cn.methods)
             if (method.name.equals(name)) {
-                if (AsmKit.descriptorReturns(method.desc, TRANSFORMATION)) return method;
+                if (ClassKit.descriptorReturns(method.desc, TRANSFORMATION)) return method;
                 if (fallback == null) fallback = method;
             }
         return fallback;
@@ -232,11 +232,11 @@ final class TransformWalker {
                 matrixInvoke(call);
                 return;
             }
-            if (call.owner.equals(TRANSFORMATION) && AsmKit.INIT.equals(call.name)) {
+            if (call.owner.equals(TRANSFORMATION) && ClassKit.INIT.equals(call.name)) {
                 transformationInit(call);
                 return;
             }
-            if (call.owner.equals(VECTOR3F) && AsmKit.INIT.equals(call.name) && call.desc.equals("(FFF)V")) {
+            if (call.owner.equals(VECTOR3F) && ClassKit.INIT.equals(call.name) && call.desc.equals("(FFF)V")) {
                 float[] vec = popVec3();
                 this.machine.pop();          // the invokespecial receiver ref
                 this.machine.pop();          // the NEW placeholder underneath the dup
@@ -279,7 +279,7 @@ final class TransformWalker {
          * the next {@code popMatrix} rather than silently mis-popping the stack.
          */
         private void matrixInvoke(@NotNull MethodInsnNode call) {
-            if (AsmKit.INIT.equals(call.name)) {
+            if (ClassKit.INIT.equals(call.name)) {
                 this.machine.pop();          // the invokespecial receiver ref
                 this.machine.pop();          // the NEW placeholder underneath the dup
                 this.machine.push(Val.matrix(new State()));
@@ -339,7 +339,7 @@ final class TransformWalker {
 
         /** Inlines a same-class static factory ({@code baseTransformation}); pushes its returned value. */
         private void inlineCallee(@NotNull ClassNode owner, @NotNull MethodInsnNode call) {
-            MethodNode callee = AsmKit.findMethod(owner, call.name, call.desc);
+            MethodNode callee = ClassKit.findMethod(owner, call.name, call.desc);
             if (callee == null) {
                 passThrough(call);
                 return;

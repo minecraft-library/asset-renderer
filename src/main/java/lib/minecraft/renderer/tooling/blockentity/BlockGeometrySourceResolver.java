@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.geometry.YAxis;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
@@ -133,7 +133,7 @@ final class BlockGeometrySourceResolver {
         if (renderer == null) return;
         for (MethodNode method : renderer.methods) {
             if ((method.access & Opcodes.ACC_STATIC) == 0) continue;
-            if (!AsmKit.descriptorReturns(method.desc, VanillaSourceClasses.Types.LAYER_DEFINITION)) continue;
+            if (!ClassKit.descriptorReturns(method.desc, VanillaSourceClasses.Types.LAYER_DEFINITION)) continue;
             if (!BlockGeometryPolicies.isPrimary(method.name)) continue;
 
             YAxis yAxis = inferYAxis(this.subject.rendererClass(), method.name);
@@ -173,7 +173,7 @@ final class BlockGeometrySourceResolver {
      */
     private @NotNull Set<String> collectLayerRefs(@NotNull String rendererClass) {
         Set<String> out = new LinkedHashSet<>();
-        AsmKit.walkSuperChain(this.cache, rendererClass, cn -> {
+        ClassKit.walkSuperChain(this.cache, rendererClass, cn -> {
             for (MethodNode method : cn.methods)
                 AsmWalker.over(method)
                     .where(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS))
@@ -191,7 +191,7 @@ final class BlockGeometrySourceResolver {
      */
     private @NotNull YAxis inferYAxis(@NotNull String factoryClass, @NotNull String factoryMethod) {
         ClassNode cn = this.cache.load(factoryClass);
-        MethodNode method = cn == null ? null : AsmKit.findMethod(cn, factoryMethod);
+        MethodNode method = cn == null ? null : ClassKit.findMethod(cn, factoryMethod);
         if (method == null) return YAxis.DOWN;
 
         // offset(x, y, z) -> y is second-to-last in the float window at the call

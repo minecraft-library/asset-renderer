@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -52,7 +52,7 @@ record VariantBlockTable(@NotNull Map<String, String> byConstant, @Nullable Stri
         @NotNull String variantClass,
         @NotNull Diagnostics diagnostics
     ) {
-        MethodNode clinit = AsmKit.findClinit(cache, variantClass);
+        MethodNode clinit = ClassKit.findClinit(cache, variantClass);
         if (clinit == null) return EMPTY;
 
         Map<String, String> byField = new LinkedHashMap<>();

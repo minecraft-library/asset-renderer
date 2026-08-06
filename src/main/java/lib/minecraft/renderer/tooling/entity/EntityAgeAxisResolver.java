@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -180,7 +180,7 @@ final class EntityAgeAxisResolver {
      */
     private boolean selectsOnIsBaby(@NotNull String consumerOwner) {
         String current = consumerOwner;
-        while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
+        while (current != null && !ClassKit.OBJECT_INTERNAL.equals(current)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) break;
             for (MethodNode method : cn.methods)
@@ -188,7 +188,7 @@ final class EntityAgeAxisResolver {
             current = cn.superName;
         }
         current = this.subject.rendererClass();
-        while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
+        while (current != null && !ClassKit.OBJECT_INTERNAL.equals(current)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) break;
             for (MethodNode method : cn.methods)
@@ -245,7 +245,7 @@ final class EntityAgeAxisResolver {
      */
     private @Nullable String isBabyBranchTexture() {
         String current = this.subject.rendererClass();
-        while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
+        while (current != null && !ClassKit.OBJECT_INTERNAL.equals(current)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) return null;
             for (MethodNode method : cn.methods) {
@@ -304,7 +304,7 @@ final class EntityAgeAxisResolver {
      * {@code <clinit>} (the canonical {@code LDC; withDefaultNamespace; PUTSTATIC} triplet).
      */
     private @Nullable String clinitTexturePath(@NotNull ClassNode cn, @NotNull String fieldName) {
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit == null) return null;
         CommitWalk.Commit<FieldInsnNode, String> commit = AsmWalker.over(clinit)
             .latch(in -> {

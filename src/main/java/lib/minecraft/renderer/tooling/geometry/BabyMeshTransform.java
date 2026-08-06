@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.geometry;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -178,7 +178,7 @@ public record BabyMeshTransform(
             })
             .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String),
                 ldc -> strings.add((String) ldc.cst))
-            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.BABY_MODEL_TRANSFORM, AsmKit.INIT), init -> {
+            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.BABY_MODEL_TRANSFORM, ClassKit.INIT), init -> {
                 BabyMeshTransform built = build(owner, field, init.desc,
                     ints.values(), floats.values(), new LinkedHashSet<>(strings.values()));
                 if (built == null) pending.clear();

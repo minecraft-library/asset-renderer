@@ -4,7 +4,7 @@ import dev.simplified.gson.JsonTree;
 import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.tooling.geometry.GeometryParser;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -176,14 +176,14 @@ final class EntityBoneResolver {
         HierarchyScan scan = new HierarchyScan(new LinkedHashMap<>(), new LinkedHashSet<>(),
             new LinkedHashMap<>(), new LinkedHashSet<>(), new LinkedHashMap<>());
         String current = modelClass;
-        while (current != null && !current.equals(VanillaSourceClasses.Types.ENTITY_MODEL) && !current.equals(AsmKit.OBJECT_INTERNAL)) {
+        while (current != null && !current.equals(VanillaSourceClasses.Types.ENTITY_MODEL) && !current.equals(ClassKit.OBJECT_INTERNAL)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) break;
             // State-gated visibility can live in setupAnim, prepareMobModel, or any other
             // override hook - walk every non-init method for the gate shapes.
             for (MethodNode method : cn.methods) {
-                if (AsmKit.CLINIT.equals(method.name)) continue;
-                if (AsmKit.INIT.equals(method.name)) {
+                if (ClassKit.CLINIT.equals(method.name)) continue;
+                if (ClassKit.INIT.equals(method.name)) {
                     collectUnconditionalHidden(cn, method, scan.unconditionalHidden());
                     collectFieldToBoneNameMap(cn, method, scan.fieldToBone());
                     continue;
@@ -250,7 +250,7 @@ final class EntityBoneResolver {
                         && childCall.getOpcode() == Opcodes.INVOKEVIRTUAL
                         && VanillaSourceClasses.Methods.GET_CHILD.equals(childCall.name)
                         && childCall.desc != null
-                        && AsmKit.descriptorReturns(childCall.desc, VanillaSourceClasses.Types.MODEL_PART)) {
+                        && ClassKit.descriptorReturns(childCall.desc, VanillaSourceClasses.Types.MODEL_PART)) {
                         AbstractInsnNode boneLdc = AsmWalker.previousReal(childCall);
                         String boneName = boneLdc == null ? null : AsmWalker.stringLiteral(boneLdc);
                         if (boneName != null) scan.inlineGatedBones().add(boneName);
@@ -328,7 +328,7 @@ final class EntityBoneResolver {
     private @NotNull LinkedHashSet<String> collectReEnabledBones() {
         LinkedHashSet<String> out = new LinkedHashSet<>();
         ClassNode cn = this.cache.load(this.subject.rendererClass());
-        MethodNode ctor = cn == null ? null : AsmKit.findMethod(cn, AsmKit.INIT);
+        MethodNode ctor = cn == null ? null : ClassKit.findMethod(cn, ClassKit.INIT);
         if (ctor == null) return out;
         AsmWalker.over(ctor)
             .mapNotNull(EntityBoneResolver::matchVisibleWrite)
@@ -343,7 +343,7 @@ final class EntityBoneResolver {
         if (node.getOpcode() == Opcodes.GETFIELD && node instanceof FieldInsnNode get)
             return VanillaSourceClasses.Descs.MODEL_PART_REF.equals(get.desc) ? get.name : null;
         if (node.getOpcode() == Opcodes.INVOKEVIRTUAL && node instanceof MethodInsnNode mi) {
-            if (mi.desc == null || !AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MODEL_PART)) return null;
+            if (mi.desc == null || !ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MODEL_PART)) return null;
             String name = mi.name;
             if (!name.startsWith("get") || name.length() <= 3) return null;
             String stem = name.substring(3);

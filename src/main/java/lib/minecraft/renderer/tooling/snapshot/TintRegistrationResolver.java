@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -133,7 +133,7 @@ final class TintRegistrationResolver {
     private static @Nullable String resolveSourceClass(@NotNull ClassNodeCache cache, @NotNull String factoryName) {
         ClassNode sources = cache.load(VanillaSourceClasses.Types.BLOCK_TINT_SOURCES);
         if (sources == null) return null;
-        MethodNode factory = AsmKit.findMethod(sources, factoryName);
+        MethodNode factory = ClassKit.findMethod(sources, factoryName);
         if (factory == null) return null;
         return AsmWalker.over(factory)
             .new_(VanillaSourceClasses.Types.BLOCK_TINT_SOURCES)
@@ -171,7 +171,7 @@ final class TintRegistrationResolver {
     private static @Nullable Integer evalStem(@NotNull ClassNodeCache cache, @NotNull String innerClass, @NotNull Diagnostics diagnostics) {
         ClassNode node = cache.load(innerClass);
         String colorDesc = VanillaSourceClasses.Descs.of("I", VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_STATE));
-        MethodNode color = node == null ? null : AsmKit.findMethod(node, VanillaSourceClasses.Methods.COLOR, colorDesc);
+        MethodNode color = node == null ? null : ClassKit.findMethod(node, VanillaSourceClasses.Methods.COLOR, colorDesc);
         if (color == null) {
             diagnostics.error("stem source '%s' exposes no color(BlockState) body", innerClass);
             return null;
@@ -243,7 +243,7 @@ final class TintRegistrationResolver {
      */
     private static int evalStaticInt(@NotNull ClassNodeCache cache, @NotNull String owner, @NotNull String name, @NotNull String desc, int @NotNull [] args) {
         ClassNode node = cache.require(owner, "int-expression callee");
-        MethodNode method = AsmKit.findMethod(node, name, desc);
+        MethodNode method = ClassKit.findMethod(node, name, desc);
         if (method == null) throw new IllegalStateException("callee " + owner + "." + name + desc + " not found");
         Map<Integer, Integer> locals = new HashMap<>();
         for (int i = 0; i < args.length; i++) locals.put(i, args[i]);

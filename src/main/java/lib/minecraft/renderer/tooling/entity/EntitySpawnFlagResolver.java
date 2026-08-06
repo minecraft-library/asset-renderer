@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -51,7 +51,7 @@ final class EntitySpawnFlagResolver {
     boolean spawnValue(@NotNull String stateFlag) {
         Accessor accessor = findAccessor(stateFlag);
         if (accessor == null) return false;
-        MethodNode method = AsmKit.findMethodInHierarchy(this.cache, accessor.entityClass(), accessor.name(), "()Z");
+        MethodNode method = ClassKit.findMethodInHierarchy(this.cache, accessor.entityClass(), accessor.name(), "()Z");
         if (method == null) return false;
         BitTest test = readBitTest(method);
         if (test == null) return false;
@@ -97,7 +97,7 @@ final class EntitySpawnFlagResolver {
      */
     private @Nullable Accessor findAccessor(@NotNull String stateFlag) {
         Accessor[] found = new Accessor[1];
-        AsmKit.walkSuperChain(this.cache, this.subject.rendererClass(), classNode -> {
+        ClassKit.walkSuperChain(this.cache, this.subject.rendererClass(), classNode -> {
             if (found[0] != null) return;
             for (MethodNode method : classNode.methods) {
                 if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
@@ -175,9 +175,9 @@ final class EntitySpawnFlagResolver {
      */
     private @Nullable Integer readSynchedDefault(@NotNull String entityClass, @NotNull String dataField) {
         Integer[] found = new Integer[1];
-        AsmKit.walkSuperChain(this.cache, entityClass, classNode -> {
+        ClassKit.walkSuperChain(this.cache, entityClass, classNode -> {
             if (found[0] != null) return;
-            MethodNode define = AsmKit.findMethod(classNode, VanillaSourceClasses.Methods.DEFINE_SYNCHED_DATA);
+            MethodNode define = ClassKit.findMethod(classNode, VanillaSourceClasses.Methods.DEFINE_SYNCHED_DATA);
             if (define == null) return;
             found[0] = readSynchedDefault(define, dataField);
         });

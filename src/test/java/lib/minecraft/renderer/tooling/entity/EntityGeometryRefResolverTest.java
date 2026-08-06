@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.pipeline.ClientOptions;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -125,7 +125,7 @@ class EntityGeometryRefResolverTest {
     }
 
     private static @NotNull MethodNode ctor(AbstractInsnNode @NotNull ... nodes) {
-        MethodNode method = new MethodNode(Opcodes.ACC_PUBLIC, AsmKit.INIT, "()V", null, null);
+        MethodNode method = new MethodNode(Opcodes.ACC_PUBLIC, ClassKit.INIT, "()V", null, null);
         for (AbstractInsnNode node : nodes) method.instructions.add(node);
         return method;
     }
@@ -141,17 +141,17 @@ class EntityGeometryRefResolverTest {
     }
 
     private static @NotNull MethodInsnNode modelInit() {
-        return new MethodInsnNode(Opcodes.INVOKESPECIAL, MODEL, AsmKit.INIT,
+        return new MethodInsnNode(Opcodes.INVOKESPECIAL, MODEL, ClassKit.INIT,
             "(" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_PART) + ")V", false);
     }
 
     private static @NotNull MethodInsnNode pairConsumer() {
         String model = VanillaSourceClasses.Descs.ref(MODEL);
-        return new MethodInsnNode(Opcodes.INVOKESPECIAL, PAIR_OWNER, AsmKit.INIT, "(" + model + model + ")V", false);
+        return new MethodInsnNode(Opcodes.INVOKESPECIAL, PAIR_OWNER, ClassKit.INIT, "(" + model + model + ")V", false);
     }
 
     private static @NotNull MethodInsnNode singleConsumer() {
-        return new MethodInsnNode(Opcodes.INVOKESPECIAL, SINGLE_OWNER, AsmKit.INIT,
+        return new MethodInsnNode(Opcodes.INVOKESPECIAL, SINGLE_OWNER, ClassKit.INIT,
             "(" + VanillaSourceClasses.Descs.ref(MODEL) + ")V", false);
     }
 

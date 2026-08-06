@@ -3,7 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -153,7 +153,7 @@ final class EntityShapeAxisResolver {
      */
     private @Nullable String optionClinitTexture(@NotNull String option) {
         ClassNode cn = this.cache.load(this.subject.rendererClass());
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = cn == null ? null : ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit == null) return null;
         String wantedPrefix = option.toUpperCase(Locale.ROOT);
         return AsmWalker.over(clinit)
