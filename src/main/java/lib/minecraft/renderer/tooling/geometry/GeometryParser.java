@@ -11,7 +11,6 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.LiteralStack;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -627,26 +626,24 @@ public final class GeometryParser {
                 int[] previousInts = state.frame.paramIntValues;
                 int[] working = ensureIntSlotCapacity(previousInts, slot);
                 int savedAtSlot = working[slot];
-                Number savedNumericLocal = state.frame.numericLocals.remove(slot);
+                Number savedNumericLocal = state.numStack.slot(slot);
+                state.numStack.removeSlot(slot);
                 state.frame.paramIntValues = working;
                 try {
                     for (int i = loop.initValue(); i < loop.boundExclusive(); i += loop.step()) {
                         working[slot] = i;
-                        // Wipe any numericLocals entry the body may have STORE'd into the
+                        // Wipe any slot binding the body may have STORE'd into the
                         // iterator slot in a prior iteration; otherwise the next iteration's
                         // ILOAD <slot> would read the stale captured value and shadow the
                         // freshly-injected paramIntValues[slot] = i.
-                        state.frame.numericLocals.remove(slot);
+                        state.numStack.removeSlot(slot);
                         walkRange(instructions, loop.firstBodyInsn(), loop.firstInsnAfterLoop(), state, cache);
                     }
                 } finally {
                     working[slot] = savedAtSlot;
                     state.frame.paramIntValues = previousInts;
-                    if (savedNumericLocal != null) {
-                        state.frame.numericLocals.put(slot, savedNumericLocal);
-                    } else {
-                        state.frame.numericLocals.remove(slot);
-                    }
+                    if (savedNumericLocal != null) state.numStack.store(slot, savedNumericLocal);
+                    else state.numStack.removeSlot(slot);
                 }
                 AbstractInsnNode resumeAt = loop.firstInsnAfterLoop().getPrevious();
                 return resumeAt != null ? resumeAt : loop.firstInsnAfterLoop();
@@ -655,14 +652,19 @@ public final class GeometryParser {
 
         Number literal = readNumericLiteral(node);
         if (literal != null) {
-            // LiteralStack auto-evicts the oldest on capacity overflow; surface the first
+            // The machine auto-evicts the oldest on capacity overflow; surface the first
             // overflow as a WARN so a true accounting bug surfaces (subsequent overflows
             // stay silent to avoid spamming when a broken source pushes 1000 literals).
-            boolean willOverflow = state.numStack.size() >= WalkState.NUM_STACK_CAPACITY;
+            // The warning event is site-owned: only a literal push counts, so the marker
+            // and substitution pushes evict silently without spending the one shot.
+            boolean willOverflow = state.numStack.willOverflow();
             state.numStack.push(literal);
-            if (willOverflow && state.diagnostics != null && !state.overflowWarned && state.currentSource != null) {
-                state.diagnostics.warn("%s: numStack overflow (>%d literals) - oldest literals being dropped, pop accounting may be broken", state.currentSource.subjectId(), WalkState.NUM_STACK_CAPACITY);
-                state.overflowWarned = true;
+            if (willOverflow && state.diagnostics != null && state.currentSource != null) {
+                Diagnostics sink = state.diagnostics;
+                String subject = state.currentSource.subjectId();
+                state.numStack.overflowWarnOnce(() -> sink.warn(
+                    "%s: numStack overflow (>%d literals) - oldest literals being dropped, pop accounting may be broken",
+                    subject, WalkState.NUM_STACK_CAPACITY));
             }
             return node;
         }
@@ -694,14 +696,14 @@ public final class GeometryParser {
                      Opcodes.IFLT, Opcodes.IFGE,
                      Opcodes.IFGT, Opcodes.IFLE -> {
                     // Unary int comparison: pops 1 int. Java pipeline pops from
-                    // numStack via {@link LiteralStack#popLiteralNumber} (which
+                    // numStack via {@link Interp#popLiteral} (which
                     // returns null when the popped entry is the non-literal sentinel,
                     // distinguishing "real compile-time literal" from "marker"); legacy
                     // pipeline pops from branchStack (where ILOAD-of-paramIntValues lives,
                     // used by the banner standing/wall split).
                     Integer value = null;
                     if (state.mode == Mode.EVALUATING && !state.numStack.isEmpty()) {
-                        Number popped = state.numStack.popLiteralNumber();
+                        Number popped = state.numStack.popLiteral();
                         if (popped != null) value = popped.intValue();
                     } else if (canFollow && !state.branchStack.isEmpty()) {
                         value = state.branchStack.remove(state.branchStack.size() - 1);
@@ -728,16 +730,16 @@ public final class GeometryParser {
                     // injected value vs a literal bound during unrolling), the comparison
                     // is evaluated and the branch followed when satisfied. Non-literal
                     // operands fall through linearly with the JVM stack still aligned -
-                    // popLiteralNumber consumes the entry regardless.
+                    // popLiteral consumes the entry regardless.
                     Integer rhs = null;
                     Integer lhs = null;
                     if (state.mode == Mode.EVALUATING) {
                         if (!state.numStack.isEmpty()) {
-                            Number poppedB = state.numStack.popLiteralNumber();
+                            Number poppedB = state.numStack.popLiteral();
                             if (poppedB != null) rhs = poppedB.intValue();
                         }
                         if (!state.numStack.isEmpty()) {
-                            Number poppedA = state.numStack.popLiteralNumber();
+                            Number poppedA = state.numStack.popLiteral();
                             if (poppedA != null) lhs = poppedA.intValue();
                         }
                     }
@@ -811,17 +813,17 @@ public final class GeometryParser {
         // ILOAD N: if the source declared a value for slot N, push it onto the
         // branch stack so the upcoming IFEQ / IFNE / switch can evaluate the
         // conditional. If the slot is NOT in {@code paramIntValues} (or the source
-        // didn't supply any values), call {@code state.numStack.pushNonLiteral()} to
+        // didn't supply any values), call {@code state.numStack.push(WalkState.NON_LITERAL)} to
         // mark the entry as non-literal on {@link WalkState#numStack} - when a
         // downstream addBox / PartPose consumes it, {@link #popIntWithDiagnostics}
         // surfaces a {@code WARN:} so the silent-zero failure mode doesn't get baked
         // into the output cube.
         if (node instanceof VarInsnNode varInsn && opcode == Opcodes.ILOAD) {
             int slot = varInsn.var;
-            // numericLocals first: an in-method ISTORE captured a precise value (overrides
+            // The slot table first: an in-method ISTORE captured a precise value (overrides
             // any param-table default for the same slot). Java pipeline only - legacy
-            // literal-stack walkers don't STORE into numericLocals.
-            Number local = state.mode == Mode.EVALUATING ? state.frame.numericLocals.get(slot) : null;
+            // literal-stack walkers don't STORE into the slot table.
+            Number local = state.mode == Mode.EVALUATING ? state.numStack.slot(slot) : null;
             if (local != null) {
                 state.numStack.push(local.intValue());
             } else {
@@ -839,13 +841,13 @@ public final class GeometryParser {
                     else
                         state.branchStack.add(state.frame.paramIntValues[slot]);
                 } else {
-                    state.numStack.pushNonLiteral();
+                    state.numStack.push(WalkState.NON_LITERAL);
                 }
             }
         }
 
         // FLOAD / DLOAD / LLOAD: the value comes from a local variable the parser
-        // can't resolve. Call {@code state.numStack.pushNonLiteral()} so the next
+        // can't resolve. Call {@code state.numStack.push(WalkState.NON_LITERAL)} so the next
         // {@link #popFloatWithDiagnostics} / {@link #popIntWithDiagnostics} surfaces
         // the attribution instead of silently consuming a stale zero off an earlier
         // literal or a fresh zero from an empty stack.
@@ -856,15 +858,15 @@ public final class GeometryParser {
         if (node instanceof VarInsnNode varInsn
             && (opcode == Opcodes.FLOAD || opcode == Opcodes.DLOAD || opcode == Opcodes.LLOAD)) {
             int slot = varInsn.var;
-            // numericLocals first: an in-method FSTORE / DSTORE / LSTORE captured a precise
+            // The slot table first: an in-method FSTORE / DSTORE / LSTORE captured a precise
             // value (overrides any param-table default for the same slot).
-            Number local = state.mode == Mode.EVALUATING ? state.frame.numericLocals.get(slot) : null;
+            Number local = state.mode == Mode.EVALUATING ? state.numStack.slot(slot) : null;
             if (local != null) {
                 state.numStack.push(local);
             } else if (state.mode == Mode.EVALUATING && slot >= 0 && slot < state.frame.paramFloatValues.length) {
                 state.numStack.push(state.frame.paramFloatValues[slot]);
             } else {
-                state.numStack.pushNonLiteral();
+                state.numStack.push(WalkState.NON_LITERAL);
             }
         }
 
@@ -883,14 +885,14 @@ public final class GeometryParser {
             && (opcode == Opcodes.ISTORE || opcode == Opcodes.FSTORE
                 || opcode == Opcodes.DSTORE || opcode == Opcodes.LSTORE)
             && node instanceof VarInsnNode storeInsn) {
-            // popNumber returns null when the stack is empty - guard so we still drop a
+            // The pop answers null when the stack is empty - guard so we still drop a
             // stale captured-local entry on the slot rather than holding onto a value the
             // bytecode just overwrote with an unknown computation.
-            Number popped = state.numStack.isEmpty() ? null : state.numStack.popNumber();
+            Number popped = state.numStack.isEmpty() ? null : state.numStack.popTyped(Number.class);
             if (popped != null) {
-                state.frame.numericLocals.put(storeInsn.var, popped);
+                state.numStack.store(storeInsn.var, popped);
             } else {
-                state.frame.numericLocals.remove(storeInsn.var);
+                state.numStack.removeSlot(storeInsn.var);
             }
         }
 
@@ -939,14 +941,14 @@ public final class GeometryParser {
                 Number resolved = tryFoldStaticArrayRead(node, state, cache);
                 if (!state.numStack.isEmpty()) state.numStack.pop();
                 if (resolved != null) state.numStack.push(resolved);
-                else state.numStack.pushNonLiteral();
+                else state.numStack.push(WalkState.NON_LITERAL);
             } else if (opcode == Opcodes.BALOAD || opcode == Opcodes.SALOAD
                     || opcode == Opcodes.CALOAD || opcode == Opcodes.DALOAD
                     || opcode == Opcodes.LALOAD) {
                 if (!state.numStack.isEmpty()) state.numStack.pop();
-                state.numStack.pushNonLiteral();
+                state.numStack.push(WalkState.NON_LITERAL);
             } else if (opcode == Opcodes.ARRAYLENGTH) {
-                state.numStack.pushNonLiteral();
+                state.numStack.push(WalkState.NON_LITERAL);
             } else if (opcode == Opcodes.NEWARRAY) {
                 // Pop 1 int (length); push ref (refs aren't tracked on numStack). Also
                 // captures the length + element-type on {@link CallFrame#pendingFreshArrayLength}
@@ -955,7 +957,7 @@ public final class GeometryParser {
                 // against the tracked local array. Silverfish's {@code float[7]}
                 // cumulative-pivot cache uses this; other vanilla model factories don't
                 // currently allocate local primitive arrays.
-                Number lengthN = state.numStack.isEmpty() ? null : state.numStack.popLiteralNumber();
+                Number lengthN = state.numStack.isEmpty() ? null : state.numStack.popLiteral();
                 if (lengthN != null && node instanceof IntInsnNode arrInsn) {
                     int length = lengthN.intValue();
                     if (length >= 0 && length < 1024) {
@@ -987,8 +989,8 @@ public final class GeometryParser {
                 // just pops to keep the JVM stack aligned. SilverfishModel's
                 // {@code aload_2; iload i; fload f; fastore} cumulative-pivot pattern
                 // matches this exactly.
-                Number value = state.numStack.isEmpty() ? null : state.numStack.popLiteralNumber();
-                Number idx = state.numStack.isEmpty() ? null : state.numStack.popLiteralNumber();
+                Number value = state.numStack.isEmpty() ? null : state.numStack.popLiteral();
+                Number idx = state.numStack.isEmpty() ? null : state.numStack.popLiteral();
                 if (value != null && idx != null) {
                     // Walk back: prev1 = value insn, prev2 = idx insn, prev3 = ALOAD slot.
                     AbstractInsnNode v = AsmWalker.previousReal(node);
@@ -1020,7 +1022,7 @@ public final class GeometryParser {
                 || opcode == Opcodes.DCMPL || opcode == Opcodes.DCMPG)) {
             if (!state.numStack.isEmpty()) state.numStack.pop();
             if (!state.numStack.isEmpty()) state.numStack.pop();
-            state.numStack.pushNonLiteral();
+            state.numStack.push(WalkState.NON_LITERAL);
         }
 
         // Binary integer arithmetic: pops two ints, pushes the result. Same
@@ -1035,8 +1037,8 @@ public final class GeometryParser {
                 || opcode == Opcodes.IMUL || opcode == Opcodes.IDIV
                 || opcode == Opcodes.IREM)
             && state.numStack.size() >= 2) {
-            int b = state.numStack.popNumber().intValue();
-            int a = state.numStack.popNumber().intValue();
+            int b = state.numStack.popTyped(Number.class).intValue();
+            int a = state.numStack.popTyped(Number.class).intValue();
             int r = switch (opcode) {
                 case Opcodes.IADD -> a + b;
                 case Opcodes.ISUB -> a - b;
@@ -1053,7 +1055,7 @@ public final class GeometryParser {
             && (opcode == Opcodes.INEG || opcode == Opcodes.FNEG
                 || opcode == Opcodes.DNEG || opcode == Opcodes.LNEG)
             && !state.numStack.isEmpty()) {
-            Number top = state.numStack.popNumber();
+            Number top = state.numStack.popTyped(Number.class);
             Number negated = switch (opcode) {
                 case Opcodes.INEG -> -top.intValue();
                 case Opcodes.FNEG -> -top.floatValue();
@@ -1075,8 +1077,8 @@ public final class GeometryParser {
             && (opcode == Opcodes.FADD || opcode == Opcodes.FSUB || opcode == Opcodes.FMUL || opcode == Opcodes.FDIV || opcode == Opcodes.FREM
                 || opcode == Opcodes.DADD || opcode == Opcodes.DSUB || opcode == Opcodes.DMUL || opcode == Opcodes.DDIV || opcode == Opcodes.DREM)) {
             if (state.numStack.size() >= 2) {
-                Number bN = state.numStack.popNumber();
-                Number aN = state.numStack.popNumber();
+                Number bN = state.numStack.popTyped(Number.class);
+                Number aN = state.numStack.popTyped(Number.class);
                 // JVM float / double arithmetic opcodes interleave (FADD=98, DADD=99,
                 // FSUB=102, DSUB=103, FMUL=106, DMUL=107, FDIV=110, DDIV=111, FREM=114,
                 // DREM=115) - a {@code >= DADD && <= DDIV} range check would misclassify
@@ -1121,7 +1123,7 @@ public final class GeometryParser {
             && (opcode == Opcodes.I2F || opcode == Opcodes.I2D || opcode == Opcodes.F2D
                 || opcode == Opcodes.D2F || opcode == Opcodes.F2I || opcode == Opcodes.D2I)
             && !state.numStack.isEmpty()) {
-            Number top = state.numStack.popNumber();
+            Number top = state.numStack.popTyped(Number.class);
             Number converted = switch (opcode) {
                 case Opcodes.I2F -> (float) top.intValue();
                 case Opcodes.I2D -> (double) top.intValue();
@@ -1197,7 +1199,7 @@ public final class GeometryParser {
                 && !state.numStack.isEmpty() -> {
                 String recipe = AsmWalker.resolveStringConcatRecipe(indy);
                 if (recipe != null) {
-                    int i = state.numStack.popNumber().intValue();
+                    int i = state.numStack.popTyped(Number.class).intValue();
                     state.frame.pendingPartName = ClassKit.applyStringConcatRecipeWithInt(recipe, i);
                 }
             }
@@ -1428,7 +1430,7 @@ public final class GeometryParser {
             if (helper != null) {
                 String recipe = AsmWalker.findStringConcatRecipeIn(helper);
                 if (recipe != null) {
-                    int i = state.numStack.popNumber().intValue();
+                    int i = state.numStack.popTyped(Number.class).intValue();
                     state.frame.pendingPartName = ClassKit.applyStringConcatRecipeWithInt(recipe, i);
                     return;
                 }
@@ -1444,7 +1446,7 @@ public final class GeometryParser {
             && opcode == Opcodes.INVOKESTATIC
             && methodInsn.desc.startsWith("(I)") && methodInsn.desc.endsWith("Ljava/lang/String;")
             && !state.numStack.isEmpty()) {
-            int i = state.numStack.popNumber().intValue();
+            int i = state.numStack.popTyped(Number.class).intValue();
             state.frame.pendingPartName = methodInsn.name + i;
             return;
         }
@@ -1472,7 +1474,7 @@ public final class GeometryParser {
             && methodInsn.name.equals(VanillaSourceClasses.Methods.SCALING)
             && methodInsn.desc.equals("(F)" + MESH_TRANSFORMER_DESC)
             && !state.numStack.isEmpty()) {
-            float f = state.numStack.popNumber().floatValue();
+            float f = state.numStack.popTyped(Number.class).floatValue();
             // Vanilla never calls {@code scaling(0)}; a captured 0 means the synthetic
             // {@link GeometryRequest}'s {@code paramFloatValues} didn't supply the {@code createBodyLayer}
             // float parameter that this site references via {@code fload_0}. Donkey / mule hit
@@ -1508,7 +1510,7 @@ public final class GeometryParser {
             && (methodInsn.name.equals("cos") || methodInsn.name.equals("sin"))
             && methodInsn.desc.equals("(D)F")
             && !state.numStack.isEmpty()) {
-            double arg = state.numStack.popNumber().doubleValue();
+            double arg = state.numStack.popTyped(Number.class).doubleValue();
             float result = methodInsn.name.equals("cos")
                 ? FastTrig.cos(arg)
                 : FastTrig.sin(arg);
@@ -1531,7 +1533,7 @@ public final class GeometryParser {
             && (methodInsn.name.equals("cos") || methodInsn.name.equals("sin"))
             && methodInsn.desc.equals("(D)D")
             && !state.numStack.isEmpty()) {
-            double arg = state.numStack.popNumber().doubleValue();
+            double arg = state.numStack.popTyped(Number.class).doubleValue();
             double result = methodInsn.name.equals("cos")
                 ? Math.cos(arg)
                 : Math.sin(arg);
@@ -1580,7 +1582,7 @@ public final class GeometryParser {
             && methodInsn.name.equals("nextInt")
             && methodInsn.desc.equals("(I)I")
             && !state.numStack.isEmpty()) {
-            Number bound = state.numStack.popLiteralNumber();
+            Number bound = state.numStack.popLiteral();
             if (bound != null) {
                 AbstractInsnNode boundNode = AsmWalker.previousReal(methodInsn);
                 AbstractInsnNode aloadNode = boundNode != null ? AsmWalker.previousReal(boundNode) : null;
@@ -1592,7 +1594,7 @@ public final class GeometryParser {
                     }
                 }
             }
-            state.numStack.pushNonLiteral();
+            state.numStack.push(WalkState.NON_LITERAL);
             return;
         }
         // Invokestatic-follow: recurse into model-building statics outside the builder/geom
@@ -1663,9 +1665,11 @@ public final class GeometryParser {
             child.paramFloatValues = params.floats;
         }
         state.frame = child;
+        state.numStack.openSlotFrame();
         try {
             walkInstructions(inlined.instructions, state, cache);
         } finally {
+            state.numStack.closeSlotFrame();
             state.frame = parent;
         }
     }
@@ -1719,9 +1723,9 @@ public final class GeometryParser {
         for (int i = argTypes.length - 1; i >= 0; i--) {
             char t = argTypes[i];
             if (t != 'L' && t != '[') {
-                // popNumber returns null on empty / non-numeric top; treat both as zero
-                // (matches the previous NON_LITERAL fallback's silent-zero arithmetic).
-                Number popped = state.numStack.popNumber();
+                // The pop answers null on empty / non-numeric top; treat both as zero,
+                // the non-literal marker's own silent-zero arithmetic.
+                Number popped = state.numStack.popTyped(Number.class);
                 int slot = slotPerArg[i];
                 if (slot < slots) {
                     ints[slot] = popped == null ? 0 : popped.intValue();
@@ -1956,7 +1960,7 @@ public final class GeometryParser {
             char t = argTypes[i];
             if (t == 'L' || t == '[') continue;
             // Pop with the type-correct method (popFloat vs popInt route to distinct
-            // LiteralStack pops); an explicit if/else avoids the Float/Integer ternary's
+            // machine pops); an explicit if/else avoids the Float/Integer ternary's
             // numeric-promotion trap that would collapse both to float.
             if (t == 'F' || t == 'D') {
                 forward[idx--] = Float.valueOf(popFloatWithDiagnostics(state, label));
@@ -2329,19 +2333,6 @@ public final class GeometryParser {
         @NotNull ConcurrentMap<Integer, ConcurrentList<float[]>> slotToCubes = Concurrent.newMap();
 
         /**
-         * JVM local-variable slot -> last numeric value stored to that slot by ISTORE /
-         * FSTORE / DSTORE / LSTORE. Read back on ILOAD / FLOAD / DLOAD / LLOAD before the
-         * {@link #paramIntValues} / {@link #paramFloatValues} fallback, so a
-         * {@code ldc <value>; fstore <slot>; ...; fload <slot>} sequence (vanilla
-         * {@code BlazeModel.createBodyLayer}'s rolling-angle accumulator slot 2;
-         * {@code SquidModel.createBodyLayer}'s reused-angle double slot 7) folds back to the
-         * literal value instead of the param-table default. Starts empty in each child frame
-         * ({@link #inlineChild}) so JVM scoping (callee locals don't leak into caller) is
-         * preserved.
-         */
-        @NotNull ConcurrentMap<Integer, Number> numericLocals = Concurrent.newMap();
-
-        /**
          * JVM local-variable slot -> tracked {@code float[]} created by a
          * {@code NEWARRAY float; ASTORE <slot>} pair earlier in the method. Vanilla's
          * {@code SilverfishModel.createBodyLayer} uses this for its cumulative-pivot
@@ -2482,7 +2473,34 @@ public final class GeometryParser {
          */
         private static final @NotNull String REF_PARAM_SENTINEL = "\0REF_PARAM";
 
-        final @NotNull LiteralStack numStack = new LiteralStack(NUM_STACK_CAPACITY);
+        /**
+         * The one non-literal marker: pushed for every value the parser cannot resolve
+         * (unresolved loads, array results, comparison results), recognised by identity,
+         * zero on every primitive face so the silent-coerce paths read it as 0.
+         */
+        static final @NotNull Number NON_LITERAL = new Number() {
+            @Override public int intValue() { return 0; }
+            @Override public long longValue() { return 0L; }
+            @Override public float floatValue() { return 0f; }
+            @Override public double doubleValue() { return 0d; }
+            @Override public @NotNull String toString() { return "<non-literal>"; }
+        };
+
+        /**
+         * The numeric-stack value model. The parser owns literal reading, dispatch and
+         * arithmetic at its own arms, so the domain carries only the identity-recognised
+         * marker - decode and the arithmetic hooks are never consulted.
+         */
+        private static final @NotNull Interp.Domain<Number> NUMERIC_DOMAIN = new Interp.Domain<>() {
+            @Override public @Nullable Number decode(@NotNull AbstractInsnNode node) { return null; }
+            @Override public @NotNull Number unknown() { return NON_LITERAL; }
+            @Override public @NotNull Number underflow() { return NON_LITERAL; }
+            @Override public @Nullable Number binary(int opcode, @NotNull Number left, @NotNull Number right) { return null; }
+            @Override public @Nullable Number unary(int opcode, @NotNull Number operand) { return null; }
+        };
+
+        final @NotNull Interp<Number> numStack =
+            Interp.of(NUMERIC_DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS).capacity(NUM_STACK_CAPACITY);
 
         /**
          * Pushed by ILOAD when the slot maps to a paramIntValues entry; consumed by IFEQ / IFNE.
@@ -2653,11 +2671,6 @@ public final class GeometryParser {
         @Nullable Diagnostics diagnostics;
 
         /**
-         * Set after the first overflow warn so a single parse doesn't spam the log.
-         */
-        boolean overflowWarned;
-
-        /**
          * The live per-method-invocation frame (see {@link CallFrame}). Swapped for a fresh
          * child while an inlined {@code invokestatic} target is walked and restored on return
          * by {@link GeometryParser#inlineStaticMethodBody}.
@@ -2772,7 +2785,7 @@ public final class GeometryParser {
      */
     private static @Nullable Integer popIntForBranch(@NotNull WalkState state) {
         if (state.mode == Mode.EVALUATING && !state.numStack.isEmpty())
-            return state.numStack.popNumber().intValue();
+            return state.numStack.popTyped(Number.class).intValue();
         if (!state.branchStack.isEmpty())
             return state.branchStack.removeLast();
         return null;
@@ -2814,7 +2827,7 @@ public final class GeometryParser {
      *       {@code SPIKE_*_ROT[i]}</li>
      * </ul>
      * Returns the resolved literal value when all three pieces match AND the row slot
-     * resolves to a literal via {@link CallFrame#numericLocals} or
+     * resolves to a literal via the machine's slot table or
      * {@link CallFrame#paramIntValues}. Returns {@code null} otherwise (caller falls back
      * to the non-literal marker).
      *
@@ -2922,7 +2935,7 @@ public final class GeometryParser {
      * the expression's starting instruction. Supports:
      * <ul>
      *   <li>{@code ILOAD slot} - the simple case, when {@link #resolveSlotInt} can resolve
-     *       the slot via {@link CallFrame#numericLocals} or
+     *       the slot via the machine's slot table or
      *       {@link CallFrame#paramIntValues}.</li>
      *   <li>{@code ILOAD slot; <int lit>; IADD} / {@code ISUB} - silverfish / endermite
      *       update {@code f += sizes[i][2] + sizes[i+1][2]} which compiles to
@@ -2968,7 +2981,7 @@ public final class GeometryParser {
 
     /**
      * Returns the resolved int for a JVM local slot - first checking
-     * {@link CallFrame#numericLocals} (where in-body {@code ISTORE}s are captured), then
+     * the machine's slot table (where in-body {@code ISTORE}s are captured), then
      * {@link CallFrame#paramIntValues} (where the for-loop unroller injects the iterator
      * value and {@code captureInlineParams} injects call-site literals). Returns
      * {@code null} when neither holds a value, signalling the static-array fold to fall
@@ -2979,7 +2992,7 @@ public final class GeometryParser {
      * @return the resolved int, or {@code null} when neither table holds a value
      */
     private static @Nullable Integer resolveSlotInt(@NotNull WalkState state, int slot) {
-        Number local = state.frame.numericLocals.get(slot);
+        Number local = state.numStack.slot(slot);
         if (local != null) return local.intValue();
         if (state.frame.paramIntValues != null && slot >= 0 && slot < state.frame.paramIntValues.length) {
             return state.frame.paramIntValues[slot];
@@ -3010,9 +3023,10 @@ public final class GeometryParser {
     }
 
     /**
-     * Builder-dispatch int pop. Routes through {@link LiteralStack#popIntOrZero}
-     * so the non-literal sentinel (pushed by {@link LiteralStack#pushNonLiteral})
-     * fires the canonical "non-literal argument consumed" WARN tagged with the entity id.
+     * Builder-dispatch int pop. Routes through
+     * {@link Interp#popIntOrZero(Diagnostics, String, String)} so the non-literal marker
+     * ({@link WalkState#NON_LITERAL}) fires the canonical "non-literal argument consumed"
+     * WARN tagged with the entity id.
      * Empty stack is silent zero - matches the upstream "accounting boundary" convention.
      *
      * @param state the parse state whose {@code numStack} is popped
@@ -3023,7 +3037,7 @@ public final class GeometryParser {
         if (state.diagnostics == null || state.currentSource == null) {
             // No diagnostic sink attached - fall back to the silent-coerce path so legacy
             // callers (single-source parsing without a Diagnostics) don't NPE.
-            Number top = state.numStack.popNumber();
+            Number top = state.numStack.popTyped(Number.class);
             return top == null ? 0 : top.intValue();
         }
         return state.numStack.popIntOrZero(state.diagnostics, state.currentSource.subjectId(), where);
@@ -3038,7 +3052,7 @@ public final class GeometryParser {
      */
     private static float popFloatWithDiagnostics(@NotNull WalkState state, @NotNull String where) {
         if (state.diagnostics == null || state.currentSource == null) {
-            Number top = state.numStack.popNumber();
+            Number top = state.numStack.popTyped(Number.class);
             return top == null ? 0f : top.floatValue();
         }
         return state.numStack.popFloatOrZero(state.diagnostics, state.currentSource.subjectId(), where);
