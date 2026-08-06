@@ -156,14 +156,14 @@ final class BlockDefaultStateResolver {
             return BlockStatePolicies.booleanDefault();
 
         // EnumProperty - the class arg is the nearest preceding class literal.
-        AbstractInsnNode classNode = AsmKit.findPreceding(create, n -> AsmWalker.typeLiteral(n) != null, op -> true);
+        AbstractInsnNode classNode = AsmWalker.before(create).real().first(n -> AsmWalker.typeLiteral(n) != null);
         Type classLiteral = classNode == null ? null : AsmWalker.typeLiteral(classNode);
         if (classLiteral == null) return null;
         String enumOwner = classLiteral.getInternalName();
 
         if (create.desc.endsWith(ENUM_ARRAY_CREATE_TAIL)) {
             // create(name, class, Enum[]): first value = the array's index-0 GETSTATIC.
-            AbstractInsnNode anewarray = AsmKit.findPreceding(create, n -> n.getOpcode() == Opcodes.ANEWARRAY, op -> true);
+            AbstractInsnNode anewarray = AsmWalker.before(create).real().first(n -> n.getOpcode() == Opcodes.ANEWARRAY);
             FieldInsnNode value = AsmWalker.from(anewarray)
                 .until(create)
                 .ofType(FieldInsnNode.class)

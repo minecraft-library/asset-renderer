@@ -157,7 +157,7 @@ public final class EntityRegistryDiscovery {
                     return;
                 }
                 AbstractInsnNode put = AsmWalker.after(call)
-                    .first(node -> AsmKit.isPutStatic(node, VanillaSourceClasses.Types.ENTITY_TYPE),
+                    .first(node -> AsmWalker.isPutStatic(node, VanillaSourceClasses.Types.ENTITY_TYPE),
                         node -> !isBuilderOfCall(node));
                 if (put == null)
                     diagnostics.warn("EntityType registration for id '%s' has no PUTSTATIC field", id);
@@ -171,7 +171,7 @@ public final class EntityRegistryDiscovery {
 
     /** Reports whether {@code in} is an {@code INVOKESTATIC EntityType$Builder.of(...)}. */
     private static boolean isBuilderOfCall(@NotNull AbstractInsnNode in) {
-        return AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE_BUILDER, VanillaSourceClasses.Methods.BUILDER_OF);
+        return AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE_BUILDER, VanillaSourceClasses.Methods.BUILDER_OF);
     }
 
     /**
@@ -202,7 +202,7 @@ public final class EntityRegistryDiscovery {
 
         Map<String, RendererRegistration> out = new LinkedHashMap<>();
         AsmWalker.over(registryInit)
-            .latch(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE)
+            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE)
                 ? ((FieldInsnNode) in).name : null)
             .commitAt(Insn.ofType(InvokeDynamicInsnNode.class))
             .forEach(commit -> {
@@ -242,9 +242,9 @@ public final class EntityRegistryDiscovery {
             Set<EntitySubject.TypeFieldRef> typeArgs = new LinkedHashSet<>();
             Set<String> equipmentLayerTypes = new LinkedHashSet<>();
             String rendererClass = AsmWalker.walkLambdaBody(indy, ownerClass, node -> {
-                if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.MODEL_LAYERS))
+                if (AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.MODEL_LAYERS))
                     layerFields.add(((FieldInsnNode) node).name);
-                else if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
+                else if (AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
                     equipmentLayerTypes.add(((FieldInsnNode) node).name);
                 else if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode fi && fi.owner.contains("$Type"))
                     typeArgs.add(new EntitySubject.TypeFieldRef(fi.owner, fi.name));

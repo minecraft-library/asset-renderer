@@ -196,7 +196,7 @@ final class EntitySpawnFlagResolver {
                 Integer value = AsmWalker.intLiteral(valueInsn);
                 if (value == null) return null;
                 AbstractInsnNode box = AsmWalker.nextReal(valueInsn);
-                if (box == null || !AsmKit.isInvokeStatic(box, VanillaSourceClasses.Types.BYTE,
+                if (box == null || !AsmWalker.isInvokeStatic(box, VanillaSourceClasses.Types.BYTE,
                     VanillaSourceClasses.Methods.VALUE_OF)) return null;
                 return value;
             });

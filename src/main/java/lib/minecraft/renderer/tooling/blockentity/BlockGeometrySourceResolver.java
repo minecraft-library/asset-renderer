@@ -176,7 +176,7 @@ final class BlockGeometrySourceResolver {
         AsmKit.walkSuperChain(this.cache, rendererClass, cn -> {
             for (MethodNode method : cn.methods)
                 AsmWalker.over(method)
-                    .where(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS))
+                    .where(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS))
                     .names()
                     .forEach(out::add);
         });

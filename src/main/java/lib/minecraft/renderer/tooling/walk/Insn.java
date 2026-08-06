@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tooling.walk;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -198,7 +197,7 @@ public final class Insn {
      * @return the recognizer
      */
     public static @NotNull Match<AbstractInsnNode> branch() {
-        return of(AbstractInsnNode.class, in -> AsmKit.isBranchInsn(in.getOpcode()));
+        return of(AbstractInsnNode.class, in -> AsmWalker.isBranchInsn(in.getOpcode()));
     }
 
     /**

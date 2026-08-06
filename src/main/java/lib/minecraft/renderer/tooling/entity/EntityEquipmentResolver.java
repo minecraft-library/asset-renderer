@@ -3,7 +3,6 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -87,10 +86,10 @@ final class EntityEquipmentResolver {
             .on(Insn.getStatic(VanillaSourceClasses.Types.MODEL_LAYERS).and(fi -> layerType.get() != null),
                 fi -> meshFields.add(fi.name))
             .on(Insn.of(VarInsnNode.class, load -> load.getOpcode() == Opcodes.ALOAD), load -> {
-                if (AsmKit.isParameterOfType(
+                if (AsmWalker.isParameterOfType(
                     site.method(), load.var, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
                     parameterisedLayerType.set();
-                if (AsmKit.isParameterOfType(
+                if (AsmWalker.isParameterOfType(
                     site.method(), load.var, VanillaSourceClasses.Types.MODEL_LAYER_LOCATION))
                     parameterisedMesh.set();
             })

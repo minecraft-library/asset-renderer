@@ -102,7 +102,7 @@ public final class BlockItemAliasWalk {
         AsmWalker.over(clinit)
             .on(Insn.of(InvokeDynamicInsnNode.class, indy -> indy.desc.endsWith(BIFUNCTION_RETURN_SUFFIX)), indy -> {
                 AbstractInsnNode primary = AsmWalker.previousReal(indy);
-                if (primary instanceof FieldInsnNode field && AsmKit.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
+                if (primary instanceof FieldInsnNode field && AsmWalker.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
                     collectLambdaSecondaries(items, indy, field.name);
             })
             .on(Insn.of(TypeInsnNode.class, arrayType -> arrayType.getOpcode() == Opcodes.ANEWARRAY
@@ -142,13 +142,13 @@ public final class BlockItemAliasWalk {
     private void collectVarargsSecondaries(@NotNull AbstractInsnNode anewarray) {
         AbstractInsnNode lengthPush = AsmWalker.previousReal(anewarray);
         AbstractInsnNode primary = AsmWalker.previousReal(lengthPush);
-        if (!(primary instanceof FieldInsnNode field) || !AsmKit.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
+        if (!(primary instanceof FieldInsnNode field) || !AsmWalker.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
             return;
 
         CommitWalk.Commit<MethodInsnNode, String> register = AsmWalker.after(anewarray)
-            .gather(node -> AsmKit.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS)
+            .gather(node -> AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS)
                 ? ((FieldInsnNode) node).name : null)
-            .commitAt(MethodInsnNode.class, call -> AsmKit.isInvokeStatic(
+            .commitAt(MethodInsnNode.class, call -> AsmWalker.isInvokeStatic(
                 call, VanillaSourceClasses.Types.ITEMS, REGISTER_BLOCK, REGISTER_BLOCK_VARARGS_DESC))
             .first();
         if (register == null) return;

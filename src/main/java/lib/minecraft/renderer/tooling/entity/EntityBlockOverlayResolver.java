@@ -228,7 +228,7 @@ final class EntityBlockOverlayResolver {
             }
             if (!(in instanceof MethodInsnNode call)) continue;
 
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.PUSH_POSE)) {
+            if (AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.PUSH_POSE)) {
                 insideBlock = true;
                 transforms = JsonTree.array();
                 attachedBone = null;
@@ -236,7 +236,7 @@ final class EntityBlockOverlayResolver {
                 opCount = 0;
                 continue;
             }
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.POP_POSE)) {
+            if (AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.POP_POSE)) {
                 if (insideBlock && opCount > 0) {
                     JsonTree carrier = JsonTree.object();
                     carrier.putIf("attached_bone", attachedBone);
@@ -251,7 +251,7 @@ final class EntityBlockOverlayResolver {
             }
             if (!insideBlock || transforms == null) continue;
 
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.TRANSLATE)
+            if (AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.TRANSLATE)
                 && call.desc.startsWith("(FFF") && floats.size() >= 3) {
                 float z = floats.removeLast();
                 float y = floats.removeLast();
@@ -260,7 +260,7 @@ final class EntityBlockOverlayResolver {
                 opCount++;
                 continue;
             }
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE)
+            if (AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE)
                 && call.desc.startsWith("(FFF") && floats.size() >= 3) {
                 float z = floats.removeLast();
                 float y = floats.removeLast();
@@ -294,7 +294,7 @@ final class EntityBlockOverlayResolver {
                 opCount++;
                 continue;
             }
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.TRANSLATE_AND_ROTATE)) {
+            if (AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.TRANSLATE_AND_ROTATE)) {
                 String bone = findPrecedingBoneAccessor(call);
                 if (bone != null) attachedBone = bone;
             }
@@ -306,10 +306,13 @@ final class EntityBlockOverlayResolver {
      * The {@code Axis.<X>} field name behind a {@code rotationDegrees} call.
      */
     private static @Nullable String findPrecedingAxisField(@NotNull MethodInsnNode call) {
-        AbstractInsnNode hit = AsmKit.findPreceding(call,
-            node -> AsmKit.isGetStatic(node, VanillaSourceClasses.Types.MATH_AXIS),
-            opcode -> opcode == Opcodes.LDC
-                || opcode == Opcodes.FCONST_0 || opcode == Opcodes.FCONST_1 || opcode == Opcodes.FCONST_2);
+        AbstractInsnNode hit = AsmWalker.before(call).real().first(
+            node -> AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.MATH_AXIS),
+            node -> {
+                int opcode = node.getOpcode();
+                return opcode == Opcodes.LDC
+                    || opcode == Opcodes.FCONST_0 || opcode == Opcodes.FCONST_1 || opcode == Opcodes.FCONST_2;
+            });
         return hit == null ? null : ((FieldInsnNode) hit).name;
     }
 

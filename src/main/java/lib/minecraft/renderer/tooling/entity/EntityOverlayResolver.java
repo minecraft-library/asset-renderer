@@ -217,7 +217,7 @@ final class EntityOverlayResolver {
      */
     static boolean referencesEquipmentLayerType(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            if (AsmWalker.over(method).any(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)))
+            if (AsmWalker.over(method).any(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)))
                 return true;
         return false;
     }
@@ -560,9 +560,9 @@ final class EntityOverlayResolver {
             if (!AsmKit.INIT.equals(method.name)) continue;
             // naming fallback - the adult mesh carries the row
             String baked = AsmWalker.over(method)
-                .latch(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
+                .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
                     ? ((FieldInsnNode) in).name : null)
-                .commitAt(MethodInsnNode.class, mi -> AsmKit.isInvokeVirtual(mi,
+                .commitAt(MethodInsnNode.class, mi -> AsmWalker.isInvokeVirtual(mi,
                     VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER))
                 .firstNotNull(commit -> commit.value() != null && !commit.value().contains("BABY")
                     ? commit.value() : null);
@@ -582,9 +582,9 @@ final class EntityOverlayResolver {
         for (MethodNode method : cn.methods) {
             if (!AsmKit.INIT.equals(method.name)) continue;
             String baked = AsmWalker.over(method)
-                .latch(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
+                .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
                     ? ((FieldInsnNode) in).name : null)
-                .commitAt(MethodInsnNode.class, mi -> AsmKit.isInvokeVirtual(mi,
+                .commitAt(MethodInsnNode.class, mi -> AsmWalker.isInvokeVirtual(mi,
                     VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER))
                 .firstNotNull(commit -> commit.value() != null && commit.value().contains("BABY")
                     ? commit.value() : null);
@@ -628,7 +628,7 @@ final class EntityOverlayResolver {
         if (submit == null) return null;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
         JsonTree tinted = AsmWalker.over(submit).firstNotNull(in -> {
-            if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR)) return null;
+            if (!AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR)) return null;
             AbstractInsnNode next = AsmWalker.nextReal(in);
             if (next != null && (next.getOpcode() == Opcodes.IF_ACMPEQ || next.getOpcode() == Opcodes.IF_ACMPNE)) {
                 AbstractInsnNode before = AsmWalker.previousReal(in);
@@ -757,7 +757,7 @@ final class EntityOverlayResolver {
             for (MethodNode method : level.methods) {
                 if ((method.access & Opcodes.ACC_STATIC) != 0 || AsmKit.INIT.equals(method.name)) continue;
                 Integer literal = AsmWalker.over(method).firstNotNull(in -> {
-                    if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.OVERLAY_TEXTURE)
+                    if (!AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.OVERLAY_TEXTURE)
                         || !VanillaSourceClasses.Fields.NO_OVERLAY.equals(((FieldInsnNode) in).name)) return null;
                     AbstractInsnNode color = AsmWalker.nextReal(in);
                     return color == null ? null : AsmWalker.intLiteral(color);
@@ -795,7 +795,7 @@ final class EntityOverlayResolver {
         if (stateMethod == null) return NO_TINT;
         String dyeRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.DYE_COLOR);
         Integer white = AsmWalker.over(stateMethod).firstNotNull(in -> {
-            if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.COLOR_LERPER_TYPE, VanillaSourceClasses.Methods.GET_COLOR)) return null;
+            if (!AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.COLOR_LERPER_TYPE, VanillaSourceClasses.Methods.GET_COLOR)) return null;
             String dyeField = AsmWalker.before(in).firstNotNull(prev ->
                 prev.getOpcode() == Opcodes.GETFIELD && prev instanceof FieldInsnNode fi && dyeRef.equals(fi.desc)
                     ? fi.name : null);
@@ -819,7 +819,7 @@ final class EntityOverlayResolver {
             for (MethodNode method : cn.methods) {
                 if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
                 Boolean bound = AsmWalker.over(method)
-                    .latch(in -> AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR,
+                    .latch(in -> AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR,
                         VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR) ? Boolean.TRUE : null)
                     .commitAt(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTFIELD)
                     .firstNotNull(commit -> fieldName.equals(commit.node().name) && commit.value() != null
@@ -841,7 +841,7 @@ final class EntityOverlayResolver {
         MethodNode init = AsmKit.findMethod(stateClass, AsmKit.INIT);
         if (init == null) return null;
         return AsmWalker.over(init)
-            .latch(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR)
+            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR)
                 ? ((FieldInsnNode) in).name : null)
             .commitAt(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTFIELD
                 && fieldName.equals(fi.name))
@@ -861,7 +861,7 @@ final class EntityOverlayResolver {
             : AsmKit.findMethod(lerper, VanillaSourceClasses.Methods.GET_MODIFIED_COLOR);
         if (method == null) return null;
         AbstractInsnNode compare = AsmWalker.over(method).first(in -> {
-            if (!AsmKit.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR, "WHITE")) return false;
+            if (!AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.DYE_COLOR, "WHITE")) return false;
             AbstractInsnNode branch = AsmWalker.nextReal(in);
             return branch != null && (branch.getOpcode() == Opcodes.IF_ACMPNE || branch.getOpcode() == Opcodes.IF_ACMPEQ);
         });
@@ -1797,7 +1797,7 @@ final class EntityOverlayResolver {
             if (locationSlot < 0 || !identifier) continue;
             int location = locationSlot;
             if (AsmWalker.over(method).any(in -> {
-                if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER)) return false;
+                if (!AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.ENTITY_MODEL_SET, VanillaSourceClasses.Methods.BAKE_LAYER)) return false;
                 AbstractInsnNode prev = AsmWalker.previousReal(in);
                 return prev instanceof VarInsnNode load && prev.getOpcode() == Opcodes.ALOAD && load.var == location;
             })) return true;
@@ -1911,7 +1911,7 @@ final class EntityOverlayResolver {
     private static @Nullable String firstLayerTypeConstant(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods) {
             String constant = AsmWalker.over(method).firstNotNull(in ->
-                AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
+                AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
                     ? ((FieldInsnNode) in).name : null);
             if (constant != null) return constant;
         }

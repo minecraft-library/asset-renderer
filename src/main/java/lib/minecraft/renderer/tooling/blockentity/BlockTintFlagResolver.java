@@ -64,9 +64,9 @@ final class BlockTintFlagResolver {
     private static boolean classCallsTintAccessor(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
             if (AsmWalker.over(method).any(in ->
-                AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)
-                    || AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLORS)
-                    || AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.BANNER_PATTERN, VanillaSourceClasses.Methods.GET_COLOR)
+                AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)
+                    || AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLORS)
+                    || AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.BANNER_PATTERN, VanillaSourceClasses.Methods.GET_COLOR)
                     || (in instanceof MethodInsnNode mi && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.BANNER_PATTERN_LAYERS))))
                 return true;
         return false;

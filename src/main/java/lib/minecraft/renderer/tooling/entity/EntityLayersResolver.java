@@ -155,7 +155,7 @@ final class EntityLayersResolver {
             .getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
             .any()) return true;
         return AsmWalker.before(site.allocation()).limit(16)
-            .first(cursor -> AsmKit.isGetStatic(cursor, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE),
+            .first(cursor -> AsmWalker.isGetStatic(cursor, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE),
                 cursor -> !(cursor.getOpcode() == Opcodes.INVOKEVIRTUAL
                     && cursor instanceof MethodInsnNode mi
                     && VanillaSourceClasses.Methods.ADD_LAYER.equals(mi.name))) != null;

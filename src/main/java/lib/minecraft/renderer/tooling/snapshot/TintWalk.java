@@ -4,6 +4,7 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.LiteralStack;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
@@ -23,7 +24,7 @@ import java.util.Map;
 
 /**
  * Walks {@code BlockColors.createDefault()} and owns the {@code tints} + {@code dropped} nodes.
- * The walk is a self-contained state machine over AsmKit primitives: it tracks the last
+ * The walk is a self-contained state machine over bytecode primitives: it tracks the last
  * {@code BlockTintSources} factory call, the in-hand int literal
  * for {@code constant(...)}, the composed-source ({@code List.of} arity) flag, and the pending
  * {@code GETSTATIC Blocks.X} block ids, committing at each {@code BlockColors.register}
@@ -70,7 +71,7 @@ public final class TintWalk {
         Integer pendingInHand = null;
         boolean multiSource = false;
         List<String> pendingBlocks = new ArrayList<>();
-        AsmKit.LiteralStack intStack = new AsmKit.LiteralStack(4);
+        LiteralStack intStack = new LiteralStack(4);
 
         for (AbstractInsnNode node : createDefault.instructions) {
             Integer literal = AsmWalker.intLiteral(node);
@@ -79,7 +80,7 @@ public final class TintWalk {
                 continue;
             }
 
-            if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS)) {
+            if (AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS)) {
                 String field = ((FieldInsnNode) node).name;
                 BlockRegistryIndex.Entry entry = index.byField(field);
                 if (entry != null) pendingBlocks.add(entry.id());
@@ -100,7 +101,7 @@ public final class TintWalk {
                 }
             }
 
-            if (AsmKit.isInvokeVirtual(node, VanillaSourceClasses.Types.BLOCK_COLORS, VanillaSourceClasses.Methods.REGISTER)) {
+            if (AsmWalker.isInvokeVirtual(node, VanillaSourceClasses.Types.BLOCK_COLORS, VanillaSourceClasses.Methods.REGISTER)) {
                 commit(cache, diagnostics, pendingSource, pendingInHand, multiSource, pendingBlocks, tintRows, droppedRows);
                 pendingSource = null;
                 pendingInHand = null;
@@ -163,7 +164,7 @@ public final class TintWalk {
      * Picks the in-hand constant from the int stack per {@code TINT_CONSTANT_IN_HAND}: keep the
      * factory's argument at that index (the first), discarding the higher-index args on top.
      */
-    private static @NotNull Integer pickInHand(@NotNull AsmKit.LiteralStack stack, int arity) {
+    private static @NotNull Integer pickInHand(@NotNull LiteralStack stack, int arity) {
         int keepIndex = SnapshotShapePolicies.constantInHandArg();
         for (int discard = arity - 1 - keepIndex; discard > 0; discard--) stack.popIntOrZero();
         return stack.popIntOrZero();

@@ -236,7 +236,7 @@ final class EntityGeometryRefResolver {
         String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
         List<String> freshTriples = new ArrayList<>();
         for (AbstractInsnNode in : ctor.instructions) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
+            if (AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
                 && in instanceof FieldInsnNode push
                 && mllRef.equals(push.desc)) {
                 pushes.add(push.name);
@@ -262,7 +262,7 @@ final class EntityGeometryRefResolver {
                     continue;
                 }
             }
-            if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDERER_PROVIDER_CONTEXT, VanillaSourceClasses.Methods.BAKE_LAYER)) continue;
+            if (!AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDERER_PROVIDER_CONTEXT, VanillaSourceClasses.Methods.BAKE_LAYER)) continue;
             AbstractInsnNode next = AsmWalker.nextReal(in);
             if (!(next instanceof MethodInsnNode init) || next.getOpcode() != Opcodes.INVOKESPECIAL
                 || !AsmKit.INIT.equals(init.name) || !isModelClass(init.owner)) continue;
@@ -317,7 +317,7 @@ final class EntityGeometryRefResolver {
         @NotNull List<String> bindings
     ) {
         if (source == null) return null;
-        if (AsmKit.isGetStatic(source, VanillaSourceClasses.Types.MODEL_LAYERS))
+        if (AsmWalker.isGetStatic(source, VanillaSourceClasses.Types.MODEL_LAYERS))
             return ((FieldInsnNode) source).name;
 
         // ALOAD <param>; GETFIELD $Type.model:LModelLayerLocation; - donkey family: map the
@@ -419,7 +419,7 @@ final class EntityGeometryRefResolver {
         if (clinit == null) return Map.of();
 
         return AsmWalker.over(clinit)
-            .latch(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
+            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
                 ? ((FieldInsnNode) in).name : null)
             .commitAt(Insn.putStatic(typeOwner))
             .toMap(put -> put.name, values -> values.isEmpty() ? null : values.getFirst());

@@ -164,7 +164,7 @@ public final class BlockEntityRegistryDiscovery {
 
         Map<String, String> out = new LinkedHashMap<>();
         AsmWalker.over(clinit)
-            .latch(in -> AsmKit.isGetStatic(in, VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE)
+            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE)
                 ? ((FieldInsnNode) in).name : null)
             .commitAt(Insn.ofType(InvokeDynamicInsnNode.class))
             .forEach(commit -> {

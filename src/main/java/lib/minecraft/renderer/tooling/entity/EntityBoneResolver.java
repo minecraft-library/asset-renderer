@@ -210,7 +210,7 @@ final class EntityBoneResolver {
      * store target, or {@code null} when {@code in} is not the canonical write.
      */
     private static @Nullable VisibleWrite matchVisibleWrite(@NotNull AbstractInsnNode in) {
-        if (!AsmKit.isPutField(in, VanillaSourceClasses.Types.MODEL_PART, "visible")) return null;
+        if (!AsmWalker.isPutField(in, VanillaSourceClasses.Types.MODEL_PART, "visible")) return null;
         if (!(in instanceof FieldInsnNode put) || !"Z".equals(put.desc)) return null;
         AbstractInsnNode valueInsn = AsmWalker.previousReal(in);
         if (valueInsn == null) return null;

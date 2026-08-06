@@ -144,7 +144,7 @@ final class PropertyDefinitionResolver {
     private @Nullable FieldRef readStaticPropertyArrayElement(@NotNull String owner, @NotNull String arrayField, int index) {
         FieldInsnNode put = findPutStaticNode(owner, arrayField);
         if (put == null) return null;
-        AbstractInsnNode anewarray = AsmKit.findPreceding(put, n -> n.getOpcode() == Opcodes.ANEWARRAY, op -> true);
+        AbstractInsnNode anewarray = AsmWalker.before(put).real().first(n -> n.getOpcode() == Opcodes.ANEWARRAY);
         if (anewarray == null) return null;
         return AsmWalker.from(anewarray)
             .until(put)
@@ -263,7 +263,7 @@ final class PropertyDefinitionResolver {
         if (value.getOpcode() == Opcodes.GETSTATIC && value instanceof FieldInsnNode src && isPropertyFieldRef(src.desc))
             return resolvePropertyName(src.owner, src.name);                              // redirect
         if (value instanceof MethodInsnNode call && VanillaSourceClasses.Methods.PROPERTY_CREATE.equals(call.name)) {
-            AbstractInsnNode name = AsmKit.findPreceding(call, n -> AsmWalker.stringLiteral(n) != null, op -> true);
+            AbstractInsnNode name = AsmWalker.before(call).real().first(n -> AsmWalker.stringLiteral(n) != null);
             return name == null ? null : AsmWalker.stringLiteral(name);
         }
         return null;

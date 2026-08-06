@@ -150,11 +150,11 @@ final class TintRegistrationResolver {
         for (MethodNode method : node.methods) {
             if (method.instructions == null) continue;
             Block.TintTarget target = AsmWalker.over(method).firstNotNull(in -> {
-                if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_GRASS_COLOR))
+                if (AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_GRASS_COLOR))
                     return Block.TintTarget.GRASS;
-                if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_FOLIAGE_COLOR))
+                if (AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_FOLIAGE_COLOR))
                     return Block.TintTarget.FOLIAGE;
-                if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_DRY_FOLIAGE_COLOR))
+                if (AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_DRY_FOLIAGE_COLOR))
                     return Block.TintTarget.DRY_FOLIAGE;
                 return null;
             });
@@ -179,7 +179,7 @@ final class TintRegistrationResolver {
         // The AGE read is `getValue(AGE); checkcast Integer; intValue; istore <age>`. Bind that
         // local to 0 (the min / freshly-placed default) and evaluate the arithmetic that follows.
         AbstractInsnNode getValue = AsmWalker.over(color).first(in ->
-            AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.BLOCK_STATE, VanillaSourceClasses.Methods.GET_VALUE));
+            AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.BLOCK_STATE, VanillaSourceClasses.Methods.GET_VALUE));
         AbstractInsnNode store = AsmWalker.from(getValue).first(Insn.opcode(Opcodes.ISTORE));
         if (store == null) {
             diagnostics.error("stem source '%s' color body has no AGE istore to bind", innerClass);

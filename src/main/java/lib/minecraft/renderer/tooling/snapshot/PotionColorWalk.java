@@ -4,6 +4,7 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.LiteralStack;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -64,7 +65,7 @@ public final class PotionColorWalk {
 
         String pendingEffectId = null;
         Integer pendingColor = null;
-        AsmKit.LiteralStack intStack = new AsmKit.LiteralStack(8);
+        LiteralStack intStack = new LiteralStack(8);
 
         for (AbstractInsnNode node : clinit.toList()) {
             Integer literal = AsmWalker.intLiteral(node);
@@ -79,7 +80,7 @@ public final class PotionColorWalk {
                 continue;
             }
 
-            if (AsmKit.isNewInstance(node, VanillaSourceClasses.Types.EFFECT_PACKAGE_PREFIX)) {
+            if (AsmWalker.isNewInstance(node, VanillaSourceClasses.Types.EFFECT_PACKAGE_PREFIX)) {
                 intStack.reset();
                 continue;
             }
@@ -94,7 +95,7 @@ public final class PotionColorWalk {
                 continue;
             }
 
-            if (AsmKit.isInvokeStatic(node, VanillaSourceClasses.Types.MOB_EFFECTS, VanillaSourceClasses.Methods.REGISTER)) {
+            if (AsmWalker.isInvokeStatic(node, VanillaSourceClasses.Types.MOB_EFFECTS, VanillaSourceClasses.Methods.REGISTER)) {
                 if (pendingEffectId != null) {
                     if (pendingColor != null)
                         colors.put(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + pendingEffectId, pendingColor);

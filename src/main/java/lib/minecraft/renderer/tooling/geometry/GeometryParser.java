@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.tooling.kernel.LiteralStack;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -700,7 +701,7 @@ public final class GeometryParser {
                      Opcodes.IFLT, Opcodes.IFGE,
                      Opcodes.IFGT, Opcodes.IFLE -> {
                     // Unary int comparison: pops 1 int. Java pipeline pops from
-                    // numStack via {@link AsmKit.LiteralStack#popLiteralNumber} (which
+                    // numStack via {@link LiteralStack#popLiteralNumber} (which
                     // returns null when the popped entry is the non-literal sentinel,
                     // distinguishing "real compile-time literal" from "marker"); legacy
                     // pipeline pops from branchStack (where ILOAD-of-paramIntValues lives,
@@ -2488,7 +2489,7 @@ public final class GeometryParser {
          */
         private static final @NotNull String REF_PARAM_SENTINEL = "\0REF_PARAM";
 
-        final @NotNull AsmKit.LiteralStack numStack = new AsmKit.LiteralStack(NUM_STACK_CAPACITY);
+        final @NotNull LiteralStack numStack = new LiteralStack(NUM_STACK_CAPACITY);
 
         /**
          * Pushed by ILOAD when the slot maps to a paramIntValues entry; consumed by IFEQ / IFNE.
@@ -3016,8 +3017,8 @@ public final class GeometryParser {
     }
 
     /**
-     * Builder-dispatch int pop. Routes through {@link AsmKit.LiteralStack#popIntOrZero}
-     * so the non-literal sentinel (pushed by {@link AsmKit.LiteralStack#pushNonLiteral})
+     * Builder-dispatch int pop. Routes through {@link LiteralStack#popIntOrZero}
+     * so the non-literal sentinel (pushed by {@link LiteralStack#pushNonLiteral})
      * fires the canonical "non-literal argument consumed" WARN tagged with the entity id.
      * Empty stack is silent zero - matches the upstream "accounting boundary" convention.
      *

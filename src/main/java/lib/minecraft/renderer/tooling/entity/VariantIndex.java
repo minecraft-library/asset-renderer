@@ -273,8 +273,8 @@ final class VariantIndex {
 
         // Second pass: which FIELD is bound to DEFAULT.
         String defaultField = AsmWalker.over(clinit)
-            .latch(in -> AsmKit.isGetStatic(in, holderInternal) ? ((FieldInsnNode) in).name : null)
-            .commitAt(FieldInsnNode.class, put -> AsmKit.isPutStatic(put, holderInternal, DEFAULT_FIELD))
+            .latch(in -> AsmWalker.isGetStatic(in, holderInternal) ? ((FieldInsnNode) in).name : null)
+            .commitAt(FieldInsnNode.class, put -> AsmWalker.isPutStatic(put, holderInternal, DEFAULT_FIELD))
             .firstNotNull(commit -> commit.value());
         return defaultField == null ? null : fieldToId.get(defaultField);
     }

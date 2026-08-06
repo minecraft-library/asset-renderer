@@ -30,9 +30,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
- * The raw root of a walk - sources, geometry, fold attachment, trace, and the decode and
- * one-hop statics, alongside the pattern-decode statics (lambda metafactory targets, concat
- * recipes, static-table reads, integer for-loop detection). Every instruction walk is a
+ * The raw root of a walk - sources, geometry, fold attachment, trace, and the decode,
+ * one-hop and instruction-predicate statics, alongside the pattern-decode statics (lambda
+ * metafactory targets, concat recipes, static-table reads, integer for-loop detection). Every instruction walk is a
  * descriptor built here and compiled onto one drive loop by its terminal; narrowing (a match
  * stage, {@code where}, a projection) answers {@link Walk}, on which no fold stage exists, so
  * a stateful cell can never sit downstream of a filter. One-hop neighbour reads
@@ -618,6 +618,225 @@ public final class AsmWalker extends Walk<AbstractInsnNode> {
      */
     public static boolean isPseudoNode(@NotNull AbstractInsnNode node) {
         return node.getOpcode() < 0;
+    }
+
+    // ------------------------------------------------------------------------------------
+    // instruction predicates - expressions, not walks
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Returns {@code true} when {@code node} is a {@link MethodInsnNode} with the given
+     * opcode, owner, and name. Descriptor is ignored - use the descriptor-qualified overload
+     * when overloads matter.
+     *
+     * @param node the instruction to test
+     * @param opcode the expected JVM invoke opcode
+     * @param owner the expected owner's JVM internal name
+     * @param name the expected method name
+     * @return {@code true} when {@code node} matches
+     */
+    public static boolean isInvoke(@NotNull AbstractInsnNode node, int opcode, @NotNull String owner, @NotNull String name) {
+        return node.getOpcode() == opcode
+            && node instanceof MethodInsnNode methodInsn
+            && methodInsn.owner.equals(owner)
+            && methodInsn.name.equals(name);
+    }
+
+    /**
+     * Returns {@code true} when {@code node} is a {@link MethodInsnNode} matching all four
+     * fields (opcode, owner, name, descriptor) exactly.
+     *
+     * @param node the instruction to test
+     * @param opcode the expected JVM invoke opcode
+     * @param owner the expected owner's JVM internal name
+     * @param name the expected method name
+     * @param descriptor the expected method descriptor
+     * @return {@code true} when {@code node} matches
+     */
+    public static boolean isInvoke(@NotNull AbstractInsnNode node, int opcode, @NotNull String owner, @NotNull String name, @NotNull String descriptor) {
+        return node.getOpcode() == opcode
+            && node instanceof MethodInsnNode methodInsn
+            && methodInsn.owner.equals(owner)
+            && methodInsn.name.equals(name)
+            && methodInsn.desc.equals(descriptor);
+    }
+
+    /**
+     * Specialised {@link #isInvoke(AbstractInsnNode, int, String, String) isInvoke} for
+     * {@code INVOKESTATIC}, ignoring descriptor.
+     *
+     * @param node the instruction to test
+     * @param owner the expected owner's JVM internal name
+     * @param name the expected method name
+     * @return {@code true} when {@code node} is the matching static invoke
+     */
+    public static boolean isInvokeStatic(@NotNull AbstractInsnNode node, @NotNull String owner, @NotNull String name) {
+        return isInvoke(node, Opcodes.INVOKESTATIC, owner, name);
+    }
+
+    /**
+     * Descriptor-qualified variant of {@link #isInvokeStatic(AbstractInsnNode, String, String)}.
+     *
+     * @param node the instruction to test
+     * @param owner the expected owner's JVM internal name
+     * @param name the expected method name
+     * @param descriptor the expected method descriptor
+     * @return {@code true} when {@code node} is the matching static invoke
+     */
+    public static boolean isInvokeStatic(@NotNull AbstractInsnNode node, @NotNull String owner, @NotNull String name, @NotNull String descriptor) {
+        return isInvoke(node, Opcodes.INVOKESTATIC, owner, name, descriptor);
+    }
+
+    /**
+     * Specialised {@link #isInvoke(AbstractInsnNode, int, String, String) isInvoke} for
+     * {@code INVOKEVIRTUAL}, ignoring descriptor.
+     *
+     * @param node the instruction to test
+     * @param owner the expected owner's JVM internal name
+     * @param name the expected method name
+     * @return {@code true} when {@code node} is the matching virtual invoke
+     */
+    public static boolean isInvokeVirtual(@NotNull AbstractInsnNode node, @NotNull String owner, @NotNull String name) {
+        return isInvoke(node, Opcodes.INVOKEVIRTUAL, owner, name);
+    }
+
+    /**
+     * Returns {@code true} when local-variable {@code slot} is a parameter of {@code method}
+     * declared with the given reference type - the test that tells a value loaded by
+     * {@code ALOAD slot} apart from a class-local constant. A renderer that takes its layer
+     * type as a constructor parameter reads it this way, so the value has to be recovered from
+     * the construction site rather than from the class itself.
+     *
+     * @param method the method owning the slot
+     * @param slot the local-variable slot an {@code ALOAD} names
+     * @param internalName the expected parameter type's JVM internal name
+     * @return {@code true} when the slot is a parameter of that type
+     */
+    public static boolean isParameterOfType(@NotNull MethodNode method, int slot, @NotNull String internalName) {
+        int current = (method.access & Opcodes.ACC_STATIC) == 0 ? 1 : 0;   // instance methods hold `this` in slot 0
+        for (Type arg : Type.getArgumentTypes(method.desc)) {
+            if (current == slot)
+                return arg.getSort() == Type.OBJECT && arg.getInternalName().equals(internalName);
+            current += arg.getSize();
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} when {@code node} is a {@code GETSTATIC} on the given owner class.
+     * Field name is ignored - use the name-qualified overload to match a specific field.
+     *
+     * @param node the instruction to test
+     * @param owner the expected owner's JVM internal name
+     * @return {@code true} when {@code node} is a GETSTATIC on the given owner
+     */
+    public static boolean isGetStatic(@NotNull AbstractInsnNode node, @NotNull String owner) {
+        return node.getOpcode() == Opcodes.GETSTATIC
+            && node instanceof FieldInsnNode fieldInsn
+            && fieldInsn.owner.equals(owner);
+    }
+
+    /**
+     * Name-qualified variant of {@link #isGetStatic(AbstractInsnNode, String)}.
+     *
+     * @param node the instruction to test
+     * @param owner the expected owner's JVM internal name
+     * @param name the expected field name
+     * @return {@code true} when {@code node} is a matching GETSTATIC
+     */
+    public static boolean isGetStatic(@NotNull AbstractInsnNode node, @NotNull String owner, @NotNull String name) {
+        return node.getOpcode() == Opcodes.GETSTATIC
+            && node instanceof FieldInsnNode fieldInsn
+            && fieldInsn.owner.equals(owner)
+            && fieldInsn.name.equals(name);
+    }
+
+    /**
+     * Returns {@code true} when {@code node} is a {@code PUTSTATIC} on the given owner class.
+     *
+     * @param node the instruction to test
+     * @param owner the expected owner's JVM internal name
+     * @return {@code true} when {@code node} is a PUTSTATIC on the given owner
+     */
+    public static boolean isPutStatic(@NotNull AbstractInsnNode node, @NotNull String owner) {
+        return node.getOpcode() == Opcodes.PUTSTATIC
+            && node instanceof FieldInsnNode fieldInsn
+            && fieldInsn.owner.equals(owner);
+    }
+
+    /**
+     * Name-qualified variant of {@link #isPutStatic(AbstractInsnNode, String)}.
+     *
+     * @param node the instruction to test
+     * @param owner the expected owner's JVM internal name
+     * @param name the expected field name
+     * @return {@code true} when {@code node} is a matching PUTSTATIC
+     */
+    public static boolean isPutStatic(@NotNull AbstractInsnNode node, @NotNull String owner, @NotNull String name) {
+        return node.getOpcode() == Opcodes.PUTSTATIC
+            && node instanceof FieldInsnNode fieldInsn
+            && fieldInsn.owner.equals(owner)
+            && fieldInsn.name.equals(name);
+    }
+
+    /**
+     * Returns {@code true} when {@code node} is a {@code PUTFIELD} on the given owner class
+     * and field name.
+     *
+     * @param node the instruction to test
+     * @param owner the expected owner's JVM internal name
+     * @param name the expected field name
+     * @return {@code true} when {@code node} is a matching PUTFIELD
+     */
+    public static boolean isPutField(@NotNull AbstractInsnNode node, @NotNull String owner, @NotNull String name) {
+        return node.getOpcode() == Opcodes.PUTFIELD
+            && node instanceof FieldInsnNode fieldInsn
+            && fieldInsn.owner.equals(owner)
+            && fieldInsn.name.equals(name);
+    }
+
+    /**
+     * Returns {@code true} when {@code node} is a {@code NEW} whose target type's internal
+     * name starts with {@code internalNamePrefix}. Useful for "any subclass of X" matches
+     * where only the package matters.
+     *
+     * @param node the instruction to test
+     * @param internalNamePrefix the expected target-type internal-name prefix
+     * @return {@code true} when {@code node} is a matching NEW
+     */
+    public static boolean isNewInstance(@NotNull AbstractInsnNode node, @NotNull String internalNamePrefix) {
+        return node.getOpcode() == Opcodes.NEW
+            && node instanceof TypeInsnNode typeInsn
+            && typeInsn.desc.startsWith(internalNamePrefix);
+    }
+
+    /**
+     * Returns {@code true} when {@code opcode} does not fall through to the next instruction
+     * linearly - a conditional or unconditional jump ({@code IFEQ}..{@code IF_ACMPNE},
+     * {@code GOTO}, {@code JSR}, {@code IFNULL}, {@code IFNONNULL}), a switch
+     * ({@code TABLESWITCH}, {@code LOOKUPSWITCH}), or a method exit
+     * ({@code RETURN} / {@code IRETURN} / {@code LRETURN} / {@code FRETURN} / {@code DRETURN} /
+     * {@code ARETURN}, {@code ATHROW}). The exact opcode set a straight-line scan splits on
+     * when it wants to stay inside a single basic block.
+     *
+     * @param opcode the JVM opcode
+     * @return whether the opcode terminates a straight-line region
+     */
+    public static boolean isBranchInsn(int opcode) {
+        if (opcode >= Opcodes.IFEQ && opcode <= Opcodes.IF_ACMPNE) return true;
+        return opcode == Opcodes.GOTO
+            || opcode == Opcodes.JSR
+            || opcode == Opcodes.IFNULL
+            || opcode == Opcodes.IFNONNULL
+            || opcode == Opcodes.TABLESWITCH
+            || opcode == Opcodes.LOOKUPSWITCH
+            || opcode == Opcodes.RETURN
+            || opcode == Opcodes.IRETURN
+            || opcode == Opcodes.LRETURN
+            || opcode == Opcodes.FRETURN
+            || opcode == Opcodes.DRETURN
+            || opcode == Opcodes.ARETURN
+            || opcode == Opcodes.ATHROW;
     }
 
     // ------------------------------------------------------------------------------------
