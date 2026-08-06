@@ -28,16 +28,19 @@ All three must hold:
    and is not announced. The map holds the authoritative answer; `parityPlan` resolves from it and
    never from this paragraph.
 3. **No verdict already exists for this tree state.** `_run/last-verdict.json` - written by
-   `parityCompare`, carrying `asset_sha`, `asset_dirty_digest` and `artifacts[]` - records which
-   bytes were gated. A `cache/` clean re-arms the gate.
+   `parityCompare` into whichever root it ran in - records the tree it measured, what the compare
+   covered and what the compare found. The newest of them answers, over every root directly under
+   `cache/parity/` plus the one root the invocation was itself handed, which need not be one of
+   those; a `cache/` clean re-arms the gate.
 
 Also invoke for: "re-baseline" / "promote the baseline", which enters at the promote step, and "prove
 this is deterministic", which enters at the determinism pre-flight.
 
 The repo-local `PreToolUse` hook covers the same moment from the other side: it fires on
 `git commit`, asks `python scripts/parity plan --gate-exit` the same question, and emits one `ask`
-when the answer is "seen and ungated". It never denies and it fails open. It is an attention
-mechanism, not the gate.
+when the answer is "seen and ungated" and one when the map refuses a changed path no rule covers.
+It never denies and it fails open, so its silence is never evidence. It is an attention mechanism,
+not the gate.
 
 ## What this gate does
 

@@ -71,15 +71,22 @@ KEYS = {
 def _git(repo: Path, *args: str) -> str | None:
     """Run a git command, degrading to None with a warning rather than failing the capture."""
     try:
-        done = subprocess.run(["git", "-C", str(repo), *args],
-                              capture_output=True, text=True, timeout=30)
+        done = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as error:
         sys.stderr.write(f"provenance: git unavailable ({error}); recording null\n")
         return None
     if done.returncode != 0:
         sys.stderr.write(f"provenance: git {' '.join(args)} failed; recording null\n")
         return None
-    return done.stdout.strip()
+    # Decoded as UTF-8 and never through the ambient locale, because `dirty_digest` hashes what a
+    # diff decodes TO: under `PYTHONUTF8=1` a non-ASCII byte in the diff becomes one character and
+    # under a cp1252 default two or three, so one tree answered two digests depending on how the
+    # interpreter was started. The pre-commit hook starts its child with that variable set and every
+    # other caller does not, so the gate compared its own digest against one no run of it could
+    # reproduce and answered "never gated" on any tree whose diff carried an accented letter or a
+    # dash. The text this repository tracks is UTF-8 and git renders a binary difference as a
+    # sentence rather than as bytes, so the replacement arm is a degradation and not a path taken.
+    return done.stdout.decode("utf-8", "replace").strip()
 
 
 def asset_state(repo: Path) -> dict:

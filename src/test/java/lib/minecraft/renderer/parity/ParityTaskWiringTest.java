@@ -198,6 +198,21 @@ final class ParityTaskWiringTest {
         STALE_REFERENCES_CONDITION,
         "| SEES empty, and one of the fired rules declares `sees: []` |");
 
+    /** The edge that puts this build's two cheap gates on a default verification run. */
+    private static final String CHECK_SCHEDULES_THE_CHEAP_GATES =
+        "named(\"check\") { dependsOn(\"paritySelfTest\", \"harnessClasses\") }";
+
+    /** That edge's operand list, for reading back which tasks it actually names. */
+    private static final Pattern CHECK_SCHEDULES =
+        Pattern.compile("named\\(\"check\"\\) \\{ dependsOn\\(([^)]*)\\) \\}");
+
+    /** The argv the harness gate hands its own wrapper, captured whole. */
+    private static final Pattern HARNESS_COMMAND_LINE = Pattern.compile(
+        "(?s)register<Exec>\\(\"harnessClasses\"\\) \\{.*?commandLine = buildList \\{(.*?)\n {8}}");
+
+    /** One operand of it, read as written: a quoted literal with its quotes, an expression bare. */
+    private static final Pattern ADDED_OPERAND = Pattern.compile("add\\((.+?)\\)");
+
     /** The one value the task registry reaches this suite as: read after configuration, forwarded. */
     private static final String FORWARDS_THE_REGISTRY =
         "val parityTaskNames = provider { tasks.names.joinToString(\",\") } "
@@ -253,7 +268,7 @@ final class ParityTaskWiringTest {
         assertThat("every refusal goes through it: read off the tokens instead, a task named after "
                 + "a boolean task option is one the predicate misses, and the refusal it was "
                 + "guarding is skipped on an invocation that goes on to run that very task",
-            occurrences(collapsed(build), "refuseWhenScheduled {"), is(equalTo(2)));
+            occurrences(collapsed(build), "refuseWhenScheduled {"), is(equalTo(3)));
         assertThat("and the promotion's own condition, which the count above cannot reach - a "
                 + "count of SITES says nothing about what either one tests. The default is read "
                 + "here too, because an absent -Preason is only empty while it falls back to the "
@@ -263,6 +278,19 @@ final class ParityTaskWiringTest {
             collapsed(taskBlock("parityPromote")),
             containsString("val reason = parityProperty(\"reason\") ?: \"\" "
                 + "refuseWhenScheduled { if (reason.isEmpty()) throw GradleException("));
+        assertThat("and the capture's refusal of the configuration cache, whose operand is read here "
+                + "with it: a local spelled `configurationCache` says nothing about what it was "
+                + "bound to, and the count above cannot tell three refusals apart from one written "
+                + "three times. A reused configuration replays one stored set of -Dasset.* into both "
+                + "the producers' forks and the capture's own record of what it measured under, "
+                + "since both are read while the build is configured, so the flags typed on that run "
+                + "reach neither and the record agrees with the fork - and what a dropped or "
+                + "inverted condition leaves behind is a well-formed, promotable capture with "
+                + "nothing in it to notice",
+            collapsed(taskBlock("parityCapture")),
+            containsString("val configurationCache = project.serviceOf<BuildFeatures>()"
+                + ".configurationCache refuseWhenScheduled { "
+                + "if (configurationCache.requested.getOrElse(false)) throw GradleException("));
         assertThat("and the token predicate keeps its one wiring caller and no second: its "
                 + "declaration plus the up-to-date rule, which is the only thing an over-answer "
                 + "leaves inert. A second call site is the predicate back on work that costs "
@@ -481,6 +509,55 @@ final class ParityTaskWiringTest {
      */
     private static String tableRow(String skill, String condition) {
         return skill.lines().filter(line -> line.startsWith(condition)).findFirst().orElse("");
+    }
+
+    @Test
+    @DisplayName("a verification run schedules both cheap gates the fast suite does not reach")
+    void checkSchedulesTheGatesNothingElseSchedules() {
+        String build = collapsed(buildFile());
+
+        assertThat("the edge WHOLE, both operands included. Without it `check` reached `test` and "
+                + "nothing else: the toolkit's own suite ran only when a parity task pulled it in - "
+                + "the very run the toolkit is being trusted to compute - and the harness, a "
+                + "separate Gradle build, was compiled by nothing in this one, so an edit to it that "
+                + "does not compile waited for a client boot. Each is one line and each was written "
+                + "as one, so what a deletion leaves behind is a suite that stays green over the "
+                + "hole it opened",
+            build, containsString(CHECK_SCHEDULES_THE_CHEAP_GATES));
+
+        Set<String> scheduled = new TreeSet<>();
+        Matcher operands = QUOTED.matcher(declared(build, CHECK_SCHEDULES.pattern()));
+        while (operands.find()) scheduled.add(operands.group(1));
+
+        assertThat("the edge names no task at all, which the containment above stops seeing the "
+            + "moment its own literal is what moved", scheduled, is(not(empty())));
+        assertThat("and every name on it is one this build registers, read off the edge rather than "
+                + "typed beside it. A gate renamed at its registration and not here fails when the "
+                + "task graph is resolved, which is on the verification run this edge exists to put "
+                + "it on - so the failure arrives exactly where the guard was supposed to have "
+                + "spoken first",
+            registeredTaskNames().containsAll(scheduled), is(true));
+    }
+
+    @Test
+    @DisplayName("the harness gate asks the wrapper for the source set the harness keeps its code in")
+    void theHarnessGateAsksForTheSourceSetThatHoldsTheSources() {
+        List<String> operands = new ArrayList<>();
+        Matcher added = ADDED_OPERAND.matcher(declared(buildFile(), HARNESS_COMMAND_LINE.pattern()));
+        while (added.find()) operands.add(added.group(1));
+
+        assertThat("the wrapper's whole argv, in order and as written, because `clientClasses` is "
+                + "the operand that compiles anything at all: Loom's splitEnvironmentSourceSets() "
+                + "puts every harness java file in the CLIENT source set, so `classes` alone "
+                + "reports :compileJava NO-SOURCE and this gate reports success in seconds over a "
+                + "harness that does not compile - the exact state it was added to end, and one "
+                + "nothing else in either build notices before a client boot. The rest are read "
+                + "with it because each is a decision a reader would otherwise re-derive: `cmd /c` "
+                + "is what makes a .bat wrapper executable, `gradlew` - bare, the resolved path to "
+                + "the harness's own wrapper rather than a literal - is the thing those two run, "
+                + "and `--no-daemon` is what stops a second toolchain's daemon outliving the run",
+            operands, is(equalTo(List.of("\"cmd\"", "\"/c\"", "gradlew", "\"classes\"",
+                "\"clientClasses\"", "\"--no-daemon\""))));
     }
 
     @Test

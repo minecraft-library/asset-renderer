@@ -1,4 +1,5 @@
 import org.gradle.api.DefaultTask
+import org.gradle.api.configuration.BuildFeatures
 import org.gradle.api.file.FileSystemOperations
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
@@ -1520,6 +1521,36 @@ tasks {
         outputs.upToDateWhen { false }
     }
 
+    register<Exec>("harnessClasses") {
+        description = "Compiles the vanilla-reference-harness through its own wrapper. The cheap gate on a harness edit: nothing else in this build compiles those sources, so a mistake in them otherwise surfaces at the next client boot."
+        group = "verification"
+        workingDir = harnessDir.asFile
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val gradlew = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
+        // Both source sets, and `clientClasses` is the load-bearing one: Loom's
+        // splitEnvironmentSourceSets() puts every harness java file in the CLIENT set, so `classes`
+        // alone reports :compileJava NO-SOURCE and succeeds over sources it never read. `classes`
+        // stays beside it so a first file under src/main/java is compiled the day it lands.
+        commandLine = buildList {
+            if (isWindows) { add("cmd"); add("/c") }
+            add(gradlew)
+            add("classes")
+            add("clientClasses")
+            // As the reference renders are launched, for the same reason: the harness is a separate
+            // build with its own toolchain, and this must not leave a second daemon behind it.
+            add("--no-daemon")
+        }
+    }
+
+    // The one edge that puts both of this build's cheap gates on a verification run; `test` reaches
+    // neither. `paritySelfTest` is the toolkit's own suite, and every parity task depends on it - so
+    // a break was caught, but not before the next gate, which is the very run the toolkit is being
+    // trusted to compute, and the reach map answers a toolkit change with an empty sees and names
+    // this task as the gate instead. `harnessClasses` is the only task here that compiles the
+    // harness at all, and off this edge it runs only when it is asked for by name, so a harness edit
+    // that does not compile waits minutes for a client boot rather than the seconds this costs.
+    named("check") { dependsOn("paritySelfTest", "harnessClasses") }
+
     register<Exec>(parityCaptureBeginTask) {
         // No group: it is parityCapture's first act rather than an entry point. It exists as a task
         // rather than as something each capture step does, because the erase has to happen ONCE per
@@ -1594,6 +1625,26 @@ tasks {
         dependsOn("paritySelfTest")
         dependsOn(parityCaptureBeginTask)
         requireParityRootUnderCache()
+        // A capture is refused under the configuration cache, and this is the one task that refuses
+        // it. Every -Dasset.* is read at CONFIGURATION time twice over - once by the forwarder that
+        // puts it on each producer's fork, once by the capture step that stamps it as the conditions
+        // its numbers were taken under - and both reads walk the same daemon properties, so a reused
+        // configuration replays one stored set into both halves at once. The flags typed on the
+        // reusing run reach neither, and because the stamp then agrees with the fork there is
+        // nothing in the capture to notice: what is left behind is well-formed, promotable, and a
+        // record of a run nobody asked for. Raised off the resolved graph, so an ordinary
+        // --configuration-cache build of anything else is untouched.
+        val configurationCache = project.serviceOf<BuildFeatures>().configurationCache
+        refuseWhenScheduled {
+            if (configurationCache.requested.getOrElse(false))
+                throw GradleException(
+                    "parityCapture refuses --configuration-cache: every -Dasset.* is read at " +
+                        "configuration time, once onto each producer's fork and once onto the " +
+                        "capture's own record of the conditions it measured under, so a reused " +
+                        "configuration replays the stored set into both and the flags you type " +
+                        "reach neither. The record then agrees with the fork and nothing says " +
+                        "otherwise. Re-run without it.")
+        }
         pythonExe.set(parityPythonExe)
         val runs = parityProperty("runs")
         argv.set(buildList {

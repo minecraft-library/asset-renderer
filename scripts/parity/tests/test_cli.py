@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -1363,20 +1364,37 @@ class GateExit(unittest.TestCase):
         subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
                         "commit", "-qm", "seed"], cwd=self.repo, check=True)
 
-    def _plan(self, *changed: str) -> int:
-        argv = ["--repo-root", str(self.repo), "--root", "cache/parity/current",
+    #: A whole second on the clock a stamp is read off, for the cases whose subject is ordering.
+    #: Both sides are stamped rather than written in sequence, because two consecutive writes here
+    #: land on ONE ``st_mtime_ns`` - which is what makes the tiebreak beside the stamp load-bearing.
+    SECOND = 1_800_000_000_000_000_000
+
+    def _plan(self, *changed: str, root: str = "cache/parity/current") -> int:
+        argv = ["--repo-root", str(self.repo), "--root", root,
                 "--store", str(self.store), "--quiet", "plan", "--gate-exit"]
         for path in changed:
             argv += ["--changed", path]
         return run(argv)[0]
 
-    def _record_verdict(self, artifacts: list[str], **overrides) -> None:
+    def _record_verdict(self, artifacts: list[str], root: str = "cache/parity/current",
+                        at_ns: int | None = None, **overrides) -> None:
+        """Write a verdict into one working root.
+
+        :param artifacts: what the compare covered
+        :param root: the working root it landed in, relative to the repo - the promotion procedure's
+            own variable, and not always the one the gate was invoked with
+        :param at_ns: the mtime to stamp, in nanoseconds, for a case whose subject is which of two
+            verdicts is newer; absent, the write's own time stands
+        :param overrides: verdict fields to replace
+        """
         payload = {"artifacts": artifacts,
                    "asset_dirty_digest": provenance.dirty_digest(self.repo),
                    "asset_sha": provenance.asset_state(self.repo)["asset_sha"]}
         payload.update(overrides)
-        write_json(self.repo / "cache" / "parity" / "current" / store.RUN_DIR
-                   / "last-verdict.json", payload)
+        target = self.repo / root / store.RUN_DIR / "last-verdict.json"
+        write_json(target, payload)
+        if at_ns is not None:
+            os.utime(target, ns=(at_ns, at_ns))
 
     def test_0_when_nothing_sees_the_change(self):
         self.assertEqual(self._plan("docs/readme.md"), cli.OK)
@@ -1461,6 +1479,103 @@ class GateExit(unittest.TestCase):
 
     def test_20_when_the_verdict_recorded_a_compare_that_passed(self):
         self._record_verdict(["sweep.entity"], unexpected=0, missing_baseline=[])
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def test_20_when_the_verdict_was_written_into_a_root_this_invocation_was_not_given(self):
+        """A verdict names a TREE STATE, so the root its capture went into does not own it.
+
+        Read out of the given root alone, it was read out of the default one - and the promotion
+        procedure's compare carries `-PparityRoot=cache/parity/b`, so the hardest-gated commit in
+        the corpus is the one shape that answered "never gated".
+        """
+        self._record_verdict(["sweep.entity"], root="cache/parity/b")
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def test_20_when_the_only_verdict_is_in_the_root_this_invocation_named_and_no_other(self):
+        """A working root is any relative path under `cache/`, so the given one need not be scanned.
+
+        The scan is over `cache/parity/*` and this root is outside it, which leaves the root the
+        invocation was actually handed as the only place the verdict can be found. Dropped from the
+        candidates, a toolkit run pointed anywhere else answers "never gated" about its own compare.
+        """
+        self._record_verdict(["sweep.entity"], root="cache/scratch")
+        self.assertEqual(self._plan("src/Main.java", root="cache/scratch"),
+                         cli.GATE_ALREADY_GATED)
+
+    def test_10_when_the_newest_verdict_across_the_roots_is_the_failing_one(self):
+        """Newest wins, not any-that-passes: a red compare after a green one is the state to report."""
+        self._record_verdict(["sweep.entity"], root="cache/parity/b", at_ns=self.SECOND)
+        self._record_verdict(["sweep.entity"], root="cache/parity/current",
+                             at_ns=self.SECOND + 1_000_000_000, unexpected=1)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_20_when_the_newest_verdict_across_the_roots_is_the_passing_one(self):
+        """And the same ordering the other way round, which no per-root reading answers.
+
+        The failing verdict is in the root the invocation was given and the passing one is not, so a
+        rule preferring the given root, or the first root found, answers 10 here.
+        """
+        self._record_verdict(["sweep.entity"], root="cache/parity/current", at_ns=self.SECOND,
+                             unexpected=1)
+        self._record_verdict(["sweep.entity"], root="cache/parity/b",
+                             at_ns=self.SECOND + 1_000_000_000)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def test_20_when_one_of_two_verdicts_stamped_alike_is_the_greater_path(self):
+        """Two verdicts on one stamp are ordered by path, and WHICH one that picks is pinned here.
+
+        Two consecutive writes on this filesystem land on one `st_mtime_ns`, so an equal-stamp pair
+        is the ordinary case rather than the exotic one. Which of them wins is arbitrary; that the
+        stamp is not the whole key is not. The candidates are enumerated in path order, so a key
+        that leaves this pair equal answers with the LESSER path - the failing verdict below - and
+        the gate reports 10 over a tree the compare that came after it passed.
+        """
+        self._record_verdict(["sweep.entity"], root="cache/parity/a", at_ns=self.SECOND,
+                             unexpected=1)
+        self._record_verdict(["sweep.entity"], root="cache/parity/current", at_ns=self.SECOND)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def test_20_when_the_newer_verdict_is_newer_by_less_than_a_stamp_read_in_seconds(self):
+        """The stamp is read in NANOSECONDS, and the pair below is what that buys.
+
+        These two are 100 ns apart - one tick of the filesystem's own clock, and less than the
+        spacing of the floats a seconds-valued stamp lands on at this magnitude, so read that way
+        they are equal and the tiebreak answers with the older one instead.
+        """
+        self._record_verdict(["sweep.entity"], root="cache/parity/a", at_ns=self.SECOND + 100)
+        self._record_verdict(["sweep.entity"], root="cache/parity/current", at_ns=self.SECOND,
+                             unexpected=1)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def _capture(self, root: str) -> Path:
+        """One stamped artifact in a working root, which is what a real compare needs on each side.
+
+        :param root: the working root, relative to the repo
+        :return: its absolute path
+        """
+        path = self.repo / root
+        write_json(path / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table", "provenance": {"determinism_runs": 2},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "1.0000"}]})
+        capture.index(path)
+        return path
+
+    def test_20_when_the_compare_that_covered_this_tree_put_a_capture_on_the_other_side(self):
+        """An A/B is a gating, and for one whole change class it is the only gate there is.
+
+        The stash A/B and the tooling-regen A/B both compare this tree against a capture rather than
+        against the store, and a generator refactor has nothing else: every sweep reads the SHIPPED
+        tables, which a refactor does not regenerate. Counted as a measurement instead, the hook
+        prompts on every commit of that class and its silence stops meaning anything there. Driven
+        through a real compare rather than a hand-written verdict, because what is being pinned is
+        that the two invocation shapes reach the same answer.
+        """
+        self._capture("cache/parity/current")
+        other = self._capture("cache/parity/a")
+        self.assertEqual(run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                              "--store", str(self.store), "--format", "json",
+                              "compare", "--base", str(other)])[0], cli.OK)
         self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
 
     def test_the_flag_is_opt_in_so_parityPlan_still_exits_zero(self):

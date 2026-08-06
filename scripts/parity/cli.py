@@ -391,11 +391,13 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     run = root.root / store_mod.RUN_DIR
     write_json(run / compare_mod.REPORT, payload)
     write_text(run / "compare.md", report_mod.render_diff(payload))
-    # The three fields that name a TREE STATE, plus what the compare covered. `plan --gate-exit`
-    # reads them to answer "has this exact tree already been gated"; nothing else does. It is written
-    # into the working root and never into the store, because a compare is a measurement (I-7) - so a
-    # `cache/` clean re-arms the gate, which is the correct degradation: the evidence for "already
-    # gated" is cache, and losing it costs one re-run rather than a wrong answer.
+    # What a compare has to say about the tree it just measured: the fields that name that TREE
+    # STATE, what the compare covered, and what it found. `plan --gate-exit` reads them to answer
+    # "has this exact tree already been gated"; nothing else does, and nothing is written here that
+    # it does not read. It is written into the working root and never into the store, because a
+    # compare is a measurement (I-7) - so a `cache/` clean re-arms the gate, which is the correct
+    # degradation: the evidence for "already gated" is cache, and losing it costs one re-run rather
+    # than a wrong answer.
     write_json(run / "last-verdict.json", {
         "artifacts": [result.artifact for result in results],
         "asset_dirty_digest": provenance_mod.dirty_digest(_bases(args)),
@@ -768,6 +770,19 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     baseline for something it was asked about, is a failure this tree carries rather than a gating
     of it.
 
+    **The verdict is read globally over the working roots**, which ``_newest_verdict`` decides.
+
+    **Every compare counts, a ``--base`` one included.** The stash A/B and the tooling-regen A/B put
+    a capture on the other side rather than the store, and both are gatings in their own right - for
+    a generator refactor the tooling-regen A/B is the only gate there is, every sweep being blind to
+    it by construction. What that admits is the determinism pre-flight, whose two roots are captures
+    of ONE tree and which therefore establishes reproducibility rather than neutrality: run on the
+    tree being committed, over artifacts covering the whole plan, it reads here as a gating. Nothing
+    a compare records tells the two apart - a capture's provenance names the commit and whether the
+    tree was dirty, never which edit was in it - so this is a stated hole rather than a decision. It
+    is bounded on both sides: the pre-flight is a precondition taken before the work, and both A/B
+    flows end in the commit this gate is for.
+
     **It is opt-in, and that is not a style choice.** ``parityPlan`` is a Gradle ``Exec``, so a
     non-zero exit fails the build - a plan that answered 10 whenever reach was non-empty would fail
     the build on every real change, which is the opposite of what a plan is for. The flag is what
@@ -783,8 +798,8 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     """
     if not reach.sees:
         return OK
-    verdict = root / store_mod.RUN_DIR / "last-verdict.json"
-    if not verdict.is_file():
+    verdict = _newest_verdict(base, root)
+    if verdict is None:
         return GATE_SEES_UNGATED
     try:
         recorded = read_json(verdict)
@@ -814,6 +829,45 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     if int(recorded.get("unexpected") or 0) > 0 or recorded.get("missing_baseline"):
         return GATE_SEES_UNGATED
     return GATE_ALREADY_GATED
+
+
+def _newest_verdict(base: Path, root: Path) -> Path | None:
+    """The most recent compare verdict, over the roots searched rather than out of one.
+
+    **A verdict names a tree state and what a compare covered, and neither is a property of the root
+    the capture went into.** Read out of one root, it was read out of the default one - which the
+    promotion procedure does not use: its compare carries ``-PparityRoot=cache/parity/b``, as the
+    determinism pre-flight's does, so a promotion left its verdict where nothing looked and the gate
+    answered "never gated" on the commit that was gated hardest. Every directory **directly** under
+    ``cache/parity/`` is therefore searched, and the root this invocation was given is searched
+    beside them - a working root is any relative path under ``cache/``, so it need not be one of
+    them, and a nested one such as ``cache/parity/x/y`` is reached only by being the root given.
+
+    The newest wins, over candidates enumerated in path order, by ``st_mtime_ns`` and then by the
+    greater path. The stamp alone does not order them: two writes here can land on one
+    ``st_mtime_ns``, and a pair a key leaves equal is answered by whichever the enumeration yielded
+    first. With the path beside it the key is a total order, so the answer is a function of which
+    roots hold a verdict and of nothing else. Two verdicts about one tree are two compares of it and
+    the later one is the one that stands - a red compare after a green one is the state to report,
+    and taking any matching verdict instead would let the green one it superseded answer for it.
+
+    :param base: the repo root
+    :param root: the working root this invocation was given
+    :return: the verdict file, or None when nothing searched holds one
+    """
+    candidates = {root / store_mod.RUN_DIR / "last-verdict.json"}
+    candidates.update((base / store_mod.WORKING).parent
+                      .glob(f"*/{store_mod.RUN_DIR}/last-verdict.json"))
+    # Enumerated in path order rather than in a set's own: `PurePath.__hash__` hashes the case-folded
+    # string, str hashing is seed-randomized per process, and a two-element set therefore hands its
+    # members over in an order that differs between two runs over one tree. The key below orders any
+    # two distinct paths on its own and so cannot see this - what it buys is that a reading of that
+    # key which does NOT order some pair still answers the same thing twice, rather than flapping in
+    # the one place where two answers over one tree is the whole failure being designed out.
+    found = sorted(path for path in candidates if path.is_file())
+    if not found:
+        return None
+    return max(found, key=lambda path: (path.stat().st_mtime_ns, str(path)))
 
 
 def _changed_from_git(base: Path) -> list[str]:

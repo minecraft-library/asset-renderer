@@ -20,6 +20,12 @@ Gate questions go through the `parity-gate` skill, `.claude/skills/parity-gate/S
 `./gradlew test` is the fast suite, excluding `@Tag("slow")`. `./gradlew slowTest` hits the network
 and the filesystem cache and is never up-to-date-cached.
 
+`./gradlew check` is `test` plus two gates `test` does not reach: `paritySelfTest`, the parity
+toolkit's own suite, which otherwise runs only when a parity task pulls it in, and `harnessClasses`,
+which compiles the harness through its own wrapper and otherwise runs only when it is asked for by
+name. The harness is a separate Gradle build, so `test` passes over one that does not compile and
+the next thing that would catch it is a client boot; the two gates together cost seconds.
+
 **Gate once per phase, immediately before the commit, and never re-baseline.** The `parity-gate`
 skill runs it: `parityPlan` names what the change reaches and what is blind to it, `parityCapture`
 writes a capture, `parityCompare` reports movers, `parityPromote` makes a capture the baseline.

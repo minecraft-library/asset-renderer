@@ -3,7 +3,7 @@
 Generated from `index.json`. **Do not edit** - regenerate with:
 
 ```
-./gradlew test --tests "*ParityViewsTest" -Dasset.parity.regenerateViews=true
+./gradlew test --tests "*ParityViewsTest" -Dasset.parity.regenerateViews=true --rerun
 ```
 
 Every artifact this store knows about is below. An artifact that is not `baselined`

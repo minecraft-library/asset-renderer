@@ -5,7 +5,10 @@ from __future__ import annotations
 import contextlib
 import inspect
 import io
+import os
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +18,16 @@ from parity.norm import (canonical_json, read_json, sha256_file, sha256_text, wr
                          write_text)
 
 REPO = Path(__file__).resolve().parents[3]
+
+#: Where `parity` is importable from, for a case whose subject is a fresh interpreter's environment.
+TOOLKIT = Path(__file__).resolve().parents[2]
+
+#: An edit for the cases whose subject is how git's bytes are decoded. Both characters are outside
+#: ASCII and their UTF-8 bytes are one character each under UTF-8 and two and three under a cp1252
+#: default, so a diff carrying them differs in LENGTH between the two readings and not only in what
+#: it spells. The ellipsis is the character that put this in front of the gate: it is the one the
+#: pre-commit hook truncates its own prompt with.
+ACCENTED = "café …"
 
 #: The live reference tree, or None on a checkout that has never rendered one.
 REFERENCE_TREE = next((root for root in [provenance.reference_root(REPO)]
@@ -203,6 +216,64 @@ class DirtyDigest(unittest.TestCase):
         """None is 'git could not be asked'; the empty digest is 'nothing is uncommitted'. A caller
         that conflated them would read an unreadable git as a clean tree."""
         self.assertIsNone(provenance.dirty_digest(Path(tempfile.mkdtemp())))
+
+    def _edited_tree(self) -> Path:
+        """A one-commit repo carrying a non-ASCII uncommitted edit, which is what makes a codec show.
+
+        :return: the repo's path
+        """
+        edited = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q"], cwd=edited, check=True)
+        write_text(edited / "seed.txt", "plain\n")
+        subprocess.run(["git", "add", "-A"], cwd=edited, check=True)
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "s"],
+                       cwd=edited, check=True)
+        write_text(edited / "seed.txt", f"{ACCENTED}\n")
+        return edited
+
+    def test_git_output_is_decoded_as_utf8_and_not_through_whatever_codec_is_ambient(self):
+        """WHICH codec, which the stability case below cannot see.
+
+        Two readings that both ignore the environment agree with each other whatever they decode
+        to, so a stable wrong codec satisfies that case exactly as well as the right one: cp1252
+        written in here answers one digest per tree just as faithfully. What separates them is what
+        the bytes decode TO. The text this repository tracks is UTF-8 and git hands a diff over as
+        bytes, so any other reading digests a string that exists nowhere but in the reader.
+        """
+        diff = provenance._git(self._edited_tree(), "diff", "HEAD")
+        self.assertIn(ACCENTED, diff)
+
+    def test_a_value_carries_none_of_the_newline_git_ends_its_output_with(self):
+        """Nothing downstream strips one, so a stray newline would ride into every stored value.
+
+        `asset_sha` is written into a capture's provenance as it comes back and compared for equality
+        against another capture's, and a promotion refuses on that comparison. Asserted by shape
+        rather than against a second call, which would carry the same newline and agree.
+        """
+        sha = provenance._git(self._edited_tree(), "rev-parse", "HEAD")
+        self.assertRegex(sha, r"\A[0-9a-f]{40}\Z")
+
+    def test_it_is_stable_across_the_encoding_the_interpreter_was_started_with(self):
+        """One tree, one digest, whatever `PYTHONUTF8` was when the process started.
+
+        The digest is over what a diff DECODES to, so reading git's bytes through the ambient locale
+        makes it a function of the caller's environment: a non-ASCII byte is one character under
+        UTF-8 mode and two or three under a cp1252 default. The pre-commit hook starts its child
+        with that variable set and nothing else does, so the two never agreed on a tree whose diff
+        carried an accented letter - and 'already gated' is decided by comparing exactly these.
+        """
+        edited = self._edited_tree()
+        answers = set()
+        for mode in ("0", "1"):
+            done = subprocess.run(
+                [sys.executable, "-c",
+                 "import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); "
+                 "from parity import provenance; print(provenance.dirty_digest(Path(sys.argv[2])))",
+                 str(TOOLKIT), str(edited)],
+                capture_output=True, text=True, env={**os.environ, "PYTHONUTF8": mode})
+            self.assertEqual(done.returncode, 0, done.stderr)
+            answers.add(done.stdout.strip())
+        self.assertEqual(len(answers), 1, answers)
 
 
 class ReferenceManifestDigest(unittest.TestCase):

@@ -32,7 +32,28 @@ The toolkit raises 5 for all four, which is what a hand `python scripts/parity .
 
 `plan --gate-exit` answers on a different scale and is not part of this table: `0` nothing sees the
 change, `10` seen and ungated, `20` already gated for this tree. All three mean the command
-succeeded. It is opt-in because `parityPlan` is a Gradle `Exec` and must always exit 0.
+succeeded. It is opt-in because `parityPlan` is a Gradle `Exec` and must always exit 0. A changed
+path no rule covers still refuses with `5` from the table above, before any of the three is reached,
+and the pre-commit hook prompts on that as well as on `10` - the map admitting it cannot answer is
+the one case the hook exists to notice.
+
+**The verdict `20` is read from is global over the roots, not per-root.** `parityCompare` writes
+`_run/last-verdict.json` into whichever root it was given, and the gate reads the newest one under
+`cache/parity/*` plus the root it was itself handed, by mtime and then by the greater path where two
+land on one stamp. A verdict names a tree state and what
+a compare covered, and neither is a property of the root a capture went into - read out of the
+default root alone, the promotion below left its verdict where nothing looked, its compare carrying
+`-PparityRoot=cache/parity/b` as the determinism pre-flight's does. Newest and not any-that-passes:
+a red compare taken after a green one is the state to report.
+
+**Every compare counts, a `-Pbase=` one included.** Both A/B flows below compare this tree against a
+capture rather than against the store, and both are gatings - for a generator refactor the
+tooling-regen A/B is the only gate there is. The one shape that slips through with them is the
+determinism pre-flight: its two roots are captures of *one* tree, so it establishes that a producer
+repeats itself and nothing about whether this change moved anything. Run on the tree being committed
+and covering the whole plan, it reads as a gating here. Nothing a compare records separates the two
+- a capture's provenance names the commit and whether the tree was dirty, never which edit was in it
+- so **do not treat the pre-flight as the gate**: it is a precondition, taken before the work.
 
 ## The stash A/B
 
@@ -174,18 +195,64 @@ time.
   markdown files render from it. `--rerun` is required or the task reports success and writes
   nothing.
 
+## Compiling the harness
+
+```bash
+./gradlew harnessClasses          # both source sets, through the harness's own wrapper
+```
+
+The harness is a separate Gradle build, so `./gradlew test` and `paritySelfTest` both pass over a
+harness that does not compile. This is the cheap gate on that; the expensive one is a client boot.
+`./gradlew check` depends on it, so a verification run already covers it - run it on its own before
+a `renderVanilla*` task, which does not.
+
+`clientClasses` is the load-bearing half and the task runs both: Loom's
+`splitEnvironmentSourceSets()` puts every harness java file in the **client** source set, so a bare
+`classes` reports `:compileJava NO-SOURCE` and succeeds over sources it never read.
+
 ## Exercising the pre-commit hook
 
 The hook has no automated test in this repo. Its cases are exercised by feeding it a `PreToolUse`
 payload on stdin; it prints the `ask` JSON or nothing, and always exits 0.
 
 ```bash
+# <repo> is this repo's own path written with FORWARD slashes - W:/Workspace/.../asset-renderer
 printf '{"tool_name":"Bash","cwd":"<repo>","tool_input":{"command":"git commit -m x"}}' \
+  | node .claude/hooks/parity-gate-precommit.js
+printf '{"tool_name":"Bash","tool_input":{"command":"git add -A"}}' \
   | node .claude/hooks/parity-gate-precommit.js
 ```
 
-Expected: `ask` for `git commit`, `git -C . commit` and `git add -A && git commit`; silence for
-`git add`, for a cwd outside the repo, for a command that merely mentions the words, for a tree whose
-SEES set is empty, and for every failure mode - no interpreter, a bogus interpreter, garbage on
-stdin, a timeout. **Silence is the failure mode as well as a verdict**, so a hook that has quietly
-stopped working looks exactly like a clean tree; re-run the block above after touching it.
+The second is the negative control: it must be silent whatever the tree, so a prompt on the first is
+attributable to the commit rather than to a hook that answers every payload. It cannot rescue the
+other direction - two silences are also what a crashed hook prints. **Silence is the failure mode as
+well as a verdict**, so the run worth trusting is one where the first prompts; take it on a tree that
+reaches something, and run both after touching the hook.
+
+**Forward slashes in `cwd`, and it is not a style preference.** `printf` reads the `\a` of a Windows
+backslash path as BEL and single backslashes are illegal JSON escapes either way, so `JSON.parse`
+throws and the hook returns silently - the same observable as a working hook on a clean tree.
+Omitting the field, as the second line does, also works: the hook defaults it to its own repo.
+
+`tool_name` decides which payloads the hook answers at all, and the two it answers are `Bash` and
+`PowerShell` - the same pair the matcher in `settings.json` registers. A payload naming neither is
+dropped; one naming no tool, as a hand-written fixture may, is decided on its command alone.
+
+Which of the four answers comes back is a function of the **tree**, not of the payload, so drive
+each by arranging the tree and re-running the first block:
+
+| Tree | Hook |
+|---|---|
+| Nothing in the change set reaches a stored artifact | silence |
+| Artifacts see it and no compare verdict covers this tree | `ask`, naming up to three artifacts and counting the rest |
+| A passing `parityCompare` against the store already covered this exact tree | silence |
+| A changed path matches no rule and no `no_reach` glob | `ask`, quoting the refusal and the paths |
+
+The last one is reached by creating an untracked file no glob covers - `touch zz-probe.tmp` - and
+deleted afterwards. Silence is also every failure mode: no interpreter, a bogus interpreter, garbage
+on stdin, a timeout, a cwd outside the repo, and a command that merely mentions the words.
+
+The hook runs its child with `--root cache/parity/hook`, so nothing it does touches the plan
+`parityCapture` defaults to. Two limits are worth knowing rather than discovering: it decides a
+segment by tokens and the first must be git, so `pwsh -c "git commit ..."` escapes it; and
+`git commit` typed into an interactive shell it never sees escapes it too.

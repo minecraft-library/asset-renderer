@@ -54,6 +54,28 @@ those artifacts carry a floor of one.
   whole-corpus regression. Every scoped property suppresses its artifact's capture for that reason:
   a scoped run is a hole, not a sample.
 
+## Why a capture is refused under the configuration cache
+
+Every `-Dasset.*` is read while the build is **configured**, and twice: once by the forwarder that
+puts it on each producer's fork, once by the capture step that stamps it as the conditions its
+numbers were taken under. Both walk the same daemon properties, so they answer with the same set,
+and a reused configuration replays that one stored set into both halves at once. The flags typed on
+the reusing run reach neither - measured, `./gradlew help --configuration-cache -Dasset.brandnew=7`
+against a stored entry reuses it and reports nothing at all.
+
+The stamp therefore agrees with the fork, which is worse than the two disagreeing. What is left
+behind is a capture that is well-formed, promotable, internally consistent, and a record of a run
+nobody asked for.
+
+`parityCapture` carries the refusal because it is the entry point of the sanctioned capture flow -
+the one task the skill's captures all go through, and the one place a refusal covering them can be
+written once. **It does not reach a hand-run producer.** Every non-suite producer is finalized by
+its own capture step, so `./gradlew entityParityVanilla` writes a capture with `parityCapture`
+nowhere in the graph and nothing in front of it that refuses. That path fails under the cache today
+for an unrelated reason - a capture step is an `Exec` holding a script reference the cache cannot
+serialize - which is an accident of shape and not a guard to rely on. Nothing disables the cache
+build-wide, so an ordinary build of anything else is untouched.
+
 ## Two failure shapes to recognise
 
 **A tree that hashes cleanly minus the missing files.** A partial producer run leaves fewer files,
