@@ -161,7 +161,7 @@ def _rows(payload_member: Any, key: str) -> dict[str, dict]:
 
     Reading only the array shape is not a narrowing, it is a **false green**: every value of a
     digest-set could move and the join would report zero rows on both sides, zero movers and clean.
-    Measured, on exactly the payload P11 stores.
+    Measured, on the object-keyed payloads the store actually holds.
     """
     if isinstance(payload_member, dict):
         return {str(name): {**entry, key: str(name)}
@@ -368,7 +368,7 @@ def load_expected(path: Path | None) -> dict | None:
 
 def empty_expected() -> dict:
     """``expect --empty`` writes this, which is what makes the gate ``diff == manifest`` rather
-    than ``diff == empty`` even when the manifest is empty (I-15)."""
+    than ``diff == empty`` even when the manifest is empty."""
     return {
         "//": "parity.report.expected-diff · regen: python scripts/parity expect --empty",
         "artifact": "report.expected-diff",

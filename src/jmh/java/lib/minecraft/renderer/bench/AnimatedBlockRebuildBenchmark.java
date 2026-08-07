@@ -17,13 +17,14 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Seam-1 (R9) probe: the per-frame block rebuild inside {@code BlockRenderer.Isometric3D}. The
+ * Probe of the per-frame block rebuild inside {@code BlockRenderer.Isometric3D}. The
  * isometric block path runs {@code buildRelitTriangles(tick, ...)} - variant resolution, face-texture
  * resolution, geometry assembly, and the inventory relight - <b>inside</b> the raster callback that
  * {@code Timeline.bake} invokes once per output frame, so an animated block (magma / sea_lantern -
  * flipbook {@code .mcmeta} strips) re-runs the entire build for every frame even though only the
- * face-texture re-sample truly varies per tick. R9 asks whether hoisting the frame-invariant build
- * (variant / geometry / relight once, texture re-sample per frame) would meaningfully cut render time.
+ * face-texture re-sample truly varies per tick. The open question is whether hoisting the
+ * frame-invariant build (variant / geometry / relight once, texture re-sample per frame) would
+ * meaningfully cut render time.
  * <p>
  * This benchmark isolates that cost by rendering the same animated block at {@link #frameCount} 1 vs
  * {@code N}, holding every other input fixed. The marginal per-frame cost - both {@code (ms@N - ms@1)

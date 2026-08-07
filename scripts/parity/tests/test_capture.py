@@ -15,7 +15,7 @@ REPO = Path(__file__).resolve().parents[3]
 
 
 class Wipe(unittest.TestCase):
-    """U6 made mechanical: there is no accumulation and nothing to rename."""
+    """Single-slot made mechanical: there is no accumulation and nothing to rename."""
 
     def setUp(self):
         self.root = Path(tempfile.mkdtemp()) / "run"

@@ -24,7 +24,7 @@ import java.util.Locale;
  * {@code %n} or {@code System.lineSeparator()}, and {@link #write} is the one place a table becomes
  * bytes.
  *
- * <p><b>A failed subject is a status, not a magic value</b> (I-27). A crash is not a bad render: it
+ * <p><b>A failed subject is a status, not a magic value</b>. A crash is not a bad render: it
  * fails every bucket test identically, and a sum that admits {@code Infinity} is {@code Infinity}.
  * The two columns that carried the magic - the delta and the pixel count - are emitted <b>empty</b>
  * on a failed row, and every other column keeps its real value, because those are facts about the
@@ -32,8 +32,8 @@ import java.util.Locale;
  * a glint row is the explanation for its failure and blanking it would delete the reason.
  *
  * <p>{@code POSITIVE_INFINITY} survives <b>in memory</b> as each sweep's failure marker, and that is
- * deliberate: the reports rank by delta ascending, so it is what sorts a failure last. What I-27 is
- * about is the file, which is the interface.
+ * deliberate: the reports rank by delta ascending, so it is what sorts a failure last. What that
+ * rule is about is the file, which is the interface.
  */
 public final class SweepReport {
 

@@ -315,7 +315,7 @@ class DiagnosticsLogProjection(unittest.TestCase):
         self.assertEqual(list(manifest.log_digests(self.logs, ["zeta", "alpha"])), ["alpha", "zeta"])
 
     def test_a_flow_with_no_log_is_a_failure_rather_than_seven_of_eight(self):
-        """I-20: a set that hashes cleanly minus the missing member is the false green."""
+        """A set that hashes cleanly minus the missing member is the false green."""
         self._log("a", "[INFO] flow - m\n")
         with self.assertRaises(MissingInput) as caught:
             manifest.log_digests(self.logs, ["a", "b"])

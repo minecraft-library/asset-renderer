@@ -218,8 +218,7 @@ Set automatically by the Loom run config; override with `-Drefharness.xxx=` for 
 ```
 src/
 ├── main/resources/
-│   ├── fabric.mod.json
-│   └── seed-world/.gitkeep
+│   └── fabric.mod.json
 └── client/
     ├── java/lib/minecraft/refharness/
     │   ├── HarnessConfig.java              # System-property config
@@ -432,6 +431,10 @@ Run from this directory. Removes asset-renderer's `cache/run/saves/refharness_wo
 
 ## License
 
-All-Rights-Reserved (part of [asset-renderer]; not for redistribution).
+Apache-2.0, the same as [asset-renderer]. This tree is a directory of that repository rather than a
+vendored third party, so the repository's own `LICENSE.md` governs it and there is no second licence
+file here. The one thing it carries that is not ours is the Minecraft client it drives, which Loom
+resolves at build time and which nothing here redistributes; `COPYRIGHT.md` at the repository root
+records that carve-out and the Fabric dependencies this build carries.
 
 [asset-renderer]: ..

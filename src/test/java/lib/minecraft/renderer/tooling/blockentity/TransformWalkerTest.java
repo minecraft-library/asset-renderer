@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * byte-for-byte. Covers the eight factory shapes plus the walker's guard rails: poison-on-unknown,
  * {@code Axis.XN} polarity, and the FIELD: stop-at-PUTSTATIC capture.
  */
-@DisplayName("TransformWalker decomposes the eight P41 shapes to the tuples")
+@DisplayName("TransformWalker decomposes the eight factory shapes to the tuples")
 class TransformWalkerTest {
 
     private static final @NotNull String MATRIX4F = "org/joml/Matrix4f";

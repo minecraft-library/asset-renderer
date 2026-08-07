@@ -26,7 +26,7 @@ CANVAS = ("java_w", "java_h", "vanilla_w", "vanilla_h")
 #: Cumulative, not histogram bins: each count includes every lower one.
 BUCKET_EDGES = (0.25, 0.5, 0.75, 1.0)
 
-#: I-27. A crashed subject is not a bad subject - it fails every bucket test identically - so it is
+#: A crashed subject is not a bad subject - it fails every bucket test identically - so it is
 #: carried as an explicit status rather than as an out-of-band magic value.
 OK = "ok"
 FAILED = "failed"

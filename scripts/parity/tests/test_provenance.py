@@ -132,7 +132,7 @@ class Fields(unittest.TestCase):
 
     def test_there_is_no_harness_sha(self):
         """Post-consolidation the harness is a directory in this repo, so the two values would be
-        equal by construction - I-12's 'no value stored twice' broken by identity."""
+        equal by construction - the store's rule against holding one value twice, broken by identity."""
         self.assertNotIn("harness_sha", self.record)
         self.assertNotIn("harness_dirty", self.record)
 

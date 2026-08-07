@@ -107,7 +107,7 @@ class CanonicalJson(unittest.TestCase):
         self.assertLess(text.index('"c"'), text.index('"d"'))
 
     def test_arrays_are_never_reordered(self):
-        """I-4: an array means the order is semantic."""
+        """An array means the order is semantic."""
         payload = {"bones": ["head", "body", "arm"]}
         self.assertIn('"head",\n    "body",\n    "arm"', norm.canonical_json(payload))
 
@@ -123,7 +123,7 @@ class CanonicalJson(unittest.TestCase):
         self.assertIn("60.0047", text)
 
     def test_non_finite_refuses(self):
-        """I-27: a failed subject is an explicit status field, never an out-of-band magic value."""
+        """A failed subject is an explicit status field, never an out-of-band magic value."""
         with self.assertRaises(ValueError):
             norm.canonical_json({"delta": float("inf")})
 

@@ -79,8 +79,49 @@ unchanged run.
 - `notes/` - gitignored working notes: research packs, ledgers, probe tables. Read one when picking
   up a live effort; nothing downstream reads them.
 
-Durable rules and decisions belong in this file. The measurements and narratives that produced them
-belong in the commit that landed them, and in the reason recorded with the baseline they moved.
+**Do not cite a `notes/` path from a tracked file, and do not cite a working note's entry by
+number.** The directory is gitignored by decision, so a citation from a tracked file resolves for
+nobody who clones this, and an entry number - the `L<n>`, `Q-<n>`, `I-<n>` and phase-`P` spellings the
+notes here have used - names that same unresolvable place with fewer characters. Inline what the note
+establishes; state the measurement rather than where it was written down. The rule binds what is
+authored - prose, comments, javadoc, a diagnostic or an exception message, commit text - and the
+shapes above are written as shapes, so this paragraph names no entry a reader could go looking for.
+
+Only the path half is greppable: `git ls-files | xargs grep -l 'notes/'` at review, deliberately not
+in the pre-commit hook. What survives that grep is the `notes/**` blindness glob, in the map and in
+the skill's rendered view of it; the test exempting that glob from the assertion that every
+`no_reach` glob matches a tracked path; the ignore rule that makes the directory gitignored; this
+section; the skill's list of commit kinds that skip the gate; and the two toolkit tests asserting
+that `notes/parity` is refused as a working root. Telling those from a citation is a reading rather
+than a pattern. The entry-number half has no one pattern to grep for, a note's ids being whatever
+that note chose, so it is read rather than matched. An id a tracked file defines itself is not a
+citation at all: `blindness.json`'s rules carry their own `B<n>` in an `id` member.
+
+The rule binds what is authored from here; the tree it landed in is not clean. Phase numbers from
+earlier efforts survive in the entity tooling's diagnostic and policy strings and in the blindness
+map's `source` column, each held back for its own reason. The tooling-tables manifest digests the
+entity flow's diagnostics log by `(severity, path, message)`, so rewording a diagnostic is a
+tooling-flow change measured by re-running the flow rather than by the suite; the policy string
+beside them reaches no log and no table and is a one-line edit, held back only because making it
+would put the whole tooling reach class into a gate for a string, so it rides the next tooling
+commit; and
+the phase numbers in the `source` column sit beside a larger set of citations of the same pack in
+another spelling, so clearing them alone changes nothing about what that column resolves to.
+[KNOWN-OPEN.md] carries both, with the grep that finds them. The other note-id spellings this tree
+carried - in test display names, assertion messages and javadoc, and in the benchmark javadocs under
+`src/jmh` - are text nothing digests and nothing asserts on, so they went with the rule rather than
+into that record.
+
+A `provenance.reason` **already in the store** is the exemption, and more than one is: they name the
+capture a baseline was diffed against, the question that widened it, or the phase that moved the
+values, in the working note's own spelling. A reason is a frozen measurement `parityPromote` alone
+writes, and `ParityIndexTest` re-derives every index row's digest from the file it names, so a reason
+moves by re-promoting and never by an edit - rewriting one to satisfy a writing rule would falsify the
+record the rule exists to keep. The next one written still follows the rule.
+
+Durable rules and decisions belong in this file, and an open item nobody owns belongs in
+[KNOWN-OPEN.md]. The measurements and narratives that produced them belong in the commit that landed
+them, and in the reason recorded with the baseline they moved.
 
 ## The pack filter
 
@@ -515,5 +556,6 @@ Scripts live in `scripts/`, not bundled into the JAR. `scripts/parity/` is the p
 `python scripts/parity <command>` and documented in its own `README.md`.
 `scripts/euler_reference_svg.py` regenerates the SVG in `EulerRotation`'s javadoc.
 
+[KNOWN-OPEN.md]: KNOWN-OPEN.md
 [vanilla-reference-harness]: harness
 [vanilla-reference-harness/CLAUDE.md]: harness/CLAUDE.md

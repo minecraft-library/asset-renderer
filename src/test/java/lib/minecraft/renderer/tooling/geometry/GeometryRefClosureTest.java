@@ -50,14 +50,14 @@ class GeometryRefClosureTest {
     }
 
     @Test
-    @DisplayName("C5: legacy_id is never emitted in either geometry file")
+    @DisplayName("legacy_id is never emitted in either geometry file")
     void noLegacyIdInGeometryFiles() throws IOException {
         // The legacy_id fallback is never activated, so both geometry files must carry zero occurrences.
         for (String name : List.of("entity_geometry.json", "block_geometry.json")) {
             Path path = RESOURCE_DIR.resolve(name);
             assumeTrue(Files.exists(path), name + " not yet emitted (activates with its flow session)");
             assertTrue(!Files.readString(path).contains("legacy_id"),
-                name + " must not contain legacy_id (C5: the PRIMARY key-replay arm was selected)");
+                name + " must not contain legacy_id; the PRIMARY key-replay arm was selected");
         }
     }
 
@@ -83,7 +83,7 @@ class GeometryRefClosureTest {
 
         Set<String> orphans = new LinkedHashSet<>(geometryKeys);
         orphans.removeAll(referenced);
-        assertEquals(Set.of(), orphans, "orphan geometry entries (registered but unreferenced - doc-12 F5)");
+        assertEquals(Set.of(), orphans, "orphan geometry entries (registered but unreferenced)");
     }
 
     /**

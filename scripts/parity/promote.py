@@ -3,11 +3,11 @@
 Promotion is deliberate, separate and recorded, never a side effect of a measurement. Every refusal
 below is a mechanism for an invariant rather than a policy someone has to remember:
 
-- no ``--reason``, no promotion (I-8);
+- no ``--reason``, no promotion;
 - ``determinism_runs`` below the artifact's floor, no promotion - a value a second independent run
-  does not reproduce is not a baseline whatever anyone declares about it (I-13);
+  does not reproduce is not a baseline whatever anyone declares about it;
 - ``failed > 0``, no promotion without an explicit ``--allow-partial``, because a partial sweep
-  leaves a tree that hashes cleanly minus the missing files (I-20);
+  leaves a tree that hashes cleanly minus the missing files;
 - a root whose digests disagree with its own capture index, no promotion, so a plan cannot be
   applied to a root that has since been re-captured;
 - no compare of this capture covering this artifact, no promotion, so a promotion can only ever
@@ -116,7 +116,7 @@ def check(root: Path, entries: Sequence[Entry], reason: str, allow_partial: bool
           bootstrap: bool = False, allow_dirty: bool = False) -> None:
     """Every refusal, in one place, before a single production byte is written."""
     if not reason.strip():
-        raise Refused("promote-apply requires --reason: a promotion is a recorded act (I-8)")
+        raise Refused("promote-apply requires --reason: a promotion is a recorded act")
 
     capture_mod.require_unmoved(root)
     # `--bootstrap` is the one exemption, and it is per-INVOCATION where the thing it excuses is
@@ -133,18 +133,18 @@ def check(root: Path, entries: Sequence[Entry], reason: str, allow_partial: bool
         record = payload.get("provenance") or {}
         if not record:
             raise Refused(f"{entry.artifact} carries no provenance object; a promoted artifact "
-                          "without one is unrepresentable (I-8)")
+                          "without one is unrepresentable")
         runs = record.get("determinism_runs") or 0
         needed = floor_for(entry.artifact)
         if runs < needed:
             raise Refused(
                 f"{entry.artifact} records determinism_runs={runs}, below its floor of {needed}: "
-                "a value a second independent run does not reproduce is not a baseline (I-13)")
+                "a value a second independent run does not reproduce is not a baseline")
         counts = record.get("counts") or {}
         if counts.get("failed", 0) and not allow_partial:
             raise Refused(
                 f"{entry.artifact} records failed={counts['failed']}; a partial run leaves a tree "
-                "that hashes cleanly minus the missing files (I-20). Pass --allow-partial to record "
+                "that hashes cleanly minus the missing files. Pass --allow-partial to record "
                 "the exception in provenance")
         if entry.action == "new" and not bootstrap:
             raise Refused(
@@ -215,7 +215,15 @@ def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry],
     """Copy through ``norm``, so a hand-edited CRLF capture is normalized on the way in.
 
     That is why the copy is Python rather than a Kotlin ``copy { }``: a byte copy would carry a CRLF
-    straight into the store and I-1 would hold only by luck.
+    straight into the store, and its one byte form - LF, UTF-8 without a BOM, one trailing newline -
+    would hold only by luck.
+
+    An ``unchanged`` entry is skipped before its file is even read: no artifact byte is written for
+    it and ``index["artifacts"]`` is only assigned inside the same loop, so the row it already had -
+    ``promoted_at`` included - is carried through from the store as it stood. Widening a promotion
+    past the rows that moved therefore rewrites nothing extra. ``plan`` classifies on a
+    provenance-stripped digest, so a re-capture of an artifact whose value did not move is
+    ``unchanged`` even though its provenance records a different run.
     """
     index = target.index()
     written = []

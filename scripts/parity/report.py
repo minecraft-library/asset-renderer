@@ -4,7 +4,7 @@ Three rules keep it presentable. The header table is always the same columns wha
 mover table is capped so a 400-row diff does not become the report, and there is **no prose**: a
 generated sentence reads as a judgement, and the gate does not judge.
 
-The Markdown is a **view**. The JSON is the authority (U3), it is regenerable from it, and nothing
+The Markdown is a **view**. The JSON is the authority, the Markdown is regenerable from it, and nothing
 reads the Markdown back.
 """
 

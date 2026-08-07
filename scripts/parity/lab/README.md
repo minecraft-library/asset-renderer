@@ -52,7 +52,10 @@ among the scratchpad losses this package exists to stop happening again:
 - re-scoring a frozen probe under a new comparison (`rescore`)
 
 Writing them here would be inventing rather than porting, and nothing on disk is lost by their
-absence. Each stays recoverable from the measurement it produced, which is recorded in `CLAUDE.md`.
+absence. What each was for survives as a method rather than as a number - `CLAUDE.md` keeps "read
+a suspected tint fault per channel, never through luma", and states the depth grid a quantum probe
+reads against - and no figure any of the four produced is recorded anywhere tracked. Recovering one
+means measuring again.
 
 The probe **arm/disarm** script is deliberately not here either. A gate tool that edits `src/` is
 one crash away from a dirty tree during a measurement; the method - perturb the value, re-render,

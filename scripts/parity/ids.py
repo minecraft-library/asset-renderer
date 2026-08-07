@@ -1,4 +1,4 @@
-"""The one place that knows about ``__``, ``_``, ``:``, ``~``, ``=``, ``%`` and ``-dye%06x`` (I-26).
+"""The one place that knows about ``__``, ``_``, ``:``, ``~``, ``=``, ``%`` and ``-dye%06x``.
 
 There are five spellings of one subject across the six sweeps and nothing in the repo could join an
 entity row to a block row to a glint row without a per-sweep transform. The canonical form here is

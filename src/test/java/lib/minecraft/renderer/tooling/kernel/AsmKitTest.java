@@ -158,7 +158,7 @@ class AsmKitTest {
     }
 
     @Test
-    @DisplayName("findEnumDefaultName reads the policy-supplied default field (P15 parameter)")
+    @DisplayName("findEnumDefaultName reads the policy-supplied default field")
     void enumDefault() {
         assertEquals("RED", AsmKit.findEnumDefaultName(cache, VARIANT, "DEFAULT"));
         assertNull(AsmKit.findEnumDefaultName(cache, VARIANT, "OTHER_DEFAULT"));

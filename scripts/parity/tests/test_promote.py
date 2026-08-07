@@ -383,7 +383,7 @@ class Apply(Base):
         self.assertEqual(self.store.read("sweep.entity")["provenance"]["parity_class"], "moving")
 
     def test_no_archive_copy_is_kept(self):
-        """U4: the store holds the last known value, not a history."""
+        """The store holds the last known value, not a history."""
         self._capture(artifact())
         promote.apply(self.root, self.store, promote.plan(self.root, self.store), "first")
         write_json(self.root / "sweeps" / "entity.json", artifact(delta="2.0000"))

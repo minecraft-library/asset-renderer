@@ -1,4 +1,4 @@
-"""``report.run-provenance`` - the record that makes a baseline self-identifying (I-21).
+"""``report.run-provenance`` - the record that makes a baseline self-identifying.
 
 Everything here is **read**, never asked for. A field a caller could mistype is a field that will be
 mistyped, and the whole point is that a promoted value can say what produced it.
@@ -23,8 +23,8 @@ from parity.norm import LF, canonical_json, read_text, sha256_text
 #: Post-consolidation the harness is a directory in this repo, not a sibling repository, so there is
 #: exactly one sha and one dirty flag. The spine registers `harness_sha` / `harness_dirty` beside the
 #: asset pair, sourced from `git -C ../vanilla-reference-harness`; that path no longer exists and the
-#: two values would now be equal by construction, which is I-12's "no value stored twice" broken by
-#: identity. One `asset_sha` covers both.
+#: two values would now be equal by construction, which is the store's rule against holding one
+#: value twice, broken by identity. One `asset_sha` covers both.
 HARNESS_PROPERTIES = "harness/gradle.properties"
 
 #: The reference tree, with the version segment left to be filled from the harness's own
@@ -103,9 +103,9 @@ def dirty_digest(repo: Path) -> str | None:
     pre-commit gate has to distinguish, since an already-gated tree that has been edited since must
     re-arm. This is that third value.
 
-    LF-normalized before digesting, for I-1's reason and one more: ``git diff`` renders the worktree's
-    own line endings, so on Windows an unchanged file could otherwise digest differently than it did
-    on the run that gated it.
+    LF-normalized before digesting, for the store's own reason - one byte form whatever the platform
+    wrote - and one more: ``git diff`` renders the worktree's own line endings, so on Windows an
+    unchanged file could otherwise digest differently than it did on the run that gated it.
 
     A clean tree digests the empty string rather than answering ``None``, because "nothing is
     uncommitted" is an answer and ``None`` is reserved for "git could not be asked".

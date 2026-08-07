@@ -56,7 +56,7 @@ class ColumnShapes(unittest.TestCase):
 
 
 class Sentinel(unittest.TestCase):
-    """I-27: a crashed subject is not a bad subject."""
+    """A crashed subject is not a bad subject."""
 
     def setUp(self):
         self.table = sweep.read_table(DATA / "sweep-failed.tsv")

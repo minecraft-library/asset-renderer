@@ -19,12 +19,12 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Seam-2 (R9) probe: the per-pixel texture indirection in {@code ModelEngine.rasterizeTile}. Every
+ * Probe of the per-pixel texture indirection in {@code ModelEngine.rasterizeTile}. Every
  * {@code VisibleTriangle} carries a direct {@code PixelBuffer texture}; the rasterizer inner loop
  * samples it per fragment via {@code texture.width()} / {@code texture.height()} / {@code
- * texture.getPixel(tx, ty)} with no per-triangle flatten or cache. R9 asks whether hoisting that to a
- * raw {@code int[]} sample (fetch the backing array + dimensions once per triangle, index it directly
- * per pixel) would meaningfully cut per-pixel cost.
+ * texture.getPixel(tx, ty)} with no per-triangle flatten or cache. The open question is whether
+ * hoisting that to a raw {@code int[]} sample (fetch the backing array + dimensions once per
+ * triangle, index it directly per pixel) would meaningfully cut per-pixel cost.
  * <p>
  * This microbenchmark answers it directly with a head-to-head A/B over the <b>exact</b> inner-loop
  * sample arithmetic (interpolated {@code u}/{@code v} → clamp to texel → fetch), holding the sample
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
  * <ul>
  * <li>{@link #sampleViaPixelBuffer} - the current path: a {@link PixelBuffer} field, sampled through
  *     {@code width()} / {@code height()} / {@code getPixel(x, y)}.</li>
- * <li>{@link #sampleViaFlatArray} - the R9 "flattened" path: the backing {@code int[]} plus its
+ * <li>{@link #sampleViaFlatArray} - the "flattened" path: the backing {@code int[]} plus its
  *     {@code w} / {@code h} hoisted into locals, indexed as {@code data[ty * w + tx]}.</li>
  * </ul>
  * {@code PixelBuffer.getPixel} is a single {@code data[y * width + x]} array read and {@code width()} /
@@ -79,7 +79,7 @@ public class TextureSampleIndirectionBenchmark {
     /** The texture as a {@link PixelBuffer} (the current per-pixel indirection under test). */
     private PixelBuffer texture;
 
-    /** The same pixels as a raw {@code int[]} plus dimensions (the R9 flattened sample). */
+    /** The same pixels as a raw {@code int[]} plus dimensions (the flattened sample). */
     private int[] flatData;
     private int flatWidth;
     private int flatHeight;
@@ -131,7 +131,7 @@ public class TextureSampleIndirectionBenchmark {
     }
 
     /**
-     * R9 flattened path: hoist the backing {@code int[]} and dimensions into locals and index the
+     * Flattened path: hoist the backing {@code int[]} and dimensions into locals and index the
      * array directly, doing otherwise-identical arithmetic to {@link #sampleViaPixelBuffer}.
      */
     @Benchmark

@@ -222,8 +222,8 @@
       "stored": false
     },
     "probe.pixel": {
-      "home": "notes/refharness-unify/probes/",
-      "reason": "instrumented-build evidence; not reproducible by re-running a gate, so it can be neither captured, compared nor promoted",
+      "home": "untracked working notes",
+      "reason": "instrumented-build evidence; not reproducible by re-running a gate, so it can be neither captured, compared nor promoted, and what it was written into is gitignored rather than tracked, so no path here would resolve for anyone who clones this",
       "stored": false
     },
     "report.capture-note": {

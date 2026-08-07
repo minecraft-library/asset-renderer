@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>Lifecycle:
  * <ol>
- *   <li>Title screen detected -&gt; {@code WorldBootstrap} programmatically creates a
+ *   <li>First non-loading screen detected -&gt; {@code WorldBootstrap} programmatically creates a
  *       fresh flat normal-difficulty world.</li>
  *   <li>{@code client.level} loads -&gt; the harness waits {@link #WARMUP_TICKS} ticks for
  *       the loading-terrain overlay to clear and chunk uploads to finish.</li>
@@ -22,6 +22,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   <li>{@code Minecraft.stop()} fires next tick.</li>
  *   <li>A shutdown hook forces a non-zero exit if any subject failed or the sweep crashed.</li>
  * </ol>
+ *
+ * <p>That is the run that finishes. The other way one ends is {@link #reportNoWorld}: once
+ * {@link #WORLD_TIMEOUT_TICKS} consecutive ticks have passed with no level or no player it names
+ * what the bootstrap saw and halts, and halting is what keeps the shutdown hook above from
+ * answering for it.
  */
 public final class RefHarnessClient implements ClientModInitializer {
 
@@ -43,7 +48,26 @@ public final class RefHarnessClient implements ClientModInitializer {
      */
     private static final int EXIT_INCOMPLETE_SWEEP = 3;
 
+    /**
+     * Exit status for a run whose world never loaded. Distinct from
+     * {@link #EXIT_INCOMPLETE_SWEEP} so a console reader can tell a sweep that ran and dropped
+     * subjects from one that never got a world to render into; the same caveat applies, the number
+     * is for a human reading the console rather than for a caller to branch on.
+     */
+    private static final int EXIT_NO_WORLD = 4;
+
+    /**
+     * Consecutive client ticks carrying no level or no player before the harness calls the bootstrap
+     * stuck. The count starts at the first tick after this initialiser runs, and the client ticks at
+     * twenty a second through the resource reload as well as on a settled screen, so the three
+     * minutes it buys covers the whole boot and not the wait alone - a machine slower than that to
+     * reach any screen trips it. A level and a player together reset the count to zero.
+     */
+    private static final int WORLD_TIMEOUT_TICKS = 3600;
+
     private static int ticksSinceWorldReady = -1;
+
+    private static int ticksWithoutWorld = 0;
 
     @Override
     public void onInitializeClient() {
@@ -61,8 +85,11 @@ public final class RefHarnessClient implements ClientModInitializer {
             if (STOPPING.get()) return;
             if (client.level == null || client.player == null) {
                 ticksSinceWorldReady = -1;
+                ticksWithoutWorld++;
+                if (ticksWithoutWorld >= WORLD_TIMEOUT_TICKS) reportNoWorld();
                 return;
             }
+            ticksWithoutWorld = 0;
             if (ticksSinceWorldReady < 0) {
                 LOG.info("World loaded. Warming up for {} ticks before sweep.", WARMUP_TICKS);
                 // Pin noon + freeze the day/night cycle now, while warming up, so the change has
@@ -100,6 +127,28 @@ public final class RefHarnessClient implements ClientModInitializer {
                 requestStop(client);
             }
         });
+    }
+
+    /**
+     * Halts a run whose world never arrived, naming what the bootstrap saw.
+     *
+     * <p>Every other failure in this build announces itself; this one used to be an indefinite wait
+     * with no error, no output and no timeout, because a client sitting on a screen the bootstrap
+     * declines to act on goes on ticking forever. The two facts that separate the two ways that can
+     * happen are printed: the last screen the bootstrap's hook saw, and whether it ever fired. World
+     * creation scheduled and no world means the creation itself failed; not scheduled means the
+     * screen it settled on is one the predicate skipped, and the name is what says which.
+     *
+     * <p>{@code halt} rather than {@code stop} because the shutdown hook would otherwise report a
+     * sweep that never started as an incomplete sweep, and its status would win.
+     */
+    private static void reportNoWorld() {
+        System.err.printf("refharness: no world after %d client ticks. Last screen: %s; world "
+                + "creation scheduled: %s. Exiting %d.%n",
+            WORLD_TIMEOUT_TICKS, WorldBootstrap.lastScreenSeen(), WorldBootstrap.hasScheduled(),
+            EXIT_NO_WORLD);
+        System.err.flush();
+        Runtime.getRuntime().halt(EXIT_NO_WORLD);
     }
 
     private static void requestStop(Minecraft client) {

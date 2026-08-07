@@ -395,7 +395,7 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     # STATE, what the compare covered, and what it found. `plan --gate-exit` reads them to answer
     # "has this exact tree already been gated"; nothing else does, and nothing is written here that
     # it does not read. It is written into the working root and never into the store, because a
-    # compare is a measurement (I-7) - so a `cache/` clean re-arms the gate, which is the correct
+    # compare is a measurement - so a `cache/` clean re-arms the gate, which is the correct
     # degradation: the evidence for "already gated" is cache, and losing it costs one re-run rather
     # than a wrong answer.
     write_json(run / "last-verdict.json", {
@@ -1218,7 +1218,7 @@ def _register(subparsers: Any) -> dict[str, Command]:
                           "pre-commit hook; parityPlan must always exit 0, so it is opt-in")
     table["plan"] = _cmd_plan
 
-    exp = subparsers.add_parser("expect", help="register the movers a phase intends (I-15)")
+    exp = subparsers.add_parser("expect", help="register the movers a phase intends")
     exp.add_argument("--empty", action="store_true")
     exp.add_argument("--artifact", default=None)
     exp.add_argument("--key", default=None, help="keyed the way that artifact's envelope key names")

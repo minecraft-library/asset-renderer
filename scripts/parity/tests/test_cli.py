@@ -396,6 +396,47 @@ class OutNeverWritesProduction(unittest.TestCase):
             self.assertTrue(target.is_file(), name)
 
 
+class ManifestBuildWritesIntoTheCapture(unittest.TestCase):
+    """The one artifact write that reaches a capture without passing through `capture`.
+
+    `cli` resolves the working root and writes the artifact at its own store path, outside `_run/`,
+    so the capture index lists it and the enumeration reads it as stamped - the counts-and-root
+    object `manifest.to_artifact` builds is a `provenance` member like any other. Three shipped
+    paragraphs describe where a captured byte comes from, and each of them named this write wrongly
+    once, so what it does is read back here rather than described: routing it through `capture`, into
+    `_run/` or behind `--out` are all defensible changes and any of them falsifies those paragraphs
+    again.
+    """
+
+    ARTIFACT = "manifest.references"
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        tree = self.repo / "tree"
+        write_text(tree / "blocks" / "stone" / "vanilla.png", "one")
+        code, _, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                            "--quiet", "manifest", "build", "--artifact", self.ARTIFACT,
+                            "--source", str(tree)])
+        self.assertEqual(code, cli.OK, err)
+
+    def test_the_root_holds_the_artifact_at_its_store_path_and_nothing_else(self):
+        """The whole listing, so a copy left in `_run/` beside it is a different answer."""
+        written = sorted(path.relative_to(self.root).as_posix()
+                         for path in self.root.rglob("*") if path.is_file())
+        self.assertEqual(written, [store.path_of(self.ARTIFACT)])
+
+    def test_the_enumeration_reads_it_as_a_captured_and_stamped_row(self):
+        self.assertEqual(store.artifact_files(self.root), [(self.ARTIFACT, True)])
+
+    def test_the_capture_index_carries_it(self):
+        capture.index(self.root)
+        recorded = read_json(self.root / store.RUN_DIR / capture.CAPTURE_INDEX)
+        self.assertEqual([entry["path"] for entry in recorded["files"]],
+                         [store.path_of(self.ARTIFACT)])
+        self.assertEqual(recorded["artifacts"], [self.ARTIFACT])
+
+
 class CompareRefusesAMixedVintageRoot(unittest.TestCase):
     """A finished capture whose files moved under it, and the digest that names which capture it is.
 

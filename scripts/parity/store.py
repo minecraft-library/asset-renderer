@@ -1,12 +1,12 @@
 """The two roots, the artifact-id to path mapping, and the read-only guard on production.
 
-I-10 says the roots are written once. This module holds the package's only literal spelling of
-each, so a later source-set move is one line here (and one in ``build.gradle.kts``, and one in
+The roots are written once. This module holds the package's only literal spelling of each, so a
+later source-set move is one line here (and one in ``build.gradle.kts``, and one in
 ``ParityStore.java``).
 
-I-7 says a measurement never writes production. That is a *view* rather than a rule anyone has to
-remember: ``production()`` hands back a store whose ``write`` raises, and only ``promote-apply``
-constructs the writable one.
+A measurement never writes production. That is a *view* rather than a rule anyone has to remember:
+``production()`` hands back a store whose ``write`` raises, and only ``promote-apply`` constructs
+the writable one.
 """
 
 from __future__ import annotations
@@ -77,9 +77,12 @@ def artifact_files(root: Path) -> list[tuple[str, bool]]:
     capturing them: measured, where a bare ``promote-plan`` on a pins root planned to **replace** a
     promoted digest set with the unstamped by-product, differing from it by ``_flags`` alone.
 
-    Provenance is the mark, because ``capture-normalize`` is the only thing that writes one and it
-    writes one on every artifact it stamps. Naming an unstamped artifact explicitly still refuses in
-    ``promote.check`` - an enumeration skips what was not captured, a request for it does not.
+    Provenance is the mark, because ``capture-normalize`` writes one on every artifact it stamps and
+    a producer writing its own file writes none. It is evidence of a capture step rather than proof
+    of one: ``manifest build`` writes a manifest into the root straight from ``cli``, carrying the
+    counts-and-root object ``manifest.to_artifact`` builds, and that reads as stamped here. Naming an
+    unstamped artifact explicitly still refuses in ``promote.check`` - an enumeration skips what was
+    not captured, a request for it does not.
     """
     found = []
     for path in sorted(root.rglob("*.json")):
@@ -164,7 +167,7 @@ class ReadOnlyStore:
     def write(self, artifact_id: str, obj: Any) -> Path:
         raise Refused(
             f"refusing to write {artifact_id} into the production store; "
-            "only parityPromote writes a baseline (I-7)"
+            "only parityPromote writes a baseline"
         )
 
     def contains(self, path: Path) -> bool:
@@ -188,5 +191,5 @@ def production(store: str | None = None, base: Path | None = None) -> ReadOnlySt
 
 
 def working(root: str | None = None, base: Path | None = None) -> WritableStore:
-    """The working root is writable by every command - it is output, never a baseline (I-11)."""
+    """The working root is writable by every command - it is output, never a baseline."""
     return WritableStore(resolve_working(root, base))

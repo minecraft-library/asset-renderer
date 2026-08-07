@@ -489,9 +489,11 @@ class TheTwoIdNamespaces(unittest.TestCase):
     def test_every_refusal_citation_names_a_declared_refusal(self):
         """A cited id has to resolve where the citation sends the reader, and only one table has it.
 
-        Scoped to the citation form rather than to bare ids on purpose: `R9` names a benchmark seam
-        under `src/jmh`, so "every R<n> is a refusal" is false of the repository and would have to
-        be fitted with exceptions until it stopped saying anything.
+        Scoped to the citation form rather than to bare ids on purpose: this file is itself inside
+        the scanned surface and spells ids that cite nothing - the synthetic fixtures every case
+        below is driven with, some of which no table declares - so "every id under these roots is a
+        refusal" is false of the corpus and would have to be fitted with exceptions until it
+        stopped saying anything.
         """
         wrong = [f"{path}: refusal {cited}" for path, cited in self._citations()
                  if cited not in self.declared]
@@ -618,18 +620,18 @@ class TheTwoIdNamespaces(unittest.TestCase):
     def test_a_citation_ends_where_its_ids_do(self):
         """The other half of taking a clause: it must not run on into the prose after the list.
 
-        The last assertion is the one a widened clause fails: `R9` names a benchmark seam rather
-        than a refusal, and a clause reaching past its final join reads it out of the sentence
-        after. The first three are the single-id and no-id forms the corpus writes, so the widening
-        cannot be bought back by narrowing those instead.
+        The last assertion is the one a widened clause fails: `R9` is id-shaped and no table
+        declares it, and a clause reaching past its final join reads it out of the sentence after.
+        The first three are the single-id and no-id forms the corpus writes, so the widening cannot
+        be bought back by narrowing those instead.
         """
         self.assertEqual(self._cited("Refusal {a}.".format(a="R1")), ["R1"])
         self.assertEqual(self._cited("refusal R1 stops the walk"), ["R1"], "a following word")
         self.assertEqual(self._cited("the refusal is what forces the caller"), [], "no id at all")
-        # The runbook's own opening line, plus the sentence after it that carries the id nothing
-        # cited: a clause that runs past its last join reports the benchmark seam as a refusal.
-        self.assertEqual(self._cited("Loaded on refusals {a} and {b}, and for any A/B. The bench "
-                                     "seam R9 is not one.".format(a="R3", b="R6")),
+        # The runbook's own opening line, plus a sentence after it that carries an id nothing
+        # cited: a clause that runs past its last join reports that id as one too.
+        self.assertEqual(self._cited("Loaded on refusals {a} and {b}, and for any A/B. The bare "
+                                     "id R9 is not one.".format(a="R3", b="R6")),
                          ["R3", "R6"], "a trailing sentence")
 
     def test_the_operands_no_citation_can_reach_are_declared(self):

@@ -1,6 +1,19 @@
-"""``capture-normalize`` and ``capture-index`` - the only way bytes enter the working store.
+"""``capture-begin``, ``capture-normalize`` and ``capture-index`` - what opens, fills and closes a
+capture.
 
 A TSV goes in and canonical JSON comes out, so the store never holds a TSV and never holds a CRLF.
+
+A capture is what the working root holds outside ``_run/``: the index this module writes and the
+enumeration ``promote`` reads both skip that directory, so nothing in it is captured, compared or
+promoted. The plan, the expected-diff manifest, the compare and promote reports and the verdict
+are ``cli``'s, and each is written into ``_run/``.
+
+``normalize`` is not the only writer of a captured byte. A self-captured row's producer writes its
+own file into the root from inside the test JVM and ``normalize`` stamps it where it stands; and
+``manifest build`` writes a manifest artifact at its production-relative path straight from ``cli``,
+outside every capture step - measured, and the capture index, ``store.artifact_files`` and
+``promote-plan`` each count that file as a captured row. What this module owns is a capture's
+boundaries: the erase, the two markers and the index.
 
 **The working root is erased before the first artifact of an invocation is written**, with exactly
 one exemption. That is single-slot made mechanical: there is no accumulation, no second capture

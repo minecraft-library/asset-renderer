@@ -123,7 +123,8 @@ public final class ParityJson {
      * Returns a parity metric at the one scale it has ever been quoted at.
      *
      * <p>Trailing zeros are kept, so {@code 0.0000} and {@code 60.0047} are both four places and a
-     * stored number is greppable against the ledger and against {@code CLAUDE.md} verbatim.
+     * stored number is greppable verbatim against {@code CLAUDE.md} and against the commit message
+     * of whatever moved it.
      *
      * @param value the metric
      * @return the fixed-scale primitive

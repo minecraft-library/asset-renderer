@@ -72,7 +72,7 @@ import java.util.stream.Stream;
  * <p><b>The atlas-UV residual is expected.</b> Vanilla samples the glint through each fragment's live
  * <em>atlas</em> sprite coordinate, unknowable offline; {@link GlintKit} substitutes the normalized
  * icon coordinate. The time alignment is exact; the spatial band pattern carries a residual the
- * delta will not drive to zero (see {@code notes/glint-parity.md}).
+ * delta will not drive to zero.
  *
  * <p>Usage: {@code ./gradlew glintParityVanilla [-PitemId=minecraft:nether_star]}.
  */
@@ -346,7 +346,7 @@ public final class TestGlintParityVanilla {
      * {@link GlintKit#ITEM_SCALE}, so the only unknown is removed and every other factor (scroll,
      * rotation, sampling, blend, alpha) can be checked for bit-parity. Otherwise the offline
      * approximation runs, with the UV scale overridable via {@code -Dasset.glint.itemScale} for empirical
-     * calibration (see {@code notes/glint-parity.md}).
+     * calibration.
      */
     private static GlintKit.@NotNull GlintOptions itemGlintOptions(boolean atlasUvMode) {
         GlintKit.GlintOptions preset = GlintKit.GlintOptions.itemDefault(30);

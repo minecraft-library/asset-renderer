@@ -201,7 +201,7 @@ def log_digests(logs: Path, flows: Sequence[str]) -> dict[str, str]:
 
     Every named flow must have a log. An absent one means that flow did not run into this capture,
     and digesting the seven that did is the tree-that-hashes-cleanly-minus-the-missing-file shape
-    the whole store is built against (I-20).
+    the whole store is built against.
 
     Known and accepted: a log is the last run of *its own* flow, so a capture triggered by one
     hand-run flow digests the other seven from whenever they last ran. Every promotion path runs

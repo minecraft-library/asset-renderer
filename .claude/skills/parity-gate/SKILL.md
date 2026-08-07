@@ -104,7 +104,7 @@ registrations do not name is RED like any unregistered mover.
 Then, only on an announced, priced re-baseline:
 
 ```bash
-./gradlew parityPromote -Preason="phase 6: buildBox operand order, +0.0004 over 8 rows"
+./gradlew parityPromote -Preason="buildBox operand order, +0.0004 over 8 rows"
 ```
 
 Never prefix a task with `:asset-renderer:` - this repo is its own Gradle root and the prefix
