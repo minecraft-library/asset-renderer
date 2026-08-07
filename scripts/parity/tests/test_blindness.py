@@ -260,6 +260,14 @@ class TheShippedMap(unittest.TestCase):
     def test_every_mode_is_known(self):
         self.assertEqual({r.mode for r in self.rules} - {"select", "demote", "suppress"}, set())
 
+    def test_no_shipped_suppression_names_an_artifact(self):
+        """The module docstring says the suppress pass removes nothing from any shipped answer, and
+        this is what makes that sentence a measurement. A rule acquiring a name fails here, which is
+        where the paragraph gets rewritten - and the pass is what that rule would then need."""
+        named = {rule.id: tuple(rule.sees) + tuple(rule.blind)
+                 for rule in self.rules if rule.mode == "suppress"}
+        self.assertEqual(named, {"B15": ()})
+
     def test_the_box_builder_selects_the_armour_and_player_gates(self):
         reach = blindness.resolve(
             ["src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java"],

@@ -164,16 +164,16 @@ public final class ParityArtifacts {
         Registration.store("roster.blindness-rules", 1),
 
         // --- report. A pointer is derived by the writer of the file it points into and rides that
-        // file as one of its fields, so it has no producer of its own.
+        // file as one of its fields, so it has no producer of its own. Three more were registered
+        // over row columns no sweep writer has ever emitted - a canvas mismatch, the panel numbers
+        // and a glint frame delta - and each is a diagnosis a human reads off a panel rather than a
+        // value a gate reproduces, so they are retired instead of grown a producer.
         Registration.pointer("report.sum"),
         Registration.pointer("report.buckets"),
         Registration.pointer("report.coverage-gaps"),
-        Registration.pointer("report.canvas-mismatch"),
         Registration.pointer("report.wall-time"),
         Registration.pointer("report.worst-list"),
         Registration.pointer("report.failure-rows"),
-        Registration.pointer("report.panel-stats"),
-        Registration.pointer("report.glint-frames"),
         Registration.pointer("report.run-provenance"),
         Registration.pointer("report.diagnostics-log"),
         Registration.pointer("report.harness-sweep-counts"),

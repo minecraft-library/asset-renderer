@@ -5,10 +5,10 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
-from parity import capture, promote, store
+from parity import capture, promote, store, sweep
 from parity.norm import MissingInput, Refused, read_json, write_json, write_text
+from parity.norm import fixed as norm_fixed
 
 DATA = Path(__file__).resolve().parent / "data"
 REPO = Path(__file__).resolve().parents[3]
@@ -151,6 +151,27 @@ class Normalize(unittest.TestCase):
         self.assertEqual(rows[0]["frames"], "30")
         self.assertIn("mean_argb_delta", rows[0])
 
+    def test_a_captured_sweep_carries_the_summary_it_derives(self):
+        """The fleet sum, the buckets, the row count and the failure count, written once.
+
+        The same arithmetic `parity sum` and `parity buckets` print, and printing was the whole of
+        it: no stored sweep carried one, so four registered pointers into `#/summary` resolved
+        nowhere and the index row a promotion writes had nothing to lift.
+        """
+        capture.normalize("sweep.armor", DATA, self.root, REPO, runs=2)
+        payload = read_json(self.root / "sweeps" / "armor.json")
+        table = sweep.read_table(DATA / "sweep-armor.tsv", "armor")
+        self.assertEqual(payload["summary"], {
+            "buckets": sweep.buckets(table), "failed": table.failed(),
+            "rows": len(payload["rows"]), "sum": norm_fixed(sweep.total(table))})
+
+    def test_the_summary_sum_is_the_metric_form_every_delta_beside_it_uses(self):
+        """A binary float's shortest repr moves with the last bit of an fsum over a thousand rows,
+        and it would be the one number in the file spelled unlike its neighbours."""
+        capture.normalize("sweep.armor", DATA, self.root, REPO, runs=2)
+        summary = read_json(self.root / "sweeps" / "armor.json")["summary"]
+        self.assertRegex(summary["sum"], r"^-?\d+\.\d{4}$")
+
     def test_provenance_rides_inside_the_artifact(self):
         capture.normalize("sweep.armor", DATA, self.root, REPO, producer="armorParityVanilla")
         payload = read_json(self.root / "sweeps" / "armor.json")
@@ -190,28 +211,38 @@ class RunsDefaultsToTheFloor(unittest.TestCase):
     """
 
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp()) / "run"
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "run"
 
-    def _runs(self, artifact_id: str, **kwargs) -> int:
+    def _runs(self, artifact_id: str, floors: dict[str, int] | None = None, **kwargs) -> int:
+        """Stamp one artifact against a store declaring the given floors, and read the number back.
+
+        The store is a fixture rather than the shipped one, because what is under test is which
+        table answers: two artifacts of one kind with different floors cannot both be a literal, and
+        the shipped roster gives every digest set the same number.
+        """
+        declared = floors or {artifact_id: 2}
+        write_json(self.repo / store.PRODUCTION / "index.json",
+                   {"artifacts": {name: {promote.FLOOR_FIELD: floor}
+                                  for name, floor in declared.items()}})
         write_json(self.root / store.path_of(artifact_id),
                    {"artifact": artifact_id, "key": "name", "kind": "digest-set",
                     "digests": {"block_models": {"sha256": "a"}}})
-        capture.normalize(artifact_id, self.root, self.root, REPO, **kwargs)
+        capture.normalize(artifact_id, self.root, self.root, self.repo, **kwargs)
         return read_json(self.root / store.path_of(artifact_id))["provenance"]["determinism_runs"]
 
-    def test_an_absent_runs_stamps_the_ordinary_floor(self):
+    def test_an_absent_runs_stamps_the_declared_floor(self):
         self.assertEqual(self._runs("digest.shipped-tables"), 2)
 
     def test_the_default_is_the_ARTIFACT_s_floor_and_not_the_common_one(self):
-        """Two artifacts of one kind, one of them raised, so a literal 2 cannot pass this.
+        floors = {"digest.colormap-lut": 5, "digest.shipped-tables": 2}
+        self.assertEqual(self._runs("digest.colormap-lut", floors), 5)
+        self.assertEqual(self._runs("digest.shipped-tables", floors), 2)
 
-        The roster is patched rather than a raised row picked out of it, because every row that
-        really carries five is a manifest and a manifest's capture reads a producer directory. What
-        is being asserted is which function answers, and that is the same function either way.
-        """
-        with mock.patch.dict(promote.FLOORS, {"digest.colormap-lut": 5}):
-            self.assertEqual(self._runs("digest.colormap-lut"), 5)
-            self.assertEqual(self._runs("digest.shipped-tables"), 2)
+    def test_an_unregistered_artifact_refuses_rather_than_defaulting(self):
+        """A default here is a second table, and the shipped pair disagreed for the store's life."""
+        with self.assertRaises(MissingInput):
+            self._runs("digest.colormap-lut", {"digest.shipped-tables": 2})
 
     def test_an_explicit_runs_is_never_overwritten_by_the_floor(self):
         self.assertEqual(self._runs("digest.colormap-lut", runs=7), 7)
@@ -283,6 +314,14 @@ class Index(unittest.TestCase):
         recorded = read_json(self.root / store.RUN_DIR / "_capture.json")
         self.assertEqual([entry["path"] for entry in recorded["files"]], ["sweeps/entity.json"])
         self.assertEqual(len(recorded["files"][0]["sha256"]), 64)
+
+    def test_it_records_the_tree_and_nothing_the_build_never_sent(self):
+        """Four fields were structurally empty on every capture and read by nothing anywhere: the
+        build's argv sent no producer and no flag, the timestamp had no command-line spelling at
+        all, and the run count is answered per artifact by the provenance object that measured it."""
+        capture.index(self.root)
+        recorded = read_json(self.root / store.RUN_DIR / "_capture.json")
+        self.assertEqual(sorted(recorded), ["artifacts", "files", "format", "kind"])
 
     def test_run_files_are_not_indexed_as_artifacts(self):
         capture.index(self.root)

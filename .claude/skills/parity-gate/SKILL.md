@@ -111,12 +111,21 @@ Never prefix a task with `:asset-renderer:` - this repo is its own Gradle root a
 cannot resolve (34 recorded failures).
 
 If the plan's budget exceeds **110s**, run `parityCapture` in the background; the default shell
-budget is 120s and a full bundle exceeds it. A budget of `0 ms` means no artifact in the plan has a
-recorded duration yet, not that the bundle is free - read the producer list instead.
+budget is 120s and a full bundle exceeds it. The budget is the sum of what each planned artifact's
+producers took the last time that artifact was **promoted**, so a row promoted before the build
+started measuring wall time contributes nothing and a bundle of them reads `0 ms`. That is not a
+free bundle - read the producer list instead.
 
 ## Common flags
 
-- `-Partifacts=<comma list|alias>` - **optional.** Absent, the task reads `_run/plan.json`'s PLAN
+- `-Partifacts=<comma list|alias>` - **optional**, and read by `parityCapture`, `parityCompare` and
+  `parityPromote`. An alias expands on all three, so the same token scopes a capture and the compare
+  and promotion that follow it. The other two behaviours below are `parityCapture`'s alone: it is the
+  task that turns each id into a producer to run, so it is the one that reads the plan when the flag
+  is absent and the one that refuses an id no capture row answers. A bare `parityCompare` compares
+  every artifact the root holds, and a bare `parityPromote` plans every one of them.
+
+  Absent, `parityCapture` reads `_run/plan.json`'s PLAN
   set; absent with no plan, it throws with the full id list and says to run `parityPlan` first.
   Present, it overrides the plan. Prefer narrowing the *change*. Naming an artifact the store holds
   no file for - anything the plan printed under COVERED or MANUAL - still throws `unknown artifact
@@ -129,6 +138,14 @@ recorded duration yet, not that the bundle is free - read the producer list inst
   root is a path, must be relative and under `cache/`, and there is no slot name.
 - `-Pbase=cache/parity/base` on `parityCompare` - compare against that redirected root rather than
   against the store.
+- `-Pexpected=<file>` on `parityCompare` - assert the diff against that expected-diff manifest
+  instead of the one `parityExpect` writes into `_run/expected-diff.json`. The registrations are the
+  same shape either way; this only says which file holds them.
+- `-Pchanged=<paths>` on `parityPlan` - a comma list of repo-relative paths to resolve reach for,
+  instead of the paths git reports changed. It plans a change that is not in the tree; it does not
+  narrow one that is.
+- `-Pformat=json` on `parityPlan` - print the plan as JSON rather than as the SEES / BLIND / PLAN /
+  BUDGET block. `_run/plan.json` is written either way, so this is for reading, not for producing.
 - `-Pruns=N` on `parityCapture` - **recorded, never measured.** It stamps how many runs the operator
   is claiming agreed; the measurement is two captures into two roots compared against each other.
   Two for a render tree, five where the `Map.copyOf` salt can reach. Absent, each artifact is
@@ -144,9 +161,16 @@ recorded duration yet, not that the bundle is free - read the producer list inst
 - `-PallowDirty=true` on `parityPromote` - promote a capture taken from an uncommitted tree, and
   record the exception in the promoted provenance. Reach for it only when the alternative is worse:
   the baseline is then re-derivable from no commit, and nothing read later recovers that.
+- `-Ppopulation=changed` on `parityPromote` - the answer to the refusal below on a row count that
+  moved, and the only one. It says the new covered set is intended, and records the exception in the
+  promoted provenance. It waives nothing else: the digests still have to have been compared, and a
+  row whose value moved is still a mover.
 - `-Pclass={neutral,shaped,moving}` on `parityPromote` - defaults to `moving`, because forgetting it
   cannot then understate a change.
 - `-Preason=<text>` - mandatory on `parityPromote`, and on a `parityExpect` that registers a row.
+- `-PpythonExe=<path>` - which interpreter runs the toolkit, when the one this build resolves off
+  `PATH` is the wrong one. `PARITY_PYTHON` in the environment does the same. Not a gate knob: it is
+  the escape for a machine where the toolkit will not start at all.
 
 There is no dry-run flag: `parityPlan` runs nothing and prints the plan and the budget, and Gradle
 owns `--dry-run` for itself.
@@ -173,6 +197,7 @@ owns `--dry-run` for itself.
 | References stale or partial | Refuse (R6). Print `./gradlew renderVanillaAllReferences` and stop. Refreshing the oracle is the operator's call, taken before the work, never a side effect of gating the change measured against it. |
 | Capture partial / producer non-zero / count mismatch | Refuse (R7). |
 | Promote what this capture's compare did not cover | Refuse (R8). `parityPromote` requires `_run/compare.json` stamped with this capture's digest and naming every artifact it would write, so run `parityCompare` between the capture and the promotion and widen its `-Partifacts` to match. `-Pbootstrap=true` is the one exemption - a first baseline has nothing to be diffed against - and it exempts the whole invocation, so narrow that promotion with `-Partifacts`. |
+| Promote a capture holding a different number of rows than its baseline | Refuse (R9). A population that moved is a different covered set, and the tree hashes cleanly either way, so nothing else catches it. Say the new set is intended with `-Ppopulation=changed`, which records the exception; a row with no baseline has nothing to have moved from and is passed over. |
 
 **A phase that promotes is two commits, not one.** The migration lands first, because a capture that
 gets promoted must run committed code or its provenance records `asset_dirty: true` and the baseline

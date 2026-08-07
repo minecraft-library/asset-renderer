@@ -17,7 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from parity.norm import MissingDependency, write_bytes_raw
+from parity.norm import MissingDependency
 
 INSTALL = "python -m pip install pillow numpy"
 
@@ -83,16 +83,3 @@ def load_rgba(path: Path) -> Any:
     with image.open(path) as handle:
         return numpy.asarray(handle.convert("RGBA")).astype(numpy.int32)
 
-
-def save_png(path: Path, array: Any) -> Path:
-    """The one binary write in the package, and it goes through ``norm``'s named binary door.
-
-    ``Image.save`` would write the file itself and step round the sole-writer rule; encoding to a
-    buffer and handing the bytes to ``write_bytes_raw`` keeps every byte the package emits going
-    through one place.
-    """
-    import io
-    numpy, image = require("writing a PNG")
-    buffer = io.BytesIO()
-    image.fromarray(array.astype(numpy.uint8), "RGBA").save(buffer, format="PNG")
-    return write_bytes_raw(path, buffer.getvalue())

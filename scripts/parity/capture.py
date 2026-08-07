@@ -139,7 +139,8 @@ def _mark_opened(root: Path) -> Path:
 
 def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str = "",
               mode: str | None = None, flags: Sequence[str] = (), runs: int | None = None,
-              logs: Path | None = None, reference_tree: Path | None = None) -> Path:
+              logs: Path | None = None, reference_tree: Path | None = None,
+              wall_time_ms: int | None = None, store: str | None = None) -> Path:
     """Read a producer's raw output and write the canonical form at its production-relative path.
 
     An absent ``runs`` means the artifact's declared floor, which is the value the build has always
@@ -153,12 +154,18 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
     only place that difference is ever written down. ``reference_tree`` is the ground truth a sweep
     diffed against, named as a directory rather than as a captured manifest so the record carries it
     on every capture and not only on the one that also hashed the tree into the store.
+
+    ``wall_time_ms`` is how long this row's producers took, measured by the build and passed in
+    rather than taken here: a capture step runs after its producers and can time itself alone, which
+    is the milliseconds of a normalize rather than the minutes the plan's budget exists to warn
+    about. An absent one records nothing, so a hand-run capture stamps no duration instead of
+    stamping a zero every later reader would sum.
     """
     # Imported at call time rather than at module scope: `promote` reads this module for its root
     # checks, and the floor is the one value that has to travel back the other way.
     from parity import promote as promote_mod
     if runs is None:
-        runs = promote_mod.floor_for(artifact)
+        runs = promote_mod.floor_for(artifact, store_mod.production(store, repo).index())
     target = root / store_mod.path_of(artifact)
     kind, _, name = artifact.partition(".")
 
@@ -181,7 +188,7 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
         artifact, repo, producer=producer, mode=mode, runs=runs,
         flags=[*flags, *payload.pop("_flags", [])],
         counts=payload.pop("_counts", None), root=payload.pop("_root", None),
-        reference_tree=reference_tree)
+        reference_tree=reference_tree, wall_time_ms=wall_time_ms)
     write_json(target, payload)
     return target
 
@@ -199,6 +206,12 @@ def _sweep(artifact: str, name: str, source: Path) -> dict:
         "key": "subject",
         "kind": "sweep-table",
         "rows": rows,
+        # Derived here and nowhere else. It is the same arithmetic `parity sum` and `parity buckets`
+        # print, and printing was the whole of it: the fleet sum every phase of this store reported
+        # progress in existed only on a terminal, so no stored file carried it and the index row a
+        # promotion writes had nothing to lift. The compare joins the rows member alone, so this is
+        # written and never diffed - it is read, not gated.
+        "summary": sweep_mod.summary(table),
         "_counts": {"failed": table.failed(), "rows": len(rows)},
     }
 
@@ -243,9 +256,19 @@ def _self_captured(artifact: str, source: Path, root: Path, target: Path) -> dic
     return payload
 
 
-def index(root: Path, producers: Sequence[str] = (), flags: Sequence[str] = (),
-          runs: int = 0, timestamp: str | None = None) -> Path:
-    """Write ``_run/_capture.json``, then ``_run/COMPLETE`` last."""
+def index(root: Path) -> Path:
+    """Write ``_run/_capture.json``, then ``_run/COMPLETE`` last.
+
+    What it records is the tree: which artifacts this capture holds and what each of their files
+    hashes to. It used to carry a producer list, a flag list, a run count and a timestamp beside
+    them, and all four are gone, because no reader anywhere read one. Three of them could not have
+    said anything either: the build sent no producer and no flag, and the timestamp had no
+    command-line spelling at all, so those three were structurally empty on every capture. The run
+    count was sent, whenever the operator gave one - and it was the same number the capture step had
+    already stamped into each artifact's own provenance, which is where the promotion reads it. That
+    object is where all four questions are answered, by the step that measured the value rather than
+    by the step that closes the invocation.
+    """
     run = root / store_mod.RUN_DIR
     files = []
     for path in sorted(root.rglob("*.json")):
@@ -254,13 +277,9 @@ def index(root: Path, producers: Sequence[str] = (), flags: Sequence[str] = (),
         files.append({"path": path.relative_to(root).as_posix(), "sha256": sha256_file(path)})
     payload = {
         "artifacts": [read_json(root / entry["path"]).get("artifact", "") for entry in files],
-        "determinism_runs": runs,
         "files": files,
-        "flags": list(flags),
         "format": 1,
         "kind": "capture-index",
-        "producers": list(producers),
-        "timestamp": timestamp or "",
     }
     write_json(run / CAPTURE_INDEX, payload)
     # Closed before it is marked complete, so the next invocation's first step erases rather than

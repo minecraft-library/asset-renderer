@@ -18,6 +18,8 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -145,6 +147,82 @@ final class ParityTaskWiringTest {
 
     /** Where the skill states its own entry points, and states how many of them there are. */
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
+
+    /** Where the toolkit lives, whose modules answer which one writes the budget's column. */
+    private static final Path TOOLKIT = Path.of("scripts/parity");
+
+    /** The index-row column the plan's budget sums, which is where an artifact's cost is read. */
+    private static final String BUDGET_COLUMN = "last_duration_ms";
+
+    /** How a toolkit module's own name reads as the act that recorded the number. */
+    private static final Map<String, String> THE_ACT_OF =
+        Map.of("capture", "captured", "promote", "promoted");
+
+    /**
+     * The skill's account of where the budget's numbers come from, capturing the act it names.
+     *
+     * <p>Matched against the file with its whitespace collapsed, because the sentence wraps: a
+     * pattern carrying literal spaces answers no for the shipped text and the case then fails on
+     * the sentence being absent, which is a different statement from the one it is here to make.
+     */
+    private static final Pattern BUDGET_SENTENCE = Pattern.compile(
+        "The budget is the sum of what each planned artifact's producers took the last time that "
+            + "artifact was \\*\\*(\\w+)\\*\\*");
+
+    /** One {@code -P} property the build reads, in either of the two spellings that read one. */
+    private static final Pattern READS_A_PROPERTY =
+        Pattern.compile("parity(?:Property|Flag)\\(\"([A-Za-z]+)\"\\)");
+
+    /** The id a refusal row opens with, anchored at the start of its verdict cell. */
+    private static final Pattern REFUSAL_ORDINAL = Pattern.compile("Refuse \\((R\\d+)\\)\\.");
+
+    /**
+     * One row of a markdown table, removed before the flag documentation is looked for.
+     *
+     * <p>A verdict cell naming the flag that answers it is a report of what happened, not an entry
+     * saying what the flag does or which task takes it - and a property documented only there is
+     * one an operator meets after the refusal rather than before the run.
+     */
+    private static final Pattern TABLE_ROW = Pattern.compile("(?m)^\\|.*$");
+
+    /**
+     * Every refusal the decision table states: the ordinal an operator reports it by, and the
+     * condition cell that raises it.
+     *
+     * <p>Written out rather than counted off the table, because a sequence compared against its own
+     * length is satisfied by any prefix of itself - the last row can be deleted and the ordinals
+     * that remain still read from one upward, so the roster catches its own emptying and misses its
+     * narrowing. What a refusal row IS is this pair, so both halves are held: a deleted row is a
+     * missing entry, a reworded condition is a changed one, and a row inserted mid-table moves
+     * every ordinal after it.
+     */
+    private static final List<String> THE_REFUSALS = List.of(
+        "R1 | A changed path matches no rule and no `no_reach` glob",
+        "R2 | SEES empty, and no fired rule declares `sees: []`",
+        "R3 | Baseline missing",
+        "R4 | Promote from a dirty tree",
+        "R5 | `determinism_runs` below floor",
+        "R6 | References stale or partial",
+        "R7 | Capture partial / producer non-zero / count mismatch",
+        "R8 | Promote what this capture's compare did not cover",
+        "R9 | Promote a capture holding a different number of rows than its baseline");
+
+    /**
+     * The alias expansion, whole.
+     *
+     * <p>Two clauses of it are load-bearing and neither is visible at a call site. The pass-through
+     * is why a compare and a promotion may go through this rather than through the resolver: they
+     * work off the store, which holds rows the capture table has none for, so a token this build
+     * does not know is theirs to forward and the toolkit's to refuse. Dropped, the tokens erased are
+     * the ones that are not aliases, which is every artifact id. The de-duplication is what makes
+     * overlapping aliases one bundle rather than a list that captures a row twice.
+     */
+    private static final String EXPANDS_EVERY_ALIAS =
+        "fun expandParityAliases(spec: String): String = "
+            + "spec.split(\",\").map(String::trim).filter(String::isNotEmpty) "
+            + ".flatMap { token -> parityArtifactAliases[token] ?: listOf(token) } "
+            + ".distinct() "
+            + ".joinToString(\",\")";
 
     /** The shipped invariant, capturing the count it writes as a word. */
     private static final Pattern SKILL_TASK_COUNT =
@@ -452,6 +530,82 @@ final class ParityTaskWiringTest {
             handedToTheReader, equalTo(handingOver));
     }
 
+    @Test
+    @DisplayName("every -P property the build reads is one the skill documents")
+    void everyPropertyTheBuildReadsIsDocumented() {
+        String skill = read(PARITY_SKILL);
+
+        Set<String> read = new TreeSet<>();
+        Matcher property = READS_A_PROPERTY.matcher(buildFile());
+        while (property.find()) read.add(property.group(1));
+
+        String reference = TABLE_ROW.matcher(skill).replaceAll("");
+        List<String> undocumented = read.stream()
+            .filter(name -> !Pattern.compile("-P" + name + "\\b").matcher(reference).find())
+            .toList();
+
+        assertThat("the build reads no -P property at all, which would leave the clause below "
+            + "holding over an empty set", read, is(not(empty())));
+        assertThat("the decision table is what was removed above and it is now the whole file, so "
+            + "the clause below holds over nothing", reference.strip(), is(not(equalTo(""))));
+        assertThat("properties this build reads that the runbook does not name. Every one of them "
+            + "is a knob an operator has no other way to learn about - Gradle answers `-Pnonsense` "
+            + "and `-Pthe-one-you-meant` identically, with nothing - so an undocumented waiver is a "
+            + "refusal with no answer and an undocumented input is one nobody supplies. Looked for "
+            + "outside the decision table, because a verdict cell naming the flag that answers it "
+            + "is a report of what happened rather than an entry saying what to type: a waiver "
+            + "documented only there is one an operator meets after the refusal, and the two "
+            + "statements of it then vouch for each other while either alone can go. Matched on a "
+            + "word boundary, because `-Partifacts` in the file would otherwise vouch for "
+            + "`-Partifact`", undocumented, is(empty()));
+    }
+
+    @Test
+    @DisplayName("the decision table states the refusals it is quoted for, each under its own ordinal")
+    void everyRefusalCarriesItsOwnOrdinalInOrder() {
+        List<String[]> rows = read(PARITY_SKILL).lines()
+            .map(line -> line.split("\\|", -1))
+            .filter(cells -> cells.length > 2 && cells[2].strip().startsWith("Refuse"))
+            .toList();
+
+        List<String> stated = rows.stream().map(cells -> {
+            Matcher ordinal = REFUSAL_ORDINAL.matcher(cells[2].strip());
+            return (ordinal.lookingAt() ? ordinal.group(1) : cells[2].strip())
+                + " | " + cells[1].strip();
+        }).toList();
+
+        assertThat("the table states no refusal at all, which would make the clauses below hold "
+            + "over an empty sequence", rows, is(not(empty())));
+        assertThat("every refusal the table states, against the roster of them. An operator quotes "
+            + "a refusal by its id and the toolkit enforces the rule beside it, so a row deleted "
+            + "here leaves a refusal that fires with nothing shipped saying it exists - which is "
+            + "what a sequence checked against its own length cannot see, any prefix of the column "
+            + "still numbering from one. A row that carries no ordinal prints its own text in place "
+            + "of one", stated, equalTo(THE_REFUSALS));
+        assertThat("and the roster itself runs from one without a gap, so the ids a reader counts "
+            + "down the column are the ids the rows carry. A row inserted mid-table under a later "
+            + "id sends every quotation of that id to the wrong rule",
+            THE_REFUSALS.stream().map(refusal -> refusal.split(" \\| ")[0]).toList(),
+            equalTo(IntStream.rangeClosed(1, THE_REFUSALS.size())
+                .mapToObj(ordinal -> "R" + ordinal)
+                .toList()));
+    }
+
+    @Test
+    @DisplayName("the alias expansion replaces what it knows and forwards every other token")
+    void theExpansionRefusesNothingAndRepeatsNothing() {
+        assertThat("the two clauses below are why the three readers can share this. The "
+                + "pass-through is what lets a compare and a promotion go through it rather than "
+                + "through the resolver: they work off the store, which holds rows the capture "
+                + "table has none for - the hand-authored rule roster among them - so a token this "
+                + "build does not know is theirs to forward and the toolkit's to refuse. Dropped, "
+                + "what is erased is every token that is not an alias, which is every artifact id: "
+                + "the scope an operator typed silently narrows instead of failing. The "
+                + "de-duplication is the other: `-Partifacts=sweeps,sweep.block` names one bundle, "
+                + "and without it that bundle captures a row twice",
+            collapsed(function("expandParityAliases")), equalTo(EXPANDS_EVERY_ALIAS));
+    }
+
     /**
      * Every line outside a fenced block that hands the reader a command.
      *
@@ -621,8 +775,21 @@ final class ParityTaskWiringTest {
     }
 
     @Test
-    @DisplayName("the run count reaches the capture of each artifact, and the index over them")
-    void theRunCountReachesBothSidesOfACapture() {
+    @DisplayName("the moved-population override is read as a value and forwarded to the toolkit")
+    void theMovedPopulationOverrideReachesTheToolkit() {
+        String promote = taskBlock("parityPromote");
+        assertThat("compared against the one spelling that means it, so any other value is off "
+                + "rather than on - the flag it forwards admits a row count that moved",
+            promote, containsString("val population = parityProperty(\"population\") == \"changed\""));
+        assertThat("the second refusal in this task whose only override is this hop, and the "
+                + "sibling above is what it has to match: the runbook documents this flag as the "
+                + "answer to a row count that moved, so unforwarded it is an answer nobody can give",
+            promote, containsString("if (population) add(\"--population-changed\")"));
+    }
+
+    @Test
+    @DisplayName("the run count reaches the capture of each artifact, and the index carries none")
+    void theRunCountReachesTheOneSideThatReadsIt() {
         String step = collapsed(declaration(REGISTERS_A_CAPTURE_STEP));
 
         assertThat("read out of the body that builds a capture step's argv, so the statement is "
@@ -633,9 +800,104 @@ final class ParityTaskWiringTest {
                 + "capture is stamped with the floor instead - so a claim BELOW it, the one thing "
                 + "the floor refusal exists to catch, is silently replaced by a passing one",
             step, containsString(FORWARDS_THE_RUN_COUNT));
-        assertThat("and the one that records the same claim once for the capture as a whole, in "
-                + "the index rather than under each row",
-            taskBlock("parityCapture"), containsString(FORWARDS_THE_RUN_COUNT));
+        assertThat("and the capture index carries none. It used to take the same number a second "
+                + "time and no reader anywhere read that copy - the promotion reads the per-artifact "
+                + "provenance object, which is written by the step that took the measurement rather "
+                + "than by the step that closes the invocation",
+            collapsed(taskBlock("parityCapture")),
+            containsString("argv.set(buildList { add(\"capture-index\") "
+                + "add(\"--root\"); add(parityWorkingRoot) })"));
+    }
+
+    @Test
+    @DisplayName("all three -Partifacts readers expand an alias before forwarding it")
+    void everyArtifactsReaderExpandsItsAliases() {
+        assertThat("the capture expands through the resolver, which also refuses a token no capture "
+                + "row answers - it turns each one into a producer task, so an unknown id there is a "
+                + "task that does not exist", collapsed(taskBlock("parityCapture")),
+            containsString("resolveParityArtifacts(parityProperty(\"artifacts\"))"));
+        for (String task : List.of("parityCompare", "parityPromote"))
+            assertThat("and " + task + " expands the same aliases without that refusal. Forwarded "
+                    + "raw, `-Partifacts=sweeps` captures six rows and then asks the toolkit for a "
+                    + "store path for an artifact called `sweeps`, which is a failed promotion in "
+                    + "the middle of the documented three-command run. Refusing an unknown token "
+                    + "here would be wrong the other way: the store holds rows the capture table has "
+                    + "none for, the hand-authored rule roster among them",
+                collapsed(taskBlock(task)),
+                containsString("val artifacts = parityProperty(\"artifacts\")?.let(::expandParityAliases)"));
+        assertThat("and the expansion is written once: the resolver calls it rather than carrying a "
+                + "second copy, so an alias added to the table reaches all three",
+            collapsed(declaration("fun resolveParityArtifacts(")),
+            containsString("spec?.let { expandParityAliases(it)"));
+        assertThat("and the shipped sentence saying so, read here where the three call sites are, "
+                + "because each of them was pinned and the claim over them was not - which is the "
+                + "half a reader acts on, and the half that was false when aliases expanded on one",
+            collapsed(read(PARITY_SKILL)),
+            containsString("An alias expands on all three, so the same token scopes a capture and "
+                + "the compare and promotion that follow it."));
+    }
+
+    @Test
+    @DisplayName("a capture step stamps the wall time of the producers that ran")
+    void theCaptureStampsWhatItsProducersCost() {
+        assertThat("measured on the producers rather than on the step, which runs after them and "
+                + "takes milliseconds - the question the budget answers is whether to background a "
+                + "twenty-minute render",
+            collapsed(buildFile()),
+            containsString("doFirst { startedAt.set(System.nanoTime()) } "
+                + "doLast { parityProducerElapsedMs[name] = "
+                + "(System.nanoTime() - startedAt.get()) / 1_000_000L }"));
+        assertThat("and appended where the answer exists, guarded on something having run: a zero "
+                + "stamped for a producer the invocation never scheduled is summed by the plan's "
+                + "budget as an artifact that costs nothing",
+            collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
+            containsString("doFirst { val elapsed = spec.producers.mapNotNull("
+                + "parityProducerElapsedMs::get).sum() "
+                + "if (elapsed > 0) args(\"--wall-time\", elapsed.toString()) }"));
+    }
+
+    @Test
+    @DisplayName("the budget sentence names the act that recorded the number it describes")
+    void theBudgetSentenceNamesTheActThatWritesTheColumn() {
+        Set<String> writers = toolkitModulesWriting(BUDGET_COLUMN);
+        Matcher stated = BUDGET_SENTENCE.matcher(collapsed(read(PARITY_SKILL)));
+
+        assertThat("SKILL.md carries no sentence saying where the budget's numbers come from, so "
+            + "what is pinned below is not the sentence that shipped", stated.find(), is(true));
+        assertThat("no toolkit module writes " + BUDGET_COLUMN + " at all, which would leave the "
+            + "comparison below holding over an empty set", writers, is(not(empty())));
+        assertThat("the column is written from one module, so the sentence has one act to name: "
+            + writers, writers.size(), is(equalTo(1)));
+        assertThat("and it is a module this can read an act off; one outside the vocabulary has no "
+                + "spelling here and would pass by naming nothing", THE_ACT_OF.keySet(),
+            hasItem(writers.iterator().next()));
+        assertThat("and the plan's budget is the sum of that column, so the sentence is about the "
+                + "number an operator is shown rather than about a second one",
+            read(TOOLKIT.resolve("cli.py")), containsString(".get(\"" + BUDGET_COLUMN + "\", 0)"));
+        assertThat("the act the sentence names, against the module that writes the column it "
+                + "describes. A capture stamps the measurement and a promotion is what publishes "
+                + "it, so both readings are plausible and only one is true - and the sentence is "
+                + "the whole of what tells an operator whether a bundle reading `0 ms` has never "
+                + "been measured or has never been promoted", THE_ACT_OF.get(writers.iterator().next()),
+            equalTo(stated.group(1)));
+    }
+
+    /**
+     * Returns which toolkit modules write a named index-row column.
+     *
+     * @param column the column name
+     * @return the module names, sorted
+     */
+    private static Set<String> toolkitModulesWriting(String column) {
+        try (Stream<Path> modules = Files.list(TOOLKIT)) {
+            return modules
+                .filter(module -> module.getFileName().toString().endsWith(".py"))
+                .filter(module -> read(module).contains("[\"" + column + "\"] ="))
+                .map(module -> module.getFileName().toString().replace(".py", ""))
+                .collect(Collectors.toCollection(TreeSet::new));
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     @Test

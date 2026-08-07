@@ -51,13 +51,10 @@ column beside it is one answer, so it is stored once and pointed at.
 | artifact | pointer |
 |---|---|
 | `report.buckets` | `sweeps/<sweep>.json#/summary/buckets` |
-| `report.canvas-mismatch` | `sweeps/<sweep>.json#/rows/<n>/canvas_mismatch` |
 | `report.coverage-gaps` | `sweeps/<sweep>.json#/summary/gaps` |
 | `report.diagnostics-log` | `manifests/tooling-tables.json#/logs` |
 | `report.failure-rows` | `sweeps/<sweep>.json#/rows/<n>/status` |
-| `report.glint-frames` | `sweeps/glint.json#/rows/<n>/frames_delta` |
 | `report.harness-sweep-counts` | `<artifact>#/provenance/counts` |
-| `report.panel-stats` | `sweeps/<sweep>.json#/rows/<n>/panel` |
 | `report.run-provenance` | `<artifact>#/provenance` |
 | `report.sum` | `sweeps/<sweep>.json#/summary/sum` |
 | `report.wall-time` | `<artifact>#/provenance/wall_time_ms` |
@@ -98,6 +95,6 @@ where it lives and how to re-derive it, and carries no value.
 | `roster.humanoid-armor` | `lib.minecraft.renderer.pipeline.loader.HumanoidArmorRosterTest` | EntityModelLoader.load() filtered on humanoidArmor().isPresent() |
 | `roster.humanoid-part-crop` | `lib.minecraft.renderer.face.HumanoidPartCropTest` | Unwrap.Atlas.rect at each part's atlas origin under Turn.HALF_X |
 | `roster.overlay-pipeline` | `lib.minecraft.renderer.pipeline.loader.OverlayPipelineRosterTest` | EntityPipelineTraits over the extracted client jar's layer classes |
-| `roster.pack-fixtures` | `lib.minecraft.renderer.pipeline.dump.PipelineParityDump` | PipelineParityDump's PACK_FIXTURES, also a provenance field on the two dump manifests |
+| `roster.pack-fixtures` | `lib.minecraft.renderer.pipeline.dump.PipelineParityDump` | PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere |
 | `roster.player-scopes` | `lib.minecraft.renderer.visual.TestPlayerParityVanilla` | the scopes the harness PlayerSweep renders |
 | `roster.sheet-groups` | `lib.minecraft.renderer.visual.TestPlayerRender` | the -Psheets groups TestPlayerRender accepts; ten offline plus the network-only account group |

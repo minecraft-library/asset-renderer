@@ -77,12 +77,9 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `report.sum` | - | POINTER | - | - | - | - | - | - |
 | `report.buckets` | - | POINTER | - | - | - | - | - | - |
 | `report.coverage-gaps` | - | POINTER | - | - | - | - | - | - |
-| `report.canvas-mismatch` | - | POINTER | - | - | - | - | - | - |
 | `report.wall-time` | - | POINTER | - | - | - | - | - | - |
 | `report.worst-list` | - | POINTER | - | - | - | - | - | - |
 | `report.failure-rows` | - | POINTER | - | - | - | - | - | - |
-| `report.panel-stats` | - | POINTER | - | - | - | - | - | - |
-| `report.glint-frames` | - | POINTER | - | - | - | - | - | - |
 | `report.run-provenance` | - | POINTER | - | - | - | - | - | - |
 | `report.diagnostics-log` | - | POINTER | - | - | - | - | - | - |
 | `report.harness-sweep-counts` | - | POINTER | - | - | - | - | - | - |
@@ -103,7 +100,7 @@ selected by `parityPlan`, and none is a gate.
 | task | why it has no id |
 |---|---|
 | `generateAtlas` (with `-Pdiagnose` / `-PsourceFilter` / `-PskipRender`) | `AtlasRenderer` dispatches its tiles on `parallelStream` by design, so two runs place the same sprites at different offsets and the output can never be hashed (blindness rule B15). A must-not-crash smoke check. |
-| `javadoc` | RED at HEAD with about twenty pre-existing errors, seventeen of them Lombok-generated builders an annotation processor produces and javadoc cannot see. Its exit code carries no information. |
+| `javadoc` | RED at HEAD, and every error is the same one: a Lombok-generated builder an annotation processor produces and the doclet cannot see. Its exit code carries no information. The incubator module flag is wired onto it like every other consumer, which is why the two errors that were about `SimdOps` are gone and the task is still red. |
 | `jmh` | Benchmark scores, not rendered bytes. `jmh-regression-gate` is the separate skill that compares them. |
 | `bedCompare`, `packOverlay`, `redstoneTints`, `stackCountBadge`, `blockFlipbook` | Authoring and version-bump tools. No stored artifact is defined over any of their output directories - none is a member of `manifest.visual` - so what they write is compared against nothing this store holds. |
 | `blockRender3D`, `entityProjections`, `entityRender3D`, `itemDayCycle`, `itemRender2D`, `loreTooltip`, `menuRender`, `projectionSmoke` | Visual producers whose `cache/visual` sub-tree is a member of `manifest.visual`, so the rows they write are gated under that id and captured by `visualSweepSet` rather than by a task of their own. |

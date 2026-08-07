@@ -1,8 +1,8 @@
 """Tree digest manifests: build, verify, and the generated ``sha256sum`` view.
 
-Three incompatible line grammars exist on disk today and a naive ``diff`` between two of them
-reports every line changed. They collapse here: ``build`` and ``verify`` read all three, and only
-grammar A is ever written.
+A manifest is read from the tree it is defined over or from the stored artifact, never from a
+digest listing: ``build`` walks the tree, ``from_artifact`` reads the store's own JSON, and the
+``sha256sum`` line form is written by ``export_text`` and by nothing parsed back.
 
 Sorting is **by path, never by digest**. Sorting by digest means one changed section reorders every
 line and a manifest diff stops being a per-file diff - which is a behaviour change for the dump
@@ -92,8 +92,6 @@ DEFAULT_GLOBS = {
     "manifest.dump.packs": JSON_GLOBS,
     "manifest.tooling-tables": JSON_GLOBS,
 }
-
-_LINE = re.compile(r"^([0-9a-f]{64})\s+\*?(?:\./)?(.+)$")
 
 #: One diagnostics line as ``Diagnostics`` emits it. CONSOLE writes ``[SEV] path - message``; FILE
 #: puts an ``Instant`` in front of the same triple. The capture group is the triple, which is why
@@ -230,21 +228,7 @@ def from_artifact(payload: dict) -> Manifest:
     )
 
 
-# --- the three line grammars ---------------------------------------------------------------------
-
-def parse_lines(path: Path, artifact: str = "", root: str = "") -> Manifest:
-    """Read grammar A (``<hex> *./p``), B (``<hex>  ./p``) or C (``<hex> *p``) indifferently."""
-    entries = []
-    for number, line in enumerate(read_lines(path), start=1):
-        if not line.strip():
-            continue
-        match = _LINE.match(line)
-        if not match:
-            raise MissingInput(f"{path}:{number} is not a manifest line: {line!r}")
-        entries.append(Entry(path=match.group(2).replace("\\", "/"), sha256=match.group(1)))
-    entries.sort(key=lambda entry: entry.path)
-    return Manifest(artifact=artifact, root=root, entries=entries)
-
+# --- the generated sha256sum view -----------------------------------------------------------------
 
 def export_text(manifest: Manifest) -> str:
     """Grammar A: ``<64-hex>`` SP ``*`` ``<path>``, sorted by path, so ``sha256sum -c`` still works."""

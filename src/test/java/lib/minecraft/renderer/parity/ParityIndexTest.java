@@ -89,6 +89,29 @@ final class ParityIndexTest {
     private static final Pattern JAVA_FQN =
         Pattern.compile("[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+\\.[A-Z][A-Za-z0-9_]*");
 
+    /**
+     * The index-row column carrying how many runs a first promotion of that artifact performs.
+     *
+     * <p>The one route the roster's number takes into the toolkit. Python owns no floor table: the
+     * promotion reads this column and writes it back, and the capture defaults its stamped run count
+     * to it, so the value the operator is shown and the value a promotion refuses below are one
+     * number in one place.
+     */
+    private static final String DETERMINISM_FLOOR = "determinism_floor";
+
+    /** Where the toolkit derives the summary object a captured sweep carries beside its rows. */
+    private static final Path SWEEP_MODULE = Path.of("scripts/parity/sweep.py");
+
+    /** That derivation's returned mapping, which is every member a citation of it can name. */
+    private static final Pattern DERIVES_THE_SUMMARY =
+        Pattern.compile("(?s)def summary\\(.*?return \\{(.*?)}");
+
+    /** One member of it, as the mapping spells its key. */
+    private static final Pattern SUMMARY_MEMBER = Pattern.compile("\"(\\w+)\":");
+
+    /** The part of a citation naming a member of that object. */
+    private static final String SUMMARY_NODE = "/summary/";
+
     /** The placeholder standing for any stored file, which is a whole pointer's file half. */
     private static final String ANY_STORED_FILE = "<artifact>";
 
@@ -112,17 +135,25 @@ final class ParityIndexTest {
      * The pointer-homed artifacts whose documented location holds nothing in any file it names.
      *
      * <p>Pinned rather than tolerated. A pointer-homed artifact is nothing but its citation, so one
-     * that dereferences nowhere is a value the store advertises and cannot produce - a {@code
-     * summary} object no stored sweep has ever carried, row columns no producer writes, a
-     * provenance key the registry declares and no record carries. Recording the set exactly is what
-     * makes both directions fail: a pointer going dead is a new name here, and repairing one is a
-     * name that has to leave. How the members divide between those kinds is measured rather than
-     * written down, by {@link #citationShapes} - and that measurement is read back too, because a
-     * derived description is only better than a typed one while its derivation is checked.
+     * that dereferences nowhere is a value the store advertises and cannot produce. Recording the
+     * set exactly is what makes both directions fail: a pointer going dead is a new name here, and
+     * repairing one is a name that has to leave. How the members divide between those kinds is
+     * measured rather than written down, by {@link #citationShapes} - and that measurement is read
+     * back too, because a derived description is only better than a typed one while its derivation
+     * is checked.
+     *
+     * <p>The five divide in two, and which member falls where is measured against the writer's own
+     * derivation and printed on every run rather than described here. {@code report.buckets},
+     * {@code report.sum} and {@code report.wall-time} have a <b>writer</b> and no promoted baseline
+     * yet: a captured sweep carries the {@code summary} object the first two cite, and a capture
+     * step stamps the wall time the third reads. What is left for those is the promotion, which
+     * re-measures nothing and cannot be run from a test, so each leaves this set on the commit whose
+     * promotion first carries the value. The rest cite a node of that same {@code summary} object no
+     * writer derives, and no capture can fill one.
      */
     private static final Set<String> POINTERS_THAT_REACH_NOTHING = new TreeSet<>(List.of(
-        "report.buckets", "report.canvas-mismatch", "report.coverage-gaps", "report.glint-frames",
-        "report.panel-stats", "report.sum", "report.wall-time", "report.worst-list"));
+        "report.buckets", "report.coverage-gaps", "report.sum", "report.wall-time",
+        "report.worst-list"));
 
     /**
      * What writes each of the store's own two root files, which no capture step covers.
@@ -183,6 +214,39 @@ final class ParityIndexTest {
 
         assertThat("the index and the roster hold the same number of artifacts",
             registered.size(), equalTo(ParityArtifacts.ALL.size()));
+    }
+
+    @Test
+    @DisplayName("every index row declares the determinism floor its registration declares")
+    void everyRowsFloorIsTheRegisteredOne() {
+        JsonObject artifacts = ParityStore.read("report.oracle-index").getAsJsonObject("artifacts");
+
+        List<String> undeclared = new ArrayList<>();
+        List<String> disagreeing = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : artifacts.entrySet()) {
+            int registered = ParityArtifacts.of(entry.getKey()).determinismFloor();
+            JsonObject row = entry.getValue().getAsJsonObject();
+            if (!row.has(DETERMINISM_FLOOR)) {
+                undeclared.add(entry.getKey());
+                continue;
+            }
+            int declared = row.get(DETERMINISM_FLOOR).getAsInt();
+            if (declared != registered)
+                disagreeing.add(entry.getKey() + ": index " + declared + ", roster " + registered);
+        }
+
+        assertThat("stored artifacts, of which there are none - which would leave this check vacuous",
+            artifacts.keySet(), is(not(empty())));
+        assertThat("stored rows carrying no " + DETERMINISM_FLOOR + ". The promotion reads the floor "
+            + "off the row it is replacing and writes it back, and the capture defaults its run "
+            + "count to it, so a row without one refuses both - which is the loud half. The quiet "
+            + "half is that this column is the only route the roster's number takes into the "
+            + "toolkit", undeclared, is(empty()));
+        assertThat("rows whose floor is not the one the roster registers. The number is published to "
+            + "an operator out of the roster and enforced out of this column, and the two were two "
+            + "hardcoded tables: nine artifacts published a floor of 1 while a promotion refused "
+            + "them below 2, so the published number was unreachable and the refusal landed after "
+            + "the capture that earned it", disagreeing, is(empty()));
     }
 
     @Test
@@ -556,6 +620,24 @@ final class ParityIndexTest {
             (found ? reaches : reachesNothing).add(entry.getKey());
         }
 
+        // Printed on a green run as well as a red one, because part of the recorded set is residue
+        // rather than a state anybody chose, and a set pinned in a constant is read by whoever
+        // opens this file rather than by whoever runs the suite. Which part is measured against the
+        // writer's own derivation: a citation asking that object for a member it does not derive is
+        // one no capture can ever fill, where the rest are waiting on a promotion.
+        Set<String> derived = derivedSummaryMembers();
+        List<String> unfillable = new ArrayList<>();
+        for (String artifact : reachesNothing) {
+            String pointer = index.getAsJsonObject("pointers").getAsJsonObject(artifact)
+                .get("pointer").getAsString();
+            int member = pointer.indexOf(SUMMARY_NODE);
+            if (member >= 0 && !derived.contains(pointer.substring(member + SUMMARY_NODE.length())))
+                unfillable.add(artifact);
+        }
+        System.out.printf("registered citations no writer can fill: %s - the captured sweep summary "
+            + "derives %s, and a member outside that set is owed a writer before its registration "
+            + "can resolve%n", unfillable, derived);
+
         assertThat("no pointer dereferences, so the walk below is broken rather than the column",
             reaches, is(not(empty())));
         assertThat("pointers whose documented location holds nothing in any file it expands over. "
@@ -633,6 +715,21 @@ final class ParityIndexTest {
             + "matching no row is written, counted in the `N mover(s) registered` line and never "
             + "consulted again - so an operator copying the documented line is told it worked and "
             + "still goes RED on the row they meant", unknown, is(empty()));
+    }
+
+    /**
+     * Returns the members the toolkit derives into a captured sweep's summary object.
+     *
+     * @return the member names, sorted
+     */
+    private static Set<String> derivedSummaryMembers() {
+        Matcher derives = DERIVES_THE_SUMMARY.matcher(read(SWEEP_MODULE));
+        if (!derives.find())
+            throw new AssertionError(SWEEP_MODULE + " derives no summary object to read members off");
+        Set<String> members = new TreeSet<>();
+        Matcher member = SUMMARY_MEMBER.matcher(derives.group(1));
+        while (member.find()) members.add(member.group(1));
+        return members;
     }
 
     /**

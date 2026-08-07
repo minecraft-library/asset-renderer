@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -167,6 +168,68 @@ class CanonicalKeys(unittest.TestCase):
     def test_player_scopes_are_left_alone(self):
         row = sweep.Row(key="full", values={sweep.DELTA: "1.0"})
         self.assertEqual(sweep.canonical_key(row, "player"), "full")
+
+
+class StoredTables(unittest.TestCase):
+    """The stored form read back, which is the operand both sweep commands take from a root.
+
+    The refusals are asserted rather than read, because each is the reader being handed a file that
+    is there and is not a sweep table - which is what a root holds when an id is re-homed or a
+    producer's columns move, and the only shape that reaches this reader at all.
+    """
+
+    def setUp(self):
+        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+
+    def _stored(self, **payload) -> Path:
+        path = self.tmp / "stored.json"
+        path.write_bytes(json.dumps({"artifact": "sweep.entity", "format": 1,
+                                     "kind": "sweep-table", **payload}).encode("utf-8"))
+        return path
+
+    def test_each_row_is_keyed_on_the_subject_the_stored_row_carries(self):
+        """The key is what joins a row to its opposite number, and nothing else in the payload is."""
+        table = sweep.read_stored_table(self._stored(key="subject", rows=[
+            {"subject": "minecraft__cow", sweep.DELTA: "0.2000", "status": "ok"},
+            {"subject": "minecraft__pig", sweep.DELTA: "1.5000", "status": "ok"}]), "entity")
+        self.assertEqual([row.key for row in table.rows], ["minecraft__cow", "minecraft__pig"])
+        self.assertNotIn("subject", table.rows[0].values)
+        self.assertEqual(table.rows[0].values[sweep.DELTA], "0.2000")
+
+    def test_the_key_column_is_the_one_the_payload_declares(self):
+        """`subject` is what all six write today and it is read rather than assumed, so a stored
+        artifact keyed any other way reads back keyed that way instead of blank."""
+        table = sweep.read_stored_table(self._stored(key="scope", rows=[
+            {"scope": "bust", sweep.DELTA: "0.5000", "status": "ok"}]), "player")
+        self.assertEqual(table.key_field, "scope")
+        self.assertEqual([row.key for row in table.rows], ["bust"])
+
+    def test_an_artifact_that_is_not_a_sweep_table_is_missing_input(self):
+        """Rows carrying the delta, so the refusal under test is the kind and not the column: a
+        stored artifact of another kind whose rows happen to read like a sweep's is what a re-homed
+        id leaves at the path the root resolves."""
+        with self.assertRaises(MissingInput):
+            sweep.read_stored_table(self._stored(kind="render-manifest", key="path", rows=[
+                {"path": "cache/visual/a.png", sweep.DELTA: "0.0000", "status": "ok"}]))
+
+    def test_a_stored_sweep_without_the_delta_column_is_missing_input(self):
+        with self.assertRaises(MissingInput):
+            sweep.read_stored_table(self._stored(key="subject", rows=[
+                {"subject": "minecraft__cow", "status": "ok"}]))
+
+    def test_the_two_readers_answer_with_the_same_columns_for_the_same_data(self):
+        """The stored form drops the key out of each row's values, so the column list has to be
+        seeded with it: a producer's header line opens with the key and this one has no header at
+        all. Seeded empty the reader still answers every row correctly and hands a consumer a
+        different table for the same sweep, with the key column silently absent from one of them."""
+        header = f"subject\t{sweep.DELTA}\tstatus\n"
+        tsv = self.tmp / "parity-report.tsv"
+        tsv.write_bytes((header + "minecraft__cow\t0.2000\tok\n").encode("utf-8"))
+        stored = sweep.read_stored_table(self._stored(key="subject", rows=[
+            {"subject": "minecraft__cow", sweep.DELTA: "0.2000", "status": "ok"}]), "entity")
+
+        self.assertEqual(stored.columns, ("subject", sweep.DELTA, "status"))
+        self.assertEqual(stored.columns, sweep.read_table(tsv, "entity").columns)
 
 
 class Discovery(unittest.TestCase):

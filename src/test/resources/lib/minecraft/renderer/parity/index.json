@@ -4,6 +4,7 @@
   "artifacts": {
     "digest.colormap-lut": {
       "baselined": true,
+      "determinism_floor": 1,
       "entries": 3,
       "file": "digests/colormap-lut.json",
       "kind": "digest-set",
@@ -12,6 +13,7 @@
     },
     "digest.shipped-tables": {
       "baselined": true,
+      "determinism_floor": 1,
       "entries": 10,
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
@@ -20,6 +22,7 @@
     },
     "manifest.dump.packs": {
       "baselined": true,
+      "determinism_floor": 5,
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
@@ -28,6 +31,7 @@
     },
     "manifest.dump.vanilla": {
       "baselined": true,
+      "determinism_floor": 5,
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
@@ -36,6 +40,7 @@
     },
     "manifest.fluid": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 12,
       "file": "manifests/fluid.json",
       "kind": "manifest",
@@ -44,6 +49,7 @@
     },
     "manifest.player-raw": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 18,
       "file": "manifests/player-raw.json",
       "kind": "manifest",
@@ -52,6 +58,7 @@
     },
     "manifest.player-sheets": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 104,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
@@ -60,6 +67,7 @@
     },
     "manifest.portal": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 12,
       "file": "manifests/portal.json",
       "kind": "manifest",
@@ -68,6 +76,7 @@
     },
     "manifest.references": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 2312,
       "file": "manifests/references.json",
       "kind": "manifest",
@@ -76,6 +85,7 @@
     },
     "manifest.tooling-tables": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 10,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
@@ -84,6 +94,7 @@
     },
     "manifest.visual": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 153,
       "file": "manifests/visual.json",
       "kind": "manifest",
@@ -92,6 +103,7 @@
     },
     "pin.block-crc": {
       "baselined": true,
+      "determinism_floor": 1,
       "entries": 3,
       "file": "pins/block-crc.json",
       "kind": "pin-set",
@@ -100,6 +112,7 @@
     },
     "pin.corpus-count": {
       "baselined": true,
+      "determinism_floor": 1,
       "entries": 2,
       "file": "pins/corpus-count.json",
       "kind": "pin-set",
@@ -108,6 +121,7 @@
     },
     "pin.fluid-crc": {
       "baselined": true,
+      "determinism_floor": 1,
       "entries": 13,
       "file": "pins/fluid-crc.json",
       "kind": "pin-set",
@@ -116,6 +130,7 @@
     },
     "pin.kit-corners": {
       "baselined": true,
+      "determinism_floor": 1,
       "entries": 1,
       "file": "pins/kit-corners.json",
       "kind": "pin-set",
@@ -124,6 +139,7 @@
     },
     "pin.player-crc": {
       "baselined": true,
+      "determinism_floor": 1,
       "entries": 3,
       "file": "pins/player-crc.json",
       "kind": "pin-set",
@@ -132,6 +148,7 @@
     },
     "pin.portal-crc": {
       "baselined": true,
+      "determinism_floor": 1,
       "entries": 2,
       "file": "pins/portal-crc.json",
       "kind": "pin-set",
@@ -140,6 +157,7 @@
     },
     "pin.vanilla-iso-pose": {
       "baselined": true,
+      "determinism_floor": 1,
       "entries": 1,
       "file": "pins/vanilla-iso-pose.json",
       "kind": "pin-set",
@@ -148,16 +166,19 @@
     },
     "report.oracle-index": {
       "baselined": false,
+      "determinism_floor": 1,
       "file": "index.json",
       "kind": "index"
     },
     "roster.blindness-rules": {
       "baselined": false,
+      "determinism_floor": 1,
       "file": "blindness.json",
       "kind": "blindness-roster"
     },
     "sweep.armor": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 7,
       "file": "sweeps/armor.json",
       "kind": "sweep-table",
@@ -166,6 +187,7 @@
     },
     "sweep.block": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 1055,
       "file": "sweeps/block.json",
       "kind": "sweep-table",
@@ -174,6 +196,7 @@
     },
     "sweep.entity": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 402,
       "file": "sweeps/entity.json",
       "kind": "sweep-table",
@@ -182,6 +205,7 @@
     },
     "sweep.glint": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 11,
       "file": "sweeps/glint.json",
       "kind": "sweep-table",
@@ -190,6 +214,7 @@
     },
     "sweep.item": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 479,
       "file": "sweeps/item.json",
       "kind": "sweep-table",
@@ -198,6 +223,7 @@
     },
     "sweep.player": {
       "baselined": true,
+      "determinism_floor": 2,
       "entries": 2,
       "file": "sweeps/player.json",
       "kind": "sweep-table",
@@ -259,9 +285,6 @@
     "report.buckets": {
       "pointer": "sweeps/<sweep>.json#/summary/buckets"
     },
-    "report.canvas-mismatch": {
-      "pointer": "sweeps/<sweep>.json#/rows/<n>/canvas_mismatch"
-    },
     "report.coverage-gaps": {
       "pointer": "sweeps/<sweep>.json#/summary/gaps"
     },
@@ -271,14 +294,8 @@
     "report.failure-rows": {
       "pointer": "sweeps/<sweep>.json#/rows/<n>/status"
     },
-    "report.glint-frames": {
-      "pointer": "sweeps/glint.json#/rows/<n>/frames_delta"
-    },
     "report.harness-sweep-counts": {
       "pointer": "<artifact>#/provenance/counts"
-    },
-    "report.panel-stats": {
-      "pointer": "sweeps/<sweep>.json#/rows/<n>/panel"
     },
     "report.run-provenance": {
       "pointer": "<artifact>#/provenance"
@@ -363,7 +380,7 @@
     },
     "roster.pack-fixtures": {
       "cross_repo": false,
-      "re_derive": "PipelineParityDump's PACK_FIXTURES, also a provenance field on the two dump manifests",
+      "re_derive": "PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere",
       "test_class": "lib.minecraft.renderer.pipeline.dump.PipelineParityDump"
     },
     "roster.player-scopes": {

@@ -166,6 +166,8 @@ public final class TestArmorParityVanilla {
         for (Subject subject : SUBJECTS)
             rows.add(renderAndCompare(subject, javaRenderer));
 
+        rows.sort(SweepReport.byDelta(Row::meanDelta));
+
         List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)
             lines.add(String.join("\t",

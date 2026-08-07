@@ -37,7 +37,6 @@ from parity.norm import (
     MissingInput,
     Refused,
     canonical_json,
-    fixed,
     read_json,
     write_json,
     write_text,
@@ -82,7 +81,7 @@ def _globals() -> argparse.ArgumentParser:
     parser.add_argument("--store", default=None, metavar="DIR",
                         help=f"the production store (default: {store_mod.PRODUCTION})")
     parser.add_argument("--format", choices=("text", "json"), default="text",
-                        help="stdout form; stderr always carries progress")
+                        help="stdout form; progress and warnings go to stderr, never here")
     parser.add_argument("--out", default=None, metavar="FILE",
                         help="write the command's primary artifact here instead of stdout")
     parser.add_argument("-q", "--quiet", action="store_true",
@@ -132,6 +131,17 @@ def _emit(args: argparse.Namespace, text: str, payload: Any = None) -> None:
 
 
 def _progress(args: argparse.Namespace, message: str) -> None:
+    """Write one progress line to stderr, unless ``--quiet``.
+
+    stdout carries the answer, so a line saying which artifact is being worked on cannot go there.
+    The three long commands emit one per artifact: a capture, a compare and a promotion each loop
+    over a set a human named as an alias and cannot enumerate, and a run that prints nothing until
+    it finishes is one nobody can tell from a hang. ``--quiet`` is what the pre-commit hook passes,
+    and until these calls existed it suppressed nothing.
+
+    :param args: the parsed namespace
+    :param message: the line, without its newline
+    """
     if not args.quiet:
         sys.stderr.write(message + "\n")
 
@@ -213,18 +223,45 @@ def _filter(suite: unittest.TestSuite, pattern: str) -> unittest.TestSuite:
 
 
 def _tables(args: argparse.Namespace) -> list[tuple[str, Any]]:
-    """Resolve the requested sweeps from either a raw producer directory or the working root."""
+    """Resolve the requested sweeps from either a raw producer directory or the working root.
+
+    The two operands are two file formats and the reader is chosen by which one was named, because
+    they are not interchangeable: ``--from`` names a producer tree of TSVs and the root holds the
+    canonical JSON a capture wrote. Handing a stored artifact to the TSV reader is what these two
+    commands did against a fully populated root, and it failed on the file's first character - so
+    the documented capability was unreachable and only the pre-store form worked.
+    """
     if args.source:
         found = sweep_mod.discover(Path(args.source))
-    else:
-        root = store_mod.working(args.root, _bases(args))
-        found = {}
-        for name in sweep_mod.SWEEPS:
-            candidate = root.path(f"sweep.{name}")
-            if candidate.is_file():
-                found[name] = candidate
-        if not found:
-            raise MissingInput(f"no sweep artifacts under {root.root}; pass --from to read a producer tree")
+        return [(name, sweep_mod.read_table(found[name], name))
+                for name in _wanted_sweeps(args, found)]
+    root = store_mod.working(args.root, _bases(args))
+    found = {}
+    for name in sweep_mod.SWEEPS:
+        candidate = root.path(f"sweep.{name}")
+        if candidate.is_file():
+            found[name] = candidate
+    if not found:
+        raise MissingInput(f"no sweep artifacts under {root.root}; pass --from to read a producer tree")
+    return [(name, sweep_mod.read_stored_table(found[name], name))
+            for name in _wanted_sweeps(args, found)]
+
+
+def _wanted_sweeps(args: argparse.Namespace, found: dict[str, Path]) -> list[str]:
+    """Which of the discovered sweeps the operands name, refusing a name nothing answers.
+
+    Two refusals rather than one, because a typo and an absence are two different answers: a name
+    outside the six is a name no producer will ever write, where one of the six the operand tree
+    does not hold is a table that has not been captured yet. Folded together, the first reads as the
+    second and sends an operator looking for a sweep that does not exist.
+
+    An empty operand list is every sweep the tree holds, which is the bare command's meaning.
+
+    :param args: the parsed namespace, whose ``sweeps`` carries the named operands
+    :param found: the sweeps the operand tree holds, by name
+    :return: the names to read, in the order given
+    :raises MissingInput: on a name outside the six, or one of the six nothing here answers
+    """
     wanted = args.sweeps or [name for name in sweep_mod.SWEEPS if name in found]
     unknown = [name for name in wanted if name not in sweep_mod.SWEEPS]
     if unknown:
@@ -232,12 +269,12 @@ def _tables(args: argparse.Namespace) -> list[tuple[str, Any]]:
     missing = [name for name in wanted if name not in found]
     if missing:
         raise MissingInput(f"no table for sweep(s) {missing}")
-    return [(name, sweep_mod.read_table(found[name], name)) for name in wanted]
+    return wanted
 
 
 def _cmd_sum(args: argparse.Namespace) -> int:
     rows = sweep_mod.summarise(_tables(args))
-    lines = [f"{row['sweep']:<7} {row['rows']:>5} rows   sum {fixed(row['sum']):>12}"
+    lines = [f"{row['sweep']:<7} {row['rows']:>5} rows   sum {row['sum']:>12}"
              f"   failed {row['failed']}" for row in rows]
     _emit(args, "\n".join(lines), {"sums": rows})
     return OK
@@ -301,6 +338,15 @@ def _load(args: argparse.Namespace, artifact: str, base: str | None) -> dict:
 
 def _cmd_json(args: argparse.Namespace) -> int:
     if args.json_command == "canonicalize":
+        # One destination cannot hold N results. The write below resolves `--out` inside the loop,
+        # so with several operands the last one overwrote the rest while the loop printed a
+        # `canonicalized <path>` line for every one of them - N successes reported, one file on disk
+        # and no error anywhere.
+        if args.out and len(args.files) > 1:
+            raise Refused(
+                f"json canonicalize was given --out and {len(args.files)} files: one destination "
+                "holds one result, so all but the last would be discarded while every one of them "
+                "reported success. Canonicalize them in place, or one at a time")
         for name in args.files:
             path = Path(name)
             if "shipped-tables" in path.name:
@@ -365,7 +411,8 @@ def _cmd_compare(args: argparse.Namespace) -> int:
         Path(args.expected) if args.expected else root.root / store_mod.RUN_DIR / "expected-diff.json")
     results = []
     missing = []
-    for artifact in wanted:
+    for position, artifact in enumerate(wanted, start=1):
+        _progress(args, f"compare {position}/{len(wanted)} {artifact}")
         try:
             base_payload = _load(args, artifact, args.base)
         except MissingInput:
@@ -483,11 +530,13 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
     written = []
     for position, artifact in enumerate(args.artifact):
         source = Path(sources[0] if len(sources) == 1 else sources[position])
+        _progress(args, f"capture {position + 1}/{len(args.artifact)} {artifact}")
         target = capture_mod.normalize(artifact, source, root, repo, producer=args.producer or "",
                                        mode=args.mode, flags=args.flag or (), runs=args.runs,
                                        logs=Path(args.logs) if args.logs else None,
                                        reference_tree=(Path(args.reference_tree)
-                                                       if args.reference_tree else None))
+                                                       if args.reference_tree else None),
+                                       wall_time_ms=args.wall_time, store=args.store)
         written.append({"artifact": artifact, "path": str(target)})
     _emit(args, "\n".join(f"captured {row['artifact']} -> {row['path']}" for row in written),
           {"captured": written})
@@ -496,8 +545,7 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
 
 def _cmd_capture_index(args: argparse.Namespace) -> int:
     root = store_mod.working(args.root, _bases(args)).root
-    marker = capture_mod.index(root, producers=(args.producer or "").split(",") if args.producer else (),
-                               flags=args.flag or (), runs=args.runs)
+    marker = capture_mod.index(root)
     _emit(args, f"capture complete: {marker}", {"complete": str(marker)})
     return OK
 
@@ -586,7 +634,7 @@ def _cmd_plan(args: argparse.Namespace) -> int:
             where = f" {entry['where']}" if entry["where"] else ""
             lines.append(f"  {entry['artifact']} [{entry['home']}]{where} - {act}")
     lines.append(f"BUDGET {budget} ms"
-                 + ("" if budget else "  (nothing promoted yet, so no artifact has a duration)"))
+                 + ("" if budget else "  (no artifact in this plan has a recorded duration)"))
     _emit(args, "\n".join(lines), payload)
     return _gate_exit(args, base, root, reach, plan) if args.gate_exit else OK
 
@@ -940,8 +988,10 @@ def _cmd_promote_apply(args: argparse.Namespace) -> int:
     write_json(run / "promote.json", payload)
     write_text(run / "promote.md", report_mod.render(payload, "promotion-plan"))
 
-    promote_mod.check(root, entries, args.reason or "", args.allow_partial, args.bootstrap,
-                      args.allow_dirty)
+    promote_mod.check(root, entries, args.reason or "", target.index(), args.allow_partial,
+                      args.bootstrap, args.allow_dirty, args.population_changed)
+    for position, entry in enumerate(entries, start=1):
+        _progress(args, f"promote {position}/{len(entries)} {entry.artifact} ({entry.action})")
     result = promote_mod.apply(root, target, entries, args.reason,
                                parity_class=args.parity_class,
                                allow_partial=args.allow_partial,
@@ -1112,7 +1162,6 @@ def _register(subparsers: Any) -> dict[str, Command]:
         # --from reads a RAW producer directory and survives here and on buckets alone, which is
         # why it is not a global: every other command joins stored artifacts.
         reader.add_argument("--from", dest="source", default=None, metavar="PATH")
-        reader.add_argument("--base", default=None, metavar="DIR")
     table["sum"] = _cmd_sum
     table["buckets"] = _cmd_buckets
 
@@ -1129,7 +1178,6 @@ def _register(subparsers: Any) -> dict[str, Command]:
     verify_parser.add_argument("--base", default=None, metavar="DIR")
     export_parser = man_sub.add_parser("export")
     export_parser.add_argument("--artifact", required=True)
-    export_parser.add_argument("--grammar", default="a", choices=("a",))
     export_parser.add_argument("--base", default=None, metavar="DIR")
     table["manifest"] = _cmd_manifest
 
@@ -1137,13 +1185,11 @@ def _register(subparsers: Any) -> dict[str, Command]:
     js_sub = js.add_subparsers(dest="json_command", required=True)
     canon = js_sub.add_parser("canonicalize")
     canon.add_argument("files", nargs="+", metavar="FILE")
-    canon.add_argument("--in-place", action="store_true")
     semantic = js_sub.add_parser("semantic-diff")
     semantic.add_argument("--before", required=True)
     semantic.add_argument("--after", required=True)
     semantic.add_argument("--levels", default=None, help="comma list of L1,L2,L3")
     semantic.add_argument("--payload", default=None, metavar="KEY")
-    semantic.add_argument("--axis-rows", action="store_true")
     semantic.add_argument("--ignore-keys", default=None)
     semantic.add_argument("--max-findings", type=int, default=40)
     table["json"] = _cmd_json
@@ -1153,7 +1199,6 @@ def _register(subparsers: Any) -> dict[str, Command]:
     rb_diff = rb_sub.add_parser("diff")
     rb_diff.add_argument("--before", required=True, metavar="DIR")
     rb_diff.add_argument("--after", required=True, metavar="DIR")
-    rb_diff.add_argument("--artifact", action="append", default=None, metavar="NAME")
     rb_diff.add_argument("--name", default=None, help="comma list, default java.png,java.gif")
     table["render-bytes"] = _cmd_render_bytes
 
@@ -1197,16 +1242,17 @@ def _register(subparsers: Any) -> dict[str, Command]:
                           "this capture belongs to - the difference between ground truth refreshed "
                           "in part and refreshed whole. A comma-joined set when one invocation ran "
                           "more than one, and absent when it refreshed nothing")
+    cap.add_argument("--wall-time", dest="wall_time", type=int, default=None, metavar="MS",
+                     help="how long this row's producers took, measured by the build. It is what "
+                          "the plan's budget sums and what the skill's background-the-capture rule "
+                          "reads; absent, the record carries no duration rather than a zero")
     cap.add_argument("--reference-tree", default=None, metavar="DIR",
                      help="the reference set this artifact was measured against, digested through "
                           "its manifest into one provenance field; absent, the record cannot say "
                           "which ground truth produced its numbers")
     table["capture-normalize"] = _cmd_capture_normalize
 
-    idx = subparsers.add_parser("capture-index", help="write _run/_capture.json then COMPLETE last")
-    idx.add_argument("--producer", default=None)
-    idx.add_argument("--flag", action="append", default=None, metavar="k=v")
-    idx.add_argument("--runs", type=int, default=0)
+    subparsers.add_parser("capture-index", help="write _run/_capture.json then COMPLETE last")
     table["capture-index"] = _cmd_capture_index
 
     pln = subparsers.add_parser("plan", help="resolve which artifacts can SEE the working tree's change")

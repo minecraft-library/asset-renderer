@@ -1,5 +1,5 @@
 {
-  "//": "parity.roster.blindness-rules · regen: hand-authored; render the human view with python scripts/parity report render",
+  "//": "parity.roster.blindness-rules · regen: hand-authored; render the human view with ./gradlew test --tests \"*ParityReferencesTest\" -Dasset.parity.regenerateViews=true --rerun",
   "artifact": "roster.blindness-rules",
   "format": 1,
   "key": "id",

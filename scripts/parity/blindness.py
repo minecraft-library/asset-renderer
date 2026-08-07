@@ -20,6 +20,12 @@ Within one path :func:`_resolve_path` runs three passes, in this order:
 3. **Suppress** - each fired ``suppress`` rule removes its ``sees`` and its ``blind`` together, the
    pass that outranks the other two.
 
+**No shipped rule names an artifact on a suppress rule**, so pass 3 removes nothing from any answer
+the map gives today: the one suppression declares both lists empty, and correctly - the value it
+speaks for is registered as no artifact, so there is nothing for it to name. The pass is kept for
+the case where a rule does have to outrank a selection, and ``test_blindness`` pins that the shipped
+map has none, so a rule acquiring one moves this paragraph rather than landing silently.
+
 Taking the demotions inline rather than after the union would make the answer depend on the order the
 rules happen to sit in the file.
 

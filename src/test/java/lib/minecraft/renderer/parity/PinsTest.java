@@ -147,6 +147,43 @@ final class PinsTest {
     }
 
     @Test
+    @DisplayName("a vector read at the wrong length is refused rather than truncated")
+    void aVectorOfTheWrongLengthIsRefused() {
+        ParityStoreException thrown = assertThrows(ParityStoreException.class,
+            () -> Pins.floats("pin.kit-corners", "corners", 23));
+
+        assertThat("the caller states the length it requires, the file states its own, and the array "
+                + "states a third - so any two disagreeing is a failure rather than a silent "
+                + "narrowing. It is the guard an emptied golden array once walked straight past",
+            thrown.getMessage(), containsString("holds 24 values and the caller requires 23"));
+        assertThat("and it prescribes the regeneration, like every other refusal here",
+            thrown.getMessage(), containsString(Pins.regenCommand("pin.kit-corners")));
+    }
+
+    @Test
+    @DisplayName("a key the pin does not declare is refused, and the message lists what it holds")
+    void anAbsentKeyNamesWhatIsThere() {
+        ParityStoreException thrown = assertThrows(ParityStoreException.class,
+            () -> Pins.floats("pin.kit-corners", "cornerz", 24));
+
+        assertThat("a typo'd key would otherwise read as an absent pin, and the two are different "
+                + "questions", thrown.getMessage(), containsString("has no key 'cornerz'"));
+        assertThat("listing the real keys is what makes the message answer the typo",
+            thrown.getMessage(), containsString("It holds: corners"));
+    }
+
+    @Test
+    @DisplayName("a digest-set entry read as a vector is refused rather than answering empty")
+    void anEntryWithNoValuesArrayIsRefused() {
+        ParityStoreException thrown = assertThrows(ParityStoreException.class,
+            () -> Pins.floats("digest.shipped-tables", "block_models", 1));
+
+        assertThat("a digest entry carries a sha256 and no vector, so reading one as floats is a "
+                + "caller error and not an empty answer",
+            thrown.getMessage(), containsString("carries no 'values' array"));
+    }
+
+    @Test
     @DisplayName("no prescription names the promotion without naming the compare and the commit")
     void aPromotionIsNeverPrescribedWithoutItsPreconditions(@TempDir Path empty) {
         List<String> prescriptions = prescriptions(empty);

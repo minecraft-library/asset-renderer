@@ -102,6 +102,8 @@ public final class TestPlayerParityVanilla {
         for (PlayerOptions.Type scope : List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL))
             rows.add(renderAndCompare(scope, javaRenderer));
 
+        rows.sort(SweepReport.byDelta(Row::meanDelta));
+
         List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)
             lines.add(String.join("\t",

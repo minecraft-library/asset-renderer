@@ -8,6 +8,9 @@ below is a mechanism for an invariant rather than a policy someone has to rememb
   does not reproduce is not a baseline whatever anyone declares about it;
 - ``failed > 0``, no promotion without an explicit ``--allow-partial``, because a partial sweep
   leaves a tree that hashes cleanly minus the missing files;
+- an entry count that disagrees with the baseline's, no promotion without an explicit
+  ``--population-changed``, because a covered set that moved is a different question from a value
+  that moved and the tree hashes cleanly either way;
 - a root whose digests disagree with its own capture index, no promotion, so a plan cannot be
   applied to a root that has since been re-captured;
 - no compare of this capture covering this artifact, no promotion, so a promotion can only ever
@@ -31,21 +34,38 @@ from parity import compare as compare_mod
 from parity import store as store_mod
 from parity.norm import MissingInput, Refused, read_json, sha256_text, canonical_json, write_json
 
-#: Two runs for a render tree; **five** for anything exposed to the Map.copyOf / Set.copyOf
-#: class-init salt, because that flap is intermittent and an oracle can pass twice and fail the
-#: third time.
-FLOORS = {
-    "manifest.dump.vanilla": 5,
-    "manifest.dump.packs": 5,
-}
-
-DEFAULT_FLOOR = 2
-
 CLASSES = ("neutral", "shaped", "moving")
 
+#: The index-row field carrying how many runs a first promotion of that artifact performs.
+FLOOR_FIELD = "determinism_floor"
 
-def floor_for(artifact: str) -> int:
-    return FLOORS.get(artifact, DEFAULT_FLOOR)
+#: The index-row field carrying how many entries the promoted file holds, which is what a capture's
+#: own count is compared against.
+ENTRIES_FIELD = "entries"
+
+
+def floor_for(artifact: str, index: dict) -> int:
+    """How many runs prove this artifact reproducible, read off its row in the store's index.
+
+    **One table, and it is the roster's.** ``ParityArtifacts`` declares the floor per artifact, the
+    index row carries it, a promotion writes it back, and this reads it. A second table here would
+    be a copy that disagreed silently, which it did: nine artifacts published a floor of 1 and were
+    refused below 2, so the published number was unreachable and the refusal came after the capture
+    that earned it.
+
+    :param artifact: the artifact id
+    :param index: the production store's index envelope
+    :return: the declared floor
+    :raises MissingInput: if the index registers no floor for it
+    """
+    row = (index.get("artifacts") or {}).get(artifact) or {}
+    declared = row.get(FLOOR_FIELD)
+    if declared is None:
+        raise MissingInput(
+            f"the store's index declares no {FLOOR_FIELD} for {artifact!r}, so how many runs prove "
+            "it reproducible is unanswerable. Coining an artifact is an edit to ParityArtifacts and "
+            "to the store's index, and ParityIndexTest relates the two")
+    return int(declared)
 
 
 @dataclass
@@ -112,9 +132,22 @@ def to_report(entries: Sequence[Entry]) -> dict:
     }
 
 
-def check(root: Path, entries: Sequence[Entry], reason: str, allow_partial: bool = False,
-          bootstrap: bool = False, allow_dirty: bool = False) -> None:
-    """Every refusal, in one place, before a single production byte is written."""
+def check(root: Path, entries: Sequence[Entry], reason: str, index: dict,
+          allow_partial: bool = False, bootstrap: bool = False, allow_dirty: bool = False,
+          population_changed: bool = False) -> None:
+    """Every refusal, in one place, before a single production byte is written.
+
+    :param root: the working root
+    :param entries: the promotion plan
+    :param reason: the ``--reason`` text
+    :param index: the production store's index envelope, which declares each artifact's floor and
+        holds the entry count its last baseline was taken over
+    :param allow_partial: whether a capture recording failures may be promoted
+    :param bootstrap: whether this invocation establishes first baselines
+    :param allow_dirty: whether a capture taken from an uncommitted tree may be promoted
+    :param population_changed: whether an entry count moving from the baseline's is intended
+    :raises Refused: on any of the refusals above
+    """
     if not reason.strip():
         raise Refused("promote-apply requires --reason: a promotion is a recorded act")
 
@@ -135,12 +168,13 @@ def check(root: Path, entries: Sequence[Entry], reason: str, allow_partial: bool
             raise Refused(f"{entry.artifact} carries no provenance object; a promoted artifact "
                           "without one is unrepresentable")
         runs = record.get("determinism_runs") or 0
-        needed = floor_for(entry.artifact)
+        needed = floor_for(entry.artifact, index)
         if runs < needed:
             raise Refused(
                 f"{entry.artifact} records determinism_runs={runs}, below its floor of {needed}: "
                 "a value a second independent run does not reproduce is not a baseline")
         counts = record.get("counts") or {}
+        _require_population(entry, payload, counts, index, population_changed)
         if counts.get("failed", 0) and not allow_partial:
             raise Refused(
                 f"{entry.artifact} records failed={counts['failed']}; a partial run leaves a tree "
@@ -157,6 +191,39 @@ def check(root: Path, entries: Sequence[Entry], reason: str, allow_partial: bool
                 "shown to have run on a committed tree is not re-derivable from any commit, and no "
                 "later reading recovers that. Commit the change, re-capture, and promote from the "
                 "committed tree. Pass --allow-dirty to record the exception in provenance")
+
+
+def _require_population(entry: Entry, payload: dict, counts: dict, index: dict,
+                        population_changed: bool) -> None:
+    """Refuse a promotion whose capture holds a different number of entries than its baseline.
+
+    ``--population-changed`` is what says the move is intended, and until this it stamped a flag and
+    compared nothing - so the waiver recorded an exception to a rule nothing enforced. What it now
+    waives is this: a row count that moved is a different covered set, and a baseline replaced over
+    one is a tree that hashes cleanly while holding fewer subjects than the number it is quoted at.
+
+    The comparison is against the index's own ``entries`` column, which a promotion writes from the
+    same capture's counts, so the two are the same measurement one baseline apart. A row with no
+    baseline has nothing to have moved from and is passed over - a first promotion's population is
+    whatever it captured, and ``--bootstrap`` is the flag that says so.
+
+    :param entry: the plan entry
+    :param payload: the captured artifact
+    :param counts: its provenance counts
+    :param index: the production store's index envelope
+    :param population_changed: whether the move is intended
+    :raises Refused: if the counts disagree and the waiver was not given
+    """
+    member = store_mod.rows_member(payload.get("kind", ""))
+    captured = counts.get(member) if member else None
+    row = (index.get("artifacts") or {}).get(entry.artifact) or {}
+    recorded = row.get(ENTRIES_FIELD)
+    if captured is None or recorded is None or captured == recorded or population_changed:
+        return
+    raise Refused(
+        f"{entry.artifact} captured {captured} {member} where its baseline holds {recorded}: a "
+        "population that moved is a different covered set, and the tree hashes cleanly either way. "
+        "Pass --population-changed to record the exception in provenance")
 
 
 def _require_compare(root: Path, entries: Sequence[Entry]) -> None:
@@ -241,7 +308,8 @@ def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry],
         if population_changed:
             record["population_changed"] = True
         target.write(entry.artifact, payload)
-        index["artifacts"][entry.artifact] = _index_row(entry, payload, target)
+        index["artifacts"][entry.artifact] = _index_row(entry, payload,
+                                                        floor_for(entry.artifact, index))
         written.append(entry.artifact)
 
     index.setdefault("//", "parity.report.oracle-index · regen: ./gradlew parityPromote")
@@ -253,7 +321,19 @@ def apply(root: Path, target: store_mod.WritableStore, entries: Sequence[Entry],
     return {"promoted": written, "reason": reason, "parity_class": parity_class}
 
 
-def _index_row(entry: Entry, payload: dict, target: store_mod.WritableStore) -> dict:
+def _index_row(entry: Entry, payload: dict, floor: int) -> dict:
+    """Rebuild one artifact's index row from the payload being promoted.
+
+    The row is built field by field rather than merged over the one it replaces, so anything a row
+    is to carry has to be written here. The floor arrives as an argument for exactly that reason:
+    it is a registration rather than a measurement, so it is read off the row this one replaces and
+    written back, which is what keeps the value in one place while the row is rebuilt.
+
+    :param entry: the plan entry
+    :param payload: the captured artifact being written
+    :param floor: the artifact's declared determinism floor
+    :return: the row
+    """
     record = payload.get("provenance", {})
     counts = record.get("counts", {})
     row = {
@@ -262,6 +342,7 @@ def _index_row(entry: Entry, payload: dict, target: store_mod.WritableStore) -> 
         # boolean, so absence-means-promoted would have made one NPE and the other render every
         # promoted artifact as `**no**`.
         "baselined": True,
+        FLOOR_FIELD: floor,
         "file": entry.path,
         "kind": payload.get("kind", ""),
         "promoted_at": record.get("asset_sha") or "",
@@ -275,8 +356,15 @@ def _index_row(entry: Entry, payload: dict, target: store_mod.WritableStore) -> 
     member = store_mod.rows_member(payload.get("kind", ""))
     entries_count = counts.get(member) if member else None
     if entries_count is not None:
-        row["entries"] = entries_count
+        row[ENTRIES_FIELD] = entries_count
     wall = record.get("wall_time_ms")
     if wall is not None:
         row["last_duration_ms"] = wall
+    # The headline a reader wants first, lifted out of the payload's own derived summary rather than
+    # recomputed here: a sweep's fleet sum is the number every phase of this store reported progress
+    # in, and it lived on a terminal alone. Only the sweeps carry one, so the column is absent
+    # everywhere else and the README falls back to the entry count for those.
+    headline = (payload.get("summary") or {}).get("sum")
+    if headline is not None:
+        row["sum"] = headline
     return row

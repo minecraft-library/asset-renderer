@@ -181,7 +181,7 @@ public final class TestGlintParityVanilla {
             }
         }
 
-        rows.sort((a, b) -> Double.compare(b.meanDelta(), a.meanDelta()));
+        rows.sort(SweepReport.byDelta(Row::meanDelta));
         List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)
             lines.add(String.join("\t",
@@ -193,8 +193,11 @@ public final class TestGlintParityVanilla {
         SweepReport.printBuckets(rows.stream().mapToDouble(Row::meanDelta).toArray());
 
         System.out.printf("%nWrote %s (%d subjects)%n", REPORT_FILE, rows.size());
+        List<Row> worst = rows.stream()
+            .sorted((a, b) -> Double.compare(b.meanDelta(), a.meanDelta()))
+            .toList();
         System.out.println("Mean per-frame ARGB delta (worst first; armor rows are diagnostic, not parity):");
-        for (Row r : rows)
+        for (Row r : worst)
             System.out.printf("    %-32s mean %8.2f  %s%n", r.itemId(), r.meanDelta(),
                 !r.vanillaPresent() ? "(java-only, no vanilla refs)" : r.diagnostic() ? "(diagnostic: pose/model differ)" : "");
     }

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Iterable
 
 from parity import ids as ids_mod
-from parity.norm import MissingInput, fsum, read_lines
+from parity.norm import MissingInput, fixed, fsum, read_json, read_lines
 
 #: Spine 4.3. These and only these.
 SWEEPS = ("entity", "block", "item", "player", "armor", "glint")
@@ -88,6 +88,47 @@ def read_table(path: Path, sweep: str | None = None) -> Table:
         values = dict(zip(columns, cells))
         rows.append(Row(key=cells[0], values=values, status=_status(values)))
     return Table(sweep=resolved, key_field=key_field, columns=columns, rows=rows)
+
+
+def read_stored_table(path: Path, sweep: str | None = None) -> Table:
+    """Read a captured or promoted sweep artifact back as a table.
+
+    The stored form is the TSV after ``to_rows``: one object per subject under ``rows``, keyed on the
+    canonical stem, with every other column carried across as its own stored text. So the same
+    ``Row`` reads it - the delta is still the text the producer printed, and the status is still the
+    explicit column. What differs is only where the columns come from, and they are taken from the
+    rows themselves rather than from a header line, because the stored form has none.
+
+    Without this the two commands defined over a sweep could read a raw producer directory and not
+    the root every other command works against: ``read_table`` is a TSV reader and a stored artifact
+    handed to it fails on its first character.
+
+    There is no absent-file arm, unlike ``read_table``'s: the caller resolves which sweeps a root
+    holds by testing each candidate, so a path that is not there is a sweep the command was never
+    asked about rather than an operand this has to refuse.
+
+    :param path: the stored sweep artifact
+    :param sweep: the sweep's name, when the caller already knows it
+    :return: the table
+    :raises MissingInput: if the file is not a sweep table, or carries no delta column
+    """
+    payload = read_json(path)
+    if payload.get("kind") != "sweep-table":
+        raise MissingInput(f"{path} is kind {payload.get('kind')!r}, not a sweep-table")
+    key_field = payload.get("key", "subject")
+    stored = payload.get("rows") or []
+    columns: list[str] = [key_field]
+    rows: list[Row] = []
+    for entry in stored:
+        values = {name: str(value) for name, value in entry.items() if name != key_field}
+        for name in values:
+            if name not in columns:
+                columns.append(name)
+        rows.append(Row(key=str(entry.get(key_field, "")), values=values, status=_status(values)))
+    if DELTA not in columns:
+        raise MissingInput(f"{path} has no {DELTA} column; found {tuple(columns)}")
+    resolved = sweep or _sweep_of(path, key_field)
+    return Table(sweep=resolved, key_field=key_field, columns=tuple(columns), rows=rows)
 
 
 def _status(values: dict[str, str]) -> str:
@@ -207,9 +248,20 @@ def to_rows(table: Table) -> list[dict]:
     return out
 
 
+def summary(table: Table) -> dict:
+    """The derived object a captured sweep carries beside its rows.
+
+    ``sum`` is the store's metric form - fixed at four places, as a string - because every delta in
+    the same file is the text its producer printed at that scale, and a float here would be the one
+    number in the artifact spelled a different way. It is also what makes the value byte-stable: a
+    binary float's shortest repr moves with the last bit of an ``fsum`` over a thousand rows.
+
+    :param table: the table
+    :return: the buckets, the failure count, the row count and the fleet sum
+    """
+    return {"buckets": buckets(table), "failed": table.failed(), "rows": len(table.rows),
+            "sum": fixed(total(table))}
+
+
 def summarise(tables: Iterable[tuple[str, Table]]) -> list[dict]:
-    return [
-        {"buckets": buckets(table), "failed": table.failed(), "rows": len(table.rows),
-         "sum": total(table), "sweep": name}
-        for name, table in tables
-    ]
+    return [{**summary(table), "sweep": name} for name, table in tables]

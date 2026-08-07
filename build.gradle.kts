@@ -14,6 +14,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
 import java.util.concurrent.Callable
+import java.util.concurrent.atomic.AtomicLong
 
 plugins {
     id("java-library")
@@ -521,6 +522,20 @@ val parityArtifacts = listOf(
 /** Every task the artifact table names, so a producer's stdout is captured wherever it runs. */
 val parityProducerNames: Set<String> = parityArtifacts.flatMap { it.producers }.toSet()
 
+/**
+ * How long each producer that ran took, in milliseconds, filled as each one finishes.
+ *
+ * This is what a capture stamps as its row's wall time, and it is the producers rather than the
+ * capture step because the step runs after them and takes milliseconds: timing it would answer with
+ * the cost of a JSON rewrite where the question is whether to background a twenty-minute render. A
+ * row with several producers sums them, because running the row is running all of them.
+ *
+ * Nothing was ever measured before, so `provenance.gather`'s `wall_time_ms` had no caller, the plan's
+ * budget summed absent keys on every artifact, and the rule that says to background a capture above
+ * 110 seconds could not fire on any bundle.
+ */
+val parityProducerElapsedMs: MutableMap<String, Long> = linkedMapOf()
+
 // Every alias that can be derived from the table is derived from it, so a new row joins its alias
 // without a second edit. `renders`, `dump` and `tables` name their members because those three are
 // groupings rather than kinds. manifest.references is deliberately in `all`: naming it means booting
@@ -535,6 +550,27 @@ val parityArtifactAliases: Map<String, List<String>> = mapOf(
     "pins" to parityArtifacts.map { it.artifact }.filter { it.startsWith("pin.") },
     "digests" to parityArtifacts.map { it.artifact }.filter { it.startsWith("digest.") }
 )
+
+/**
+ * Expands every alias in a `-Partifacts` list, leaving each other token exactly as it was typed.
+ *
+ * The three parity commands that take `-Partifacts` disagree about what an unknown token is, so this
+ * does the one thing all three need and refuses nothing. `parityCapture` has to reject a token no
+ * capture row answers, because it turns each into a producer task; a compare and a promotion work off
+ * the store, which holds rows the capture table has none for - the hand-authored rule roster among
+ * them - so a token this build does not know is theirs to forward and the toolkit's to refuse.
+ *
+ * Expanding on capture alone was the whole defect: `-Partifacts=sweeps` captured six rows and then
+ * asked the toolkit to compare an artifact called `sweeps`, which resolves to no store path.
+ *
+ * @param spec the -Partifacts value
+ * @return the same list with aliases replaced by their members, comma-joined and without duplicates
+ */
+fun expandParityAliases(spec: String): String =
+    spec.split(",").map(String::trim).filter(String::isNotEmpty)
+        .flatMap { token -> parityArtifactAliases[token] ?: listOf(token) }
+        .distinct()
+        .joinToString(",")
 
 /**
  * The artifact ids a plan selected for capture, or null when no plan has been written.
@@ -576,12 +612,12 @@ fun resolveParityArtifacts(spec: String?): List<ParityArtifact> {
     val known = parityArtifacts.associateBy { it.artifact }
     val roster = "known artifacts: ${known.keys.joinToString(", ")}\n" +
         "known aliases: ${parityArtifactAliases.keys.joinToString(", ")}"
-    val requested = spec?.split(",")?.map(String::trim)?.filter(String::isNotEmpty)
+    val requested = spec?.let { expandParityAliases(it).split(",").filter(String::isNotEmpty) }
         ?: parityPlannedArtifacts()
         ?: throw GradleException(
             "-Partifacts is required when no plan has been written: run parityPlan first, or name " +
                 "the artifacts.\n$roster")
-    val ids = requested.flatMap { token -> parityArtifactAliases[token] ?: listOf(token) }.distinct()
+    val ids = requested.distinct()
     ids.firstOrNull { it !in known }?.let {
         throw GradleException("unknown artifact id '$it'.\n$roster")
     }
@@ -763,6 +799,14 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
                 val ran = parityHarnessModesRun.joinToString(",")
                 if (ran.isNotEmpty()) args("--mode", ran)
             }
+        // And the wall time of this row's producers, appended for the same reason: how long they
+        // took is not known while the graph is configured. Only what RAN is summed, so a step whose
+        // producers were up to date or absent from the invocation stamps no duration at all - a zero
+        // there would be summed by the plan's budget as an artifact that costs nothing.
+        doFirst {
+            val elapsed = spec.producers.mapNotNull(parityProducerElapsedMs::get).sum()
+            if (elapsed > 0) args("--wall-time", elapsed.toString())
+        }
         // Never up to date, for the reason parityDump's own comment gives: a capture reported
         // UP-TO-DATE is a stale capture served as fresh evidence.
         outputs.upToDateWhen { false }
@@ -855,6 +899,14 @@ abstract class ParityToolkitTask @Inject constructor(
 
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add(addVectorModuleArg)
+}
+// The fifth consumer, and the only one that is not a JVM launch: javadoc resolves the incubator
+// module at doclet time, so without this `SimdOps` reports the package as not visible. The task is
+// red at HEAD for an unrelated reason - Lombok generates the builders it cannot see - so this makes
+// two of its errors go away and no gate become usable; wiring it is about the flag being wired
+// everywhere it is read rather than about the exit code.
+tasks.withType<Javadoc>().configureEach {
+    (options as StandardJavadocDocletOptions).addStringOption("-add-modules", "jdk.incubator.vector")
 }
 // The two parity roots go AFTER forwardAssetProperties() so the resolved value wins whether or not
 // one was also forwarded from the command line. The working root on the Test hook is what lets the
@@ -1646,11 +1698,12 @@ tasks {
                         "otherwise. Re-run without it.")
         }
         pythonExe.set(parityPythonExe)
-        val runs = parityProperty("runs")
+        // The index records the tree and nothing else. -Pruns reaches each ARTIFACT's provenance
+        // through its own capture step, which is where the promotion reads it; the copy that used to
+        // ride the index beside it was written by nobody's reader.
         argv.set(buildList {
             add("capture-index")
             add("--root"); add(parityWorkingRoot)
-            runs?.let { add("--runs"); add(it) }
         })
         // Both edges are load-bearing. The producer edge is what runs the measurement; the capture-step
         // edge is what orders THIS task's own action - capture-index writes _run/COMPLETE last, and a
@@ -1689,7 +1742,10 @@ tasks {
         // -Partifacts absent is not an error here, and this is the one task where that is true: it has
         // a root to walk where capture and promote have nothing to run. So a bare `parityCompare`
         // compares everything the root holds, which is what lets a human never learn the artifact ids.
-        val artifacts = parityProperty("artifacts")
+        // Given, it is alias-expanded exactly as the capture's is: `sweeps` names six rows to capture
+        // and no store path at all, so forwarding the token raw made the documented
+        // capture-then-compare pair fail on the second half of itself.
+        val artifacts = parityProperty("artifacts")?.let(::expandParityAliases)
         val base = parityProperty("base") ?: "production"
         val expected = parityProperty("expected")
         // An artifact with no baseline is MISSING_BASELINE, which is a failure everywhere except the
@@ -1727,7 +1783,9 @@ tasks {
             if (reason.isEmpty())
                 throw GradleException("parityPromote requires -Preason=<why this value is being replaced>")
         }
-        val artifacts = parityProperty("artifacts")
+        // Alias-expanded for parityCompare's reason: a promotion scoped with the same token the
+        // capture was scoped with has to name the same rows, and `sweeps` is not one of them.
+        val artifacts = parityProperty("artifacts")?.let(::expandParityAliases)
         val population = parityProperty("population") == "changed"
         // Defaults to `moving` because forgetting it cannot then understate a change.
         val parityClass = parityProperty("class") ?: "moving"
@@ -1799,6 +1857,20 @@ tasks {
         doFirst {
             log.parentFile.mkdirs()
             standardOutput = TeeStream(System.out, FileOutputStream(log))
+        }
+    }
+
+    // And its wall time, which is the other thing only the producer can answer. Every producer,
+    // whatever its type: the two whole-suite rows are Test tasks and the reference render is an Exec,
+    // and a budget missing those is a budget missing the expensive half. `doFirst` prepends, so the
+    // start is taken before any action the task already carries.
+    parityProducerNames.forEach { producer ->
+        named(producer) {
+            val startedAt = AtomicLong()
+            doFirst { startedAt.set(System.nanoTime()) }
+            doLast {
+                parityProducerElapsedMs[name] = (System.nanoTime() - startedAt.get()) / 1_000_000L
+            }
         }
     }
 }

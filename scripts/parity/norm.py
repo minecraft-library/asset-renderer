@@ -97,10 +97,6 @@ def write_text(path: Path, text: str) -> Path:
     return path
 
 
-def write_lines(path: Path, lines: Iterable[str]) -> Path:
-    return write_text(path, LF.join(lines))
-
-
 def write_json(path: Path, obj: Any) -> Path:
     return write_text(path, canonical_json(obj))
 
@@ -109,7 +105,8 @@ def write_bytes_raw(path: Path, data: bytes) -> Path:
     """The one named binary door.
 
     Binary payloads have no line endings, so folding them would corrupt them. This exists once, is
-    named for what it is, and cannot be reached for text - ``pixels.save_png`` is its only caller.
+    named for what it is, and cannot be reached for text: its callers hand it an encoded image
+    buffer, never a string.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
@@ -154,11 +151,6 @@ def fixed(value: float, places: int = 4) -> str:
     than by remembering to pass ``Locale.ROOT``.
     """
     return f"{value:.{places}f}"
-
-
-def exact(value: float) -> str:
-    """``repr`` - the form the L2 comparison uses, so ``1`` and ``1.0`` stay distinguishable."""
-    return repr(value)
 
 
 def fsum(values: Iterable[float]) -> float:

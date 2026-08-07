@@ -6,8 +6,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.ToDoubleFunction;
 
 /**
  * The one shape the six {@code parity-report.tsv} writers share.
@@ -50,6 +52,25 @@ public final class SweepReport {
     private static final double[] BUCKET_EDGES = {0.25, 0.50, 0.75, 1.00};
 
     private SweepReport() {}
+
+    /**
+     * Returns the one ranking every table is written in: by delta, ascending.
+     *
+     * <p>The direction was decided once and landed in three writers of six. Two more sorted nothing
+     * at all and one sorted the other way, so "worst first" and "best first" looked identical at a
+     * glance in the file a human reads. It cannot reach a comparison - the store re-keys every row by
+     * subject and the fleet sum is order-independent - which is exactly why nothing caught it.
+     *
+     * <p>Ascending is what puts a failure last, {@code POSITIVE_INFINITY} being each sweep's
+     * in-memory marker for one.
+     *
+     * @param delta how to read a row's mean ARGB delta
+     * @param <R> the row type, which differs per sweep
+     * @return the comparator
+     */
+    public static <R> @NotNull Comparator<R> byDelta(@NotNull ToDoubleFunction<R> delta) {
+        return (left, right) -> Double.compare(delta.applyAsDouble(left), delta.applyAsDouble(right));
+    }
 
     /**
      * Returns a row's status token.

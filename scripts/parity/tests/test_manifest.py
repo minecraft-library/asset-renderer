@@ -1,4 +1,4 @@
-"""The three line grammars collapsing to one, and a verify that names what moved."""
+"""The generated sha256sum view, and a verify that names what moved."""
 
 from __future__ import annotations
 
@@ -10,38 +10,20 @@ from pathlib import Path
 from parity import manifest
 from parity.norm import ComparisonFailed, MissingInput, write_text
 
-DATA = Path(__file__).resolve().parent / "data"
 
+class ExportedView(unittest.TestCase):
+    """The one line form the package writes, and the one nothing reads back."""
 
-class LineGrammars(unittest.TestCase):
-    """A naive diff between two of these reports every line changed; here they read identically."""
-
-    def test_all_three_read_to_the_same_entries(self):
-        parsed = [manifest.parse_lines(DATA / f"manifest-{letter}.sha256") for letter in "abc"]
-        first = parsed[0].by_path()
-        self.assertEqual(first, {"blocks/one.png": "a" * 64, "blocks/two.png": "b" * 64})
-        for other in parsed[1:]:
-            self.assertEqual(other.by_path(), first)
-
-    def test_only_grammar_a_is_written(self):
-        parsed = manifest.parse_lines(DATA / "manifest-b.sha256")
-        text = manifest.export_text(parsed)
-        self.assertEqual(text.splitlines()[0], f"{'a' * 64} *blocks/one.png")
-        self.assertNotIn("./", text)
+    def test_the_written_line_is_hex_space_star_path(self):
+        entries = [manifest.Entry("blocks/one.png", "a" * 64)]
+        text = manifest.export_text(manifest.Manifest("m", "root", entries))
+        self.assertEqual(text, f"{'a' * 64} *blocks/one.png")
 
     def test_export_sorts_by_path_never_by_digest(self):
         """Sorting by digest means one changed section reorders every line."""
         entries = [manifest.Entry("z.png", "0" * 64), manifest.Entry("a.png", "f" * 64)]
         text = manifest.export_text(manifest.Manifest("m", "root", entries))
         self.assertLess(text.index("a.png"), text.index("z.png"))
-
-    def test_a_non_manifest_line_is_missing_input_not_a_silent_skip(self):
-        from parity.norm import MissingInput
-        with tempfile.TemporaryDirectory() as tmp:
-            bad = Path(tmp) / "bad.sha256"
-            write_text(bad, "not a manifest line")
-            with self.assertRaises(MissingInput):
-                manifest.parse_lines(bad)
 
 
 class Build(unittest.TestCase):

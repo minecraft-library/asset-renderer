@@ -42,7 +42,8 @@ import static org.hamcrest.Matchers.not;
  *
  * <p>Passing {@code -Dasset.parity.regenerateViews=true} makes it <b>write</b> the references rather
  * than assert against them, through the same code path for {@code ParityViewsTest}'s reason: a
- * regeneration that went through a second renderer could produce a file this test then rejects.
+ * regeneration that went through a second renderer could produce a file this test then rejects. That
+ * flag is the <b>only</b> arm that writes, and an absent reference fails rather than reappearing.
  */
 @DisplayName("The generated parity-gate references regenerate from their JSON source")
 final class ParityReferencesTest {
@@ -129,11 +130,18 @@ final class ParityReferencesTest {
         for (Map.Entry<String, String> rendered : ParityReferences.renderAll().entrySet()) {
             Path file = ParityReferences.HOME.resolve(rendered.getKey());
 
-            if (REGENERATE || !Files.isRegularFile(file)) {
+            if (REGENERATE) {
                 write(file, rendered.getValue());
                 continue;
             }
 
+            // Absence is a failure, not a bootstrap. A reference the skill loads by path and this
+            // suite quietly re-creates is one a rename can move with nothing going red, so the run
+            // could report a STALE reference and never a MISSING one.
+            assertThat("the skill holds no " + rendered.getKey() + "; it is a tracked file and this "
+                    + "suite does not create one. Restore it, or regenerate with "
+                    + ParityReferences.REGEN_COMMAND,
+                Files.isRegularFile(file), is(true));
             assertThat(rendered.getKey() + " is stale; regenerate with "
                     + ParityReferences.REGEN_COMMAND,
                 ParityStore.readNormalized(file), equalTo(rendered.getValue()));

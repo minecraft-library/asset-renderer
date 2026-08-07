@@ -163,7 +163,7 @@ public final class TestItemParityVanilla {
         }
         long totalMs = (System.nanoTime() - t0) / 1_000_000L;
 
-        rows.sort((a, b) -> Double.compare(a.meanDelta(), b.meanDelta()));
+        rows.sort(SweepReport.byDelta(Row::meanDelta));
 
         List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)
