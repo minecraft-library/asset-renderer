@@ -626,7 +626,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         int defaultArgb,
         long frameSeed
     ) {
-        MinecraftFontMetrics metrics = MinecraftFont.REGULAR.getFontMetrics();
+        MinecraftFontMetrics metrics = MinecraftFont.Vanilla.REGULAR.metrics();
         int textY = bandTop + (bandHeight - metrics.getHeight()) / 2 + metrics.getAscent();
         MinecraftGraphics g = new MinecraftGraphics(buffer);
         TextKit.drawLine(g, titleLine, titleX / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, defaultArgb, frameSeed);
@@ -644,10 +644,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     ) {
         if (label.isEmpty()) return;
 
-        MinecraftFontMetrics metrics = MinecraftFont.REGULAR.getFontMetrics();
+        MinecraftFontMetrics metrics = MinecraftFont.Vanilla.REGULAR.metrics();
         int textY = innerY + (innerH - metrics.getHeight()) / 2 + metrics.getAscent();
         MinecraftGraphics g = new MinecraftGraphics(buffer);
-        TextKit.drawText(g, label, (innerX + 2) / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.REGULAR, ColorMath.WHITE);
+        TextKit.drawText(g, label, (innerX + 2) / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.Vanilla.REGULAR, ColorMath.WHITE);
     }
 
     /**
@@ -660,11 +660,11 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
         String text = "Enchantment Cost: " + cost;
         int xpGreen = 0xFF80FF20;
-        MinecraftFontMetrics metrics = MinecraftFont.REGULAR.getFontMetrics();
-        int textX = canvasW - INSET - 4 - TextKit.measureText(text, MinecraftFont.REGULAR);
+        MinecraftFontMetrics metrics = MinecraftFont.Vanilla.REGULAR.metrics();
+        int textX = canvasW - INSET - 4 - TextKit.measureText(text, MinecraftFont.Vanilla.REGULAR);
         int textY = areaTop + (areaHeight - metrics.getHeight()) / 2 + metrics.getAscent();
         MinecraftGraphics g = new MinecraftGraphics(buffer);
-        TextKit.drawText(g, text, textX / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.REGULAR, xpGreen);
+        TextKit.drawText(g, text, textX / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.Vanilla.REGULAR, xpGreen);
     }
 
     // ---------------------------------------------------------------------------------------

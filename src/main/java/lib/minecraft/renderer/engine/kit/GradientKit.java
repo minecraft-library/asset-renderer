@@ -5,8 +5,8 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.GradientSpec;
-import lib.minecraft.text.font.MinecraftFont.GlyphData;
 import lib.minecraft.text.font.MinecraftFont;
+import lib.minecraft.text.font.MinecraftGlyph;
 import lib.minecraft.text.font.MinecraftGraphics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -61,7 +61,7 @@ public class GradientKit {
         int xMcPx, int yMcPx,
         long tick
     ) {
-        MinecraftFont font = MinecraftFont.of(segment.fontStyle());
+        MinecraftFont font = MinecraftFont.Vanilla.of(segment.fontStyle());
         int segWidthOut = measureCodepoints(text, font);
         if (segWidthOut <= 0) return 0;
 
@@ -110,7 +110,7 @@ public class GradientKit {
         // Shadow pass (offset +1,+1 mcPx), darkened per-glyph color.
         int cursor = 0;
         for (int cp : codepoints) {
-            GlyphData glyph = font.glyph(cp);
+            MinecraftGlyph glyph = font.glyph(cp);
             int rgb = shadowRgb(sample(spec, letterT(cursor, glyph.advanceWidth(), segWidthOut, spec, tick)));
             blitGlyphTinted(target, glyph, baseX + shadowOff + cursor, baseY + shadowOff, rgb);
             drawDecorations(target, segment, baseX + shadowOff + cursor, baseY + shadowOff, glyph.advanceWidth(), rgb);
@@ -120,7 +120,7 @@ public class GradientKit {
         // Main pass.
         cursor = 0;
         for (int cp : codepoints) {
-            GlyphData glyph = font.glyph(cp);
+            MinecraftGlyph glyph = font.glyph(cp);
             int rgb = sample(spec, letterT(cursor, glyph.advanceWidth(), segWidthOut, spec, tick));
             blitGlyphTinted(target, glyph, baseX + cursor, baseY, rgb);
             drawDecorations(target, segment, baseX + cursor, baseY, glyph.advanceWidth(), rgb);
@@ -189,14 +189,14 @@ public class GradientKit {
         // Shadow pass (offset +delta), then main pass.
         int cursor = 0;
         for (int cp : codepoints) {
-            GlyphData glyph = font.glyph(cp);
+            MinecraftGlyph glyph = font.glyph(cp);
             blitGlyphMasked(target, glyph, baseX + delta + cursor, baselineY + delta, shadow);
             fillDecorationsMasked(target, segment, baseX + delta + cursor, baselineY + delta, glyph.advanceWidth(), shadow);
             cursor += glyph.advanceWidth();
         }
         cursor = 0;
         for (int cp : codepoints) {
-            GlyphData glyph = font.glyph(cp);
+            MinecraftGlyph glyph = font.glyph(cp);
             blitGlyphMasked(target, glyph, baseX + cursor, baselineY, main);
             fillDecorationsMasked(target, segment, baseX + cursor, baselineY, glyph.advanceWidth(), main);
             cursor += glyph.advanceWidth();
@@ -236,7 +236,7 @@ public class GradientKit {
      * {@code NORMAL}-blending onto {@code target}. The per-pixel counterpart of
      * {@link #blitGlyphTinted}.
      */
-    private static void blitGlyphMasked(@NotNull PixelBuffer target, @NotNull GlyphData glyph, int cursorX, int cursorY, @NotNull PixelColor color) {
+    private static void blitGlyphMasked(@NotNull PixelBuffer target, @NotNull MinecraftGlyph glyph, int cursorX, int cursorY, @NotNull PixelColor color) {
         PixelBuffer bitmap = glyph.bitmap();
         int gx = cursorX + glyph.bearingX();
         int gy = cursorY + glyph.bearingY();
@@ -406,7 +406,7 @@ public class GradientKit {
      * clamped to the target bounds. Assumes a zero graphics translate (tooltip / menu buffers are
      * drawn at their origin).
      */
-    static void blitGlyphTinted(@NotNull PixelBuffer target, @NotNull GlyphData glyph, int cursorX, int cursorY, int rgb) {
+    static void blitGlyphTinted(@NotNull PixelBuffer target, @NotNull MinecraftGlyph glyph, int cursorX, int cursorY, int rgb) {
         PixelBuffer bitmap = glyph.bitmap();
         int gx = cursorX + glyph.bearingX();
         int gy = cursorY + glyph.bearingY();

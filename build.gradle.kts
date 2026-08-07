@@ -975,12 +975,12 @@ dependencies {
     // picks the stale SNAPSHOT JAR over our pin and produces NoSuchMethodError at runtime.
     // Each upstream lib also strict-pins its own internal deps to these same hashes so
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
-    api("com.github.simplified-dev:collections") { version { strictly("2f2aa58") } }
-    api("com.github.simplified-dev:utils") { version { strictly("37dc4a8") } }
+    api("com.github.simplified-dev:collections") { version { strictly("652c22d") } }
+    api("com.github.simplified-dev:utils") { version { strictly("7c2feb7") } }
     api("com.github.simplified-dev:image") { version { strictly("953ca92") } }
     api("com.github.simplified-dev:gson-extras") { version { strictly("2ba8143") } }
-    api("com.github.simplified-dev:reflection") { version { strictly("b2cf834") } }
-    api("com.github.simplified-dev:client") { version { strictly("5a5d32e") } }
+    api("com.github.simplified-dev:reflection") { version { strictly("7a28c3a") } }
+    api("com.github.simplified-dev:client") { version { strictly("3d87a03") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via Pipeline.
@@ -990,7 +990,7 @@ dependencies {
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend.
-    api("com.github.minecraft-library:text") { version { strictly("b2fbe0d") } }
+    api("com.github.minecraft-library:text") { version { strictly("117775e") } }
 
     // nbt-factory (github.com/minecraft-library/nbt-factory, group dev.sbs rewritten by jitpack).
     // Supplies the NBT tag model (CompoundTag/ListTag/NumericalTag) + parse surface
