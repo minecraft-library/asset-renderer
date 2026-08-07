@@ -1165,12 +1165,18 @@ final class ParityTaskWiringTest {
     /**
      * Reads a tracked file's text, by path because none of these is on the classpath.
      *
+     * <p>Newlines are normalised, because what is read here is the <b>working</b> file and
+     * {@code .gitattributes} constrains only the committed blob. A checkout on this platform can
+     * hold the same bytes as CRLF, and every slice below looks for a blank line as {@code \n\n} - so
+     * an unnormalised read ends each function slice at -1 and takes out every case in one go,
+     * saying nothing whatever about the wiring they exist to pin.
+     *
      * @param file the repo-relative path
-     * @return its text
+     * @return its text, with every line ending as a bare newline
      */
     private static String read(Path file) {
         try {
-            return Files.readString(file);
+            return Files.readString(file).replace("\r\n", "\n");
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
