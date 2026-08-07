@@ -26,7 +26,7 @@ Values this store holds, one file each.
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.references` | `manifests/references.json` | 2312 | 2312 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 10 | 10 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.visual` | `manifests/visual.json` | 153 | 153 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `manifest.visual` | `manifests/visual.json` | 199 | 199 entries | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 2 | 2 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
@@ -36,12 +36,12 @@ Values this store holds, one file each.
 | `pin.vanilla-iso-pose` | `pins/vanilla-iso-pose.json` | 1 | 1 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `report.oracle-index` | `index.json` | - | - | - | **no** |
 | `roster.blindness-rules` | `blindness.json` | - | - | - | **no** |
-| `sweep.armor` | `sweeps/armor.json` | 7 | 7 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `sweep.block` | `sweeps/block.json` | 1055 | 1055 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `sweep.entity` | `sweeps/entity.json` | 402 | 402 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `sweep.glint` | `sweeps/glint.json` | 11 | 11 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `sweep.item` | `sweeps/item.json` | 479 | 479 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `sweep.player` | `sweeps/player.json` | 2 | 2 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
+| `sweep.armor` | `sweeps/armor.json` | 7 | sum 18.2471 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
+| `sweep.block` | `sweeps/block.json` | 1055 | sum 131.5270 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
+| `sweep.entity` | `sweeps/entity.json` | 402 | sum 60.0047 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
+| `sweep.glint` | `sweeps/glint.json` | 11 | sum 528.6236 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
+| `sweep.item` | `sweeps/item.json` | 479 | sum 128.9575 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
+| `sweep.player` | `sweeps/player.json` | 2 | sum 29.1376 | `ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055` | yes |
 
 ## Pointers
 

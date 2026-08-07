@@ -34,14 +34,14 @@ because a floor that doubled as the record would let a declaration pass for evid
 
 | artifact | kind | home | producer | floor | runs | entries | cost | baselined |
 |---|---|---|---|---:|---:|---:|---:|---|
-| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 402 | - | yes |
-| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1055 | - | yes |
-| `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | - | yes |
-| `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | - | yes |
-| `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | - | yes |
-| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | - | yes |
+| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 402 | 24670 ms | yes |
+| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1055 | 50027 ms | yes |
+| `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 129288 ms | yes |
+| `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 11964 ms | yes |
+| `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 16490 ms | yes |
+| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 28255 ms | yes |
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 2312 | - | yes |
-| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 153 | - | yes |
+| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 199 | - | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | - | yes |
 | `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 5 | 5 | 14 | - | yes |
 | `manifest.dump.packs` | manifest | STORE | `parityDump` | 5 | 5 | 14 | - | yes |

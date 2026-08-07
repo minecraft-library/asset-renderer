@@ -7,7 +7,7 @@
   "provenance": {
     "artifact": "sweep.armor",
     "asset_dirty": false,
-    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "asset_sha": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
     "counts": {
       "failed": 0,
       "rows": 7
@@ -15,9 +15,11 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
+    "mode": "EVERY",
+    "parity_class": "moving",
+    "population_changed": true,
     "producer": "armorParityVanilla",
-    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 3/5, sweeps: six tables, 0 movers across the pair on every one, every failed=0, and all six sums on the corpus figures exactly - entity 60.0047, block 131.5270, item 128.9575, player 29.1376, armor 18.2471, glint 528.6236. Against the five frozen LKG baselines the only differences are the already-landed ShellPart.Mesh cube-operand-order change, predicted to the digit by the record: 8 entity rows, five better and three worse with zombie_villager largest at +0.0068, for +0.0004 on the sum, plus the one armour-diagnostic row at +0.0371. Block, item and player join at 0 movers once those two older baselines are normalized off their kind_id colon keys onto the reference stem. sweep.glint has never had a baseline.",
+    "reason": "Whole-store capture on a clean tree at the end of the parity-cleanup follow-up. Twenty-three of twenty-four artifacts are byte-identical to the previous baseline, including all six sweeps after a full ground-truth re-render, so the six landed phases moved no hashed byte and the reference tree had no staleness to shed. manifest.visual gains 46 rows and moves none: its membership was widened from six sub-trees to eight, and entity-projections and projection-smoke are hashed here for the first time.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -26,8 +28,10 @@
       "items": 479,
       "players": 2
     },
-    "timestamp": "2026-08-01T02:45:52Z",
-    "tool_version": "1.0.0"
+    "reference_manifest_digest": "d380e24f3d253cf6ccb5f9c3beb1ba1b9e12a827c438ec3898dc38acbf29d170",
+    "timestamp": "2026-08-07T16:43:10Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 16490
   },
   "rows": [
     {
@@ -86,5 +90,18 @@
       "subject": "minecraft__zombie_leather-dyeb04030_baby",
       "vanilla_coverage": "0.3948"
     }
-  ]
+  ],
+  "summary": {
+    "buckets": {
+      "<0.25": 0,
+      "<0.50": 0,
+      "<0.75": 0,
+      "<1.00": 0,
+      "failed": 0,
+      "total": 7
+    },
+    "failed": 0,
+    "rows": 7,
+    "sum": "18.2471"
+  }
 }

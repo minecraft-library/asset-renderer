@@ -142,18 +142,20 @@ final class ParityIndexTest {
      * back too, because a derived description is only better than a typed one while its derivation
      * is checked.
      *
-     * <p>The five divide in two, and which member falls where is measured against the writer's own
-     * derivation and printed on every run rather than described here. {@code report.buckets},
-     * {@code report.sum} and {@code report.wall-time} have a <b>writer</b> and no promoted baseline
-     * yet: a captured sweep carries the {@code summary} object the first two cite, and a capture
-     * step stamps the wall time the third reads. What is left for those is the promotion, which
-     * re-measures nothing and cannot be run from a test, so each leaves this set on the commit whose
-     * promotion first carries the value. The rest cite a node of that same {@code summary} object no
-     * writer derives, and no capture can fill one.
+     * <p>The three that were waiting on a promotion have had one and are gone from here.
+     * {@code report.buckets}, {@code report.sum} and {@code report.wall-time} each had a writer and
+     * no promoted baseline carrying what it wrote - a captured sweep derives the {@code summary}
+     * object the first two cite, and a capture step stamps the wall time the third reads - so each
+     * left this set on the commit whose promotion first carried its value, which is what happened.
+     *
+     * <p>What remains cites a node of that same {@code summary} object <b>no writer derives</b>, so
+     * no capture can fill one and no promotion will move them. Which member falls where is measured
+     * against the writer's own derivation by {@link #citationShapes} and printed on every run rather
+     * than described here, and that measurement is read back too, because a derived description is
+     * only better than a typed one while its derivation is checked.
      */
     private static final Set<String> POINTERS_THAT_REACH_NOTHING = new TreeSet<>(List.of(
-        "report.buckets", "report.coverage-gaps", "report.sum", "report.wall-time",
-        "report.worst-list"));
+        "report.coverage-gaps", "report.worst-list"));
 
     /**
      * What writes each of the store's own two root files, which no capture step covers.

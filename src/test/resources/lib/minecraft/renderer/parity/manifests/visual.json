@@ -143,6 +143,126 @@
       "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
     },
     {
+      "path": "entity-projections/minecraft_zombie.png",
+      "sha256": "4afe4c093a45a539f788ed7083dba1bc38661fc757b75e85f5dc8dd86d3f1a66"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/cabinet.png",
+      "sha256": "4dd5cf48fe78264851056dc45f8f4418fd1ce90f38d2c46b0ba6d8032ae30e4b"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/cavalier.png",
+      "sha256": "5c120960b008d42c4918f7bde003065a055883c41d0b15fa1d29341b7079478b"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/dimetric.png",
+      "sha256": "11b88b4415ed7251805a604aac3c7672a066ded8afa58f6b3500b616d1365381"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_cavalier_--.png",
+      "sha256": "5c120960b008d42c4918f7bde003065a055883c41d0b15fa1d29341b7079478b"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_cavalier_-F.png",
+      "sha256": "c164abfbb96429c4fc8663864d6b2e1dba9868f9b948175237ffa79245aae1ba"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_cavalier_M-.png",
+      "sha256": "ca6a75d202367a46ddd7c2608534957a22ad2b9559d66e12ed7d2fdd562e3b0f"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_cavalier_MF.png",
+      "sha256": "19f5d5d8bc4f9ae295e90847a628a88154b9828e08bfe89aa462af98a00da7d0"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_military_--.png",
+      "sha256": "3f7b447cc740a0a2558d8989f980f92e01b2884fdf62db394600d12019323367"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_military_-F.png",
+      "sha256": "6d3454e6d336523f42ac61af9fd6ced8d2fe4ac9c146e2ee20d5816f8693a0dc"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_military_M-.png",
+      "sha256": "1c5d81843b49495425d0a2712f792c97cd8145bc803b802be12774a1a44ed098"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_military_MF.png",
+      "sha256": "6e8a889330655936399d30d04bd870ef84d3d48e8eff8ceba332de92736e92d0"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_portrait_--.png",
+      "sha256": "5503e537e49477e3675e42f38fc8fc618ef52fcace99334da946b4d238d6a3f6"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_portrait_-F.png",
+      "sha256": "a9baa636b32d117f5ee087b34082afbc56e3d3641d675892c978305050d51d1a"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_portrait_M-.png",
+      "sha256": "e1779c1e87b4297c9d99e9e08013d52198a61d644d2e19b91d018669685001dc"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_portrait_MF.png",
+      "sha256": "22cf5a05f3f59916766a14b3caa4208ae602caad52c878de9f277e45112abea0"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_--.png",
+      "sha256": "3eda78a7fefedaad8b4d40510fe4300c84ceb6e0dc50116a9417eb690a421f5e"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_-F.png",
+      "sha256": "c383108fe3ddb0e0a646df4494e7f5369e96a3cbd0af9d6afb41cd619e58e149"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_M-.png",
+      "sha256": "7d700900614b6ac851ec41b950c77277c957e415fd30eae5a9878b34445f74ce"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_MF.png",
+      "sha256": "4a410af87e8ec548dd0fb0937c225193c9907ce3075546a924c6fe37e62778c2"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/isometric.png",
+      "sha256": "546069d2e0d930881dddc8ba2cbfb4c2c6c6be3232052425889923dc39134e5b"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/military.png",
+      "sha256": "3f7b447cc740a0a2558d8989f980f92e01b2884fdf62db394600d12019323367"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/one_point.png",
+      "sha256": "ad40deb4ba5ad9efb533fbf6eee57b66dba18516b801b6e0519ee8a91c8e5d52"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/portrait.png",
+      "sha256": "5503e537e49477e3675e42f38fc8fc618ef52fcace99334da946b4d238d6a3f6"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/three_point.png",
+      "sha256": "99408898352d8e2f8cdb5d6122edea4a91b65de3e15d897e1f49a36446b5d951"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/trimetric.png",
+      "sha256": "133d3dafbf81c9d6f0280543064c6133269b8cd2b5954aeff34fca33c128e6d8"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/two_point.png",
+      "sha256": "3cab0f703fbe26d51b6c0327d18863bf2665f9d2a8399a04f2a84c677bd73168"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/vanilla_gui_item.png",
+      "sha256": "3e51b93bfc5120821bcc94faeff4b5c0426106973f777ca94180d33501405d32"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie/vanilla_iso.png",
+      "sha256": "3eda78a7fefedaad8b4d40510fe4300c84ceb6e0dc50116a9417eb690a421f5e"
+    },
+    {
+      "path": "entity-projections/minecraft_zombie_facing.png",
+      "sha256": "7af77db800470109a392c24774dec2b1b0d00e41314705c68d6ecc376f30bbca"
+    },
+    {
       "path": "entity-render-3d/minecraft_allay.png",
       "sha256": "ef1083f7834642571e0619b6c474783c4733d4542d800b1b46ba6dc0d6bb42f3"
     },
@@ -613,6 +733,70 @@
     {
       "path": "menu-render/vanilla_crafting.png",
       "sha256": "fb415fa91d5b012ab01fe40d0920d3607be00002cdb83326d89fa214b003c3ab"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__CABINET__base.png",
+      "sha256": "927686f811486cc7457d6d5f1a99200159b679c67b189da0bf79143be6995a93"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__CAVALIER__base.png",
+      "sha256": "04a448e7a7030b4af5341867c8f983c73dfb3ecdf71fb686578fc5b9d1bd13b1"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__DIMETRIC__base.png",
+      "sha256": "1591c991177c61a6fec6db806b83a927cb6265ad68ebb71b1674dc2ee5c07276"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ISOMETRIC__base.png",
+      "sha256": "be7c641099a92d1ac1fada22e1d92441dbe9c400de2898835b46cfb87a941347"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ISOMETRIC__pitch_plus_45.png",
+      "sha256": "134a0a90b4b7208f651733e821ea6f41a2792bbf2fe499705d44fb61b6230780"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ISOMETRIC__roll_plus_30.png",
+      "sha256": "0bc9484bf5058bd9888b0796d5bc02e33a72bb0a06546319cfb1a12f3fdd20b1"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ISOMETRIC__yaw_minus_90.png",
+      "sha256": "33fdd85710a8d21015b2ea46c91f89faff8d4d12a03f5fb35ec1c4889970204a"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ISOMETRIC__yaw_plus_90.png",
+      "sha256": "89f40d9bd136703a3a81864ee4eccac0bf63bbb904ecc64bf9a09c54d100eb92"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__MILITARY__base.png",
+      "sha256": "77f75c7df09c5868594c02e981a2cae0e3000338e4cbb0d14a8322acfe2fc732"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__ONE_POINT__base.png",
+      "sha256": "c06f783de4dcf371df3406b074b8d495c0765ce39d56c9df5845fe016cae1978"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__PORTRAIT__base.png",
+      "sha256": "68b2f880e5021448c123b50cb9f00a0a703c4c76ab080d71c7e3d8f3c719a44c"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__THREE_POINT__base.png",
+      "sha256": "69c65a6af5057edd86481438545e745a97ea768363624ced8968cfcd1c3b55b0"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__TRIMETRIC__base.png",
+      "sha256": "296a79fed410bed058f5764cb6254d944a37b8166e9b02234f9e3a15ea5c8d72"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__TWO_POINT__base.png",
+      "sha256": "63917185f35a260a980620f2e705aa090974bae6f6bc39725b26434fb9d9755b"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__VANILLA_GUI_ITEM__base.png",
+      "sha256": "2fe4205323c4150317adb9ac869bcc025854400c204ef096eeab6fb35fb5099c"
+    },
+    {
+      "path": "projection-smoke/minecraft_tnt__VANILLA_ISO__base.png",
+      "sha256": "ea12046ed7eab567ac344feda7a97841386b8c3a1072085f75579cbdae6c59d3"
     }
   ],
   "format": 1,
@@ -621,16 +805,17 @@
   "provenance": {
     "artifact": "manifest.visual",
     "asset_dirty": false,
-    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "asset_sha": "ffa8a7d1fd7d03ade3fde5d62d4ea3a1df823055",
     "counts": {
-      "files": 153
+      "files": 199
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
+    "parity_class": "moving",
+    "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 4/5, render manifests: player-sheets 104, fluid 12, portal 12, visual 153 measured rather than asserted; 0 movers across the pair on all four. Fluid and portal are digest-for-digest identical to the P0 fp-run1 capture. Against p11-base, manifest.visual drops 625 entries that all fall inside a declared exclusion - the entity diff-panel tree and the three sub-trees with manifests of their own - adds 98 that are all inside member directories, and differs on exactly one: block-render-3d/minecraft_oak_stairs.png, the unsuffixed render alone with all six state-named oak_stairs renders unchanged, which is the fingerprint of the landed block-icon branch that takes a null variant only when the caller names no state. manifest.player-sheets has no independent operand anywhere and is promoted on determinism and population alone.",
+    "reason": "Whole-store capture on a clean tree at the end of the parity-cleanup follow-up. Twenty-three of twenty-four artifacts are byte-identical to the previous baseline, including all six sweeps after a full ground-truth re-render, so the six landed phases moved no hashed byte and the reference tree had no staleness to shed. manifest.visual gains 46 rows and moves none: its membership was widened from six sub-trees to eight, and entity-projections and projection-smoke are hashed here for the first time.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -640,7 +825,7 @@
       "players": 2
     },
     "root": "cache/visual",
-    "timestamp": "2026-08-01T02:55:20Z",
+    "timestamp": "2026-08-07T16:43:08Z",
     "tool_version": "1.0.0"
   }
 }
