@@ -41,6 +41,24 @@ that path, so it is in SEES and its row names B19; on `PlayerRenderer.java` B9
 claims `sweep.player` and no fired rule selects it, so it is absent from SEES and
 its row names nobody.
 
+## Judging a `manifest.portal` mover on the sub-tick path
+
+`portalRenderer` writes each animated subject twice - a plain strip on the tick
+lattice and an `_animated_smooth` strip at three sub-steps per tick - and
+`manifest.portal` hashes both. A sub-tick change that collapsed the smooth strip
+to duplicated frames would move those bytes and read as an ordinary mover, so the
+bytes having moved is not by itself the question.
+
+What separates a real intermediate frame from a duplicate: **frame `3n` of the
+smooth strip is the plain strip's frame `n` exactly, and the two frames between
+each pair differ from both of their neighbours.** Measured over all four animated
+subjects, 120 plain frames and 360 smooth: every one of the 120 lattice frames is
+identical on every channel, and the smallest margin by which an in-between frame
+differs from its nearer neighbour is 20 channel levels on the portal and 47 on the
+gateway. Re-measure with `./gradlew portalRenderer` and decode both strips; the
+run's own capture step refuses if the working root already holds a finished
+capture, which does not affect the strips it writes.
+
 ## B2 - CIT and CTM rules are dark in both parityDump configurations
 
 - **mode** select

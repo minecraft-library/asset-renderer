@@ -207,6 +207,24 @@ public final class ParityReferences {
         out.add("claims `sweep.player` and no fired rule selects it, so it is absent from SEES and");
         out.add("its row names nobody.");
         out.add("");
+        out.add("## Judging a `manifest.portal` mover on the sub-tick path");
+        out.add("");
+        out.add("`portalRenderer` writes each animated subject twice - a plain strip on the tick");
+        out.add("lattice and an `_animated_smooth` strip at three sub-steps per tick - and");
+        out.add("`manifest.portal` hashes both. A sub-tick change that collapsed the smooth strip");
+        out.add("to duplicated frames would move those bytes and read as an ordinary mover, so the");
+        out.add("bytes having moved is not by itself the question.");
+        out.add("");
+        out.add("What separates a real intermediate frame from a duplicate: **frame `3n` of the");
+        out.add("smooth strip is the plain strip's frame `n` exactly, and the two frames between");
+        out.add("each pair differ from both of their neighbours.** Measured over all four animated");
+        out.add("subjects, 120 plain frames and 360 smooth: every one of the 120 lattice frames is");
+        out.add("identical on every channel, and the smallest margin by which an in-between frame");
+        out.add("differs from its nearer neighbour is 20 channel levels on the portal and 47 on the");
+        out.add("gateway. Re-measure with `./gradlew portalRenderer` and decode both strips; the");
+        out.add("run's own capture step refuses if the working root already holds a finished");
+        out.add("capture, which does not affect the strips it writes.");
+        out.add("");
 
         for (JsonElement element : map.getAsJsonArray("rules")) {
             JsonObject rule = element.getAsJsonObject();
