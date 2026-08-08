@@ -106,8 +106,14 @@ final class BlindnessMapTest {
      * <p>A {@code select} rule's {@code blind} list is a statement rather than a subtraction, so an
      * artifact a second fired rule selects stays in the bundle and the claim is printed as
      * "claimed blind, selected by ..." rather than dropped. That is deliberate for every pair here -
-     * B2 and B4 speak about a code region inside a wider tree, and demoting them would remove a dump
-     * gate the rest of that tree genuinely reaches.
+     * each speaks about a code region inside a wider tree, and demoting one would remove a gate the
+     * rest of that tree genuinely reaches.
+     *
+     * <p>Four pairs left this set by being <b>measured false</b> rather than by being reclassified.
+     * Perturbing a file each claimant triggers on moved the artifact it called blind, so the claim was
+     * not a statement about a narrower region at all - it was wrong, and the artifact is now in that
+     * rule's {@code sees}. Being overruled by a sibling rule is what kept the bundle honest while the
+     * declaration was false, which is why the plan prints such a pair instead of trusting it.
      *
      * <p>Every claimant here is a {@code select} rule by construction rather than by choice: the
      * resolution below applies the demote pass, so a rule whose {@code blind} list subtracts on its
@@ -123,14 +129,12 @@ final class BlindnessMapTest {
     private static final Set<String> OVERRULED_CLAIMS = Set.of(
         "B10 -> sweep.block", "B10 -> sweep.item",
         "B11a -> sweep.block", "B11a -> sweep.item",
-        "B18 -> manifest.dump.packs", "B18 -> manifest.dump.vanilla",
-        "B2 -> manifest.dump.packs", "B2 -> manifest.dump.vanilla",
+        "B18 -> manifest.dump.vanilla",
+        "B2 -> manifest.dump.vanilla",
         "B21 -> sweep.item",
         "B22 -> manifest.dump.packs", "B22 -> manifest.dump.vanilla",
         "B23 -> manifest.player-raw", "B23 -> sweep.armor", "B23 -> sweep.block",
-        "B23 -> sweep.entity", "B23 -> sweep.glint", "B23 -> sweep.item",
-        "B4 -> manifest.dump.vanilla",
-        "B8 -> sweep.player");
+        "B23 -> sweep.entity", "B23 -> sweep.glint", "B23 -> sweep.item");
 
     /**
      * Tracked files a rule claims that a {@code no_reach} glob would also excuse.

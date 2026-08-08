@@ -100,18 +100,16 @@ than a pattern. The entry-number half has no one pattern to grep for, a note's i
 that note chose, so it is read rather than matched. An id a tracked file defines itself is not a
 citation at all: `blindness.json`'s rules carry their own `B<n>` in an `id` member.
 
-The rule binds what is authored from here; the tree it landed in was not clean. Phase numbers from
-earlier efforts survived in the entity tooling's diagnostic and policy strings and in the blindness
-map's `source` column, each held back for its own reason. The tooling strings are cleared. The
-tooling-tables manifest digests the entity flow's diagnostics log by `(severity, path, message)`, so
-rewording a diagnostic was a tooling-flow change - measured by re-running the flow and promoting a
-moved log digest, never by the suite, which asserts on none of those strings and so stays green
-either way. The `source` column is what is left, and the phase numbers in it sit beside a larger set
-of citations of the same pack in another spelling, so clearing them alone changes nothing about what
-that column resolves to. [KNOWN-OPEN.md] carries it, with the grep that finds them and the count of
-each spelling. The other note-id spellings this tree carried - in test display names, assertion
-messages and javadoc, and in the benchmark javadocs under `src/jmh` - are text nothing digests and
-nothing asserts on, so they went with the rule rather than into that record.
+The rule binds what is authored from here, and the tree it landed in is now clean of what it forbids:
+`git ls-files | xargs grep -nE '\bP-?[0-9]{1,2}\b' | grep -vE 'P[0-9]+[a-zA-Z]'` answers with the
+promoted artifacts, whose `provenance.reason` is the exemption below, and the two Gradle wrapper jars,
+which answer as binaries. Two families had to go and each cost something different. The entity
+tooling's diagnostics were a tooling-flow change - the tooling-tables manifest digests that flow's log
+by `(severity, path, message)`, so rewording one moved a log digest and was measured by re-running the
+flow rather than by a suite that asserts on none of those strings. The blindness map's `source` column
+was a rewrite rather than a scrub: twenty-nine of forty-one rows cited a design pack that no longer
+exists, in two spellings, so there was nothing to point the column at until every rule had been
+perturbed and the column could say what each claim was measured to be.
 
 A `provenance.reason` **already in the store** is the exemption, and more than one is: they name the
 capture a baseline was diffed against, the question that widened it, or the phase that moved the
@@ -120,9 +118,10 @@ writes, and `ParityIndexTest` re-derives every index row's digest from the file 
 moves by re-promoting and never by an edit - rewriting one to satisfy a writing rule would falsify the
 record the rule exists to keep. The next one written still follows the rule.
 
-Durable rules and decisions belong in this file, and an open item nobody owns belongs in
-[KNOWN-OPEN.md]. The measurements and narratives that produced them belong in the commit that landed
-them, and in the reason recorded with the baseline they moved.
+Durable rules and decisions belong in this file. The measurements and narratives that produced them
+belong in the commit that landed them, and in the reason recorded with the baseline they moved. An
+open item nobody owns had a file of its own for a while; it is gone because the last entry closed, and
+a new one belongs there again rather than here - a rule that is really a question reads as settled.
 
 ## The pack filter
 
@@ -563,6 +562,5 @@ Scripts live in `scripts/`, not bundled into the JAR. `scripts/parity/` is the p
 `python scripts/parity <command>` and documented in its own `README.md`.
 `scripts/euler_reference_svg.py` regenerates the SVG in `EulerRotation`'s javadoc.
 
-[KNOWN-OPEN.md]: KNOWN-OPEN.md
 [vanilla-reference-harness]: harness
 [vanilla-reference-harness/CLAUDE.md]: harness/CLAUDE.md

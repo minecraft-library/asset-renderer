@@ -44,18 +44,18 @@
   "rules": [
     {
       "blind": [
-        "manifest.dump.vanilla",
-        "manifest.dump.packs"
+        "manifest.dump.vanilla"
       ],
-      "claim": "CIT and CTM rules are dark in both parityDump configurations",
+      "claim": "CIT and CTM rules are dark in both parityDump configurations, and the rule package's other parsers are not",
       "id": "B2",
       "mode": "select",
       "probe": "read rules.json in either dump config and confirm both counts are 0",
       "reason": "No pack fixture ships a cit/ or ctm/ tree, so rules.json reports cit_rules: 0 and ctm_rules: 0 on both configs. An empty dump diff proves nothing about them; RuleScannerMergeTest and CtmParserTest are the gate and both run inside ./gradlew test.",
       "sees": [
-        "digest.shipped-tables"
+        "digest.shipped-tables",
+        "manifest.dump.packs"
       ],
-      "source": "07/blindness#2; CLAUDE.md 'The pack filter'",
+      "source": "measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; CLAUDE.md 'The pack filter'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/pack/rule/**",
         "src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java",
@@ -74,17 +74,15 @@
         "sweep.block",
         "manifest.dump.vanilla"
       ],
-      "source": "07/blindness#3",
+      "source": "measured by perturbing MultipartWhenDeserializer.java: 2 of 2 declared sees moved",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/**/BlockState*.java",
         "src/main/java/lib/minecraft/renderer/pipeline/**/Multipart*.java"
       ]
     },
     {
-      "blind": [
-        "manifest.dump.vanilla"
-      ],
-      "claim": "A vanilla-only dump leaves the pack-rule code dark, so the packs configuration is not optional",
+      "blind": [],
+      "claim": "A vanilla-only dump leaves the pack-rule code dark, so the packs configuration is not optional - but a loader in this package is not pack-rule code and reaches both dumps",
       "id": "B4",
       "mode": "select",
       "probe": "run parityDump and compare rules.json between the two configs: the vanilla one is empty and the packs one is not",
@@ -93,9 +91,10 @@
         "manifest.dump.packs",
         "sweep.block",
         "sweep.item",
-        "digest.colormap-lut"
+        "digest.colormap-lut",
+        "manifest.dump.vanilla"
       ],
-      "source": "07/blindness#4",
+      "source": "measured by perturbing ColorMapLoader.java: 4 of 5 declared sees moved",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/pack/**"
       ]
@@ -115,7 +114,7 @@
         "sweep.entity",
         "pin.corpus-count"
       ],
-      "source": "07/blindness#5",
+      "source": "measured by perturbing BlockDefaultsLoader.java: 3 of 6 declared sees moved",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/index/**",
         "src/main/java/lib/minecraft/renderer/pipeline/loader/**"
@@ -135,7 +134,7 @@
         "manifest.dump.vanilla",
         "manifest.dump.packs"
       ],
-      "source": "07/blindness#6",
+      "source": "measured by perturbing ItemIndexBuilder.java: 3 of 5 declared sees moved",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java",
         "src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java"
@@ -153,16 +152,14 @@
         "manifest.dump.packs",
         "sweep.block"
       ],
-      "source": "07/blindness#7",
+      "source": "measured by perturbing BlockStateLoader.java: 3 of 3 declared sees moved",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/pack/BlockStateLoader.java"
       ]
     },
     {
-      "blind": [
-        "sweep.player"
-      ],
-      "claim": "sweep.player asserts nothing, so it can never fail",
+      "blind": [],
+      "claim": "sweep.player asserts nothing, so it can never fail - which is not the same as its rows not moving",
       "id": "B8",
       "mode": "select",
       "probe": "read TestPlayerParityVanilla for an assert of any kind; there is none, and the id is kept separate from B9 so the citation survives",
@@ -170,18 +167,17 @@
       "sees": [
         "pin.player-crc",
         "manifest.player-sheets",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.player"
       ],
-      "source": "07/blindness#8; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
+      "source": "measured by perturbing TestPlayerParityVanilla.java: 2 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/test/java/lib/minecraft/renderer/visual/TestPlayerParityVanilla.java"
       ]
     },
     {
-      "blind": [
-        "sweep.player"
-      ],
-      "claim": "No artifact renders BUST, the cape, or any 2D player path",
+      "blind": [],
+      "claim": "No artifact renders BUST, the cape, or any 2D player path, and the 3D player geometry under these paths reaches every player artifact including the sweep",
       "id": "B9",
       "mode": "select",
       "probe": "perturb the wing build's fit frame and re-render -Psheets=toggles: elytra_only_3_4_ and elytra_cape_3_4_ move and none of the other eleven cells do",
@@ -189,9 +185,10 @@
       "sees": [
         "pin.player-crc",
         "manifest.player-sheets",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.player"
       ],
-      "source": "07/blindness#8,#9,#12; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
+      "source": "measured by perturbing HumanoidPart.java: 4 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/PlayerRenderer.java",
         "src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java",
@@ -217,7 +214,7 @@
         "manifest.portal",
         "manifest.player-raw"
       ],
-      "source": "07/blindness#10; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
+      "source": "measured by perturbing BlockGeometryKit.java: 4 of 6 declared sees moved, and 2 declared blind held; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java"
       ]
@@ -233,7 +230,7 @@
       "probe": "-Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved",
       "reason": "Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.",
       "sees": [],
-      "source": "07/blindness#11; CLAUDE.md 'Depth: the contract'",
+      "source": "measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; CLAUDE.md 'Depth: the contract'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
       ]
@@ -253,7 +250,7 @@
         "pin.player-crc",
         "manifest.player-raw"
       ],
-      "source": "07/blindness#11; audit 09/G7; CLAUDE.md 'Depth: the contract'",
+      "source": "measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; CLAUDE.md 'Depth: the contract'; audit 09/G7",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"
       ]
@@ -268,7 +265,7 @@
       "sees": [
         "manifest.player-sheets"
       ],
-      "source": "07/blindness#12; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
+      "source": "measured by perturbing TestPlayerRender.java: 1 of 1 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/test/java/lib/minecraft/renderer/visual/TestPlayerRender.java"
       ]
@@ -298,7 +295,7 @@
         "manifest.tooling-tables",
         "report.diagnostics-log"
       ],
-      "source": "07/blindness#13,#14; CLAUDE.md 'Tooling'",
+      "source": "measured by perturbing ToolingPotionColors.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/tooling/**"
       ]
@@ -314,7 +311,7 @@
         "report.diagnostics-log",
         "manifest.tooling-tables"
       ],
-      "source": "07/blindness#14; CLAUDE.md 'Tooling'",
+      "source": "measured by perturbing GlintItemsWalk.java: 0 of 2 declared sees moved; CLAUDE.md 'Tooling'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/tooling/**"
       ]
@@ -327,7 +324,7 @@
       "probe": "run generateAtlas twice with --rerun-tasks and hash build/atlas/atlas.png; the two differ",
       "reason": "AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it. The entry point that drives it sits in the test tree and emits, so B33's claim that those sources only assert is false for it; this rule is where the same answer is written down rather than inferred from an excuse.",
       "sees": [],
-      "source": "07/blindness#15; CLAUDE.md 'Gates'",
+      "source": "declares no store artifact, so its reason names the gate that answers instead; CLAUDE.md 'Gates'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/AtlasRenderer.java",
         "src/main/java/lib/minecraft/renderer/option/Atlas*.java",
@@ -345,7 +342,7 @@
         "manifest.dump.vanilla",
         "manifest.dump.packs"
       ],
-      "source": "07/blindness#16",
+      "source": "measured by perturbing PackAcquisition.java: 2 of 2 declared sees moved",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/pack/PackAcquisition.java"
       ]
@@ -362,26 +359,26 @@
         "manifest.dump.packs",
         "sweep.item"
       ],
-      "source": "07/blindness#17",
+      "source": "measured by perturbing TextureSynthesizer.java: 0 of 3 declared sees moved",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer*.java"
       ]
     },
     {
       "blind": [
-        "manifest.dump.vanilla",
-        "manifest.dump.packs"
+        "manifest.dump.vanilla"
       ],
-      "claim": "CatharsisConfig is not dumped at all",
+      "claim": "CatharsisConfig is not itself dumped, and a Catharsis condition still reaches the packs dump through what it selects",
       "id": "B18",
       "mode": "select",
       "probe": "grep the 14 dump sections for any catharsis or overlay key; there is none",
       "reason": "The fabric:overlays plus catharsis:pack half of pack resolution has no dump section, so an identical dump is silent about it. What sees a change there is a render against a fixture that carries an overlay.",
       "sees": [
         "sweep.block",
-        "sweep.item"
+        "sweep.item",
+        "manifest.dump.packs"
       ],
-      "source": "07/blindness#18",
+      "source": "measured by perturbing CatharsisCondition.java: 1 of 3 declared sees moved, and 1 declared blind held",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java",
         "src/main/java/lib/minecraft/renderer/asset/pack/cats/**"
@@ -413,7 +410,7 @@
         "manifest.player-raw",
         "manifest.visual"
       ],
-      "source": "07/blindness#1,#19",
+      "source": "measured by perturbing ModelEngine.java: 12 of 14 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/**",
         "src/main/java/lib/minecraft/renderer/*Renderer.java"
@@ -431,7 +428,7 @@
         "manifest.dump.packs",
         "report.diagnostics-log"
       ],
-      "source": "07/blindness#20; CLAUDE.md 'Tooling'",
+      "source": "measured by perturbing BlockTagLoader.java: 2 of 3 declared sees moved; CLAUDE.md 'Tooling'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/**",
         "src/main/java/lib/minecraft/renderer/tooling/kernel/Diagnostics.java"
@@ -450,7 +447,7 @@
         "sweep.block",
         "sweep.entity"
       ],
-      "source": "the item sum's blindness to the block index moved out of CLAUDE.md and this map is its home",
+      "source": "measured by perturbing BlockIndexBuilder.java: 2 of 2 declared sees moved, and 1 declared blind held",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java"
       ]
@@ -469,7 +466,7 @@
         "sweep.block",
         "sweep.entity"
       ],
-      "source": "the dump carrying no key for either field is stated here and nowhere else",
+      "source": "measured by perturbing BlockIndexBuilder.java: 1 of 2 declared sees moved, and 2 declared blind held; the dump carrying no key for either field is stated here and nowhere else",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java"
       ]
@@ -493,7 +490,7 @@
         "manifest.player-sheets",
         "pin.armor-span"
       ],
-      "source": "the trim permutation's reach moved out of CLAUDE.md and this map is its home",
+      "source": "measured by perturbing TrimKit.java: 1 of 2 declared sees moved, and 7 declared blind held",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/kit/TrimKit.java"
       ]
@@ -524,7 +521,7 @@
         "manifest.player-raw",
         "manifest.visual"
       ],
-      "source": "reach baseline; coverage gap measured at P9 (109 of 356 files uncovered by the 23)",
+      "source": "measured by perturbing OutputOptions.java: 11 of 14 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/option/**"
       ]
@@ -548,7 +545,7 @@
         "manifest.player-raw",
         "manifest.visual"
       ],
-      "source": "reach baseline; coverage gap measured at P9",
+      "source": "measured by perturbing ModelElement.java: 4 of 10 declared sees moved",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/**"
       ]
@@ -580,7 +577,7 @@
         "manifest.player-raw",
         "manifest.visual"
       ],
-      "source": "reach baseline; coverage gap measured at P9",
+      "source": "measured by perturbing Matrix4f.java: 10 of 15 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/tensor/**"
       ]
@@ -611,7 +608,7 @@
         "manifest.player-raw",
         "manifest.visual"
       ],
-      "source": "reach baseline; coverage gap measured at P9",
+      "source": "measured by perturbing CornerPhase.java: 11 of 14 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/face/**"
       ]
@@ -632,7 +629,7 @@
       "probe": "change a detail message and confirm no sweep row moves; change a supertype and confirm the sweep fails to run at all",
       "reason": "These are message and constructor shapes on throwables. Nothing renders differently because a detail message changed, and no stored artifact records a message - so the gate is ./gradlew test compiling and passing, which is not an artifact this store holds. A rewiring of the hierarchy that changed which catch block runs would show up as a sweep failing outright rather than as a moved row.",
       "sees": [],
-      "source": "reach baseline; coverage gap measured at P9",
+      "source": "measured by perturbing RendererException.java: 0 of 0 declared sees moved, and 7 declared blind held",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/exception/**"
       ]
@@ -654,7 +651,7 @@
         "manifest.references",
         "manifest.player-raw"
       ],
-      "source": "reach baseline; CLAUDE.md 'Parity: the harness contract'",
+      "source": "measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'",
       "trigger_paths": [
         "harness/src/**",
         "harness/build.gradle",
@@ -674,7 +671,7 @@
       "probe": "run the selftest, then capture one artifact either side of the change and diff the two canonical files",
       "reason": "The toolkit reads a producer's output and writes the canonical form; it renders nothing, so no artifact's producer bytes move. What can move is the captured form itself, and the gate for that is paritySelfTest, which every parity task depends on. A capture taken across a toolkit change is compared with the OLD store, so a form change surfaces as movers on every artifact at once, which is the signature to look for. One file under this glob is more than a reader: the member map in manifest.py DECLARES the population of the two manifests that share cache/visual rather than measuring it, and B41 names those artifacts for that file. This list stays empty because the rest of the toolkit does only what the claim says.",
       "sees": [],
-      "source": "reach baseline; the toolkit is the one producer of every stored byte",
+      "source": "declares no store artifact, so its reason names the gate that answers instead; the toolkit is the one producer of every stored byte",
       "trigger_paths": [
         "scripts/parity/**"
       ]
@@ -687,7 +684,7 @@
       "probe": "read back the resolved commandLine of every task the change touches and compare it to the one it replaced",
       "reason": "A task registration, a finalizer edge or a property read moves no rendered byte: what it changes is which producer runs and what argv it runs with. The gate is running the tasks and reading their argv, which is why the Gradle phases of this effort gate on task lists and resolved command lines rather than on a sum. Two declarations in the build file escape that: visualSweepProducers and the player-raw aggregator's dependencies decide which producers run and therefore what the two cache/visual manifests hold, so B41 names those artifacts for the build file. This list stays empty because every other glob here is wiring around producers rather than a statement of what one of them covers.",
       "sees": [],
-      "source": "reach baseline; P5 and P6 gated exactly this way",
+      "source": "measured by perturbing build.gradle.kts: 0 of 0 declared sees moved",
       "trigger_paths": [
         "build.gradle.kts",
         "settings.gradle.kts",
@@ -721,7 +718,7 @@
         "manifest.portal",
         "manifest.player-raw"
       ],
-      "source": "reach baseline; P13's writer reshape is exactly this path",
+      "source": "measured by perturbing ParityMetrics.java: 6 of 11 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
         "src/test/java/lib/minecraft/renderer/visual/**"
       ]
@@ -734,7 +731,7 @@
       "probe": "run ./gradlew test, then capture any artifact and confirm it is byte-identical",
       "reason": "A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can. The exceptions are the sources that DO emit, and each has a rule of its own: B32 for the visual mains, B37 for the write path behind the dump sections and every self-captured file, B38 for the tests that compute the value each self-captured one carries, and B15 for the atlas entry point, whose output is unhashable by construction.",
       "sees": [],
-      "source": "reach baseline",
+      "source": "declares no store artifact, so its reason names the gate that answers instead",
       "trigger_paths": [
         "src/test/java/**",
         "src/test/resources/**"
@@ -760,7 +757,7 @@
         "pin.kit-corners",
         "pin.vanilla-iso-pose"
       ],
-      "source": "reach baseline; the emitters B33's glob covers and its claim excludes",
+      "source": "measured by perturbing SelfCapture.java: 5 of 11 declared sees moved; the emitters B33's glob covers and its claim excludes",
       "trigger_paths": [
         "src/test/java/lib/minecraft/renderer/parity/**",
         "src/test/java/lib/minecraft/renderer/pipeline/dump/**"
@@ -784,7 +781,7 @@
         "pin.kit-corners",
         "pin.vanilla-iso-pose"
       ],
-      "source": "reach baseline; the ARTIFACT declarations B37's two globs do not contain",
+      "source": "measured by perturbing FluidRendererParallelismTest.java: 1 of 9 declared sees moved; the ARTIFACT declarations B37's two globs do not contain",
       "trigger_paths": [
         "src/test/java/lib/minecraft/renderer/ModelEngineParallelismTest.java",
         "src/test/java/lib/minecraft/renderer/FluidRendererParallelismTest.java",
@@ -816,7 +813,7 @@
       "probe": "edit any one of them and capture any artifact B37 names; every stored byte is identical, and the only thing that fails is the suite that gates the file",
       "reason": "Four suites that read the store to assert against it, and the two renderers behind them, whose output is markdown - the skill's reference files and the store's own README, neither of which any artifact digests. Listed here rather than cut out of B37, so a file ADDED to that package keeps answering with B37's whole list until somebody decides otherwise. A demotion answers for the paths that fired it and for no others, which is what makes this list safe to widen: a commit carrying one of these readers beside a real writer still plans the writer's bundle, and that pairing is the ordinary shape of work in this package rather than an edge case.",
       "sees": [],
-      "source": "reach baseline; the readers inside B37's write-path packages",
+      "source": "measured by perturbing ParityViews.java: 0 of 0 declared sees moved, and 11 declared blind held; the readers inside B37's write-path packages",
       "trigger_paths": [
         "src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java",
         "src/test/java/lib/minecraft/renderer/parity/ParityIndexTest.java",
@@ -834,7 +831,7 @@
       "probe": "hand-edit a promoted artifact and run ./gradlew test: ParityIndexTest names the row whose file no longer hashes to its recorded digest. The compare says nothing, which is why the check lives in the suite",
       "reason": "Editing a stored artifact by hand does not change what a producer emits; it changes what the emitted bytes are compared against, which is the one thing a capture cannot detect. index.json carries each file's digest over its normalized bytes for exactly this, and the reader is ./gradlew test - ParityIndexTest re-derives every row's digest from the file it names. The compare is NOT that reader: it opens the base payload directly and never index.json, so a hand-edited baseline reaches it as agreement about the edited value.",
       "sees": [],
-      "source": "reach baseline; the store is the oracle rather than an output",
+      "source": "declares no store artifact, so its reason names the gate that answers instead; the store is the oracle rather than an output",
       "trigger_paths": [
         "src/test/resources/lib/minecraft/renderer/parity/**"
       ]
@@ -859,7 +856,7 @@
         "manifest.dump.vanilla",
         "manifest.dump.packs"
       ],
-      "source": "P15; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over",
+      "source": "measured by perturbing block_tints.json: 3 of 11 declared sees moved; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over",
       "trigger_paths": [
         "src/main/resources/lib/minecraft/renderer/*.json"
       ]
@@ -882,7 +879,7 @@
         "manifest.dump.vanilla",
         "manifest.dump.packs"
       ],
-      "source": "P15; the second uncovered path under src/main/resources/",
+      "source": "measured by perturbing dev.simplified.gson.GsonContributor: 0 of 9 declared sees moved, 2 not measurable in that run; the second uncovered path under src/main/resources/",
       "trigger_paths": [
         "src/main/resources/META-INF/services/**"
       ]
@@ -895,7 +892,7 @@
       "probe": "open the file: it carries a package declaration and javadoc and no member, and no artifact digests a javadoc",
       "reason": "This is the one package-info in the tree that sits in no package another rule already claims - the library root, whose own types are claimed by B19's renderer glob and whose sub-packages are claimed one by one. A rule rather than a no_reach glob because a blanket **/package-info.java entry was defeated on every other match, a rule having claimed the file first, so it read as a javadoc exemption while being one nowhere; and a javadoc edit inside a ruled package still plans that package's bundle, which is the rule-wins precedence working. This file has no such package below it to plan for, and what it reaches is nothing.",
       "sees": [],
-      "source": "reach baseline; the one match the blanket package-info glob had",
+      "source": "measured by perturbing package-info.java: 0 of 0 declared sees moved; the one match the blanket package-info glob had",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/package-info.java"
       ]
@@ -911,7 +908,7 @@
         "manifest.visual",
         "manifest.player-raw"
       ],
-      "source": "correction to B30 and B31's claim that a toolkit or build-script change reaches nothing - these two files hold the membership the two cache/visual manifests are defined over, and the build file holds their producers' render defaults",
+      "source": "measured by perturbing manifest.py: 2 of 2 declared sees moved; correction to B30 and B31's claim that a toolkit or build-script change reaches nothing - these two files hold the membership the two cache/visual manifests are defined over, and the build file holds their producers' render defaults",
       "trigger_paths": [
         "build.gradle.kts",
         "scripts/parity/manifest.py"
