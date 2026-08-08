@@ -13,22 +13,6 @@ how a reader gets the wrong half first.
 
 Delete an entry when it closes.
 
-## The parity budget is declared everywhere and measured nowhere
-
-`parityPlan` prints a `BUDGET` line, `SKILL.md` tells a gate session to background a capture whose
-budget exceeds 110s, and the store registers `report.wall-time` as a pointer into
-`<artifact>#/provenance/wall_time_ms`. Nothing writes the number. `provenance.gather` takes a
-`wall_time_ms` argument and no caller passes one, so no captured payload carries the field;
-`promote._index_row` copies it to `last_duration_ms` only when it is present, so no index row carries
-that either; and `cli`'s plan sums `last_duration_ms` defaulted to `0` over the artifacts a change
-reaches. Every budget the plan prints is therefore `0 ms`. `SKILL.md` states what a zero
-budget means - that no artifact in the plan has a recorded duration, not that the bundle is free -
-which is why this is a gap and not a live defect.
-
-Closing it is one of two things: have each capture step record its own wall time into provenance, or
-take the budget out of the plan's output - the `BUDGET` line, the skill's 110s rule and the
-`report.wall-time` pointer go together either way.
-
 ## The blindness map's `source` column cites a working note `CLAUDE.md`'s citation rule forbids
 
 `CLAUDE.md`'s *Skip these* states the rule: a tracked file cites no working note, by path or by entry

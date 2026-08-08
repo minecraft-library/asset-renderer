@@ -576,13 +576,18 @@ def _cmd_plan(args: argparse.Namespace) -> int:
 
     index = store_mod.production(args.store, base).index()
     plan, covered, manual = _split_reach(reach.sees, index)
-    budget = sum(int(index.get(_STORE_MAP, {}).get(artifact, {}).get("last_duration_ms", 0))
-                 for artifact in plan)
+    durations = [index.get(_STORE_MAP, {}).get(artifact, {}).get("last_duration_ms")
+                 for artifact in plan]
+    measured = [int(value) for value in durations if value is not None]
+    budget = sum(measured)
     payload = {
         "//": "parity.report.plan · regen: ./gradlew parityPlan",
         "artifact": "report.plan",
         "blind": reach.blind,
         "budget_ms": budget,
+        # How much of that number is real. A reader with the sum alone cannot tell a measured bundle
+        # from one where most of the cost is missing, and the two call for opposite decisions.
+        "budget_measured": len(measured),
         "changed": sorted(changed),
         # `sees` answers reach and `plan` selects a capture, which are two different sets: every
         # artifact the change moves, against the ones the store keeps a file for and a producer can
@@ -633,10 +638,35 @@ def _cmd_plan(args: argparse.Namespace) -> int:
                    if entry["action"] == _CAPTURE else "read it there")
             where = f" {entry['where']}" if entry["where"] else ""
             lines.append(f"  {entry['artifact']} [{entry['home']}]{where} - {act}")
-    lines.append(f"BUDGET {budget} ms"
-                 + ("" if budget else "  (no artifact in this plan has a recorded duration)"))
+    lines.append(f"BUDGET {budget} ms{_budget_caveat(len(measured), len(plan))}")
     _emit(args, "\n".join(lines), payload)
     return _gate_exit(args, base, root, reach, plan) if args.gate_exit else OK
+
+
+def _budget_caveat(measured: int, planned: int) -> str:
+    """What the BUDGET line says beside its number, which depends on how much of the number is real.
+
+    An artifact contributes to the budget only once a promotion has recorded how long its producers
+    took, so a bundle is in one of three states. With none of them recorded the sum is zero and says
+    nothing; with all of them it is the cost; and with some of them it is a **floor** that looks
+    exactly like a cost, which is the state that needs saying out loud.
+
+    That middle state could not arise while nothing wrote the column and every plan read ``0 ms``,
+    which is why the line used to key its parenthetical off the sum being zero. It has been reachable
+    since the first artifact was promoted carrying a duration, and it is the reading that costs
+    something: a bundle whose measured half is cheap and whose unmeasured half boots the client reads
+    as comfortably under the rule that says to background it.
+
+    :param measured: how many of the plan's artifacts carry a recorded duration
+    :param planned: how many artifacts the plan runs
+    :return: the parenthetical to append, or an empty string when the number stands on its own
+    """
+    if not measured:
+        return "  (no artifact in this plan has a recorded duration)"
+    if measured < planned:
+        return (f"  ({measured} of {planned} artifacts carry a duration, so this is a floor "
+                "and not the cost)")
+    return ""
 
 
 #: The map of the index that registers an artifact the production store keeps a FILE for - the one

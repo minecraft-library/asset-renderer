@@ -113,8 +113,15 @@ cannot resolve (34 recorded failures).
 If the plan's budget exceeds **110s**, run `parityCapture` in the background; the default shell
 budget is 120s and a full bundle exceeds it. The budget is the sum of what each planned artifact's
 producers took the last time that artifact was **promoted**, so a row promoted before the build
-started measuring wall time contributes nothing and a bundle of them reads `0 ms`. That is not a
-free bundle - read the producer list instead.
+started measuring wall time contributes nothing.
+
+**Read the parenthetical before the number.** The line says which of three states the bundle is in,
+and only one of them is a cost. `BUDGET 0 ms  (no artifact in this plan has a recorded duration)`
+means nothing in the bundle is measured. `BUDGET N ms  (k of m artifacts carry a duration, so this
+is a floor and not the cost)` means the number is real for `k` artifacts and silent about the rest,
+which is the dangerous reading: a bundle whose measured half is a two-second table and whose
+unmeasured half boots the client prints comfortably under the 110s rule. A bare `BUDGET N ms` is the
+whole cost. In the first two states, read the producer list instead.
 
 ## Common flags
 

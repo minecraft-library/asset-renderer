@@ -872,8 +872,11 @@ final class ParityTaskWiringTest {
                 + "spelling here and would pass by naming nothing", THE_ACT_OF.keySet(),
             hasItem(writers.iterator().next()));
         assertThat("and the plan's budget is the sum of that column, so the sentence is about the "
-                + "number an operator is shown rather than about a second one",
-            read(TOOLKIT.resolve("cli.py")), containsString(".get(\"" + BUDGET_COLUMN + "\", 0)"));
+                + "number an operator is shown rather than about a second one. The column name "
+                + "alone, because how a missing one is defaulted is the plan's own business: it "
+                + "used to substitute a zero and now keeps the absence, which is what lets the "
+                + "BUDGET line tell an unmeasured artifact from a free one",
+            read(TOOLKIT.resolve("cli.py")), containsString(".get(\"" + BUDGET_COLUMN + "\")"));
         assertThat("the act the sentence names, against the module that writes the column it "
                 + "describes. A capture stamps the measurement and a promotion is what publishes "
                 + "it, so both readings are plausible and only one is true - and the sentence is "

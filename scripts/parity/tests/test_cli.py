@@ -1541,6 +1541,33 @@ class PlanSplit(unittest.TestCase):
         self.assertIn("BUDGET 0 ms  (no artifact in this plan has a recorded duration)",
                       out.splitlines())
 
+    def test_a_partly_measured_budget_says_it_is_a_floor(self):
+        """The reading that costs something, and the one a zero-or-nothing caveat cannot express.
+
+        Both planned artifacts carry a duration in the fixture, so the printed number is the cost.
+        Drop one of them and the sum is still a number, still correct about what it summed, and now
+        missing a whole artifact's producers - which is exactly the shape of a bundle whose cheap
+        half is measured and whose expensive half boots the client. Keyed off the count rather than
+        off the sum, because a measured bundle and a half-measured one can print the same total.
+        """
+        artifacts = {name: ({key: value for key, value in row.items() if key != "last_duration_ms"}
+                            if name == "manifest.tooling-tables" else row)
+                     for name, row in self.INDEX["artifacts"].items()}
+        write_json(self.store / "index.json", {**self.INDEX, "artifacts": artifacts})
+        _, out, payload = self._plan()
+
+        self.assertEqual(payload["plan"], ["manifest.tooling-tables", "sweep.entity"])
+        self.assertEqual(payload["budget_ms"], 7)
+        self.assertEqual(payload["budget_measured"], 1)
+        self.assertIn("BUDGET 7 ms  (1 of 2 artifacts carry a duration, so this is a floor "
+                      "and not the cost)", out.splitlines())
+
+    def test_a_fully_measured_budget_counts_itself_measured(self):
+        """The companion to the floor case: the count is what tells the two apart, so it is asserted
+        on the state that prints no parenthetical as well as on the one that does."""
+        _, _, payload = self._plan()
+        self.assertEqual(payload["budget_measured"], len(payload["plan"]))
+
     def test_an_index_that_registers_nothing_narrows_nothing(self):
         """Fail wide, never narrow: an empty plan reads downstream as nothing to capture."""
         write_json(self.store / "index.json", {**self.INDEX, "artifacts": {}})
