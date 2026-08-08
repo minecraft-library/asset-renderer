@@ -1,10 +1,19 @@
-"""The one place that knows about ``__``, ``_``, ``:``, ``~``, ``=``, ``%`` and ``-dye%06x`` (I-26).
+"""The only place in the toolkit that knows about ``__``, ``_``, ``:``, ``~``, ``=``, ``%`` and
+``-dye%06x``.
 
 There are five spellings of one subject across the six sweeps and nothing in the repo could join an
 entity row to a block row to a glint row without a per-sweep transform. The canonical form here is
 the **reference stem** - the harness's own file name without ``.png`` - because it is the only
 spelling produced by one method, round-trip-tested against the live corpus, and already the entity
 table's column value. Every other spelling is a transform of it, computed here and nowhere else.
+
+**In the toolkit**, and the qualifier is the whole of the claim. Java spells a separator itself in
+several places - the appearance codec's namespace constant, the vanilla prefix the block, entity and
+item sweep mains each declare, the ``":"``-to-``"__"`` replace in the armour sweep's stem and in the
+glint sweep's, and the same replace in the harness's own glint sweep - and nothing cross-checks any
+of them against these constants. That is bounded rather than unguarded in one direction: a drifted
+Java prefix makes a sweep look for a reference file that is not there and fail loudly, where a drift
+here makes two rows fail to join.
 """
 
 from __future__ import annotations

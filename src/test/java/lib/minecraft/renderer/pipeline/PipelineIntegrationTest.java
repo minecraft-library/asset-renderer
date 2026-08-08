@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.*;
  * populated.
  * <p>
  * This test is tagged {@code slow} and is skipped by the default {@code test} task. Run it
- * explicitly with {@code ./gradlew :asset-renderer:slowTest}. The first run downloads ~25MB
+ * explicitly with {@code ./gradlew slowTest}. The first run downloads ~25MB
  * from {@code piston-data.mojang.com}; subsequent runs reuse the cached copy in
  * {@code asset-renderer/cache/it} and complete in seconds.
  * <p>
@@ -249,8 +249,7 @@ class PipelineIntegrationTest {
         assertThat("the pinned LUT set and the LUTs actually resolved must be the same names",
             Pins.keys(COLORMAP_ARTIFACT), equalTo(List.copyOf(observed.keySet())));
         observed.forEach((name, digest) -> assertThat(name + " colormap LUT bytes; if intentional, "
-                + "promote the capture this run already wrote with "
-                + Pins.regenCommand(COLORMAP_ARTIFACT),
+                + "re-baseline it: " + Pins.rebaselineCommand(COLORMAP_ARTIFACT),
             digest, equalTo(Pins.digest(COLORMAP_ARTIFACT, name))));
     }
 

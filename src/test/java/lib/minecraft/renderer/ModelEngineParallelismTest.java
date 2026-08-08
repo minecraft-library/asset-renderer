@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
  * drifts output will break the pin even if determinism still holds.
  * <p>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew :asset-renderer:slowTest}.
+ * {@code ./gradlew slowTest}.
  */
 @Tag("slow")
 @DisplayName("ModelEngine parallel Pass 1 + tiled Pass 2 determinism")
@@ -126,8 +126,8 @@ class ModelEngineParallelismTest {
         long actual = RenderDigest.crc32(first);
         PINS.crc32(key, actual);
         PINS.requireBaseline();
-        assertThat("rasterization output CRC32; if intentional, promote the capture this run already "
-                + "wrote with " + Pins.regenCommand(ARTIFACT),
+        assertThat("rasterization output CRC32; if intentional, re-baseline it: "
+                + Pins.rebaselineCommand(ARTIFACT),
             actual, is(Pins.crc32(ARTIFACT, key)));
     }
 

@@ -62,8 +62,8 @@ import java.util.Optional;
  * the common box; {@code diff.png} and {@code diff_panel.png} are built from the aligned pair, as is
  * the reported delta.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:armorParityVanilla}. Run
- * {@code :asset-renderer:renderVanillaArmorReferences} first if the references are missing.
+ * <p>Usage: {@code ./gradlew armorParityVanilla}. Run
+ * {@code renderVanillaArmorReferences} first if the references are missing.
  */
 @UtilityClass
 public final class TestArmorParityVanilla {
@@ -142,7 +142,7 @@ public final class TestArmorParityVanilla {
      */
     public static void main(String @NotNull [] args) throws IOException {
         if (!Files.isDirectory(VANILLA_DIR)) {
-            System.err.printf("Vanilla armor reference directory missing: %s%n  Run :asset-renderer:renderVanillaArmorReferences first.%n",
+            System.err.printf("Vanilla armor reference directory missing: %s%n  Run renderVanillaArmorReferences first.%n",
                 VANILLA_DIR.toAbsolutePath());
             return;
         }
@@ -157,7 +157,7 @@ public final class TestArmorParityVanilla {
         }
         ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
-            System.err.println("entity_models.json missing - run :asset-renderer:entityModelsJava first");
+            System.err.println("entity_models.json missing - run entityModels first");
             return;
         }
         EntityRenderer javaRenderer = new EntityRenderer(PipelineRendererContext.of(result), javaEntities);
@@ -165,6 +165,8 @@ public final class TestArmorParityVanilla {
         List<Row> rows = new ArrayList<>();
         for (Subject subject : SUBJECTS)
             rows.add(renderAndCompare(subject, javaRenderer));
+
+        rows.sort(SweepReport.byDelta(Row::meanDelta));
 
         List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)

@@ -16,9 +16,9 @@ import java.awt.image.BufferedImage;
 
 /**
  * Shared parity-comparison metric and visualisation, used by every renderer-vs-vanilla experiment so
- * the delta numbers stay comparable across tools. Extracted from {@code TestEntityParityVanilla} so
- * the decisive raster-replay / GPU-path experiments under {@code notes/bitperfect/} can diff against
- * the exact same metric the headline parity sweep reports.
+ * the delta numbers stay comparable across tools. It is separate from {@code TestEntityParityVanilla}
+ * so a one-off raster-replay or GPU-path experiment can diff against the exact same metric the
+ * headline parity sweep reports, rather than against a second implementation of it.
  *
  * <p>The canonical metric is {@link #compareImages}: mean over-white-composited absolute RGB delta
  * over the union canvas. {@link #panelDiff} packs the six diagnostic lenses into one inspectable image,

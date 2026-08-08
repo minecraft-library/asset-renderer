@@ -40,11 +40,16 @@ class SoleWriter(unittest.TestCase):
                     continue
                 self.assertNotIn(token, source, f"{path.name} bypasses norm: {token}")
 
-    def test_pixels_writes_only_through_norms_binary_door(self):
-        """The exemption above must not become a general one."""
+    def test_pixels_writes_nothing_at_all(self):
+        """The exemption above must not become a general one.
+
+        The module reads PNGs and answers whether the optional pair is importable; the one binary
+        write in the package is ``norm.write_bytes_raw`` and ``lab.crop`` calls it directly. So the
+        `open(` exemption covers a decoder and covers no write, and a write appearing here is a
+        second binary door rather than a use of the named one.
+        """
         source = norm.read_text(PKG / "pixels.py")
-        self.assertIn("write_bytes_raw", source)
-        for token in (".write_text" + "(", ".write_bytes" + "(", "json.dump" + "("):
+        for token in (".write_text" + "(", ".write_bytes" + "(", "json.dump" + "(", ".save" + "("):
             self.assertNotIn(token, source, f"pixels.py bypasses norm: {token}")
 
     def test_only_cli_prints(self):
@@ -107,7 +112,7 @@ class CanonicalJson(unittest.TestCase):
         self.assertLess(text.index('"c"'), text.index('"d"'))
 
     def test_arrays_are_never_reordered(self):
-        """I-4: an array means the order is semantic."""
+        """An array means the order is semantic."""
         payload = {"bones": ["head", "body", "arm"]}
         self.assertIn('"head",\n    "body",\n    "arm"', norm.canonical_json(payload))
 
@@ -123,7 +128,7 @@ class CanonicalJson(unittest.TestCase):
         self.assertIn("60.0047", text)
 
     def test_non_finite_refuses(self):
-        """I-27: a failed subject is an explicit status field, never an out-of-band magic value."""
+        """A failed subject is an explicit status field, never an out-of-band magic value."""
         with self.assertRaises(ValueError):
             norm.canonical_json({"delta": float("inf")})
 
@@ -134,9 +139,6 @@ class Numbers(unittest.TestCase):
         self.assertEqual(norm.fixed(60.00471), "60.0047")
         self.assertEqual(norm.fixed(0.5), "0.5000")
         self.assertNotIn(",", norm.fixed(1234.5))
-
-    def test_exact_distinguishes_int_like_floats(self):
-        self.assertEqual(norm.exact(1.0), "1.0")
 
     def test_fsum_is_order_independent(self):
         import random

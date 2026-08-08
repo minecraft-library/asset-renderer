@@ -27,10 +27,9 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Characterization golden (from the Placement/Camera split, {@code notes/placement-camera-split.md})
- * that pins the entity model→screen transform - the {@link Projection#VANILLA_ISO} camera pose and
- * its composition with the single-cube kit fixture - so accidental drift in the iso pose or the kit
- * fixture trips these assertions.
+ * Characterization golden that pins the entity model→screen transform - the
+ * {@link Projection#VANILLA_ISO} camera pose and its composition with the single-cube kit fixture -
+ * so accidental drift in the iso pose or the kit fixture trips these assertions.
  *
  * <p>The values live in {@code pin.vanilla-iso-pose} and {@code pin.kit-corners}, captured by this
  * test and read back by it. {@code VANILLA_ISO} resolves to the plain {@code rotationXYZ(30, 225, 0)}

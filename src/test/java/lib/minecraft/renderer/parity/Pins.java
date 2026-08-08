@@ -22,6 +22,20 @@ import java.util.List;
  */
 public final class Pins {
 
+    /**
+     * What every re-baselining prescription opens with, and it is an instruction rather than a note.
+     *
+     * <p>These messages print because an edit nobody has committed moved a value, so the capture
+     * they ask for records {@code asset_dirty} and the promotion at the end of them refuses it: a
+     * baseline whose capture cannot be shown to have run on a committed tree is re-derivable from no
+     * commit. The change therefore lands in its own commit and the promotion is the next one, which
+     * is the same two-commit rule the gate documents. {@code -PallowDirty=true} is the way past it
+     * and is deliberately not prescribed here - it records the exception into the promoted value,
+     * and a message cannot know that the alternative was worse.
+     */
+    private static final @NotNull String COMMIT_FIRST =
+        "commit the change first - a capture from a dirty tree is refused at promotion - then: ";
+
     private Pins() {}
 
     /**
@@ -150,6 +164,43 @@ public final class Pins {
      */
     public static @NotNull String regenCommand(@NotNull String artifactId) {
         return "./gradlew parityCapture -Partifacts=" + artifactId;
+    }
+
+    /**
+     * Returns the command sequence that makes this run's value the artifact's baseline.
+     *
+     * <p>Three commands behind a commit. A capture erases the working root's run directory before
+     * any producer writes into it, so the comparison a promotion requires can only be one taken
+     * between the two - a capture followed directly by a promotion is refused every time. Spelled
+     * once here so that every message prescribing it prescribes the same sequence.
+     *
+     * @param artifactId the artifact id
+     * @return the commit, then the capture, the compare and the promotion in the order they run
+     */
+    public static @NotNull String rebaselineCommand(@NotNull String artifactId) {
+        return COMMIT_FIRST + regenCommand(artifactId)
+            + ", ./gradlew parityCompare -Partifacts=" + artifactId
+            + ", ./gradlew parityPromote -Partifacts=" + artifactId + " -Preason=<why>";
+    }
+
+    /**
+     * Returns the command sequence that gives an artifact its first baseline.
+     *
+     * <p>The same sequence under {@code -Pbootstrap=true}, which is what turns a missing baseline
+     * from the compare's refusal into its expected answer. The promotion is exempt from needing a
+     * comparison here - there is nothing to be diffed against yet - so the compare is prescribed
+     * rather than required: it is where a value about to become the thing everything else is
+     * measured against gets looked at once. The exemption is also per-invocation, which is why the
+     * promotion carries {@code -Partifacts}. The tree still has to be committed.
+     *
+     * @param artifactId the artifact id
+     * @return the commit, then the capture, the compare and the promotion in the order they run
+     */
+    public static @NotNull String bootstrapCommand(@NotNull String artifactId) {
+        return COMMIT_FIRST + regenCommand(artifactId)
+            + ", ./gradlew parityCompare -Partifacts=" + artifactId + " -Pbootstrap=true"
+            + ", ./gradlew parityPromote -Partifacts=" + artifactId
+            + " -Pbootstrap=true -Preason=<why>";
     }
 
     /**

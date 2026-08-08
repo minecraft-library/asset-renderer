@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.is;
  * {@code cross}, {@code slab}, {@code block}) and intentionally-invisible ids drop out.
  * <p>
  * Tagged {@code slow}: needs a real {@link ClientAssets}. Run with
- * {@code ./gradlew :asset-renderer:slowTest --tests "*TemplateFilterParityTest"}.
+ * {@code ./gradlew slowTest --tests "*TemplateFilterParityTest"}.
  */
 @Tag("slow")
 @DisplayName("Structural empty-model filter parity")

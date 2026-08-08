@@ -10,8 +10,10 @@ from parity import compare, report
 def diff_payload(movers: int = 1) -> dict:
     result = compare.compare(
         {"artifact": "sweep.entity", "key": "subject", "kind": "sweep-table",
+         "provenance": {"producer": "unit-test"},
          "rows": [{"subject": f"s{n}", "mean_argb_delta": "1.0000"} for n in range(movers)]},
         {"artifact": "sweep.entity", "key": "subject", "kind": "sweep-table",
+         "provenance": {"producer": "unit-test"},
          "rows": [{"subject": f"s{n}", "mean_argb_delta": "2.0000"} for n in range(movers)]},
     )
     return compare.to_report([result])

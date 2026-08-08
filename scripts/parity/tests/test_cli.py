@@ -5,13 +5,33 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
+import re
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from parity import capture, cli, provenance, store
-from parity.norm import write_json, write_text
+from parity import capture, cli, pixels, promote, provenance, store
+from parity.norm import read_json, read_text, write_json, write_text
+
+DATA = Path(__file__).resolve().parent / "data"
+
+
+def register(store_root: Path, *artifacts: str, floor: int = 1, **columns) -> None:
+    """Declare a floor per artifact in a fixture store's index, and whatever else is asked for.
+
+    The store is where an artifact's determinism floor is declared, so a fixture store carrying no
+    index answers nothing about one and every capture and promotion of it refuses. It is the
+    registration half of coining an artifact, and it happens before the first capture.
+
+    :param store_root: the fixture production store
+    :param artifacts: the ids to declare
+    :param floor: the floor to declare for each
+    :param columns: any further row columns, given to every one of them
+    """
+    write_json(store_root / "index.json", {"artifacts": {
+        name: {promote.FLOOR_FIELD: floor, **columns} for name in artifacts}})
 
 
 def run(argv: list[str]) -> tuple[int, str, str]:
@@ -88,16 +108,322 @@ class GlobalOptions(unittest.TestCase):
             self.assertNotEqual(run(argv + ["--root", "cache/parity/base"])[0], cli.USAGE, argv)
 
     def test_deleted_spellings_are_rejected(self):
-        """A merge that resurrects one of these is visible rather than silently accepted."""
+        """A merge that resurrects one of these is visible rather than silently accepted.
+
+        `--include-stale` is here rather than in the parser because the refusal it overrode - an
+        artifact captured before the inputs it was taken from - was never built, so the flag
+        advertised a defence that did not exist and admitted every stale artifact anyway.
+        """
         for flag in ("--slot", "--store-root", "--production", "--against", "--expect",
-                     "--determinism-runs", "--dry-run"):
+                     "--determinism-runs", "--dry-run", "--include-stale"):
             code, _, _ = run(["doctor", flag, "x"])
             self.assertEqual(code, cli.USAGE, flag)
+
+    def test_the_retired_per_command_flags_are_rejected_where_they_used_to_be_typed(self):
+        """Each was registered and read by no code path, and one named the existing default.
+
+        Typed at the subcommand that took it, because that is the only place a subcommand option is
+        a usage error at all - a global sweep answers USAGE for every one of them whether or not the
+        parser still registers it. The pair on `sum` and `buckets` is the shape that hides best:
+        `--base` parsed, bound a namespace attribute and pointed at a store neither command reads.
+        """
+        repo = Path(tempfile.mkdtemp())
+        for argv in (["json", "canonicalize", "x.json", "--in-place"],
+                     ["json", "semantic-diff", "--before", "a", "--after", "b", "--axis-rows"],
+                     ["manifest", "export", "--artifact", "sweep.entity", "--grammar", "a"],
+                     ["render-bytes", "diff", "--before", "a", "--after", "b",
+                      "--artifact", "java.png"],
+                     ["sum", "--base", "x"], ["buckets", "--base", "x"],
+                     ["capture-index", "--producer", "test"],
+                     ["capture-index", "--flag", "a=b"], ["capture-index", "--runs", "2"]):
+            code, _, _ = run(["--repo-root", str(repo), "--root", "cache/parity/current",
+                              "--quiet", *argv])
+            self.assertEqual(code, cli.USAGE, argv)
+
+    def test_the_compare_parser_rejects_the_deleted_staleness_flag(self):
+        """The per-command half of the check above, which that one cannot make.
+
+        `doctor --include-stale` is a usage error whether or not `compare` accepts the flag, so a
+        subcommand option has to be typed at the subcommand that used to take it. Nothing else here
+        would notice it being registered again.
+        """
+        repo = Path(tempfile.mkdtemp())
+        code, _, _ = run(["--repo-root", str(repo), "--root", "cache/parity/current", "--quiet",
+                          "compare", "--include-stale"])
+        self.assertEqual(code, cli.USAGE)
 
     def test_version(self):
         code, out, _ = run(["--version"])
         self.assertEqual(code, 0)
         self.assertIn("parity", out)
+
+
+class SumAndBucketsReadTheWorkingRoot(unittest.TestCase):
+    """Both commands are defined over the store and neither could read one.
+
+    With no `--from` they resolve `sweeps/<name>.json` out of the working root and handed that JSON
+    to the TSV reader, which fails on its first character - so both exited 3 against a fully
+    populated root and the only operand that worked was a raw producer directory.
+
+    Both operand trees are driven here, because which reader answers is decided by which was named
+    and the producer tree is the branch that already worked: a second reader wired to the wrong
+    branch trades one broken operand for the other. The named-sweep refusals go with them - the
+    operands are what a root and a producer tree have in common, and each refusal is the answer to a
+    different mistake.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        write_json(self.root / "sweeps" / "entity.json", self._stored())
+
+    @staticmethod
+    def _stored(subject: str = "minecraft__cow", artifact_id: str = "sweep.entity") -> dict:
+        return {"artifact": artifact_id, "format": 1, "key": "subject", "kind": "sweep-table",
+                "rows": [{"subject": subject, "mean_argb_delta": "0.2000", "status": "ok"},
+                         {"subject": "minecraft__pig", "mean_argb_delta": "1.5000", "status": "ok"},
+                         {"subject": "minecraft__bat", "mean_argb_delta": "", "status": "failed"}]}
+
+    def _run(self, *argv: str) -> tuple[int, str]:
+        code, out, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                              "--format", "json", *argv])
+        return code, out + err
+
+    def test_sum_reads_the_stored_rows(self):
+        code, out = self._run("sum")
+        self.assertEqual(code, cli.OK, out)
+        self.assertEqual(json.loads(out)["sums"],
+                         [{"buckets": {"<0.25": 1, "<0.50": 1, "<0.75": 1, "<1.00": 1,
+                                       "failed": 1, "total": 3},
+                           "failed": 1, "rows": 3, "sum": "1.7000", "sweep": "entity"}])
+
+    def test_buckets_reads_the_stored_rows(self):
+        code, out = self._run("buckets")
+        self.assertEqual(code, cli.OK, out)
+        self.assertEqual(json.loads(out)["buckets"][0]["buckets"]["<0.25"], 1)
+
+    def test_a_root_holding_no_sweep_says_so_rather_than_reading_a_TSV(self):
+        code, out = self._run("sum")  # primed, then emptied below
+        self.assertEqual(code, cli.OK, out)
+        (self.root / "sweeps" / "entity.json").unlink()
+        self.assertEqual(self._run("sum")[0], cli.MISSING_INPUT)
+
+    def test_a_named_sweep_is_the_only_one_read(self):
+        """The operand is the whole point of naming one: a bare command answers for the tree, and
+        this one is what an operator types to ask about a single sweep of six."""
+        write_json(self.root / "sweeps" / "block.json",
+                   self._stored("minecraft__stone", "sweep.block"))
+        code, out = self._run("sum", "block")
+        self.assertEqual(code, cli.OK, out)
+        self.assertEqual([row["sweep"] for row in json.loads(out)["sums"]], ["block"])
+
+    def test_a_name_outside_the_six_is_refused_as_a_name_and_not_as_an_absence(self):
+        """A typo and an uncaptured sweep are two different answers, and the roster is printed with
+        the first: folded into the second, `entities` reads as a sweep this root has yet to capture
+        and an operator goes looking for the run that would write it."""
+        code, out = self._run("sum", "entities")
+        self.assertEqual(code, cli.MISSING_INPUT, out)
+        self.assertIn("unknown sweep(s) ['entities']", out)
+
+    def test_one_of_the_six_this_root_does_not_hold_is_refused_by_name(self):
+        code, out = self._run("sum", "block")
+        self.assertEqual(code, cli.MISSING_INPUT, out)
+        self.assertIn("no table for sweep(s) ['block']", out)
+
+    def test_the_from_operand_is_read_as_a_producers_TSV(self):
+        """`--from` names the pre-store form and the root names the canonical JSON, so the reader is
+        chosen by which was given. One reader for both cannot work - each fails on the other's first
+        character - and this is the branch that was the only one that ever worked."""
+        producer = self.repo / "producer" / "entity-parity-vanilla" / "parity-report.tsv"
+        producer.parent.mkdir(parents=True)
+        producer.write_bytes(b"subject\tmean_argb_delta\tstatus\nminecraft__cow\t0.2000\tok\n")
+        code, out = self._run("sum", "--from", str(self.repo / "producer"))
+        self.assertEqual(code, cli.OK, out)
+        self.assertEqual(json.loads(out)["sums"][0]["sum"], "0.2000")
+
+
+class CanonicalizeRefusesOneDestinationForManyOperands(unittest.TestCase):
+    """`--out` resolves inside the operand loop, so N-1 results were discarded and N reported."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        for name, payload in (("a.json", {"b": 2, "a": 1}), ("b.json", {"z": 9})):
+            write_json(self.tmp / name, payload)
+
+    def _canonicalize(self, *argv: str) -> tuple[int, str]:
+        code, out, err = run(["--quiet", *argv])
+        return code, out + err
+
+    def test_two_operands_and_one_out_is_refused_before_anything_is_written(self):
+        target = self.tmp / "joined.json"
+        code, text = self._canonicalize("--out", str(target), "json", "canonicalize",
+                                        str(self.tmp / "a.json"), str(self.tmp / "b.json"))
+        self.assertEqual(code, cli.REFUSED, text)
+        self.assertIn("one destination holds one result", text)
+        self.assertFalse(target.exists())
+
+    def test_one_operand_and_one_out_still_writes(self):
+        target = self.tmp / "one.json"
+        code, text = self._canonicalize("--out", str(target), "json", "canonicalize",
+                                        str(self.tmp / "a.json"))
+        self.assertEqual(code, cli.OK, text)
+        self.assertEqual(read_json(target), {"a": 1, "b": 2})
+
+    def test_two_operands_and_no_out_canonicalizes_both_in_place(self):
+        code, text = self._canonicalize("json", "canonicalize",
+                                        str(self.tmp / "a.json"), str(self.tmp / "b.json"))
+        self.assertEqual(code, cli.OK, text)
+        self.assertEqual(read_text(self.tmp / "a.json").splitlines()[1].strip(), '"a": 1,')
+
+
+class ProgressGoesToStderrAndQuietSuppressesIt(unittest.TestCase):
+    """`--quiet` is documented as suppressing progress and is what the pre-commit hook passes.
+
+    Nothing called the writer, so no command emitted a line and the flag suppressed nothing. This is
+    the capture leg of the documented mechanism, and the class below is the compare and the
+    promotion. A capture is driven from a fixture of its own because it is the one of the three
+    whose operand is a producer's raw output rather than the stored form.
+    """
+
+    ARTIFACT = "digest.shipped-tables"
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        register(self.repo / store.PRODUCTION, self.ARTIFACT)
+
+    def _capture(self, *argv: str) -> tuple[str, str]:
+        run(["--repo-root", str(self.repo), "--root", "cache/parity/current", "capture-begin"])
+        write_json(self.root / store.path_of(self.ARTIFACT),
+                   {"artifact": self.ARTIFACT, "format": 1, "key": "name", "kind": "digest-set",
+                    "digests": {"block_models": {"sha256": "a"}}})
+        code, out, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                              *argv, "capture-normalize", "--artifact", self.ARTIFACT,
+                              "--source", str(self.root)])
+        self.assertEqual(code, cli.OK, err)
+        return out, err
+
+    def test_it_names_the_artifact_on_stderr(self):
+        out, err = self._capture()
+        self.assertIn(f"capture 1/1 {self.ARTIFACT}", err.splitlines())
+        self.assertNotIn("capture 1/1", out)
+
+    def test_quiet_suppresses_it(self):
+        self.assertNotIn(f"capture 1/1 {self.ARTIFACT}", self._capture("--quiet")[1])
+
+    def test_quiet_leaves_a_warning_where_it_is(self):
+        """The flag names progress and nothing else. A provenance field that could not be read is a
+        warning about the record being written, and hiding it under a verbosity flag is how a
+        capture stamps a null nobody was told about."""
+        warning = "recording null mc_version"
+        self.assertIn(warning, self._capture()[1])
+        self.assertIn(warning, self._capture("--quiet")[1])
+
+
+class TheCompareAndThePromotionEmitProgressToo(unittest.TestCase):
+    """The other two commands that loop over a set, and the two an operator waits on.
+
+    The documented mechanism is a line per artifact from `capture-normalize`, `compare` and
+    `promote-apply`. Pinning one of the three leaves the other two call sites deletable with every
+    suite green, which is the shape of the finding that put the writer here in the first place: a
+    documented behaviour with no producer. The root holds two artifacts rather than one, because
+    `1/1` says nothing about the counter that tells an operator how much of a bundle is left, and
+    one of the two moved so the promotion has both of its actions to name.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        self.store = self.repo / "store"
+        register(self.store, "manifest.fluid", "sweep.entity", floor=2)
+        capture.begin(self.root)
+        write_json(self.root / "sweeps" / "entity.json", self._sweep("1.0000"))
+        write_json(self.store / "sweeps" / "entity.json", self._sweep("2.0000"))
+        for under in (self.root, self.store):
+            write_json(under / "manifests" / "fluid.json", self._manifest())
+        capture.index(self.root)
+
+    def _run(self, *argv: str) -> tuple[int, str, str]:
+        return run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                    "--store", str(self.store), *argv])
+
+    @staticmethod
+    def _lines(stream: str, command: str) -> list[str]:
+        return [line for line in stream.splitlines() if line.startswith(command + " ")]
+
+    def test_the_compare_names_every_artifact_it_reads(self):
+        code, out, err = self._run("compare")
+        self.assertEqual(code, cli.DIFFERENCES, err)
+        self.assertEqual(["compare 1/2 manifest.fluid", "compare 2/2 sweep.entity"],
+                         self._lines(err, "compare"))
+        self.assertEqual([], self._lines(out, "compare"))
+
+    def test_quiet_suppresses_the_compare_lines(self):
+        self.assertEqual([], self._lines(self._run("--quiet", "compare")[2], "compare"))
+
+    def test_the_promotion_names_every_artifact_and_what_it_would_do(self):
+        self._run("compare")
+        code, out, err = self._run("promote-apply", "--reason", "probe")
+        self.assertEqual(code, cli.OK, err)
+        self.assertEqual(["promote 1/2 manifest.fluid (unchanged)",
+                          "promote 2/2 sweep.entity (replace)"], self._lines(err, "promote"))
+        self.assertEqual([], self._lines(out, "promote"))
+
+    def test_quiet_suppresses_the_promotion_lines(self):
+        self._run("compare")
+        self.assertEqual([], self._lines(
+            self._run("--quiet", "promote-apply", "--reason", "probe")[2], "promote"))
+
+    @staticmethod
+    def _sweep(delta: str) -> dict:
+        """One sweep row, distinguishable by the delta it carries."""
+        return {"artifact": "sweep.entity", "format": 1, "key": "subject", "kind": "sweep-table",
+                "provenance": {"asset_dirty": False, "counts": {"failed": 0, "rows": 1},
+                               "determinism_runs": 2},
+                "rows": [{"subject": "minecraft__cow", "mean_argb_delta": delta}]}
+
+    @staticmethod
+    def _manifest() -> dict:
+        """One manifest row, written identically on both sides so its entry stays `unchanged`."""
+        return {"artifact": "manifest.fluid", "files": [{"path": "a.gif", "sha256": "0" * 64}],
+                "format": 1, "key": "path", "kind": "manifest",
+                "provenance": {"asset_dirty": False, "counts": {"failed": 0, "files": 1},
+                               "determinism_runs": 2, "root": "cache/x"}}
+
+
+class TheWallTimeReachesTheStampedRecord(unittest.TestCase):
+    """The plan's budget, the cost column and the background-the-capture rule all read this field.
+
+    `provenance.gather` accepted it from the first commit and no caller passed one, so the budget
+    summed absent keys, every cost cell rendered a dash and the rule that says to background a
+    capture above 110 s could never fire.
+    """
+
+    ARTIFACT = "digest.shipped-tables"
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        register(self.repo / store.PRODUCTION, self.ARTIFACT)
+
+    def _provenance(self, *argv: str) -> dict:
+        run(["--repo-root", str(self.repo), "--root", "cache/parity/current", "capture-begin"])
+        write_json(self.root / store.path_of(self.ARTIFACT),
+                   {"artifact": self.ARTIFACT, "format": 1, "key": "name", "kind": "digest-set",
+                    "digests": {"block_models": {"sha256": "a"}}})
+        code, _, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                            "--quiet", "capture-normalize", "--artifact", self.ARTIFACT,
+                            "--source", str(self.root), *argv])
+        self.assertEqual(code, cli.OK, err)
+        return read_json(self.root / store.path_of(self.ARTIFACT))["provenance"]
+
+    def test_it_is_stamped_as_the_number_the_build_measured(self):
+        self.assertEqual(self._provenance("--wall-time", "152000")["wall_time_ms"], 152000)
+
+    def test_an_absent_one_stamps_no_key_rather_than_a_zero(self):
+        """A zero would be summed by the budget as a free artifact, which is a wrong answer where
+        an omitted key is the honest 'nobody measured this'."""
+        self.assertNotIn("wall_time_ms", self._provenance())
 
 
 class ShippedTablesAgreementThroughTheCli(unittest.TestCase):
@@ -177,12 +503,670 @@ class ShippedTablesAgreementThroughTheCli(unittest.TestCase):
         self.assertEqual(verdict["absent"], ["manifest.tooling-tables"])
 
 
+class OutNeverWritesProduction(unittest.TestCase):
+    """`--out` is refused inside the production store, on every command that honours it.
+
+    The guard existed on one path - the one that redirects stdout - and every command that builds a
+    body of its own and writes it reached a baseline through a bare write. Nothing went red because
+    the design listed the coverage for this as shipped and no such case was ever written, which is
+    precisely how the unguarded siblings landed.
+
+    The roster below is typed out, which is what went stale before, so it does not carry the whole
+    claim on its own: a case beside it reads `cli.py` and fails on any line answering its scan -
+    a `Path(` construction beside the attribute, or the attribute bound to a name - outside the one
+    function that guards it. The roster proves the guard fires on every command it names; the scan
+    reads the two shapes a new writer's own path would be spelled in, and neither the write-throughs
+    the roster below names nor a bypass that never spells the attribute at all.
+
+    Every command is driven through `main`, so what is asserted is the exit code and the directory,
+    not a predicate in isolation: `ReadOnlyStore.contains` is not what any of them went through.
+    """
+
+    #: The two shapes the scan answers for, which is what it can see and not the closed set of ways
+    #: `--out` becomes a path: a construction anywhere on the line that names the attribute, and the
+    #: attribute bound to a name, which puts the construction one line further on where nothing
+    #: looking for `args.out` reaches it. A presence test on it is neither. Both arms are
+    #: approximations in both directions, and the roster below is where each way they miss is named.
+    ARMS = (r"Path\(", r"=\s*args\.out\b")
+
+    #: The arms as the one pattern the predicate runs, so narrowing either is narrowing the scan.
+    BUILDS_A_PATH = re.compile("|".join(ARMS))
+
+    #: Lines the predicate has to answer for, each paired with the answer. Written here rather than
+    #: read out of `cli.py`, because the file holds no binding: that arm was added for a shape that
+    #: had not landed yet and nothing in the corpus can demonstrate it, so narrowing the pattern
+    #: back to the construction alone left every case green and the bypass unwatched again. The rows
+    #: answering False carry as much as the ones answering True: the three write-throughs are real
+    #: bypasses this scan does not see - which is what the writer roster below is for, driving every
+    #: command through `main` whatever its lines are spelled like - and a false row is also what
+    #: stops a pattern matching every line from satisfying the true ones. The commented construction
+    #: is the scan erring the other way, flagging a line that names the attribute nowhere but a
+    #: comment, which costs a reader a look and never a missed bypass.
+    LINE_SHAPES = (("    target = Path(args.out)", True),
+                   ("    target = args.out", True),
+                   ("    out = args.out  # bound now, constructed later", True),
+                   ("    target = Path(default)  # never args.out", True),
+                   ("    if args.out:", False),
+                   ("    target = Path(default)", False),
+                   ("    write_text(args.out, body)", False),
+                   ("    target = self.root / args.out", False),
+                   ('    with open(args.out, "w") as fh:', False))
+
+    #: Every command that resolves `--out` into a path, by the name a failure has to print to be
+    #: diagnosable. `doctor` redirects its answer through `_emit`; the rest build their own body.
+    #: The two `lab` writers are here only when Pillow and numpy are, because the group is not
+    #: registered at all without them - and the rest must stay measurable on a bare interpreter.
+    def _writers(self) -> dict[str, list[str]]:
+        writers = {
+            "doctor": ["doctor"],
+            "manifest export": ["manifest", "export", "--artifact", "manifest.fluid"],
+            "json canonicalize": ["json", "canonicalize", str(self.source)],
+            "report render": ["report", "render", "--in", str(self.source)],
+        }
+        if pixels.available():
+            writers["lab census"] = [
+                "lab", "census", "--allpass", str(self.dump), "--raw", str(self.dump),
+                "--landed", str(self.dump), "--vanilla", str(self.vanilla), "--java", str(self.java)]
+            writers["lab crop"] = [
+                "lab", "crop", "--vanilla", str(self.vanilla), "--java", str(self.java),
+                "--region", "0,0,1,1"]
+        return writers
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.store = self.repo / "store"
+        self.source = self.repo / "source.json"
+        write_json(self.source, {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                                 "kind": "sweep-table", "rows": []})
+        write_json(self.store / "manifests" / "fluid.json",
+                   {"artifact": "manifest.fluid", "format": 1, "key": "path", "kind": "manifest",
+                    "files": [{"path": "a.gif", "sha256": "0" * 64}],
+                    "provenance": {"root": "cache/x"}})
+        # The lab pair reads pixels and a `[PX]` dump. One WRITE fragment over the 2x2 fixture is
+        # the smallest input either accepts, and the three dumps a census joins are the same file:
+        # it zips them position by position, so one row three times aligns with itself.
+        self.vanilla, self.java = self.repo / "vanilla.png", self.repo / "java.png"
+        for target, name in ((self.vanilla, "vanilla"), (self.java, "java")):
+            target.write_bytes((DATA / f"pixels-2x2-{name}.png").read_bytes())
+        self.dump = self.repo / "px.log"
+        write_text(self.dump, "\t".join(
+            ["[PX]", "WRITE", "0", "0", "0.5", "tag_a", "0.0", "0.0", "0", "0", "FFFFFFFF",
+             "FFFFFFFF", "FFFFFFFF", "1.0", "FFFF0000", "NORMAL", "FFFF0000"]) + "\n")
+
+    def test_no_command_builds_its_own_path_out_of_out(self):
+        """The roster above cannot name a writer nobody added to it, and that is how this landed.
+
+        `--out` is a global, so the parser cannot be asked who honours it. What can be asked is
+        which lines answer the scan, and two shapes do: a construction over the attribute, which is
+        the edit each unguarded sibling made, and a binding of it to a name, which is the same edit
+        spread over two lines and invisible to a scan for the first alone. A write-through that does
+        neither - the attribute handed straight to a writer, joined under a root or opened - is not
+        answered at all, and is what the roster of commands below is there to catch instead.
+        """
+        source = Path(cli.__file__).read_text(encoding="utf-8")
+        constructions = [line.strip() for line in source.splitlines()
+                         if self._builds_a_path(line)]
+        self.assertEqual(constructions, ["target = Path(args.out)"],
+                         "a command building its own path out of --out bypasses the guard")
+
+    def test_the_scan_answers_for_a_binding_and_not_only_a_construction(self):
+        """`cli.py` holds one of the two shapes, so the corpus cannot say what the other does.
+
+        The case above reads a file where every honoured `--out` goes through one construction, and
+        it stays green whether the binding arm is there or not. That is the arm added for the edit
+        that spreads a construction over two lines, which is invisible to a scan for `Path(` and is
+        how an unguarded writer would land next. Driven against typed lines, because no line in the
+        corpus tells the widened pattern and the narrow one apart.
+        """
+        for line, builds in self.LINE_SHAPES:
+            self.assertEqual(self._builds_a_path(line), builds, line)
+
+    def test_every_arm_of_the_scan_has_a_line_the_roster_would_lose_it_over(self):
+        """The roster is the whole driver of both arms, so it has to be asked whether it drives them.
+
+        The case above loops it and asserts nothing when it is empty, and asserts nothing about one
+        arm when it holds only rows the other already answers - which is the state the corpus is in
+        and the reason the roster is typed out at all. Either way the pattern can then be narrowed
+        back to one arm with both suites green, which is the edit this asserts against directly: the
+        arm is dropped, the predicate re-run over the roster, and some line has to answer
+        differently for the arm to have been carrying anything.
+        """
+        for dropped in self.ARMS:
+            kept = tuple(arm for arm in self.ARMS if arm != dropped)
+            self.assertTrue([line for line, _ in self.LINE_SHAPES
+                             if self._builds_a_path(line) != self._answers(line, kept)],
+                            f"no line of the roster answers differently without {dropped}")
+
+    def _builds_a_path(self, line: str) -> bool:
+        """Whether one source line turns `--out` into a path, which is the whole scan predicate.
+
+        :param line: one line of source, indentation and comment included
+        :return: whether it names the attribute and either constructs over it or binds it
+        """
+        return "args.out" in line and self.BUILDS_A_PATH.search(line) is not None
+
+    @staticmethod
+    def _answers(line: str, arms: tuple[str, ...]) -> bool:
+        """The same predicate over a narrowed set of arms, which is the mutation being guarded.
+
+        :param line: one line of source, indentation and comment included
+        :param arms: the arms to run, an empty set answering no line
+        :return: whether it names the attribute and any of ``arms`` matches it
+        """
+        return "args.out" in line and any(re.search(arm, line) for arm in arms)
+
+    def _run(self, argv: list[str], out: Path) -> tuple[int, str]:
+        code, _, err = run(["--repo-root", str(self.repo), "--store", str(self.store),
+                            "--out", str(out)] + argv)
+        return code, err
+
+    def test_the_roster_names_writers_to_drive(self):
+        """Every case below loops over it, so an emptied roster passes all four with nothing run.
+
+        The optional pair is asserted against the condition that admits it rather than against a
+        total: on an interpreter without Pillow the group is not registered at all, and a roster
+        naming a command the parser does not have fails for the wrong reason.
+        """
+        writers = self._writers()
+        self.assertTrue(writers, "the roster names no writer, so every case over it is vacuous")
+        self.assertEqual("lab crop" in writers, pixels.available())
+
+    def test_every_writer_refuses_a_path_inside_the_store(self):
+        target = self.store / "sweeps" / "entity.json"
+        for name, argv in self._writers().items():
+            code, err = self._run(argv, target)
+            self.assertEqual(code, cli.REFUSED, f"{name} did not refuse")
+            self.assertIn("--out would write inside the production store", err, name)
+
+    def test_no_refused_writer_leaves_a_byte_behind(self):
+        """The exit code alone would pass on a command that wrote the file and then refused."""
+        target = self.store / "ZZZ.json"
+        for name, argv in self._writers().items():
+            self._run(argv, target)
+            self.assertFalse(target.exists(), f"{name} wrote into the production store")
+
+    def test_a_store_root_file_is_inside_it_too(self):
+        """`index.json` and `blindness.json` sit at the root rather than in a kind directory."""
+        for name, argv in self._writers().items():
+            code, _ = self._run(argv, self.store / "index.json")
+            self.assertEqual(code, cli.REFUSED, name)
+
+    def test_every_writer_still_writes_outside_the_store(self):
+        """The refusal is about where, so a guard that refused everything would pass the tests
+        above and break every command."""
+        for name, argv in self._writers().items():
+            target = self.repo / "elsewhere" / f"{name.replace(' ', '-')}.txt"
+            code, err = self._run(argv, target)
+            self.assertEqual(code, cli.OK, f"{name}: {err}")
+            self.assertTrue(target.is_file(), name)
+
+
+class ManifestBuildWritesIntoTheCapture(unittest.TestCase):
+    """The one artifact write that reaches a capture without passing through `capture`.
+
+    `cli` resolves the working root and writes the artifact at its own store path, outside `_run/`,
+    so the capture index lists it and the enumeration reads it as stamped - the counts-and-root
+    object `manifest.to_artifact` builds is a `provenance` member like any other. Three shipped
+    paragraphs describe where a captured byte comes from, and each of them named this write wrongly
+    once, so what it does is read back here rather than described: routing it through `capture`, into
+    `_run/` or behind `--out` are all defensible changes and any of them falsifies those paragraphs
+    again.
+    """
+
+    ARTIFACT = "manifest.references"
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        tree = self.repo / "tree"
+        write_text(tree / "blocks" / "stone" / "vanilla.png", "one")
+        code, _, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                            "--quiet", "manifest", "build", "--artifact", self.ARTIFACT,
+                            "--source", str(tree)])
+        self.assertEqual(code, cli.OK, err)
+
+    def test_the_root_holds_the_artifact_at_its_store_path_and_nothing_else(self):
+        """The whole listing, so a copy left in `_run/` beside it is a different answer."""
+        written = sorted(path.relative_to(self.root).as_posix()
+                         for path in self.root.rglob("*") if path.is_file())
+        self.assertEqual(written, [store.path_of(self.ARTIFACT)])
+
+    def test_the_enumeration_reads_it_as_a_captured_and_stamped_row(self):
+        self.assertEqual(store.artifact_files(self.root), [(self.ARTIFACT, True)])
+
+    def test_the_capture_index_carries_it(self):
+        capture.index(self.root)
+        recorded = read_json(self.root / store.RUN_DIR / capture.CAPTURE_INDEX)
+        self.assertEqual([entry["path"] for entry in recorded["files"]],
+                         [store.path_of(self.ARTIFACT)])
+        self.assertEqual(recorded["artifacts"], [self.ARTIFACT])
+
+
+class CompareRefusesAMixedVintageRoot(unittest.TestCase):
+    """A finished capture whose files moved under it, and the digest that names which capture it is.
+
+    A self-capturing producer rewrites its file whenever its own suite runs, so a bare `./gradlew
+    test` after a capture leaves a root that is part one run and part the next while COMPLETE still
+    describes the first. `provenance` is outside the compared payload, so every number the verdict
+    prints is unchanged by that - the compare said nothing at all.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        self.store = self.repo / "store"
+        write_json(self.root / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table", "provenance": {"determinism_runs": 2},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "1.0000"}]})
+        capture.index(self.root)
+
+    def _compare(self) -> tuple[int, str]:
+        code, _, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                            "--store", str(self.store), "--format", "json",
+                            "compare", "--bootstrap"])
+        return code, err
+
+    def _report(self) -> dict:
+        return json.loads((self.root / store.RUN_DIR / "compare.json").read_text(encoding="utf-8"))
+
+    def test_an_untouched_root_compares(self):
+        self.assertEqual(self._compare()[0], cli.OK)
+
+    def test_a_rewritten_artifact_refuses_rather_than_reporting_agreement(self):
+        write_json(self.root / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table", "provenance": {"determinism_runs": 2},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "9.9999"}]})
+        code, err = self._compare()
+        self.assertEqual(code, cli.REFUSED)
+        self.assertIn("changed since its capture index was written", err)
+
+    def test_the_report_names_the_capture_it_was_written_about(self):
+        """What a promotion reads to tell this capture's compare from the one before it."""
+        self._compare()
+        self.assertEqual(self._report()["capture_digest"], capture.content_digest(self.root))
+
+    def test_a_second_capture_moves_the_stamp(self):
+        self._compare()
+        first = self._report()["capture_digest"]
+        capture.begin(self.root)
+        write_json(self.root / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table", "provenance": {"determinism_runs": 2},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "2.0000"}]})
+        capture.index(self.root)
+        self._compare()
+        self.assertNotEqual(self._report()["capture_digest"], first)
+
+
+class AFirstPromotionReadsTheRefusalThatFits(unittest.TestCase):
+    """The compare-coverage refusal must not shadow the one that names `--bootstrap`.
+
+    Driven end to end through `main` rather than over a hand-written report, because the defect was
+    a disagreement between what `compare` writes and what `promote` reads: a baseline-less artifact
+    goes under `missing_baseline` and never under `artifacts`, so a coverage check reading the one
+    list refused a first promotion for not having been compared - in front of the accurate refusal,
+    and offering two remedies that cannot exist. No widening of `-Partifacts` puts a row with no
+    baseline into the list it was reading.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        self.store = self.repo / "store"
+        register(self.store, "sweep.entity", "manifest.fluid", floor=2)
+        capture.begin(self.root)
+        write_json(self.root / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table",
+                    "provenance": {"asset_dirty": False, "counts": {"failed": 0, "rows": 1},
+                                   "determinism_runs": 2},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "1.0000"}]})
+        capture.index(self.root)
+
+    def _run(self, *argv: str) -> tuple[int, str]:
+        code, out, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                              "--store", str(self.store), *argv])
+        return code, out + err
+
+    def test_the_compare_files_it_under_missing_baseline_and_never_under_artifacts(self):
+        """The premise of everything below, asserted rather than assumed."""
+        self.assertEqual(self._run("compare")[0], cli.DIFFERENCES)
+        report = json.loads((self.root / store.RUN_DIR / "compare.json").read_text(encoding="utf-8"))
+        self.assertEqual(report["artifacts"], [])
+        self.assertEqual(report["missing_baseline"], ["sweep.entity"])
+
+    def test_the_promotion_names_the_absent_baseline_rather_than_an_absent_compare(self):
+        self._run("compare")
+        code, text = self._run("promote-apply", "--reason", "probe")
+        self.assertEqual(code, cli.REFUSED)
+        self.assertIn("sweep.entity has no baseline to replace", text)
+        self.assertNotIn("the compare did not cover", text)
+
+    def test_an_artifact_the_compare_never_looked_at_still_refuses_for_coverage(self):
+        """The coverage refusal is not being disabled - only stopped from answering for a case it
+        cannot describe. A compare scoped away from the row leaves it in neither list."""
+        self._run("compare", "--artifacts", "manifest.fluid")
+        code, text = self._run("promote-apply", "--reason", "probe")
+        self.assertEqual(code, cli.REFUSED)
+        self.assertIn("the compare did not cover sweep.entity", text)
+
+    def test_bootstrap_promotes_the_first_capture(self):
+        """The green path, so the two refusals above are not vacuously true."""
+        self.assertEqual(self._run("compare", "--bootstrap")[0], cli.OK)
+        code, text = self._run("promote-apply", "--reason", "probe", "--bootstrap")
+        self.assertEqual(code, cli.OK, text)
+        self.assertIn("promoted 1: sweep.entity", text)
+
+    def test_bootstrap_promotes_a_first_capture_with_no_compare_run_at_all(self):
+        """The exemption, end to end: a first baseline has nothing to be diffed against.
+
+        It differs from the green path above by one command not having been run, and the store is
+        read back because an exit code alone says nothing about what was written.
+        """
+        code, text = self._run("promote-apply", "--reason", "probe", "--bootstrap")
+        self.assertEqual(code, cli.OK, text)
+        self.assertTrue((self.store / "sweeps" / "entity.json").is_file())
+
+    def test_bootstrap_carries_the_baselined_rows_beside_the_new_one(self):
+        """The exemption's cost, asserted rather than left to be discovered.
+
+        One row is new - which is why the flag is on the command line - and the row beside it has a
+        baseline and moved. The flag is per-invocation and cannot say which row it was typed for, so
+        the neighbour is written with no diff ever shown. `--artifacts` is what narrows that, and
+        the stored bytes are what says which way it went.
+        """
+        self._fluid(self.store, "0" * 64)
+        self._fluid(self.root, "1" * 64)
+        capture.index(self.root)
+
+        code, text = self._run("promote-apply", "--reason", "probe", "--bootstrap")
+
+        self.assertEqual(code, cli.OK, text)
+        stored = json.loads((self.store / "manifests" / "fluid.json").read_text(encoding="utf-8"))
+        self.assertEqual(stored["files"][0]["sha256"], "1" * 64)
+
+    def test_narrowing_the_promotion_leaves_the_row_the_flag_was_not_typed_for(self):
+        """`--artifacts` is the answer to the case above, so the answer is asserted beside it."""
+        self._fluid(self.store, "0" * 64)
+        self._fluid(self.root, "1" * 64)
+        capture.index(self.root)
+
+        code, text = self._run("promote-apply", "--reason", "probe", "--bootstrap",
+                               "--artifacts", "sweep.entity")
+
+        self.assertEqual(code, cli.OK, text)
+        stored = json.loads((self.store / "manifests" / "fluid.json").read_text(encoding="utf-8"))
+        self.assertEqual(stored["files"][0]["sha256"], "0" * 64)
+
+    @staticmethod
+    def _fluid(under: Path, digest: str) -> None:
+        """One manifest row, distinguishable by the digest it carries."""
+        write_json(under / "manifests" / "fluid.json",
+                   {"artifact": "manifest.fluid", "files": [{"path": "a.gif", "sha256": digest}],
+                    "format": 1, "key": "path", "kind": "manifest",
+                    "provenance": {"asset_dirty": False, "counts": {"failed": 0, "files": 1},
+                                   "determinism_runs": 2, "root": "cache/x"}})
+
+
+class TheEntryPointDefaultsRunsToTheFloor(unittest.TestCase):
+    """An absent `--runs` stamps the floor at the CLI, which is the side the build relies on.
+
+    The build forwards `--runs` only when `-Pruns` was given, and says in the same breath that an
+    absent one means the artifact's declared floor "which the toolkit owns". So the default that has
+    to exist is the ENTRY POINT's: the standard invocation is a bare `parityCapture`, and with
+    `--runs` declared `default=0` that stamped a number `promote.check` refuses on every artifact -
+    after the capture had run, which for a full bundle is the multi-minute half of the gate.
+
+    `capture.normalize`'s own default is asserted beside its floor lookup in `test_capture.py`. That
+    is the library, and a library default an argparse default overwrites before it is reached is not
+    the one the build gets.
+    """
+
+    ARTIFACT = "digest.shipped-tables"
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        register(self.repo / store.PRODUCTION, self.ARTIFACT)
+
+    def _stamp(self, *argv: str, from_store: str | None = None) -> int:
+        """Drive a capture through `main` in the order the build does, and read what it stamped.
+
+        Begin, producer, normalize - the erase is its own command precisely so that a step landing
+        after it does not repeat one. The source is the working root itself, which is how a
+        self-captured row is spelled: the producer wrote the file from inside its own test JVM and
+        the capture step validates it where it stands. Nothing else about the artifact matters here.
+        """
+        self._invoke("capture-begin")
+        write_json(self.root / store.path_of(self.ARTIFACT),
+                   {"artifact": self.ARTIFACT, "format": 1, "key": "name", "kind": "digest-set",
+                    "digests": {"block_models": {"sha256": "a"}}})
+        self._invoke("capture-normalize", "--artifact", self.ARTIFACT,
+                     "--source", str(self.root), *argv, from_store=from_store)
+        stamped = json.loads(
+            (self.root / store.path_of(self.ARTIFACT)).read_text(encoding="utf-8"))
+        return stamped["provenance"]["determinism_runs"]
+
+    def _invoke(self, *argv: str, from_store: str | None = None) -> None:
+        override = ["--store", from_store] if from_store else []
+        code, _, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                            *override, *argv])
+        self.assertEqual(code, cli.OK, err)
+
+    def test_a_bare_capture_stamps_the_artifacts_floor(self):
+        """Compared against the floor rather than against a literal, because the refusal one command
+        along reads the same function: a number below it is a capture the gate then throws away."""
+        self.assertEqual(self._stamp(), promote.floor_for(
+            self.ARTIFACT, store.production(None, self.repo).index()))
+
+    def test_an_explicit_runs_reaches_the_stamp_unchanged(self):
+        """A measurement the build did take must not be replaced by the floor it may exceed."""
+        self.assertEqual(self._stamp("--runs", "7"), 7)
+
+    def test_an_explicit_zero_is_a_measurement_and_survives(self):
+        """The default is absence, not falsehood: a declared zero is a claim, and promote refuses
+        it. Collapsing the two would make `-Pruns=0` mean the floor and hide a failed rerun."""
+        self.assertEqual(self._stamp("--runs", "0"), 0)
+
+    def test_the_floor_is_read_out_of_the_store_the_invocation_names(self):
+        """`--store` says which store answers, and the floor became a column of one. Read off the
+        default production store regardless, a capture into a redirected store is stamped with a
+        number that store never declared. The flag is the only way the two can ever differ, so
+        honouring it here is the whole of what makes a fixture store answer for its own rows."""
+        elsewhere = self.repo / "elsewhere"
+        register(elsewhere, self.ARTIFACT, floor=5)
+        self.assertEqual(self._stamp(from_store=str(elsewhere)), 5)
+
+
+class TheCaptureStampsWhatProducedTheValue(unittest.TestCase):
+    """The three conditions a capture records beside the value, driven through `main` end to end.
+
+    Each is a hop the build makes and the entry point has to complete: an argument the parser
+    accepts and hands nowhere lands nothing in the file, which is exactly how `mode`, `flags` and
+    `reference_manifest_digest` sat in the signature and reached 24 promoted baselines absent. Read
+    off the stamped file rather than off the source of the function that writes it, because the
+    defect being guarded against is a call that compiles and drops its argument.
+    """
+
+    ARTIFACT = "digest.shipped-tables"
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        register(self.repo / store.PRODUCTION, self.ARTIFACT)
+
+    def _invoke(self, *argv: str) -> None:
+        code, _, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current", *argv])
+        self.assertEqual(code, cli.OK, err)
+
+    def _provenance(self, *argv: str) -> dict:
+        self._invoke("capture-begin")
+        write_json(self.root / store.path_of(self.ARTIFACT),
+                   {"artifact": self.ARTIFACT, "format": 1, "key": "name", "kind": "digest-set",
+                    "digests": {"block_models": {"sha256": "a"}}})
+        self._invoke("capture-normalize", "--artifact", self.ARTIFACT,
+                     "--source", str(self.root), *argv)
+        return json.loads(
+            (self.root / store.path_of(self.ARTIFACT)).read_text(encoding="utf-8"))["provenance"]
+
+    def test_the_mode_reaches_the_stamped_record(self):
+        self.assertEqual(self._provenance("--mode", "EVERY")["mode"], "EVERY")
+
+    def test_an_absent_mode_is_an_omitted_field_rather_than_an_empty_one(self):
+        """A record saying nothing about the mode and one claiming an unnamed mode differ."""
+        self.assertNotIn("mode", self._provenance())
+
+    def test_every_flag_reaches_the_stamped_record(self):
+        """Two, because one would pass on an implementation that keeps only the last."""
+        self.assertEqual(
+            self._provenance("--flag", "asset.depth.range=1000", "--flag", "asset.snap.grid=400")
+            ["flags"],
+            {"asset.depth.range": "1000", "asset.snap.grid": "400"})
+
+    def test_the_reference_tree_is_stamped_as_the_digest_of_its_manifest(self):
+        # Outside the working root, which the capture that reads it erases first.
+        tree = self.repo / "references"
+        write_text(tree / "blocks" / "stone" / "vanilla.png", "one")
+        self.assertEqual(self._provenance("--reference-tree", str(tree))
+                         ["reference_manifest_digest"],
+                         provenance.reference_manifest_digest(tree))
+
+    def test_an_absent_reference_tree_stamps_no_digest_rather_than_a_wrong_one(self):
+        self.assertNotIn("reference_manifest_digest",
+                         self._provenance("--reference-tree", str(self.root / "nowhere")))
+
+
+class AllowDirtyIsReachableAndRecorded(unittest.TestCase):
+    """The dirty-tree refusal's override, driven the only way an operator can reach it.
+
+    `promote.check` and `promote.apply` each take the flag, and the CLI has to hand it to BOTH. Drop
+    it from the first and the documented override refuses anyway, so `-PallowDirty=true` is a flag
+    the skill and the runbook both describe and nothing honours. Drop it from the second and the
+    promotion succeeds while the store records nothing - which is worse, because an override nothing
+    writes down cannot be told apart from the refusal never having fired.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        self.store = self.repo / "store"
+        register(self.store, "sweep.entity", floor=2)
+        write_json(self.store / "sweeps" / "entity.json", self._sweep("2.0000", dirty=False))
+        capture.begin(self.root)
+        write_json(self.root / "sweeps" / "entity.json", self._sweep("1.0000", dirty=True))
+        capture.index(self.root)
+        self.assertEqual(self._run("compare")[0], cli.DIFFERENCES)
+
+    def _run(self, *argv: str) -> tuple[int, str]:
+        code, out, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                              "--store", str(self.store), *argv])
+        return code, out + err
+
+    def _stored(self) -> dict:
+        return json.loads((self.store / "sweeps" / "entity.json").read_text(encoding="utf-8"))
+
+    def test_a_dirty_capture_refuses_through_the_cli(self):
+        """The precondition for the two below, and the state an operator actually meets."""
+        code, text = self._run("promote-apply", "--reason", "probe")
+        self.assertEqual(code, cli.REFUSED)
+        self.assertIn("records asset_dirty=True", text)
+        self.assertEqual(self._stored()["rows"][0]["mean_argb_delta"], "2.0000")
+
+    def test_the_flag_reaches_the_refusal_and_the_promotion_goes_through(self):
+        """`--allow-dirty` not reaching `check` leaves the refusal firing under the flag that names
+        it, so the override is unreachable from any command line and the baseline never moves."""
+        code, text = self._run("promote-apply", "--reason", "probe", "--allow-dirty")
+        self.assertEqual(code, cli.OK, text)
+        self.assertIn("promoted 1: sweep.entity", text)
+        self.assertEqual(self._stored()["rows"][0]["mean_argb_delta"], "1.0000")
+
+    def test_the_override_is_written_into_the_promoted_provenance(self):
+        """Asserted on the stored bytes: the flag not reaching `apply` promotes just the same and
+        leaves a baseline that reads exactly like one taken from a committed tree."""
+        self._run("promote-apply", "--reason", "probe", "--allow-dirty")
+        self.assertIs(self._stored()["provenance"]["allow_dirty"], True)
+
+    def test_a_promotion_that_needed_no_override_records_none(self):
+        """So the field means what it says: present is the exception, absent is the ordinary act."""
+        write_json(self.root / "sweeps" / "entity.json", self._sweep("1.0000", dirty=False))
+        capture.index(self.root)
+        self.assertEqual(self._run("compare")[0], cli.DIFFERENCES)
+        self.assertEqual(self._run("promote-apply", "--reason", "probe")[0], cli.OK)
+        self.assertNotIn("allow_dirty", self._stored()["provenance"])
+
+    @staticmethod
+    def _sweep(delta: str, dirty: bool) -> dict:
+        return {"artifact": "sweep.entity", "format": 1, "key": "subject", "kind": "sweep-table",
+                "provenance": {"asset_dirty": dirty, "asset_sha": "abc123",
+                               "counts": {"failed": 0, "rows": 1}, "determinism_runs": 2},
+                "rows": [{"subject": "minecraft__cow", "mean_argb_delta": delta, "status": "ok"}]}
+
+
+class ThePopulationWaiverReachesTheRefusalItAnswers(unittest.TestCase):
+    """The row-count refusal's override, driven the only way an operator can reach it.
+
+    The refusal itself is exercised against `promote.check` directly, and that says nothing about
+    whether the flag arrives: forwarded as a literal, every one of those cases stays green while
+    `-Ppopulation=changed` - which the refusal's own message prescribes, and which the runbook calls
+    the only answer - refuses anyway, after the multi-minute capture that earned it.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "cache" / "parity" / "current"
+        self.store = self.repo / "store"
+        register(self.store, "sweep.entity", floor=2, entries=1)
+        write_json(self.store / "sweeps" / "entity.json", self._sweep("2.0000"))
+        capture.begin(self.root)
+        write_json(self.root / "sweeps" / "entity.json", self._sweep("1.0000", "minecraft__pig"))
+        capture.index(self.root)
+        self._run("compare")
+
+    def _run(self, *argv: str) -> tuple[int, str]:
+        code, out, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                              "--store", str(self.store), "--quiet", *argv])
+        return code, out + err
+
+    def _stored(self) -> dict:
+        return json.loads((self.store / "sweeps" / "entity.json").read_text(encoding="utf-8"))
+
+    def test_a_moved_population_refuses_through_the_cli(self):
+        """The precondition for the two below, and the state an operator actually meets."""
+        code, text = self._run("promote-apply", "--reason", "probe")
+        self.assertEqual(code, cli.REFUSED, text)
+        self.assertIn("captured 2 rows where its baseline holds 1", text)
+        self.assertEqual(len(self._stored()["rows"]), 1)
+
+    def test_the_flag_reaches_the_refusal_and_the_promotion_goes_through(self):
+        code, text = self._run("promote-apply", "--reason", "probe", "--population-changed")
+        self.assertEqual(code, cli.OK, text)
+        self.assertEqual(len(self._stored()["rows"]), 2)
+
+    def test_the_waiver_is_written_into_the_promoted_provenance(self):
+        """A waiver nothing writes down cannot be told apart from the refusal never firing."""
+        self._run("promote-apply", "--reason", "probe", "--population-changed")
+        self.assertIs(self._stored()["provenance"]["population_changed"], True)
+
+    @staticmethod
+    def _sweep(delta: str, *extra: str) -> dict:
+        rows = [{"subject": "minecraft__cow", "mean_argb_delta": delta, "status": "ok"}]
+        rows += [{"subject": name, "mean_argb_delta": delta, "status": "ok"} for name in extra]
+        return {"artifact": "sweep.entity", "format": 1, "key": "subject", "kind": "sweep-table",
+                "provenance": {"asset_dirty": False, "asset_sha": "abc123",
+                               "counts": {"failed": 0, "rows": len(rows)},
+                               "determinism_runs": 2},
+                "rows": rows}
+
+
 class PlanSplit(unittest.TestCase):
     """`sees` answers reach; `plan` selects a capture; the rest splits again on who GATES it.
 
     A rule names an artifact whenever the change really moves it, and three of the four homes hold
     artifacts the store keeps no file of its own for. Handing one to `parityCapture` refuses the whole
-    invocation at configuration time, so the plan carries the store half.
+    invocation as Gradle resolves that task's dependencies while it builds the graph, so the plan
+    carries the store half.
 
     The remainder is not one thing, and it does not split on being written. A pointer at a ROW field
     lands in the keyspace `compare.side_of` joins, so the capture that writes that file writes the
@@ -273,7 +1257,7 @@ class PlanSplit(unittest.TestCase):
                           "report.wall-time", "sweep.entity"])
 
     def test_plan_keeps_only_what_the_store_holds_a_file_for(self):
-        """The defect this split exists for: every other id refuses parityCapture at configuration."""
+        """The defect this split exists for: every other id refuses parityCapture as it resolves."""
         _, _, payload = self._plan()
         self.assertEqual(payload["plan"], ["manifest.tooling-tables", "sweep.entity"])
 
@@ -284,8 +1268,8 @@ class PlanSplit(unittest.TestCase):
         The whole line, because every id it drops is still printed elsewhere on the same page: SEES
         names all of them a few lines above, so a check that the line CONTAINS the plan passes just
         as well on a line that also names `pin.armor-span` - which is the id `parityCapture` refuses
-        at configuration time, and the entire defect this split exists to fix. The count is inside
-        the assertion for the same reason.
+        as it resolves its own dependencies, and the entire defect this split exists to fix. The
+        count is inside the assertion for the same reason.
         """
         _, out, _ = self._plan()
         self.assertIn("PLAN   (2): manifest.tooling-tables, sweep.entity", out.splitlines())
@@ -534,6 +1518,56 @@ class PlanSplit(unittest.TestCase):
         _, _, payload = self._plan()
         self.assertEqual(payload["budget_ms"], 12)
 
+    def test_a_measured_budget_prints_the_number_alone(self):
+        _, out, _ = self._plan()
+        self.assertIn("BUDGET 12 ms", out.splitlines())
+
+    def test_a_zero_budget_explains_itself_by_the_column_and_not_by_the_promotions(self):
+        """The two readings of a zero, and only one of them is ever true here.
+
+        The rows below are baselined and carry no duration, which is the state every plan an
+        operator runs was printed in: a promotion is what fills the column, so a parenthetical
+        blaming an empty store sends a reader looking for a promotion that already happened. The
+        number itself is right under either reading, and nothing else in the block contradicts the
+        sentence, so the string is the whole of what an operator is told.
+        """
+        promoted = {name: {key: value for key, value in row.items() if key != "last_duration_ms"}
+                    for name, row in self.INDEX["artifacts"].items()}
+        write_json(self.store / "index.json", {**self.INDEX, "artifacts": promoted})
+        _, out, payload = self._plan()
+
+        self.assertTrue(all(row["baselined"] for row in promoted.values()))
+        self.assertEqual(payload["budget_ms"], 0)
+        self.assertIn("BUDGET 0 ms  (no artifact in this plan has a recorded duration)",
+                      out.splitlines())
+
+    def test_a_partly_measured_budget_says_it_is_a_floor(self):
+        """The reading that costs something, and the one a zero-or-nothing caveat cannot express.
+
+        Both planned artifacts carry a duration in the fixture, so the printed number is the cost.
+        Drop one of them and the sum is still a number, still correct about what it summed, and now
+        missing a whole artifact's producers - which is exactly the shape of a bundle whose cheap
+        half is measured and whose expensive half boots the client. Keyed off the count rather than
+        off the sum, because a measured bundle and a half-measured one can print the same total.
+        """
+        artifacts = {name: ({key: value for key, value in row.items() if key != "last_duration_ms"}
+                            if name == "manifest.tooling-tables" else row)
+                     for name, row in self.INDEX["artifacts"].items()}
+        write_json(self.store / "index.json", {**self.INDEX, "artifacts": artifacts})
+        _, out, payload = self._plan()
+
+        self.assertEqual(payload["plan"], ["manifest.tooling-tables", "sweep.entity"])
+        self.assertEqual(payload["budget_ms"], 7)
+        self.assertEqual(payload["budget_measured"], 1)
+        self.assertIn("BUDGET 7 ms  (1 of 2 artifacts carry a duration, so this is a floor "
+                      "and not the cost)", out.splitlines())
+
+    def test_a_fully_measured_budget_counts_itself_measured(self):
+        """The companion to the floor case: the count is what tells the two apart, so it is asserted
+        on the state that prints no parenthetical as well as on the one that does."""
+        _, _, payload = self._plan()
+        self.assertEqual(payload["budget_measured"], len(payload["plan"]))
+
     def test_an_index_that_registers_nothing_narrows_nothing(self):
         """Fail wide, never narrow: an empty plan reads downstream as nothing to capture."""
         write_json(self.store / "index.json", {**self.INDEX, "artifacts": {}})
@@ -661,9 +1695,7 @@ class RegisteredPointers(unittest.TestCase):
         unjoined one in the first tells them nothing is owed.
         """
         joined = sorted(name for name in self.targets if self._carried(name))
-        self.assertEqual(joined, ["report.canvas-mismatch", "report.diagnostics-log",
-                                  "report.failure-rows", "report.glint-frames",
-                                  "report.panel-stats"])
+        self.assertEqual(joined, ["report.diagnostics-log", "report.failure-rows"])
         self.assertEqual(sorted(set(self.targets) - set(joined)),
                          ["report.buckets", "report.coverage-gaps", "report.harness-sweep-counts",
                           "report.run-provenance", "report.sum", "report.wall-time",
@@ -679,6 +1711,93 @@ class RegisteredPointers(unittest.TestCase):
         for artifact in sorted(name for name in self.targets if not self._carried(name)):
             head = self.targets[artifact].partition("#")[0]
             self.assertNotEqual(cli._pointer_files(head, self.stored), [], artifact)
+
+
+class ExpectRegistration(unittest.TestCase):
+    """The expected-diff's only writer, which `parityExpect` is the sanctioned way to reach.
+
+    The manifest is what makes the gate `diff == the registration` rather than `diff == empty`, and
+    it underpins the one verdict row that passes with movers in it. Until the task existed the
+    documented flow could not produce one at all.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.manifest = (self.repo / "cache" / "parity" / "current" / store.RUN_DIR
+                         / "expected-diff.json")
+
+    def _expect(self, *argv: str) -> int:
+        return run(["--repo-root", str(self.repo), "--root", "cache/parity/current", "--quiet",
+                    "expect", *argv])[0]
+
+    def test_empty_writes_a_manifest_that_registers_nothing(self):
+        self.assertEqual(self._expect("--empty"), cli.OK)
+        self.assertEqual(read_json(self.manifest)["movers"], [])
+
+    def test_a_registration_carries_the_row_and_the_value_it_must_land_on(self):
+        self.assertEqual(self._expect("--artifact", "sweep.entity", "--key", "minecraft__cow",
+                                      "--to", "0.2004", "--reason", "operand order"), cli.OK)
+        self.assertEqual(read_json(self.manifest)["movers"],
+                         [{"artifact": "sweep.entity", "key": "minecraft__cow",
+                           "reason": "operand order", "to": "0.2004"}])
+
+    def test_a_second_registration_lands_beside_the_first(self):
+        self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1", "--reason", "r")
+        self._expect("--artifact", "sweep.entity", "--key", "b", "--to", "2", "--reason", "r")
+        self.assertEqual([row["key"] for row in read_json(self.manifest)["movers"]], ["a", "b"])
+
+    def test_empty_clears_what_a_previous_change_registered(self):
+        """The manifest survives the capture wipe, so nothing else ever clears it."""
+        self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1", "--reason", "r")
+        self._expect("--empty")
+        self.assertEqual(read_json(self.manifest)["movers"], [])
+
+    def test_a_command_naming_nothing_at_all_is_refused_rather_than_read_as_a_clear(self):
+        """The backstop under `parityExpect`, which forwards what it was given and nothing else.
+
+        A task that filled an incomplete registration out with `--empty` reported success and
+        ERASED the registration a previous invocation left - the one outcome worse than refusing,
+        and reachable whenever the task's own refusal missed the invocation.
+        """
+        self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1", "--reason", "r")
+        self.assertEqual(self._expect(), cli.REFUSED)
+        self.assertEqual([row["key"] for row in read_json(self.manifest)["movers"]], ["a"])
+
+    def test_a_registration_naming_no_value_is_refused_and_writes_nothing(self):
+        self.assertEqual(
+            self._expect("--artifact", "sweep.entity", "--key", "a", "--reason", "r"), cli.REFUSED)
+        self.assertFalse(self.manifest.exists())
+
+    def test_a_clear_given_alongside_a_registration_is_refused_rather_than_taken(self):
+        """Two orders in one command, and taking either drops the other silently.
+
+        The one dropped is the registration, so the command that named a row and the value it must
+        land on reported zero movers registered and exited 0 - a task whose whole subject is
+        refusing an under-specified registration accepting a contradictory one.
+        """
+        self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1", "--reason", "r")
+        self.assertEqual(
+            self._expect("--empty", "--artifact", "sweep.entity", "--key", "b", "--to", "2",
+                         "--reason", "r"), cli.REFUSED)
+        self.assertEqual([row["key"] for row in read_json(self.manifest)["movers"]], ["a"])
+
+    def test_a_clear_is_refused_beside_any_one_member_of_a_registration(self):
+        """Every member on its own, because the refusal's operand is the whole four.
+
+        Handed all four at once the refusal is satisfied by any ONE of them being in the operand,
+        so three members can sit outside every assertion there is: narrowed to `--artifact` alone
+        it stays green, and `expect --empty --key a --to 1 --reason r` then clears the previous
+        change's registration and exits 0 - the silent drop the refusal exists against, reached
+        through the refusal itself.
+        """
+        for member, value in (("--artifact", "sweep.entity"), ("--key", "b"), ("--to", "2"),
+                              ("--reason", "r")):
+            with self.subTest(member=member):
+                self._expect("--empty")
+                self._expect("--artifact", "sweep.entity", "--key", "a", "--to", "1",
+                             "--reason", "r")
+                self.assertEqual(self._expect("--empty", member, value), cli.REFUSED)
+                self.assertEqual([row["key"] for row in read_json(self.manifest)["movers"]], ["a"])
 
 
 class GateExit(unittest.TestCase):
@@ -711,20 +1830,37 @@ class GateExit(unittest.TestCase):
         subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
                         "commit", "-qm", "seed"], cwd=self.repo, check=True)
 
-    def _plan(self, *changed: str) -> int:
-        argv = ["--repo-root", str(self.repo), "--root", "cache/parity/current",
+    #: A whole second on the clock a stamp is read off, for the cases whose subject is ordering.
+    #: Both sides are stamped rather than written in sequence, because two consecutive writes here
+    #: land on ONE ``st_mtime_ns`` - which is what makes the tiebreak beside the stamp load-bearing.
+    SECOND = 1_800_000_000_000_000_000
+
+    def _plan(self, *changed: str, root: str = "cache/parity/current") -> int:
+        argv = ["--repo-root", str(self.repo), "--root", root,
                 "--store", str(self.store), "--quiet", "plan", "--gate-exit"]
         for path in changed:
             argv += ["--changed", path]
         return run(argv)[0]
 
-    def _record_verdict(self, artifacts: list[str], **overrides) -> None:
+    def _record_verdict(self, artifacts: list[str], root: str = "cache/parity/current",
+                        at_ns: int | None = None, **overrides) -> None:
+        """Write a verdict into one working root.
+
+        :param artifacts: what the compare covered
+        :param root: the working root it landed in, relative to the repo - the promotion procedure's
+            own variable, and not always the one the gate was invoked with
+        :param at_ns: the mtime to stamp, in nanoseconds, for a case whose subject is which of two
+            verdicts is newer; absent, the write's own time stands
+        :param overrides: verdict fields to replace
+        """
         payload = {"artifacts": artifacts,
                    "asset_dirty_digest": provenance.dirty_digest(self.repo),
                    "asset_sha": provenance.asset_state(self.repo)["asset_sha"]}
         payload.update(overrides)
-        write_json(self.repo / "cache" / "parity" / "current" / store.RUN_DIR
-                   / "last-verdict.json", payload)
+        target = self.repo / root / store.RUN_DIR / "last-verdict.json"
+        write_json(target, payload)
+        if at_ns is not None:
+            os.utime(target, ns=(at_ns, at_ns))
 
     def test_0_when_nothing_sees_the_change(self):
         self.assertEqual(self._plan("docs/readme.md"), cli.OK)
@@ -793,6 +1929,120 @@ class GateExit(unittest.TestCase):
             {"pointers": {"the.other-one": {"pointer": "sweeps/entity.json#/summary/sum"}}})
         self._record_verdict(["sweep.block"])
         self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_10_when_the_verdict_recorded_unexpected_movers(self):
+        """A compare that found movers nobody registered recorded a failure, not a gating.
+
+        The hook is the only automatic detector in the loop, so it going quiet after exactly the run
+        whose answer was RED is the worst state available to it.
+        """
+        self._record_verdict(["sweep.entity"], unexpected=1)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_10_when_the_verdict_found_no_baseline_for_something_it_looked_at(self):
+        self._record_verdict(["sweep.entity"], missing_baseline=["sweep.block"])
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_20_when_the_verdict_recorded_a_compare_that_passed(self):
+        self._record_verdict(["sweep.entity"], unexpected=0, missing_baseline=[])
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def test_20_when_the_verdict_was_written_into_a_root_this_invocation_was_not_given(self):
+        """A verdict names a TREE STATE, so the root its capture went into does not own it.
+
+        Read out of the given root alone, it was read out of the default one - and the promotion
+        procedure's compare carries `-PparityRoot=cache/parity/b`, so the hardest-gated commit in
+        the corpus is the one shape that answered "never gated".
+        """
+        self._record_verdict(["sweep.entity"], root="cache/parity/b")
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def test_20_when_the_only_verdict_is_in_the_root_this_invocation_named_and_no_other(self):
+        """A working root is any relative path under `cache/`, so the given one need not be scanned.
+
+        The scan is over `cache/parity/*` and this root is outside it, which leaves the root the
+        invocation was actually handed as the only place the verdict can be found. Dropped from the
+        candidates, a toolkit run pointed anywhere else answers "never gated" about its own compare.
+        """
+        self._record_verdict(["sweep.entity"], root="cache/scratch")
+        self.assertEqual(self._plan("src/Main.java", root="cache/scratch"),
+                         cli.GATE_ALREADY_GATED)
+
+    def test_10_when_the_newest_verdict_across_the_roots_is_the_failing_one(self):
+        """Newest wins, not any-that-passes: a red compare after a green one is the state to report."""
+        self._record_verdict(["sweep.entity"], root="cache/parity/b", at_ns=self.SECOND)
+        self._record_verdict(["sweep.entity"], root="cache/parity/current",
+                             at_ns=self.SECOND + 1_000_000_000, unexpected=1)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_SEES_UNGATED)
+
+    def test_20_when_the_newest_verdict_across_the_roots_is_the_passing_one(self):
+        """And the same ordering the other way round, which no per-root reading answers.
+
+        The failing verdict is in the root the invocation was given and the passing one is not, so a
+        rule preferring the given root, or the first root found, answers 10 here.
+        """
+        self._record_verdict(["sweep.entity"], root="cache/parity/current", at_ns=self.SECOND,
+                             unexpected=1)
+        self._record_verdict(["sweep.entity"], root="cache/parity/b",
+                             at_ns=self.SECOND + 1_000_000_000)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def test_20_when_one_of_two_verdicts_stamped_alike_is_the_greater_path(self):
+        """Two verdicts on one stamp are ordered by path, and WHICH one that picks is pinned here.
+
+        Two consecutive writes on this filesystem land on one `st_mtime_ns`, so an equal-stamp pair
+        is the ordinary case rather than the exotic one. Which of them wins is arbitrary; that the
+        stamp is not the whole key is not. The candidates are enumerated in path order, so a key
+        that leaves this pair equal answers with the LESSER path - the failing verdict below - and
+        the gate reports 10 over a tree the compare that came after it passed.
+        """
+        self._record_verdict(["sweep.entity"], root="cache/parity/a", at_ns=self.SECOND,
+                             unexpected=1)
+        self._record_verdict(["sweep.entity"], root="cache/parity/current", at_ns=self.SECOND)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def test_20_when_the_newer_verdict_is_newer_by_less_than_a_stamp_read_in_seconds(self):
+        """The stamp is read in NANOSECONDS, and the pair below is what that buys.
+
+        These two are 100 ns apart - one tick of the filesystem's own clock, and less than the
+        spacing of the floats a seconds-valued stamp lands on at this magnitude, so read that way
+        they are equal and the tiebreak answers with the older one instead.
+        """
+        self._record_verdict(["sweep.entity"], root="cache/parity/a", at_ns=self.SECOND + 100)
+        self._record_verdict(["sweep.entity"], root="cache/parity/current", at_ns=self.SECOND,
+                             unexpected=1)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
+
+    def _capture(self, root: str) -> Path:
+        """One stamped artifact in a working root, which is what a real compare needs on each side.
+
+        :param root: the working root, relative to the repo
+        :return: its absolute path
+        """
+        path = self.repo / root
+        write_json(path / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table", "provenance": {"determinism_runs": 2},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "1.0000"}]})
+        capture.index(path)
+        return path
+
+    def test_20_when_the_compare_that_covered_this_tree_put_a_capture_on_the_other_side(self):
+        """An A/B is a gating, and for one whole change class it is the only gate there is.
+
+        The stash A/B and the tooling-regen A/B both compare this tree against a capture rather than
+        against the store, and a generator refactor has nothing else: every sweep reads the SHIPPED
+        tables, which a refactor does not regenerate. Counted as a measurement instead, the hook
+        prompts on every commit of that class and its silence stops meaning anything there. Driven
+        through a real compare rather than a hand-written verdict, because what is being pinned is
+        that the two invocation shapes reach the same answer.
+        """
+        self._capture("cache/parity/current")
+        other = self._capture("cache/parity/a")
+        self.assertEqual(run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                              "--store", str(self.store), "--format", "json",
+                              "compare", "--base", str(other)])[0], cli.OK)
+        self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
 
     def test_the_flag_is_opt_in_so_parityPlan_still_exits_zero(self):
         """parityPlan is a Gradle Exec: a plan that answered 10 on reach would fail every build."""

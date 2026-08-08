@@ -43,7 +43,7 @@ import java.util.Optional;
  * legacy strings mirror the style of real tooltips and include the white {@code +5 ✦ Speed} line so
  * stat-roll rendering can be eyeballed in isolation.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:loreTooltip}. Takes no {@code -P} flags; outputs land in
+ * Usage: {@code ./gradlew loreTooltip}. Takes no {@code -P} flags; outputs land in
  * {@code cache/visual/lore-tooltip/}.
  */
 @UtilityClass

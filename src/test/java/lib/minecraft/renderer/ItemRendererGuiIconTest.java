@@ -1,12 +1,11 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.spec.OutputOptions;
+import lib.minecraft.renderer.parity.RenderDigest;
 import lib.minecraft.renderer.pipeline.ClientAcquisition;
 import lib.minecraft.renderer.pipeline.ClientAssets;
 import lib.minecraft.renderer.pipeline.ClientOptions;
@@ -34,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * <li>an id backing neither an item nor a block raises {@link RenderException}.</li>
  * </ul>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew :asset-renderer:slowTest}.
+ * {@code ./gradlew slowTest}.
  */
 @Tag("slow")
 @DisplayName("ItemRenderer GUI_ICON faithful-icon dispatch")
@@ -68,8 +67,8 @@ class ItemRendererGuiIconTest {
         String id = "minecraft:small_amethyst_bud";
         assertThat(context.findItem(id).isPresent(), is(true));
 
-        int[] icon = firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
-        int[] flat = firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_2D)));
+        int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
+        int[] flat = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_2D)));
         assertThat(icon, is(flat));
     }
 
@@ -81,8 +80,8 @@ class ItemRendererGuiIconTest {
         String id = "minecraft:stone";
         assertThat(context.findItem(id).isPresent(), is(false));
 
-        int[] icon = firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
-        int[] block = firstFramePixels(blockRenderer.render(block(id)));
+        int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
+        int[] block = RenderDigest.firstFramePixels(blockRenderer.render(block(id)));
         assertThat(icon, is(block));
     }
 
@@ -94,8 +93,8 @@ class ItemRendererGuiIconTest {
         String id = "minecraft:red_bed";
         assertThat(context.findItem(id).isPresent(), is(false));
 
-        int[] icon = firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
-        int[] block = firstFramePixels(blockRenderer.render(block(id)));
+        int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
+        int[] block = RenderDigest.firstFramePixels(blockRenderer.render(block(id)));
         assertThat(icon, is(block));
     }
 
@@ -127,15 +126,6 @@ class ItemRendererGuiIconTest {
             .blockId(id)
             .output(OutputOptions.builder().canvasSize(SIZE).build())
             .build();
-    }
-
-    /**
-     * Extracts the first frame's ARGB pixels from a render, matching the golden-comparison pattern
-     * used by the other renderer regression tests.
-     */
-    private static int[] firstFramePixels(ImageData image) {
-        PixelBuffer buffer = image.getFrames().getFirst().pixels();
-        return buffer.getPixels(0, 0, buffer.width(), buffer.height(), null, 0, 0);
     }
 
 }

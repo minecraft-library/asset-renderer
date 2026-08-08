@@ -35,7 +35,7 @@ enum EntityOverlayPolicies implements NavigationPolicy {
     FULL_MESH_REUSE_ALPHA_EPSILON(
         0.999f,
         "warden bioluminescent full-mesh reuse is exact because the glow texture is transparent outside the"
-            + " retained parts (texture content, not bytecode); epsilon relocated from P47b per doc-12 P1/09 T1"),
+            + " retained parts (texture content, not bytecode)"),
 
     /**
      * The equipment default-decor bounds exclusion: the trader-llama carpet overlay is

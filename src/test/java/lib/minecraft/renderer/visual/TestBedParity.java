@@ -59,7 +59,7 @@ import java.util.Optional;
  * other parity tools here there is no diff/metric pass - the eye does the comparison across the
  * pipeline-vs-mc_assets pairs.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:bedParity [-PrenderSize=1024]}.
+ * <p>Usage: {@code ./gradlew bedCompare [-PrenderSize=1024]}.
  */
 @UtilityClass
 public final class TestBedParity {

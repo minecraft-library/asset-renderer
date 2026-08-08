@@ -42,7 +42,7 @@ import java.util.Optional;
  * its camera comes from the selected projection. Each cell fits its own canvas
  * ({@link EntityOptions.FitMode#OUTPUT_SIZE}) so the whole taxonomy reads at a glance.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:entityProjections [-PentityId=minecraft:zombie] [-PrenderSize=256]}.
+ * <p>Usage: {@code ./gradlew entityProjections [-PentityId=minecraft:zombie] [-PrenderSize=256]}.
  */
 @UtilityClass
 public final class TestEntityProjections {
@@ -74,7 +74,7 @@ public final class TestEntityProjections {
         PipelineRendererContext context = PipelineRendererContext.of(result);
         ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
-            System.err.println("entity_models.json / entity_geometry.json not present - run entityModelsJava first");
+            System.err.println("entity_models.json / entity_geometry.json not present - run entityModels first");
             return;
         }
         EntityRenderer renderer = new EntityRenderer(context, javaEntities);

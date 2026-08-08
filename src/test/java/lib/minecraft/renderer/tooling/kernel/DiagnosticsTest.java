@@ -58,7 +58,7 @@ class DiagnosticsTest {
     }
 
     @Test
-    @DisplayName("entries carry timestamps and record chronologically (doc-12 K4)")
+    @DisplayName("entries carry timestamps and record chronologically")
     void timestamps() {
         Diagnostics root = Diagnostics.root("flow", Diagnostics.Output.NONE, null);
         root.info("one");

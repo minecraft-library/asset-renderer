@@ -67,6 +67,10 @@ public final class PlayerFrameRenderer implements FrameRenderer<PlayerFrameRende
      * step is {@code 2^-24}, so the range sets in direct proportion how close two surfaces may be
      * before the reference records them at the same depth and leaves their order to whichever drew
      * last.
+     *
+     * <p>asset-renderer's {@code ModelEngine.VANILLA_DEPTH_RANGE} holds this same value, and so
+     * does every other {@link FrameRenderer} in this build. Changing it means editing all of them in
+     * one commit.
      */
     private static final float DEPTH_RANGE = 1000.0f;
 

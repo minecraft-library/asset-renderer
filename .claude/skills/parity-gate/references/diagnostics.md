@@ -97,6 +97,8 @@ half when it is a baby), and those are a different mechanism with a different na
 
 ## Where the standing corpus lives
 
-`CLAUDE.md` in the repo root carries the durable findings: which gate sees what, the depth contract,
-the armour shell, the face vocabulary, the iso pose. This file holds the *method* - how those were
-arrived at - and does not restate them.
+`CLAUDE.md` in the repo root carries the durable findings: the depth contract, the armour shell, the
+face vocabulary, the iso pose. Which artifacts see a given change is not one of them - that answer
+is `blindness.json`, which `parityPlan` resolves and `references/blindness.md` renders, and where a
+rule's claim did come from a section of `CLAUDE.md` the rule cites it by name. This file holds the
+*method* - how those were arrived at - and does not restate them.

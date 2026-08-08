@@ -94,10 +94,11 @@ public final class ParityStore {
      * Returns whether this artifact is one of the store's own two root files.
      *
      * <p>The index and the blindness roster sit at the store root under names that predate the id
-     * grammar, and they are the store's scaffolding rather than measured values: no producer writes
-     * one, no capture holds one and no promotion baselines one. A rule about baselines has to say
-     * so, because both files exist unconditionally and would otherwise read as promoted values that
-     * nobody promoted.
+     * grammar, and they are the store's scaffolding rather than measured values: no capture step
+     * covers one, no capture holds one and no promotion baselines one. What writes each is outside
+     * that loop - a promotion stamps the index in the same act as the baseline it writes, and the
+     * roster is hand-authored. A rule about baselines has to say so, because both files exist
+     * unconditionally and would otherwise read as promoted values that nobody promoted.
      *
      * @param artifactId the artifact id
      * @return whether it is a root file
@@ -155,10 +156,13 @@ public final class ParityStore {
     public static @NotNull JsonObject readFrom(@NotNull Path root, @NotNull String artifactId) {
         Path file = root.resolve(pathOf(artifactId));
         if (!Files.isRegularFile(file))
+            // The sequence rather than a summary of it, and built where every other message
+            // prescribing one builds it: a first baseline takes -Pbootstrap=true on two of its
+            // three commands and a committed tree under all of them, and each is a refusal rather
+            // than a convention.
             throw new ParityStoreException(
-                "Parity artifact '%s' is absent from the store at '%s' - capture it with "
-                    + "'./gradlew parityCapture -Partifacts=%s' and promote it",
-                artifactId, file, artifactId);
+                "Parity artifact '%s' is absent from the store at '%s' - give it a first baseline: %s",
+                artifactId, file, Pins.bootstrapCommand(artifactId));
 
         JsonObject envelope;
         try {

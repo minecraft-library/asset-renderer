@@ -128,8 +128,8 @@ public class ItemStackKit {
 
         // Text footprint in native (mcPixel) terms.
         int textWidthMcPx = TextKit.measureTextMcPixels(text, font);
-        int ascentMcPx = font.getFontMetrics().getAscentMcPixels();
-        int descentMcPx = font.getFontMetrics().getDescentMcPixels();
+        int ascentMcPx = font.metrics().getAscentMcPixels();
+        int descentMcPx = font.metrics().getDescentMcPixels();
 
         // Shadow is 1 mcPx down-right of the main pass, so the scratch needs 1 extra mcPx on
         // the right + bottom to catch it. The font renders 1 mcPx of left bearing for some

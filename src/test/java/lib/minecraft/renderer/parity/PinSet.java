@@ -100,15 +100,6 @@ public final class PinSet {
     }
 
     /**
-     * Returns whether the index says this pin-set has a last known value.
-     *
-     * @return whether it is baselined
-     */
-    public boolean baselined() {
-        return ParityStore.isBaselined(artifactId);
-    }
-
-    /**
      * Aborts the calling test when this pin-set has no baseline yet.
      */
     public void requireBaseline() {

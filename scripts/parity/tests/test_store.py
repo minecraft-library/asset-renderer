@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from parity import store
-from parity.norm import MissingInput, Refused
+from parity.norm import MissingInput, Refused, write_json
 
 
 class ArtifactPaths(unittest.TestCase):
@@ -33,7 +33,7 @@ class ArtifactPaths(unittest.TestCase):
 
 
 class WorkingRoot(unittest.TestCase):
-    """U6: a long-lived temp root is unrepresentable rather than discouraged."""
+    """A long-lived temp root is unrepresentable rather than discouraged."""
 
     def setUp(self):
         self.base = Path(tempfile.mkdtemp())
@@ -55,13 +55,13 @@ class WorkingRoot(unittest.TestCase):
                 store.resolve_working(candidate, self.base)
 
     def test_there_is_no_slot_api(self):
-        """R-g: the root is a path. A two-constant enum is still two slots."""
+        """The root is a path. A two-constant enum is still two slots."""
         self.assertFalse(hasattr(store, "Slot"))
         self.assertFalse(hasattr(store, "ParitySlot"))
 
 
 class ProductionIsReadOnly(unittest.TestCase):
-    """I-7: only parityPromote writes a baseline."""
+    """Only parityPromote writes a baseline."""
 
     def setUp(self):
         self.base = Path(tempfile.mkdtemp())
@@ -88,6 +88,27 @@ class ProductionIsReadOnly(unittest.TestCase):
         view = store.production(None, self.base)
         self.assertTrue(view.contains(view.root / "sweeps" / "entity.json"))
         self.assertFalse(view.contains(self.base / "cache" / "x.json"))
+
+
+class TheReservedDirectoryIsNotACapture(unittest.TestCase):
+    """What a bare ``promote-plan`` enumerates, which is a capture and not a run's reports."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        write_json(self.root / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "kind": "sweep-table", "rows": [],
+                    "provenance": {"asset_sha": "0" * 40}})
+        # Three of the run reports name an artifact of their own, so a filter on "does this envelope
+        # look like an artifact" would admit them. The one that matters is the plan: it carries no
+        # provenance, so admitting it makes a bare promote-plan see an uncaptured row and refuse an
+        # invocation that is entirely well formed.
+        write_json(self.root / store.RUN_DIR / "plan.json",
+                   {"artifact": "report.plan", "kind": "plan", "sees": []})
+        write_json(self.root / store.RUN_DIR / "compare.json",
+                   {"artifact": "report.movers", "kind": "compare", "results": []})
+
+    def test_only_the_capture_is_enumerated(self):
+        self.assertEqual(store.artifact_files(self.root), [("sweep.entity", True)])
 
 
 if __name__ == "__main__":

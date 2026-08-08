@@ -29,25 +29,43 @@ depends on whether the claiming rule and the selecting rule fire on the **same
 path** or on **different paths**, and one pair of rules answers both ways over
 one change set.
 
-`BlindnessMapTest.java` alone fires R14 (`select`) and R16 (`demote`, R14's
+`BlindnessMapTest.java` alone fires B37 (`select`) and B39 (`demote`, B37's
 list) on one path: the demote pass empties the union, SEES is empty, and every
 artifact on that list is reported blind with nothing recorded against it. That
-file beside `SelfCapture.java` fires R16 on the first path alone, the second
-path resolves to R14's list, and the union carries it - SEES holds all of it
-and each blind row reads "claimed blind, selected by R14". A `select`
+file beside `SelfCapture.java` fires B39 on the first path alone, the second
+path resolves to B37's list, and the union carries it - SEES holds all of it
+and each blind row reads "claimed blind, selected by B37". A `select`
 rule's claim resolves by the same arithmetic from the other side: on
 `BlockGeometryKit.java` B10 claims `sweep.block` blind while B19 selects it on
 that path, so it is in SEES and its row names B19; on `PlayerRenderer.java` B9
 claims `sweep.player` and no fired rule selects it, so it is absent from SEES and
 its row names nobody.
 
-## B2 - CIT and CTM rules are dark in both parityDump configurations
+## Judging a `manifest.portal` mover on the sub-tick path
+
+`portalRenderer` writes each animated subject twice - a plain strip on the tick
+lattice and an `_animated_smooth` strip at three sub-steps per tick - and
+`manifest.portal` hashes both. A sub-tick change that collapsed the smooth strip
+to duplicated frames would move those bytes and read as an ordinary mover, so the
+bytes having moved is not by itself the question.
+
+What separates a real intermediate frame from a duplicate: **frame `3n` of the
+smooth strip is the plain strip's frame `n` exactly, and the two frames between
+each pair differ from both of their neighbours.** Measured over all four animated
+subjects, 120 plain frames and 360 smooth: every one of the 120 lattice frames is
+identical on every channel, and the smallest margin by which an in-between frame
+differs from its nearer neighbour is 20 channel levels on the portal and 47 on the
+gateway. Re-measure with `./gradlew portalRenderer` and decode both strips; the
+run's own capture step refuses if the working root already holds a finished
+capture, which does not affect the strips it writes.
+
+## B2 - CIT and CTM rules are dark in both parityDump configurations, and the rule package's other parsers are not
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/**`, `src/main/java/lib/minecraft/renderer/pipeline/**/RuleScanner*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/Ctm*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/Cit*.java`
-- **sees** `digest.shipped-tables`
-- **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** 07/blindness#2; CLAUDE.md 'The pack filter'
+- **sees** `digest.shipped-tables`, `manifest.dump.packs`
+- **blind** `manifest.dump.vanilla`
+- **source** measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; CLAUDE.md 'The pack filter'
 
 No pack fixture ships a cit/ or ctm/ tree, so rules.json reports cit_rules: 0 and ctm_rules: 0 on both configs. An empty dump diff proves nothing about them; RuleScannerMergeTest and CtmParserTest are the gate and both run inside ./gradlew test.
 
@@ -59,19 +77,19 @@ No pack fixture ships a cit/ or ctm/ tree, so rules.json reports cit_rules: 0 an
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/**/BlockState*.java`, `src/main/java/lib/minecraft/renderer/pipeline/**/Multipart*.java`
 - **sees** `sweep.block`, `manifest.dump.vanilla`
 - **blind** -
-- **source** 07/blindness#3
+- **source** measured by perturbing MultipartWhenDeserializer.java: 2 of 2 declared sees moved
 
 The vanilla blockstate corpus contains no multipart apply whose when carries an OR list, so the branch is present, compiled and unreached. A dump diff over blocks.json cannot distinguish a correct OR implementation from a broken one.
 
 *Probe:* grep the shipped blockstate JSON for a when containing an OR key; zero hits means the branch is still unreached and the rule holds
 
-## B4 - A vanilla-only dump leaves the pack-rule code dark, so the packs configuration is not optional
+## B4 - A vanilla-only dump leaves the pack-rule code dark, so the packs configuration is not optional - but a loader in this package is not pack-rule code and reaches both dumps
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/**`
-- **sees** `manifest.dump.packs`, `sweep.block`, `sweep.item`, `digest.colormap-lut`
-- **blind** `manifest.dump.vanilla`
-- **source** 07/blindness#4
+- **sees** `manifest.dump.packs`, `sweep.block`, `sweep.item`, `digest.colormap-lut`, `manifest.dump.vanilla`
+- **blind** -
+- **source** measured by perturbing ColorMapLoader.java: 4 of 5 declared sees moved
 
 With no pack loaded the RuleSet is empty and most PackIdDeriver rungs never execute, so the vanilla dump section for rules is a fixed empty shape whatever the code does. Only the packs configuration puts a rule through the deriver at all. The colormap digests are here because ColorMapLoader sits under this same glob and resolves every LUT off the compiled stack, so what this code hands back IS what those three digests are taken over.
 
@@ -83,7 +101,7 @@ With no pack loaded the RuleSet is empty and most PackIdDeriver rungs never exec
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/index/**`, `src/main/java/lib/minecraft/renderer/pipeline/loader/**`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `sweep.block`, `sweep.item`, `sweep.entity`, `pin.corpus-count`
 - **blind** -
-- **source** 07/blindness#5
+- **source** measured by perturbing BlockDefaultsLoader.java: 3 of 6 declared sees moved
 
 BlockIndexBuilder, ItemIndexBuilder and EntityIndexBuilder run between the loaders and the renderer context, so a dump taken before them serialises inputs that are identical whatever the builders did with them. The dump is taken after, which is what makes an index change visible. The corpus counts ride this glob because BlockDefaultsLoader and GlintItemsLoader are both under it and both counts are the size of what they return.
 
@@ -95,7 +113,7 @@ BlockIndexBuilder, ItemIndexBuilder and EntityIndexBuilder run between the loade
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/index/*Builder.java`, `src/main/java/lib/minecraft/renderer/asset/pack/rule/*Resolver*.java`
 - **sees** `sweep.block`, `sweep.item`, `sweep.entity`, `manifest.dump.vanilla`, `manifest.dump.packs`
 - **blind** -
-- **source** 07/blindness#6
+- **source** measured by perturbing ItemIndexBuilder.java: 3 of 5 declared sees moved
 
 A resolver that answers the same for every shipped input and differently for an unshipped one leaves every dumped byte identical. The dump's probes.json exists for exactly this: it samples resolution outcomes rather than the table they were resolved from.
 
@@ -107,33 +125,33 @@ A resolver that answers the same for every shipped input and differently for an 
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/BlockStateLoader.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `sweep.block`
 - **blind** -
-- **source** 07/blindness#7
+- **source** measured by perturbing BlockStateLoader.java: 3 of 3 declared sees moved
 
 BlockStateLoader.LoadResult is consumed by BlockIndexBuilder and never serialised, so a rework that changes its shape while producing the same index moves no dumped byte. That is the intended altitude and the reason the block sum stays in SEES for this path.
 
 *Probe:* reshape LoadResult without changing what the builder emits and confirm all 30 dump files are byte-identical
 
-## B8 - sweep.player asserts nothing, so it can never fail
+## B8 - sweep.player asserts nothing, so it can never fail - which is not the same as its rows not moving
 
 - **mode** select
 - **triggers** `src/test/java/lib/minecraft/renderer/visual/TestPlayerParityVanilla.java`
-- **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`
-- **blind** `sweep.player`
-- **source** 07/blindness#8; CLAUDE.md 'Which gate sees what'
+- **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`, `sweep.player`
+- **blind** -
+- **source** measured by perturbing TestPlayerParityVanilla.java: 2 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
 TestPlayerParityVanilla is a main that alpha-crops AND rescales both sides to a common box before diffing, so it cannot detect a part-placement or fit change of any size. Its number is a LOOK gauge; the byte gates are the CRC pin, the contact-sheet manifest and the raw pair the sweep writes beside its rescaled one.
 
 *Probe:* read TestPlayerParityVanilla for an assert of any kind; there is none, and the id is kept separate from B9 so the citation survives
 
-## B9 - No artifact renders BUST, the cape, or any 2D player path
+## B9 - No artifact renders BUST, the cape, or any 2D player path, and the 3D player geometry under these paths reaches every player artifact including the sweep
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/PlayerRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/option/*Player*.java`, `src/main/java/lib/minecraft/renderer/face/HumanoidPart.java`
-- **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`
-- **blind** `sweep.player`
-- **source** 07/blindness#8,#9,#12; CLAUDE.md 'Which gate sees what'
+- **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`, `sweep.player`
+- **blind** -
+- **source** measured by perturbing HumanoidPart.java: 4 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
-The player byte pin is PlayerRasterizeFittedGoldenTest's two CRC32 constants, which cover FULL and SKULL with no cape and no armour. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.
+The player byte pin is the three CRC32 values PlayerRasterizeFittedGoldenTest reads out of the store and compares its own renders against: FULL and SKULL bare, and FULL again in a full iron set. None of the three wears a cape. Everything else on the player surface is covered only by the 104-file contact-sheet manifest, and the elytra and both cape views live in the toggles group alone.
 
 *Probe:* perturb the wing build's fit frame and re-render -Psheets=toggles: elytra_only_3_4_ and elytra_cape_3_4_ move and none of the other eleven cells do
 
@@ -143,9 +161,9 @@ The player byte pin is PlayerRasterizeFittedGoldenTest's two CRC32 constants, wh
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/kit/BlockGeometryKit.java`
 - **sees** `sweep.entity`, `sweep.armor`, `pin.player-crc`, `manifest.player-sheets`, `manifest.portal`, `manifest.player-raw`
 - **blind** `sweep.block`, `sweep.item`
-- **source** 07/blindness#10; CLAUDE.md 'Which gate sees what'
+- **source** measured by perturbing BlockGeometryKit.java: 4 of 6 declared sees moved, and 2 declared blind held; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
-The block and item parity sums are structurally blind to the box BUILDER, so a clean block sum is not evidence about buildBox. The gates that see it are the 14 armoured entity rows, the player CRC pin and the player contact sheets. The blindness is to that one method: the same file also holds the block element path and the single fan emitter, which BlockRenderer does reach, so B19 correctly keeps the block and item sums in SEES for a change anywhere else in it and this rule's blind list surfaces only when nothing else selects them.
+The block and item parity sums are structurally blind to the box BUILDER, so a clean block sum is not evidence about buildBox. The gates that see it are the 14 armoured entity rows, the armour sweep, the player CRC pin, the player contact sheets, the raw player and armour renders, the portal manifest - PortalRenderer builds its end-portal slab with buildBox and its gateway cube through unitCube, which is a buildBox call - and QuadFanTest, which calls buildBox directly and is the only one of them that runs in the fast suite. The blindness is to that one method: the same file also holds the block element path and the single fan emitter, which BlockRenderer does reach, so B19 correctly keeps the block and item sums in SEES for a change anywhere else in it and this rule's blind list surfaces only when nothing else selects them.
 
 *Probe:* ./gradlew playerRender -Psheets=core-matrix,toggles,armor-per-slot and hash either side with git stash push -- src between the two renders
 
@@ -155,7 +173,7 @@ The block and item parity sums are structurally blind to the box BUILDER, so a c
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`
 - **sees** -
 - **blind** `sweep.block`, `sweep.item`
-- **source** 07/blindness#11; CLAUDE.md depth section
+- **source** measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; CLAUDE.md 'Depth: the contract'
 
 Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.
 
@@ -167,7 +185,7 @@ Their coplanar pairs are exactly coincident, so both interpolation forms agree b
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `pin.player-crc`, `manifest.player-raw`
 - **blind** -
-- **source** 07/blindness#11; audit 09/G7; CLAUDE.md depth section
+- **source** measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; CLAUDE.md 'Depth: the contract'; audit 09/G7
 
 A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.
 
@@ -179,7 +197,7 @@ A coverage or texel-fetch change in the same file reaches blocks like anything e
 - **triggers** `src/test/java/lib/minecraft/renderer/visual/TestPlayerRender.java`
 - **sees** `manifest.player-sheets`
 - **blind** -
-- **source** 07/blindness#12; CLAUDE.md 'Which gate sees what'
+- **source** measured by perturbing TestPlayerRender.java: 1 of 1 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
 The ten offline sheet groups hash as 104 files and the elytra and both cape views appear in toggles alone, so a list naming the armour and trim groups but not toggles is blind to the wing build and to both cape views and reads as a clean pass. The capture is suppressed on -Psheets for exactly this reason.
 
@@ -191,7 +209,7 @@ The ten offline sheet groups hash as 104 files and the elytra and both cape view
 - **triggers** `src/main/java/lib/minecraft/renderer/tooling/**`
 - **sees** `manifest.tooling-tables`, `report.diagnostics-log`
 - **blind** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `pin.player-crc`, `pin.block-crc`, `pin.portal-crc`, `manifest.player-raw`
-- **source** 07/blindness#13,#14; CLAUDE.md 'The gate for a tooling change'
+- **source** measured by perturbing ToolingPotionColors.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'
 
 They all read the SHIPPED JSON that a generator refactor does not regenerate, so a green test plus five green sums says nothing either way. The only gate is re-running the flow and comparing emitted bytes and the diagnostics log.
 
@@ -203,7 +221,7 @@ They all read the SHIPPED JSON that a generator refactor does not regenerate, so
 - **triggers** `src/main/java/lib/minecraft/renderer/tooling/**`
 - **sees** `report.diagnostics-log`, `manifest.tooling-tables`
 - **blind** -
-- **source** 07/blindness#14; CLAUDE.md 'The gate for a tooling change'
+- **source** measured by perturbing GlintItemsWalk.java: 0 of 2 declared sees moved; CLAUDE.md 'Tooling'
 
 Each index build records its own INFO entries, so reordering two of them is invisible in every emitted table and plainly visible in the log. That is what caught an accidental reordering in the entityModels flow: the JSON matched byte for byte while one line moved from position 9 to 6.
 
@@ -215,9 +233,9 @@ Each index build records its own INFO entries, so reordering two of them is invi
 - **triggers** `src/main/java/lib/minecraft/renderer/AtlasRenderer.java`, `src/main/java/lib/minecraft/renderer/option/Atlas*.java`, `src/test/java/lib/minecraft/renderer/example/**`
 - **sees** -
 - **blind** -
-- **source** 07/blindness#15; CLAUDE.md 'atlas parallel non-deterministic'
+- **source** declares no store artifact, so its reason names the gate that answers instead; CLAUDE.md 'Gates'
 
-AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it. The entry point that drives it sits in the test tree and emits, so R10's claim that those sources only assert is false for it; this rule is where the same answer is written down rather than inferred from an excuse.
+AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it. The entry point that drives it sits in the test tree and emits, so B33's claim that those sources only assert is false for it; this rule is where the same answer is written down rather than inferred from an excuse.
 
 *Probe:* run generateAtlas twice with --rerun-tasks and hash build/atlas/atlas.png; the two differ
 
@@ -227,7 +245,7 @@ AtlasRenderer dispatches its tiles on parallelStream by design, so two runs plac
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/PackAcquisition.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **blind** -
-- **source** 07/blindness#16
+- **source** measured by perturbing PackAcquisition.java: 2 of 2 declared sees moved
 
 PackAcquisition.namespaces builds a per-run-salted set, so a findFirst over it flaps between runs. The dump emits a count always and a sample only when the count is at most one, which is the only shape that is both informative and reproducible.
 
@@ -239,19 +257,19 @@ PackAcquisition.namespaces builds a per-run-salted set, so a findFirst over it f
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer*.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `sweep.item`
 - **blind** -
-- **source** 07/blindness#17
+- **source** measured by perturbing TextureSynthesizer.java: 0 of 3 declared sees moved
 
 Dumping the registry would be a second copy of a production rule, and a dump that restates the rule it is checking cannot catch that rule being wrong. The sources are inputs, so they move only when something upstream does.
 
 *Probe:* read synthesis.json and confirm every key is an input texture id rather than a synthesized one
 
-## B18 - CatharsisConfig is not dumped at all
+## B18 - CatharsisConfig is not itself dumped, and a Catharsis condition still reaches the packs dump through what it selects
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/**Catharsis*.java`, `src/main/java/lib/minecraft/renderer/asset/pack/cats/**`
-- **sees** `sweep.block`, `sweep.item`
-- **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** 07/blindness#18
+- **sees** `sweep.block`, `sweep.item`, `manifest.dump.packs`
+- **blind** `manifest.dump.vanilla`
+- **source** measured by perturbing CatharsisCondition.java: 1 of 3 declared sees moved, and 1 declared blind held
 
 The fabric:overlays plus catharsis:pack half of pack resolution has no dump section, so an identical dump is silent about it. What sees a change there is a render against a fixture that carries an overlay.
 
@@ -263,7 +281,7 @@ The fabric:overlays plus catharsis:pack half of pack resolution has no dump sect
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/**`, `src/main/java/lib/minecraft/renderer/*Renderer.java`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `manifest.fluid`, `manifest.portal`, `manifest.player-sheets`, `manifest.player-raw`, `manifest.visual`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** 07/blindness#1,#19
+- **source** measured by perturbing ModelEngine.java: 12 of 14 declared sees moved, and 2 declared blind held
 
 An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders. Everything this glob reaches is a render, which is why the three render CRC pins are on the list beside the manifests they were taken over, and why the glint sweep and manifest.visual are too: the glint is an engine-composited overlay, and manifest.visual hashes what the visual mains draw.
 
@@ -275,7 +293,7 @@ An identical dump proves the render INPUTS are identical, which implies identica
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/**`, `src/main/java/lib/minecraft/renderer/tooling/kernel/Diagnostics.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `report.diagnostics-log`
 - **blind** -
-- **source** 07/blindness#20; CLAUDE.md 'The gate for a tooling change'
+- **source** measured by perturbing BlockTagLoader.java: 2 of 3 declared sees moved; CLAUDE.md 'Tooling'
 
 A read layer that lost its child(name) scoping would move no dumped byte, because the scope tree is a property of how the diagnostics were recorded rather than of the data that was read.
 
@@ -287,7 +305,7 @@ A read layer that lost its child(name) scoping would move no dumped byte, becaus
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java`
 - **sees** `sweep.block`, `sweep.entity`
 - **blind** `sweep.item`
-- **source** CLAUDE.md 'The item sum is structurally blind to BlockIndexBuilder'
+- **source** measured by perturbing BlockIndexBuilder.java: 2 of 2 declared sees moved, and 1 declared blind held
 
 ItemIndexBuilder.load takes its beEntries from BlockModelLoader directly, a sibling of the block index rather than its output, so no product of BlockIndexBuilder is an input. And ItemRenderer's only findBlock sits inside its GuiIcon sub-renderer, which the item sweep does not render.
 
@@ -299,7 +317,7 @@ ItemIndexBuilder.load takes its beEntries from BlockModelLoader directly, a sibl
 - **triggers** `src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java`
 - **sees** `sweep.block`, `sweep.entity`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** CLAUDE.md 'PipelineParityDump is the right gate for an index or decode change'
+- **source** measured by perturbing BlockIndexBuilder.java: 1 of 2 declared sees moved, and 2 declared blind held; the dump carrying no key for either field is stated here and nowhere else
 
 blocks.json carries every block row's id, digest, textures, variants, tags, tint and source and no modelIcon, so a change flipping it on hundreds of blocks leaves all 30 dump files identical and its only gate is the block sum. noPosition's only reader is EntityRenderer's carried-block path, so its only gate is enderman~carried=grass_block in the entity sweep.
 
@@ -311,225 +329,225 @@ blocks.json carries every block row's id, digest, textures, variants, tags, tint
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/kit/TrimKit.java`
 - **sees** `manifest.player-sheets`, `pin.armor-span`
 - **blind** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.player-raw`
-- **source** CLAUDE.md 'No parity sweep reaches the paletted trim permutation'
+- **source** measured by perturbing TrimKit.java: 1 of 2 declared sees moved, and 7 declared blind held
 
 A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the item sweep renders untrimmed icons and its 18 trim-named rows are flat smithing-template sprites that permute nothing, and the armour sweep's seven subjects carry no trim. The gates are ArmorKitCitCompositeTest and the trims sheet group's 11 cells.
 
 *Probe:* throw from TrimKit.permuteFrom and run all five sweeps; none of them fires it
 
-## R1 - The option surface reaches every renderer that takes options, and nothing else
+## B24 - The option surface reaches every renderer that takes options, and nothing else
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/option/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `manifest.player-sheets`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`, `manifest.visual`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** reach baseline; coverage gap measured at P9 (109 of 356 files uncovered by the 23)
+- **source** measured by perturbing OutputOptions.java: 11 of 14 declared sees moved, and 2 declared blind held
 
 Every renderer entry point takes a RenderOptions, so a default or a resolution rule here reaches whatever that renderer draws. That is the same population B19 reaches and the list is the same: the three render CRC pins beside their manifests, the glint sweep, and the cache/visual producers. The dump is blind to all of it for B19's reason: it serialises loaded pipeline data and never constructs an options record.
 
 *Probe:* change a default on an option record and confirm the five sweeps move while all 30 dump files are byte-identical
 
-## R2 - The asset DTO layer is what every renderer reads and what the dump serialises, so it reaches both
+## B25 - The asset DTO layer is what every renderer reads and what the dump serialises, so it reaches both
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/asset/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `digest.colormap-lut`, `manifest.dump.vanilla`, `manifest.dump.packs`, `manifest.player-raw`, `manifest.visual`
 - **blind** -
-- **source** reach baseline; coverage gap measured at P9
+- **source** measured by perturbing ModelElement.java: 4 of 10 declared sees moved
 
 asset.** holds the records the pipeline builds and the renderers consume, and the dump's 14 sections are a projection of exactly those records. A change here is visible on both sides, which is why it is the one package family with no blindness to claim. ColorMap is one of those records and its pixel buffer is the exact form the colormap digests are taken over, so they move with it.
 
 *Probe:* add a field to a dumped record and confirm both the dump and a sweep move
 
-## R3 - The tensor math is under every projected vertex, so it reaches every render and is pinned by two golden float vectors
+## B26 - The tensor math is under every projected vertex, so it reaches every render and is pinned by two golden float vectors
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/tensor/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.player-crc`, `pin.vanilla-iso-pose`, `pin.kit-corners`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`, `manifest.visual`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** reach baseline; coverage gap measured at P9
+- **source** measured by perturbing Matrix4f.java: 10 of 15 declared sees moved, and 2 declared blind held
 
 Matrix4f and Vector3f are on the path of every vertex the engine projects, and the two golden pins hold 16 and 24 exact floats through that math - so an arithmetic change fails them before any sum moves. Being under every projected vertex is what puts the other three render CRC pins, the glint sweep and the cache/visual producers on the list as well. The dump never projects a vertex.
 
 *Probe:* perturb a Matrix4f multiply and confirm pin.vanilla-iso-pose fails while the dump is byte-identical
 
-## R4 - The face vocabulary decides winding, UV pairing and per-face shade, so it reaches every 3D render
+## B27 - The face vocabulary decides winding, UV pairing and per-face shade, so it reaches every 3D render
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/face/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `manifest.player-sheets`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`, `manifest.visual`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** reach baseline; coverage gap measured at P9
+- **source** measured by perturbing CornerPhase.java: 11 of 14 declared sees moved, and 2 declared blind held
 
 CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. Every 3D render goes through them, which is why the three render CRC pins, the glint sweep and the cache/visual producers are on the list beside the sums. FacePhaseTest and HumanoidPartCropTest pin the tables themselves.
 
 *Probe:* flip one CornerPhase index array and confirm FacePhaseTest fails while all 30 dump files are byte-identical
 
-## R5 - The exception types carry no behaviour a parity artifact can observe
+## B28 - The exception types carry no behaviour a parity artifact can observe
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/exception/**`
 - **sees** -
 - **blind** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.player-raw`
-- **source** reach baseline; coverage gap measured at P9
+- **source** measured by perturbing RendererException.java: 0 of 0 declared sees moved, and 7 declared blind held
 
 These are message and constructor shapes on throwables. Nothing renders differently because a detail message changed, and no stored artifact records a message - so the gate is ./gradlew test compiling and passing, which is not an artifact this store holds. A rewiring of the hierarchy that changed which catch block runs would show up as a sweep failing outright rather than as a moved row.
 
 *Probe:* change a detail message and confirm no sweep row moves; change a supertype and confirm the sweep fails to run at all
 
-## R6 - A harness render change rewrites the ground truth every sweep diffs against
+## B29 - A harness render change rewrites the ground truth every sweep diffs against
 
 - **mode** select
 - **triggers** `harness/src/**`, `harness/build.gradle`, `harness/settings.gradle`, `harness/gradle.properties`, `harness/gradle/**`, `harness/gradlew`, `harness/gradlew.bat`, `harness/run-profile/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.references`, `manifest.player-raw`
 - **blind** -
-- **source** reach baseline; CLAUDE.md 'renderVanillaReferences is not a full sweep'
+- **source** measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'
 
-The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix. The triggers are the harness's SOURCE and the wiring that boots it, enumerated rather than written as one glob over the tree: the claim is about a render, and a markdown file under harness/ cannot move a reference byte while a rule matching it costs a whole-client re-render.
+The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix. The triggers are the harness's SOURCE and the wiring that boots it, enumerated rather than written as one glob over the tree: the claim is about a render, and a markdown file under harness/ cannot move a reference byte while a rule matching it costs a whole-client re-render. The root build compiles none of those sources itself - the harness is its own Gradle build with its own wrapper - so ./gradlew test passes over a harness that does not compile and the next thing to notice is a client boot. harnessClasses shells to that wrapper and costs seconds, and ./gradlew check depends on it.
 
 *Probe:* re-render with the change stashed: a reference that moves was stale, and one that does not was not reached
 
-## R7 - A toolkit change alters how every artifact is COMPUTED and how none of them is produced
+## B30 - A toolkit change alters how every artifact is COMPUTED and how none of them is produced
 
 - **mode** select
 - **triggers** `scripts/parity/**`
 - **sees** -
 - **blind** -
-- **source** reach baseline; the toolkit is the one producer of every stored byte
+- **source** declares no store artifact, so its reason names the gate that answers instead; the toolkit is the one producer of every stored byte
 
-The toolkit reads a producer's output and writes the canonical form; it renders nothing, so no artifact's producer bytes move. What can move is the captured form itself, and the gate for that is paritySelfTest, which every parity task depends on. A capture taken across a toolkit change is compared with the OLD store, so a form change surfaces as movers on every artifact at once, which is the signature to look for. One file under this glob is more than a reader: the member map in manifest.py DECLARES the population of the two manifests that share cache/visual rather than measuring it, and R18 names those artifacts for that file. This list stays empty because the rest of the toolkit does only what the claim says.
+The toolkit reads a producer's output and writes the canonical form; it renders nothing, so no artifact's producer bytes move. What can move is the captured form itself, and the gate for that is paritySelfTest, which every parity task depends on. A capture taken across a toolkit change is compared with the OLD store, so a form change surfaces as movers on every artifact at once, which is the signature to look for. One file under this glob is more than a reader: the member map in manifest.py DECLARES the population of the two manifests that share cache/visual rather than measuring it, and B41 names those artifacts for that file. This list stays empty because the rest of the toolkit does only what the claim says.
 
 *Probe:* run the selftest, then capture one artifact either side of the change and diff the two canonical files
 
-## R8 - The build wiring decides what runs, and renders nothing itself
+## B31 - The build wiring decides what runs, and renders nothing itself
 
 - **mode** select
 - **triggers** `build.gradle.kts`, `settings.gradle.kts`, `gradle/**`, `gradle.properties`, `gradlew`, `gradlew.bat`, `src/jmh/**`
 - **sees** -
 - **blind** -
-- **source** reach baseline; P5 and P6 gated exactly this way
+- **source** measured by perturbing build.gradle.kts: 0 of 0 declared sees moved
 
-A task registration, a finalizer edge or a property read moves no rendered byte: what it changes is which producer runs and what argv it runs with. The gate is running the tasks and reading their argv, which is why the Gradle phases of this effort gate on task lists and resolved command lines rather than on a sum. Two declarations in the build file escape that: visualSweepProducers and the player-raw aggregator's dependencies decide which producers run and therefore what the two cache/visual manifests hold, so R18 names those artifacts for the build file. This list stays empty because every other glob here is wiring around producers rather than a statement of what one of them covers.
+A task registration, a finalizer edge or a property read moves no rendered byte: what it changes is which producer runs and what argv it runs with. The gate is running the tasks and reading their argv, which is why the Gradle phases of this effort gate on task lists and resolved command lines rather than on a sum. Two declarations in the build file escape that: visualSweepProducers and the player-raw aggregator's dependencies decide which producers run and therefore what the two cache/visual manifests hold, so B41 names those artifacts for the build file. This list stays empty because every other glob here is wiring around producers rather than a statement of what one of them covers.
 
 *Probe:* read back the resolved commandLine of every task the change touches and compare it to the one it replaced
 
-## R9 - The visual mains are the producers, so a change to one changes what its artifact holds
+## B32 - The visual mains are the producers, so a change to one changes what its artifact holds
 
 - **mode** select
 - **triggers** `src/test/java/lib/minecraft/renderer/visual/**`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.visual`, `manifest.player-sheets`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** reach baseline; P13's writer reshape is exactly this path
+- **source** measured by perturbing ParityMetrics.java: 6 of 11 declared sees moved, and 2 declared blind held
 
 Each sweep and render main is the entry point its Gradle task runs, so its own code decides the rows a table carries and the files a manifest hashes. A change to how a sweep MEASURES moves every row of its table without a single rendered pixel moving, which is why a writer reshape is registered as its own parity-risk cluster rather than folded into a render change.
 
 *Probe:* re-run the sweep and diff the captured table: a measurement change moves every row and a render change moves some
 
-## R10 - The rest of the test suite asserts rather than emits, so no stored artifact sees it
+## B33 - The rest of the test suite asserts rather than emits, so no stored artifact sees it
 
 - **mode** select
 - **triggers** `src/test/java/**`, `src/test/resources/**`
 - **sees** -
 - **blind** -
-- **source** reach baseline
+- **source** declares no store artifact, so its reason names the gate that answers instead
 
-A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can. The exceptions are the sources that DO emit, and each has a rule of its own: R9 for the visual mains, R14 for the write path behind the dump sections and every self-captured file, R15 for the tests that compute the value each self-captured one carries, and B15 for the atlas entry point, whose output is unhashable by construction.
+A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can. The exceptions are the sources that DO emit, and each has a rule of its own: B32 for the visual mains, B37 for the write path behind the dump sections and every self-captured file, B38 for the tests that compute the value each self-captured one carries, and B15 for the atlas entry point, whose output is unhashable by construction.
 
 *Probe:* run ./gradlew test, then capture any artifact and confirm it is byte-identical
 
-## R14 - The dump sections and every self-captured file are written by these two packages, so a change to one rewrites the FORM of everything below it
+## B37 - The dump sections and every self-captured file are written by these two packages, so a change to one rewrites the FORM of everything below it
 
 - **mode** select
 - **triggers** `src/test/java/lib/minecraft/renderer/parity/**`, `src/test/java/lib/minecraft/renderer/pipeline/dump/**`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
 - **blind** -
-- **source** reach baseline; the emitters R10's glob covers and its claim excludes
+- **source** measured by perturbing SelfCapture.java: 5 of 11 declared sees moved; the emitters B33's glob covers and its claim excludes
 
-R10's claim - that the test tree asserts rather than emits - is false for these two packages. PipelineParityDump is the only writer of the dump section files both dump manifests hash, and SelfCapture is the only writer of the file every digest set and every pin is stored as. What they own is the emitted form rather than the measurement: the envelope, the canonical JSON and the path. The VALUE inside each file is computed by the test that hands it over, and R15 covers that half. The globs take the two packages whole rather than naming the writers one by one, so a new file joining the write path is reached without anybody remembering to list it. R16 is the demotion that pays for that polarity, and it names its readers ONE FILE AT A TIME rather than carving a shape out of these globs: a reader it does not name answers with this whole list, which costs a run, where a writer it wrongly named would cost an unnoticed regression. Several files here are readers R16 does not name, and that is the cheap direction working as intended rather than an omission to close.
+B33's claim - that the test tree asserts rather than emits - is false for these two packages. PipelineParityDump is the only writer of the dump section files both dump manifests hash, and SelfCapture is the only writer of the file every digest set and every pin is stored as. What they own is the emitted form rather than the measurement: the envelope, the canonical JSON and the path. The VALUE inside each file is computed by the test that hands it over, and B38 covers that half. The globs take the two packages whole rather than naming the writers one by one, so a new file joining the write path is reached without anybody remembering to list it. B39 is the demotion that pays for that polarity, and it names its readers ONE FILE AT A TIME rather than carving a shape out of these globs: a reader it does not name answers with this whole list, which costs a run, where a writer it wrongly named would cost an unnoticed regression. Several files here are readers B39 does not name, and that is the cheap direction working as intended rather than an omission to close.
 
 *Probe:* perturb the envelope SelfCapture writes and re-run the suite that feeds it; every pin and digest below moves while no renderer and no sweep does
 
-## R15 - Each of these tests declares a self-captured artifact and computes the value stored under it, so its own edit is what moves that value
+## B38 - Each of these tests declares a self-captured artifact and computes the value stored under it, so its own edit is what moves that value
 
 - **mode** select
 - **triggers** `src/test/java/lib/minecraft/renderer/ModelEngineParallelismTest.java`, `src/test/java/lib/minecraft/renderer/FluidRendererParallelismTest.java`, `src/test/java/lib/minecraft/renderer/PortalRendererParallelismTest.java`, `src/test/java/lib/minecraft/renderer/PlayerRasterizeFittedGoldenTest.java`, `src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/util/ResourceShaTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/PipelineIntegrationTest.java`
 - **sees** `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
 - **blind** -
-- **source** reach baseline; the ARTIFACT declarations R14's two globs do not contain
+- **source** measured by perturbing FluidRendererParallelismTest.java: 1 of 9 declared sees moved; the ARTIFACT declarations B37's two globs do not contain
 
-R14 covers the mechanism that writes a self-captured file; none of the values in one is decided there. Each artifact below is named by an ARTIFACT constant in one of these tests, which builds the payload and hands it to SelfCapture, directly or through PinSet - the four CRC pins off a render the class configures, pin.corpus-count and pin.kit-corners and pin.vanilla-iso-pose off what it measures, and both digest sets off the collection it walks. Under R10 alone every one of them resolved to reaching nothing, which is the same false answer R14 was written for one level up. The sees list is the union across the eight, because a rule answers per glob set rather than per file: an edit to one of them plans the others too, and over-selecting costs a run where under-selecting costs an unnoticed regression.
+B37 covers the mechanism that writes a self-captured file; none of the values in one is decided there. Each artifact below is named by an ARTIFACT constant in one of these tests, which builds the payload and hands it to SelfCapture, directly or through PinSet - the four CRC pins off a render the class configures, pin.corpus-count and pin.kit-corners and pin.vanilla-iso-pose off what it measures, and both digest sets off the collection it walks. Under B33 alone every one of them resolved to reaching nothing, which is the same false answer B37 was written for one level up. The sees list is the union across the eight, because a rule answers per glob set rather than per file: an edit to one of them plans the others too, and over-selecting costs a run where under-selecting costs an unnoticed regression.
 
 *Probe:* change what one of them measures - a render option, a subject list, the table set a digest is taken over - and re-run it; the artifact it declares moves and no other does
 
-## R16 - These are the parity package's own suites and the two renderers of its markdown views; none of them writes a byte any artifact digests
+## B39 - These are the parity package's own suites and the two renderers of its markdown views; none of them writes a byte any artifact digests
 
 - **mode** demote
 - **triggers** `src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityIndexTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityReferences.java`, `src/test/java/lib/minecraft/renderer/parity/ParityReferencesTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityViews.java`, `src/test/java/lib/minecraft/renderer/parity/ParityViewsTest.java`
 - **sees** -
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
-- **source** reach baseline; the readers inside R14's write-path packages
+- **source** measured by perturbing ParityViews.java: 0 of 0 declared sees moved, and 11 declared blind held; the readers inside B37's write-path packages
 
-Four suites that read the store to assert against it, and the two renderers behind them, whose output is markdown - the skill's reference files and the store's own README, neither of which any artifact digests. Listed here rather than cut out of R14, so a file ADDED to that package keeps answering with R14's whole list until somebody decides otherwise. A demotion answers for the paths that fired it and for no others, which is what makes this list safe to widen: a commit carrying one of these readers beside a real writer still plans the writer's bundle, and that pairing is the ordinary shape of work in this package rather than an edge case.
+Four suites that read the store to assert against it, and the two renderers behind them, whose output is markdown - the skill's reference files and the store's own README, neither of which any artifact digests. Listed here rather than cut out of B37, so a file ADDED to that package keeps answering with B37's whole list until somebody decides otherwise. A demotion answers for the paths that fired it and for no others, which is what makes this list safe to widen: a commit carrying one of these readers beside a real writer still plans the writer's bundle, and that pairing is the ordinary shape of work in this package rather than an edge case.
 
-*Probe:* edit any one of them and capture any artifact R14 names; every stored byte is identical, and the only thing that fails is the suite that gates the file
+*Probe:* edit any one of them and capture any artifact B37 names; every stored byte is identical, and the only thing that fails is the suite that gates the file
 
-## R11 - The parity store's own files are the baseline a comparison reads, never something a run produces
+## B34 - The parity store's own files are the baseline a comparison reads, never something a run produces
 
 - **mode** select
 - **triggers** `src/test/resources/lib/minecraft/renderer/parity/**`
 - **sees** -
 - **blind** -
-- **source** reach baseline; the store is the oracle rather than an output
+- **source** declares no store artifact, so its reason names the gate that answers instead; the store is the oracle rather than an output
 
-Editing a stored artifact by hand does not change what a producer emits; it changes what the emitted bytes are compared against, which is the one thing a capture cannot detect. index.json carries each file's digest over its normalized bytes for exactly this, so a hand-edit surfaces as the compare reporting the file as edited rather than as a mover.
+Editing a stored artifact by hand does not change what a producer emits; it changes what the emitted bytes are compared against, which is the one thing a capture cannot detect. index.json carries each file's digest over its normalized bytes for exactly this, and the reader is ./gradlew test - ParityIndexTest re-derives every row's digest from the file it names. The compare is NOT that reader: it opens the base payload directly and never index.json, so a hand-edited baseline reaches it as agreement about the edited value.
 
-*Probe:* compare after a hand-edit: the digest in index.json no longer matches the file
+*Probe:* hand-edit a promoted artifact and run ./gradlew test: ParityIndexTest names the row whose file no longer hashes to its recorded digest. The compare says nothing, which is why the check lives in the suite
 
-## R12 - The ten shipped tables are pipeline INPUT, so a change to one reaches every render that loads it
+## B35 - The ten shipped tables are pipeline INPUT, so a change to one reaches every render that loads it
 
 - **mode** select
 - **triggers** `src/main/resources/lib/minecraft/renderer/*.json`
 - **sees** `manifest.tooling-tables`, `digest.shipped-tables`, `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `pin.corpus-count`, `manifest.player-raw`, `manifest.dump.vanilla`, `manifest.dump.packs`
 - **blind** -
-- **source** P15; the gap R1 refused on - no rule covered the files two artifacts are defined over
+- **source** measured by perturbing block_tints.json: 3 of 11 declared sees moved; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over
 
 src/main/resources/lib/minecraft/renderer/ holds exactly the ten ASM-derived tables the tooling flows emit and the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files and digest.shipped-tables digests the same ten, so both see any edit directly; the sweeps and the dumps see it through the index the loaders build. Two of the ten are counted as well as read - block_defaults.json and glint_items.json - and pin.corpus-count holds exactly those two sizes, so adding or dropping a row moves it directly rather than through an index. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything.
 
 *Probe:* edit one value in block_tints.json and re-run the block sweep and parityDump; both move, and manifest.tooling-tables moves whether or not a generator ran
 
-## R13 - The GsonContributor service registration configures every pipeline decode, so nothing that loads is blind to it
+## B36 - The GsonContributor service registration configures every pipeline decode, so nothing that loads is blind to it
 
 - **mode** select
 - **triggers** `src/main/resources/META-INF/services/**`
 - **sees** `digest.shipped-tables`, `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `sweep.glint`, `manifest.player-raw`, `manifest.dump.vanilla`, `manifest.dump.packs`
 - **blind** -
-- **source** P15; the second uncovered path under src/main/resources/
+- **source** measured by perturbing dev.simplified.gson.GsonContributor: 0 of 9 declared sees moved, 2 not measurable in that run; the second uncovered path under src/main/resources/
 
-META-INF/services/dev.simplified.gson.GsonContributor is how PipelineGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on R12.
+META-INF/services/dev.simplified.gson.GsonContributor is how PipelineGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on B35.
 
 *Probe:* delete the registration and run any sweep; the pipeline fails to decode outright rather than decoding differently, which is what makes this a load-time reach rather than a per-value one
 
-## R17 - The root package's documentation declares nothing, so it is read by a reader and by no producer
+## B40 - The root package's documentation declares nothing, so it is read by a reader and by no producer
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/package-info.java`
 - **sees** -
 - **blind** -
-- **source** reach baseline; the one match the blanket package-info glob had
+- **source** measured by perturbing package-info.java: 0 of 0 declared sees moved; the one match the blanket package-info glob had
 
 This is the one package-info in the tree that sits in no package another rule already claims - the library root, whose own types are claimed by B19's renderer glob and whose sub-packages are claimed one by one. A rule rather than a no_reach glob because a blanket **/package-info.java entry was defeated on every other match, a rule having claimed the file first, so it read as a javadoc exemption while being one nowhere; and a javadoc edit inside a ruled package still plans that package's bundle, which is the rule-wins precedence working. This file has no such package below it to plan for, and what it reaches is nothing.
 
 *Probe:* open the file: it carries a package declaration and javadoc and no member, and no artifact digests a javadoc
 
-## R18 - The two manifests a member list separates are DECLARED in these two files, so editing either adds or drops rows with no producer having run
+## B41 - The two manifests a member list separates are DECLARED in these two files, so editing either adds or drops rows with no producer having run
 
 - **mode** select
 - **triggers** `build.gradle.kts`, `scripts/parity/manifest.py`
 - **sees** `manifest.visual`, `manifest.player-raw`
 - **blind** -
-- **source** correction to R7 and R8's claim that a toolkit or build-script change reaches nothing - these two files hold the membership the two cache/visual manifests are defined over, and the build file holds their producers' render defaults
+- **source** measured by perturbing manifest.py: 2 of 2 declared sees moved; correction to B30 and B31's claim that a toolkit or build-script change reaches nothing - these two files hold the membership the two cache/visual manifests are defined over, and the build file holds their producers' render defaults
 
-manifest.visual and manifest.player-raw both take cache/visual as their source and are told apart by a member list rather than by a directory of their own. A build-script edit reaches them because that member list is typed in these two files: the toolkit's member map holds the sub-directory names for both artifacts, and the build file holds the registrations that decide which producers write those directories - visualSweepProducers for one, the player-raw aggregator's dependencies for the other. A producer names its own output directory a third time in its Java source, so a member those three disagree about is a directory nothing writes. Adding a name to any of those lists admits every file under that directory to the artifact and dropping one takes them away, so the edit REDEFINES the artifact rather than measuring it again: the rows move with no producer having run, the promoted baseline goes on describing the membership it was promoted over, and the next compare reports added or dropped rows rather than movers - a RED a promotion clears and a re-render does not. Membership is not the whole of what these two files reach. The build file also carries each producer's render defaults - renderSize for projectionSmoke, blockRender3D, entityProjections, entityRender3D, itemDayCycle and itemRender2D, with ssaa, supersample, antiAlias and dayFrames beside it - so editing one of those literals hands the producer a different argv and re-renders that member's sub-tree the next time it runs, which moves stored rows while adding and dropping no member. Six of manifest.visual's eight members read a default typed in the build file, which is why both artifacts are PLANNED for an edit to either file rather than exempted from the edits that look like wiring: the plan states what the edit can reach and the capture is what says whether anything moved. The trigger takes each file whole because neither a Kotlin script nor a Python module offers a glob any sub-file address, and a narrower trigger reads correct until the day somebody edits a member list or a render default in the same commit as the wiring it was written to exclude. R7 and R8 keep their empty sees lists and the union does the rest, which is what keeps a wrapper bump or a JMH edit from planning a render.
+manifest.visual and manifest.player-raw both take cache/visual as their source and are told apart by a member list rather than by a directory of their own. A build-script edit reaches them because that member list is typed in these two files: the toolkit's member map holds the sub-directory names for both artifacts, and the build file holds the registrations that decide which producers write those directories - visualSweepProducers for one, the player-raw aggregator's dependencies for the other. A producer names its own output directory a third time in its Java source, so a member those three disagree about is a directory nothing writes. Adding a name to any of those lists admits every file under that directory to the artifact and dropping one takes them away, so the edit REDEFINES the artifact rather than measuring it again: the rows move with no producer having run, the promoted baseline goes on describing the membership it was promoted over, and the next compare reports added or dropped rows rather than movers - a RED a promotion clears and a re-render does not. Membership is not the whole of what these two files reach. The build file also carries each producer's render defaults - renderSize for projectionSmoke, blockRender3D, entityProjections, entityRender3D, itemDayCycle and itemRender2D, with ssaa, supersample, antiAlias and dayFrames beside it - so editing one of those literals hands the producer a different argv and re-renders that member's sub-tree the next time it runs, which moves stored rows while adding and dropping no member. Six of manifest.visual's eight members read a default typed in the build file, which is why both artifacts are PLANNED for an edit to either file rather than exempted from the edits that look like wiring: the plan states what the edit can reach and the capture is what says whether anything moved. The trigger takes each file whole because neither a Kotlin script nor a Python module offers a glob any sub-file address, and a narrower trigger reads correct until the day somebody edits a member list or a render default in the same commit as the wiring it was written to exclude. B30 and B31 keep their empty sees lists and the union does the rest, which is what keeps a wrapper bump or a JMH edit from planning a render.
 
 *Probe:* add a directory name to one of the member lists and build that manifest either side: the file count moves with nothing having been rendered, and ParityIndexTest fails outright on the two visual lists disagreeing. For the other half, edit renderSize's default beside one producer and re-run it: the member count holds and its sub-tree's images move
 
@@ -542,7 +560,7 @@ only for paths no rule claims.
 
 ### `**/*.md`
 
-Markdown is documentation and no producer reads one, so an edit moves no captured byte. Two of the files this glob speaks for are generated - the skill's artifacts.md and blindness.md - and ParityReferencesTest asserts they regenerate byte-identically, which is a gate in the fast suite rather than a stored artifact. The store's own README is generated too and does not reach this glob at all: R11 claims the directory it sits in, which is the rule-wins precedence doing its job.
+Markdown is documentation and no producer reads one, so an edit moves no captured byte. Two of the files this glob speaks for are generated - the skill's artifacts.md and blindness.md - and ParityReferencesTest asserts they regenerate byte-identically, which is a gate in the fast suite rather than a stored artifact. The store's own README is generated too and does not reach this glob at all: B34 claims the directory it sits in, which is the rule-wins precedence doing its job.
 
 *Probe:* edit a word in any tracked markdown file and capture any artifact; every stored byte is identical. The two generated references are the one place an edit is caught, and ./gradlew test is what catches them
 
@@ -578,6 +596,6 @@ A standalone authoring script that regenerates one javadoc illustration. It is n
 
 ### `harness/COMMIT-MAP.tsv`
 
-The old-to-new sha map recorded when the harness was imported as a subtree. It is a provenance record that nothing at build or render time opens, so it sits under harness/ without being part of what R6 speaks about.
+The old-to-new sha map recorded when the harness was imported as a subtree. It is a provenance record that nothing at build or render time opens, so it sits under harness/ without being part of what B29 speaks about.
 
 *Probe:* grep the harness build for any read of it; there is none, and the client renders identically with the file deleted

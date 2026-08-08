@@ -9,8 +9,11 @@ Gate questions go through the `parity-gate` skill, `.claude/skills/parity-gate/S
 ## Build
 
 - JDK 21 with the **Vector API incubator** (`--add-modules=jdk.incubator.vector`), wired into
-  JavaCompile, Test, JavaExec and JMH in `build.gradle.kts`. Missing it anywhere is a class-not-found
-  at load, never a silent fallback.
+  JavaCompile, Test, JavaExec, JMH and Javadoc in `build.gradle.kts`. Missing it on a JVM launch is a
+  class-not-found at load, never a silent fallback; missing it on `javadoc` is `SimdOps` reporting
+  the package as not visible. `javadoc` stays red either way - every error it has left is a
+  Lombok-generated builder an annotation processor produces and the doclet cannot see - so it is
+  wired because the flag belongs everywhere it is read, not because the task becomes usable.
 - ASM 9.8 reads Java 25 class files; the tooling flows walk client-jar bytecode with it.
 - JitPack dependencies are `strictly()`-pinned inline in `build.gradle.kts`; bump by editing the
   version string. `./gradlew dependencies` for the live set.
@@ -19,6 +22,12 @@ Gate questions go through the `parity-gate` skill, `.claude/skills/parity-gate/S
 
 `./gradlew test` is the fast suite, excluding `@Tag("slow")`. `./gradlew slowTest` hits the network
 and the filesystem cache and is never up-to-date-cached.
+
+`./gradlew check` is `test` plus two gates `test` does not reach: `paritySelfTest`, the parity
+toolkit's own suite, which otherwise runs only when a parity task pulls it in, and `harnessClasses`,
+which compiles the harness through its own wrapper and otherwise runs only when it is asked for by
+name. The harness is a separate Gradle build, so `test` passes over one that does not compile and
+the next thing that would catch it is a client boot; the two gates together cost seconds.
 
 **Gate once per phase, immediately before the commit, and never re-baseline.** The `parity-gate`
 skill runs it: `parityPlan` names what the change reaches and what is blind to it, `parityCapture`
@@ -30,8 +39,8 @@ writes a capture, `parityCompare` reports movers, `parityPromote` makes a captur
 - What a value reaches is provable: perturb it, re-render, and the outputs that move name the reach.
 - Scope an already-red task's output to the package you touched and compare; never read its exit
   code.
-- `BlockGeometryKitTest` and `FrameTurnTest` build fixtures by reflection into private
-  parser-populated fields, so a rename compiles clean and fails at runtime.
+- `BlockGeometryKitTest` builds fixtures by reflection into private parser-populated fields, so a
+  rename compiles clean and fails at runtime.
 
 Task inventories: `./gradlew tasks --group visual`, `--group tooling`, `--group parity`, `--group
 build`. The last holds `generateAtlas`, a worked example of driving a renderer rather than a
@@ -84,8 +93,46 @@ unchanged run.
 - `notes/` - gitignored working notes: research packs, ledgers, probe tables. Read one when picking
   up a live effort; nothing downstream reads them.
 
+**Do not cite a `notes/` path from a tracked file, and do not cite a working note's entry by
+number.** The directory is gitignored by decision, so a citation from a tracked file resolves for
+nobody who clones this, and an entry number - the `L<n>`, `Q-<n>`, `I-<n>` and phase-`P` spellings the
+notes here have used - names that same unresolvable place with fewer characters. Inline what the note
+establishes; state the measurement rather than where it was written down. The rule binds what is
+authored - prose, comments, javadoc, a diagnostic or an exception message, commit text - and the
+shapes above are written as shapes, so this paragraph names no entry a reader could go looking for.
+
+Only the path half is greppable: `git ls-files | xargs grep -l 'notes/'` at review, deliberately not
+in the pre-commit hook. What survives that grep is the `notes/**` blindness glob, in the map and in
+the skill's rendered view of it; the test exempting that glob from the assertion that every
+`no_reach` glob matches a tracked path; the ignore rule that makes the directory gitignored; this
+section; the skill's list of commit kinds that skip the gate; and the two toolkit tests asserting
+that `notes/parity` is refused as a working root. Telling those from a citation is a reading rather
+than a pattern. The entry-number half has no one pattern to grep for, a note's ids being whatever
+that note chose, so it is read rather than matched. An id a tracked file defines itself is not a
+citation at all: `blindness.json`'s rules carry their own `B<n>` in an `id` member.
+
+The rule binds what is authored from here, and the tree it landed in is now clean of what it forbids:
+`git ls-files | xargs grep -nE '\bP-?[0-9]{1,2}\b' | grep -vE 'P[0-9]+[a-zA-Z]'` answers with the
+promoted artifacts, whose `provenance.reason` is the exemption below, and the two Gradle wrapper jars,
+which answer as binaries. Two families had to go and each cost something different. The entity
+tooling's diagnostics were a tooling-flow change - the tooling-tables manifest digests that flow's log
+by `(severity, path, message)`, so rewording one moved a log digest and was measured by re-running the
+flow rather than by a suite that asserts on none of those strings. The blindness map's `source` column
+was a rewrite rather than a scrub: twenty-nine of forty-one rows cited a design pack that no longer
+exists, in two spellings, so there was nothing to point the column at until every rule had been
+perturbed and the column could say what each claim was measured to be.
+
+A `provenance.reason` **already in the store** is the exemption, and more than one is: they name the
+capture a baseline was diffed against, the question that widened it, or the phase that moved the
+values, in the working note's own spelling. A reason is a frozen measurement `parityPromote` alone
+writes, and `ParityIndexTest` re-derives every index row's digest from the file it names, so a reason
+moves by re-promoting and never by an edit - rewriting one to satisfy a writing rule would falsify the
+record the rule exists to keep. The next one written still follows the rule.
+
 Durable rules and decisions belong in this file. The measurements and narratives that produced them
-belong in the commit that landed them, and in the reason recorded with the baseline they moved.
+belong in the commit that landed them, and in the reason recorded with the baseline they moved. An
+open item nobody owns had a file of its own for a while; it is gone because the last entry closed, and
+a new one belongs there again rather than here - a rule that is really a question reads as settled.
 
 ## The pack filter
 
@@ -172,6 +219,12 @@ byte-stable ground truth the six sweeps diff against, one sub-tree each under
 - Re-rendering refreshes ground truth and does not fix a regression, and only
   `renderVanillaAllReferences` refreshes the whole tree.
 - A reference that moves on a re-render with your change stashed was stale, not moved.
+- The whole-tree render reproduces, measured rather than assumed: two boots seven hours and 26
+  perturbation cycles apart hashed the same tree. Every sweep digest in the store rests on that and
+  nothing had checked it. The identity is one digest over the whole tree, which
+  `provenance.reference_manifest_digest` derives from the tree rather than from a captured file, so
+  re-deriving it and comparing against any sweep's provenance is the cheap check that a number and
+  its ground truth still name one reference set.
 
 Capture, compare and promote go through the `parity-gate` skill; the re-render runbook is its
 `references/procedures.md`.
@@ -297,9 +350,10 @@ vanilla's `display.gui` pose and scale. It is facing-neutral, presents the model
   opposite face from the GPU.
 - A fetch may not step outside the face's own UV rectangle; `ModelEngine.lastTexel` bounds it via
   `ceil(uMax * w) - 1`.
-- The reference set's own depth range is part of the contract, and both harness frame renderers are at
-  `1000`. A change emulating the reference's rounding cannot be evaluated against a coarser reference
-  - fix the ground truth first.
+- The reference set's own depth range is part of the contract, and every harness `FrameRenderer` is
+  at `1000` - the depth-quantum probe, which drives two ranges and refreshes no reference, is not one.
+  A change emulating the reference's rounding cannot be evaluated against a coarser reference - fix
+  the ground truth first.
 
 ## Armour
 

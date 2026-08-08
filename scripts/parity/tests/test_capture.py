@@ -6,15 +6,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from parity import capture, store
+from parity import capture, promote, store, sweep
 from parity.norm import MissingInput, Refused, read_json, write_json, write_text
+from parity.norm import fixed as norm_fixed
 
 DATA = Path(__file__).resolve().parent / "data"
 REPO = Path(__file__).resolve().parents[3]
 
 
 class Wipe(unittest.TestCase):
-    """U6 made mechanical: there is no accumulation and nothing to rename."""
+    """Single-slot made mechanical: there is no accumulation and nothing to rename."""
 
     def setUp(self):
         self.root = Path(tempfile.mkdtemp()) / "run"
@@ -74,13 +75,27 @@ class OncePerInvocation(unittest.TestCase):
         self.assertTrue((self.root / "manifests" / "fluid.json").is_file())
         self.assertTrue((self.root / "manifests" / "portal.json").is_file())
 
-    def test_a_step_on_a_closed_root_erases_so_single_slot_survives(self):
-        """A hand-run producer is one step and no begin, and it must still leave exactly one."""
+    def test_a_step_on_a_closed_root_refuses_rather_than_erasing_it(self):
+        """A hand-run producer is one step and no begin, and the root it lands in may already hold
+        a finished capture: `index` unlinks OPEN before it writes COMPLETE, so the begin branch is
+        the one a lone step takes. Erasing there destroys a bundle nobody asked to replace."""
         capture.begin(self.root)
         self._artifact("fluid")
         capture.index(self.root)
-        self.assertTrue(capture.join_or_begin(self.root))
+        with self.assertRaises(Refused) as caught:
+            capture.join_or_begin(self.root)
+        self.assertIn(capture.COMPLETE, str(caught.exception))
+        self.assertTrue((self.root / "manifests" / "fluid.json").is_file())
+
+    def test_begin_still_erases_a_closed_root_so_single_slot_survives(self):
+        """The erase is `capture-begin`'s act and stays unconditional: one root, one capture, and
+        the next invocation replaces the previous whether or not it finished."""
+        capture.begin(self.root)
+        self._artifact("fluid")
+        capture.index(self.root)
+        capture.begin(self.root)
         self.assertFalse((self.root / "manifests" / "fluid.json").exists())
+        self.assertFalse((self.root / store.RUN_DIR / capture.COMPLETE).exists())
 
     def test_begin_erases_even_when_a_capture_is_already_open(self):
         """A crashed invocation leaves OPEN behind; the next one must not build on it."""
@@ -136,6 +151,27 @@ class Normalize(unittest.TestCase):
         self.assertEqual(rows[0]["frames"], "30")
         self.assertIn("mean_argb_delta", rows[0])
 
+    def test_a_captured_sweep_carries_the_summary_it_derives(self):
+        """The fleet sum, the buckets, the row count and the failure count, written once.
+
+        The same arithmetic `parity sum` and `parity buckets` print, and printing was the whole of
+        it: no stored sweep carried one, so four registered pointers into `#/summary` resolved
+        nowhere and the index row a promotion writes had nothing to lift.
+        """
+        capture.normalize("sweep.armor", DATA, self.root, REPO, runs=2)
+        payload = read_json(self.root / "sweeps" / "armor.json")
+        table = sweep.read_table(DATA / "sweep-armor.tsv", "armor")
+        self.assertEqual(payload["summary"], {
+            "buckets": sweep.buckets(table), "failed": table.failed(),
+            "rows": len(payload["rows"]), "sum": norm_fixed(sweep.total(table))})
+
+    def test_the_summary_sum_is_the_metric_form_every_delta_beside_it_uses(self):
+        """A binary float's shortest repr moves with the last bit of an fsum over a thousand rows,
+        and it would be the one number in the file spelled unlike its neighbours."""
+        capture.normalize("sweep.armor", DATA, self.root, REPO, runs=2)
+        summary = read_json(self.root / "sweeps" / "armor.json")["summary"]
+        self.assertRegex(summary["sum"], r"^-?\d+\.\d{4}$")
+
     def test_provenance_rides_inside_the_artifact(self):
         capture.normalize("sweep.armor", DATA, self.root, REPO, producer="armorParityVanilla")
         payload = read_json(self.root / "sweeps" / "armor.json")
@@ -163,6 +199,57 @@ class Normalize(unittest.TestCase):
                     "values": {}})
         capture.normalize("pin.player-crc", self.root, self.root, REPO, runs=2)
         self.assertIn("provenance", read_json(self.root / "pins" / "player-crc.json"))
+
+
+class RunsDefaultsToTheFloor(unittest.TestCase):
+    """An absent `--runs` stamps the artifact's floor, which is what the build says this side owns.
+
+    Defaulting it to zero instead stamped a number below every floor, so the standard invocation -
+    a bare `parityCapture`, which passes no `-Pruns` - captured a bundle `promote.check` then
+    refused. The refusal landed after the capture had run, which for a full bundle is the whole cost
+    of the gate.
+    """
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.root = self.repo / "run"
+
+    def _runs(self, artifact_id: str, floors: dict[str, int] | None = None, **kwargs) -> int:
+        """Stamp one artifact against a store declaring the given floors, and read the number back.
+
+        The store is a fixture rather than the shipped one, because what is under test is which
+        table answers: two artifacts of one kind with different floors cannot both be a literal, and
+        the shipped roster gives every digest set the same number.
+        """
+        declared = floors or {artifact_id: 2}
+        write_json(self.repo / store.PRODUCTION / "index.json",
+                   {"artifacts": {name: {promote.FLOOR_FIELD: floor}
+                                  for name, floor in declared.items()}})
+        write_json(self.root / store.path_of(artifact_id),
+                   {"artifact": artifact_id, "key": "name", "kind": "digest-set",
+                    "digests": {"block_models": {"sha256": "a"}}})
+        capture.normalize(artifact_id, self.root, self.root, self.repo, **kwargs)
+        return read_json(self.root / store.path_of(artifact_id))["provenance"]["determinism_runs"]
+
+    def test_an_absent_runs_stamps_the_declared_floor(self):
+        self.assertEqual(self._runs("digest.shipped-tables"), 2)
+
+    def test_the_default_is_the_ARTIFACT_s_floor_and_not_the_common_one(self):
+        floors = {"digest.colormap-lut": 5, "digest.shipped-tables": 2}
+        self.assertEqual(self._runs("digest.colormap-lut", floors), 5)
+        self.assertEqual(self._runs("digest.shipped-tables", floors), 2)
+
+    def test_an_unregistered_artifact_refuses_rather_than_defaulting(self):
+        """A default here is a second table, and the shipped pair disagreed for the store's life."""
+        with self.assertRaises(MissingInput):
+            self._runs("digest.colormap-lut", {"digest.shipped-tables": 2})
+
+    def test_an_explicit_runs_is_never_overwritten_by_the_floor(self):
+        self.assertEqual(self._runs("digest.colormap-lut", runs=7), 7)
+
+    def test_an_explicit_zero_stays_zero_so_the_default_is_absence_and_not_falsehood(self):
+        """A measured zero is a claim someone made, and it must still be refused at promote."""
+        self.assertEqual(self._runs("digest.colormap-lut", runs=0), 0)
 
 
 class SelfCapturedPayload(unittest.TestCase):
@@ -228,6 +315,14 @@ class Index(unittest.TestCase):
         self.assertEqual([entry["path"] for entry in recorded["files"]], ["sweeps/entity.json"])
         self.assertEqual(len(recorded["files"][0]["sha256"]), 64)
 
+    def test_it_records_the_tree_and_nothing_the_build_never_sent(self):
+        """Four fields were structurally empty on every capture and read by nothing anywhere: the
+        build's argv sent no producer and no flag, the timestamp had no command-line spelling at
+        all, and the run count is answered per artifact by the provenance object that measured it."""
+        capture.index(self.root)
+        recorded = read_json(self.root / store.RUN_DIR / "_capture.json")
+        self.assertEqual(sorted(recorded), ["artifacts", "files", "format", "kind"])
+
     def test_run_files_are_not_indexed_as_artifacts(self):
         capture.index(self.root)
         recorded = read_json(self.root / store.RUN_DIR / "_capture.json")
@@ -243,6 +338,29 @@ class Index(unittest.TestCase):
         self.assertEqual(capture.verify_against_index(self.root), [])
         write_json(self.root / "sweeps" / "entity.json", {"artifact": "sweep.entity", "x": 1})
         self.assertEqual(capture.verify_against_index(self.root), ["sweeps/entity.json"])
+
+    def test_require_unmoved_passes_an_untouched_root_and_refuses_a_moved_one(self):
+        """The shared refusal behind both readers of a finished capture."""
+        capture.index(self.root)
+        capture.require_unmoved(self.root)
+        write_json(self.root / "sweeps" / "entity.json", {"artifact": "sweep.entity", "x": 1})
+        with self.assertRaises(Refused) as caught:
+            capture.require_unmoved(self.root)
+        self.assertIn("changed since", str(caught.exception))
+        self.assertIn("sweeps/entity.json", str(caught.exception))
+
+    def test_the_content_digest_names_the_capture_and_moves_with_it(self):
+        """One name for the tree a finished capture holds, so a later reader can say WHICH capture
+        a report it is holding was written about. Two captures of different bytes into one slot are
+        the case that has to differ - the root's path is the same on both."""
+        capture.index(self.root)
+        first = capture.content_digest(self.root)
+        self.assertEqual(len(first), 64)
+        self.assertEqual(first, capture.content_digest(self.root))
+        capture.begin(self.root)
+        write_json(self.root / "sweeps" / "entity.json", {"artifact": "sweep.entity", "x": 1})
+        capture.index(self.root)
+        self.assertNotEqual(capture.content_digest(self.root), first)
 
 
 if __name__ == "__main__":

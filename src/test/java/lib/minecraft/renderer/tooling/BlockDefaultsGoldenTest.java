@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.is;
  * empty {@code {}} for a no-property block); this test reconstructs the comma-joined key from that
  * object exactly as {@code BlockDefaultsLoader} does at load.
  * <p>
- * Regeneration workflow: run {@code ./gradlew :asset-renderer:blockDefaults} to refresh the snapshot,
+ * Regeneration workflow: run {@code ./gradlew blockDefaults} to refresh the snapshot,
  * then re-pin its digest per {@code ResourceShaTest}. No digest is transcribed by hand.
  */
 @DisplayName("block_defaults.json agrees with the live pipeline")
@@ -113,7 +113,7 @@ class BlockDefaultsGoldenTest {
     @BeforeAll
     static void ensureGeneratedJsonExists() {
         if (!Files.exists(JSON_PATH))
-            throw new IllegalStateException("Run ./gradlew :asset-renderer:blockDefaults to generate " + JSON_PATH);
+            throw new IllegalStateException("Run ./gradlew blockDefaults to generate " + JSON_PATH);
     }
 
 }

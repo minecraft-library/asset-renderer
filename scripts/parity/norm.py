@@ -97,10 +97,6 @@ def write_text(path: Path, text: str) -> Path:
     return path
 
 
-def write_lines(path: Path, lines: Iterable[str]) -> Path:
-    return write_text(path, LF.join(lines))
-
-
 def write_json(path: Path, obj: Any) -> Path:
     return write_text(path, canonical_json(obj))
 
@@ -109,7 +105,8 @@ def write_bytes_raw(path: Path, data: bytes) -> Path:
     """The one named binary door.
 
     Binary payloads have no line endings, so folding them would corrupt them. This exists once, is
-    named for what it is, and cannot be reached for text - ``pixels.save_png`` is its only caller.
+    named for what it is, and cannot be reached for text: its callers hand it an encoded image
+    buffer, never a string.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
@@ -121,7 +118,7 @@ def write_bytes_raw(path: Path, data: bytes) -> Path:
 def canonical_json(obj: Any) -> str:
     """Two-space indented, recursively key-sorted, UTF-8, no trailing whitespace.
 
-    Objects are key-sorted recursively; **arrays are never reordered** (I-4), because an array means
+    Objects are key-sorted recursively; **arrays are never reordered**, because an array means
     the order is semantic - a map whose iteration order carries meaning is emitted as an array of
     entries for exactly this reason.
 
@@ -133,9 +130,9 @@ def canonical_json(obj: Any) -> str:
     already spells its deltas to four places, so reading one back and re-emitting it is byte-stable
     without the writer rounding anything.
 
-    A non-finite float raises rather than being emitted. JSON has no ``Infinity``, and I-27 requires
-    a failed subject to be carried as an explicit status field rather than as an out-of-band magic
-    value - so the refusal is what forces the caller to model it.
+    A non-finite float raises rather than being emitted. JSON has no ``Infinity``, and a failed
+    subject is carried as an explicit status field rather than as an out-of-band magic value - so
+    the refusal is what forces the caller to model it.
     """
     return json.dumps(
         obj,
@@ -150,15 +147,10 @@ def canonical_json(obj: Any) -> str:
 def fixed(value: float, places: int = 4) -> str:
     """The store's number form: locale-free fixed point.
 
-    ``str.format`` has no locale, so I-3 is satisfied by construction rather than by remembering to
-    pass ``Locale.ROOT``.
+    ``str.format`` has no locale, so one number renders one way everywhere by construction rather
+    than by remembering to pass ``Locale.ROOT``.
     """
     return f"{value:.{places}f}"
-
-
-def exact(value: float) -> str:
-    """``repr`` - the form the L2 comparison uses, so ``1`` and ``1.0`` stay distinguishable."""
-    return repr(value)
 
 
 def fsum(values: Iterable[float]) -> float:

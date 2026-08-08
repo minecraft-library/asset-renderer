@@ -70,8 +70,8 @@ public final class TextRenderer implements Renderer<TextOptions> {
         // Canvas height measures from the top padding to the last glyph's descender plus
         // bottom padding - NOT a full LINE_HEIGHT past the last baseline. Symmetric padding
         // matches in-game vanilla rendering.
-        int ascentMcPx = MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
-        int descentMcPx = MinecraftFont.REGULAR.getFontMetrics().getDescentMcPixels();
+        int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+        int descentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getDescentMcPixels();
         int linesHeightMcPx = (options.getLines().size() - 1) * LINE_HEIGHT_MCPX + ascentMcPx + descentMcPx;
         int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
@@ -125,7 +125,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         }
         stack.append(TextSlot.TEXT, frame -> {
             MinecraftGraphics g = new MinecraftGraphics(frame);
-            int baselineMcPx = padMcPx + MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
+            int baselineMcPx = padMcPx + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
             for (int i = 0; i < options.getLines().size(); i++) {
                 TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed, tick);
                 baselineMcPx += LINE_HEIGHT_MCPX;

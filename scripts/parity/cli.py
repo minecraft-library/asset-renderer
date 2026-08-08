@@ -37,7 +37,6 @@ from parity.norm import (
     MissingInput,
     Refused,
     canonical_json,
-    fixed,
     read_json,
     write_json,
     write_text,
@@ -82,7 +81,7 @@ def _globals() -> argparse.ArgumentParser:
     parser.add_argument("--store", default=None, metavar="DIR",
                         help=f"the production store (default: {store_mod.PRODUCTION})")
     parser.add_argument("--format", choices=("text", "json"), default="text",
-                        help="stdout form; stderr always carries progress")
+                        help="stdout form; progress and warnings go to stderr, never here")
     parser.add_argument("--out", default=None, metavar="FILE",
                         help="write the command's primary artifact here instead of stdout")
     parser.add_argument("-q", "--quiet", action="store_true",
@@ -94,13 +93,37 @@ def _bases(args: argparse.Namespace) -> Path:
     return Path(args.repo_root).resolve() if args.repo_root else store_mod.repo_root()
 
 
+def _out_path(args: argparse.Namespace) -> Path:
+    """``--out`` as a path, refused when it lands inside the production store.
+
+    **Every writer of ``--out`` resolves it here**, and that is the whole mechanism. The guard used
+    to sit inside ``_emit``, which is the redirect-stdout path alone, so every command that builds a
+    body of its own and writes it reached a baseline through a bare write and nothing went red.
+    Stating the rule rather than the roster is deliberate: a roster of the commands is what went
+    stale last time, and what it was stale against was a count. The line below is the one that turns
+    ``args.out`` into a path, and ``OutNeverWritesProduction`` reads this file and fails on any other
+    line that either constructs one over it or binds it to a name - the second because a name is a
+    construction one line further on, out of reach of anything looking for the attribute. A presence
+    test on ``args.out`` is neither and stays invisible. What the scan cannot see is a bypass that
+    never spells the attribute at all, and nothing in the parser can be asked who honours ``--out``,
+    which is why the roster beside it drives every writer through ``main``. Only ``promote-apply``
+    writes production.
+
+    :param args: the parsed namespace, whose ``out`` is set
+    :return: the path to write
+    :raises Refused: if the path lies inside the production store
+    """
+    target = Path(args.out)
+    if store_mod.production(args.store, _bases(args)).contains(target):
+        raise Refused(f"--out would write inside the production store: {args.out}")
+    return target
+
+
 def _emit(args: argparse.Namespace, text: str, payload: Any = None) -> None:
     """stdout carries the answer and nothing else; ``--out`` redirects it through ``norm``."""
     body = canonical_json(payload) if args.format == "json" and payload is not None else text
     if args.out:
-        target = Path(args.out)
-        if store_mod.production(args.store, _bases(args)).contains(target):
-            raise Refused(f"--out would write inside the production store: {args.out}")
+        target = _out_path(args)
         write_text(target, body)
         print(f"wrote {target}")
         return
@@ -108,6 +131,17 @@ def _emit(args: argparse.Namespace, text: str, payload: Any = None) -> None:
 
 
 def _progress(args: argparse.Namespace, message: str) -> None:
+    """Write one progress line to stderr, unless ``--quiet``.
+
+    stdout carries the answer, so a line saying which artifact is being worked on cannot go there.
+    The three long commands emit one per artifact: a capture, a compare and a promotion each loop
+    over a set a human named as an alias and cannot enumerate, and a run that prints nothing until
+    it finishes is one nobody can tell from a hang. ``--quiet`` is what the pre-commit hook passes,
+    and until these calls existed it suppressed nothing.
+
+    :param args: the parsed namespace
+    :param message: the line, without its newline
+    """
     if not args.quiet:
         sys.stderr.write(message + "\n")
 
@@ -189,18 +223,45 @@ def _filter(suite: unittest.TestSuite, pattern: str) -> unittest.TestSuite:
 
 
 def _tables(args: argparse.Namespace) -> list[tuple[str, Any]]:
-    """Resolve the requested sweeps from either a raw producer directory or the working root."""
+    """Resolve the requested sweeps from either a raw producer directory or the working root.
+
+    The two operands are two file formats and the reader is chosen by which one was named, because
+    they are not interchangeable: ``--from`` names a producer tree of TSVs and the root holds the
+    canonical JSON a capture wrote. Handing a stored artifact to the TSV reader is what these two
+    commands did against a fully populated root, and it failed on the file's first character - so
+    the documented capability was unreachable and only the pre-store form worked.
+    """
     if args.source:
         found = sweep_mod.discover(Path(args.source))
-    else:
-        root = store_mod.working(args.root, _bases(args))
-        found = {}
-        for name in sweep_mod.SWEEPS:
-            candidate = root.path(f"sweep.{name}")
-            if candidate.is_file():
-                found[name] = candidate
-        if not found:
-            raise MissingInput(f"no sweep artifacts under {root.root}; pass --from to read a producer tree")
+        return [(name, sweep_mod.read_table(found[name], name))
+                for name in _wanted_sweeps(args, found)]
+    root = store_mod.working(args.root, _bases(args))
+    found = {}
+    for name in sweep_mod.SWEEPS:
+        candidate = root.path(f"sweep.{name}")
+        if candidate.is_file():
+            found[name] = candidate
+    if not found:
+        raise MissingInput(f"no sweep artifacts under {root.root}; pass --from to read a producer tree")
+    return [(name, sweep_mod.read_stored_table(found[name], name))
+            for name in _wanted_sweeps(args, found)]
+
+
+def _wanted_sweeps(args: argparse.Namespace, found: dict[str, Path]) -> list[str]:
+    """Which of the discovered sweeps the operands name, refusing a name nothing answers.
+
+    Two refusals rather than one, because a typo and an absence are two different answers: a name
+    outside the six is a name no producer will ever write, where one of the six the operand tree
+    does not hold is a table that has not been captured yet. Folded together, the first reads as the
+    second and sends an operator looking for a sweep that does not exist.
+
+    An empty operand list is every sweep the tree holds, which is the bare command's meaning.
+
+    :param args: the parsed namespace, whose ``sweeps`` carries the named operands
+    :param found: the sweeps the operand tree holds, by name
+    :return: the names to read, in the order given
+    :raises MissingInput: on a name outside the six, or one of the six nothing here answers
+    """
     wanted = args.sweeps or [name for name in sweep_mod.SWEEPS if name in found]
     unknown = [name for name in wanted if name not in sweep_mod.SWEEPS]
     if unknown:
@@ -208,12 +269,12 @@ def _tables(args: argparse.Namespace) -> list[tuple[str, Any]]:
     missing = [name for name in wanted if name not in found]
     if missing:
         raise MissingInput(f"no table for sweep(s) {missing}")
-    return [(name, sweep_mod.read_table(found[name], name)) for name in wanted]
+    return wanted
 
 
 def _cmd_sum(args: argparse.Namespace) -> int:
     rows = sweep_mod.summarise(_tables(args))
-    lines = [f"{row['sweep']:<7} {row['rows']:>5} rows   sum {fixed(row['sum']):>12}"
+    lines = [f"{row['sweep']:<7} {row['rows']:>5} rows   sum {row['sum']:>12}"
              f"   failed {row['failed']}" for row in rows]
     _emit(args, "\n".join(lines), {"sums": rows})
     return OK
@@ -244,7 +305,7 @@ def _cmd_manifest(args: argparse.Namespace) -> int:
     if args.manifest_command == "export":
         if not args.out:
             raise Refused("manifest export needs --out FILE")
-        write_text(Path(args.out), manifest_mod.export_text(stored))
+        write_text(_out_path(args), manifest_mod.export_text(stored))
         print(f"wrote {args.out}")
         return OK
 
@@ -277,6 +338,15 @@ def _load(args: argparse.Namespace, artifact: str, base: str | None) -> dict:
 
 def _cmd_json(args: argparse.Namespace) -> int:
     if args.json_command == "canonicalize":
+        # One destination cannot hold N results. The write below resolves `--out` inside the loop,
+        # so with several operands the last one overwrote the rest while the loop printed a
+        # `canonicalized <path>` line for every one of them - N successes reported, one file on disk
+        # and no error anywhere.
+        if args.out and len(args.files) > 1:
+            raise Refused(
+                f"json canonicalize was given --out and {len(args.files)} files: one destination "
+                "holds one result, so all but the last would be discarded while every one of them "
+                "reported success. Canonicalize them in place, or one at a time")
         for name in args.files:
             path = Path(name)
             if "shipped-tables" in path.name:
@@ -286,7 +356,7 @@ def _cmd_json(args: argparse.Namespace) -> int:
                     "meaningless under the other"
                 )
             text = canonical_json(read_json(path))
-            write_text(Path(args.out) if args.out else path, text)
+            write_text(_out_path(args) if args.out else path, text)
             print(f"canonicalized {path}")
         return OK
 
@@ -324,8 +394,12 @@ def _cmd_render_bytes(args: argparse.Namespace) -> int:
 def _cmd_compare(args: argparse.Namespace) -> int:
     root = store_mod.working(args.root, _bases(args))
     # Refuse a root that never finished: a stale tree reported as agreement is the recorded
-    # `&& diff` trap, and COMPLETE being written last is what makes it detectable.
-    capture_mod.require_complete(root.root)
+    # `&& diff` trap, and COMPLETE being written last is what makes it detectable. Then refuse one
+    # that MOVED after it finished, which is the same trap one step along: a self-capturing producer
+    # rewrites its file whenever its suite runs, so a root can be part this capture and part the run
+    # after it while COMPLETE still describes the first. `provenance` is outside the compared
+    # payload, so the rewrite is invisible to every number the verdict prints.
+    capture_mod.require_unmoved(root.root)
 
     wanted = [name.strip() for name in args.artifacts.split(",")] if args.artifacts else None
     if not wanted:
@@ -337,7 +411,8 @@ def _cmd_compare(args: argparse.Namespace) -> int:
         Path(args.expected) if args.expected else root.root / store_mod.RUN_DIR / "expected-diff.json")
     results = []
     missing = []
-    for artifact in wanted:
+    for position, artifact in enumerate(wanted, start=1):
+        _progress(args, f"compare {position}/{len(wanted)} {artifact}")
         try:
             base_payload = _load(args, artifact, args.base)
         except MissingInput:
@@ -346,6 +421,10 @@ def _cmd_compare(args: argparse.Namespace) -> int:
         results.append(compare_mod.compare(base_payload, root.read(artifact), expected))
 
     payload = compare_mod.to_report(results)
+    # The capture this report is about, so a promotion can tell it from the report an earlier
+    # capture left in the same single slot. Without it "a compare.json exists" is satisfied by any
+    # compare ever run into this root, which is not evidence about the bytes being promoted.
+    payload[compare_mod.CAPTURE_DIGEST] = capture_mod.content_digest(root.root)
     payload["missing_baseline"] = missing
     # Named rather than dropped: an artifact file in the root that this run did not capture is worth
     # a reader knowing about, and silence would read as "the root held nothing else".
@@ -356,16 +435,16 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     payload["checks"] = {compare_mod.AGREEMENT_CHECK: agreement}
     if args.bootstrap:
         payload["bootstrap"] = True
-    if args.include_stale:
-        payload["include_stale"] = True
     run = root.root / store_mod.RUN_DIR
-    write_json(run / "compare.json", payload)
+    write_json(run / compare_mod.REPORT, payload)
     write_text(run / "compare.md", report_mod.render_diff(payload))
-    # The three fields that name a TREE STATE, plus what the compare covered. `plan --gate-exit`
-    # reads them to answer "has this exact tree already been gated"; nothing else does. It is written
-    # into the working root and never into the store, because a compare is a measurement (I-7) - so a
-    # `cache/` clean re-arms the gate, which is the correct degradation: the evidence for "already
-    # gated" is cache, and losing it costs one re-run rather than a wrong answer.
+    # What a compare has to say about the tree it just measured: the fields that name that TREE
+    # STATE, what the compare covered, and what it found. `plan --gate-exit` reads them to answer
+    # "has this exact tree already been gated"; nothing else does, and nothing is written here that
+    # it does not read. It is written into the working root and never into the store, because a
+    # compare is a measurement - so a `cache/` clean re-arms the gate, which is the correct
+    # degradation: the evidence for "already gated" is cache, and losing it costs one re-run rather
+    # than a wrong answer.
     write_json(run / "last-verdict.json", {
         "artifacts": [result.artifact for result in results],
         "asset_dirty_digest": provenance_mod.dirty_digest(_bases(args)),
@@ -451,9 +530,13 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
     written = []
     for position, artifact in enumerate(args.artifact):
         source = Path(sources[0] if len(sources) == 1 else sources[position])
+        _progress(args, f"capture {position + 1}/{len(args.artifact)} {artifact}")
         target = capture_mod.normalize(artifact, source, root, repo, producer=args.producer or "",
                                        mode=args.mode, flags=args.flag or (), runs=args.runs,
-                                       logs=Path(args.logs) if args.logs else None)
+                                       logs=Path(args.logs) if args.logs else None,
+                                       reference_tree=(Path(args.reference_tree)
+                                                       if args.reference_tree else None),
+                                       wall_time_ms=args.wall_time, store=args.store)
         written.append({"artifact": artifact, "path": str(target)})
     _emit(args, "\n".join(f"captured {row['artifact']} -> {row['path']}" for row in written),
           {"captured": written})
@@ -462,8 +545,7 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
 
 def _cmd_capture_index(args: argparse.Namespace) -> int:
     root = store_mod.working(args.root, _bases(args)).root
-    marker = capture_mod.index(root, producers=(args.producer or "").split(",") if args.producer else (),
-                               flags=args.flag or (), runs=args.runs)
+    marker = capture_mod.index(root)
     _emit(args, f"capture complete: {marker}", {"complete": str(marker)})
     return OK
 
@@ -494,13 +576,18 @@ def _cmd_plan(args: argparse.Namespace) -> int:
 
     index = store_mod.production(args.store, base).index()
     plan, covered, manual = _split_reach(reach.sees, index)
-    budget = sum(int(index.get(_STORE_MAP, {}).get(artifact, {}).get("last_duration_ms", 0))
-                 for artifact in plan)
+    durations = [index.get(_STORE_MAP, {}).get(artifact, {}).get("last_duration_ms")
+                 for artifact in plan]
+    measured = [int(value) for value in durations if value is not None]
+    budget = sum(measured)
     payload = {
         "//": "parity.report.plan · regen: ./gradlew parityPlan",
         "artifact": "report.plan",
         "blind": reach.blind,
         "budget_ms": budget,
+        # How much of that number is real. A reader with the sum alone cannot tell a measured bundle
+        # from one where most of the cost is missing, and the two call for opposite decisions.
+        "budget_measured": len(measured),
         "changed": sorted(changed),
         # `sees` answers reach and `plan` selects a capture, which are two different sets: every
         # artifact the change moves, against the ones the store keeps a file for and a producer can
@@ -551,10 +638,35 @@ def _cmd_plan(args: argparse.Namespace) -> int:
                    if entry["action"] == _CAPTURE else "read it there")
             where = f" {entry['where']}" if entry["where"] else ""
             lines.append(f"  {entry['artifact']} [{entry['home']}]{where} - {act}")
-    lines.append(f"BUDGET {budget} ms"
-                 + ("" if budget else "  (nothing promoted yet, so no artifact has a duration)"))
+    lines.append(f"BUDGET {budget} ms{_budget_caveat(len(measured), len(plan))}")
     _emit(args, "\n".join(lines), payload)
     return _gate_exit(args, base, root, reach, plan) if args.gate_exit else OK
+
+
+def _budget_caveat(measured: int, planned: int) -> str:
+    """What the BUDGET line says beside its number, which depends on how much of the number is real.
+
+    An artifact contributes to the budget only once a promotion has recorded how long its producers
+    took, so a bundle is in one of three states. With none of them recorded the sum is zero and says
+    nothing; with all of them it is the cost; and with some of them it is a **floor** that looks
+    exactly like a cost, which is the state that needs saying out loud.
+
+    That middle state could not arise while nothing wrote the column and every plan read ``0 ms``,
+    which is why the line used to key its parenthetical off the sum being zero. It has been reachable
+    since the first artifact was promoted carrying a duration, and it is the reading that costs
+    something: a bundle whose measured half is cheap and whose unmeasured half boots the client reads
+    as comfortably under the rule that says to background it.
+
+    :param measured: how many of the plan's artifacts carry a recorded duration
+    :param planned: how many artifacts the plan runs
+    :return: the parenthetical to append, or an empty string when the number stands on its own
+    """
+    if not measured:
+        return "  (no artifact in this plan has a recorded duration)"
+    if measured < planned:
+        return (f"  ({measured} of {planned} artifacts carry a duration, so this is a floor "
+                "and not the cost)")
+    return ""
 
 
 #: The map of the index that registers an artifact the production store keeps a FILE for - the one
@@ -595,9 +707,9 @@ def _split_reach(sees: list[str], index: dict) -> tuple[list[str], list[dict], l
     ``sees`` answers reach: an artifact belongs in it whenever the change really does move that
     artifact, whatever home it lives in. A pointer into another artifact's file and a pin whose home
     is Java source both move for a real reason and neither has a capture row, so handing one to
-    ``parityCapture`` refuses the whole invocation at CONFIGURATION time - which is what killed the
-    documented plan-then-capture flow for every change under ``tooling/**``, ``pipeline/**`` or
-    ``TrimKit``.
+    ``parityCapture`` refuses the whole invocation as Gradle resolves that task's dependencies while
+    it builds the graph - which is what killed the documented plan-then-capture flow for every change
+    under ``tooling/**``, ``pipeline/**`` or ``TrimKit``.
 
     The store's own ``artifacts`` map is the registry the split is taken against rather than a set
     spelled here, because that map is exactly what the roster registers as store-homed and one test
@@ -730,9 +842,24 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
                reach: blindness_mod.Reach, plan: list[str]) -> int:
     """Answer the pre-commit hook's question in the exit code.
 
-    Three answers: ``OK`` when no artifact can see the change, ``GATE_ALREADY_GATED`` when a compare
-    verdict already covers this exact tree state, and ``GATE_SEES_UNGATED`` when artifacts see it and
-    no such verdict exists.
+    Three answers: ``OK`` when no artifact can see the change, ``GATE_ALREADY_GATED`` when a passing
+    compare verdict already covers this exact tree state, and ``GATE_SEES_UNGATED`` when artifacts
+    see it and no such verdict exists. A verdict that found unexpected movers, or that found no
+    baseline for something it was asked about, is a failure this tree carries rather than a gating
+    of it.
+
+    **The verdict is read globally over the working roots**, which ``_newest_verdict`` decides.
+
+    **Every compare counts, a ``--base`` one included.** The stash A/B and the tooling-regen A/B put
+    a capture on the other side rather than the store, and both are gatings in their own right - for
+    a generator refactor the tooling-regen A/B is the only gate there is, every sweep being blind to
+    it by construction. What that admits is the determinism pre-flight, whose two roots are captures
+    of ONE tree and which therefore establishes reproducibility rather than neutrality: run on the
+    tree being committed, over artifacts covering the whole plan, it reads here as a gating. Nothing
+    a compare records tells the two apart - a capture's provenance names the commit and whether the
+    tree was dirty, never which edit was in it - so this is a stated hole rather than a decision. It
+    is bounded on both sides: the pre-flight is a precondition taken before the work, and both A/B
+    flows end in the commit this gate is for.
 
     **It is opt-in, and that is not a style choice.** ``parityPlan`` is a Gradle ``Exec``, so a
     non-zero exit fails the build - a plan that answered 10 whenever reach was non-empty would fail
@@ -749,8 +876,8 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     """
     if not reach.sees:
         return OK
-    verdict = root / store_mod.RUN_DIR / "last-verdict.json"
-    if not verdict.is_file():
+    verdict = _newest_verdict(base, root)
+    if verdict is None:
         return GATE_SEES_UNGATED
     try:
         recorded = read_json(verdict)
@@ -772,7 +899,53 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     # Subset, never equality: a WIDER previous compare still covers this one.
     if not set(plan) <= set(recorded.get("artifacts", [])):
         return GATE_SEES_UNGATED
+    # The tree matches and the compare covered the plan, and the compare said no. A verdict carrying
+    # unexpected movers, or naming an artifact it found no baseline for, records a failure rather
+    # than a gating - and this is the one automatic detector in the loop, so its going quiet after
+    # exactly the run whose answer was RED is the worst state it can be in. Both fields are written
+    # by every compare; until here nothing read either.
+    if int(recorded.get("unexpected") or 0) > 0 or recorded.get("missing_baseline"):
+        return GATE_SEES_UNGATED
     return GATE_ALREADY_GATED
+
+
+def _newest_verdict(base: Path, root: Path) -> Path | None:
+    """The most recent compare verdict, over the roots searched rather than out of one.
+
+    **A verdict names a tree state and what a compare covered, and neither is a property of the root
+    the capture went into.** Read out of one root, it was read out of the default one - which the
+    promotion procedure does not use: its compare carries ``-PparityRoot=cache/parity/b``, as the
+    determinism pre-flight's does, so a promotion left its verdict where nothing looked and the gate
+    answered "never gated" on the commit that was gated hardest. Every directory **directly** under
+    ``cache/parity/`` is therefore searched, and the root this invocation was given is searched
+    beside them - a working root is any relative path under ``cache/``, so it need not be one of
+    them, and a nested one such as ``cache/parity/x/y`` is reached only by being the root given.
+
+    The newest wins, over candidates enumerated in path order, by ``st_mtime_ns`` and then by the
+    greater path. The stamp alone does not order them: two writes here can land on one
+    ``st_mtime_ns``, and a pair a key leaves equal is answered by whichever the enumeration yielded
+    first. With the path beside it the key is a total order, so the answer is a function of which
+    roots hold a verdict and of nothing else. Two verdicts about one tree are two compares of it and
+    the later one is the one that stands - a red compare after a green one is the state to report,
+    and taking any matching verdict instead would let the green one it superseded answer for it.
+
+    :param base: the repo root
+    :param root: the working root this invocation was given
+    :return: the verdict file, or None when nothing searched holds one
+    """
+    candidates = {root / store_mod.RUN_DIR / "last-verdict.json"}
+    candidates.update((base / store_mod.WORKING).parent
+                      .glob(f"*/{store_mod.RUN_DIR}/last-verdict.json"))
+    # Enumerated in path order rather than in a set's own: `PurePath.__hash__` hashes the case-folded
+    # string, str hashing is seed-randomized per process, and a two-element set therefore hands its
+    # members over in an order that differs between two runs over one tree. The key below orders any
+    # two distinct paths on its own and so cannot see this - what it buys is that a reading of that
+    # key which does NOT order some pair still answers the same thing twice, rather than flapping in
+    # the one place where two answers over one tree is the whole failure being designed out.
+    found = sorted(path for path in candidates if path.is_file())
+    if not found:
+        return None
+    return max(found, key=lambda path: (path.stat().st_mtime_ns, str(path)))
 
 
 def _changed_from_git(base: Path) -> list[str]:
@@ -791,6 +964,15 @@ def _changed_from_git(base: Path) -> list[str]:
 def _cmd_expect(args: argparse.Namespace) -> int:
     root = store_mod.working(args.root, _bases(args)).root
     target = root / store_mod.RUN_DIR / "expected-diff.json"
+    # A clear and a registration are two different orders. Taking either silently drops the other,
+    # and the one that would be dropped here is the registration - so a command that named a row and
+    # a value would report "0 mover(s) registered" and exit 0.
+    named = [flag for flag, value in (("--artifact", args.artifact), ("--key", args.key),
+                                      ("--to", args.to), ("--reason", args.reason)) if value]
+    if args.empty and named:
+        raise Refused(f"expect was given --empty and {', '.join(named)} together: a clear and a "
+                      "registration are two different orders, and one of them would be silently "
+                      "dropped. Clear first, then register")
     payload = compare_mod.load_expected(target) or compare_mod.empty_expected() \
         if not args.empty else compare_mod.empty_expected()
     if not args.empty:
@@ -836,11 +1018,15 @@ def _cmd_promote_apply(args: argparse.Namespace) -> int:
     write_json(run / "promote.json", payload)
     write_text(run / "promote.md", report_mod.render(payload, "promotion-plan"))
 
-    promote_mod.check(root, entries, args.reason or "", args.allow_partial, args.bootstrap)
+    promote_mod.check(root, entries, args.reason or "", target.index(), args.allow_partial,
+                      args.bootstrap, args.allow_dirty, args.population_changed)
+    for position, entry in enumerate(entries, start=1):
+        _progress(args, f"promote {position}/{len(entries)} {entry.artifact} ({entry.action})")
     result = promote_mod.apply(root, target, entries, args.reason,
                                parity_class=args.parity_class,
                                allow_partial=args.allow_partial,
-                               population_changed=args.population_changed)
+                               population_changed=args.population_changed,
+                               allow_dirty=args.allow_dirty)
     _emit(args, f"promoted {len(result['promoted'])}: {', '.join(result['promoted']) or 'nothing'}",
           {**payload, "applied": result})
     return OK
@@ -883,6 +1069,12 @@ def _cmd_panel(args: argparse.Namespace) -> int:
 
 
 def _cmd_lab(args: argparse.Namespace) -> int:
+    # Resolved before the optional imports and before a pixel is read. The two lab writers below are
+    # the expensive ones in the toolkit - a census joins three whole-frame dumps - and a refusal
+    # earned after that work is a refusal that costs what it refuses. It also puts the guard in
+    # front of the numpy/Pillow import, so where a command may write is answerable without them.
+    target = _out_path(args) if args.out else None
+
     from parity import panel  # noqa: F401  - proves the optional pair is importable before use
     from parity.lab import census as census_mod
     from parity.lab import crop as crop_mod
@@ -894,7 +1086,7 @@ def _cmd_lab(args: argparse.Namespace) -> int:
     if args.lab_command == "census":
         payload = census_mod.census(Path(args.allpass), Path(args.raw), Path(args.landed),
                                     Path(args.vanilla), Path(args.java))
-        write_json(Path(args.out) if args.out else probes / "contests.json", payload)
+        write_json(target or probes / "contests.json", payload)
         _emit(args, f"aligned {payload['totals']['aligned_px']} px, "
                     f"{payload['totals']['contests']} contests, "
                     f"misaligned {payload['misaligned_px']}; classes {payload['classes']}", payload)
@@ -931,7 +1123,7 @@ def _cmd_lab(args: argparse.Namespace) -> int:
         return OK
     region = tuple(int(part) for part in args.region.split(","))
     out = crop_mod.crop(Path(args.vanilla), Path(args.java), region,
-                        Path(args.out or "crop.png"), args.zoom)
+                        target or Path("crop.png"), args.zoom)
     print(f"wrote {out}  vanilla | java | |delta|x4")
     return OK
 
@@ -963,7 +1155,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
     if not args.out:
         raise Refused("report render needs --out")
     payload = read_json(Path(args.input))
-    write_text(Path(args.out), report_mod.render(payload, args.kind))
+    write_text(_out_path(args), report_mod.render(payload, args.kind))
     print(f"wrote {args.out}")
     return OK
 
@@ -1000,7 +1192,6 @@ def _register(subparsers: Any) -> dict[str, Command]:
         # --from reads a RAW producer directory and survives here and on buckets alone, which is
         # why it is not a global: every other command joins stored artifacts.
         reader.add_argument("--from", dest="source", default=None, metavar="PATH")
-        reader.add_argument("--base", default=None, metavar="DIR")
     table["sum"] = _cmd_sum
     table["buckets"] = _cmd_buckets
 
@@ -1017,7 +1208,6 @@ def _register(subparsers: Any) -> dict[str, Command]:
     verify_parser.add_argument("--base", default=None, metavar="DIR")
     export_parser = man_sub.add_parser("export")
     export_parser.add_argument("--artifact", required=True)
-    export_parser.add_argument("--grammar", default="a", choices=("a",))
     export_parser.add_argument("--base", default=None, metavar="DIR")
     table["manifest"] = _cmd_manifest
 
@@ -1025,13 +1215,11 @@ def _register(subparsers: Any) -> dict[str, Command]:
     js_sub = js.add_subparsers(dest="json_command", required=True)
     canon = js_sub.add_parser("canonicalize")
     canon.add_argument("files", nargs="+", metavar="FILE")
-    canon.add_argument("--in-place", action="store_true")
     semantic = js_sub.add_parser("semantic-diff")
     semantic.add_argument("--before", required=True)
     semantic.add_argument("--after", required=True)
     semantic.add_argument("--levels", default=None, help="comma list of L1,L2,L3")
     semantic.add_argument("--payload", default=None, metavar="KEY")
-    semantic.add_argument("--axis-rows", action="store_true")
     semantic.add_argument("--ignore-keys", default=None)
     semantic.add_argument("--max-findings", type=int, default=40)
     table["json"] = _cmd_json
@@ -1041,7 +1229,6 @@ def _register(subparsers: Any) -> dict[str, Command]:
     rb_diff = rb_sub.add_parser("diff")
     rb_diff.add_argument("--before", required=True, metavar="DIR")
     rb_diff.add_argument("--after", required=True, metavar="DIR")
-    rb_diff.add_argument("--artifact", action="append", default=None, metavar="NAME")
     rb_diff.add_argument("--name", default=None, help="comma list, default java.png,java.gif")
     table["render-bytes"] = _cmd_render_bytes
 
@@ -1049,7 +1236,11 @@ def _register(subparsers: Any) -> dict[str, Command]:
     cmp_parser.add_argument("--artifacts", default=None, help="one comma list of artifact ids")
     cmp_parser.add_argument("--base", default=None, metavar="DIR")
     cmp_parser.add_argument("--expected", default=None, metavar="FILE")
-    cmp_parser.add_argument("--include-stale", action="store_true")
+    # `--include-stale` was registered here and stamped one field nothing read or rendered. It was
+    # the escape hatch for a refusal - an artifact captured before the inputs it was taken from -
+    # that exists nowhere in this package, so a stale artifact was admitted always rather than only
+    # under the flag. Dropped rather than left advertising a defence that was never built; the
+    # deleted-spellings roster is what makes a resurrection visible instead of silently accepted.
     cmp_parser.add_argument("--bootstrap", action="store_true")
     table["compare"] = _cmd_compare
 
@@ -1070,17 +1261,28 @@ def _register(subparsers: Any) -> dict[str, Command]:
     cap.add_argument("--source", action="append", required=True, metavar="PATH")
     cap.add_argument("--producer", default=None, help="one comma list of producing task names")
     cap.add_argument("--flag", action="append", default=None, metavar="k=v")
-    cap.add_argument("--runs", type=int, default=0, help="how many runs AGREED, a measurement")
+    cap.add_argument("--runs", type=int, default=None,
+                     help="how many runs AGREED, a measurement; absent means the artifact's "
+                          "declared floor, which is a property of the artifact and not of a build")
     cap.add_argument("--logs", default=None, metavar="DIR",
                      help="digest each producer's normalized diagnostics log into the manifest's "
                           "`logs` key; a byte-identical table is not an unchanged run")
-    cap.add_argument("--mode", default=None)
+    cap.add_argument("--mode", default=None, metavar="NAME[,NAME]",
+                     help="which harness render mode wrote the reference tree in the invocation "
+                          "this capture belongs to - the difference between ground truth refreshed "
+                          "in part and refreshed whole. A comma-joined set when one invocation ran "
+                          "more than one, and absent when it refreshed nothing")
+    cap.add_argument("--wall-time", dest="wall_time", type=int, default=None, metavar="MS",
+                     help="how long this row's producers took, measured by the build. It is what "
+                          "the plan's budget sums and what the skill's background-the-capture rule "
+                          "reads; absent, the record carries no duration rather than a zero")
+    cap.add_argument("--reference-tree", default=None, metavar="DIR",
+                     help="the reference set this artifact was measured against, digested through "
+                          "its manifest into one provenance field; absent, the record cannot say "
+                          "which ground truth produced its numbers")
     table["capture-normalize"] = _cmd_capture_normalize
 
-    idx = subparsers.add_parser("capture-index", help="write _run/_capture.json then COMPLETE last")
-    idx.add_argument("--producer", default=None)
-    idx.add_argument("--flag", action="append", default=None, metavar="k=v")
-    idx.add_argument("--runs", type=int, default=0)
+    subparsers.add_parser("capture-index", help="write _run/_capture.json then COMPLETE last")
     table["capture-index"] = _cmd_capture_index
 
     pln = subparsers.add_parser("plan", help="resolve which artifacts can SEE the working tree's change")
@@ -1092,7 +1294,7 @@ def _register(subparsers: Any) -> dict[str, Command]:
                           "pre-commit hook; parityPlan must always exit 0, so it is opt-in")
     table["plan"] = _cmd_plan
 
-    exp = subparsers.add_parser("expect", help="register the movers a phase intends (I-15)")
+    exp = subparsers.add_parser("expect", help="register the movers a phase intends")
     exp.add_argument("--empty", action="store_true")
     exp.add_argument("--artifact", default=None)
     exp.add_argument("--key", default=None, help="keyed the way that artifact's envelope key names")
@@ -1124,6 +1326,10 @@ def _register(subparsers: Any) -> dict[str, Command]:
                         help="defaults to moving, because forgetting it cannot then understate a change")
     papply.add_argument("--population-changed", action="store_true")
     papply.add_argument("--allow-partial", action="store_true")
+    papply.add_argument("--allow-dirty", action="store_true", dest="allow_dirty",
+                        help="promote a capture taken from an uncommitted tree, recording the "
+                             "exception in provenance; the baseline is then re-derivable from no "
+                             "commit and nothing later can recover that")
     papply.add_argument("--bootstrap", action="store_true")
     table["promote-apply"] = _cmd_promote_apply
 

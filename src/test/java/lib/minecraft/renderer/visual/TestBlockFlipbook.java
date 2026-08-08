@@ -39,7 +39,7 @@ import java.nio.file.Path;
  * over the 200-tick cap), {@code sea_lantern} (stepped) - plus {@code command_block} (scrolling
  * command texture) for a fourth distinct flipbook.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:blockFlipbook [-PrenderSize=256]}.
+ * <p>Usage: {@code ./gradlew blockFlipbook [-PrenderSize=256]}.
  */
 @UtilityClass
 public final class TestBlockFlipbook {

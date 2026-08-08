@@ -45,8 +45,8 @@ import static org.hamcrest.Matchers.not;
  * it the store holds a file for. Both are assertions about the map's own {@code sees} lists, so they
  * belong to the suite that owns the map; the build file is their second operand and is read here as
  * text. Those two registries disagreeing is the failure - a rule reaching an artifact the capture
- * table has no row for refuses the capture at configuration time, and every gate on that path with
- * it.
+ * table has no row for refuses the capture as Gradle resolves that task's dependencies while it
+ * builds the graph, and every gate on that path with it.
  *
  * <p>The rest read the build file for a different reason: the git index and the walk below decide
  * which files this suite sees, and Gradle decides whether it runs at all from the same index and the
@@ -106,8 +106,14 @@ final class BlindnessMapTest {
      * <p>A {@code select} rule's {@code blind} list is a statement rather than a subtraction, so an
      * artifact a second fired rule selects stays in the bundle and the claim is printed as
      * "claimed blind, selected by ..." rather than dropped. That is deliberate for every pair here -
-     * B2 and B4 speak about a code region inside a wider tree, and demoting them would remove a dump
-     * gate the rest of that tree genuinely reaches.
+     * each speaks about a code region inside a wider tree, and demoting one would remove a gate the
+     * rest of that tree genuinely reaches.
+     *
+     * <p>Four pairs left this set by being <b>measured false</b> rather than by being reclassified.
+     * Perturbing a file each claimant triggers on moved the artifact it called blind, so the claim was
+     * not a statement about a narrower region at all - it was wrong, and the artifact is now in that
+     * rule's {@code sees}. Being overruled by a sibling rule is what kept the bundle honest while the
+     * declaration was false, which is why the plan prints such a pair instead of trusting it.
      *
      * <p>Every claimant here is a {@code select} rule by construction rather than by choice: the
      * resolution below applies the demote pass, so a rule whose {@code blind} list subtracts on its
@@ -123,14 +129,12 @@ final class BlindnessMapTest {
     private static final Set<String> OVERRULED_CLAIMS = Set.of(
         "B10 -> sweep.block", "B10 -> sweep.item",
         "B11a -> sweep.block", "B11a -> sweep.item",
-        "B18 -> manifest.dump.packs", "B18 -> manifest.dump.vanilla",
-        "B2 -> manifest.dump.packs", "B2 -> manifest.dump.vanilla",
+        "B18 -> manifest.dump.vanilla",
+        "B2 -> manifest.dump.vanilla",
         "B21 -> sweep.item",
         "B22 -> manifest.dump.packs", "B22 -> manifest.dump.vanilla",
         "B23 -> manifest.player-raw", "B23 -> sweep.armor", "B23 -> sweep.block",
-        "B23 -> sweep.entity", "B23 -> sweep.glint", "B23 -> sweep.item",
-        "B4 -> manifest.dump.vanilla",
-        "B8 -> sweep.player");
+        "B23 -> sweep.entity", "B23 -> sweep.glint", "B23 -> sweep.item");
 
     /**
      * Tracked files a rule claims that a {@code no_reach} glob would also excuse.
@@ -165,10 +169,10 @@ final class BlindnessMapTest {
         "cache", "texturepacks", ".jmh", "__pycache__");
 
     /**
-     * The filesystem inputs the {@code test} task declares, against the operand each is declared on.
+     * The inputs the {@code test} task declares, against the operand each is declared on.
      *
-     * <p>Every one of them is read by a guard in this package off the filesystem rather than the
-     * classpath, so Gradle learns about it from the declaration alone. Dropping one leaves the guard
+     * <p>Every one of them is read by a guard in this package by a route the classpath does not
+     * carry, so Gradle learns about it from the declaration alone. Dropping one leaves the guard
      * green over the edit it exists to catch, because the task is never re-run: it is the same defect
      * as an unguarded rule, one level up.
      *
@@ -176,23 +180,54 @@ final class BlindnessMapTest {
      * from, and that answer is the operand of every check here that judges the map against what the
      * repository holds - so tracking a file under a root nothing else declares is precisely the edit
      * those checks exist for, and precisely the edit that would otherwise leave them UP-TO-DATE.
-     * Its operand is a resolved variable rather than a literal, because {@code .git} is a directory
-     * on a primary checkout and a {@code gitdir:} pointer file in a linked worktree.
+     *
+     * <p>Every one of them names a path, and the reader below takes a declared value as well, so
+     * that a value declared here arrives as a mismatch rather than as a declaration nothing
+     * relates. One thing a guard in this package reads is not a file and has no entry: the set of
+     * task names this build registers, which reaches it as a flag rather than as an input. It needs
+     * none, because the registry is a function of the build scripts and of the versions they pin,
+     * and {@link #REGISTRY_SOURCES} holds every file that can move it to this same list.
      */
     private static final Map<String, String> DECLARED_INPUTS = Map.of(
         "parityStore", "parityProductionStore",
         "parityBuildFile", "\"build.gradle.kts\"",
         "parityTriggerRoots", "parityTriggerRoots",
         "paritySkillReferences", "paritySkillReferences",
-        "parityGitIndex", "parityGitIndexFile");
+        "paritySkillFile", "paritySkillFile",
+        "parityTestSources", "\"src/test/java\"",
+        "parityGitIndex", "\".git/index\"",
+        "parityClaudeMd", "\"CLAUDE.md\"");
+
+    /**
+     * The files the Gradle task registry is a function of.
+     *
+     * <p>Two guards in this package resolve a name against that registry, and it reaches them as a
+     * flag a {@code doFirst} sets. Measured, three routes re-run those guards and each does it for
+     * its own reason: a registration typed into a build script, off that file's own declaration; an
+     * edit under {@code gradle/}, off the declaration of that root; and one arriving from an init
+     * script, off Gradle's fingerprint of the forwarding action, no declared file being touched.
+     * The first two are what the case below keeps in place. The third rests on the forwarding and
+     * is not a declaration at all.
+     *
+     * <p>Directories where the pin is a directory: the wrapper's distribution pin sits under
+     * {@code gradle/}, and the Gradle version it selects decides which built-in tasks exist. The
+     * version catalogue beside it declares no plugin - it carries {@code [versions]} and
+     * {@code [libraries]} only, the one third-party plugin being pinned inline in the build script -
+     * so a catalogue edit moves no task and is covered here only by sharing the root.
+     *
+     * <p>Written down rather than derived from the declaration it is checked against, for the
+     * reason the roots above are: derived, it would agree with whatever that declaration says.
+     */
+    private static final List<String> REGISTRY_SOURCES =
+        List.of("build.gradle.kts", "gradle", "settings.gradle.kts");
 
     /**
      * The roots a triggered file may sit under that {@code parityTriggerRoots} does not name.
      *
-     * <p>The build file is its own declared input, and the two source trees reach the task as
-     * compiled classes and processed resources. Those routes are not observable from here, which is
-     * why they are written down rather than derived - and why the collection exists at all for
-     * everything else.
+     * <p>The build file and the test Java tree are each their own declared input, and everything
+     * else under the two source trees reaches the task as compiled classes and processed resources.
+     * Those routes are not observable from here, which is why they are written down rather than
+     * derived - and why the collection exists at all for everything else.
      */
     private static final List<String> CLASSPATH_ROOTS =
         List.of("build.gradle.kts", "src/main", "src/test");
@@ -216,6 +251,484 @@ final class BlindnessMapTest {
      */
     private static final List<String> MEMBERSHIP_DECLARATIONS =
         List.of("build.gradle.kts", "scripts/parity/manifest.py");
+
+    /** The skill body, whose frontmatter is what decides when the gate is offered at all. */
+    private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
+
+    /** The repository's own rules, whose headings the map's {@code source} column cites by name. */
+    private static final Path CLAUDE_MD = Path.of("CLAUDE.md");
+
+    /** One heading of a markdown file, at any level. */
+    private static final Pattern MARKDOWN_HEADING = Pattern.compile("(?m)^#{1,6} (.+)$");
+
+    /** A citation naming a section of the repository's rules, as the {@code source} column spells one. */
+    private static final Pattern CLAUDE_MD_CITATION = Pattern.compile("CLAUDE\\.md '([^']*)'");
+
+    /** What a rule's {@code source} says instead of a citation when this map is where a fact lives. */
+    private static final String HOME_CLAIM = "moved out of CLAUDE.md and this map is its home";
+
+    /** A verb of custody, which is what turns naming a file into a statement of what it holds. */
+    private static final Pattern CUSTODY =
+        Pattern.compile("\\b(carries|carry|carrying|holds|hold|home|lives|records)\\b");
+
+    /**
+     * The skill's hand-authored statements of what {@code CLAUDE.md} holds, one normalized paragraph
+     * each.
+     *
+     * <p>The rules whose {@code source} carries {@link #HOME_CLAIM} tell a reader that a fact left
+     * that file and this map is where it is now. Neither the claim nor a sentence answering it is a
+     * citation, so the citation check above reads neither, and the generated view is the map's own
+     * column printed back - which leaves a sibling reference sending a reader to {@code CLAUDE.md}
+     * for the same fact contradicting the map with nothing between them. That is what happened, in
+     * this skill, to this claim.
+     *
+     * <p>The paragraph whole rather than a phrase, because the contradiction was one clause of a
+     * list and a phrase short enough to name it is one a rewording steps around. Paragraphs rather
+     * than lines, because these files wrap their prose and a rewrap is not a different statement.
+     */
+    private static final List<String> CLAUDE_MD_CUSTODY = List.of(
+        ".claude/skills/parity-gate/references/diagnostics.md: `CLAUDE.md` in the repo root carries "
+            + "the durable findings: the depth contract, the armour shell, the face vocabulary, the "
+            + "iso pose. Which artifacts see a given change is not one of them - that answer is "
+            + "`blindness.json`, which `parityPlan` resolves and `references/blindness.md` renders, "
+            + "and where a rule's claim did come from a section of `CLAUDE.md` the rule cites it by "
+            + "name. This file holds the *method* - how those were arrived at - and does not "
+            + "restate them.");
+
+    /** One inline code span, which is how the skill body spells each trigger path. */
+    private static final Pattern BACKTICKED = Pattern.compile("`([^`]+)`");
+
+    /**
+     * What the skill says the precision of its announced trigger list is.
+     *
+     * <p>Whitespace collapsed, because the file wraps its prose and a rewrap is not a different
+     * statement. Both of its halves are measured where the two lists are compared, and the sentence
+     * claims exactly what those two measurements answer and no more: nothing the map gives reach is
+     * unannounced, and the reverse inclusion fails on at least one path. A magnitude in place of
+     * that second half - <b>plenty</b>, <b>most</b> - is a word no population here decides, and
+     * would leave a list narrowed to a single coarse path shipping a sentence saying more than the
+     * map supports. Neither population reads prose, so the converse sentence - an exact list, every
+     * path under one of these seeing something - is one every count here holds under.
+     *
+     * <p>Compared against the whole shipped sentence and not looked for inside the file, which is
+     * the shape the decision-table rows below are pinned in. Over the file, the constant shortened
+     * to its own prefix goes on matching and the pin quietly weakens to whatever is left of it -
+     * and the clause it would drop is the second half, the one the reverse-inclusion count is the
+     * whole evidence for.
+     */
+    private static final String COARSENESS_CLAIM = "It is a coarse prefix list and not an exact "
+        + "one: every path some rule gives a non-empty `sees` is under one of these, and the "
+        + "converse does not hold - a path under one of these can reach nothing.";
+
+    /** What that sentence opens with, which is how it is found without being matched by a prefix. */
+    private static final String COARSENESS_OPENING = "It is a coarse prefix list";
+
+    /** A gate as a table cell spells one: a Gradle task by itself, or the command line that runs it. */
+    private static final Pattern NAMED_GATE =
+        Pattern.compile("\\./gradlew [a-z]+|[a-z]+[A-Z][A-Za-z]*");
+
+    /**
+     * The condition cell of the decision-table row that proceeds on an empty SEES.
+     *
+     * <p>The cell verbatim rather than a shape, because the whole value of the split is that each
+     * half names a state the resolver reaches, and a reworded condition is how one stops doing so.
+     */
+    private static final String PROCEEDING_CONDITION =
+        "| SEES empty, and one of the fired rules declares `sees: []` |";
+
+    /**
+     * That row whole, the behaviour cell included.
+     *
+     * <p>The behaviour as well as the condition, for the reason its twin below carries the same
+     * pin: this is the half of the split that sends a reader somewhere rather than stopping them,
+     * and what it sends them to is a task name typed in a table cell. The populations measured
+     * against it read no prose, so a cell naming a gate no {@code sees: []} rule asks for would
+     * hand every one of those files a task no rule on their paths asked for, with every count
+     * below unmoved.
+     */
+    private static final String PROCEEDING_ON_AN_EMPTY_SEES = PROCEEDING_CONDITION
+        + " Proceed on that rule's own terms, which its `reason` states: print the rule id and that "
+        + "reason, do what it says, and report the answer. Several name another gate - "
+        + "`paritySelfTest` for the toolkit, `./gradlew test` for the test tree and for a "
+        + "hand-edited baseline, the resolved argv of the tasks a build edit rewires - and naming "
+        + "one makes it the thing to run. A reason that names none has already said what an empty "
+        + "`sees` means: no artifact this store holds answers, so say so and gate nothing. |";
+
+    /** The condition cell of the decision-table row that refuses a path nothing speaks for. */
+    private static final String UNCOVERED_CONDITION =
+        "| A changed path matches no rule and no `no_reach` glob |";
+
+    /**
+     * That row whole, the behaviour cell included.
+     *
+     * <p>Its condition is the coverage measured below, both halves of it: a path reaches this row
+     * only when no rule's trigger glob and no excuse claims it. Pinned for the reason the empty-SEES
+     * pair is - the refusing one of those two states in its own shipped text that this row has
+     * already refused the paths no excuse covers, so a condition narrowed back to the rules alone
+     * leaves that sentence citing a mechanism the table no longer has, and every population here
+     * reads no prose.
+     */
+    private static final String REFUSING_AN_UNCOVERED_PATH =
+        UNCOVERED_CONDITION + " Refuse (R1). Add the rule or declare `no_reach`. |";
+
+    /** The condition cell of the decision-table row that refuses on an empty SEES. */
+    private static final String REFUSING_CONDITION =
+        "| SEES empty, and no fired rule declares `sees: []` |";
+
+    /**
+     * That row whole, the behaviour cell included.
+     *
+     * <p>The behaviour as well as the condition, because this is the row that says which mechanism
+     * left the answer empty, and the populations measured against it below are what make that the
+     * mechanism a reader will meet. A cell that enumerates a second one orders a reader to report
+     * which of two cases occurred when the map can only produce one, and a population check reads
+     * no prose - so the text is pinned where the measurement is.
+     */
+    private static final String REFUSING_ON_AN_EMPTY_SEES = REFUSING_CONDITION
+        + " Refuse (R2). No rule fired on any changed path at all, R1 above having already refused "
+        + "the paths no `no_reach` entry excuses, so the plan listed every one of them under "
+        + "`NO REACH` and the map answered ahead of the run rather than as a finding that no "
+        + "artifact this store holds moves. Gate nothing, and report that list. If the change does "
+        + "move something, the excuse absorbing its path is what is wrong - replace it with a rule, "
+        + "and name it. |";
+
+    @Test
+    @DisplayName("every CLAUDE.md section a rule cites is a heading CLAUDE.md still carries")
+    void everyClaudeMdCitationNamesALiveHeading() {
+        Set<String> headings = new TreeSet<>();
+        Matcher heading = MARKDOWN_HEADING.matcher(text(CLAUDE_MD));
+        while (heading.find()) headings.add(heading.group(1).trim());
+
+        List<String> cited = new ArrayList<>();
+        List<String> dead = new ArrayList<>();
+        for (JsonObject rule : rules()) {
+            Matcher citation = CLAUDE_MD_CITATION.matcher(rule.get("source").getAsString());
+            while (citation.find()) {
+                cited.add(rule.get("id").getAsString() + " -> " + citation.group(1));
+                if (!headings.contains(citation.group(1))) dead.add(cited.getLast());
+            }
+        }
+
+        assertThat("CLAUDE.md carries no heading at all, so every citation below would read as dead "
+            + "and the failure would be in this walk rather than in the map", headings, is(not(empty())));
+        assertThat("no rule cites a CLAUDE.md section, so this case has no operand; it needs a "
+            + "different shape rather than deleting", cited, is(not(empty())));
+        assertThat("rules citing a CLAUDE.md section that file no longer has a heading for. A "
+            + "`source` is where the claim came from, and a reader following one to a heading that "
+            + "was deleted or renamed cannot tell a moved rule from an abandoned one - eleven of "
+            + "these went dead in a single rebuild with nothing mechanical able to notice, because "
+            + "the only check over the column was that it is non-blank. A sentence this map is now "
+            + "the sole home of says so in prose and cites nothing, which is what keeps this "
+            + "operand meaning what it says", dead, is(empty()));
+    }
+
+    @Test
+    @DisplayName("nothing else states a home for what a rule says moved out of CLAUDE.md")
+    void theMapKeepsTheHomeItsSourceColumnClaims() {
+        List<String> claiming = rules().stream()
+            .filter(rule -> rule.get("source").getAsString().contains(HOME_CLAIM))
+            .map(rule -> rule.get("id").getAsString())
+            .toList();
+        List<String> handAuthored = handAuthoredSkillFiles();
+        List<String> custody = handAuthored.stream()
+            .flatMap(path -> paragraphs(text(Path.of(path))).stream()
+                .filter(paragraph -> paragraph.contains("CLAUDE.md"))
+                .filter(paragraph -> CUSTODY.matcher(paragraph).find())
+                .map(paragraph -> path + ": " + paragraph))
+            .toList();
+        String rulebook = text(CLAUDE_MD);
+        List<String> named = ParityArtifacts.ALL.stream()
+            .map(ParityArtifacts.Registration::id)
+            .filter(rulebook::contains)
+            .sorted()
+            .toList();
+
+        assertThat("no rule's source claims this map is a fact's home, so both clauses below are "
+            + "true of nothing; this case needs a different shape rather than deleting", claiming,
+            is(not(empty())));
+        assertThat("the skill ships no hand-authored file, which would leave the comparison below "
+            + "empty on the side it is derived from", handAuthored, is(not(empty())));
+        assertThat("the skill's hand-authored prose saying what CLAUDE.md holds, against the "
+            + "statements recorded here. " + claiming + " say a fact moved out of that file and "
+            + "this map is where it is now, and a sibling reference of the same skill sending a "
+            + "reader back there for it is a contradiction both halves of the skill are loaded "
+            + "with - a claim naming no section and an answer that is not a citation, so the check "
+            + "above sees neither. A new statement of custody is a decision: make it agree with the "
+            + "map, or record it here", custody, equalTo(CLAUDE_MD_CUSTODY));
+        assertThat("artifact ids CLAUDE.md names. A statement of what a gate sees has to name the "
+            + "gate, and a gate is an artifact of this store - so an id in that file is the answer "
+            + "those rows say moved out of it, growing a second home back where it was. The map is "
+            + "where the statement goes; citing a CLAUDE.md section as where a rule's claim came "
+            + "from is the other case, and the check above is what holds that citation live",
+            named, is(empty()));
+    }
+
+    /**
+     * The skill's files a rendering does not re-derive, which are the ones a human writes into.
+     *
+     * <p>The two generated references are left out because they are this map's own columns printed
+     * back: holding a sentence there to the map would be holding the map to itself, and the byte
+     * comparison over the render already does it.
+     *
+     * @return the paths, sorted
+     */
+    private static List<String> handAuthoredSkillFiles() {
+        String home = PARITY_SKILL.getParent().toString().replace('\\', '/') + "/";
+        List<String> generated = ParityReferences.GENERATED.stream()
+            .map(name -> ParityReferences.HOME.resolve(name).toString().replace('\\', '/'))
+            .toList();
+        return trackedFiles().stream()
+            .filter(path -> path.startsWith(home))
+            .filter(path -> !generated.contains(path))
+            .sorted()
+            .toList();
+    }
+
+    /**
+     * The blank-line separated paragraphs of one markdown file.
+     *
+     * @param markdown the file's text
+     * @return the paragraphs, whitespace collapsed, in file order
+     */
+    private static List<String> paragraphs(String markdown) {
+        return Stream.of(markdown.split("\\n\\s*\\n"))
+            .map(paragraph -> paragraph.replaceAll("\\s+", " ").trim())
+            .filter(paragraph -> !paragraph.isEmpty())
+            .toList();
+    }
+
+    /**
+     * The gates one decision-table row names.
+     *
+     * <p>A backticked span that is a Gradle task by itself or a whole {@code ./gradlew} command
+     * line. The other spans a row carries name a map field or a JSON value, which is no gate.
+     *
+     * @param row the decision-table row
+     * @return the gates, in the order the row names them
+     */
+    private static List<String> namedGates(String row) {
+        List<String> out = new ArrayList<>();
+        Matcher span = BACKTICKED.matcher(row);
+        while (span.find())
+            if (NAMED_GATE.matcher(span.group(1)).matches()) out.add(span.group(1));
+        return out;
+    }
+
+    @Test
+    @DisplayName("the skill's two trigger lists are one list, and it covers every path with reach")
+    void theSkillsTriggerListAgreesWithTheMap() {
+        List<String> frontmatter = skillFrontmatterTriggers();
+        List<String> body = skillBodyTriggers();
+        List<JsonObject> rules = rules();
+        List<String> tracked = trackedFiles();
+        List<String> seeing = tracked.stream().filter(path -> !seesFor(path, rules).isEmpty()).toList();
+        List<Pattern> patterns = frontmatter.stream().map(BlindnessMapTest::compileGlob).toList();
+
+        List<String> unannounced = seeing.stream()
+            .filter(path -> patterns.stream().noneMatch(pattern -> pattern.matcher(path).matches()))
+            .sorted()
+            .toList();
+        List<String> carrying = frontmatter.stream()
+            .filter(glob -> seeing.stream().anyMatch(path -> compileGlob(glob).matcher(path).matches()))
+            .toList();
+        List<String> announcedReachingNothing = tracked.stream()
+            .filter(path -> patterns.stream().anyMatch(pattern -> pattern.matcher(path).matches()))
+            .filter(path -> seesFor(path, rules).isEmpty())
+            .toList();
+
+        assertThat("the frontmatter announces no trigger path, which would leave every clause below "
+            + "with nothing to be true of", frontmatter, is(not(empty())));
+        assertThat("no tracked file resolves to a non-empty sees, so the map answers nothing and the "
+            + "coverage clause holds over an empty set", seeing, is(not(empty())));
+        assertThat("the trigger paths the frontmatter announces, against the ones the body lists. "
+            + "The frontmatter is what makes auto-invocation fire and the body is what a reader "
+            + "checks, so the two disagreeing means one half of one file is wrong and neither half "
+            + "says which", body, equalTo(frontmatter));
+        assertThat("tracked files some rule gives a non-empty sees that no announced trigger path "
+            + "matches. That is a change the map can gate and the skill is never offered for, which "
+            + "is the expensive direction: the hook still answers and asks, so it costs a proactive "
+            + "invocation rather than the gate - and it is exactly what a rule added without its "
+            + "path being announced looks like", unannounced, is(empty()));
+        assertThat("announced trigger paths against the ones that match a file with reach. The list "
+            + "is deliberately coarser than the map - plenty of files under these prefixes reach "
+            + "nothing, and narrowing the change is the answer to that - but a path announced that "
+            + "reaches nothing at all offers the gate for a commit no artifact can see",
+            carrying, equalTo(frontmatter));
+        assertThat("tracked files an announced trigger path matches that no rule gives any reach. "
+            + "This is the half of the claim below the clause above cannot make: coverage says every "
+            + "path with reach is announced, and only this says the reverse inclusion fails. Empty, "
+            + "the two lists would coincide, the announcement would be exact and the sentence would "
+            + "be the wrong one. That is the whole of what the sentence claims, deliberately - a "
+            + "magnitude reading on it would be a word this population does not decide, true of a "
+            + "list narrowed to one coarse path exactly as of this one",
+            announcedReachingNothing, is(not(empty())));
+        assertThat("what the skill says the precision of that list is, against the sentence it "
+            + "ships, whole. The two clauses above are what make it true, and neither of them reads "
+            + "prose: the sentence replaced by its converse - an exact list, every path under one "
+            + "of these seeing something - leaves both of them where they are and ships a claim "
+            + "this map refutes on every file the clause above just counted. The whole sentence "
+            + "rather than a fragment sought inside the file, so a claim cut back to its opening "
+            + "clause fails here instead of going on matching what is left of it",
+            sentence(text(PARITY_SKILL).replaceAll("\\s+", " "), COARSENESS_OPENING),
+            equalTo(COARSENESS_CLAIM));
+    }
+
+    /**
+     * The trigger paths the skill's frontmatter announces, which is what auto-invocation fires on.
+     *
+     * <p>Read out of the prose sentence rather than a structured field, because the frontmatter
+     * {@code description} is one string by the format's own grammar and the list is a clause of it.
+     *
+     * @return the globs, in the order the sentence names them
+     */
+    private static List<String> skillFrontmatterTriggers() {
+        return Stream.of(slice(text(PARITY_SKILL), "the working tree touches ", ". Resolves")
+                .split(",| or "))
+            .map(String::trim)
+            .filter(glob -> !glob.isEmpty())
+            .toList();
+    }
+
+    /**
+     * The trigger paths the skill's body lists, which is what a reader checks against.
+     *
+     * @return the globs, in the order the list names them
+     */
+    private static List<String> skillBodyTriggers() {
+        String list = slice(text(PARITY_SKILL), "**The tree touches a trigger path** - ",
+            " - the same list the frontmatter carries");
+        List<String> out = new ArrayList<>();
+        Matcher glob = BACKTICKED.matcher(list);
+        while (glob.find()) out.add(glob.group(1));
+        return out;
+    }
+
+    /**
+     * The one sentence of a collapsed text that opens with the given words.
+     *
+     * <p>The unit a prose claim is pinned as, the way a table row is the unit a cell is pinned as:
+     * returned whole, so the comparison at the call site can be an equality and a constant cut back
+     * to a prefix of the shipped sentence fails rather than still being found inside it. An absent
+     * opening comes back as the empty string, which fails that equality too.
+     *
+     * @param collapsed the text, whitespace already collapsed
+     * @param opening the words the sentence starts with
+     * @return the sentence including its full stop, or the empty string when the text has no such
+     *     sentence
+     */
+    private static String sentence(String collapsed, String opening) {
+        int start = collapsed.indexOf(opening);
+        if (start < 0) return "";
+        int end = collapsed.indexOf(". ", start);
+        return end < 0 ? collapsed.substring(start) : collapsed.substring(start, end + 1);
+    }
+
+    /**
+     * The text between two markers, exclusive of both.
+     *
+     * @param source the file's text
+     * @param opening what the slice starts after
+     * @param terminator what closes it
+     * @return the text between them
+     */
+    private static String slice(String source, String opening, String terminator) {
+        int start = source.indexOf(opening);
+        if (start < 0) throw new AssertionError("no '" + opening + "' in " + PARITY_SKILL);
+        int body = start + opening.length();
+        int end = source.indexOf(terminator, body);
+        if (end < 0) throw new AssertionError("'" + opening + "' is not closed by '" + terminator + "'");
+        return source.substring(body, end);
+    }
+
+    @Test
+    @DisplayName("both of the decision table's empty-SEES rows are states this map reaches")
+    void bothEmptySeesRowsAreReachable() {
+        String skill = text(PARITY_SKILL);
+        List<JsonObject> rules = rules();
+        List<String> reachingNothing = trackedFiles().stream()
+            .filter(path -> seesFor(path, rules).isEmpty())
+            .toList();
+        List<String> proceeds = reachingNothing.stream()
+            .filter(path -> firedOn(path, rules).stream()
+                .anyMatch(rule -> rule.getAsJsonArray("sees").isEmpty()))
+            .toList();
+        List<String> refuses = reachingNothing.stream().filter(path -> !proceeds.contains(path)).toList();
+        List<String> selectionRemoved = refuses.stream()
+            .filter(path -> !firedOn(path, rules).isEmpty())
+            .toList();
+        List<String> gates = namedGates(tableRow(skill, PROCEEDING_CONDITION));
+        List<String> unasked = gates.stream()
+            .filter(gate -> rules.stream()
+                .filter(rule -> rule.getAsJsonArray("sees").isEmpty())
+                .noneMatch(rule -> rule.get("reason").getAsString().contains(gate)))
+            .toList();
+
+        assertThat("the decision table's proceeding row, against the row the populations below are "
+            + "measured for. Its condition is what decides which files it speaks for and its "
+            + "behaviour is what it hands them instead of a gate, so a reword of either is an "
+            + "answer this case has to re-measure rather than one it can keep vouching for",
+            tableRow(skill, PROCEEDING_CONDITION), equalTo(PROCEEDING_ON_AN_EMPTY_SEES));
+        assertThat("the proceeding row names no gate, so the clause below holds over an empty set "
+            + "and the row could name any task at all", gates, is(not(empty())));
+        assertThat("gates the proceeding row names, against the ones a `sees: []` rule's reason "
+            + "asks for. The row's whole instruction is to run what the rule that fired names, so a "
+            + "task no such rule names is one this map never asks for on any path - and the files "
+            + "counted below are exactly the ones sent to it", unasked, is(empty()));
+        assertThat("the decision table's refusing row, against the row the populations below are "
+            + "measured for. Its condition is what decides which files it speaks for and its "
+            + "behaviour is what it tells a reader happened to them, so a reword of either is an "
+            + "answer this case has to re-measure rather than one it can keep vouching for",
+            tableRow(skill, REFUSING_CONDITION), equalTo(REFUSING_ON_AN_EMPTY_SEES));
+        assertThat("tracked files that resolve to an empty SEES, which is what both rows above are "
+            + "conditions on", reachingNothing, is(not(empty())));
+        assertThat("tracked files the proceeding row speaks for - an empty SEES with a fired rule "
+            + "declaring `sees: []`, which is the rule naming the gate to run instead", proceeds,
+            is(not(empty())));
+        assertThat("tracked files the refusing row speaks for - an empty SEES with no fired rule "
+            + "declaring `sees: []`. A refusal is only worth a row when the resolver can produce the "
+            + "state it names, and this one is reached by the paths an excuse absorbs rather than by "
+            + "anything a rule selects", refuses, is(not(empty())));
+        assertThat("tracked files that reach the refusing row with a rule fired on them, which is an "
+            + "empty SEES a demotion or a suppression left behind after another rule had selected "
+            + "something. The row names one mechanism - no rule firing at all - because that is the "
+            + "only one the shipped map produces on any path: its one suppression declares an empty "
+            + "sees, and a demotion removes another rule's blind list rather than its own selection. "
+            + "A file here is a second mechanism the row does not describe, so the row is what to "
+            + "rewrite - a cell naming a case nothing reaches is what this clause exists to keep out "
+            + "of it", selectionRemoved, is(empty()));
+    }
+
+    /**
+     * The decision-table row whose condition cell is the given text.
+     *
+     * <p>The row rather than the whole file, so a failure prints the line that moved instead of the
+     * skill, and so a reworded condition comes back as an absent row rather than as a match on
+     * whatever else the table happens to say.
+     *
+     * @param skill the skill body
+     * @param condition the condition cell, pipes included
+     * @return the whole row, or the empty string when the table carries no row with that condition
+     */
+    private static String tableRow(String skill, String condition) {
+        return skill.lines().filter(line -> line.startsWith(condition)).findFirst().orElse("");
+    }
+
+    /**
+     * Returns the rules that fire on one path.
+     *
+     * @param path the changed path
+     * @param rules the rules to match against
+     * @return the rules whose trigger globs match it, in map order
+     */
+    private static List<JsonObject> firedOn(String path, List<JsonObject> rules) {
+        return rules.stream()
+            .filter(rule -> {
+                for (JsonElement glob : rule.getAsJsonArray("trigger_paths"))
+                    if (compileGlob(glob.getAsString()).matcher(path).matches()) return true;
+                return false;
+            })
+            .toList();
+    }
 
     @Test
     @DisplayName("every trigger glob matches a tracked file")
@@ -262,8 +775,8 @@ final class BlindnessMapTest {
             is(not(empty())));
         assertThat("store-homed artifacts a rule's sees names that the build file has no capture row "
             + "for. The roster admits store artifacts no producer captures - the index the promotion "
-            + "writes, the map itself - so a rule reaching one of those refuses the capture at "
-            + "configuration time exactly as a pointer would", unrunnable, is(empty()));
+            + "writes, the map itself - so a rule reaching one of those refuses the capture as its "
+            + "dependencies are resolved exactly as a pointer would", unrunnable, is(empty()));
     }
 
     @Test
@@ -284,8 +797,9 @@ final class BlindnessMapTest {
             unrunnable, is(not(empty())));
         assertThat("the plan-document keys parityPlannedArtifacts reads. `sees` states what a change "
             + "moves whatever home the artifact lives in and names " + unrunnable + ", which this "
-            + "table has no row for, so reading it refuses parityCapture at configuration time for "
-            + "every change whose reach includes one", keys, equalTo(List.of("plan")));
+            + "table has no row for, so reading it refuses parityCapture as Gradle resolves that "
+            + "task's dependencies, for every change whose reach includes one",
+            keys, equalTo(List.of("plan")));
     }
 
     @Test
@@ -303,17 +817,46 @@ final class BlindnessMapTest {
     }
 
     @Test
-    @DisplayName("the test task declares every filesystem input its guards read")
+    @DisplayName("the test task declares every input its guards read")
     void theTestTaskDeclaresWhatItsGuardsRead() {
         Map<String, String> declared = testTaskInputs();
 
         assertThat("build.gradle.kts declares no inputs on the Test task, which would leave this "
             + "check vacuous", declared.keySet(), is(not(empty())));
         assertThat("what the Test task declares as an input, against what a guard in this package "
-            + "reads off the filesystem. A declaration on any other task type does not answer: "
-            + "UP-TO-DATE is decided per task, so a guard whose operand nothing declares here goes "
-            + "green over the edit it exists to catch and never runs again",
+            + "reads by a route the classpath does not carry. A declaration on any other task type "
+            + "does not answer: UP-TO-DATE is decided per task, so a guard whose operand nothing "
+            + "declares here goes green over the edit it exists to catch and never runs again. A "
+            + "path and a value are both declarations and both are read here, because a check "
+            + "scoped to one form excuses the other from ever being missed",
             declared, equalTo(DECLARED_INPUTS));
+    }
+
+    @Test
+    @DisplayName("every file the task registry is a function of is a declared input")
+    void theRegistrySourcesAreDeclaredInputs() {
+        Map<String, String> declared = testTaskInputs();
+        List<String> reachable = new ArrayList<>(declared.values().stream()
+            .filter(operand -> operand.startsWith("\"") && operand.endsWith("\""))
+            .map(operand -> operand.substring(1, operand.length() - 1))
+            .toList());
+        // The trigger collection is one declaration over many roots, so what it reaches is the roots
+        // it names - read from the collection itself, because a check reading only the declaration's
+        // own spelling would be satisfied by the word `parityTriggerRoots` and nothing under it.
+        if (declared.containsValue("parityTriggerRoots")) reachable.addAll(buildFileTriggerRoots());
+        List<String> undeclared = REGISTRY_SOURCES.stream()
+            .filter(source -> reachable.stream().noneMatch(root -> under(root, source)))
+            .toList();
+
+        assertThat("the Test block declares no input naming a path, which would leave this check "
+            + "vacuous", reachable, is(not(empty())));
+        assertThat("files a task registration can arrive in that no declared input of the test task "
+            + "reaches. A registration typed into one of these re-runs the suite off that file's own "
+            + "declaration - measured, by deleting each of these in turn and moving the registry "
+            + "behind it. Dropped, a renamed task ships with a guard resolving a name against the "
+            + "registry answering from the list the previous run forwarded, unless the same move "
+            + "also moves the forwarding action Gradle fingerprints",
+            undeclared, is(empty()));
     }
 
     @Test
@@ -537,6 +1080,12 @@ final class BlindnessMapTest {
 
         assertThat("git tracks nothing, which would leave this check with no operand at all", tracked,
             is(not(empty())));
+        assertThat("the decision table's row for a path nothing speaks for, against the row this "
+            + "coverage is measured for. Its condition is the two lists below unioned - a rule's "
+            + "triggers and the excuse list - so a condition naming only the rules refuses a state "
+            + "this measurement says nothing about, and the row that refuses an empty SEES cites "
+            + "this one for exactly the mechanism the dropped half is",
+            tableRow(text(PARITY_SKILL), UNCOVERED_CONDITION), equalTo(REFUSING_AN_UNCOVERED_PATH));
         assertThat("tracked files no rule and no no_reach glob covers - each one is UNKNOWN at gate "
             + "time, which refuses every plan that touches it. The whole index rather than one source "
             + "tree, because the map speaks for the harness, the toolkit, the build wiring and both "
@@ -757,7 +1306,8 @@ final class BlindnessMapTest {
      * <p>Read out of the build file because that table is the only place a capture row is spelled,
      * and the two registries admitting different sets is the whole failure this checks for: a
      * {@code sees} list validated here against the roster, and the same ids validated there against
-     * the table, went green in the fast suite and refused the gate at configuration time.
+     * the table, goes green in the fast suite and refuses the gate as Gradle resolves the capture's
+     * dependencies.
      *
      * @return the ids, in table order
      */
@@ -808,11 +1358,17 @@ final class BlindnessMapTest {
     }
 
     /**
-     * The filesystem inputs the build file declares on the {@code Test} task.
+     * The inputs the build file declares on the {@code Test} task.
      *
      * <p>Scoped to that one configuration block, because UP-TO-DATE is decided per task and the same
      * declaration on {@code JavaExec} keeps nothing fresh. The operand is kept alongside the property
      * name so a declaration renamed onto the wrong path still reads as a difference.
+     *
+     * <p>Both spellings, because a precondition is not always a file: a value declared with
+     * {@code inputs.property} is tracked exactly as a path is, and reading only the path form leaves
+     * a whole class of declaration outside every check here by construction rather than by
+     * decision - which is how the one this suite's siblings rest on came to be droppable with the
+     * suite green.
      *
      * @return the property name to declared operand, in declaration order
      */
@@ -824,9 +1380,12 @@ final class BlindnessMapTest {
         if (end < 0) throw new AssertionError("the Test block has no line-initial closing brace");
         Map<String, String> out = new LinkedHashMap<>();
         Matcher matcher = Pattern
-            .compile("inputs\\.(?:file|files|dir)\\(([^)]*)\\)\\.withPropertyName\\(\"([^\"]+)\"\\)")
+            .compile("inputs\\.(?:file|files|dir)\\(([^)]*)\\)\\.withPropertyName\\(\"([^\"]+)\"\\)"
+                + "|inputs\\.property\\(\"([^\"]+)\", ([^)]*)\\)")
             .matcher(build.substring(start, end));
-        while (matcher.find()) out.put(matcher.group(2), matcher.group(1));
+        while (matcher.find())
+            if (matcher.group(2) != null) out.put(matcher.group(2), matcher.group(1));
+            else out.put(matcher.group(3), matcher.group(4));
         return out;
     }
 

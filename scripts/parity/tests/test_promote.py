@@ -5,30 +5,56 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Sequence
 
-from parity import capture, promote, store
+from parity import capture, compare, promote, store
 from parity.norm import MissingInput, Refused, read_json, read_text, write_json, write_text
 
 
-def artifact(runs: int = 2, failed: int = 0, delta: str = "1.0000") -> dict:
+def artifact(runs: int = 2, failed: int = 0, delta: str = "1.0000", dirty: bool = False) -> dict:
     return {
         "artifact": "sweep.entity", "format": 1, "key": "subject", "kind": "sweep-table",
-        "provenance": {"artifact": "sweep.entity", "counts": {"failed": failed, "rows": 1},
-                       "determinism_runs": runs, "asset_sha": "abc123"},
+        "provenance": {"artifact": "sweep.entity", "asset_dirty": dirty, "asset_sha": "abc123",
+                       "counts": {"failed": failed, "rows": 1}, "determinism_runs": runs},
         "rows": [{"subject": "minecraft__cow", "mean_argb_delta": delta, "status": "ok"}],
     }
 
 
+def digest_set(runs: int = 2) -> dict:
+    """A second capturable artifact, of a second kind, for the cases that need two rows at once."""
+    return {
+        "artifact": "digest.shipped-tables", "format": 1, "key": "name", "kind": "digest-set",
+        "digests": {"block_models": {"sha256": "a"}},
+        "provenance": {"artifact": "digest.shipped-tables", "asset_dirty": False,
+                       "asset_sha": "abc123", "counts": {"digests": 1},
+                       "determinism_runs": runs},
+    }
+
+
+#: Every artifact these fixtures capture. The store declares a floor per artifact before any
+#: capture of it can be judged, so a fixture store has to be registered as the real one is.
+REGISTERED = ("sweep.entity", "manifest.fluid", "manifest.tooling-tables",
+              "digest.shipped-tables", "pin.corpus-count")
+
+
+def registered(*artifacts: str, floor: int = 2, **columns) -> dict:
+    """An index envelope declaring a floor, and whatever else is asked for, per artifact."""
+    return {"artifacts": {name: {promote.FLOOR_FIELD: floor, **columns} for name in artifacts}}
+
+
 class Floors(unittest.TestCase):
+    """One table, and it is the roster's: the index row carries it and this reads it from there."""
 
-    def test_the_salt_exposed_pair_needs_five(self):
-        """Intermittent, so an oracle can pass twice and fail the third time."""
-        self.assertEqual(promote.floor_for("manifest.dump.vanilla"), 5)
-        self.assertEqual(promote.floor_for("manifest.dump.packs"), 5)
+    def test_the_floor_is_the_one_the_index_row_declares(self):
+        self.assertEqual(promote.floor_for("manifest.dump.vanilla",
+                                           registered("manifest.dump.vanilla", floor=5)), 5)
+        self.assertEqual(promote.floor_for("sweep.entity", registered("sweep.entity")), 2)
 
-    def test_everything_else_needs_two(self):
-        self.assertEqual(promote.floor_for("sweep.entity"), 2)
-        self.assertEqual(promote.floor_for("manifest.fluid"), 2)
+    def test_an_unregistered_artifact_is_missing_input_rather_than_a_default(self):
+        """A default here is a second table, and the two disagreed for the whole store's life."""
+        with self.assertRaises(MissingInput) as caught:
+            promote.floor_for("sweep.block", registered("sweep.entity"))
+        self.assertIn("declares no determinism_floor for 'sweep.block'", str(caught.exception))
 
 
 class Base(unittest.TestCase):
@@ -37,10 +63,29 @@ class Base(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.root = self.tmp / "run"
         self.store = store.WritableStore(self.tmp / "prod")
+        self.store.write("report.oracle-index", registered(*REGISTERED))
 
     def _capture(self, payload: dict) -> None:
         write_json(self.root / "sweeps" / "entity.json", payload)
-        capture.index(self.root, runs=payload["provenance"]["determinism_runs"])
+        capture.index(self.root)
+
+    def _compared(self, *artifacts: str, missing: Sequence[str] = ()) -> None:
+        """Leave behind the report `parityCompare` writes, stamped with THIS capture's digest.
+
+        The two lists are where they really land: an artifact with a baseline is diffed and listed
+        under `artifacts`, and one without is looked up, found absent and listed under
+        `missing_baseline`. `compare` never puts a baseline-less id in the first list, so a fixture
+        that does describes no run and measures nothing.
+
+        :param artifacts: the ids the compare diffed; the captured sweep alone by default
+        :param missing: the ids it looked up and found no baseline for
+        """
+        diffed = artifacts or (() if missing else ("sweep.entity",))
+        write_json(self.root / store.RUN_DIR / compare.REPORT, {
+            compare.CAPTURE_DIGEST: capture.content_digest(self.root),
+            "artifacts": [{"artifact": name} for name in diffed],
+            "format": 1, "missing_baseline": list(missing),
+            "totals": {"artifacts": len(diffed), "unexpected": 0}})
 
 
 class Plan(unittest.TestCase, ):
@@ -88,41 +133,52 @@ class Refusals(Base):
         self._capture(artifact())
         entries = promote.plan(self.root, self.store)
         with self.assertRaises(Refused) as caught:
-            promote.check(self.root, entries, "")
+            promote.check(self.root, entries, "", self.store.index())
         self.assertIn("--reason", str(caught.exception))
 
     def test_determinism_below_the_floor(self):
+        # Each of the four below is a per-ENTRY refusal, reached under `bootstrap=True` because the
+        # store here is empty - which is also what exempts them from the per-ROOT compare
+        # requirement, so no report has to be staged to reach the loop.
         self._capture(artifact(runs=1))
         entries = promote.plan(self.root, self.store)
         with self.assertRaises(Refused) as caught:
-            promote.check(self.root, entries, "why", bootstrap=True)
+            promote.check(self.root, entries, "why", self.store.index(), bootstrap=True)
         self.assertIn("determinism_runs=1", str(caught.exception))
 
     def test_a_partial_run(self):
         self._capture(artifact(failed=3))
         entries = promote.plan(self.root, self.store)
         with self.assertRaises(Refused) as caught:
-            promote.check(self.root, entries, "why", bootstrap=True)
+            promote.check(self.root, entries, "why", self.store.index(), bootstrap=True)
         self.assertIn("failed=3", str(caught.exception))
 
     def test_a_partial_run_passes_with_allow_partial(self):
         self._capture(artifact(failed=3))
         entries = promote.plan(self.root, self.store)
-        promote.check(self.root, entries, "why", allow_partial=True, bootstrap=True)
+        promote.check(self.root, entries, "why", self.store.index(), allow_partial=True,
+                      bootstrap=True)
 
     def test_a_new_artifact_without_bootstrap(self):
         self._capture(artifact())
+        # Without the flag the compare requirement applies, so the fixture has to satisfy it or the
+        # refusal under test never gets reached. It is staged where a compare really files an
+        # artifact it found no baseline for: listing it under `artifacts` instead would fabricate a
+        # report shape `compare` never writes.
+        self._compared(missing=("sweep.entity",))
         entries = promote.plan(self.root, self.store)
         with self.assertRaises(Refused) as caught:
-            promote.check(self.root, entries, "why")
-        self.assertIn("bootstrap", str(caught.exception))
+            promote.check(self.root, entries, "why", self.store.index())
+        # The clause, not the word: `--bootstrap` is named by the compare refusal too, so a check
+        # for "bootstrap" alone passes on the wrong refusal firing first.
+        self.assertIn("has no baseline to replace", str(caught.exception))
 
     def test_a_NAMED_artifact_with_no_provenance(self):
         """Asking for one that no capture step stamped is an error, where enumerating skips it."""
         self._unstamped()
         entries = promote.plan(self.root, self.store, ["sweep.entity"])
         with self.assertRaises(Refused) as caught:
-            promote.check(self.root, entries, "why", bootstrap=True)
+            promote.check(self.root, entries, "why", self.store.index(), bootstrap=True)
         self.assertIn("provenance", str(caught.exception))
 
     def test_an_UNSTAMPED_artifact_is_not_enumerated(self):
@@ -144,15 +200,161 @@ class Refusals(Base):
         entries = promote.plan(self.root, self.store)
         write_json(self.root / "sweeps" / "entity.json", artifact(delta="9.9999"))
         with self.assertRaises(Refused) as caught:
-            promote.check(self.root, entries, "why", bootstrap=True)
+            promote.check(self.root, entries, "why", self.store.index(), bootstrap=True)
         self.assertIn("changed since", str(caught.exception))
 
     def test_a_root_with_no_COMPLETE(self):
         write_json(self.root / "sweeps" / "entity.json", artifact())
         entries = promote.plan(self.root, self.store)
         with self.assertRaises(Refused) as caught:
-            promote.check(self.root, entries, "why", bootstrap=True)
+            promote.check(self.root, entries, "why", self.store.index(), bootstrap=True)
         self.assertIn("COMPLETE", str(caught.exception))
+
+
+class ACompareMustHaveHappened(Base):
+    """A promotion applies a diff someone has been shown, and that was implemented nowhere.
+
+    The design named it as the mechanism that makes promotion mechanical rather than judged, and
+    `promote.check`'s only root-integrity gate re-hashed the capture against its own index - which
+    says the root has not moved and nothing at all about whether anybody looked at it.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.store.write("sweep.entity", artifact(delta="2.0000"))
+        self._capture(artifact())
+        self.entries = promote.plan(self.root, self.store)
+
+    def test_a_capture_its_own_compare_covered_promotes(self):
+        """The green path, so every refusal below it is a refusal of something and not of everything.
+
+        Stated rather than counted: the count this sentence used to carry was measured once, and two
+        cases were appended below it afterwards.
+        """
+        self._compared()
+        promote.check(self.root, self.entries, "why", self.store.index())
+
+    def test_no_report_at_all(self):
+        with self.assertRaises(Refused) as caught:
+            promote.check(self.root, self.entries, "why", self.store.index())
+        self.assertIn(f"no {store.RUN_DIR}/{compare.REPORT}", str(caught.exception))
+
+    def test_a_report_left_behind_by_an_earlier_capture_of_the_same_slot(self):
+        """The working root is one self-overwriting slot, so 'a report is there' is not evidence.
+
+        The report is written first and the root re-captured under it with different bytes - which
+        is exactly the shape a second `parityCapture` leaves when the operator forgets to re-compare.
+        """
+        self._compared()
+        stale = read_json(self.root / store.RUN_DIR / compare.REPORT)
+        write_json(self.root / "sweeps" / "entity.json", artifact(delta="3.0000"))
+        capture.index(self.root)
+        write_json(self.root / store.RUN_DIR / compare.REPORT, stale)
+        with self.assertRaises(Refused) as caught:
+            promote.check(self.root, promote.plan(self.root, self.store), "why", self.store.index())
+        self.assertIn("written against a different capture", str(caught.exception))
+
+    def test_a_report_that_did_not_cover_the_artifact_being_written(self):
+        """`-Partifacts` scopes compare and promote separately, so one can name what the other did
+        not - and an artifact nobody compared is promoted with no comparison ever run, which is the
+        whole defect, wearing a report as cover."""
+        self._compared("manifest.fluid")
+        with self.assertRaises(Refused) as caught:
+            promote.check(self.root, self.entries, "why", self.store.index())
+        self.assertIn("the compare did not cover sweep.entity", str(caught.exception))
+
+    def test_an_unchanged_entry_is_not_held_to_it(self):
+        """`apply` skips an unchanged entry, so it writes no production byte to compare against."""
+        self.store.write("sweep.entity", artifact())
+        self._compared("manifest.fluid")
+        promote.check(self.root, promote.plan(self.root, self.store), "why", self.store.index())
+
+    def test_a_row_the_compare_found_no_baseline_for_is_covered_by_that(self):
+        """A compare files a baseline-less row under `missing_baseline` and never under `artifacts`.
+
+        `--base` points a compare at a tree other than the one being promoted into, so a row this
+        store holds can be one that compare found nothing to diff against. It LOOKED, which is this
+        function's whole question, and reading the one list alone refuses a promotion for not having
+        been compared when it was.
+        """
+        self._compared(missing=("sweep.entity",))
+        promote.check(self.root, self.entries, "why", self.store.index())
+
+    def test_bootstrap_is_the_exemption(self):
+        """A first baseline has nothing to be diffed against, so the requirement does not apply.
+
+        No compare has run in this root at all, which is the whole invocation the exemption is for:
+        the plan is a `new` against a store holding nothing.
+        """
+        first = store.WritableStore(self.tmp / "first")
+        promote.check(self.root, promote.plan(self.root, first), "why", self.store.index(),
+                      bootstrap=True)
+
+    def test_the_exemption_is_per_invocation_and_carries_the_rows_beside_the_new_one(self):
+        """Asserted because it is the exemption's cost rather than a feature of it.
+
+        The flag is typed because a row has no baseline and it cannot say which row that was, so a
+        bootstrap promotion over a whole root writes the already-baselined rows in it with no
+        compare either. This plan REPLACES a baseline and no compare has ever run. `--artifacts` is
+        what narrows the write to the row the flag was meant for.
+        """
+        promote.check(self.root, self.entries, "why", self.store.index(), bootstrap=True)
+
+
+class ADirtyTreeIsNotPromotable(Base):
+    """The one refusal whose failure mode cannot be detected after the fact.
+
+    A baseline captured from an uncommitted tree is re-derivable from no commit, and the stored
+    value does not say so in any way a later reader can act on. The skill has shipped the rule as a
+    decision-table row since the day it landed; `promote.py` never read the field.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.store.write("sweep.entity", artifact(delta="2.0000"))
+
+    def _check(self, payload: dict, **kwargs) -> None:
+        self._capture(payload)
+        self._compared()
+        promote.check(self.root, promote.plan(self.root, self.store), "why", self.store.index(),
+                      **kwargs)
+
+    def test_a_clean_capture_promotes(self):
+        self._check(artifact(dirty=False))
+
+    def test_a_dirty_capture_is_refused(self):
+        with self.assertRaises(Refused) as caught:
+            self._check(artifact(dirty=True))
+        self.assertIn("records asset_dirty=True", str(caught.exception))
+
+    def test_a_capture_whose_git_could_not_be_asked_is_refused_too(self):
+        """`asset_state` records null when git is unavailable, and null is not evidence of clean."""
+        payload = artifact()
+        payload["provenance"]["asset_dirty"] = None
+        with self.assertRaises(Refused) as caught:
+            self._check(payload)
+        self.assertIn("records asset_dirty=None", str(caught.exception))
+
+    def test_a_provenance_with_no_asset_dirty_field_is_refused(self):
+        payload = artifact()
+        payload["provenance"].pop("asset_dirty")
+        with self.assertRaises(Refused):
+            self._check(payload)
+
+    def test_allow_dirty_is_the_explicit_override(self):
+        self._check(artifact(dirty=True), allow_dirty=True)
+
+    def test_the_override_is_recorded_in_the_promoted_provenance(self):
+        """An override nothing writes down is indistinguishable from the refusal never firing."""
+        self._capture(artifact(dirty=True))
+        promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r",
+                      allow_dirty=True)
+        self.assertIs(self.store.read("sweep.entity")["provenance"]["allow_dirty"], True)
+
+    def test_an_ordinary_promotion_records_no_override(self):
+        self._capture(artifact())
+        promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
+        self.assertNotIn("allow_dirty", self.store.read("sweep.entity")["provenance"])
 
 
 class Apply(Base):
@@ -192,7 +394,7 @@ class Apply(Base):
         write_json(self.root / "sweeps" / "entity.json", artifact())
         (self.root / "sweeps" / "entity.json").write_bytes(
             (self.root / "sweeps" / "entity.json").read_bytes().replace(b"\n", b"\r\n"))
-        capture.index(self.root, runs=2)
+        capture.index(self.root)
         entries = promote.plan(self.root, self.store)
         promote.apply(self.root, self.store, entries, "r")
         self.assertNotIn(b"\r", self.store.path("sweep.entity").read_bytes())
@@ -210,11 +412,11 @@ class Apply(Base):
         self.assertEqual(self.store.read("sweep.entity")["provenance"]["parity_class"], "moving")
 
     def test_no_archive_copy_is_kept(self):
-        """U4: the store holds the last known value, not a history."""
+        """The store holds the last known value, not a history."""
         self._capture(artifact())
         promote.apply(self.root, self.store, promote.plan(self.root, self.store), "first")
         write_json(self.root / "sweeps" / "entity.json", artifact(delta="2.0000"))
-        capture.index(self.root, runs=2)
+        capture.index(self.root)
         promote.apply(self.root, self.store, promote.plan(self.root, self.store), "second")
         self.assertFalse((self.store.root / "archive").exists())
         self.assertEqual(self.store.read("sweep.entity")["rows"][0]["mean_argb_delta"], "2.0000")
@@ -225,7 +427,7 @@ class IndexEntryCount(Base):
 
     def _promote(self, artifact_id: str, relative: str, payload: dict) -> dict:
         write_json(self.root / relative, payload)
-        capture.index(self.root, runs=2)
+        capture.index(self.root)
         promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
         return self.store.index()["artifacts"][artifact_id]
 
@@ -258,6 +460,89 @@ class IndexEntryCount(Base):
             "values": {"glint_items": {"count": 7, "type": "int"}},
             "provenance": {"counts": {"values": 1}, "determinism_runs": 2}})
         self.assertEqual(row["entries"], 1)
+
+
+class TheIndexRowCarriesTheRegistrationAndTheHeadline(Base):
+    """What a promotion writes into the row beside the digest, and where each of the two comes from.
+
+    The floor is a registration and the sum is a measurement, and the row is rebuilt field by field
+    on every promotion - so anything not written here is dropped. The floor is read off the row this
+    one replaces and written back, which is what keeps one table; the sum is lifted out of the
+    payload's own derived summary, which is where the fleet sum lives.
+    """
+
+    #: Two artifacts declaring DIFFERENT floors. A fixture where every row carries the same number
+    #: cannot tell a row's own registration from a literal written into the rebuild - and a literal
+    #: is exactly what the second table this replaced was.
+    FLOORS = {"sweep.entity": 3, "digest.shipped-tables": 5}
+
+    def setUp(self):
+        super().setUp()
+        self.store.write("report.oracle-index", {"artifacts": {
+            name: {promote.FLOOR_FIELD: floor} for name, floor in self.FLOORS.items()}})
+
+    def _promote(self, relative: str, payload: dict, artifact_id: str = "sweep.entity") -> dict:
+        write_json(self.root / relative, payload)
+        capture.index(self.root)
+        promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
+        return self.store.index()["artifacts"][artifact_id]
+
+    def test_each_row_carries_the_floor_ITS_OWN_registration_declares(self):
+        self.assertEqual(self._promote("sweeps/entity.json", artifact())[promote.FLOOR_FIELD], 3)
+        self.assertEqual(self._promote("digests/shipped-tables.json", digest_set(),
+                                       "digest.shipped-tables")[promote.FLOOR_FIELD], 5)
+
+    def test_the_fleet_sum_is_lifted_out_of_the_summary(self):
+        payload = artifact()
+        payload["summary"] = {"buckets": {}, "failed": 0, "rows": 1, "sum": "60.0047"}
+        self.assertEqual(self._promote("sweeps/entity.json", payload)["sum"], "60.0047")
+
+    def test_a_payload_with_no_summary_carries_no_sum_column(self):
+        """Only the sweeps derive one, so the README falls back to the entry count elsewhere."""
+        self.assertNotIn("sum", self._promote("sweeps/entity.json", artifact()))
+
+
+class APopulationThatMovedIsRefused(Base):
+    """`--population-changed` stamped a flag and compared nothing, so it waived nothing.
+
+    A row count that moved is a different covered set, and the tree hashes cleanly either way - so
+    the flag recorded an exception to a rule that was never enforced.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.store.write("report.oracle-index",
+                         registered("sweep.entity", floor=2, entries=1))
+        self.store.write("sweep.entity", artifact(delta="2.0000"))
+
+    def _check(self, rows: int, **kwargs) -> None:
+        payload = artifact()
+        payload["provenance"]["counts"]["rows"] = rows
+        self._capture(payload)
+        self._compared()
+        promote.check(self.root, promote.plan(self.root, self.store), "why", self.store.index(),
+                      **kwargs)
+
+    def test_an_unchanged_population_promotes(self):
+        self._check(1)
+
+    def test_a_shrunk_population_is_refused_and_names_both_numbers(self):
+        with self.assertRaises(Refused) as caught:
+            self._check(0)
+        self.assertIn("captured 0 rows where its baseline holds 1", str(caught.exception))
+
+    def test_a_grown_population_is_refused_too(self):
+        """Growth and shrinkage are the same question: the covered set is not the one baselined."""
+        with self.assertRaises(Refused):
+            self._check(2)
+
+    def test_the_flag_is_what_admits_it(self):
+        self._check(0, population_changed=True)
+
+    def test_a_row_with_no_baseline_count_has_nothing_to_have_moved_from(self):
+        """A first promotion's population is whatever it captured, and --bootstrap says so."""
+        self.store.write("report.oracle-index", registered("sweep.entity", floor=2))
+        self._check(99)
 
 
 if __name__ == "__main__":

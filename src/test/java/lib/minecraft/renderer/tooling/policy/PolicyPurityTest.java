@@ -83,7 +83,7 @@ class PolicyPurityTest {
     }
 
     @Test
-    @DisplayName("K9: vanilla literals live only in VanillaSourceClasses and the policy enums")
+    @DisplayName("vanilla literals live only in VanillaSourceClasses and the policy enums")
     void vanillaLiteralsOnlyInSanctionedHomes() throws IOException {
         List<String> violations = new ArrayList<>();
         try (Stream<Path> sources = Files.walk(TOOLING2_MAIN)) {
@@ -111,7 +111,7 @@ class PolicyPurityTest {
     }
 
     @Test
-    @DisplayName("K9: every policy constant carries non-blank provenance")
+    @DisplayName("every policy constant carries non-blank provenance")
     void everyPolicyConstantCarriesProvenance() throws IOException {
         List<String> violations = new ArrayList<>();
         try (Stream<Path> sources = Files.walk(TOOLING2_MAIN)) {

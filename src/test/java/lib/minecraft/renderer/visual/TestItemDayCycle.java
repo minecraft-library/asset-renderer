@@ -50,7 +50,7 @@ import java.util.List;
  * sampled once per face it ships and an item with nothing time-driven stays a single still.
  * {@code -PdayFrames} states a count outright instead, to sample the sweep finer than the art.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:itemDayCycle [-PrenderSize=256] [-PdayFrames=64]}.
+ * <p>Usage: {@code ./gradlew itemDayCycle [-PrenderSize=256] [-PdayFrames=64]}.
  */
 @UtilityClass
 public final class TestItemDayCycle {

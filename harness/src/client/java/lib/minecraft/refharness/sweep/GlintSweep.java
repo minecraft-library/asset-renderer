@@ -50,19 +50,21 @@ import java.util.Map;
  *       exists so the armor-glint animation can be eyeballed side by side.</li>
  * </ul>
  *
- * <p><b>The {@link #FRAME_COUNT} and {@link #STEP_MILLIS} constants must match the asset-renderer
- * glint parity sweep.</b>
+ * <p><b>The {@link #FRAME_COUNT} and {@link #STEP_MILLIS} constants must match asset-renderer's
+ * {@code TestGlintParityVanilla}, which holds the same two values and drives its own frames off
+ * them.</b>
  */
 public final class GlintSweep implements Sweep<GlintSweep.Frame> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
-    /** Frames per glint subject. MUST match the asset-renderer glint parity frame count. */
+    /** Frames per glint subject. MUST match asset-renderer's {@code TestGlintParityVanilla.FRAME_COUNT}. */
     public static final int FRAME_COUNT = 30;
 
     /**
      * Glint-time step, in vanilla post-speed milliseconds, between frames. The product of the two
-     * constants spans the glint loop exactly once. MUST match the asset-renderer step.
+     * constants spans the glint loop exactly once. MUST match asset-renderer's
+     * {@code TestGlintParityVanilla.STEP_MILLIS}.
      */
     public static final long STEP_MILLIS = 1_000L;
 

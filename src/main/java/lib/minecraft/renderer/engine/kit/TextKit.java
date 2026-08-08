@@ -171,7 +171,7 @@ public class TextKit {
             return GradientKit.drawSegment(g, segment, segment.getGradient().get(), text, xMcPx, yMcPx, tick);
 
         int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
-        MinecraftFont font = MinecraftFont.of(segment.fontStyle());
+        MinecraftFont font = MinecraftFont.Vanilla.of(segment.fontStyle());
         int color = resolveColor(segment, defaultArgb);
         int shadow = shadowColor(segment, color);
 
@@ -276,7 +276,7 @@ public class TextKit {
      */
     public static int measureSegment(@NotNull ColorSegment segment) {
         if (segment.getText().isEmpty()) return 0;
-        return measureText(segment.getText(), MinecraftFont.of(segment.fontStyle()));
+        return measureText(segment.getText(), MinecraftFont.Vanilla.of(segment.fontStyle()));
     }
 
     /**

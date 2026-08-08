@@ -10,8 +10,6 @@ import com.google.gson.internal.LazilyParsedNumber;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,12 +30,18 @@ import java.util.Map;
  * order is semantic is emitted as an array of entries, never as an object - an object would have its
  * keys sorted on the way out and the very order being pinned would be destroyed silently.
  *
- * <p><b>Numbers are spelled by kind of quantity, not by call site.</b> A metric is fixed scale 4, so
- * it is greppable against every number ever quoted for it; a count is a plain integer; a captured
- * float is {@link Float#toString}, which is shortest-round-trip exact so the stored characters
- * recover the identical float; a CRC or an ARGB is an uppercase {@code 0x} string, because it is a
- * bit pattern rather than a quantity; a digest is lowercase hex. Deciding this per accessor instead
- * is what produced one dump printing {@code 0.4000000059604645} where another printed {@code 30.0}.
+ * <p><b>Numbers are spelled by kind of quantity, not by call site.</b> A count is a plain integer; a
+ * captured float is {@link Float#toString}, which is shortest-round-trip exact so the stored
+ * characters recover the identical float; a CRC or an ARGB is an uppercase {@code 0x} string,
+ * because it is a bit pattern rather than a quantity; a digest is lowercase hex. Deciding this per
+ * accessor instead is what produced one dump printing {@code 0.4000000059604645} where another
+ * printed {@code 30.0}.
+ *
+ * <p>The fifth spelling, the fixed-scale-4 metric, has no factory here, because nothing on this side
+ * writes one. Two kinds of metric reach the store and the toolkit writes both: a row's delta is the
+ * text its sweep already printed at that scale, carried across verbatim, and a sweep's derived fleet
+ * sum is formatted by the toolkit itself out of the same helper - a string either way, so the one
+ * number a thousand rows are summed into is spelled like the thousand.
  */
 public final class ParityJson {
 
@@ -46,14 +50,6 @@ public final class ParityJson {
         .serializeSpecialFloatingPointValues()
         .disableHtmlEscaping()
         .create();
-
-    private static final @NotNull Gson COMPACT = new GsonBuilder()
-        .serializeSpecialFloatingPointValues()
-        .disableHtmlEscaping()
-        .create();
-
-    /** The scale every parity metric has ever been quoted at. */
-    private static final int METRIC_SCALE = 4;
 
     private ParityJson() {}
 
@@ -71,44 +67,6 @@ public final class ParityJson {
     }
 
     /**
-     * Writes a store file whose one array payload is emitted compact, one element per line.
-     *
-     * <p>The single variant on {@link #write}, and it exists for two measured reasons: a 1055-row
-     * sweep is about a third the size one-row-per-line as pretty, and one row per line makes
-     * {@code git diff} on the promoted file <em>be</em> the mover list rather than a wall of
-     * re-indentation. The result is still ordinary JSON that any parser reads without knowing
-     * anything about the layout.
-     *
-     * @param file the file to write
-     * @param root the artifact envelope, which must carry the payload array under {@code arrayKey}
-     * @param arrayKey the payload key whose elements go one per line
-     * @throws IOException if the file cannot be written
-     */
-    public static void writeTable(@NotNull Path file, @NotNull JsonObject root, @NotNull String arrayKey) throws IOException {
-        JsonElement payload = root.get(arrayKey);
-        if (payload == null || !payload.isJsonArray())
-            throw new ParityStoreException("'%s' is not an array in the envelope being written to '%s'", arrayKey, file);
-
-        JsonObject envelope = new JsonObject();
-        root.entrySet().stream()
-            .filter(entry -> !entry.getKey().equals(arrayKey))
-            .forEach(entry -> envelope.add(entry.getKey(), entry.getValue()));
-
-        // Drop the envelope's closing "\n}" so the payload array can be appended inside it.
-        String head = text(envelope);
-        StringBuilder out = new StringBuilder(head.substring(0, head.length() - 2));
-        out.append(",\n  \"").append(arrayKey).append("\": [");
-        JsonArray rows = payload.getAsJsonArray();
-        for (int index = 0; index < rows.size(); index++) {
-            out.append(index == 0 ? "\n    " : ",\n    ");
-            out.append(COMPACT.toJson(sortDeep(rows.get(index))));
-        }
-        out.append(rows.isEmpty() ? "]" : "\n  ]").append("\n}\n");
-        Files.createDirectories(file.getParent());
-        Files.writeString(file, out.toString().replace("\r\n", "\n"), StandardCharsets.UTF_8);
-    }
-
-    /**
      * Returns an element's canonical text - the exact bytes {@link #write} emits, without the
      * trailing newline.
      *
@@ -117,20 +75,6 @@ public final class ParityJson {
      */
     public static @NotNull String text(@NotNull JsonElement element) {
         return PRETTY.toJson(sortDeep(element)).replace("\r\n", "\n");
-    }
-
-    /**
-     * Returns a parity metric at the one scale it has ever been quoted at.
-     *
-     * <p>Trailing zeros are kept, so {@code 0.0000} and {@code 60.0047} are both four places and a
-     * stored number is greppable against the ledger and against {@code CLAUDE.md} verbatim.
-     *
-     * @param value the metric
-     * @return the fixed-scale primitive
-     */
-    public static @NotNull JsonPrimitive metric(double value) {
-        return new JsonPrimitive(new LazilyParsedNumber(
-            BigDecimal.valueOf(value).setScale(METRIC_SCALE, RoundingMode.HALF_UP).toPlainString()));
     }
 
     /**

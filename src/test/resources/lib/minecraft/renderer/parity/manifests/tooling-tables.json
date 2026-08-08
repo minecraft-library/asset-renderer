@@ -52,14 +52,14 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "5e16591c1be7501b68ca56333681ef0a0708aab0e1213e5271940073cae48d65",
+    "entityModels": "58481acaebb28d9420774651c97b137884cc723becab1aa4783a224ea5e98fa3",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
     "asset_dirty": false,
-    "asset_sha": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
+    "asset_sha": "0bcb42335c9f472169445099c348bceaf2b92e58",
     "counts": {
       "files": 10,
       "logs": 8
@@ -67,9 +67,9 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "neutral",
+    "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "first baseline of the parity store. There is no predecessor, so the evidence is per artifact: a determinism proof, a counted population, and an independent capture wherever one exists. Every artifact was captured at least twice into separate roots and the roots compared clean before the second was promoted, which is what determinism_runs counts; all fourteen captures were taken on a clean tree at one commit and BEFORE any promotion, so no leg's capture sees another leg's output. Leg 1/5, tooling tables: 10 shipped tables plus 8 normalized diagnostics-log digests, 18 rows, 0 movers across the pair. The eight flows reproduced their shipped bytes exactly - git status was empty after both captures - which is M1 and M8 re-asserted after a real capture, and P0 recorded the same reproduction.",
+    "reason": "eight entity-resolver diagnostics reworded to name their mechanism rather than a phase. Nine emitted lines change and no emitted table byte does: all 18 shipped files agree with the previous baseline and logs/entityModels alone moves, 5e16591c -> 58481aca. Reproduced by two captures of the same flows, one from the working tree and one at this commit.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -79,7 +79,8 @@
       "players": 2
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-08-01T02:28:07Z",
-    "tool_version": "1.0.0"
+    "timestamp": "2026-08-08T00:58:25Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 2696
   }
 }

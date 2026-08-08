@@ -712,7 +712,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             if (options.getContext().stackCount() > 1)
                 stack.append(ItemSlot.STACK_COUNT, frame ->
-                    ItemStackKit.drawStackCount(frame, options.getContext().stackCount(), MinecraftFont.REGULAR));
+                    ItemStackKit.drawStackCount(frame, options.getContext().stackCount(), MinecraftFont.Vanilla.REGULAR));
 
             return stack;
         }

@@ -1,6 +1,6 @@
 # vanilla-reference-harness
 
-Headless Fabric mod for **Minecraft 26.1.2** that drives the actual vanilla client to render every block, every living entity (including variants), every non-block item, and the animated enchantment glint into transparent-background reference PNGs at a locked iso pose. The output PNGs are the byte-stable ground truth that sibling [asset-renderer]'s parity tests diff its Java rendering pipeline against. Blocks render as true 3D geometry through vanilla's block-model and block-entity pipelines (never as flat inventory icons); non-block items render as GUI inventory icons.
+Headless Fabric mod for **Minecraft 26.1.2** that drives the actual vanilla client to render every block, every living entity (including variants), every non-block item, and the animated enchantment glint into transparent-background reference PNGs at a locked iso pose. This is a directory of [asset-renderer], with its own Gradle build and its own wrapper; the output PNGs are the byte-stable ground truth that repository's parity tests diff its Java rendering pipeline against. Blocks render as true 3D geometry through vanilla's block-model and block-entity pipelines (never as flat inventory icons); non-block items render as GUI inventory icons.
 
 > [!IMPORTANT]
 > This is a single-purpose dev tool. The renders it produces are checked in to asset-renderer's cache as the parity baseline. **Do not delete or modify those PNGs by hand** - re-run the harness instead.
@@ -29,15 +29,15 @@ Headless Fabric mod for **Minecraft 26.1.2** that drives the actual vanilla clie
 > Prefer running through asset-renderer - the output lands directly in asset-renderer's cache where the parity tests look for it.
 
 ```bash
-# Full sweep: blocks + items + entities (~5 min warm)
-./gradlew :asset-renderer:renderVanillaReferences
+# Full sweep: blocks + items + entities (~5 min warm), run from the asset-renderer root
+./gradlew renderVanillaReferences
 
 # Filter to a subset for iteration
-./gradlew :asset-renderer:renderVanillaReferences \
+./gradlew renderVanillaReferences \
   -PrefharnessTargets=minecraft:cow,minecraft:zombie,minecraft:diamond_block
 
 # Animated-glint references only (fast, decoupled from the full sweep)
-./gradlew :asset-renderer:renderVanillaGlintReferences
+./gradlew renderVanillaGlintReferences
 ```
 
 Or directly from the harness:
@@ -59,7 +59,7 @@ PNGs are RGBA with the subject opaque on a fully transparent (`α = 0`) backgrou
 | Source                                       | Path                                                                                       |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `runRenderReferences` direct                 | `vanilla-reference-harness/build/refharness-output/{blocks,entities,items}/<ns>__<id>.png`  |
-| `:asset-renderer:renderVanillaReferences`    | `asset-renderer/cache/asset-renderer/vanilla/26.1/references/{blocks,entities,items}/<ns>__<id>.png` |
+| `renderVanillaReferences` from asset-renderer | `asset-renderer/cache/asset-renderer/vanilla/26.1/references/{blocks,entities,items}/<ns>__<id>.png` |
 | Glint (per-frame, decoupled run)             | `.../references/glint/<ns>__<id>/frame_NNN.png` + `glint/atlas_uv.json`                     |
 
 ### Block canvas
@@ -218,8 +218,7 @@ Set automatically by the Loom run config; override with `-Drefharness.xxx=` for 
 ```
 src/
 ├── main/resources/
-│   ├── fabric.mod.json
-│   └── seed-world/.gitkeep
+│   └── fabric.mod.json
 └── client/
     ├── java/lib/minecraft/refharness/
     │   ├── HarnessConfig.java              # System-property config
@@ -404,7 +403,7 @@ A 16×16×0 "plane cube" (warden tendrils, etc.) has 2 visible faces and 4 zero-
 ### Pitch-roll sweep
 
 ```bash
-./gradlew :asset-renderer:renderVanillaReferences \
+./gradlew renderVanillaReferences \
   -PrefharnessTargets=minecraft:cow \
   -PrefharnessPitchRollSweep=true
 ```
@@ -414,7 +413,7 @@ Renders the first filtered target 24×24 = 576 times - every combination of pitc
 ### Glint-only run
 
 ```bash
-./gradlew :asset-renderer:renderVanillaGlintReferences \
+./gradlew renderVanillaGlintReferences \
   -PrefharnessTargets=minecraft:nether_star
 ```
 
@@ -423,15 +422,19 @@ Runs only `GlintSweep`, skipping the full block/item/entity sweep, so the animat
 ### Reset world
 
 ```bash
-./gradlew :vanilla-reference-harness:resetRefharnessWorld
+./gradlew resetRefharnessWorld
 ```
 
-Removes `run/saves/refharness_world/` so the next render starts from a fresh world. Useful if save-corruption from a hard JVM exit causes startup issues.
+Run from this directory. Removes asset-renderer's `cache/run/saves/refharness_world/` - Loom is pointed at that run directory rather than at `harness/run/` - so the next render starts from a fresh world. Useful if save-corruption from a hard JVM exit causes startup issues.
 
 ---
 
 ## License
 
-All-Rights-Reserved (sibling of [asset-renderer]; not for redistribution).
+Apache-2.0, the same as [asset-renderer]. This tree is a directory of that repository rather than a
+vendored third party, so the repository's own `LICENSE.md` governs it and there is no second licence
+file here. The one thing it carries that is not ours is the Minecraft client it drives, which Loom
+resolves at build time and which nothing here redistributes; `COPYRIGHT.md` at the repository root
+records that carve-out and the Fabric dependencies this build carries.
 
-[asset-renderer]: https://github.com/minecraft-library/asset-renderer
+[asset-renderer]: ..

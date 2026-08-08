@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Renders the {@code parity-gate} skill's two generated reference files from the JSON that is their
@@ -92,6 +93,21 @@ public final class ParityReferences {
         out.add("at all. An artifact that is not `baselined` has no last known value, so a comparison");
         out.add("against it answers `MISSING_BASELINE` rather than passing.");
         out.add("");
+        out.add("`producer` is what a capture of that row **runs**: `parityCapture` depends on the");
+        out.add("producers of every row it captures, and the row's own capture step orders itself after");
+        out.add("them rather than depending on them. The column is those tasks in the build file's");
+        out.add("order, asserted equal to that row there. It is not a census of every task able to write");
+        out.add("those bytes, so a task absent from a row can still write into it - a narrower harness");
+        out.add("run refreshing part of the reference tree, one visual producer rewriting its own");
+        out.add("sub-tree. Run less than a row names and the rest of its file set stays at whatever wrote");
+        out.add("it last, while the capture hashes cleanly, because every declared member exists.");
+        out.add("");
+        out.add("The store's own two root files are the exception: no capture step covers either, so the");
+        out.add("build file holds no row for them and the column says what writes the file instead -");
+        out.add("`parityPromote` for the index, which a promotion stamps in the same act as the baseline");
+        out.add("it writes, and nothing for the rule roster, which is hand-authored. Both are asserted");
+        out.add("against that reading rather than against the build file.");
+        out.add("");
         out.add("`floor` is how many runs a **first** promotion performs. `runs` is how many actually");
         out.add("agreed, read back from the promoted file - the two are different numbers on purpose,");
         out.add("because a floor that doubled as the record would let a declaration pass for evidence.");
@@ -108,7 +124,7 @@ public final class ParityReferences {
                 "`" + registration.id() + "`",
                 text(entry, "kind"),
                 registration.home().name(),
-                registration.producer().isEmpty() ? "-" : "`" + registration.producer() + "`",
+                codeJoin(registration.producers()),
                 registration.determinismFloor() == 0 ? "-" : String.valueOf(registration.determinismFloor()),
                 determinismRuns(registration),
                 text(entry, "entries"),
@@ -126,10 +142,12 @@ public final class ParityReferences {
         out.add("| task | why it has no id |");
         out.add("|---|---|");
         out.add("| `generateAtlas` (with `-Pdiagnose` / `-PsourceFilter` / `-PskipRender`) | `AtlasRenderer` dispatches its tiles on `parallelStream` by design, so two runs place the same sprites at different offsets and the output can never be hashed (blindness rule B15). A must-not-crash smoke check. |");
-        out.add("| `javadoc` | RED at HEAD with about twenty pre-existing errors, seventeen of them Lombok-generated builders an annotation processor produces and javadoc cannot see. Its exit code carries no information. |");
+        out.add("| `javadoc` | RED at HEAD, and every error is the same one: a Lombok-generated builder an annotation processor produces and the doclet cannot see. Its exit code carries no information. The incubator module flag is wired onto it like every other consumer, which is why the two errors that were about `SimdOps` are gone and the task is still red. |");
         out.add("| `jmh` | Benchmark scores, not rendered bytes. `jmh-regression-gate` is the separate skill that compares them. |");
-        out.add("| `bedParity`, `packOverlay`, `redstoneTints`, `stackCountBadge`, `loreTooltip` cells | Authoring and version-bump tools. What they write either has no oracle or is already covered by `manifest.visual`. |");
+        out.add("| `bedCompare`, `packOverlay`, `redstoneTints`, `stackCountBadge`, `blockFlipbook` | Authoring and version-bump tools. No stored artifact is defined over any of their output directories - none is a member of `manifest.visual` - so what they write is compared against nothing this store holds. |");
+        out.add("| `blockRender3D`, `entityProjections`, `entityRender3D`, `itemDayCycle`, `itemRender2D`, `loreTooltip`, `menuRender`, `projectionSmoke` | Visual producers whose `cache/visual` sub-tree is a member of `manifest.visual`, so the rows they write are gated under that id and captured by `visualSweepSet` rather than by a task of their own. |");
         out.add("| `renderVanillaReferences` and the three narrow harness runs | Preconditions rather than gates: they produce the ground truth every sweep is measured against. Only `renderVanillaAllReferences` refreshes the whole tree, which is why it is the one `manifest.references` names. |");
+        out.add("| `renderVanillaPitchRollProbe`, `renderVanillaDepthQuantumProbe` | Harness probes that render OUTSIDE the reference tree and refresh no reference, so neither is a precondition either. The second's output is registered as `probe.depth-quantum`, which is external: it is evidence rather than a value a gate reproduces. |");
 
         return String.join("\n", out) + "\n";
     }
@@ -177,17 +195,35 @@ public final class ParityReferences {
         out.add("path** or on **different paths**, and one pair of rules answers both ways over");
         out.add("one change set.");
         out.add("");
-        out.add("`BlindnessMapTest.java` alone fires R14 (`select`) and R16 (`demote`, R14's");
+        out.add("`BlindnessMapTest.java` alone fires B37 (`select`) and B39 (`demote`, B37's");
         out.add("list) on one path: the demote pass empties the union, SEES is empty, and every");
         out.add("artifact on that list is reported blind with nothing recorded against it. That");
-        out.add("file beside `SelfCapture.java` fires R16 on the first path alone, the second");
-        out.add("path resolves to R14's list, and the union carries it - SEES holds all of it");
-        out.add("and each blind row reads \"claimed blind, selected by R14\". A `select`");
+        out.add("file beside `SelfCapture.java` fires B39 on the first path alone, the second");
+        out.add("path resolves to B37's list, and the union carries it - SEES holds all of it");
+        out.add("and each blind row reads \"claimed blind, selected by B37\". A `select`");
         out.add("rule's claim resolves by the same arithmetic from the other side: on");
         out.add("`BlockGeometryKit.java` B10 claims `sweep.block` blind while B19 selects it on");
         out.add("that path, so it is in SEES and its row names B19; on `PlayerRenderer.java` B9");
         out.add("claims `sweep.player` and no fired rule selects it, so it is absent from SEES and");
         out.add("its row names nobody.");
+        out.add("");
+        out.add("## Judging a `manifest.portal` mover on the sub-tick path");
+        out.add("");
+        out.add("`portalRenderer` writes each animated subject twice - a plain strip on the tick");
+        out.add("lattice and an `_animated_smooth` strip at three sub-steps per tick - and");
+        out.add("`manifest.portal` hashes both. A sub-tick change that collapsed the smooth strip");
+        out.add("to duplicated frames would move those bytes and read as an ordinary mover, so the");
+        out.add("bytes having moved is not by itself the question.");
+        out.add("");
+        out.add("What separates a real intermediate frame from a duplicate: **frame `3n` of the");
+        out.add("smooth strip is the plain strip's frame `n` exactly, and the two frames between");
+        out.add("each pair differ from both of their neighbours.** Measured over all four animated");
+        out.add("subjects, 120 plain frames and 360 smooth: every one of the 120 lattice frames is");
+        out.add("identical on every channel, and the smallest margin by which an in-between frame");
+        out.add("differs from its nearer neighbour is 20 channel levels on the portal and 47 on the");
+        out.add("gateway. Re-measure with `./gradlew portalRenderer` and decode both strips; the");
+        out.add("run's own capture step refuses if the working root already holds a finished");
+        out.add("capture, which does not affect the strips it writes.");
         out.add("");
 
         for (JsonElement element : map.getAsJsonArray("rules")) {
@@ -271,6 +307,22 @@ public final class ParityReferences {
      */
     private static @NotNull String text(@NotNull JsonObject entry, @NotNull String field) {
         return entry.has(field) ? entry.get(field).getAsString() : "-";
+    }
+
+    /**
+     * Renders a list of names as a comma-separated list of inline code spans.
+     *
+     * <p>Whole rather than truncated, because the one column a reader with no time budget is sent to
+     * is this one: a row rendered as its first producer reads as the whole answer, and running that
+     * task alone leaves the rest of the artifact's file set at whatever wrote it last, with the
+     * capture hashing cleanly over the mixture.
+     *
+     * @param names the names
+     * @return the rendered list, or a dash when empty
+     */
+    private static @NotNull String codeJoin(@NotNull List<String> names) {
+        if (names.isEmpty()) return "-";
+        return names.stream().map(name -> "`" + name + "`").collect(Collectors.joining(", "));
     }
 
     /**

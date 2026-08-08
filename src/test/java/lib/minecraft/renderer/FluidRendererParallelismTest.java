@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.is;
  * runs agree with each other.
  * <p>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew :asset-renderer:slowTest}.
+ * {@code ./gradlew slowTest}.
  */
 @Tag("slow")
 @DisplayName("FluidRenderer parallel frame bake determinism")
@@ -104,8 +104,8 @@ class FluidRendererParallelismTest {
 
         for (int frame = 0; frame < first.size(); frame++) {
             String key = key(fluid, frame);
-            assertThat("frame CRC32 " + key + "; if intentional, promote the capture this run already "
-                    + "wrote with " + Pins.regenCommand(ARTIFACT),
+            assertThat("frame CRC32 " + key + "; if intentional, re-baseline it: "
+                    + Pins.rebaselineCommand(ARTIFACT),
                 first.get(frame), is(Pins.crc32(ARTIFACT, key)));
         }
     }

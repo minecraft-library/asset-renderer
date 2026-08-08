@@ -59,8 +59,7 @@ class CorpusCountPinTest {
         PINS.count(key, actual);
         PINS.requireBaseline();
         assertThat("corpus size " + key + "; a moved count means a flow emitted a different "
-                + "population. If intentional, promote the capture this run already wrote with "
-                + Pins.regenCommand(ARTIFACT),
+                + "population. If intentional, re-baseline it: " + Pins.rebaselineCommand(ARTIFACT),
             actual, is(Pins.count(ARTIFACT, key)));
     }
 

@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * invariant - a parallelStream().forEach implementation would shuffle tiles.
  * <p>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew :asset-renderer:slowTest}.
+ * {@code ./gradlew slowTest}.
  */
 @Tag("slow")
 @DisplayName("AtlasRenderer parallel dispatch order + determinism")

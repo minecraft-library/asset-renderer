@@ -36,7 +36,7 @@ public final class ParityViews {
 
     /** How to rewrite a stale view from the JSON already in the store. Measures nothing. */
     public static final @NotNull String REGEN_COMMAND =
-        "./gradlew test --tests \"*ParityViewsTest\" -Dasset.parity.regenerateViews=true";
+        "./gradlew test --tests \"*ParityViewsTest\" -Dasset.parity.regenerateViews=true --rerun";
 
     private ParityViews() {}
 

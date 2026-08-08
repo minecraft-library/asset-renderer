@@ -20,6 +20,12 @@ Within one path :func:`_resolve_path` runs three passes, in this order:
 3. **Suppress** - each fired ``suppress`` rule removes its ``sees`` and its ``blind`` together, the
    pass that outranks the other two.
 
+**No shipped rule names an artifact on a suppress rule**, so pass 3 removes nothing from any answer
+the map gives today: the one suppression declares both lists empty, and correctly - the value it
+speaks for is registered as no artifact, so there is nothing for it to name. The pass is kept for
+the case where a rule does have to outrank a selection, and ``test_blindness`` pins that the shipped
+map has none, so a rule acquiring one moves this paragraph rather than landing silently.
+
 Taking the demotions inline rather than after the union would make the answer depend on the order the
 rules happen to sit in the file.
 
@@ -29,12 +35,12 @@ statement the plan prints; shipped ``select`` rules do carry one naming artifact
 rule and the selecting rule fire on the SAME path or on different paths, and one pair of rules
 answers both ways over one change set:
 
-* ``BlindnessMapTest.java`` alone fires R14 (``select``) and R16 (``demote``, R14's list) on one
+* ``BlindnessMapTest.java`` alone fires B37 (``select``) and B39 (``demote``, B37's list) on one
   path. Pass 2 empties the union: ``sees`` is ``[]`` and every artifact on that list is reported
   blind with an empty ``selected_by``.
-* That file beside ``SelfCapture.java`` fires R16 on the first path alone. The second path resolves
-  to R14's list and the union carries it: ``sees`` holds all of it and each blind row reads
-  ``selected_by=['R14']``.
+* That file beside ``SelfCapture.java`` fires B39 on the first path alone. The second path resolves
+  to B37's list and the union carries it: ``sees`` holds all of it and each blind row reads
+  ``selected_by=['B37']``.
 * A ``select`` rule's claim resolves by the same arithmetic from the other side. On
   ``BlockGeometryKit.java``, B10 claims ``sweep.block`` blind while B19 selects it on that path, so it
   is in ``sees`` and its row reads ``selected_by=['B19']``; on ``PlayerRenderer.java``, B9 claims

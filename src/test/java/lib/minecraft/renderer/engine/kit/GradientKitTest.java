@@ -155,7 +155,7 @@ class GradientKitTest {
         @DisplayName("per-pixel band 1 renders a smooth left-dark to right-light sweep")
         @ExtendWith(MinecraftFontsExtension.class)
         void perPixelSmoothSweep() {
-            MinecraftFont font = MinecraftFont.REGULAR;
+            MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
             int advW = font.glyph('W').advanceWidth();
 
             PixelBuffer buffer = PixelBuffer.create(4 * advW + 8, 40);
@@ -180,7 +180,7 @@ class GradientKitTest {
     @DisplayName("measureCodepoints walks codepoints, so a surrogate pair is one glyph")
     @ExtendWith(MinecraftFontsExtension.class)
     void measureCodepointsIsSurrogateSafe() {
-        MinecraftFont font = MinecraftFont.REGULAR;
+        MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
         int astral = 0x1D400; // MATHEMATICAL BOLD CAPITAL A (needs a surrogate pair in UTF-16)
         String pair = new String(Character.toChars(astral));
         assertThat(pair.length(), is(2)); // two UTF-16 code units...
@@ -191,7 +191,7 @@ class GradientKitTest {
     @DisplayName("per-letter samples one flat color per glyph at its advance center")
     @ExtendWith(MinecraftFontsExtension.class)
     void perLetterAdvanceCenter() {
-        MinecraftFont font = MinecraftFont.REGULAR;
+        MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
         int advM = font.glyph('M').advanceWidth();
 
         // Opaque black canvas so partial-coverage edges composite onto a known background (a bare

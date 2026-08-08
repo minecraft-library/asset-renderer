@@ -53,8 +53,8 @@ import java.util.Optional;
  * the common box; {@code diff.png} and {@code diff_panel.png} are built from the aligned pair, as is
  * the reported delta.
  *
- * <p>Usage: {@code ./gradlew :asset-renderer:playerParityVanilla}. Run
- * {@code :asset-renderer:renderVanillaPlayerReferences} first if the references are missing.
+ * <p>Usage: {@code ./gradlew playerParityVanilla}. Run
+ * {@code renderVanillaPlayerReferences} first if the references are missing.
  */
 @UtilityClass
 public final class TestPlayerParityVanilla {
@@ -83,7 +83,7 @@ public final class TestPlayerParityVanilla {
      */
     public static void main(String @NotNull [] args) throws IOException {
         if (!Files.isDirectory(VANILLA_DIR)) {
-            System.err.printf("Vanilla player reference directory missing: %s%n  Run :asset-renderer:renderVanillaPlayerReferences first.%n",
+            System.err.printf("Vanilla player reference directory missing: %s%n  Run renderVanillaPlayerReferences first.%n",
                 VANILLA_DIR.toAbsolutePath());
             return;
         }
@@ -101,6 +101,8 @@ public final class TestPlayerParityVanilla {
         List<Row> rows = new ArrayList<>();
         for (PlayerOptions.Type scope : List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL))
             rows.add(renderAndCompare(scope, javaRenderer));
+
+        rows.sort(SweepReport.byDelta(Row::meanDelta));
 
         List<String> lines = new ArrayList<>(rows.size());
         for (Row r : rows)

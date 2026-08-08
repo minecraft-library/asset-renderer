@@ -49,8 +49,8 @@ import java.util.Optional;
 /**
  * Visual sweep of every {@link PlayerRenderer} option, written as labelled contact sheets to
  * {@code cache/visual/player-render/} for eyeballing. This is a <b>functional / visual</b> tool
- * ("does it render and look right") - there is no parity gate; worn-armor entity-pose parity is a
- * separate effort and out of scope (see {@code notes/player-parity.md}).
+ * ("does it render and look right") - there is no parity gate here; worn-armor entity-pose parity is
+ * {@code TestArmorParityVanilla}'s, and player-model parity {@code TestPlayerParityVanilla}'s.
  *
  * <p>Each sheet is a grid of labelled cells over a checkerboard (so transparent renders stay
  * visible). The sweep covers the scope x dimension grid, the player head in 3D under every
@@ -67,7 +67,7 @@ import java.util.Optional;
  * (not fatal) when offline. 3D cells render at {@link #SSAA}x supersampling for crisp edges.
  *
  * <p>Usage:
- * {@code ./gradlew :asset-renderer:playerRender [-PrenderSize=256] [-Psheets=core-matrix,toggles,account,...] [-Ppack[=<url>]] [-Paccount=<username>]}.
+ * {@code ./gradlew playerRender [-PrenderSize=256] [-Psheets=core-matrix,toggles,account,...] [-Ppack[=<url>]] [-Paccount=<username>]}.
  */
 @UtilityClass
 public final class TestPlayerRender {

@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.is;
  * silently drifting output.
  * <p>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew :asset-renderer:slowTest}.
+ * {@code ./gradlew slowTest}.
  */
 @Tag("slow")
 @DisplayName("PortalRenderer parallel bake determinism")
@@ -105,8 +105,8 @@ class PortalRendererParallelismTest {
         long actual = RenderDigest.crc32(first);
         PINS.crc32(key, actual);
         PINS.requireBaseline();
-        assertThat("rasterization output CRC32; if intentional, promote the capture this run already "
-                + "wrote with " + Pins.regenCommand(ARTIFACT),
+        assertThat("rasterization output CRC32; if intentional, re-baseline it: "
+                + Pins.rebaselineCommand(ARTIFACT),
             actual, is(Pins.crc32(ARTIFACT, key)));
     }
 
