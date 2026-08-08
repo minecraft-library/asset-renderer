@@ -211,6 +211,12 @@ byte-stable ground truth the six sweeps diff against, one sub-tree each under
 - Re-rendering refreshes ground truth and does not fix a regression, and only
   `renderVanillaAllReferences` refreshes the whole tree.
 - A reference that moves on a re-render with your change stashed was stale, not moved.
+- The whole-tree render reproduces, measured rather than assumed: two boots seven hours and 26
+  perturbation cycles apart hashed the same tree. Every sweep digest in the store rests on that and
+  nothing had checked it. The identity is one digest over the whole tree, which
+  `provenance.reference_manifest_digest` derives from the tree rather than from a captured file, so
+  re-deriving it and comparing against any sweep's provenance is the cheap check that a number and
+  its ground truth still name one reference set.
 
 Capture, compare and promote go through the `parity-gate` skill; the re-render runbook is its
 `references/procedures.md`.
