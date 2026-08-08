@@ -54,19 +54,20 @@ version bump.
   statement of how generator hard-coding is sanctioned, and `PolicyPurityTest` reflects on a
   `provenance` field of every `*Policies` class, so they cannot share a superclass.
 - **Every instruction walk in `tooling/` is an `AsmWalker` chain** - the one hand-written
-  instruction loop left is the fenced decline
-  `EntityGeometryRefResolver.collectBakedModelLayers` (see `notes/asm-walk/DESIGN.md`
-  section 14). The walker is a reusable descriptor: sources `over`/`clinit`/`from`/`after`/`before`,
-  geometry `real()`/`until`/`limit`, match stages that narrow, fold stages (`gather`/`latch` +
-  `commitAt`) that replace the old `pending*` locals, and eager terminals; branch-following is
-  `trace` with an always-on cycle guard; three of the four bytecode interpreters ride one
-  `Interp<V>` chassis, and `GeometryParser`'s stack/slot half stays site-owned pending the same
-  machine-view tokens. Do NOT reintroduce a `for (AbstractInsnNode ...)` loop - the engine's
-  cascade rules (claiming, commit-before-reset, strict-adjacency) are pinned by the F0 test
-  suite, and a hand loop silently re-derives them. One-hop neighbour reads
-  (`AsmWalker.nextReal`/`previousReal`) are expressions, not walks, and stay statics. The
-  `notes/asm-walk/` design records every declined site; the fence there is keyed by member name
-  and its only permitted edit is the owner-token rename.
+  instruction loop left is `EntityGeometryRefResolver.collectBakedModelLayers`, whose body is
+  bake-triple consumer accounting rather than a fold: a constructor consuming two or more models
+  takes the last n fresh triples in argument order and always empties the fresh buffer, even when
+  it held fewer than n, and there is no chain token for that. The walker is a reusable descriptor:
+  sources `over`/`clinit`/`from`/`after`/`before`, geometry `real()`/`until`/`limit`, match stages
+  that narrow, fold stages (`gather`/`latch` + `commitAt`) that replace the old `pending*` locals,
+  and eager terminals; branch-following is `trace` with an always-on cycle guard; three of the four
+  bytecode interpreters ride one `Interp<V>` chassis, and `GeometryParser`'s stack/slot half stays
+  site-owned pending the same machine-view tokens. Do NOT reintroduce a
+  `for (AbstractInsnNode ...)` loop - the engine's cascade rules (claiming, commit-before-reset,
+  strict-adjacency) are pinned by the `tooling/walk` test suite, and a hand loop silently
+  re-derives them. One-hop neighbour reads (`AsmWalker.nextReal`/`previousReal`) are expressions,
+  not walks, and stay statics. `EntityGeometryRefResolverTest` reaches the declined member by
+  reflection under its own name, so renaming it compiles clean and fails at runtime.
 
 Every gate here reads the **shipped** JSON, which a generator refactor does not regenerate, so a
 green gate is no evidence about a `tooling/` change. Compare emitted bytes A/B against a capture from
