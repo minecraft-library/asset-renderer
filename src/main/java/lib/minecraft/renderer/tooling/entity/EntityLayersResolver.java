@@ -3,11 +3,12 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -49,15 +50,21 @@ import java.util.Map;
  */
 final class EntityLayersResolver {
 
-    /** The markings axis name - the sole enum-map token routed to a layers row. */
+    /**
+     * The markings axis name - the sole enum-map token routed to a layers row.
+     */
     private static final @NotNull String MARKINGS_TOKEN = "markings";
 
-    /** The two axes a second armor set can be selected by, and the age axis's aged-down option. */
+    /**
+     * The two axes a second armor set can be selected by, and the age axis's aged-down option.
+     */
     private static final @NotNull String AGE_AXIS = "age";
     private static final @NotNull String SIZE_AXIS = "size";
     private static final @NotNull String BABY_OPTION = "baby";
 
-    /** The two shells vanilla builds, named as {@code ArmorForm} spells them. */
+    /**
+     * The two shells vanilla builds, named as {@code ArmorForm} spells them.
+     */
     private static final @NotNull String ADULT_FORM = "adult";
     private static final @NotNull String BABY_FORM = "baby";
 
@@ -130,7 +137,9 @@ final class EntityLayersResolver {
         return rows.isEmpty() ? null : JsonTree.arrayOf(rows);
     }
 
-    /** Whether an enum-map axis token rides a {@code layers[]} row instead of an overlay. */
+    /**
+     * Whether an enum-map axis token rides a {@code layers[]} row instead of an overlay.
+     */
     static boolean isLayersRowToken(@NotNull String token) {
         return MARKINGS_TOKEN.equals(token);
     }
@@ -142,16 +151,14 @@ final class EntityLayersResolver {
      * allocation, so the walk also scans a bounded backward window).
      */
     static boolean consumesEquipmentLayerType(@NotNull EntityRendererResolver.LayerSite site) {
-        for (AbstractInsnNode in = site.allocation(); in != null && in != site.addLayer(); in = in.getNext())
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)) return true;
-        AbstractInsnNode cursor = site.allocation().getPrevious();
-        for (int depth = 0; cursor != null && depth < 16; depth++, cursor = cursor.getPrevious()) {
-            if (AsmKit.isGetStatic(cursor, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)) return true;
-            if (cursor.getOpcode() == Opcodes.INVOKEVIRTUAL
-                && cursor instanceof MethodInsnNode mi
-                && VanillaSourceClasses.Methods.ADD_LAYER.equals(mi.name)) break;
-        }
-        return false;
+        if (AsmWalker.from(site.allocation()).until(site.addLayer())
+            .getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
+            .any()) return true;
+        return AsmWalker.before(site.allocation()).limit(16)
+            .first(cursor -> AsmWalker.isGetStatic(cursor, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE),
+                cursor -> !(cursor.getOpcode() == Opcodes.INVOKEVIRTUAL
+                    && cursor instanceof MethodInsnNode mi
+                    && VanillaSourceClasses.Methods.ADD_LAYER.equals(mi.name))) != null;
     }
 
     /**
@@ -177,7 +184,9 @@ final class EntityLayersResolver {
                 .put("tint_by", "collar_color"));
     }
 
-    /** The markings row: the full value map travels with the row. */
+    /**
+     * The markings row: the full value map travels with the row.
+     */
     private @NotNull JsonTree resolveMarkings(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull EntityOverlayResolver.EnumMapOverlay enumMap
@@ -343,7 +352,9 @@ final class EntityLayersResolver {
         return grow;
     }
 
-    /** Writes one deformation - a scalar when uniform, a per-axis triple otherwise. */
+    /**
+     * Writes one deformation - a scalar when uniform, a per-axis triple otherwise.
+     */
     private static void putGrow(@NotNull JsonTree node, @NotNull String name, float @NotNull [] grow) {
         if (grow[0] == grow[1] && grow[1] == grow[2]) node.put(name, grow[0]);
         else node.putFloats(name, grow[0], grow[1], grow[2]);
@@ -369,16 +380,16 @@ final class EntityLayersResolver {
      */
     private @NotNull List<String> resolveArmorMeshes() {
         List<String> named = new ArrayList<>();
-        AsmKit.walkSuperChain(this.cache, this.rendererClass, cn -> {
+        ClassKit.walkSuperChain(this.cache, this.rendererClass, cn -> {
             if (!named.isEmpty()) return;
             for (MethodNode ctor : cn.methods) {
-                if (!AsmKit.INIT.equals(ctor.name)) continue;
-                for (AbstractInsnNode in : ctor.instructions) {
-                    if (in.getOpcode() != Opcodes.GETSTATIC) continue;
-                    if (!(in instanceof FieldInsnNode field)) continue;
-                    if (!VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc)) continue;
-                    named.add(field.name.toLowerCase(Locale.ROOT));
-                }
+                if (!ClassKit.INIT.equals(ctor.name)) continue;
+                AsmWalker.over(ctor)
+                    .ofType(FieldInsnNode.class)
+                    .where(field -> field.getOpcode() == Opcodes.GETSTATIC
+                        && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
+                    .map(field -> field.name.toLowerCase(Locale.ROOT))
+                    .forEach(named::add);
                 if (!named.isEmpty()) return;
             }
         });
@@ -387,7 +398,7 @@ final class EntityLayersResolver {
         ClassNode modelLayers = this.cache.load(VanillaSourceClasses.Types.MODEL_LAYERS);
         if (modelLayers == null) return named;
         for (String layerField : this.registrationLayerFields) {
-            FieldNode field = AsmKit.findField(modelLayers, layerField);
+            FieldNode field = ClassKit.findField(modelLayers, layerField);
             if (field != null && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
                 named.add(layerField.toLowerCase(Locale.ROOT));
         }

@@ -1,10 +1,13 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -83,70 +86,63 @@ public final class BlockRegistryIndex {
             diagnostics.error("'%s' class missing - block registry index unresolved", VanillaSourceClasses.Types.BLOCKS);
             return new BlockRegistryIndex(byField);
         }
-        MethodNode clinit = AsmKit.findMethod(blocks, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(blocks, ClassKit.CLINIT);
         if (clinit == null) {
             diagnostics.error("'%s.<clinit>' missing - block registry index unresolved", VanillaSourceClasses.Types.BLOCKS);
             return new BlockRegistryIndex(byField);
         }
 
         Map<String, String> helperClassCache = new LinkedHashMap<>();
-        String pendingId = null;
-        String ctorClass = null;
+        Cells.Latch<String> pendingId = Cells.latch();
+        Cells.Latch<String> ctorClass = Cells.latch();
 
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                pendingId = literal;
-                ctorClass = null;
-                continue;
-            }
-
+        AsmWalker.over(clinit)
+            .feed(pendingId)
+            .feed(ctorClass)
+            .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String), ldc -> {
+                pendingId.set((String) ldc.cst);
+                ctorClass.clear();
+            })
             // The 26.x register(ResourceKey, Function, Properties) overload sources its id from
             // a GETSTATIC BlockIds.FOO rather than a string literal (stems, copper bars /
             // chains / lanterns, item frames). Map the field back to its serialised id so these
-            // registrations index like the string-literal form.
-            if (in instanceof FieldInsnNode field
-                && in.getOpcode() == Opcodes.GETSTATIC
-                && field.owner.equals(VanillaSourceClasses.Types.BLOCK_IDS)) {
+            // registrations index like the string-literal form; an unmapped field leaves the
+            // prior pending id armed.
+            .on(Insn.getStatic(VanillaSourceClasses.Types.BLOCK_IDS), field -> {
                 String mapped = blockIdsNames.get(field.name);
                 if (mapped != null) {
-                    pendingId = mapped;
-                    ctorClass = null;
+                    pendingId.set(mapped);
+                    ctorClass.clear();
                 }
-                continue;
-            }
-
-            if (in instanceof InvokeDynamicInsnNode indy
-                && indy.desc.endsWith(FUNCTION_RETURN_SUFFIX)
-                && pendingId != null
-                && isPendingIdSource(AsmKit.previousReal(indy), pendingId, blockIdsNames)) {
-                ctorClass = AsmKit.resolveLambdaTargetClass(indy, blocks);
-                continue;
-            }
-
-            if (in instanceof MethodInsnNode call
-                && in.getOpcode() == Opcodes.INVOKESTATIC
+            })
+            .on(Insn.of(InvokeDynamicInsnNode.class, indy -> indy.desc.endsWith(FUNCTION_RETURN_SUFFIX)), indy -> {
+                String id = pendingId.get();
+                if (id == null || !isPendingIdSource(AsmWalker.previousReal(indy), id, blockIdsNames)) return;
+                ctorClass.clear();
+                String resolved = AsmWalker.resolveLambdaTargetClass(indy, blocks);
+                if (resolved != null) ctorClass.set(resolved);
+            })
+            .commitAt(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKESTATIC
                 && call.owner.equals(VanillaSourceClasses.Types.BLOCKS)
                 && call.name.startsWith(REGISTER_PREFIX)
                 && (call.desc.startsWith(STRING_ARG_PREFIX) || call.desc.startsWith(RESOURCE_KEY_ARG_PREFIX))
-                && call.desc.endsWith(BLOCK_RETURN_SUFFIX)) {
-
-                if (pendingId != null) {
-                    String blockClass = ctorClass != null ? ctorClass : resolveHelperClass(blocks, call.name, helperClassCache);
-                    String fieldName = AsmKit.findFollowingPutStatic(in, VanillaSourceClasses.Types.BLOCKS,
-                        node -> node instanceof MethodInsnNode next
+                && call.desc.endsWith(BLOCK_RETURN_SUFFIX)), call -> {
+                String id = pendingId.get();
+                if (id == null) return;
+                String ctor = ctorClass.get();
+                String blockClass = ctor != null ? ctor : resolveHelperClass(blocks, call.name, helperClassCache);
+                AbstractInsnNode put = AsmWalker.after(call)
+                    .first(Insn.putStatic(VanillaSourceClasses.Types.BLOCKS)::matches,
+                        node -> !(node instanceof MethodInsnNode next
                             && next.getOpcode() == Opcodes.INVOKESTATIC
                             && next.owner.equals(VanillaSourceClasses.Types.BLOCKS)
-                            && next.name.startsWith(REGISTER_PREFIX));
-                    if (fieldName != null) {
-                        Entry entry = new Entry(fieldName, VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + pendingId, blockClass);
-                        byField.put(fieldName, entry);
-                    }
+                            && next.name.startsWith(REGISTER_PREFIX)));
+                if (put != null) {
+                    String fieldName = ((FieldInsnNode) put).name;
+                    byField.put(fieldName, new Entry(fieldName, VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + id, blockClass));
                 }
-                pendingId = null;
-                ctorClass = null;
-            }
-        }
+            })
+            .run();
 
         diagnostics.info("indexed %d block registrations from Blocks.<clinit>", byField.size());
         return new BlockRegistryIndex(byField);
@@ -194,25 +190,11 @@ public final class BlockRegistryIndex {
      * empty - the {@code register(ResourceKey, ...)} arm then discovers nothing extra.
      */
     private static @NotNull Map<String, String> buildBlockIdsMap(@NotNull ClassNodeCache cache) {
-        Map<String, String> out = new LinkedHashMap<>();
-        ClassNode blockIds = cache.load(VanillaSourceClasses.Types.BLOCK_IDS);
-        if (blockIds == null) return out;
-        MethodNode clinit = AsmKit.findMethod(blockIds, AsmKit.CLINIT);
-        if (clinit == null) return out;
-
-        String lastString = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                lastString = literal;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, VanillaSourceClasses.Types.BLOCK_IDS) && lastString != null) {
-                out.put(((FieldInsnNode) in).name, lastString);
-                lastString = null;
-            }
-        }
-        return out;
+        return AsmWalker.clinit(cache, VanillaSourceClasses.Types.BLOCK_IDS)
+            .latch(AsmWalker::stringLiteral)
+            .commitAt(FieldInsnNode.class, put -> put.getOpcode() == Opcodes.PUTSTATIC
+                && put.owner.equals(VanillaSourceClasses.Types.BLOCK_IDS))
+            .toMap(put -> put.name, ids -> ids.isEmpty() ? null : ids.getFirst());
     }
 
     /**
@@ -229,16 +211,12 @@ public final class BlockRegistryIndex {
         if (helperName.equals(REGISTER_PREFIX)) return null;
         if (helperClassCache.containsKey(helperName)) return helperClassCache.get(helperName);
 
-        String resolved = null;
-        MethodNode helper = AsmKit.findMethod(blocks, helperName);
-        if (helper != null) {
-            for (AbstractInsnNode in : helper.instructions) {
-                if (in instanceof InvokeDynamicInsnNode indy && indy.desc.endsWith(FUNCTION_RETURN_SUFFIX)) {
-                    resolved = AsmKit.resolveLambdaTargetClass(indy, blocks);
-                    if (resolved != null) break;
-                }
-            }
-        }
+        MethodNode helper = ClassKit.findMethod(blocks, helperName);
+        String resolved = helper == null ? null : AsmWalker.over(helper)
+            .ofType(InvokeDynamicInsnNode.class)
+            .where(indy -> indy.desc.endsWith(FUNCTION_RETURN_SUFFIX))
+            .mapNotNull(indy -> AsmWalker.resolveLambdaTargetClass(indy, blocks))
+            .first();
         helperClassCache.put(helperName, resolved);
         return resolved;
     }

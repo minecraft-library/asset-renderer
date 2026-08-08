@@ -3,15 +3,17 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.CommitWalk;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
@@ -42,7 +44,9 @@ import org.objectweb.asm.tree.MethodNode;
  */
 final class EntityAgeAxisResolver {
 
-    /** Forward-scan window from an {@code isBaby} read to its consuming boolean-dispatch call. */
+    /**
+     * Forward-scan window from an {@code isBaby} read to its consuming boolean-dispatch call.
+     */
     private static final int DISPATCH_WINDOW = 8;
 
     private final @NotNull ClassNodeCache cache;
@@ -176,7 +180,7 @@ final class EntityAgeAxisResolver {
      */
     private boolean selectsOnIsBaby(@NotNull String consumerOwner) {
         String current = consumerOwner;
-        while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
+        while (current != null && !ClassKit.OBJECT_INTERNAL.equals(current)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) break;
             for (MethodNode method : cn.methods)
@@ -184,7 +188,7 @@ final class EntityAgeAxisResolver {
             current = cn.superName;
         }
         current = this.subject.rendererClass();
-        while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
+        while (current != null && !ClassKit.OBJECT_INTERNAL.equals(current)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) break;
             for (MethodNode method : cn.methods)
@@ -200,23 +204,18 @@ final class EntityAgeAxisResolver {
      * the scan window.
      */
     private static boolean readsIsBaby(@NotNull MethodNode method, @Nullable String dispatchOwner) {
-        for (AbstractInsnNode in : method.instructions) {
+        return AsmWalker.over(method).any(in -> {
             if (in.getOpcode() != Opcodes.GETFIELD
                 || !(in instanceof FieldInsnNode fi)
                 || !VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)
-                || !"Z".equals(fi.desc)) continue;
+                || !"Z".equals(fi.desc)) return false;
             if (dispatchOwner == null) return true;
-            AbstractInsnNode cursor = in;
-            for (int step = 0; step < DISPATCH_WINDOW && cursor != null; step++) {
-                cursor = AsmKit.nextReal(cursor);
-                if (cursor instanceof MethodInsnNode mi
+            return AsmWalker.after(in).real().limit(DISPATCH_WINDOW).any(cursor ->
+                cursor instanceof MethodInsnNode mi
                     && cursor.getOpcode() == Opcodes.INVOKEVIRTUAL
                     && dispatchOwner.equals(mi.owner)
-                    && mi.desc.startsWith("(Z"))
-                    return true;
-            }
-        }
-        return false;
+                    && mi.desc.startsWith("(Z"));
+        });
     }
 
     // ------------------------------------------------------------------------------------
@@ -246,7 +245,7 @@ final class EntityAgeAxisResolver {
      */
     private @Nullable String isBabyBranchTexture() {
         String current = this.subject.rendererClass();
-        while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
+        while (current != null && !ClassKit.OBJECT_INTERNAL.equals(current)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) return null;
             for (MethodNode method : cn.methods) {
@@ -272,32 +271,32 @@ final class EntityAgeAxisResolver {
      * flags and falling through into the {@code isBaby}-true arm at the isBaby gate.
      */
     private static @Nullable String isBabyTrueArmIdentifierField(@NotNull MethodNode method) {
-        java.util.Set<AbstractInsnNode> visited = new java.util.HashSet<>();
-        AbstractInsnNode in = method.instructions.getFirst();
-        while (in != null && visited.add(in)) {
-            if (in.getOpcode() == Opcodes.GETFIELD
+        // The probe claims the isBaby gate before the advance hook sees the node, so the advance's
+        // flag arm only ever fires on the other flags; a revisited node ends the trace as a miss.
+        JumpInsnNode gate = AsmWalker.over(method).traceFirst(
+            in -> in.getOpcode() == Opcodes.GETFIELD
                 && in instanceof FieldInsnNode fi
                 && "Z".equals(fi.desc)
-                && AsmKit.nextReal(in) instanceof JumpInsnNode jump
-                && jump.getOpcode() == Opcodes.IFEQ) {
-                if (VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)) {
-                    for (AbstractInsnNode arm = jump.getNext(); arm != null && arm != jump.label; arm = arm.getNext())
-                        if (arm.getOpcode() == Opcodes.GETSTATIC
-                            && arm instanceof FieldInsnNode texture
-                            && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(texture.desc))
-                            return texture.name;
-                    return null;
-                }
-                in = jump.label;                      // a non-isBaby flag: take its false arm
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.GOTO && in instanceof JumpInsnNode goTo) {
-                in = goTo.label;
-                continue;
-            }
-            in = in.getNext();
-        }
-        return null;
+                && VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)
+                && AsmWalker.nextReal(in) instanceof JumpInsnNode jump
+                && jump.getOpcode() == Opcodes.IFEQ ? jump : null,
+            in -> {
+                if (in.getOpcode() == Opcodes.GETFIELD
+                    && in instanceof FieldInsnNode fi
+                    && "Z".equals(fi.desc)
+                    && AsmWalker.nextReal(in) instanceof JumpInsnNode jump
+                    && jump.getOpcode() == Opcodes.IFEQ) return jump.label; // a non-isBaby flag: take its false arm
+                if (in.getOpcode() == Opcodes.GOTO && in instanceof JumpInsnNode goTo) return goTo.label;
+                return in.getNext();
+            });
+        if (gate == null) return null;
+        // The true arm, bounded by the gate's own false-arm label; a miss here is the member's
+        // answer - the trace does not resume.
+        FieldInsnNode texture = AsmWalker.from(gate.getNext())
+            .until(gate.label)
+            .first(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.GETSTATIC
+                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)));
+        return texture == null ? null : texture.name;
     }
 
     /**
@@ -305,18 +304,16 @@ final class EntityAgeAxisResolver {
      * {@code <clinit>} (the canonical {@code LDC; withDefaultNamespace; PUTSTATIC} triplet).
      */
     private @Nullable String clinitTexturePath(@NotNull ClassNode cn, @NotNull String fieldName) {
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit == null) return null;
-        String pendingPath = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) {
-                pendingPath = literal;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, cn.name, fieldName)) return pendingPath;
-        }
-        return null;
+        CommitWalk.Commit<FieldInsnNode, String> commit = AsmWalker.over(clinit)
+            .latch(in -> {
+                String literal = AsmWalker.stringLiteral(in);
+                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY) ? literal : null;
+            })
+            .commitAt(Insn.putStatic(cn.name, fieldName))
+            .first();
+        return commit == null ? null : commit.value();
     }
 
 }

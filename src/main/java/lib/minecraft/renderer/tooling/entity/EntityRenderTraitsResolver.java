@@ -1,10 +1,14 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.walk.Match;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -17,7 +21,6 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -41,7 +44,9 @@ final class EntityRenderTraitsResolver {
      */
     private static final float UNIFORM_SCALE_TOLERANCE = EntityNamingPolicies.UNIFORM_SCALE_TOLERANCE.floatValue();
 
-    /** The no-op multiplicative tint. */
+    /**
+     * The no-op multiplicative tint.
+     */
     private static final int NO_TINT = 0xFFFFFFFF;
 
     private final @NotNull ClassNodeCache cache;
@@ -102,35 +107,38 @@ final class EntityRenderTraitsResolver {
         int scaleSlot = floatArgSlot(setupRotations.desc, 1);
         if (bodyRotSlot < 0 || scaleSlot < 0) return 0f;
 
-        for (AbstractInsnNode in : setupRotations.instructions) {
-            if (in.getOpcode() != Opcodes.INVOKESPECIAL) continue;
-            if (!(in instanceof MethodInsnNode mi) || !VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(mi.name)) continue;
-
-            AbstractInsnNode scaleLoad = AsmKit.previousReal(in);
-            if (!isFloadOf(scaleLoad, scaleSlot)) return 0f;
-            AbstractInsnNode beforeScale = AsmKit.previousReal(scaleLoad);
-            // Pass-through shape: FLOAD bodyRot; FLOAD scale; INVOKESPECIAL super.
-            if (isFloadOf(beforeScale, bodyRotSlot)) return 0f;
-            // Addend shape: FLOAD bodyRot; LDC C; FADD; FLOAD scale; INVOKESPECIAL super.
-            if (beforeScale != null && beforeScale.getOpcode() == Opcodes.FADD) {
-                AbstractInsnNode constInsn = AsmKit.previousReal(beforeScale);
-                Float addend = constInsn == null ? null : AsmKit.readFloatLiteral(constInsn);
-                AbstractInsnNode bodyRotLoad = constInsn == null ? null : AsmKit.previousReal(constInsn);
-                if (addend != null && isFloadOf(bodyRotLoad, bodyRotSlot)) {
-                    this.diagnostics.info("yaw addend %.1f from setupRotations override", addend);
-                    return addend;
+        Float resolved = AsmWalker.over(setupRotations)
+            .opcode(Opcodes.INVOKESPECIAL)
+            .ofType(MethodInsnNode.class)
+            .where(mi -> VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(mi.name))
+            .firstNotNull(mi -> {
+                AbstractInsnNode scaleLoad = AsmWalker.previousReal(mi);
+                if (!isFloadOf(scaleLoad, scaleSlot)) return 0f;
+                AbstractInsnNode beforeScale = AsmWalker.previousReal(scaleLoad);
+                // Pass-through shape: FLOAD bodyRot; FLOAD scale; INVOKESPECIAL super.
+                if (isFloadOf(beforeScale, bodyRotSlot)) return 0f;
+                // Addend shape: FLOAD bodyRot; LDC C; FADD; FLOAD scale; INVOKESPECIAL super.
+                if (beforeScale != null && beforeScale.getOpcode() == Opcodes.FADD) {
+                    AbstractInsnNode constInsn = AsmWalker.previousReal(beforeScale);
+                    Float addend = constInsn == null ? null : AsmWalker.floatLiteral(constInsn);
+                    AbstractInsnNode bodyRotLoad = constInsn == null ? null : AsmWalker.previousReal(constInsn);
+                    if (addend != null && isFloadOf(bodyRotLoad, bodyRotSlot)) {
+                        this.diagnostics.info("yaw addend %.1f from setupRotations override", addend);
+                        return addend;
+                    }
                 }
-            }
-            return 0f;
-        }
-        return 0f;
+                return 0f;
+            });
+        return resolved == null ? 0f : resolved;
     }
 
     // ------------------------------------------------------------------------------------
     // setupRotations Y translation
     // ------------------------------------------------------------------------------------
 
-    /** Descriptor of the {@code PoseStack.translate} overload vanilla poses entities with. */
+    /**
+     * Descriptor of the {@code PoseStack.translate} overload vanilla poses entities with.
+     */
     private static final @NotNull String TRANSLATE_DESC = "(FFF)V";
 
     /**
@@ -174,33 +182,37 @@ final class EntityRenderTraitsResolver {
         if (declaring == null) return null;
 
         String name = EntityOverlayResolver.simpleName(declaring.name);
-        float adult = 0f;
-        float baby = 0f;
-        boolean translates = false;
+        // The sum and the translates flag span every setupRotations body the class declares, so
+        // both live in locals written from the walks rather than in per-run cells.
+        float[] shift = {0f, 0f};
+        boolean[] translates = {false};
         for (MethodNode method : declaring.methods) {
             if (!VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) continue;
-            for (AbstractInsnNode in : method.instructions) {
-                if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK,
-                    VanillaSourceClasses.Methods.TRANSLATE, TRANSLATE_DESC)) continue;
-                translates = true;
-                // Arguments are pushed x, y, z, so the walk back off the call reads them in reverse.
-                AgeOperand z = readAgeOperand(AsmKit.previousReal(in));
-                if (z == null || z.adult() != 0f || z.baby() != 0f) return declineYShift(name, "off the Y axis");
-                AgeOperand y = readAgeOperand(AsmKit.previousReal(z.start()));
-                if (y == null) return declineYShift(name, "by a computed distance");
-                AgeOperand x = readAgeOperand(AsmKit.previousReal(y.start()));
-                if (x == null || x.adult() != 0f || x.baby() != 0f) return declineYShift(name, "off the Y axis");
-                adult += y.adult();
-                baby += y.baby();
-            }
+            String declined = AsmWalker.over(method)
+                .invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.TRANSLATE)
+                .where(call -> TRANSLATE_DESC.equals(call.desc))
+                .firstNotNull(call -> {
+                    translates[0] = true;
+                    // Arguments are pushed x, y, z, so the walk back off the call reads them in reverse.
+                    AgeOperand z = readAgeOperand(AsmWalker.previousReal(call));
+                    if (z == null || z.adult() != 0f || z.baby() != 0f) return "off the Y axis";
+                    AgeOperand y = readAgeOperand(AsmWalker.previousReal(z.start()));
+                    if (y == null) return "by a computed distance";
+                    AgeOperand x = readAgeOperand(AsmWalker.previousReal(y.start()));
+                    if (x == null || x.adult() != 0f || x.baby() != 0f) return "off the Y axis";
+                    shift[0] += y.adult();
+                    shift[1] += y.baby();
+                    return null;
+                });
+            if (declined != null) return declineYShift(name, declined);
             // Only meaningful once something was accepted: a renderer that translates nothing has no
             // pair of translates for a turn to come between, whatever else it rotates.
-            if (translates && hasNonYRotation(method))
+            if (translates[0] && hasNonYRotation(method))
                 return declineYShift(name, "around a literal non-Y axis, so its translates do not sum");
         }
-        if (!translates || (adult == 0f && baby == 0f)) return null;
-        this.diagnostics.info("setupRotations Y shift adult %s / baby %s from %s", adult, baby, name);
-        return new float[] {adult, baby};
+        if (!translates[0] || (shift[0] == 0f && shift[1] == 0f)) return null;
+        this.diagnostics.info("setupRotations Y shift adult %s / baby %s from %s", shift[0], shift[1], name);
+        return shift;
     }
 
     /**
@@ -229,7 +241,7 @@ final class EntityRenderTraitsResolver {
     private @Nullable ClassNode findSetupRotationsDeclarer() {
         String current = this.subject.rendererClass();
         while (current != null
-            && !AsmKit.OBJECT_INTERNAL.equals(current)
+            && !ClassKit.OBJECT_INTERNAL.equals(current)
             && !VanillaSourceClasses.Types.LIVING_ENTITY_RENDERER.equals(current)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) return null;
@@ -251,23 +263,23 @@ final class EntityRenderTraitsResolver {
      */
     private static @Nullable AgeOperand readAgeOperand(@Nullable AbstractInsnNode tail) {
         if (tail == null) return null;
-        Float direct = AsmKit.readFloatLiteral(tail);
+        Float direct = AsmWalker.floatLiteral(tail);
 
         // Select shape, read backwards: <adult literal>; GOTO; <baby literal>; IF; GETFIELD isBaby.
-        AbstractInsnNode jump = AsmKit.previousReal(tail);
+        AbstractInsnNode jump = AsmWalker.previousReal(tail);
         if (direct != null && jump != null && jump.getOpcode() == Opcodes.GOTO) {
-            AbstractInsnNode fallThrough = AsmKit.previousReal(jump);
-            Float taken = fallThrough == null ? null : AsmKit.readFloatLiteral(fallThrough);
-            AbstractInsnNode branch = fallThrough == null ? null : AsmKit.previousReal(fallThrough);
+            AbstractInsnNode fallThrough = AsmWalker.previousReal(jump);
+            Float taken = fallThrough == null ? null : AsmWalker.floatLiteral(fallThrough);
+            AbstractInsnNode branch = fallThrough == null ? null : AsmWalker.previousReal(fallThrough);
             int opcode = branch == null ? Opcodes.NOP : branch.getOpcode();
             if (taken != null && (opcode == Opcodes.IFEQ || opcode == Opcodes.IFNE)) {
-                AbstractInsnNode read = AsmKit.previousReal(branch);
+                AbstractInsnNode read = AsmWalker.previousReal(branch);
                 if (read != null && read.getOpcode() == Opcodes.GETFIELD
                     && read instanceof FieldInsnNode field
                     && VanillaSourceClasses.Fields.IS_BABY.equals(field.name)
                     && "Z".equals(field.desc)) {
                     // IFEQ jumps when the flag is false, so the fall-through arm is the baby's.
-                    AbstractInsnNode receiver = AsmKit.previousReal(read);
+                    AbstractInsnNode receiver = AsmWalker.previousReal(read);
                     if (receiver == null) return null;
                     return opcode == Opcodes.IFEQ
                         ? new AgeOperand(direct, taken, receiver)
@@ -288,14 +300,14 @@ final class EntityRenderTraitsResolver {
      * @return whether a literal non-Y turn is applied
      */
     private static boolean hasNonYRotation(@NotNull MethodNode method) {
-        for (AbstractInsnNode in : method.instructions) {
-            if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode field)) continue;
-            if (!VanillaSourceClasses.Types.MATH_AXIS.equals(field.owner) || field.name.startsWith("Y")) continue;
-            AbstractInsnNode angle = AsmKit.nextReal(in);
-            Float literal = angle == null ? null : AsmKit.readFloatLiteral(angle);
-            if (literal != null && literal != 0f) return true;
-        }
-        return false;
+        return AsmWalker.over(method)
+            .getStatic(VanillaSourceClasses.Types.MATH_AXIS)
+            .where(field -> !field.name.startsWith("Y"))
+            .any(field -> {
+                AbstractInsnNode angle = AsmWalker.nextReal(field);
+                Float literal = angle == null ? null : AsmWalker.floatLiteral(angle);
+                return literal != null && literal != 0f;
+            });
     }
 
     /**
@@ -305,7 +317,7 @@ final class EntityRenderTraitsResolver {
     private static int floatArgSlot(@NotNull String desc, int floatIndex) {
         int slot = 1;   // slot 0 = this
         int seen = 0;
-        for (Type arg : AsmKit.argTypes(desc)) {
+        for (Type arg : ClassKit.argTypes(desc)) {
             if (arg.getSort() == Type.FLOAT) {
                 if (seen == floatIndex) return slot;
                 seen++;
@@ -315,7 +327,9 @@ final class EntityRenderTraitsResolver {
         return -1;
     }
 
-    /** Reports whether {@code in} is an {@code FLOAD} of the given slot. */
+    /**
+     * Reports whether {@code in} is an {@code FLOAD} of the given slot.
+     */
     private static boolean isFloadOf(@Nullable AbstractInsnNode in, int slot) {
         return in != null
             && in.getOpcode() == Opcodes.FLOAD
@@ -337,26 +351,21 @@ final class EntityRenderTraitsResolver {
         MethodNode scaleMethod = findPrimaryScaleMethod(cn);
         if (scaleMethod == null) return null;
 
-        Map<Integer, Float> slotLiterals = new HashMap<>();
-        for (AbstractInsnNode in : scaleMethod.instructions) {
-            if (AsmKit.isBranchInsn(in.getOpcode())) break;
-            if (in.getOpcode() != Opcodes.FSTORE || !(in instanceof VarInsnNode store)) continue;
-            AbstractInsnNode prev = AsmKit.previousReal(in);
-            Float literal = prev == null ? null : AsmKit.readFloatLiteral(prev);
-            if (literal != null) slotLiterals.put(store.var, literal);
-        }
+        // First pass: pre-branch FSTORE-of-literal slots, stopping short of the first branch.
+        Map<Integer, Float> slotLiterals = AsmWalker.over(scaleMethod)
+            .until(Insn.branch())
+            .ofType(VarInsnNode.class)
+            .where(store -> store.getOpcode() == Opcodes.FSTORE)
+            .toMap(store -> store.var, store -> AsmWalker.floatLiteral(AsmWalker.previousReal(store)));
 
+        // Second pass: the uniform product over every resolvable scale call, reading the
+        // first pass's slots. An empty product is exactly 1 and falls to the tolerance gate.
         String scaleDesc = "(FFF)V";
-        float accum = 1f;
-        boolean anyResolved = false;
-        for (AbstractInsnNode in : scaleMethod.instructions) {
-            if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE, scaleDesc)) continue;
-            Float xyz = readUniformScaleArgs(in, slotLiterals);
-            if (xyz == null) continue;
-            accum *= xyz;
-            anyResolved = true;
-        }
-        if (!anyResolved) return null;
+        float accum = AsmWalker.over(scaleMethod)
+            .invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE)
+            .where(call -> scaleDesc.equals(call.desc))
+            .mapNotNull(call -> readUniformScaleArgs(call, slotLiterals))
+            .reduce(1f, (product, xyz) -> product * xyz);
         if (Math.abs(accum - 1f) <= UNIFORM_SCALE_TOLERANCE) return null;
         this.diagnostics.info("renderer scale %.6f from poseStack.scale chain", accum);
         return accum;
@@ -389,22 +398,24 @@ final class EntityRenderTraitsResolver {
      * map; {@code null} when any arg is unresolvable or the triple is non-uniform.
      */
     private static @Nullable Float readUniformScaleArgs(@NotNull AbstractInsnNode invoke, @NotNull Map<Integer, Float> slotLiterals) {
-        AbstractInsnNode z = AsmKit.previousReal(invoke);
+        AbstractInsnNode z = AsmWalker.previousReal(invoke);
         Float zValue = resolveFloatArg(z, slotLiterals);
         if (zValue == null) return null;
-        AbstractInsnNode y = AsmKit.previousReal(z);
+        AbstractInsnNode y = AsmWalker.previousReal(z);
         Float yValue = resolveFloatArg(y, slotLiterals);
         if (yValue == null) return null;
-        Float xValue = resolveFloatArg(AsmKit.previousReal(y), slotLiterals);
+        Float xValue = resolveFloatArg(AsmWalker.previousReal(y), slotLiterals);
         if (xValue == null) return null;
         if (Math.abs(xValue - yValue) > UNIFORM_SCALE_TOLERANCE || Math.abs(yValue - zValue) > UNIFORM_SCALE_TOLERANCE) return null;
         return xValue;
     }
 
-    /** A single float-arg push resolved to its zero-state value (literal or tracked FLOAD). */
+    /**
+     * A single float-arg push resolved to its zero-state value (literal or tracked FLOAD).
+     */
     private static @Nullable Float resolveFloatArg(@Nullable AbstractInsnNode node, @NotNull Map<Integer, Float> slotLiterals) {
         if (node == null) return null;
-        Float literal = AsmKit.readFloatLiteral(node);
+        Float literal = AsmWalker.floatLiteral(node);
         if (literal != null) return literal;
         if (node.getOpcode() == Opcodes.FLOAD && node instanceof VarInsnNode load) return slotLiterals.get(load.var);
         return null;
@@ -423,9 +434,8 @@ final class EntityRenderTraitsResolver {
      */
     private int resolveBaseTint(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in : method.instructions)
-                if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR))
-                    return whiteTextureDiffuseColor(this.cache);
+            if (AsmWalker.over(method).invokeVirtual(VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR).any())
+                return whiteTextureDiffuseColor(this.cache);
         return NO_TINT;
     }
 
@@ -438,45 +448,46 @@ final class EntityRenderTraitsResolver {
      * convention. {@code NO_TINT} on any pattern miss.
      */
     static int whiteTextureDiffuseColor(@NotNull ClassNodeCache cache) {
-        MethodNode clinit = AsmKit.findClinit(cache, VanillaSourceClasses.Types.DYE_COLOR);
+        MethodNode clinit = ClassKit.findClinit(cache, VanillaSourceClasses.Types.DYE_COLOR);
         if (clinit == null) return NO_TINT;
 
-        boolean inAlloc = false;
-        Integer lastInt = null;
-        Integer diffuse = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (in.getOpcode() == Opcodes.NEW
-                && in instanceof TypeInsnNode alloc
-                && VanillaSourceClasses.Types.DYE_COLOR.equals(alloc.desc)) {
-                inAlloc = true;
-                lastInt = null;
-                continue;
-            }
-            if (!inAlloc) continue;
-            Integer intLiteral = AsmKit.readIntLiteral(in);
-            if (intLiteral != null) {
-                lastInt = intLiteral;
-                continue;
-            }
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MAP_COLOR)) {
-                diffuse = lastInt;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.INVOKESPECIAL
-                && in instanceof MethodInsnNode init
-                && AsmKit.INIT.equals(init.name)
-                && VanillaSourceClasses.Types.DYE_COLOR.equals(init.owner)) {
-                // Descriptor anchor: the int directly before the MapColor parameter.
-                if (diffuse == null || !hasIntBeforeMapColor(init.desc)) return NO_TINT;
-                return 0xFF000000 | diffuse;
-            }
-        }
-        return NO_TINT;
+        // The allocation is matched on desc equality, never as a prefix.
+        Match<TypeInsnNode> allocation = Insn.of(TypeInsnNode.class, alloc -> alloc.getOpcode() == Opcodes.NEW
+            && VanillaSourceClasses.Types.DYE_COLOR.equals(alloc.desc));
+        TypeInsnNode open = AsmWalker.over(clinit).first(allocation);
+        if (open == null) return NO_TINT;
+        MethodInsnNode init = AsmWalker.after(open)
+            .first(Insn.invokeSpecial(VanillaSourceClasses.Types.DYE_COLOR, ClassKit.INIT));
+        if (init == null) return NO_TINT;
+
+        // Between the allocation and its constructor call, the last int literal rides a latch a
+        // further allocation clears; the MapColor read snapshots it, an empty latch included.
+        Cells.Latch<Integer> lastInt = Cells.latch();
+        Cells.Latch<Integer> diffuse = Cells.latch();
+        AsmWalker.from(open).until(init)
+            .on(allocation, alloc -> lastInt.clear())
+            .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.intLiteral(in) != null), in -> {
+                Integer literal = AsmWalker.intLiteral(in);
+                if (literal != null) lastInt.set(literal);
+            })
+            .on(Insn.getStatic(VanillaSourceClasses.Types.MAP_COLOR), read -> {
+                Integer taken = lastInt.get();
+                if (taken == null) diffuse.clear();
+                else diffuse.set(taken);
+            })
+            .run();
+
+        // Descriptor anchor: the int directly before the MapColor parameter.
+        Integer value = diffuse.get();
+        if (value == null || !hasIntBeforeMapColor(init.desc)) return NO_TINT;
+        return 0xFF000000 | value;
     }
 
-    /** Reports whether the constructor descriptor pairs an {@code int} directly before {@code MapColor}. */
+    /**
+     * Reports whether the constructor descriptor pairs an {@code int} directly before {@code MapColor}.
+     */
     private static boolean hasIntBeforeMapColor(@NotNull String desc) {
-        Type[] args = AsmKit.argTypes(desc);
+        Type[] args = ClassKit.argTypes(desc);
         for (int i = 1; i < args.length; i++)
             if (args[i].getSort() == Type.OBJECT
                 && VanillaSourceClasses.Types.MAP_COLOR.equals(args[i].getInternalName())

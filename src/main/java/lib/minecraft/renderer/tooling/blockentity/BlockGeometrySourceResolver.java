@@ -3,17 +3,17 @@ package lib.minecraft.renderer.tooling.blockentity;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.geometry.YAxis;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
@@ -133,7 +133,7 @@ final class BlockGeometrySourceResolver {
         if (renderer == null) return;
         for (MethodNode method : renderer.methods) {
             if ((method.access & Opcodes.ACC_STATIC) == 0) continue;
-            if (!AsmKit.descriptorReturns(method.desc, VanillaSourceClasses.Types.LAYER_DEFINITION)) continue;
+            if (!ClassKit.descriptorReturns(method.desc, VanillaSourceClasses.Types.LAYER_DEFINITION)) continue;
             if (!BlockGeometryPolicies.isPrimary(method.name)) continue;
 
             YAxis yAxis = inferYAxis(this.subject.rendererClass(), method.name);
@@ -173,11 +173,12 @@ final class BlockGeometrySourceResolver {
      */
     private @NotNull Set<String> collectLayerRefs(@NotNull String rendererClass) {
         Set<String> out = new LinkedHashSet<>();
-        AsmKit.walkSuperChain(this.cache, rendererClass, cn -> {
+        ClassKit.walkSuperChain(this.cache, rendererClass, cn -> {
             for (MethodNode method : cn.methods)
-                for (AbstractInsnNode in : method.instructions)
-                    if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS))
-                        out.add(((FieldInsnNode) in).name);
+                AsmWalker.over(method)
+                    .where(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS))
+                    .names()
+                    .forEach(out::add);
         });
         return out;
     }
@@ -190,28 +191,20 @@ final class BlockGeometrySourceResolver {
      */
     private @NotNull YAxis inferYAxis(@NotNull String factoryClass, @NotNull String factoryMethod) {
         ClassNode cn = this.cache.load(factoryClass);
-        MethodNode method = cn == null ? null : AsmKit.findMethod(cn, factoryMethod);
+        MethodNode method = cn == null ? null : ClassKit.findMethod(cn, factoryMethod);
         if (method == null) return YAxis.DOWN;
 
-        List<Float> floats = new ArrayList<>();
-        float maxPivotY = Float.NEGATIVE_INFINITY;
-        for (AbstractInsnNode in : method.instructions) {
-            Float literal = AsmKit.readFloatLiteral(in);
-            if (literal != null) {
-                floats.add(literal);
-                if (floats.size() > 12) floats.removeFirst();
-                continue;
-            }
-            if (!(in instanceof MethodInsnNode mi)) continue;
-            if (mi.owner.equals(VanillaSourceClasses.Types.PART_POSE)
+        // offset(x, y, z) -> y is second-to-last in the float window at the call
+        float maxPivotY = AsmWalker.over(method)
+            .gather(AsmWalker::floatLiteral)
+            .keep(12)
+            .retain()
+            .resetAt(Insn.ofType(MethodInsnNode.class))
+            .commitAt(MethodInsnNode.class, mi -> mi.owner.equals(VanillaSourceClasses.Types.PART_POSE)
                 && mi.name.equals(VanillaSourceClasses.Methods.OFFSET)
-                && mi.desc.startsWith("(FFF")
-                && floats.size() >= 3) {
-                float pivotY = floats.get(floats.size() - 2);   // offset(x, y, z) -> y is second-to-last
-                if (pivotY > maxPivotY) maxPivotY = pivotY;
-            }
-            floats.clear();
-        }
+                && mi.desc.startsWith("(FFF"))
+            .mapNotNull(c -> c.values().size() >= 3 ? c.values().get(c.values().size() - 2) : null)
+            .reduce(Float.NEGATIVE_INFINITY, (m, y) -> y > m ? y : m);
         return maxPivotY >= BlockTransformPolicies.yAxisBandMin() && maxPivotY < BlockTransformPolicies.yAxisBandMax()
             ? YAxis.UP : YAxis.DOWN;
     }

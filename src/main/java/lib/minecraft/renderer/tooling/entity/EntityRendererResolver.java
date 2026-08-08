@@ -1,10 +1,11 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -115,21 +116,20 @@ final class EntityRendererResolver {
      */
     private @NotNull List<LayerSite> scanLayerRoster(@NotNull ToolingSession session) {
         List<List<LayerSite>> perClass = new ArrayList<>();
-        AsmKit.walkSuperChain(session.cache(), this.subject.rendererClass(), cn -> {
+        ClassKit.walkSuperChain(session.cache(), this.subject.rendererClass(), cn -> {
             List<LayerSite> level = new ArrayList<>();
             for (MethodNode ctor : cn.methods) {
-                if (!AsmKit.INIT.equals(ctor.name)) continue;
-                for (AbstractInsnNode in : ctor.instructions) {
-                    // Owner-agnostic addLayer match - the renderer's super may be any of
-                    // several LivingEntityRenderer subclasses; gate on the canonical
-                    // descriptor shape (single Layer arg, boolean return).
-                    if (in.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
-                    if (!(in instanceof MethodInsnNode mi)) continue;
-                    if (!VanillaSourceClasses.Methods.ADD_LAYER.equals(mi.name)) continue;
-                    if (!mi.desc.startsWith("(L") || !mi.desc.endsWith(";)Z")) continue;
-                    LayerSite site = resolveSite(ctor, in);
-                    if (site != null) level.add(site);
-                }
+                if (!ClassKit.INIT.equals(ctor.name)) continue;
+                // Owner-agnostic addLayer match - the renderer's super may be any of
+                // several LivingEntityRenderer subclasses; gate on the canonical
+                // descriptor shape (single Layer arg, boolean return).
+                level.addAll(AsmWalker.over(ctor)
+                    .ofType(MethodInsnNode.class)
+                    .where(call -> call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                        && VanillaSourceClasses.Methods.ADD_LAYER.equals(call.name)
+                        && call.desc.startsWith("(L") && call.desc.endsWith(";)Z"))
+                    .mapNotNull(call -> resolveSite(ctor, call))
+                    .toList());
             }
             perClass.add(level);
         });
@@ -149,16 +149,16 @@ final class EntityRendererResolver {
      * the region.
      */
     private static @Nullable LayerSite resolveSite(@NotNull MethodNode ctor, @NotNull AbstractInsnNode addLayer) {
-        AbstractInsnNode previous = AsmKit.previousReal(addLayer);
+        AbstractInsnNode previous = AsmWalker.previousReal(addLayer);
         if (previous instanceof MethodInsnNode ctorCall
             && previous.getOpcode() == Opcodes.INVOKESPECIAL
-            && AsmKit.INIT.equals(ctorCall.name)) {
+            && ClassKit.INIT.equals(ctorCall.name)) {
             AbstractInsnNode alloc = findPrecedingLayerNew(addLayer);
             return alloc == null ? null : new LayerSite(ctorCall.owner, 0, ctor, alloc, addLayer);
         }
         if (previous instanceof MethodInsnNode factory
             && (previous.getOpcode() == Opcodes.INVOKESTATIC || previous.getOpcode() == Opcodes.INVOKEVIRTUAL)) {
-            Type returned = AsmKit.returnType(factory.desc);
+            Type returned = ClassKit.returnType(factory.desc);
             if (returned.getSort() == Type.OBJECT)
                 return new LayerSite(returned.getInternalName(), 0, ctor, previous, addLayer);
         }
@@ -176,22 +176,18 @@ final class EntityRendererResolver {
      * {@code addLayer} construction.
      */
     private static @Nullable AbstractInsnNode findPrecedingLayerNew(@NotNull AbstractInsnNode addLayerInsn) {
-        AbstractInsnNode cursor = addLayerInsn.getPrevious();
-        int depth = 0;
-        int pendingInits = 0;
-        while (cursor != null && depth < 64) {
-            depth++;
+        int[] pendingInits = {0};
+        return AsmWalker.before(addLayerInsn).limit(64).firstNotNull(cursor -> {
             if (cursor.getOpcode() == Opcodes.INVOKESPECIAL
                 && cursor instanceof MethodInsnNode mi
-                && AsmKit.INIT.equals(mi.name))
-                pendingInits++;
+                && ClassKit.INIT.equals(mi.name))
+                pendingInits[0]++;
             if (cursor.getOpcode() == Opcodes.NEW && cursor instanceof TypeInsnNode) {
-                pendingInits--;
-                if (pendingInits == 0) return cursor;
+                pendingInits[0]--;
+                if (pendingInits[0] == 0) return cursor;
             }
-            cursor = cursor.getPrevious();
-        }
-        return null;
+            return null;
+        });
     }
 
 }

@@ -1,10 +1,13 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -14,6 +17,8 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
@@ -63,7 +68,7 @@ public final class EntityRegistryDiscovery {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("discovery");
 
-        ClassNode entityType = AsmKit.requireClass(cache, VanillaSourceClasses.Types.ENTITY_TYPE, "EntityType discovery");
+        ClassNode entityType = ClassKit.requireClass(cache, VanillaSourceClasses.Types.ENTITY_TYPE, "EntityType discovery");
         Map<String, String> fieldToClass = collectEntityTypeFieldClasses(entityType);
         Map<String, String> mobRegistrations = collectMobRegistrations(entityType, diagnostics);
         Map<String, RendererRegistration> rendererRegistrations = collectRendererRegistrations(cache, diagnostics);
@@ -80,7 +85,7 @@ public final class EntityRegistryDiscovery {
                 continue;
             }
 
-            if (!AsmKit.extendsClass(cache, entityClass, VanillaSourceClasses.Types.LIVING_ENTITY)) continue;
+            if (!ClassKit.extendsClass(cache, entityClass, VanillaSourceClasses.Types.LIVING_ENTITY)) continue;
 
             totalMobs++;
             RendererRegistration renderer = rendererRegistrations.get(fieldName);
@@ -114,7 +119,7 @@ public final class EntityRegistryDiscovery {
         for (FieldNode field : entityType.fields) {
             if (!VanillaSourceClasses.Descs.ENTITY_TYPE_REF.equals(field.desc)) continue;
             if (field.signature == null) continue;
-            String concrete = AsmKit.extractGenericTypeParameter(field.signature, VanillaSourceClasses.Types.ENTITY_TYPE);
+            String concrete = ClassKit.extractGenericTypeParameter(field.signature, VanillaSourceClasses.Types.ENTITY_TYPE);
             if (concrete != null) out.put(field.name, concrete);
         }
         return out;
@@ -129,46 +134,44 @@ public final class EntityRegistryDiscovery {
         @NotNull ClassNode entityType,
         @NotNull Diagnostics diagnostics
     ) {
-        MethodNode clinit = AsmKit.findMethod(entityType, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(entityType, ClassKit.CLINIT);
         if (clinit == null) {
             diagnostics.error("%s has no <clinit> method", VanillaSourceClasses.Types.ENTITY_TYPE);
             return Map.of();
         }
 
         Map<String, String> out = new LinkedHashMap<>();
-        String pendingId = null;
-        String pendingCategory = null;
-
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) pendingId = literal;
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MOB_CATEGORY))
-                pendingCategory = ((FieldInsnNode) in).name;
-
-            if (!isBuilderOfCall(in)) continue;
-            if (pendingId == null || pendingCategory == null) {
-                diagnostics.warn("EntityType$Builder.of call without preceding entity id and MobCategory literals");
-                pendingId = null;
-                pendingCategory = null;
-                continue;
-            }
-
-            String fieldName = AsmKit.findFollowingPutStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE, EntityRegistryDiscovery::isBuilderOfCall);
-            if (fieldName == null) {
-                diagnostics.warn("EntityType registration for id '%s' has no PUTSTATIC field", pendingId);
-            } else {
-                out.put(fieldName, pendingId);
-            }
-            pendingId = null;
-            pendingCategory = null;
-        }
+        Cells.Latch<String> pendingId = Cells.latch();
+        Cells.Latch<String> pendingCategory = Cells.latch();
+        AsmWalker.over(clinit)
+            .feed(pendingId)
+            .feed(pendingCategory)
+            .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String),
+                ldc -> pendingId.set((String) ldc.cst))
+            .on(Insn.getStatic(VanillaSourceClasses.Types.MOB_CATEGORY),
+                category -> pendingCategory.set(category.name))
+            .commitAt(Insn.of(MethodInsnNode.class, EntityRegistryDiscovery::isBuilderOfCall), call -> {
+                String id = pendingId.get();
+                if (id == null || pendingCategory.get() == null) {
+                    diagnostics.warn("EntityType$Builder.of call without preceding entity id and MobCategory literals");
+                    return;
+                }
+                AbstractInsnNode put = AsmWalker.after(call)
+                    .first(node -> AsmWalker.isPutStatic(node, VanillaSourceClasses.Types.ENTITY_TYPE),
+                        node -> !isBuilderOfCall(node));
+                if (put == null)
+                    diagnostics.warn("EntityType registration for id '%s' has no PUTSTATIC field", id);
+                else
+                    out.put(((FieldInsnNode) put).name, id);
+            })
+            .run();
 
         return out;
     }
 
     /** Reports whether {@code in} is an {@code INVOKESTATIC EntityType$Builder.of(...)}. */
     private static boolean isBuilderOfCall(@NotNull AbstractInsnNode in) {
-        return AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE_BUILDER, VanillaSourceClasses.Methods.BUILDER_OF);
+        return AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE_BUILDER, VanillaSourceClasses.Methods.BUILDER_OF);
     }
 
     /**
@@ -191,28 +194,26 @@ public final class EntityRegistryDiscovery {
             diagnostics.error("'%s' class missing from jar - cannot discover entity renderers", VanillaSourceClasses.Types.ENTITY_RENDERERS);
             return Map.of();
         }
-        MethodNode registryInit = AsmKit.findMethod(registryClass, AsmKit.CLINIT);
+        MethodNode registryInit = ClassKit.findMethod(registryClass, ClassKit.CLINIT);
         if (registryInit == null) {
             diagnostics.error("'%s.<clinit>' missing - cannot discover entity renderers", VanillaSourceClasses.Types.ENTITY_RENDERERS);
             return Map.of();
         }
 
         Map<String, RendererRegistration> out = new LinkedHashMap<>();
-        String pendingEntityField = null;
-        for (AbstractInsnNode in : registryInit.instructions) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE)) {
-                pendingEntityField = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (in instanceof InvokeDynamicInsnNode indy && pendingEntityField != null) {
-                RendererRegistration resolution = resolveLambdaRenderer(indy, registryClass);
+        AsmWalker.over(registryInit)
+            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE)
+                ? ((FieldInsnNode) in).name : null)
+            .commitAt(Insn.ofType(InvokeDynamicInsnNode.class))
+            .forEach(commit -> {
+                String pendingEntityField = commit.value();
+                if (pendingEntityField == null) return;
+                RendererRegistration resolution = resolveLambdaRenderer(commit.node(), registryClass);
                 if (resolution != null)
                     out.put(pendingEntityField, resolution);
                 else
                     diagnostics.info("EntityRenderers.<clinit>: could not resolve renderer class for EntityType.%s - skipped", pendingEntityField);
-                pendingEntityField = null;
-            }
-        }
+            });
         return out;
     }
 
@@ -230,20 +231,20 @@ public final class EntityRegistryDiscovery {
         @NotNull InvokeDynamicInsnNode indy,
         @NotNull ClassNode ownerClass
     ) {
-        Handle handle = AsmKit.extractLambdaHandle(indy);
+        Handle handle = AsmWalker.extractLambdaHandle(indy);
         if (handle == null) return null;
 
-        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && AsmKit.INIT.equals(handle.getName()))
+        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && ClassKit.INIT.equals(handle.getName()))
             return new RendererRegistration(handle.getOwner(), Set.of(), Set.of(), Set.of());
 
         if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
             Set<String> layerFields = new LinkedHashSet<>();
             Set<EntitySubject.TypeFieldRef> typeArgs = new LinkedHashSet<>();
             Set<String> equipmentLayerTypes = new LinkedHashSet<>();
-            String rendererClass = AsmKit.walkLambdaBody(indy, ownerClass, node -> {
-                if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.MODEL_LAYERS))
+            String rendererClass = AsmWalker.walkLambdaBody(indy, ownerClass, node -> {
+                if (AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.MODEL_LAYERS))
                     layerFields.add(((FieldInsnNode) node).name);
-                else if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
+                else if (AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
                     equipmentLayerTypes.add(((FieldInsnNode) node).name);
                 else if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode fi && fi.owner.contains("$Type"))
                     typeArgs.add(new EntitySubject.TypeFieldRef(fi.owner, fi.name));

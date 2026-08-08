@@ -2,11 +2,14 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
 import dev.simplified.util.StringUtil;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -237,46 +240,43 @@ final class VariantIndex {
     private static @Nullable String findHolderDefaultId(@NotNull ClassNodeCache cache, @NotNull String holderInternal) {
         ClassNode cn = cache.load(holderInternal);
         if (cn == null) return null;
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit == null) return null;
 
         // First pass: (FIELD -> id) from the LDC + createKey + PUTSTATIC chain. The literal
-        // filter rejects namespaced / path-bearing strings so registry-root LDCs don't bind.
+        // filter rejects namespaced / path-bearing strings so registry-root LDCs don't bind, and
+        // the createKey match is owner-agnostic - any class can host the key factory. The commit
+        // hook manages its own arming and reset: an unarmed PUTSTATIC leaves both cells intact.
         Map<String, String> fieldToId = new LinkedHashMap<>();
-        String pendingId = null;
-        boolean pendingCreateKey = false;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null && !literal.contains(":") && !literal.contains("/")) {
-                pendingId = literal;
-                pendingCreateKey = false;
-                continue;
-            }
-            // Owner-agnostic createKey match - any class can host the key factory.
-            if (in.getOpcode() == Opcodes.INVOKESTATIC
-                && in instanceof MethodInsnNode mi
-                && CREATE_KEY.equals(mi.name)) {
-                pendingCreateKey = true;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, holderInternal) && pendingId != null && pendingCreateKey) {
-                fieldToId.put(((FieldInsnNode) in).name, pendingId);
-                pendingId = null;
-                pendingCreateKey = false;
-            }
-        }
+        Cells.Latch<String> pendingId = Cells.latch();
+        Cells.Flag pendingCreateKey = Cells.flag();
+        AsmWalker.over(clinit)
+            .on(Insn.of(AbstractInsnNode.class, in -> {
+                String literal = AsmWalker.stringLiteral(in);
+                return literal != null && !literal.contains(":") && !literal.contains("/");
+            }), in -> {
+                String literal = AsmWalker.stringLiteral(in);
+                if (literal == null) return;
+                pendingId.set(literal);
+                pendingCreateKey.clear();
+            })
+            .on(Insn.of(MethodInsnNode.class, mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
+                && CREATE_KEY.equals(mi.name)), mi -> pendingCreateKey.set())
+            .on(Insn.putStatic(holderInternal), put -> {
+                String id = pendingId.get();
+                if (id == null || !pendingCreateKey.get()) return;
+                fieldToId.put(put.name, id);
+                pendingId.clear();
+                pendingCreateKey.clear();
+            })
+            .run();
 
         // Second pass: which FIELD is bound to DEFAULT.
-        String pendingField = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (AsmKit.isGetStatic(in, holderInternal)) {
-                pendingField = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, holderInternal, DEFAULT_FIELD) && pendingField != null)
-                return fieldToId.get(pendingField);
-        }
-        return null;
+        String defaultField = AsmWalker.over(clinit)
+            .latch(in -> AsmWalker.isGetStatic(in, holderInternal) ? ((FieldInsnNode) in).name : null)
+            .commitAt(FieldInsnNode.class, put -> AsmWalker.isPutStatic(put, holderInternal, DEFAULT_FIELD))
+            .firstNotNull(commit -> commit.value());
+        return defaultField == null ? null : fieldToId.get(defaultField);
     }
 
 }

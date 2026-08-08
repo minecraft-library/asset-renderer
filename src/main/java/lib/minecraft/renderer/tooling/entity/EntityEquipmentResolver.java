@@ -3,11 +3,14 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.CommitWalk;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -17,7 +20,6 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,29 +72,33 @@ final class EntityEquipmentResolver {
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull AbstractInsnNode windowStart
     ) {
-        String layerType = null;
-        List<String> meshFields = new ArrayList<>(2);
-        boolean parameterisedLayerType = false;
-        boolean parameterisedMesh = false;
-        for (AbstractInsnNode in = windowStart; in != null && in != site.addLayer(); in = in.getNext()) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)) {
-                layerType = ((FieldInsnNode) in).name;
+        Cells.Latch<String> layerType = Cells.latch();
+        Cells.ListCell<String> meshFields = Cells.list();
+        Cells.Flag parameterisedLayerType = Cells.flag();
+        Cells.Flag parameterisedMesh = Cells.flag();
+        // Every re-latch of the candidate type clears the gathered meshes - the ModelLayers
+        // statics that follow a LayerType belong to that candidate alone.
+        AsmWalker.from(windowStart).until(site.addLayer())
+            .on(Insn.getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE), fi -> {
+                layerType.set(fi.name);
                 meshFields.clear();
-                continue;
-            }
-            if (layerType != null && AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
-                meshFields.add(((FieldInsnNode) in).name);
-                continue;
-            }
-            if (in.getOpcode() != Opcodes.ALOAD || !(in instanceof VarInsnNode load)) continue;
-            parameterisedLayerType |= AsmKit.isParameterOfType(
-                site.method(), load.var, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE);
-            parameterisedMesh |= AsmKit.isParameterOfType(
-                site.method(), load.var, VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
-        }
-        if (layerType == null && parameterisedLayerType && parameterisedMesh) return registrationRow(site);
-        if (layerType == null || meshFields.isEmpty()) return null;
-        return buildRow(site, layerType, meshFields.getFirst(), meshFields.size() > 1 ? meshFields.get(1) : null);
+            })
+            .on(Insn.getStatic(VanillaSourceClasses.Types.MODEL_LAYERS).and(fi -> layerType.get() != null),
+                fi -> meshFields.add(fi.name))
+            .on(Insn.of(VarInsnNode.class, load -> load.getOpcode() == Opcodes.ALOAD), load -> {
+                if (AsmWalker.isParameterOfType(
+                    site.method(), load.var, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
+                    parameterisedLayerType.set();
+                if (AsmWalker.isParameterOfType(
+                    site.method(), load.var, VanillaSourceClasses.Types.MODEL_LAYER_LOCATION))
+                    parameterisedMesh.set();
+            })
+            .run();
+        if (layerType.get() == null && parameterisedLayerType.get() && parameterisedMesh.get())
+            return registrationRow(site);
+        List<String> meshes = meshFields.values();
+        if (layerType.get() == null || meshes.isEmpty()) return null;
+        return buildRow(site, layerType.get(), meshes.getFirst(), meshes.size() > 1 ? meshes.get(1) : null);
     }
 
     /**
@@ -134,19 +140,22 @@ final class EntityEquipmentResolver {
      * @return the row, or {@code null} when the pair cannot be resolved
      */
     @Nullable JsonTree resolveBespoke(@NotNull EntityRendererResolver.LayerSite site, @NotNull ClassNode cn) {
-        String layerType = null;
-        String meshField = null;
+        // Both first-wins reads span every method of the class, so the pair lives in locals
+        // written from the walks rather than in per-run cells. The first non-baby ModelLayers
+        // field is the adult mesh.
+        String[] layerType = {null};
+        String[] meshField = {null};
         for (MethodNode method : cn.methods)
-            for (AbstractInsnNode in : method.instructions) {
-                if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
-                if (layerType == null && VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE.equals(fi.owner))
-                    layerType = fi.name;
-                else if (meshField == null && VanillaSourceClasses.Types.MODEL_LAYERS.equals(fi.owner)
-                    && !fi.name.contains("BABY"))   // the first non-baby field is the adult mesh
-                    meshField = fi.name;
-            }
-        if (layerType == null || meshField == null) return null;
-        return buildRow(site, layerType, meshField, null);
+            AsmWalker.over(method)
+                .on(Insn.getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
+                        .and(fi -> layerType[0] == null),
+                    fi -> layerType[0] = fi.name)
+                .on(Insn.getStatic(VanillaSourceClasses.Types.MODEL_LAYERS)
+                        .and(fi -> meshField[0] == null && !fi.name.contains("BABY")),
+                    fi -> meshField[0] = fi.name)
+                .run();
+        if (layerType[0] == null || meshField[0] == null) return null;
+        return buildRow(site, layerType[0], meshField[0], null);
     }
 
     /**
@@ -247,18 +256,12 @@ final class EntityEquipmentResolver {
      * @return the id literal, or {@code null} when unresolved
      */
     static @Nullable String layerTypeSubdir(@NotNull ClassNodeCache cache, @NotNull String constant) {
-        MethodNode clinit = AsmKit.findClinit(cache, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE);
-        if (clinit == null) return null;
-        String pending = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                pending = literal;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE, constant)) return pending;
-        }
-        return null;
+        String owner = VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE;
+        CommitWalk.Commit<FieldInsnNode, String> committed = AsmWalker.clinit(cache, owner)
+            .latch(AsmWalker::stringLiteral)
+            .commitAt(Insn.putStatic(owner, constant))
+            .first();
+        return committed == null ? null : committed.value();
     }
 
 }

@@ -2,11 +2,13 @@ package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -19,7 +21,6 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -179,12 +180,12 @@ final class EntityGeometryRefResolver {
         List<String> sites = this.tripleSites;
         List<String> bindings = mllTypedLambdaFields();
         String current = this.subject.rendererClass();
-        while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
+        while (current != null && !ClassKit.OBJECT_INTERNAL.equals(current)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) break;
             List<String> levelPushes = new ArrayList<>();
             for (MethodNode ctor : cn.methods) {
-                if (!AsmKit.INIT.equals(ctor.name)) continue;
+                if (!ClassKit.INIT.equals(ctor.name)) continue;
                 collectBakedModelLayers(ctor, levelPushes, bindings, sites);
             }
             if (!levelPushes.isEmpty()) bindings = levelPushes;
@@ -196,7 +197,7 @@ final class EntityGeometryRefResolver {
         ClassNode leaf = this.cache.load(this.subject.rendererClass());
         if (leaf != null)
             for (MethodNode method : leaf.methods) {
-                if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+                if (ClassKit.INIT.equals(method.name) || ClassKit.CLINIT.equals(method.name)) continue;
                 collectBakedModelLayers(method, new ArrayList<>(), List.of(), new ArrayList<>());
             }
         for (String field : sites)
@@ -231,11 +232,11 @@ final class EntityGeometryRefResolver {
         @NotNull List<String> bindings,
         @NotNull List<String> sites
     ) {
-        Type[] args = AsmKit.argTypes(ctor.desc);
+        Type[] args = ClassKit.argTypes(ctor.desc);
         String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
         List<String> freshTriples = new ArrayList<>();
         for (AbstractInsnNode in : ctor.instructions) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
+            if (AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
                 && in instanceof FieldInsnNode push
                 && mllRef.equals(push.desc)) {
                 pushes.add(push.name);
@@ -243,7 +244,7 @@ final class EntityGeometryRefResolver {
             }
             if (in.getOpcode() == Opcodes.INVOKESPECIAL
                 && in instanceof MethodInsnNode init
-                && AsmKit.INIT.equals(init.name)) {
+                && ClassKit.INIT.equals(init.name)) {
                 int modelArgs = countModelArgs(init.desc);
                 if (modelArgs >= 2) {
                     // A multi-model consumption (AgeableMobRenderer super, model-pair record):
@@ -261,11 +262,11 @@ final class EntityGeometryRefResolver {
                     continue;
                 }
             }
-            if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDERER_PROVIDER_CONTEXT, VanillaSourceClasses.Methods.BAKE_LAYER)) continue;
-            AbstractInsnNode next = AsmKit.nextReal(in);
+            if (!AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDERER_PROVIDER_CONTEXT, VanillaSourceClasses.Methods.BAKE_LAYER)) continue;
+            AbstractInsnNode next = AsmWalker.nextReal(in);
             if (!(next instanceof MethodInsnNode init) || next.getOpcode() != Opcodes.INVOKESPECIAL
-                || !AsmKit.INIT.equals(init.name) || !isModelClass(init.owner)) continue;
-            String field = resolveLayerSource(AsmKit.previousReal(in), args, pushes, bindings);
+                || !ClassKit.INIT.equals(init.name) || !isModelClass(init.owner)) continue;
+            String field = resolveLayerSource(AsmWalker.previousReal(in), args, pushes, bindings);
             if (field != null) {
                 sites.add(field);
                 freshTriples.add(field);
@@ -276,7 +277,7 @@ final class EntityGeometryRefResolver {
     /** The count of model-class reference arguments in a constructor descriptor. */
     private static int countModelArgs(@NotNull String desc) {
         int count = 0;
-        for (Type arg : AsmKit.argTypes(desc))
+        for (Type arg : ClassKit.argTypes(desc))
             if (arg.getSort() == Type.OBJECT && isModelClass(arg.getInternalName())) count++;
         return count;
     }
@@ -292,7 +293,7 @@ final class EntityGeometryRefResolver {
         String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
         List<String> out = new ArrayList<>();
         for (String field : this.subject.lambdaLayerFields()) {
-            var node = AsmKit.findField(modelLayers, field);
+            var node = ClassKit.findField(modelLayers, field);
             if (node != null && mllRef.equals(node.desc)) out.add(field);
         }
         return out;
@@ -316,7 +317,7 @@ final class EntityGeometryRefResolver {
         @NotNull List<String> bindings
     ) {
         if (source == null) return null;
-        if (AsmKit.isGetStatic(source, VanillaSourceClasses.Types.MODEL_LAYERS))
+        if (AsmWalker.isGetStatic(source, VanillaSourceClasses.Types.MODEL_LAYERS))
             return ((FieldInsnNode) source).name;
 
         // ALOAD <param>; GETFIELD $Type.model:LModelLayerLocation; - donkey family: map the
@@ -326,7 +327,7 @@ final class EntityGeometryRefResolver {
             && source instanceof FieldInsnNode typeField
             && typeField.owner.endsWith("$Type")
             && VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION).equals(typeField.desc)
-            && AsmKit.previousReal(source) instanceof VarInsnNode receiver
+            && AsmWalker.previousReal(source) instanceof VarInsnNode receiver
             && receiver.getOpcode() == Opcodes.ALOAD) {
             EntitySubject.TypeFieldRef constant = typeArgAtSlot(receiver.var, ctorArgs, typeField.owner);
             if (constant == null) return null;
@@ -414,22 +415,14 @@ final class EntityGeometryRefResolver {
     private @NotNull Map<String, String> typeConstantModelLayerMap(@NotNull String typeOwner) {
         ClassNode cn = this.cache.load(typeOwner);
         if (cn == null) return Map.of();
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit == null) return Map.of();
 
-        Map<String, String> out = new LinkedHashMap<>();
-        String pendingModelLayer = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)) {
-                pendingModelLayer = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, typeOwner) && pendingModelLayer != null) {
-                out.put(((FieldInsnNode) in).name, pendingModelLayer);
-                pendingModelLayer = null;
-            }
-        }
-        return out;
+        return AsmWalker.over(clinit)
+            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
+                ? ((FieldInsnNode) in).name : null)
+            .commitAt(Insn.putStatic(typeOwner))
+            .toMap(put -> put.name, values -> values.isEmpty() ? null : values.getFirst());
     }
 
 }

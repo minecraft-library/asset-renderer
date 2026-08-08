@@ -1,10 +1,13 @@
 package lib.minecraft.renderer.tooling.vanilla;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.CommitWalk;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
@@ -16,8 +19,6 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -91,26 +92,22 @@ public final class BlockItemAliasWalk {
             writeAliases(root);
             return;
         }
-        MethodNode clinit = AsmKit.findMethod(items, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(items, ClassKit.CLINIT);
         if (clinit == null) {
             this.diagnostics.error("'%s.<clinit>' missing - block-item alias map unresolved", VanillaSourceClasses.Types.ITEMS);
             writeAliases(root);
             return;
         }
 
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (in instanceof InvokeDynamicInsnNode indy && indy.desc.endsWith(BIFUNCTION_RETURN_SUFFIX)) {
-                AbstractInsnNode primary = AsmKit.previousReal(indy);
-                if (primary instanceof FieldInsnNode field && AsmKit.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
+        AsmWalker.over(clinit)
+            .on(Insn.of(InvokeDynamicInsnNode.class, indy -> indy.desc.endsWith(BIFUNCTION_RETURN_SUFFIX)), indy -> {
+                AbstractInsnNode primary = AsmWalker.previousReal(indy);
+                if (primary instanceof FieldInsnNode field && AsmWalker.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
                     collectLambdaSecondaries(items, indy, field.name);
-                continue;
-            }
-
-            if (in.getOpcode() == Opcodes.ANEWARRAY
-                && in instanceof TypeInsnNode arrayType
-                && arrayType.desc.equals(VanillaSourceClasses.Types.BLOCK))
-                collectVarargsSecondaries(in);
-        }
+            })
+            .on(Insn.of(TypeInsnNode.class, arrayType -> arrayType.getOpcode() == Opcodes.ANEWARRAY
+                && arrayType.desc.equals(VanillaSourceClasses.Types.BLOCK)), this::collectVarargsSecondaries)
+            .run();
 
         writeAliases(root);
         this.diagnostics.info("mapped %d secondary blocks to their standing-block item", this.aliases.size());
@@ -126,14 +123,15 @@ public final class BlockItemAliasWalk {
         @NotNull InvokeDynamicInsnNode indy,
         @NotNull String primaryField
     ) {
-        Handle handle = AsmKit.extractLambdaHandle(indy);
+        Handle handle = AsmWalker.extractLambdaHandle(indy);
         if (handle == null || handle.getTag() != Opcodes.H_INVOKESTATIC || !handle.getOwner().equals(items.name))
             return;
-        MethodNode lambda = AsmKit.findMethod(items, handle.getName(), handle.getDesc());
+        MethodNode lambda = ClassKit.findMethod(items, handle.getName(), handle.getDesc());
         if (lambda == null) return;
-        for (AbstractInsnNode node : lambda.instructions)
-            if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS))
-                emit(((FieldInsnNode) node).name, primaryField);
+        AsmWalker.over(lambda)
+            .getStatic(VanillaSourceClasses.Types.BLOCKS)
+            .names()
+            .forEach(secondary -> emit(secondary, primaryField));
     }
 
     /**
@@ -142,23 +140,19 @@ public final class BlockItemAliasWalk {
      * array's length push.
      */
     private void collectVarargsSecondaries(@NotNull AbstractInsnNode anewarray) {
-        AbstractInsnNode lengthPush = AsmKit.previousReal(anewarray);
-        AbstractInsnNode primary = AsmKit.previousReal(lengthPush);
-        if (!(primary instanceof FieldInsnNode field) || !AsmKit.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
+        AbstractInsnNode lengthPush = AsmWalker.previousReal(anewarray);
+        AbstractInsnNode primary = AsmWalker.previousReal(lengthPush);
+        if (!(primary instanceof FieldInsnNode field) || !AsmWalker.isGetStatic(primary, VanillaSourceClasses.Types.BLOCKS))
             return;
 
-        List<String> secondaries = new ArrayList<>();
-        for (AbstractInsnNode node = anewarray.getNext(); node != null; node = node.getNext()) {
-            if (AsmKit.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS)) {
-                secondaries.add(((FieldInsnNode) node).name);
-                continue;
-            }
-            if (node instanceof MethodInsnNode call
-                && AsmKit.isInvokeStatic(call, VanillaSourceClasses.Types.ITEMS, REGISTER_BLOCK, REGISTER_BLOCK_VARARGS_DESC)) {
-                for (String secondary : secondaries) emit(secondary, field.name);
-                return;
-            }
-        }
+        CommitWalk.Commit<MethodInsnNode, String> register = AsmWalker.after(anewarray)
+            .gather(node -> AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.BLOCKS)
+                ? ((FieldInsnNode) node).name : null)
+            .commitAt(MethodInsnNode.class, call -> AsmWalker.isInvokeStatic(
+                call, VanillaSourceClasses.Types.ITEMS, REGISTER_BLOCK, REGISTER_BLOCK_VARARGS_DESC))
+            .first();
+        if (register == null) return;
+        for (String secondary : register.values()) emit(secondary, field.name);
     }
 
     /**

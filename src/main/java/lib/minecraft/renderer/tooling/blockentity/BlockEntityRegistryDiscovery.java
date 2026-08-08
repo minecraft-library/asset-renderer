@@ -1,15 +1,18 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
@@ -104,32 +107,34 @@ public final class BlockEntityRegistryDiscovery {
             diagnostics.error("'%s' class missing - cannot discover block-entity types", VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE);
             return Map.of();
         }
-        MethodNode clinit = AsmKit.findMethod(blockEntityType, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(blockEntityType, ClassKit.CLINIT);
         if (clinit == null) {
             diagnostics.error("'%s.<clinit>' missing - cannot discover block-entity types", VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE);
             return Map.of();
         }
 
         Map<String, TypeRegistration> out = new LinkedHashMap<>();
-        String pendingId = null;
-        List<String> pendingBlocks = new ArrayList<>();
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                pendingId = literal;
+        Cells.Latch<String> pendingId = Cells.latch();
+        Cells.ListCell<String> pendingBlocks = Cells.list();
+
+        // The armed test rides the commit recognizer: an id-less PUTSTATIC is not a
+        // registration, so it neither emits nor resets the cells.
+        AsmWalker.over(clinit)
+            .feed(pendingId)
+            .feed(pendingBlocks)
+            .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String), ldc -> {
+                pendingId.set((String) ldc.cst);
                 pendingBlocks.clear();
-                continue;
-            }
-            if (pendingId != null && AsmKit.isGetStatic(in, VanillaSourceClasses.Types.BLOCKS)) {
-                pendingBlocks.add(((FieldInsnNode) in).name);
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE) && pendingId != null) {
-                out.put(((FieldInsnNode) in).name, new TypeRegistration(pendingId, List.copyOf(pendingBlocks)));
-                pendingId = null;
-                pendingBlocks.clear();
-            }
-        }
+            })
+            .on(Insn.getStatic(VanillaSourceClasses.Types.BLOCKS), get -> {
+                if (pendingId.get() != null) pendingBlocks.add(get.name);
+            })
+            .commitAt(Insn.putStatic(VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE).and(put -> pendingId.get() != null),
+                put -> {
+                    String id = pendingId.get();
+                    if (id != null) out.put(put.name, new TypeRegistration(id, pendingBlocks.values()));
+                })
+            .run();
         return out;
     }
 
@@ -151,28 +156,26 @@ public final class BlockEntityRegistryDiscovery {
             diagnostics.error("'%s' class missing - cannot discover block-entity renderers", VanillaSourceClasses.Types.BLOCK_ENTITY_RENDERERS);
             return Map.of();
         }
-        MethodNode clinit = AsmKit.findMethod(registryClass, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(registryClass, ClassKit.CLINIT);
         if (clinit == null) {
             diagnostics.error("'%s.<clinit>' missing - cannot discover block-entity renderers", VanillaSourceClasses.Types.BLOCK_ENTITY_RENDERERS);
             return Map.of();
         }
 
         Map<String, String> out = new LinkedHashMap<>();
-        String pendingTypeField = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE)) {
-                pendingTypeField = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (in instanceof InvokeDynamicInsnNode indy && pendingTypeField != null) {
-                String rendererClass = AsmKit.resolveLambdaTargetClass(indy, registryClass);
+        AsmWalker.over(clinit)
+            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE)
+                ? ((FieldInsnNode) in).name : null)
+            .commitAt(Insn.ofType(InvokeDynamicInsnNode.class))
+            .forEach(commit -> {
+                String typeField = commit.value();
+                if (typeField == null) return;
+                String rendererClass = AsmWalker.resolveLambdaTargetClass(commit.node(), registryClass);
                 if (rendererClass != null)
-                    out.put(pendingTypeField, rendererClass);
+                    out.put(typeField, rendererClass);
                 else
-                    diagnostics.info("BlockEntityRenderers.<clinit>: could not resolve renderer class for BlockEntityType.%s - skipped", pendingTypeField);
-                pendingTypeField = null;
-            }
-        }
+                    diagnostics.info("BlockEntityRenderers.<clinit>: could not resolve renderer class for BlockEntityType.%s - skipped", typeField);
+            });
         return out;
     }
 

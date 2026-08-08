@@ -1,10 +1,13 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.walk.Interp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -13,12 +16,10 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -66,10 +67,14 @@ final class TintRegistrationResolver {
         }
     }
 
-    /** The {@code @age=0} provenance suffix on the stem source label (the eval-state note). */
+    /**
+     * The {@code @age=0} provenance suffix on the stem source label (the eval-state note).
+     */
     private static final @NotNull String STEM_LABEL = "@age=0";
 
-    /** The composed multi-source drop provenance label. */
+    /**
+     * The composed multi-source drop provenance label.
+     */
     private static final @NotNull String LIST_OF_LABEL = "List.of";
 
     /**
@@ -128,14 +133,11 @@ final class TintRegistrationResolver {
     private static @Nullable String resolveSourceClass(@NotNull ClassNodeCache cache, @NotNull String factoryName) {
         ClassNode sources = cache.load(VanillaSourceClasses.Types.BLOCK_TINT_SOURCES);
         if (sources == null) return null;
-        MethodNode factory = AsmKit.findMethod(sources, factoryName);
+        MethodNode factory = ClassKit.findMethod(sources, factoryName);
         if (factory == null) return null;
-        for (AbstractInsnNode in : factory.instructions)
-            if (in.getOpcode() == Opcodes.NEW
-                && in instanceof TypeInsnNode type
-                && type.desc.startsWith(VanillaSourceClasses.Types.BLOCK_TINT_SOURCES))
-                return type.desc;
-        return null;
+        return AsmWalker.over(factory)
+            .new_(VanillaSourceClasses.Types.BLOCK_TINT_SOURCES)
+            .firstNotNull(type -> type.desc);
     }
 
     /**
@@ -147,14 +149,16 @@ final class TintRegistrationResolver {
         if (node == null) return null;
         for (MethodNode method : node.methods) {
             if (method.instructions == null) continue;
-            for (AbstractInsnNode in : method.instructions) {
-                if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_GRASS_COLOR))
+            Block.TintTarget target = AsmWalker.over(method).firstNotNull(in -> {
+                if (AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_GRASS_COLOR))
                     return Block.TintTarget.GRASS;
-                if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_FOLIAGE_COLOR))
+                if (AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_FOLIAGE_COLOR))
                     return Block.TintTarget.FOLIAGE;
-                if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_DRY_FOLIAGE_COLOR))
+                if (AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.BIOME_COLORS, VanillaSourceClasses.Methods.GET_AVERAGE_DRY_FOLIAGE_COLOR))
                     return Block.TintTarget.DRY_FOLIAGE;
-            }
+                return null;
+            });
+            if (target != null) return target;
         }
         return null;
     }
@@ -167,21 +171,16 @@ final class TintRegistrationResolver {
     private static @Nullable Integer evalStem(@NotNull ClassNodeCache cache, @NotNull String innerClass, @NotNull Diagnostics diagnostics) {
         ClassNode node = cache.load(innerClass);
         String colorDesc = VanillaSourceClasses.Descs.of("I", VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_STATE));
-        MethodNode color = node == null ? null : AsmKit.findMethod(node, VanillaSourceClasses.Methods.COLOR, colorDesc);
+        MethodNode color = node == null ? null : ClassKit.findMethod(node, VanillaSourceClasses.Methods.COLOR, colorDesc);
         if (color == null) {
             diagnostics.error("stem source '%s' exposes no color(BlockState) body", innerClass);
             return null;
         }
         // The AGE read is `getValue(AGE); checkcast Integer; intValue; istore <age>`. Bind that
         // local to 0 (the min / freshly-placed default) and evaluate the arithmetic that follows.
-        AbstractInsnNode getValue = null;
-        for (AbstractInsnNode in : color.instructions)
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.BLOCK_STATE, VanillaSourceClasses.Methods.GET_VALUE)) {
-                getValue = in;
-                break;
-            }
-        AbstractInsnNode store = getValue;
-        while (store != null && store.getOpcode() != Opcodes.ISTORE) store = store.getNext();
+        AbstractInsnNode getValue = AsmWalker.over(color).first(in ->
+            AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.BLOCK_STATE, VanillaSourceClasses.Methods.GET_VALUE));
+        AbstractInsnNode store = AsmWalker.from(getValue).first(Insn.opcode(Opcodes.ISTORE));
         if (store == null) {
             diagnostics.error("stem source '%s' color body has no AGE istore to bind", innerClass);
             return null;
@@ -203,38 +202,39 @@ final class TintRegistrationResolver {
      * set (loud failure, never a fallback literal).
      */
     private static int evalInt(@NotNull ClassNodeCache cache, @Nullable AbstractInsnNode start, @NotNull Map<Integer, Integer> locals) {
-        Deque<Integer> stack = new ArrayDeque<>();
-        for (AbstractInsnNode in = start; in != null; in = in.getNext()) {
-            if (AsmKit.isPseudoNode(in)) continue;
-            Integer literal = AsmKit.readIntLiteral(in);
-            if (literal != null) {
-                stack.push(literal);
-                continue;
-            }
-            switch (in.getOpcode()) {
-                case Opcodes.ILOAD -> stack.push(require(locals.get(((VarInsnNode) in).var), "unbound local"));
-                case Opcodes.IMUL -> stack.push(pop(stack) * pop(stack));
-                case Opcodes.IADD -> stack.push(pop(stack) + pop(stack));
-                case Opcodes.ISUB -> { int b = pop(stack); stack.push(pop(stack) - b); }
-                case Opcodes.IAND -> stack.push(pop(stack) & pop(stack));
-                case Opcodes.IOR -> stack.push(pop(stack) | pop(stack));
-                case Opcodes.IXOR -> stack.push(pop(stack) ^ pop(stack));
-                case Opcodes.INEG -> stack.push(-pop(stack));
-                case Opcodes.ISHL -> { int b = pop(stack); stack.push(pop(stack) << b); }
-                case Opcodes.ISHR -> { int b = pop(stack); stack.push(pop(stack) >> b); }
-                case Opcodes.IUSHR -> { int b = pop(stack); stack.push(pop(stack) >>> b); }
-                case Opcodes.INVOKESTATIC -> {
-                    MethodInsnNode call = (MethodInsnNode) in;
-                    int arity = Type.getArgumentTypes(call.desc).length;
-                    int[] args = new int[arity];
-                    for (int i = arity - 1; i >= 0; i--) args[i] = pop(stack);
-                    stack.push(evalStaticInt(cache, call.owner, call.name, call.desc, args));
+        Interp<Integer> machine = Interp.of(new IntExpressionDomain(), Interp.OnUnknown.THROW, Interp.Width.BY_OPERANDS);
+        locals.forEach(machine::store);
+        // The machine owns the stack - literal pushes, the bound-local ILOAD and the arithmetic
+        // all land in its step before the dispatch below sees the node. The dispatch recognises
+        // what matters to the flow: the unbound-local fault, the INVOKESTATIC recursion, the
+        // IRETURN result, and the loud rejection of everything else.
+        Integer result = AsmWalker.from(start)
+            .drive(machine)
+            .firstNotNull(in -> {
+                if (AsmWalker.isPseudoNode(in) || AsmWalker.intLiteral(in) != null) return null;
+                switch (in.getOpcode()) {
+                    case Opcodes.ILOAD -> {
+                        if (machine.slot(((VarInsnNode) in).var) == null)
+                            throw new IllegalStateException("unbound local");
+                    }
+                    case Opcodes.IMUL, Opcodes.IADD, Opcodes.ISUB, Opcodes.IAND, Opcodes.IOR, Opcodes.IXOR,
+                         Opcodes.INEG, Opcodes.ISHL, Opcodes.ISHR, Opcodes.IUSHR -> { }
+                    case Opcodes.INVOKESTATIC -> {
+                        MethodInsnNode call = (MethodInsnNode) in;
+                        List<Integer> popped = machine.popArguments(Type.getArgumentTypes(call.desc).length);
+                        int[] args = new int[popped.size()];
+                        for (int i = 0; i < args.length; i++) args[i] = popped.get(i);
+                        machine.push(evalStaticInt(cache, call.owner, call.name, call.desc, args));
+                    }
+                    case Opcodes.IRETURN -> {
+                        return machine.pop();
+                    }
+                    default -> throw new IllegalStateException("Unhandled opcode " + in.getOpcode() + " in int expression");
                 }
-                case Opcodes.IRETURN -> { return pop(stack); }
-                default -> throw new IllegalStateException("Unhandled opcode " + in.getOpcode() + " in int expression");
-            }
-        }
-        throw new IllegalStateException("int expression fell off the end without IRETURN");
+                return null;
+            });
+        if (result == null) throw new IllegalStateException("int expression fell off the end without IRETURN");
+        return result;
     }
 
     /**
@@ -243,22 +243,76 @@ final class TintRegistrationResolver {
      */
     private static int evalStaticInt(@NotNull ClassNodeCache cache, @NotNull String owner, @NotNull String name, @NotNull String desc, int @NotNull [] args) {
         ClassNode node = cache.require(owner, "int-expression callee");
-        MethodNode method = AsmKit.findMethod(node, name, desc);
+        MethodNode method = ClassKit.findMethod(node, name, desc);
         if (method == null) throw new IllegalStateException("callee " + owner + "." + name + desc + " not found");
         Map<Integer, Integer> locals = new HashMap<>();
         for (int i = 0; i < args.length; i++) locals.put(i, args[i]);
         return evalInt(cache, method.instructions.getFirst(), locals);
     }
 
-    private static int pop(@NotNull Deque<Integer> stack) {
-        Integer top = stack.poll();
-        if (top == null) throw new IllegalStateException("int stack underflow");
-        return top;
-    }
+    /**
+     * The int-expression value model: literals via {@link AsmWalker#intLiteral}, the int
+     * arithmetic and bitwise set, and a loud {@link IllegalStateException} - never a fallback
+     * value - for anything outside it. The decode latches the opcode being stepped so an
+     * underflow met while the machine steps an instruction the dispatch rejects reports that
+     * opcode, exactly as the rejection arm does, rather than a misleading empty-stack fault.
+     */
+    private static final class IntExpressionDomain implements Interp.Domain<Integer> {
 
-    private static int require(@Nullable Integer value, @NotNull String what) {
-        if (value == null) throw new IllegalStateException(what);
-        return value;
+        /**
+         * The unknown placeholder, recognised by identity - a distinct uncached instance no
+         * evaluated value can alias. It never survives onto the stack of a completing
+         * evaluation, because every arm that could push it also aborts the walk at that node.
+         */
+        private static final @NotNull Integer UNKNOWN = Integer.valueOf(Integer.MIN_VALUE);
+
+        /** The opcode of the instruction currently being stepped, recorded at decode. */
+        private int currentOpcode = -1;
+
+        @Override
+        public @Nullable Integer decode(@NotNull AbstractInsnNode node) {
+            this.currentOpcode = node.getOpcode();
+            return AsmWalker.intLiteral(node);
+        }
+
+        @Override
+        public @NotNull Integer unknown() {
+            return UNKNOWN;
+        }
+
+        @Override
+        public @NotNull Integer underflow() {
+            throw switch (this.currentOpcode) {
+                case Opcodes.IMUL, Opcodes.IADD, Opcodes.ISUB, Opcodes.IAND, Opcodes.IOR, Opcodes.IXOR,
+                     Opcodes.INEG, Opcodes.ISHL, Opcodes.ISHR, Opcodes.IUSHR,
+                     Opcodes.INVOKESTATIC, Opcodes.IRETURN ->
+                    new IllegalStateException("int stack underflow");
+                default -> new IllegalStateException("Unhandled opcode " + this.currentOpcode + " in int expression");
+            };
+        }
+
+        @Override
+        public @Nullable Integer binary(int opcode, @NotNull Integer left, @NotNull Integer right) {
+            return switch (opcode) {
+                case Opcodes.IMUL -> left * right;
+                case Opcodes.IADD -> left + right;
+                case Opcodes.ISUB -> left - right;
+                case Opcodes.IAND -> left & right;
+                case Opcodes.IOR -> left | right;
+                case Opcodes.IXOR -> left ^ right;
+                case Opcodes.ISHL -> left << right;
+                case Opcodes.ISHR -> left >> right;
+                case Opcodes.IUSHR -> left >>> right;
+                default -> throw new IllegalStateException("Unhandled opcode " + opcode + " in int expression");
+            };
+        }
+
+        @Override
+        public @Nullable Integer unary(int opcode, @NotNull Integer operand) {
+            if (opcode == Opcodes.INEG) return -operand;
+            throw new IllegalStateException("Unhandled opcode " + opcode + " in int expression");
+        }
+
     }
 
 }

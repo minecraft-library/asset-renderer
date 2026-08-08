@@ -1,11 +1,15 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.walk.Match;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -109,17 +113,12 @@ final class EntityBlockOverlayResolver {
      */
     private @NotNull BlockSource classifyBlockSource(@NotNull ClassNode cn, @NotNull MethodNode submit) {
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
-        String stateClass = null;
-        String blockField = null;
-        for (AbstractInsnNode in : submit.instructions)
-            if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi && stateRef.equals(fi.desc)) {
-                stateClass = fi.owner;
-                blockField = fi.name;
-                break;
-            }
-        if (stateClass == null) return new BlockSource(null, true);
+        FieldInsnNode stateRead = AsmWalker.over(submit)
+            .ofType(FieldInsnNode.class)
+            .first(fi -> fi.getOpcode() == Opcodes.GETFIELD && stateRef.equals(fi.desc));
+        if (stateRead == null) return new BlockSource(null, true);
 
-        ClassNode stateCn = this.cache.load(stateClass);
+        ClassNode stateCn = this.cache.load(stateRead.owner);
         if (stateCn != null) {
             String variantSuffix = EntityNamingPolicies.VARIANT_DESCRIPTOR_SUFFIX.stringValue();
             for (FieldNode field : stateCn.fields) {
@@ -129,7 +128,7 @@ final class EntityBlockOverlayResolver {
             }
         }
 
-        LiteralBlock literal = resolveLiteralBlock(blockField);
+        LiteralBlock literal = resolveLiteralBlock(stateRead.name);
         if (literal != null)
             // A presence-gated literal is a fixed always-present decoration; a
             // timer-gated one is a selectable held block.
@@ -159,7 +158,7 @@ final class EntityBlockOverlayResolver {
     private @Nullable LiteralBlock resolveLiteralBlock(@Nullable String blockFieldName) {
         if (blockFieldName == null) return null;
         LiteralBlock[] out = new LiteralBlock[1];
-        AsmKit.walkSuperChain(this.cache, this.subject.rendererClass(), cn -> {
+        ClassKit.walkSuperChain(this.cache, this.subject.rendererClass(), cn -> {
             if (out[0] != null) return;
             for (MethodNode method : cn.methods) {
                 if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
@@ -181,21 +180,14 @@ final class EntityBlockOverlayResolver {
      */
     private static @Nullable String findLiteralBlockUpdate(@NotNull MethodNode method, @NotNull String blockFieldName) {
         String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
-        for (AbstractInsnNode in : method.instructions) {
-            if (!AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE)) continue;
-            String blocksField = null;
-            boolean targetMatched = false;
-            for (AbstractInsnNode back = in.getPrevious(); back != null; back = back.getPrevious()) {
-                if (AsmKit.isInvokeVirtual(back, VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE)) break;
-                if (AsmKit.isGetStatic(back, VanillaSourceClasses.Types.BLOCKS))
-                    blocksField = ((FieldInsnNode) back).name;
-                if (back.getOpcode() == Opcodes.GETFIELD && back instanceof FieldInsnNode gf
-                    && blockFieldName.equals(gf.name) && stateRef.equals(gf.desc))
-                    targetMatched = true;
-            }
-            if (blocksField != null && targetMatched) return blocksField;
-        }
-        return null;
+        return AsmWalker.over(method)
+            .invokeVirtual(VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE)
+            .firstNotNull(update -> {
+                AsmWalker window = AsmWalker.before(update)
+                    .until(Insn.invokeVirtual(VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE));
+                String blocksField = window.getStatic(VanillaSourceClasses.Types.BLOCKS).names().last();
+                return blocksField != null && window.getField(blockFieldName, stateRef).any() ? blocksField : null;
+            });
     }
 
     /**
@@ -204,14 +196,11 @@ final class EntityBlockOverlayResolver {
      * timer / runtime gate (selectable).
      */
     private static boolean hasEntityBooleanGuard(@NotNull MethodNode method) {
-        Type[] args = AsmKit.argTypes(method.desc);
+        Type[] args = ClassKit.argTypes(method.desc);
         if (args.length == 0 || args[0].getSort() != Type.OBJECT) return false;
         String entityClass = args[0].getInternalName();
-        for (AbstractInsnNode in : method.instructions)
-            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
-                && entityClass.equals(mi.owner) && mi.desc.endsWith(")Z"))
-                return true;
-        return false;
+        return AsmWalker.over(method).any(in -> in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
+            && entityClass.equals(mi.owner) && mi.desc.endsWith(")Z"));
     }
 
     // ------------------------------------------------------------------------------------
@@ -226,69 +215,50 @@ final class EntityBlockOverlayResolver {
      */
     private @NotNull List<JsonTree> extractPoseBlocks(@NotNull MethodNode submit) {
         List<JsonTree> out = new ArrayList<>();
-        boolean insideBlock = false;
-        JsonTree transforms = null;
-        String attachedBone = null;
-        List<Float> floats = new ArrayList<>();
-        int opCount = 0;
+        Cells.Flag insideBlock = Cells.flag();
+        Cells.Latch<String> attachedBone = Cells.latch();
+        Cells.ListCell<Float> floats = Cells.list();
+        Cells.ListCell<JsonTree> ops = Cells.list();
 
-        for (AbstractInsnNode in : submit.instructions) {
-            Float literal = AsmKit.readFloatLiteral(in);
-            if (literal != null) {
-                floats.add(literal);
-                continue;
-            }
-            if (!(in instanceof MethodInsnNode call)) continue;
-
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.PUSH_POSE)) {
-                insideBlock = true;
-                transforms = JsonTree.array();
-                attachedBone = null;
+        AsmWalker.over(submit)
+            .feed(insideBlock)
+            .feed(attachedBone)
+            .feed(floats)
+            .feed(ops)
+            .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.floatLiteral(in) != null),
+                in -> floats.add(AsmWalker.floatLiteral(in)))
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.PUSH_POSE), call -> {
+                // The opener manages its own arming: a fresh segment wholesale-clears the
+                // carried cells whatever the previous segment left behind.
+                insideBlock.set();
+                attachedBone.clear();
                 floats.clear();
-                opCount = 0;
-                continue;
-            }
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.POP_POSE)) {
-                if (insideBlock && opCount > 0) {
-                    JsonTree carrier = JsonTree.object();
-                    carrier.putIf("attached_bone", attachedBone);
-                    carrier.put("transforms", transforms);
-                    out.add(carrier);
-                }
-                insideBlock = false;
-                transforms = null;
-                attachedBone = null;
-                floats.clear();
-                continue;
-            }
-            if (!insideBlock || transforms == null) continue;
-
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.TRANSLATE)
-                && call.desc.startsWith("(FFF") && floats.size() >= 3) {
-                float z = floats.removeLast();
-                float y = floats.removeLast();
-                float x = floats.removeLast();
-                transforms.add(JsonTree.object().put("op", "translate").put("x", x).put("y", y).put("z", z));
-                opCount++;
-                continue;
-            }
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE)
-                && call.desc.startsWith("(FFF") && floats.size() >= 3) {
-                float z = floats.removeLast();
-                float y = floats.removeLast();
-                float x = floats.removeLast();
-                transforms.add(JsonTree.object().put("op", "scale").put("x", x).put("y", y).put("z", z));
-                opCount++;
-                continue;
-            }
+                ops.clear();
+            })
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.TRANSLATE)
+                .and(call -> call.desc.startsWith("(FFF")), call -> {
+                if (!insideBlock.get() || floats.size() < 3) return;
+                float z = floats.takeLast();
+                float y = floats.takeLast();
+                float x = floats.takeLast();
+                ops.add(JsonTree.object().put("op", "translate").put("x", x).put("y", y).put("z", z));
+            })
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE)
+                .and(call -> call.desc.startsWith("(FFF")), call -> {
+                if (!insideBlock.get() || floats.size() < 3) return;
+                float z = floats.takeLast();
+                float y = floats.takeLast();
+                float x = floats.takeLast();
+                ops.add(JsonTree.object().put("op", "scale").put("x", x).put("y", y).put("z", z));
+            })
             // Axis is an interface, so rotationDegrees dispatches INVOKEINTERFACE - match
             // by owner + name, opcode-agnostic.
-            if (VanillaSourceClasses.Types.MATH_AXIS.equals(call.owner)
-                && VanillaSourceClasses.Methods.ROTATION_DEGREES.equals(call.name)) {
-                if (floats.isEmpty()) continue;
-                float degrees = floats.removeLast();
+            .on(Insn.of(MethodInsnNode.class, call -> VanillaSourceClasses.Types.MATH_AXIS.equals(call.owner)
+                && VanillaSourceClasses.Methods.ROTATION_DEGREES.equals(call.name)), call -> {
+                if (!insideBlock.get() || floats.size() == 0) return;
+                float degrees = floats.takeLast();
                 String axis = findPrecedingAxisField(call);
-                if (axis == null || axis.length() < 2) continue;
+                if (axis == null || axis.length() < 2) return;
                 // `?P` is a positive rotation about the axis, `?N` negates the angle; a Z
                 // axis is emitted.
                 if (axis.charAt(1) == 'N') degrees = -degrees;
@@ -300,26 +270,39 @@ final class EntityBlockOverlayResolver {
                 };
                 if (op == null) {
                     this.diagnostics.warn("unrecognised rotation axis field '%s' - op skipped", axis);
-                    continue;
+                    return;
                 }
-                transforms.add(JsonTree.object().put("op", op).put("degrees", degrees));
-                opCount++;
-                continue;
-            }
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.TRANSLATE_AND_ROTATE)) {
+                ops.add(JsonTree.object().put("op", op).put("degrees", degrees));
+            })
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.TRANSLATE_AND_ROTATE), call -> {
+                if (!insideBlock.get()) return;
                 String bone = findPrecedingBoneAccessor(call);
-                if (bone != null) attachedBone = bone;
-            }
-        }
+                if (bone != null) attachedBone.set(bone);
+            })
+            .commitAt(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.POP_POSE), pop -> {
+                if (!insideBlock.get() || ops.size() == 0) return;
+                JsonTree transforms = JsonTree.array();
+                for (JsonTree row : ops.values()) transforms.add(row);
+                JsonTree carrier = JsonTree.object();
+                carrier.putIf("attached_bone", attachedBone.get());
+                carrier.put("transforms", transforms);
+                out.add(carrier);
+            })
+            .run();
         return out;
     }
 
-    /** The {@code Axis.<X>} field name behind a {@code rotationDegrees} call. */
+    /**
+     * The {@code Axis.<X>} field name behind a {@code rotationDegrees} call.
+     */
     private static @Nullable String findPrecedingAxisField(@NotNull MethodInsnNode call) {
-        AbstractInsnNode hit = AsmKit.findPreceding(call,
-            node -> AsmKit.isGetStatic(node, VanillaSourceClasses.Types.MATH_AXIS),
-            opcode -> opcode == Opcodes.LDC
-                || opcode == Opcodes.FCONST_0 || opcode == Opcodes.FCONST_1 || opcode == Opcodes.FCONST_2);
+        AbstractInsnNode hit = AsmWalker.before(call).real().first(
+            node -> AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.MATH_AXIS),
+            node -> {
+                int opcode = node.getOpcode();
+                return opcode == Opcodes.LDC
+                    || opcode == Opcodes.FCONST_0 || opcode == Opcodes.FCONST_1 || opcode == Opcodes.FCONST_2;
+            });
         return hit == null ? null : ((FieldInsnNode) hit).name;
     }
 
@@ -329,18 +312,17 @@ final class EntityBlockOverlayResolver {
      * {@code getChild} string, with getter-name / snake_case fallbacks.
      */
     private @Nullable String findPrecedingBoneAccessor(@NotNull MethodInsnNode call) {
-        for (AbstractInsnNode in = AsmKit.previousReal(call); in != null; in = AsmKit.previousReal(in)) {
-            if (!(in instanceof MethodInsnNode accessor)
-                || accessor.getOpcode() != Opcodes.INVOKEVIRTUAL
-                || !accessor.name.startsWith("get")
-                || !AsmKit.descriptorReturns(accessor.desc, VanillaSourceClasses.Types.MODEL_PART)) continue;
-            String resolved = resolveAccessorBone(accessor.owner, accessor.name);
-            if (resolved != null) return resolved;
-            String stem = accessor.name.substring(3);
-            // Fallback: getter-name decapitalisation when the field trace misses.
-            return stem.isEmpty() ? null : Character.toLowerCase(stem.charAt(0)) + stem.substring(1);
-        }
-        return null;
+        AbstractInsnNode hit = AsmWalker.before(call).real().first(in ->
+            in instanceof MethodInsnNode accessor
+                && accessor.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && accessor.name.startsWith("get")
+                && ClassKit.descriptorReturns(accessor.desc, VanillaSourceClasses.Types.MODEL_PART));
+        if (!(hit instanceof MethodInsnNode accessor)) return null;
+        String resolved = resolveAccessorBone(accessor.owner, accessor.name);
+        if (resolved != null) return resolved;
+        String stem = accessor.name.substring(3);
+        // Fallback: getter-name decapitalisation when the field trace misses.
+        return stem.isEmpty() ? null : Character.toLowerCase(stem.charAt(0)) + stem.substring(1);
     }
 
     /**
@@ -358,40 +340,41 @@ final class EntityBlockOverlayResolver {
         return bone != null ? bone : EntityOverlayResolver.axisToken(field);
     }
 
-    /** The field a simple {@code ()->ModelPart} getter returns, or {@code null}. */
+    /**
+     * The field a simple {@code ()->ModelPart} getter returns, or {@code null}.
+     */
     private static @Nullable String fieldReturnedByGetter(@NotNull ClassNode model, @NotNull String accessorName) {
         String returnDesc = "()" + VanillaSourceClasses.Descs.MODEL_PART_REF;
         for (MethodNode method : model.methods) {
             if (!accessorName.equals(method.name) || !returnDesc.equals(method.desc)) continue;
-            for (AbstractInsnNode in : method.instructions)
-                if (in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi
-                    && VanillaSourceClasses.Descs.MODEL_PART_REF.equals(fi.desc))
-                    return fi.name;
+            AbstractInsnNode hit = AsmWalker.over(method).first(in ->
+                in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi
+                    && VanillaSourceClasses.Descs.MODEL_PART_REF.equals(fi.desc));
+            if (hit != null) return ((FieldInsnNode) hit).name;
         }
         return null;
     }
 
-    /** The {@code getChild} string a model {@code <init>} assigns into {@code field}, or {@code null}. */
+    /**
+     * The {@code getChild} string a model {@code <init>} assigns into {@code field}, or {@code null}.
+     */
     private static @Nullable String boneAssignedToField(@NotNull ClassNode model, @NotNull String field) {
-        MethodNode init = AsmKit.findMethod(model, AsmKit.INIT);
+        MethodNode init = ClassKit.findMethod(model, ClassKit.INIT);
         if (init == null) return null;
-        String pendingLiteral = null;
-        String lastGetChildArg = null;
-        for (AbstractInsnNode in : init.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                pendingLiteral = literal;
-                continue;
-            }
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.GET_CHILD)) {
-                lastGetChildArg = pendingLiteral;
-                pendingLiteral = null;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.PUTFIELD && in instanceof FieldInsnNode fi && field.equals(fi.name))
-                return lastGetChildArg;
-        }
-        return null;
+        Match<MethodInsnNode> getChild =
+            Insn.invokeVirtual(VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.GET_CHILD);
+        FieldInsnNode assignment = AsmWalker.over(init)
+            .ofType(FieldInsnNode.class)
+            .first(fi -> fi.getOpcode() == Opcodes.PUTFIELD && field.equals(fi.name));
+        if (assignment == null) return null;
+        // The assignment binds the most recent getChild - even one that consumed no literal
+        // of its own - so the literal search is scoped to that call's window alone.
+        MethodInsnNode lastGetChild = AsmWalker.before(assignment).first(getChild);
+        if (lastGetChild == null) return null;
+        return AsmWalker.before(lastGetChild)
+            .until(getChild)
+            .mapNotNull(AsmWalker::stringLiteral)
+            .first();
     }
 
 }

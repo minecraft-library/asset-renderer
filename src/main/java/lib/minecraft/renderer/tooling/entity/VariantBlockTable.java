@@ -1,14 +1,15 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.LinkedHashMap;
@@ -51,31 +52,25 @@ record VariantBlockTable(@NotNull Map<String, String> byConstant, @Nullable Stri
         @NotNull String variantClass,
         @NotNull Diagnostics diagnostics
     ) {
-        MethodNode clinit = AsmKit.findClinit(cache, variantClass);
+        MethodNode clinit = ClassKit.findClinit(cache, variantClass);
         if (clinit == null) return EMPTY;
 
         Map<String, String> byField = new LinkedHashMap<>();
-        String pendingBlocksField = null;
-        String pendingAlias = null;
-        String defaultConstant = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            if (AsmKit.isGetStatic(in, VanillaSourceClasses.Types.BLOCKS)) {
-                pendingBlocksField = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (AsmKit.isGetStatic(in, variantClass)) {
-                pendingAlias = ((FieldInsnNode) in).name;
-                continue;
-            }
-            if (AsmKit.isPutStatic(in, variantClass) && in instanceof FieldInsnNode put) {
-                if (EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue().equals(put.name) && pendingAlias != null)
-                    defaultConstant = pendingAlias;
-                else if (pendingBlocksField != null)
-                    byField.put(put.name, pendingBlocksField);
-                pendingBlocksField = null;
-                pendingAlias = null;
-            }
-        }
+        String[] defaultConstant = new String[1];
+        Cells.Latch<String> pendingBlocksField = Cells.latch();
+        Cells.Latch<String> pendingAlias = Cells.latch();
+        AsmWalker.over(clinit)
+            .feed(pendingBlocksField)
+            .feed(pendingAlias)
+            .on(Insn.getStatic(VanillaSourceClasses.Types.BLOCKS), get -> pendingBlocksField.set(get.name))
+            .on(Insn.getStatic(variantClass), get -> pendingAlias.set(get.name))
+            .commitAt(Insn.putStatic(variantClass), put -> {
+                if (EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue().equals(put.name) && pendingAlias.get() != null)
+                    defaultConstant[0] = pendingAlias.get();
+                else if (pendingBlocksField.get() != null)
+                    byField.put(put.name, pendingBlocksField.get());
+            })
+            .run();
         if (byField.isEmpty()) return EMPTY;
 
         Map<String, String> byConstant = new LinkedHashMap<>();
@@ -87,7 +82,7 @@ record VariantBlockTable(@NotNull Map<String, String> byConstant, @Nullable Stri
             }
             byConstant.put(entry.getKey(), registered.id());
         }
-        return new VariantBlockTable(byConstant, defaultConstant);
+        return new VariantBlockTable(byConstant, defaultConstant[0]);
     }
 
     /**

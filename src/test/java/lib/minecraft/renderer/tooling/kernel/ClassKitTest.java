@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.kernel;
 
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -27,12 +28,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Units for the tooling {@link AsmKit} dissolvers and cache-fed hierarchy walks against the
- * {@link ClassNodeCache} surface, over a synthesized jar of generated class files - no network,
- * no client jar.
+ * Units for the tooling {@link ClassKit} cache-fed lookups and hierarchy walks, the
+ * {@link ClassNodeCache} surface, and the {@link AsmWalker} static-table dissolvers, over a
+ * synthesized jar of generated class files - no network, no client jar.
  */
-@DisplayName("tooling AsmKit dissolvers + hierarchy walks against the cache surface")
-class AsmKitTest {
+@DisplayName("tooling ClassKit lookups + hierarchy walks and AsmWalker dissolvers against the cache surface")
+class ClassKitTest {
 
     private static final @NotNull String BASE = "test/Base";
     private static final @NotNull String MID = "test/Mid";
@@ -100,31 +101,31 @@ class AsmKitTest {
     @Test
     @DisplayName("findMethodInHierarchy resolves through supers; null descriptor matches by name")
     void methodHierarchy() {
-        MethodNode shared = AsmKit.findMethodInHierarchy(cache, LEAF, "shared", "()V");
+        MethodNode shared = ClassKit.findMethodInHierarchy(cache, LEAF, "shared", "()V");
         assertNotNull(shared);
-        assertNull(AsmKit.findMethodInHierarchy(cache, LEAF, "shared", "(I)V"), "descriptor mismatch");
-        assertNotNull(AsmKit.findMethodInHierarchy(cache, LEAF, "shared", null), "name-only match");
-        assertNull(AsmKit.findMethodInHierarchy(cache, LEAF, "absent", null));
+        assertNull(ClassKit.findMethodInHierarchy(cache, LEAF, "shared", "(I)V"), "descriptor mismatch");
+        assertNotNull(ClassKit.findMethodInHierarchy(cache, LEAF, "shared", null), "name-only match");
+        assertNull(ClassKit.findMethodInHierarchy(cache, LEAF, "absent", null));
     }
 
     @Test
     @DisplayName("findFieldInHierarchy resolves through supers")
     void fieldHierarchy() {
-        FieldNode flag = AsmKit.findFieldInHierarchy(cache, LEAF, "flag");
+        FieldNode flag = ClassKit.findFieldInHierarchy(cache, LEAF, "flag");
         assertNotNull(flag);
         assertEquals("Z", flag.desc);
-        assertNull(AsmKit.findFieldInHierarchy(cache, LEAF, "absent"));
+        assertNull(ClassKit.findFieldInHierarchy(cache, LEAF, "absent"));
     }
 
     @Test
     @DisplayName("walkSuperChainUntil returns the first accepted class and stops before Object")
     void superChainUntil() {
-        ClassNode hit = AsmKit.walkSuperChainUntil(cache, LEAF, node -> AsmKit.findMethod(node, "mid") != null);
+        ClassNode hit = ClassKit.walkSuperChainUntil(cache, LEAF, node -> ClassKit.findMethod(node, "mid") != null);
         assertNotNull(hit);
         assertEquals(MID, hit.name);
-        assertNull(AsmKit.walkSuperChainUntil(cache, LEAF, node -> false));
-        assertTrue(AsmKit.extendsClass(cache, LEAF, BASE));
-        assertFalse(AsmKit.extendsClass(cache, BASE, LEAF));
+        assertNull(ClassKit.walkSuperChainUntil(cache, LEAF, node -> false));
+        assertTrue(ClassKit.extendsClass(cache, LEAF, BASE));
+        assertFalse(ClassKit.extendsClass(cache, BASE, LEAF));
     }
 
     // ------------------------------------------------------------------------------------
@@ -134,8 +135,8 @@ class AsmKitTest {
     @Test
     @DisplayName("readStaticEnumMap pairs enum keys with first decoded values, committing at the map store")
     void enumMap() {
-        Map<String, String> map = AsmKit.readStaticEnumMap(
-            cache, COAT_MAP, "MAP", AsmKit::readStringLiteral);
+        Map<String, String> map = AsmWalker.readStaticEnumMap(
+            cache, COAT_MAP, "MAP", AsmWalker::stringLiteral);
         assertEquals(2, map.size());
         assertEquals(List.of("WHITE", "BLACK"), List.copyOf(map.keySet()), "clinit encounter order");
         assertEquals("horse_white", map.get("WHITE"));
@@ -147,21 +148,21 @@ class AsmKitTest {
     @Test
     @DisplayName("resolveStaticScalingFactor binds canonical triplets; intervening literal clears; memo hits")
     void scalingFactor() {
-        Float small = AsmKit.resolveStaticScalingFactor(cache, SCALES, "SMALL", TRANSFORMER, "scaling", TRANSFORMER_DESC);
+        Float small = AsmWalker.resolveStaticScalingFactor(cache, SCALES, "SMALL", TRANSFORMER, "scaling", TRANSFORMER_DESC);
         assertNotNull(small);
         assertEquals(1.5f, small);
         // LARGE has an intervening LDC between scaling() and its PUTSTATIC, so the stricter
         // reset resolves it null.
-        assertNull(AsmKit.resolveStaticScalingFactor(cache, SCALES, "LARGE", TRANSFORMER, "scaling", TRANSFORMER_DESC));
+        assertNull(AsmWalker.resolveStaticScalingFactor(cache, SCALES, "LARGE", TRANSFORMER, "scaling", TRANSFORMER_DESC));
         // memo: the sibling field bound during the first walk resolves without a re-walk
-        assertEquals(1.5f, AsmKit.resolveStaticScalingFactor(cache, SCALES, "SMALL", TRANSFORMER, "scaling", TRANSFORMER_DESC));
+        assertEquals(1.5f, AsmWalker.resolveStaticScalingFactor(cache, SCALES, "SMALL", TRANSFORMER, "scaling", TRANSFORMER_DESC));
     }
 
     @Test
     @DisplayName("findEnumDefaultName reads the policy-supplied default field")
     void enumDefault() {
-        assertEquals("RED", AsmKit.findEnumDefaultName(cache, VARIANT, "DEFAULT"));
-        assertNull(AsmKit.findEnumDefaultName(cache, VARIANT, "OTHER_DEFAULT"));
+        assertEquals("RED", AsmWalker.findEnumDefaultName(cache, VARIANT, "DEFAULT"));
+        assertNull(AsmWalker.findEnumDefaultName(cache, VARIANT, "OTHER_DEFAULT"));
     }
 
     // ------------------------------------------------------------------------------------

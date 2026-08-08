@@ -1,9 +1,10 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -50,7 +51,7 @@ final class EntitySpawnFlagResolver {
     boolean spawnValue(@NotNull String stateFlag) {
         Accessor accessor = findAccessor(stateFlag);
         if (accessor == null) return false;
-        MethodNode method = AsmKit.findMethodInHierarchy(this.cache, accessor.entityClass(), accessor.name(), "()Z");
+        MethodNode method = ClassKit.findMethodInHierarchy(this.cache, accessor.entityClass(), accessor.name(), "()Z");
         if (method == null) return false;
         BitTest test = readBitTest(method);
         if (test == null) return false;
@@ -81,7 +82,9 @@ final class EntitySpawnFlagResolver {
      */
     private record BitTest(@NotNull String dataField, int mask, boolean valueWhenSet) {
 
-        /** What the accessor returns over a given raw value of the packed field. */
+        /**
+         * What the accessor returns over a given raw value of the packed field.
+         */
         boolean valueAt(int packed) {
             return ((packed & this.mask) != 0) == this.valueWhenSet;
         }
@@ -94,7 +97,7 @@ final class EntitySpawnFlagResolver {
      */
     private @Nullable Accessor findAccessor(@NotNull String stateFlag) {
         Accessor[] found = new Accessor[1];
-        AsmKit.walkSuperChain(this.cache, this.subject.rendererClass(), classNode -> {
+        ClassKit.walkSuperChain(this.cache, this.subject.rendererClass(), classNode -> {
             if (found[0] != null) return;
             for (MethodNode method : classNode.methods) {
                 if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
@@ -108,21 +111,23 @@ final class EntitySpawnFlagResolver {
         return found[0];
     }
 
-    /** The accessor feeding one {@code PUTFIELD <state>.<flag>:Z} inside a single method. */
+    /**
+     * The accessor feeding one {@code PUTFIELD <state>.<flag>:Z} inside a single method.
+     */
     private static @Nullable Accessor findAccessor(@NotNull MethodNode method, @NotNull String stateFlag) {
-        for (AbstractInsnNode in : method.instructions) {
-            if (in.getOpcode() != Opcodes.PUTFIELD
-                || !(in instanceof FieldInsnNode put)
-                || !stateFlag.equals(put.name)
-                || !"Z".equals(put.desc)) continue;
-            AbstractInsnNode source = AsmKit.previousReal(in);
-            if (source == null
-                || source.getOpcode() != Opcodes.INVOKEVIRTUAL
-                || !(source instanceof MethodInsnNode call)
-                || !"()Z".equals(call.desc)) continue;
-            return new Accessor(call.owner, call.name);
-        }
-        return null;
+        return AsmWalker.over(method)
+            .ofType(FieldInsnNode.class)
+            .where(put -> put.getOpcode() == Opcodes.PUTFIELD
+                && stateFlag.equals(put.name)
+                && "Z".equals(put.desc))
+            .firstNotNull(put -> {
+                AbstractInsnNode source = AsmWalker.previousReal(put);
+                if (source == null
+                    || source.getOpcode() != Opcodes.INVOKEVIRTUAL
+                    || !(source instanceof MethodInsnNode call)
+                    || !"()Z".equals(call.desc)) return null;
+                return new Accessor(call.owner, call.name);
+            });
     }
 
     /**
@@ -131,36 +136,36 @@ final class EntitySpawnFlagResolver {
      * assumed from its opcode, so a compiler that lays the arms out the other way still decodes.
      */
     private static @Nullable BitTest readBitTest(@NotNull MethodNode method) {
-        for (AbstractInsnNode in : method.instructions) {
-            if (in.getOpcode() != Opcodes.IAND) continue;
-            AbstractInsnNode maskInsn = AsmKit.previousReal(in);
-            Integer mask = maskInsn == null ? null : AsmKit.readIntLiteral(maskInsn);
-            if (mask == null || mask == 0) continue;
-            String dataField = readDataField(method);
-            if (dataField == null) continue;
+        return AsmWalker.over(method)
+            .opcode(Opcodes.IAND)
+            .firstNotNull(in -> {
+                Integer mask = AsmWalker.intLiteral(AsmWalker.previousReal(in));
+                if (mask == null || mask == 0) return null;
+                String dataField = readDataField(method);
+                if (dataField == null) return null;
 
-            AbstractInsnNode branch = AsmKit.nextReal(in);
-            if (!(branch instanceof JumpInsnNode jump)) continue;
-            boolean jumpsWhenSet = jump.getOpcode() == Opcodes.IFNE;
-            if (!jumpsWhenSet && jump.getOpcode() != Opcodes.IFEQ) continue;
+                AbstractInsnNode branch = AsmWalker.nextReal(in);
+                if (!(branch instanceof JumpInsnNode jump)) return null;
+                boolean jumpsWhenSet = jump.getOpcode() == Opcodes.IFNE;
+                if (!jumpsWhenSet && jump.getOpcode() != Opcodes.IFEQ) return null;
 
-            Integer taken = AsmKit.readIntLiteral(AsmKit.nextReal(jump.label));
-            Integer fallen = AsmKit.readIntLiteral(AsmKit.nextReal(jump));
-            if (taken == null || fallen == null) continue;
-            return new BitTest(dataField, mask, (jumpsWhenSet ? taken : fallen) != 0);
-        }
-        return null;
+                Integer taken = AsmWalker.intLiteral(AsmWalker.nextReal(jump.label));
+                Integer fallen = AsmWalker.intLiteral(AsmWalker.nextReal(jump));
+                if (taken == null || fallen == null) return null;
+                return new BitTest(dataField, mask, (jumpsWhenSet ? taken : fallen) != 0);
+            });
     }
 
-    /** The {@code EntityDataAccessor} static field an accessor reads its packed value through. */
+    /**
+     * The {@code EntityDataAccessor} static field an accessor reads its packed value through.
+     */
     private static @Nullable String readDataField(@NotNull MethodNode method) {
-        for (AbstractInsnNode in : method.instructions) {
-            if (in.getOpcode() == Opcodes.GETSTATIC
-                && in instanceof FieldInsnNode get
+        return AsmWalker.over(method)
+            .ofType(FieldInsnNode.class)
+            .where(get -> get.getOpcode() == Opcodes.GETSTATIC
                 && VanillaSourceClasses.Descs.ENTITY_DATA_ACCESSOR_REF.equals(get.desc))
-                return get.name;
-        }
-        return null;
+            .names()
+            .first();
     }
 
     /**
@@ -170,29 +175,30 @@ final class EntitySpawnFlagResolver {
      */
     private @Nullable Integer readSynchedDefault(@NotNull String entityClass, @NotNull String dataField) {
         Integer[] found = new Integer[1];
-        AsmKit.walkSuperChain(this.cache, entityClass, classNode -> {
+        ClassKit.walkSuperChain(this.cache, entityClass, classNode -> {
             if (found[0] != null) return;
-            MethodNode define = AsmKit.findMethod(classNode, VanillaSourceClasses.Methods.DEFINE_SYNCHED_DATA);
+            MethodNode define = ClassKit.findMethod(classNode, VanillaSourceClasses.Methods.DEFINE_SYNCHED_DATA);
             if (define == null) return;
             found[0] = readSynchedDefault(define, dataField);
         });
         return found[0];
     }
 
-    /** The literal registered against one {@code EntityDataAccessor} inside a single method. */
+    /**
+     * The literal registered against one {@code EntityDataAccessor} inside a single method.
+     */
     private static @Nullable Integer readSynchedDefault(@NotNull MethodNode define, @NotNull String dataField) {
-        for (AbstractInsnNode in : define.instructions) {
-            if (in.getOpcode() != Opcodes.GETSTATIC
-                || !(in instanceof FieldInsnNode get)
-                || !dataField.equals(get.name)) continue;
-            AbstractInsnNode valueInsn = AsmKit.nextReal(in);
-            Integer value = valueInsn == null ? null : AsmKit.readIntLiteral(valueInsn);
-            if (value == null) continue;
-            AbstractInsnNode box = AsmKit.nextReal(valueInsn);
-            if (box == null || !AsmKit.isInvokeStatic(box, VanillaSourceClasses.Types.BYTE,
-                VanillaSourceClasses.Methods.VALUE_OF)) continue;
-            return value;
-        }
-        return null;
+        return AsmWalker.over(define)
+            .ofType(FieldInsnNode.class)
+            .where(get -> get.getOpcode() == Opcodes.GETSTATIC && dataField.equals(get.name))
+            .firstNotNull(get -> {
+                AbstractInsnNode valueInsn = AsmWalker.nextReal(get);
+                Integer value = AsmWalker.intLiteral(valueInsn);
+                if (value == null) return null;
+                AbstractInsnNode box = AsmWalker.nextReal(valueInsn);
+                if (box == null || !AsmWalker.isInvokeStatic(box, VanillaSourceClasses.Types.BYTE,
+                    VanillaSourceClasses.Methods.VALUE_OF)) return null;
+                return value;
+            });
     }
 }

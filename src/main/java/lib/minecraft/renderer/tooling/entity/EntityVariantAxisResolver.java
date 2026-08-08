@@ -3,12 +3,15 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -227,20 +230,15 @@ final class EntityVariantAxisResolver {
         if (cn == null) return Map.of();
         String modelTypeSuffix = EntityNamingPolicies.VARIANT_ENUM_CONVENTIONS.strings().get(1);
         Map<String, String> out = new LinkedHashMap<>();
-        for (MethodNode method : cn.methods) {
-            String pendingModelType = null;
-            for (AbstractInsnNode in : method.instructions) {
-                if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
-                if (fi.owner.endsWith(modelTypeSuffix)) {
-                    pendingModelType = fi.name;
-                    continue;
-                }
-                if (VanillaSourceClasses.Types.MODEL_LAYERS.equals(fi.owner) && pendingModelType != null) {
-                    out.putIfAbsent(pendingModelType, fi.name);
-                    pendingModelType = null;
-                }
-            }
-        }
+        for (MethodNode method : cn.methods)
+            AsmWalker.over(method)
+                .latch(in -> in.getOpcode() == Opcodes.GETSTATIC
+                    && in instanceof FieldInsnNode fi
+                    && fi.owner.endsWith(modelTypeSuffix) ? fi.name : null)
+                .commitOn(in -> in.getOpcode() == Opcodes.GETSTATIC
+                    && in instanceof FieldInsnNode fi
+                    && VanillaSourceClasses.Types.MODEL_LAYERS.equals(fi.owner) ? fi.name : null)
+                .forEach(out::putIfAbsent);
         return out;
     }
 
@@ -257,7 +255,7 @@ final class EntityVariantAxisResolver {
             if (coats == null) continue;
 
             Map<String, String> ids = enumSerializedIds(enumInternal);
-            String defaultConstant = AsmKit.findEnumDefaultName(this.cache, enumInternal,
+            String defaultConstant = AsmWalker.findEnumDefaultName(this.cache, enumInternal,
                 EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue());
             String firstConstant = coats.byConstant().keySet().iterator().next();
             String dflt = variantId(defaultConstant != null ? defaultConstant : firstConstant, ids);
@@ -328,30 +326,29 @@ final class EntityVariantAxisResolver {
         Map<String, List<String>> byConstant = new LinkedHashMap<>();
         List<String> templates = new ArrayList<>();
         List<MethodNode> bodies = new ArrayList<>();
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit != null) bodies.add(clinit);
         for (MethodNode method : cn.methods)
-            if (method.name.startsWith(AsmKit.LAMBDA_STATIC_PREFIX)) bodies.add(method);
+            if (method.name.startsWith(AsmWalker.LAMBDA_STATIC_PREFIX)) bodies.add(method);
 
         for (MethodNode body : bodies) {
-            String pendingConstant = null;
-            for (AbstractInsnNode in : body.instructions) {
-                if (in.getOpcode() == Opcodes.GETSTATIC
-                    && in instanceof FieldInsnNode fi
-                    && enumInternal.equals(fi.owner)
-                    && fi.desc.equals(VanillaSourceClasses.Descs.ref(enumInternal))) {
-                    pendingConstant = fi.name;
-                    continue;
-                }
-                String literal = AsmKit.readStringLiteral(in);
-                if (literal == null || !literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) continue;
-                if (literal.contains("%")) {
-                    templates.add(literal);
-                    continue;
-                }
-                if (pendingConstant != null && literal.endsWith(".png"))
-                    byConstant.computeIfAbsent(pendingConstant, key -> new ArrayList<>()).add(literal);
-            }
+            Cells.Latch<String> pendingConstant = Cells.latch();
+            AsmWalker.over(body)
+                .feed(pendingConstant)
+                .on(Insn.getStatic(enumInternal).and(fi -> fi.desc.equals(VanillaSourceClasses.Descs.ref(enumInternal))),
+                    fi -> pendingConstant.set(fi.name))
+                .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.stringLiteral(in) != null), in -> {
+                    String literal = AsmWalker.stringLiteral(in);
+                    if (literal == null || !literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) return;
+                    if (literal.contains("%")) {
+                        templates.add(literal);
+                        return;
+                    }
+                    String constant = pendingConstant.get();
+                    if (constant != null && literal.endsWith(".png"))
+                        byConstant.computeIfAbsent(constant, key -> new ArrayList<>()).add(literal);
+                })
+                .run();
         }
         if (!byConstant.isEmpty()) return new CoatTable(byConstant);
         if (!templates.isEmpty()) return templateCoatTable(enumInternal, templates);
@@ -405,26 +402,11 @@ final class EntityVariantAxisResolver {
      * {@code "dark_brown"}).
      */
     private @NotNull Map<String, String> enumSerializedIds(@NotNull String enumInternal) {
-        MethodNode clinit = AsmKit.findClinit(this.cache, enumInternal);
-        if (clinit == null) return Map.of();
-
-        Map<String, String> out = new LinkedHashMap<>();
-        List<String> pendingStrings = new ArrayList<>();
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                pendingStrings.add(literal);
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.PUTSTATIC
-                && in instanceof FieldInsnNode fi
-                && enumInternal.equals(fi.owner)
-                && fi.desc.equals(VanillaSourceClasses.Descs.ref(enumInternal))) {
-                if (pendingStrings.size() >= 2) out.put(fi.name, pendingStrings.get(1));
-                pendingStrings.clear();
-            }
-        }
-        return out;
+        return AsmWalker.clinit(this.cache, enumInternal)
+            .gather(AsmWalker::stringLiteral)
+            .commitAt(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC
+                && enumInternal.equals(fi.owner) && fi.desc.equals(VanillaSourceClasses.Descs.ref(enumInternal)))
+            .toMap(fi -> fi.name, strings -> strings.size() >= 2 ? strings.get(1) : null);
     }
 
     /**

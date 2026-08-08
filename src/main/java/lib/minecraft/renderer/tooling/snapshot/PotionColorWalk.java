@@ -1,16 +1,19 @@
 package lib.minecraft.renderer.tooling.snapshot;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.walk.Missing;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.MethodNode;
 
 import java.util.Map;
 import java.util.TreeMap;
@@ -46,59 +49,51 @@ public final class PotionColorWalk {
         ClassNodeCache cache = session.cache();
         Diagnostics diagnostics = session.diagnostics().child("effects");
 
-        MethodNode clinit = AsmKit.findMethodOrError(cache, diagnostics,
-            VanillaSourceClasses.Types.MOB_EFFECTS, AsmKit.CLINIT, "effect colour table");
-        if (clinit == null) return;
+        AsmWalker clinit = AsmWalker.over(cache, VanillaSourceClasses.Types.MOB_EFFECTS, ClassKit.CLINIT);
+        Missing missing = clinit.missing();
+        if (missing != null) {
+            if (missing == Missing.CLASS)
+                diagnostics.error("'%s' class missing - %s unresolved", VanillaSourceClasses.Types.MOB_EFFECTS, "effect colour table");
+            else
+                diagnostics.error("'%s.%s' missing - %s unresolved", VanillaSourceClasses.Types.MOB_EFFECTS, ClassKit.CLINIT, "effect colour table");
+            return;
+        }
 
         String colorCtorDesc = VanillaSourceClasses.Descs.of("V",
             VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MOB_EFFECT_CATEGORY), "I");
 
         Map<String, Integer> colors = new TreeMap<>();
 
-        String pendingEffectId = null;
-        Integer pendingColor = null;
-        AsmKit.LiteralStack intStack = new AsmKit.LiteralStack(8);
+        Cells.Latch<String> pendingEffectId = Cells.latch();
+        Cells.Latch<Integer> pendingColor = Cells.latch();
+        Cells.Window<Integer> intStack = Cells.window(AsmWalker::intLiteral, 8);
 
-        for (AbstractInsnNode node : clinit.instructions) {
-            Integer literal = AsmKit.readIntLiteral(node);
-            if (literal != null) {
-                intStack.push(literal);
-                continue;
-            }
-
-            String string = AsmKit.readStringLiteral(node);
-            if (string != null) {
-                if (pendingEffectId == null) pendingEffectId = string;
-                continue;
-            }
-
-            if (AsmKit.isNewInstance(node, VanillaSourceClasses.Types.EFFECT_PACKAGE_PREFIX)) {
-                intStack.reset();
-                continue;
-            }
-
-            if (node.getOpcode() == Opcodes.INVOKESPECIAL
-                && node instanceof MethodInsnNode init
-                && init.name.equals(AsmKit.INIT)
+        clinit
+            .feed(intStack)
+            .feed(pendingEffectId)
+            .feed(pendingColor)
+            .on(Insn.of(AbstractInsnNode.class, node -> AsmWalker.stringLiteral(node) != null), node -> {
+                if (pendingEffectId.get() == null) pendingEffectId.set(AsmWalker.stringLiteral(node));
+            })
+            .on(Insn.new_(VanillaSourceClasses.Types.EFFECT_PACKAGE_PREFIX), instance -> intStack.clear())
+            .on(Insn.of(MethodInsnNode.class, init -> init.getOpcode() == Opcodes.INVOKESPECIAL
+                && init.name.equals(ClassKit.INIT)
                 && init.owner.startsWith(VanillaSourceClasses.Types.EFFECT_PACKAGE_PREFIX)
-                && init.desc.equals(colorCtorDesc)) {
-                Integer top = intStack.popInt();
-                if (top != null) pendingColor = top;
-                continue;
-            }
-
-            if (AsmKit.isInvokeStatic(node, VanillaSourceClasses.Types.MOB_EFFECTS, VanillaSourceClasses.Methods.REGISTER)) {
-                if (pendingEffectId != null) {
-                    if (pendingColor != null)
-                        colors.put(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + pendingEffectId, pendingColor);
+                && init.desc.equals(colorCtorDesc)), init -> {
+                Integer top = intStack.takeLast();
+                if (top != null) pendingColor.set(top);
+            })
+            .commitAt(Insn.invokeStatic(VanillaSourceClasses.Types.MOB_EFFECTS, VanillaSourceClasses.Methods.REGISTER),
+                register -> {
+                    String effectId = pendingEffectId.get();
+                    if (effectId == null) return;
+                    Integer color = pendingColor.get();
+                    if (color != null)
+                        colors.put(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + effectId, color);
                     else
-                        diagnostics.warn("effect '%s' registered without a decodable (MobEffectCategory, int) colour ctor", pendingEffectId);
-                }
-                pendingEffectId = null;
-                pendingColor = null;
-                intStack.reset();
-            }
-        }
+                        diagnostics.warn("effect '%s' registered without a decodable (MobEffectCategory, int) colour ctor", effectId);
+                })
+            .run();
 
         JsonTree effects = root.child("effects");
         colors.forEach((effectId, color) -> effects.putHex(effectId, color | 0xFF000000));

@@ -1,8 +1,10 @@
 package lib.minecraft.renderer.tooling.defaults;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -12,6 +14,7 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -33,12 +36,14 @@ import java.util.function.Function;
  *
  * <p>The three class-graph BFS walkers ({@code findPutStaticNode} / {@code resolveMethodReturnedProperty} /
  * {@code findAccessorMapField}) collapse to ONE probe-parameterised {@link #bfsClassGraph} (a private
- * helper, promoted to AsmKit only if a second flow needs it). The {@code "Property;"} suffix match
+ * helper, promoted to ClassKit only if a second flow needs it). The {@code "Property;"} suffix match
  * is tightened to the properties-package prefix to avoid over-broad matches.
  */
 final class PropertyDefinitionResolver {
 
-    /** A static property field: owner internal name + field name. */
+    /**
+     * A static property field: owner internal name + field name.
+     */
     record FieldRef(@NotNull String owner, @NotNull String field) {}
 
     private static final @NotNull String LIST_REF = "Ljava/util/List;";
@@ -48,10 +53,14 @@ final class PropertyDefinitionResolver {
 
     private final @NotNull ClassNodeCache cache;
 
-    /** owner+'.'+field -> serialised property name; null reserved before recursion (cycle guard). */
+    /**
+     * owner+'.'+field -> serialised property name; null reserved before recursion (cycle guard).
+     */
     private final @NotNull Map<String, String> propNameCache = new HashMap<>();
 
-    /** enum owner -> (constant field name -> serialised name), clinit-ordered. */
+    /**
+     * enum owner -> (constant field name -> serialised name), clinit-ordered.
+     */
     private final @NotNull Map<String, Map<String, String>> enumNameCache = new HashMap<>();
 
     PropertyDefinitionResolver(@NotNull ClassNodeCache cache) {
@@ -72,24 +81,25 @@ final class PropertyDefinitionResolver {
      */
     @NotNull Map<String, FieldRef> collectDeclaredProperties(@NotNull String blockClass) {
         Map<String, FieldRef> declared = new LinkedHashMap<>();
-        AsmKit.walkSuperChain(this.cache, blockClass, cn -> {
-            MethodNode method = AsmKit.findMethod(cn, VanillaSourceClasses.Methods.CREATE_BLOCK_STATE_DEFINITION);
+        ClassKit.walkSuperChain(this.cache, blockClass, cn -> {
+            MethodNode method = ClassKit.findMethod(cn, VanillaSourceClasses.Methods.CREATE_BLOCK_STATE_DEFINITION);
             if (method == null) return;
-            for (AbstractInsnNode node : method.instructions)
-                scanDeclarationNode(blockClass, node, declared);
+            AsmWalker.over(method).forEach(node -> scanDeclarationNode(blockClass, node, declared));
         });
         return declared;
     }
 
-    /** Matches one instruction against the five declaration shapes, appending any property it declares. */
+    /**
+     * Matches one instruction against the five declaration shapes, appending any property it declares.
+     */
     private void scanDeclarationNode(@NotNull String blockClass, @NotNull AbstractInsnNode node, @NotNull Map<String, FieldRef> declared) {
         int opcode = node.getOpcode();
         if (opcode == Opcodes.GETSTATIC && node instanceof FieldInsnNode field) {
             if (isPropertyFieldRef(field.desc)) {
                 if (field.desc.charAt(0) == '[') {                                        // (b) Property[] element
-                    AbstractInsnNode index = AsmKit.nextReal(node);
-                    AbstractInsnNode aaload = AsmKit.nextReal(index);
-                    Integer idx = index == null ? null : AsmKit.readIntLiteral(index);
+                    AbstractInsnNode index = AsmWalker.nextReal(node);
+                    AbstractInsnNode aaload = AsmWalker.nextReal(index);
+                    Integer idx = index == null ? null : AsmWalker.intLiteral(index);
                     if (idx != null && aaload != null && aaload.getOpcode() == Opcodes.AALOAD)
                         addDeclared(declared, readStaticPropertyArrayElement(field.owner, field.name, idx));
                 } else {                                                                  // (a) direct GETSTATIC
@@ -108,20 +118,23 @@ final class PropertyDefinitionResolver {
         }
     }
 
-    /** Resolves a ref to its serialised name and records it (first writer wins; null refs / names dropped). */
+    /**
+     * Resolves a ref to its serialised name and records it (first writer wins; null refs / names dropped).
+     */
     private void addDeclared(@NotNull Map<String, FieldRef> declared, @Nullable FieldRef ref) {
         if (ref == null) return;
         String name = resolvePropertyName(ref.owner(), ref.field());
         if (name != null) declared.putIfAbsent(name, ref);
     }
 
-    /** Reports whether {@code node.getNext()..} contains an {@code INVOKEINTERFACE List.forEach}. */
+    /**
+     * Reports whether any instruction after {@code start} is an {@code INVOKEINTERFACE List.forEach}.
+     */
     private boolean isFollowedByListForEach(@NotNull AbstractInsnNode start) {
-        for (AbstractInsnNode node = start.getNext(); node != null; node = node.getNext())
-            if (node.getOpcode() == Opcodes.INVOKEINTERFACE && node instanceof MethodInsnNode call
-                && LIST_INTERNAL.equals(call.owner) && VanillaSourceClasses.Methods.FOR_EACH.equals(call.name))
-                return true;
-        return false;
+        return AsmWalker.after(start)
+            .ofType(MethodInsnNode.class)
+            .any(call -> call.getOpcode() == Opcodes.INVOKEINTERFACE
+                && LIST_INTERNAL.equals(call.owner) && VanillaSourceClasses.Methods.FOR_EACH.equals(call.name));
     }
 
     /**
@@ -131,29 +144,30 @@ final class PropertyDefinitionResolver {
     private @Nullable FieldRef readStaticPropertyArrayElement(@NotNull String owner, @NotNull String arrayField, int index) {
         FieldInsnNode put = findPutStaticNode(owner, arrayField);
         if (put == null) return null;
-        AbstractInsnNode anewarray = AsmKit.findPreceding(put, n -> n.getOpcode() == Opcodes.ANEWARRAY, op -> true);
+        AbstractInsnNode anewarray = AsmWalker.before(put).real().first(n -> n.getOpcode() == Opcodes.ANEWARRAY);
         if (anewarray == null) return null;
-        Integer lastInt = null;
-        for (AbstractInsnNode node = anewarray; node != null && node != put; node = node.getNext()) {
-            Integer literal = AsmKit.readIntLiteral(node);
-            if (literal != null) lastInt = literal;
-            FieldInsnNode prop = scalarPropertyRef(node);
-            if (prop != null && lastInt != null && lastInt == index)
-                return new FieldRef(prop.owner, prop.name);
-        }
-        return null;
+        return AsmWalker.from(anewarray)
+            .until(put)
+            .latch(AsmWalker::intLiteral)
+            .retain()
+            .commitAt(FieldInsnNode.class, field -> scalarPropertyRef(field) != null)
+            .firstNotNull(commit -> {
+                Integer lastInt = commit.value();
+                return lastInt != null && lastInt == index ? new FieldRef(commit.node().owner, commit.node().name) : null;
+            });
     }
 
-    /** BFS the class graph for a no-arg accessor's first {@code GETSTATIC Property} (shape c). */
+    /**
+     * BFS the class graph for a no-arg accessor's first {@code GETSTATIC Property} (shape c).
+     */
     private @Nullable FieldRef resolveMethodReturnedProperty(@NotNull String startClass, @NotNull String method, @NotNull String desc) {
         return bfsClassGraph(startClass, cn -> {
-            MethodNode body = AsmKit.findMethod(cn, method, desc);
+            MethodNode body = ClassKit.findMethod(cn, method, desc);
             if (body == null || body.instructions.size() == 0) return null;
-            for (AbstractInsnNode node : body.instructions) {
+            return AsmWalker.over(body).firstNotNull(node -> {
                 FieldInsnNode prop = scalarPropertyRef(node);
-                if (prop != null) return new FieldRef(prop.owner, prop.name);
-            }
-            return null;
+                return prop == null ? null : new FieldRef(prop.owner, prop.name);
+            });
         });
     }
 
@@ -177,48 +191,48 @@ final class PropertyDefinitionResolver {
         List<FieldRef> out = new ArrayList<>();
         if (mapField == null) return out;
         ClassNode owner = this.cache.load(mapField.owner);
-        MethodNode clinit = owner == null ? null : AsmKit.findMethod(owner, AsmKit.CLINIT);
+        MethodNode clinit = owner == null ? null : ClassKit.findMethod(owner, ClassKit.CLINIT);
         if (clinit == null) return out;
         Set<String> byName = new HashSet<>();
-        for (AbstractInsnNode node : clinit.instructions) {
-            FieldInsnNode prop = scalarPropertyRef(node);
-            if (prop == null) continue;
-            String name = resolvePropertyName(prop.owner, prop.name);
-            if (name != null && byName.add(name)) out.add(new FieldRef(prop.owner, prop.name));
-        }
+        AsmWalker.over(clinit)
+            .mapNotNull(PropertyDefinitionResolver::scalarPropertyRef)
+            .forEach(prop -> {
+                String name = resolvePropertyName(prop.owner, prop.name);
+                if (name != null && byName.add(name)) out.add(new FieldRef(prop.owner, prop.name));
+            });
         return out;
     }
 
-    /** BFS the class graph for a single-arg accessor's first {@code GETSTATIC Map} field (shape d). */
+    /**
+     * BFS the class graph for a single-arg accessor's first {@code GETSTATIC Map} field (shape d).
+     */
     private @Nullable FieldInsnNode findAccessorMapField(@NotNull String startClass, @NotNull String method, @NotNull String desc) {
         return bfsClassGraph(startClass, cn -> {
-            MethodNode body = AsmKit.findMethod(cn, method, desc);
+            MethodNode body = ClassKit.findMethod(cn, method, desc);
             if (body == null || body.instructions.size() == 0) return null;
-            for (AbstractInsnNode node : body.instructions)
-                if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode map && MAP_REF.equals(map.desc))
-                    return map;
-            return null;
+            return AsmWalker.over(body)
+                .ofType(FieldInsnNode.class)
+                .first(map -> map.getOpcode() == Opcodes.GETSTATIC && MAP_REF.equals(map.desc));
         });
     }
 
     /**
      * Resolves the element properties of a static {@code List<Property>} field (shape e): find its
-     * {@code List.of(...)} build, then restore declaration order by pushing each property
-     * {@code GETSTATIC} while walking BACK to the previous statement and reading the deque head-to-tail.
+     * {@code List.of(...)} build, then collect each property {@code GETSTATIC} walking BACK to the
+     * previous statement and reverse the backward encounter into declaration order.
      */
     private @NotNull List<FieldRef> resolvePropertyListElements(@NotNull String owner, @NotNull String field) {
         List<FieldRef> out = new ArrayList<>();
         FieldInsnNode put = findPutStaticNode(owner, field);
-        AbstractInsnNode of = put == null ? null : AsmKit.previousReal(put);
+        AbstractInsnNode of = put == null ? null : AsmWalker.previousReal(put);
         if (!(of instanceof MethodInsnNode build) || of.getOpcode() != Opcodes.INVOKESTATIC || !build.desc.endsWith(LIST_RETURN_SUFFIX))
             return out;
-        Deque<FieldRef> ordered = new ArrayDeque<>();
-        for (AbstractInsnNode node = AsmKit.previousReal(of); node != null; node = AsmKit.previousReal(node)) {
-            if (node.getOpcode() == Opcodes.PUTSTATIC) break;
-            FieldInsnNode prop = scalarPropertyRef(node);
-            if (prop != null) ordered.push(new FieldRef(prop.owner, prop.name));
-        }
-        out.addAll(ordered);
+        List<FieldRef> backward = AsmWalker.before(of).real()
+            .until(Insn.opcode(Opcodes.PUTSTATIC))
+            .mapNotNull(PropertyDefinitionResolver::scalarPropertyRef)
+            .map(prop -> new FieldRef(prop.owner, prop.name))
+            .toList();
+        out.addAll(backward.reversed());
         return out;
     }
 
@@ -249,26 +263,28 @@ final class PropertyDefinitionResolver {
         if (value.getOpcode() == Opcodes.GETSTATIC && value instanceof FieldInsnNode src && isPropertyFieldRef(src.desc))
             return resolvePropertyName(src.owner, src.name);                              // redirect
         if (value instanceof MethodInsnNode call && VanillaSourceClasses.Methods.PROPERTY_CREATE.equals(call.name)) {
-            AbstractInsnNode name = AsmKit.findPreceding(call, n -> AsmKit.readStringLiteral(n) != null, op -> true);
-            return name == null ? null : AsmKit.readStringLiteral(name);
+            AbstractInsnNode name = AsmWalker.before(call).real().first(n -> AsmWalker.stringLiteral(n) != null);
+            return name == null ? null : AsmWalker.stringLiteral(name);
         }
         return null;
     }
 
-    /** The value-producing instruction assigned to a static field (before its {@code PUTSTATIC}), or {@code null}. */
+    /**
+     * The value-producing instruction assigned to a static field (before its {@code PUTSTATIC}), or {@code null}.
+     */
     @Nullable AbstractInsnNode findFieldInitValue(@NotNull String owner, @NotNull String field) {
         FieldInsnNode put = findPutStaticNode(owner, field);
-        return put == null ? null : AsmKit.previousReal(put);
+        return put == null ? null : AsmWalker.previousReal(put);
     }
 
-    /** BFS the owner + super + interface graph for the {@code PUTSTATIC owner.field} in a {@code <clinit>}. */
+    /**
+     * BFS the owner + super + interface graph for the {@code PUTSTATIC owner.field} in a {@code <clinit>}.
+     */
     private @Nullable FieldInsnNode findPutStaticNode(@NotNull String owner, @NotNull String field) {
         return bfsClassGraph(owner, cn -> {
-            MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+            MethodNode clinit = ClassKit.findMethod(cn, ClassKit.CLINIT);
             if (clinit == null) return null;
-            for (AbstractInsnNode node : clinit.instructions)
-                if (AsmKit.isPutStatic(node, cn.name, field)) return (FieldInsnNode) node;
-            return null;
+            return AsmWalker.over(clinit).first(Insn.putStatic(cn.name, field));
         });
     }
 
@@ -282,7 +298,7 @@ final class PropertyDefinitionResolver {
         queue.add(start);
         while (!queue.isEmpty()) {
             String current = queue.poll();
-            if (AsmKit.OBJECT_INTERNAL.equals(current) || !visited.add(current)) continue;
+            if (ClassKit.OBJECT_INTERNAL.equals(current) || !visited.add(current)) continue;
             ClassNode cn = this.cache.load(current);
             if (cn == null) continue;
             T result = probe.apply(cn);
@@ -311,7 +327,9 @@ final class PropertyDefinitionResolver {
         return serialized != null ? serialized : constant.toLowerCase(Locale.ROOT);
     }
 
-    /** The first (ordinal-0) enum constant's serialised name, or {@code null} for an empty / missing enum. */
+    /**
+     * The first (ordinal-0) enum constant's serialised name, or {@code null} for an empty / missing enum.
+     */
     @Nullable String firstEnumConstant(@NotNull String enumOwner) {
         Map<String, String> names = this.enumNameCache.computeIfAbsent(enumOwner, this::buildEnumNameMap);
         return names.isEmpty() ? null : names.values().iterator().next();
@@ -323,40 +341,14 @@ final class PropertyDefinitionResolver {
      * serialised name (2nd string literal, else lowercased field / first string). Clinit order.
      */
     private @NotNull Map<String, String> buildEnumNameMap(@NotNull String enumOwner) {
-        Map<String, String> map = new LinkedHashMap<>();
-        MethodNode clinit = AsmKit.findClinit(this.cache, enumOwner);
-        if (clinit == null) return map;
-        boolean collecting = false;
-        List<String> strings = new ArrayList<>();
-        List<String> pending = null;
-        for (AbstractInsnNode node : clinit.instructions) {
-            if (node.getOpcode() == Opcodes.NEW && node instanceof org.objectweb.asm.tree.TypeInsnNode type && type.desc.equals(enumOwner)) {
-                collecting = true;
-                strings = new ArrayList<>();
-                continue;
-            }
-            if (collecting) {
-                String literal = AsmKit.readStringLiteral(node);
-                if (literal != null) {
-                    strings.add(literal);
-                    continue;
-                }
-                if (AsmKit.isInvokeSpecial(node, enumOwner, AsmKit.INIT)) {
-                    collecting = false;
-                    pending = strings;
-                    continue;
-                }
-            }
-            if (AsmKit.isPutStatic(node, enumOwner) && pending != null) {
-                String fieldName = ((FieldInsnNode) node).name;
-                String serialized = pending.size() >= 2 ? pending.get(1)
-                    : pending.isEmpty() ? fieldName.toLowerCase(Locale.ROOT)
-                    : pending.getFirst().toLowerCase(Locale.ROOT);
-                map.put(fieldName, serialized);
-                pending = null;
-            }
-        }
-        return map;
+        return AsmWalker.clinit(this.cache, enumOwner)
+            .gather(AsmWalker::stringLiteral)
+            .openAt(Insn.of(TypeInsnNode.class, type -> type.getOpcode() == Opcodes.NEW && type.desc.equals(enumOwner)))
+            .sealAt(Insn.invokeSpecial(enumOwner, ClassKit.INIT))
+            .commitAt(Insn.putStatic(enumOwner))
+            .toMap(put -> put.name, (put, pending) -> pending.size() >= 2 ? pending.get(1)
+                : pending.isEmpty() ? put.name.toLowerCase(Locale.ROOT)
+                : pending.getFirst().toLowerCase(Locale.ROOT));
     }
 
     // ------------------------------------------------------------------------------------
@@ -387,9 +379,11 @@ final class PropertyDefinitionResolver {
     // descriptor gates - the tightened "is this a Property" test
     // ------------------------------------------------------------------------------------
 
-    /** Reports whether a field descriptor references a block-state property (scalar or array). */
+    /**
+     * Reports whether a field descriptor references a block-state property (scalar or array).
+     */
     static boolean isPropertyFieldRef(@NotNull String desc) {
-        String internal = AsmKit.internalNameOfRef(desc);
+        String internal = ClassKit.internalNameOfRef(desc);
         return internal != null && internal.startsWith(VanillaSourceClasses.Types.STATE_PROPERTIES_PACKAGE) && internal.endsWith("Property");
     }
 
@@ -404,9 +398,11 @@ final class PropertyDefinitionResolver {
         return isPropertyFieldRef(prop.desc) && prop.desc.charAt(0) != '[' ? prop : null;
     }
 
-    /** Reports whether a method descriptor returns a (non-array) block-state property. */
+    /**
+     * Reports whether a method descriptor returns a (non-array) block-state property.
+     */
     private static boolean isPropertyReturnRef(@NotNull String methodDesc) {
-        Type returned = AsmKit.returnType(methodDesc);
+        Type returned = ClassKit.returnType(methodDesc);
         return returned.getSort() == Type.OBJECT
             && returned.getInternalName().startsWith(VanillaSourceClasses.Types.STATE_PROPERTIES_PACKAGE)
             && returned.getInternalName().endsWith("Property");

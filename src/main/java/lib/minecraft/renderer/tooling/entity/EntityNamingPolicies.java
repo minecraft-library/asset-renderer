@@ -74,7 +74,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      * The {@code "DEFAULT"} enum-field anchor: variant holder classes
      * ({@code WolfVariants.DEFAULT}) and variant enums ({@code Axolotl$Variant.DEFAULT})
      * bind their canonical default under this static name. Supplied as a parameter to the
-     * {@code AsmKit.findEnumDefaultName} primitive so the kit itself stays vanilla-agnostic.
+     * {@code AsmWalker.findEnumDefaultName} primitive so the kit itself stays vanilla-agnostic.
      */
     ENUM_DEFAULT_FIELD(
         "DEFAULT",

@@ -3,16 +3,16 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.LinkedHashSet;
@@ -153,24 +153,19 @@ final class EntityShapeAxisResolver {
      */
     private @Nullable String optionClinitTexture(@NotNull String option) {
         ClassNode cn = this.cache.load(this.subject.rendererClass());
-        MethodNode clinit = cn == null ? null : AsmKit.findMethod(cn, AsmKit.CLINIT);
+        MethodNode clinit = cn == null ? null : ClassKit.findMethod(cn, ClassKit.CLINIT);
         if (clinit == null) return null;
         String wantedPrefix = option.toUpperCase(Locale.ROOT);
-        String pendingPath = null;
-        for (AbstractInsnNode in : clinit.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) {
-                pendingPath = literal;
-                continue;
-            }
-            if (in instanceof FieldInsnNode fi
-                && AsmKit.isPutStatic(in, cn.name)
-                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
-                && fi.name.startsWith(wantedPrefix)
-                && pendingPath != null)
-                return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + pendingPath;
-        }
-        return null;
+        return AsmWalker.over(clinit)
+            .latch(in -> {
+                String literal = AsmWalker.stringLiteral(in);
+                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY) ? literal : null;
+            })
+            .commitAt(Insn.putStatic(cn.name).and(fi -> VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
+                && fi.name.startsWith(wantedPrefix)))
+            .firstNotNull(commit -> commit.value() == null
+                ? null
+                : VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + commit.value());
     }
 
 }

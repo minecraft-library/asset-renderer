@@ -4,16 +4,21 @@ import dev.simplified.gson.JsonTree;
 import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.tooling.geometry.GeometryParser;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.BooleanStores;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
@@ -171,14 +176,14 @@ final class EntityBoneResolver {
         HierarchyScan scan = new HierarchyScan(new LinkedHashMap<>(), new LinkedHashSet<>(),
             new LinkedHashMap<>(), new LinkedHashSet<>(), new LinkedHashMap<>());
         String current = modelClass;
-        while (current != null && !current.equals(VanillaSourceClasses.Types.ENTITY_MODEL) && !current.equals(AsmKit.OBJECT_INTERNAL)) {
+        while (current != null && !current.equals(VanillaSourceClasses.Types.ENTITY_MODEL) && !current.equals(ClassKit.OBJECT_INTERNAL)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) break;
             // State-gated visibility can live in setupAnim, prepareMobModel, or any other
             // override hook - walk every non-init method for the gate shapes.
             for (MethodNode method : cn.methods) {
-                if (AsmKit.CLINIT.equals(method.name)) continue;
-                if (AsmKit.INIT.equals(method.name)) {
+                if (ClassKit.CLINIT.equals(method.name)) continue;
+                if (ClassKit.INIT.equals(method.name)) {
                     collectUnconditionalHidden(cn, method, scan.unconditionalHidden());
                     collectFieldToBoneNameMap(cn, method, scan.fieldToBone());
                     continue;
@@ -198,20 +203,20 @@ final class EntityBoneResolver {
      * @param targetInsn the instruction pushing the {@code ModelPart} being written
      * @param value the decoded boolean r-value
      */
-    private record VisibleWrite(@NotNull AbstractInsnNode targetInsn, @NotNull AsmKit.BooleanStore value) {}
+    private record VisibleWrite(@NotNull AbstractInsnNode targetInsn, @NotNull BooleanStores.BooleanStore value) {}
 
     /**
      * Matches a {@code PUTFIELD ModelPart.visible:Z} at {@code in} and decodes its r-value +
      * store target, or {@code null} when {@code in} is not the canonical write.
      */
     private static @Nullable VisibleWrite matchVisibleWrite(@NotNull AbstractInsnNode in) {
-        if (!AsmKit.isPutField(in, VanillaSourceClasses.Types.MODEL_PART, "visible")) return null;
+        if (!AsmWalker.isPutField(in, VanillaSourceClasses.Types.MODEL_PART, "visible")) return null;
         if (!(in instanceof FieldInsnNode put) || !"Z".equals(put.desc)) return null;
-        AbstractInsnNode valueInsn = AsmKit.previousReal(in);
+        AbstractInsnNode valueInsn = AsmWalker.previousReal(in);
         if (valueInsn == null) return null;
-        AsmKit.BooleanStore value = AsmKit.decodeBooleanStore(valueInsn);
+        BooleanStores.BooleanStore value = BooleanStores.decodeBooleanStore(valueInsn);
         if (value == null) return null;
-        AbstractInsnNode target = AsmKit.previousReal(value.valueStart());
+        AbstractInsnNode target = AsmWalker.previousReal(value.valueStart());
         if (target == null) return null;
         return new VisibleWrite(target, value);
     }
@@ -225,44 +230,45 @@ final class EntityBoneResolver {
      * a non-{@code this} load - detected by descriptor, not by name prefix.
      */
     private static void collectGates(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull HierarchyScan scan) {
-        for (AbstractInsnNode in : method.instructions) {
-            VisibleWrite write = matchVisibleWrite(in);
-            if (write == null || !(write.value() instanceof AsmKit.FieldStore flag)) continue;
-            FieldInsnNode flagGet = flag.field();
-            if (owner.name.equals(flagGet.owner)) continue;
-            if (!(flag.receiver() instanceof VarInsnNode receiver) || receiver.getOpcode() != Opcodes.ALOAD || receiver.var == 0) continue;
+        AsmWalker.over(method)
+            .mapNotNull(EntityBoneResolver::matchVisibleWrite)
+            .forEach(write -> {
+                if (!(write.value() instanceof BooleanStores.FieldStore flag)) return;
+                FieldInsnNode flagGet = flag.field();
+                if (owner.name.equals(flagGet.owner)) return;
+                if (!(flag.receiver() instanceof VarInsnNode receiver) || receiver.getOpcode() != Opcodes.ALOAD || receiver.var == 0) return;
 
-            if (flag.polarity() == AsmKit.Polarity.POSITIVE) {
+                if (flag.polarity() == BooleanStores.Polarity.POSITIVE) {
+                    if (write.targetInsn() instanceof FieldInsnNode get
+                        && get.getOpcode() == Opcodes.GETFIELD
+                        && owner.name.equals(get.owner)) {
+                        scan.stateGatedByFlag().computeIfAbsent(flagGet.name, key -> new LinkedHashSet<>()).add(get.name);
+                        return;
+                    }
+                    // Inline getChild target: LDC "<bone>"; INVOKEVIRTUAL ModelPart.getChild.
+                    if (write.targetInsn() instanceof MethodInsnNode childCall
+                        && childCall.getOpcode() == Opcodes.INVOKEVIRTUAL
+                        && VanillaSourceClasses.Methods.GET_CHILD.equals(childCall.name)
+                        && childCall.desc != null
+                        && ClassKit.descriptorReturns(childCall.desc, VanillaSourceClasses.Types.MODEL_PART)) {
+                        AbstractInsnNode boneLdc = AsmWalker.previousReal(childCall);
+                        String boneName = boneLdc == null ? null : AsmWalker.stringLiteral(boneLdc);
+                        if (boneName != null) scan.inlineGatedBones().add(boneName);
+                    }
+                    return;
+                }
+
+                // Negated-branch gate on a this.<bone> field; the default visibility is the
+                // value written at the flag's zero state (the decoder folds the branch polarity).
                 if (write.targetInsn() instanceof FieldInsnNode get
                     && get.getOpcode() == Opcodes.GETFIELD
                     && owner.name.equals(get.owner)) {
-                    scan.stateGatedByFlag().computeIfAbsent(flagGet.name, key -> new LinkedHashSet<>()).add(get.name);
-                    continue;
+                    boolean defaultVisible = flag.valueAtFieldFalse();
+                    scan.negatedGatedByFlag()
+                        .computeIfAbsent(flagGet.name, key -> new NegatedGate(new LinkedHashSet<>(), defaultVisible))
+                        .fields().add(get.name);
                 }
-                // Inline getChild target: LDC "<bone>"; INVOKEVIRTUAL ModelPart.getChild.
-                if (write.targetInsn() instanceof MethodInsnNode childCall
-                    && childCall.getOpcode() == Opcodes.INVOKEVIRTUAL
-                    && VanillaSourceClasses.Methods.GET_CHILD.equals(childCall.name)
-                    && childCall.desc != null
-                    && AsmKit.descriptorReturns(childCall.desc, VanillaSourceClasses.Types.MODEL_PART)) {
-                    AbstractInsnNode boneLdc = AsmKit.previousReal(childCall);
-                    String boneName = boneLdc == null ? null : AsmKit.readStringLiteral(boneLdc);
-                    if (boneName != null) scan.inlineGatedBones().add(boneName);
-                }
-                continue;
-            }
-
-            // Negated-branch gate on a this.<bone> field; the default visibility is the
-            // value written at the flag's zero state (the decoder folds the branch polarity).
-            if (write.targetInsn() instanceof FieldInsnNode get
-                && get.getOpcode() == Opcodes.GETFIELD
-                && owner.name.equals(get.owner)) {
-                boolean defaultVisible = flag.valueAtFieldFalse();
-                scan.negatedGatedByFlag()
-                    .computeIfAbsent(flagGet.name, key -> new NegatedGate(new LinkedHashSet<>(), defaultVisible))
-                    .fields().add(get.name);
-            }
-        }
+            });
     }
 
     /**
@@ -270,12 +276,13 @@ final class EntityBoneResolver {
      * {@code false} r-value whose target is a {@code GETFIELD} on {@code owner}.
      */
     private static void collectUnconditionalHidden(@NotNull ClassNode owner, @NotNull MethodNode ctor, @NotNull LinkedHashSet<String> out) {
-        for (AbstractInsnNode in : ctor.instructions) {
-            VisibleWrite write = matchVisibleWrite(in);
-            if (write == null || !(write.value() instanceof AsmKit.ConstantStore constant) || constant.value()) continue;
-            if (!(write.targetInsn() instanceof FieldInsnNode get) || get.getOpcode() != Opcodes.GETFIELD || !owner.name.equals(get.owner)) continue;
-            out.add(get.name);
-        }
+        AsmWalker.over(ctor)
+            .mapNotNull(EntityBoneResolver::matchVisibleWrite)
+            .where(write -> write.value() instanceof BooleanStores.ConstantStore constant && !constant.value())
+            .mapNotNull(write -> write.targetInsn() instanceof FieldInsnNode get
+                && get.getOpcode() == Opcodes.GETFIELD
+                && owner.name.equals(get.owner) ? get.name : null)
+            .forEach(out::add);
     }
 
     /**
@@ -284,30 +291,28 @@ final class EntityBoneResolver {
      * builds.
      */
     private static void collectFieldToBoneNameMap(@NotNull ClassNode owner, @NotNull MethodNode ctor, @NotNull Map<String, String> out) {
-        String pendingBoneName = null;
-        boolean pendingChildCall = false;
-        for (AbstractInsnNode in : ctor.instructions) {
-            String literal = AsmKit.readStringLiteral(in);
-            if (literal != null) {
-                pendingBoneName = literal;
-                pendingChildCall = false;
-                continue;
-            }
-            if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.GET_CHILD)
-                && pendingBoneName != null) {
-                pendingChildCall = true;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.PUTFIELD
-                && in instanceof FieldInsnNode put
-                && owner.name.equals(put.owner)
-                && pendingChildCall
-                && pendingBoneName != null) {
-                out.putIfAbsent(put.name, pendingBoneName);
-                pendingBoneName = null;
-                pendingChildCall = false;
-            }
-        }
+        Cells.Latch<String> pendingBoneName = Cells.latch();
+        Cells.Flag pendingChildCall = Cells.flag();
+        AsmWalker.over(ctor)
+            .feed(pendingBoneName)
+            .feed(pendingChildCall)
+            .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String), ldc -> {
+                pendingBoneName.set((String) ldc.cst);
+                pendingChildCall.clear();
+            })
+            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.GET_CHILD),
+                childCall -> {
+                    if (pendingBoneName.get() != null) pendingChildCall.set();
+                })
+            .on(Insn.of(FieldInsnNode.class, put -> put.getOpcode() == Opcodes.PUTFIELD && owner.name.equals(put.owner)),
+                put -> {
+                    String boneName = pendingBoneName.get();
+                    if (!pendingChildCall.get() || boneName == null) return;
+                    out.putIfAbsent(put.name, boneName);
+                    pendingBoneName.clear();
+                    pendingChildCall.clear();
+                })
+            .run();
     }
 
     // ------------------------------------------------------------------------------------
@@ -323,14 +328,13 @@ final class EntityBoneResolver {
     private @NotNull LinkedHashSet<String> collectReEnabledBones() {
         LinkedHashSet<String> out = new LinkedHashSet<>();
         ClassNode cn = this.cache.load(this.subject.rendererClass());
-        MethodNode ctor = cn == null ? null : AsmKit.findMethod(cn, AsmKit.INIT);
+        MethodNode ctor = cn == null ? null : ClassKit.findMethod(cn, ClassKit.INIT);
         if (ctor == null) return out;
-        for (AbstractInsnNode in : ctor.instructions) {
-            VisibleWrite write = matchVisibleWrite(in);
-            if (write == null || !(write.value() instanceof AsmKit.ConstantStore constant) || !constant.value()) continue;
-            String bone = extractBoneName(write.targetInsn());
-            if (bone != null) out.add(bone);
-        }
+        AsmWalker.over(ctor)
+            .mapNotNull(EntityBoneResolver::matchVisibleWrite)
+            .where(write -> write.value() instanceof BooleanStores.ConstantStore constant && constant.value())
+            .mapNotNull(write -> extractBoneName(write.targetInsn()))
+            .forEach(out::add);
         return out;
     }
 
@@ -339,7 +343,7 @@ final class EntityBoneResolver {
         if (node.getOpcode() == Opcodes.GETFIELD && node instanceof FieldInsnNode get)
             return VanillaSourceClasses.Descs.MODEL_PART_REF.equals(get.desc) ? get.name : null;
         if (node.getOpcode() == Opcodes.INVOKEVIRTUAL && node instanceof MethodInsnNode mi) {
-            if (mi.desc == null || !AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MODEL_PART)) return null;
+            if (mi.desc == null || !ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MODEL_PART)) return null;
             String name = mi.name;
             if (!name.startsWith("get") || name.length() <= 3) return null;
             String stem = name.substring(3);

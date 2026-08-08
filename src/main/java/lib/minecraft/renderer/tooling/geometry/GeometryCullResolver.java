@@ -1,9 +1,8 @@
 package lib.minecraft.renderer.tooling.geometry;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -20,7 +19,9 @@ import org.objectweb.asm.tree.MethodNode;
  */
 final class GeometryCullResolver {
 
-    /** The vanilla render-type factory name whose presence flags back-face culling. */
+    /**
+     * The vanilla render-type factory name whose presence flags back-face culling.
+     */
     private static final @NotNull String ENTITY_CUTOUT_CULL = "entityCutoutCull";
 
     private GeometryCullResolver() {
@@ -38,13 +39,10 @@ final class GeometryCullResolver {
         ClassNode modelClass = cache.load(factoryClass);
         if (modelClass == null) return false;
         for (MethodNode method : modelClass.methods)
-            for (AbstractInsnNode insn : method.instructions) {
-                if (insn instanceof InvokeDynamicInsnNode indy
-                    && AsmKit.findBsmHandleByName(indy, ENTITY_CUTOUT_CULL) != null)
-                    return true;
-                if (insn instanceof MethodInsnNode call && ENTITY_CUTOUT_CULL.equals(call.name))
-                    return true;
-            }
+            if (AsmWalker.over(method).any(insn ->
+                (insn instanceof InvokeDynamicInsnNode indy && AsmWalker.findBsmHandleByName(indy, ENTITY_CUTOUT_CULL) != null)
+                    || (insn instanceof MethodInsnNode call && ENTITY_CUTOUT_CULL.equals(call.name))))
+                return true;
         return false;
     }
 

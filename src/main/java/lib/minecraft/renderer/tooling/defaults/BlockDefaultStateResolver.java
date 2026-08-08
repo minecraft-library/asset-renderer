@@ -1,8 +1,11 @@
 package lib.minecraft.renderer.tooling.defaults;
 
-import lib.minecraft.renderer.tooling.kernel.AsmKit;
+import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.Cells;
+import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -31,18 +34,24 @@ final class BlockDefaultStateResolver {
     private static final @NotNull String BOOLEAN_BOXED = "java/lang/Boolean";
     private static final @NotNull String VALUE_OF = "valueOf";
 
-    /** {@code EnumProperty.create(name, class, Enum[])} descriptor tail (first value = index-0 element). */
+    /**
+     * {@code EnumProperty.create(name, class, Enum[])} descriptor tail (first value = index-0 element).
+     */
     private static final @NotNull String ENUM_ARRAY_CREATE_TAIL =
         "[Ljava/lang/Enum;)" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.ENUM_PROPERTY);
 
-    /** {@code EnumProperty.create(name, class, Predicate)} descriptor tail (Plane filter -> first direction in plane). */
+    /**
+     * {@code EnumProperty.create(name, class, Predicate)} descriptor tail (Plane filter -> first direction in plane).
+     */
     private static final @NotNull String ENUM_PREDICATE_CREATE_TAIL =
         "Ljava/util/function/Predicate;)" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.ENUM_PROPERTY);
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull PropertyDefinitionResolver properties;
 
-    /** owner+'.'+field -> any()-default value; null reserved before recursion (cycle guard). */
+    /**
+     * owner+'.'+field -> any()-default value; null reserved before recursion (cycle guard).
+     */
     private final @NotNull Map<String, String> defaultValueCache = new HashMap<>();
 
     BlockDefaultStateResolver(@NotNull ClassNodeCache cache, @NotNull PropertyDefinitionResolver properties) {
@@ -62,7 +71,7 @@ final class BlockDefaultStateResolver {
         // Explicit setValue overrides across the whole ctor chain; the leaf class is visited first,
         // so putIfAbsent gives it precedence over parent defaults.
         Map<String, String> explicit = new HashMap<>();
-        AsmKit.walkConstructorChain(this.cache, blockClass,
+        ClassKit.walkConstructorChain(this.cache, blockClass,
             ctor -> extractSetValues(ctor).forEach(explicit::putIfAbsent));
 
         Map<String, String> resolved = new TreeMap<>();
@@ -83,41 +92,42 @@ final class BlockDefaultStateResolver {
      */
     private @NotNull Map<String, String> extractSetValues(@NotNull MethodNode ctor) {
         Map<String, String> pairs = new HashMap<>();
-        String pendingProp = null;
-        String pendingValue = null;
-        Integer lastInt = null;
-        for (AbstractInsnNode node : ctor.instructions) {
-            Integer intLiteral = AsmKit.readIntLiteral(node);
-            if (intLiteral != null) {
-                lastInt = intLiteral;
-                continue;
-            }
-            if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode field) {
-                if (PropertyDefinitionResolver.isPropertyFieldRef(field.desc)) pendingProp = this.properties.resolvePropertyName(field.owner, field.name);
-                else pendingValue = this.properties.enumSerializedName(field.owner, field.name);
-                continue;
-            }
-            if (node instanceof MethodInsnNode call) {
-                if (call.getOpcode() == Opcodes.INVOKESTATIC && VALUE_OF.equals(call.name)) {
-                    if (INTEGER_BOXED.equals(call.owner) && lastInt != null) pendingValue = Integer.toString(lastInt);
-                    else if (BOOLEAN_BOXED.equals(call.owner) && lastInt != null) pendingValue = Boolean.toString(lastInt != 0);
-                    continue;
-                }
-                if (call.getOpcode() == Opcodes.INVOKEVIRTUAL && VanillaSourceClasses.Methods.SET_VALUE.equals(call.name)) {
-                    if (pendingProp != null && pendingValue != null) pairs.put(pendingProp, pendingValue);
-                    pendingProp = null;
-                    pendingValue = null;
-                    lastInt = null;
-                    continue;
-                }
-                if (call.getOpcode() == Opcodes.INVOKEVIRTUAL && VanillaSourceClasses.Methods.REGISTER_DEFAULT_STATE.equals(call.name))
-                    break;
-            }
-        }
+        Cells.Window<Integer> lastInt = Cells.window(AsmWalker::intLiteral, 1);
+        Cells.Latch<String> pendingProp = Cells.latch();
+        Cells.Latch<String> pendingValue = Cells.latch();
+        AsmWalker.over(ctor)
+            .until(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && VanillaSourceClasses.Methods.REGISTER_DEFAULT_STATE.equals(call.name)))
+            .feed(lastInt)
+            .feed(pendingProp)
+            .feed(pendingValue)
+            .on(Insn.of(FieldInsnNode.class, field -> field.getOpcode() == Opcodes.GETSTATIC), field -> {
+                if (PropertyDefinitionResolver.isPropertyFieldRef(field.desc)) {
+                    String name = this.properties.resolvePropertyName(field.owner, field.name);
+                    if (name != null) pendingProp.set(name);
+                    else pendingProp.clear();
+                } else pendingValue.set(this.properties.enumSerializedName(field.owner, field.name));
+            })
+            .on(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKESTATIC
+                && VALUE_OF.equals(call.name)), call -> {
+                if (lastInt.size() == 0) return;
+                int held = lastInt.values().getLast();
+                if (INTEGER_BOXED.equals(call.owner)) pendingValue.set(Integer.toString(held));
+                else if (BOOLEAN_BOXED.equals(call.owner)) pendingValue.set(Boolean.toString(held != 0));
+            })
+            .commitAt(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && VanillaSourceClasses.Methods.SET_VALUE.equals(call.name)), setValue -> {
+                String prop = pendingProp.get();
+                String value = pendingValue.get();
+                if (prop != null && value != null) pairs.put(prop, value);
+            })
+            .run();
         return pairs;
     }
 
-    /** The declared-but-unset {@code any()}-default of a property, memoised with a cycle guard. */
+    /**
+     * The declared-but-unset {@code any()}-default of a property, memoised with a cycle guard.
+     */
     private @Nullable String anyDefault(@NotNull PropertyDefinitionResolver.FieldRef ref) {
         String key = ref.owner() + '.' + ref.field();
         if (this.defaultValueCache.containsKey(key)) return this.defaultValueCache.get(key);
@@ -136,37 +146,36 @@ final class BlockDefaultStateResolver {
     private @Nullable String defaultFromCreate(@NotNull MethodInsnNode create) {
         if (VanillaSourceClasses.Types.INTEGER_PROPERTY.equals(create.owner)) {
             // create(name, min, max): walking back, the int nearest the name string is the min.
-            Integer min = null;
-            for (AbstractInsnNode node = create.getPrevious(); node != null; node = node.getPrevious()) {
-                if (AsmKit.isPseudoNode(node)) continue;
-                if (AsmKit.readStringLiteral(node) != null) break;
-                Integer literal = AsmKit.readIntLiteral(node);
-                if (literal != null) min = literal;
-            }
+            Integer min = AsmWalker.before(create).real()
+                .until(Insn.of(AbstractInsnNode.class, node -> AsmWalker.stringLiteral(node) != null))
+                .mapNotNull(AsmWalker::intLiteral)
+                .last();
             return min == null ? null : Integer.toString(min);
         }
         if (VanillaSourceClasses.Types.BOOLEAN_PROPERTY.equals(create.owner))
             return BlockStatePolicies.booleanDefault();
 
         // EnumProperty - the class arg is the nearest preceding class literal.
-        AbstractInsnNode classNode = AsmKit.findPreceding(create, n -> AsmKit.readTypeLiteral(n) != null, op -> true);
-        Type classLiteral = classNode == null ? null : AsmKit.readTypeLiteral(classNode);
+        AbstractInsnNode classNode = AsmWalker.before(create).real().first(n -> AsmWalker.typeLiteral(n) != null);
+        Type classLiteral = classNode == null ? null : AsmWalker.typeLiteral(classNode);
         if (classLiteral == null) return null;
         String enumOwner = classLiteral.getInternalName();
 
         if (create.desc.endsWith(ENUM_ARRAY_CREATE_TAIL)) {
             // create(name, class, Enum[]): first value = the array's index-0 GETSTATIC.
-            AbstractInsnNode anewarray = AsmKit.findPreceding(create, n -> n.getOpcode() == Opcodes.ANEWARRAY, op -> true);
-            if (anewarray != null)
-                for (AbstractInsnNode node = anewarray; node != null && node != create; node = node.getNext())
-                    if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode value)
-                        return this.properties.enumSerializedName(value.owner, value.name);
-            return this.properties.firstEnumConstant(enumOwner);
+            AbstractInsnNode anewarray = AsmWalker.before(create).real().first(n -> n.getOpcode() == Opcodes.ANEWARRAY);
+            FieldInsnNode value = AsmWalker.from(anewarray)
+                .until(create)
+                .ofType(FieldInsnNode.class)
+                .first(field -> field.getOpcode() == Opcodes.GETSTATIC);
+            return value != null
+                ? this.properties.enumSerializedName(value.owner, value.name)
+                : this.properties.firstEnumConstant(enumOwner);
         }
         if (create.desc.endsWith(ENUM_PREDICATE_CREATE_TAIL)) {
             // create(name, class, predicate): a Direction.Plane filter resolves to the first direction
             // in that plane (derived from the Plane construction); any other predicate falls back.
-            AbstractInsnNode predicate = AsmKit.previousReal(create);
+            AbstractInsnNode predicate = AsmWalker.previousReal(create);
             if (predicate != null && predicate.getOpcode() == Opcodes.GETSTATIC && predicate instanceof FieldInsnNode plane) {
                 String planeFirst = resolvePlaneFirstDirection(plane, enumOwner);
                 if (planeFirst != null) return planeFirst;
@@ -184,20 +193,16 @@ final class BlockDefaultStateResolver {
      * {@code planeField} is not a plane-style filter constant.
      */
     private @Nullable String resolvePlaneFirstDirection(@NotNull FieldInsnNode planeField, @NotNull String enumOwner) {
-        MethodNode clinit = AsmKit.findClinit(this.cache, planeField.owner);
-        if (clinit == null) return null;
-        String firstDirection = null;
-        for (AbstractInsnNode node : clinit.instructions) {
-            if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode dir
-                && dir.owner.equals(enumOwner) && firstDirection == null)
-                firstDirection = dir.name;
-            if (AsmKit.isPutStatic(node, planeField.owner) && node instanceof FieldInsnNode put) {
-                if (put.name.equals(planeField.name) && firstDirection != null)
-                    return this.properties.enumSerializedName(enumOwner, firstDirection);
-                firstDirection = null;
-            }
-        }
-        return null;
+        return AsmWalker.clinit(this.cache, planeField.owner)
+            .latch(node -> node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode dir
+                && dir.owner.equals(enumOwner) ? dir.name : null)
+            .firstWins()
+            .commitAt(Insn.putStatic(planeField.owner))
+            .firstNotNull(commit -> {
+                String firstDirection = commit.value();
+                return commit.node().name.equals(planeField.name) && firstDirection != null
+                    ? this.properties.enumSerializedName(enumOwner, firstDirection) : null;
+            });
     }
 
 }
