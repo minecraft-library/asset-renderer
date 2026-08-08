@@ -29,32 +29,6 @@ Closing it is one of two things: have each capture step record its own wall time
 take the budget out of the plan's output - the `BUDGET` line, the skill's 110s rule and the
 `report.wall-time` pointer go together either way.
 
-## Nothing has reviewed the store's bootstrap, so its independent cross-checks cannot be retired
-
-The parity store's first promotion was cross-checked against a set of independently produced reports
-and a reference-tree digest, none of which is tracked. Their deletion was gated on a review of that
-first promotion, and nothing records one having happened. Until one does, they are the only check on the
-store's bootstrap that does not come from the store, so removing them is a decision rather than
-housekeeping - and because they are untracked, losing that directory takes the check with it.
-
-What the check now says, which is the half that was missing when the entry was written. The digest
-listing covers 2311 PNGs and every one of them carries the byte-identical sha256 the store's
-`manifest.references` row does. The single file the store names and the listing does not is the
-tree's only non-PNG, so the listing is narrower rather than in disagreement. The tree on disk still
-re-derives the digest all six stored sweeps name as the set they were measured against, and the
-stored row derives the same one, so the store is self-consistent with the bytes it describes.
-
-The reports cover five of the six sweeps - the glint sweep has none - and across 1945 rows and 15524
-compared cells, 18 cells disagree. They fall on nine rows, every one of them an armoured subject, and
-on two columns: the mean delta and the differing-pixel count. No canvas dimension and no coverage
-figure disagrees anywhere, and the movement is fourth-decimal and runs both ways. Since the reference
-side is proven identical file for file, a moved row is the Java side having moved since the report
-was taken, which is what armour work landing afterwards looks like.
-
-That is evidence, not the review. It says the cross-checks and the store still agree about the tree
-they share; it does not say anyone has read the first promotion and judged it sound, which is what
-their deletion was gated on.
-
 ## The blindness map's `source` column cites a working note `CLAUDE.md`'s citation rule forbids
 
 `CLAUDE.md`'s *Skip these* states the rule: a tracked file cites no working note, by path or by entry
